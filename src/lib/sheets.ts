@@ -1,14 +1,12 @@
+// src/lib/sheets.ts
 import type { Portfolio, Transaction } from './types';
+import { ensureGapi } from './google'; // Import the waiter
 
-// Range Helpers
 const PORT_OPT_RANGE = 'Portfolio_Options!A2:M';
-const TX_APPEND_RANGE = 'Transaction_Log!A:J'; // Write A-J, Formulas in K-L
+const TX_APPEND_RANGE = 'Transaction_Log!A:J';
 
-/**
- * Ensures the sheet has the correct headers and FORMULAS.
- * This runs on app startup or if we detect issues.
- */
 export const ensureSchema = async (spreadsheetId: string) => {
+  await ensureGapi(); // WAIT FOR GAPI
   const batchUpdate = {
     spreadsheetId,
     resource: {
@@ -52,7 +50,8 @@ export const ensureSchema = async (spreadsheetId: string) => {
 };
 
 export const fetchPortfolios = async (spreadsheetId: string): Promise<Portfolio[]> => {
-  const res = await window.gapi.client.sheets.spreadsheets.values.get({
+  await ensureGapi(); // WAIT FOR GAPI
+    const res = await window.gapi.client.sheets.spreadsheets.values.get({
     spreadsheetId,
     range: PORT_OPT_RANGE,
   });
@@ -66,10 +65,21 @@ export const fetchPortfolios = async (spreadsheetId: string): Promise<Portfolio[
     currency: r[10], divPolicy: r[11], divCommRate: parseFloat(r[12])
   }));
 };
+ 
+
+// Helper to get Sheet ID by Name (needed for batchUpdate)
+async function getSheetId(spreadsheetId: string, sheetName: string): Promise<number> {
+  await ensureGapi(); // WAIT FOR GAPI
+  const res = await window.gapi.client.sheets.spreadsheets.get({ spreadsheetId });
+  const sheet = res.result.sheets?.find((s: any) => s.properties.title === sheetName);
+  return sheet?.properties.sheetId || 0;
+}
 
 export const addPortfolio = async (spreadsheetId: string, p: Portfolio) => {
+  await ensureGapi(); // WAIT FOR GAPI
   const row = [
-    p.id, p.name, p.cgt, p.incTax, 
+    p.id, p.name, 
+    p.cgt, p.incTax, 
     p.mgmtVal, p.mgmtType, p.mgmtFreq,
     p.commRate, p.commMin, p.commMax,
     p.currency, p.divPolicy, p.divCommRate
@@ -84,6 +94,7 @@ export const addPortfolio = async (spreadsheetId: string, p: Portfolio) => {
 };
 
 export const addTransaction = async (spreadsheetId: string, t: Transaction) => {
+  await ensureGapi(); // WAIT FOR GAPI
   const row = [
     t.date, t.portfolioId, t.ticker.toUpperCase(), t.exchange || '',
     t.type, t.qty, t.price, t.grossValue,
@@ -92,15 +103,8 @@ export const addTransaction = async (spreadsheetId: string, t: Transaction) => {
 
   await window.gapi.client.sheets.spreadsheets.values.append({
     spreadsheetId,
-    range: TX_APPEND_RANGE,
+    range: 'Transaction_Log!A:J',
     valueInputOption: 'USER_ENTERED',
     resource: { values: [row] }
   });
 };
-
-// Helper to get Sheet ID by Name (needed for batchUpdate)
-async function getSheetId(spreadsheetId: string, sheetName: string): Promise<number> {
-  const res = await window.gapi.client.sheets.spreadsheets.get({ spreadsheetId });
-  const sheet = res.result.sheets?.find((s: any) => s.properties.title === sheetName);
-  return sheet?.properties.sheetId || 0;
-}
