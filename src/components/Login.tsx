@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Box, Button, Typography, CircularProgress } from '@mui/material';
+import { Box, Button, Typography, CircularProgress, Paper, Container } from '@mui/material';
 import GoogleIcon from '@mui/icons-material/Google';
 import { initGoogleClient, signIn, getSpreadsheet, createSpreadsheet } from '../lib/google';
 
@@ -56,26 +56,55 @@ export function Login({ onLogin }: { onLogin: (sheetId: string) => void }) {
   };
 
   if (loading) return (
-    <Box display="flex" justifyContent="center" alignItems="center" height="100vh">
-      <CircularProgress />
+    <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh" bgcolor="background.default">
+      <CircularProgress color="primary" />
     </Box>
   );
 
   return (
-    <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" height="100vh" gap={2}>
-      <Typography variant="h4" fontWeight="bold">Portfolios</Typography>
-      <Typography color="text.secondary">Private, Local, Secure.</Typography>
-      
-      {error && <Typography color="error">{error}</Typography>}
-      
-      <Button 
-        variant="contained" 
-        startIcon={<GoogleIcon />} 
-        onClick={performLogin}
-        sx={{ mt: 2, textTransform: 'none', fontSize: '1.1rem', py: 1.5, px: 4 }}
-      >
-        Sign in with Google
-      </Button>
+    <Box 
+      display="flex" 
+      flexDirection="column" 
+      alignItems="center" 
+      justifyContent="center" 
+      minHeight="100vh" 
+      bgcolor="background.default"
+    >
+      <Container maxWidth="xs">
+        <Paper 
+          elevation={0} 
+          sx={{ 
+            p: 5, 
+            display: 'flex', 
+            flexDirection: 'column', 
+            alignItems: 'center', 
+            borderRadius: 3,
+            border: 1,
+            borderColor: 'divider',
+            textAlign: 'center'
+          }}
+        >
+          <Typography variant="h3" gutterBottom color="primary">
+            Portfolios
+          </Typography>
+          <Typography variant="body1" color="text.secondary" paragraph>
+            Private, secure portfolio tracking powered by your Google Sheets.
+          </Typography>
+          
+          {error && <Typography color="error" sx={{ mb: 2 }}>{error}</Typography>}
+          
+          <Button 
+            variant="contained" 
+            startIcon={<GoogleIcon />} 
+            onClick={performLogin}
+            fullWidth
+            size="large"
+            sx={{ mt: 2, py: 1.5 }}
+          >
+            Sign in with Google
+          </Button>
+        </Paper>
+      </Container>
     </Box>
   );
 }

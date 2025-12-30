@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { 
   Box, TextField, Button, MenuItem, Select, InputLabel, FormControl, 
-  Typography, Paper, Alert, Snackbar, InputAdornment 
+  Typography, Alert, Snackbar, InputAdornment, Grid, Card, CardContent, Divider, Tooltip 
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import SaveIcon from '@mui/icons-material/Save';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import type { Portfolio, Transaction } from '../lib/types';
 import { addTransaction, fetchPortfolios } from '../lib/sheets';
 
@@ -21,41 +22,72 @@ export function AddTrade({ sheetId }: Props) {
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [portId, setPortId] = useState('');
   const [ticker, setTicker] = useState('');
-  const [type, setType] = useState<'BUY' | 'SELL' | 'DIVIDEND'>('BUY');
+  const [type, setType] = useState<'BUY' | 'SELL' | 'DIVIDEND' | 'FEE'>('BUY');
   const [qty, setQty] = useState<string>('');
   const [price, setPrice] = useState<string>('');
   const [total, setTotal] = useState<string>('');
   const [vestDate, setVestDate] = useState('');
   const [comment, setComment] = useState('');
   
-  // Calc Mode: 'manual' | 'total'
-  const [calcMode, setCalcMode] = useState('manual');
-
   useEffect(() => {
     fetchPortfolios(sheetId).then(setPortfolios);
   }, [sheetId]);
 
-  // Calculation Logic
-  const handleTotalChange = (val: string) => {
-    setTotal(val);
-    if (price && parseFloat(price) > 0) {
-      setQty((parseFloat(val) / parseFloat(price)).toFixed(4));
+  // Handlers: whenever a field is changed, if one of the other two is present compute the third.
+  const EPS = 1e-12;
+
+  const handleQtyChange = (val: string) => {
+    setQty(val);
+    const q = parseFloat(val);
+    const p = parseFloat(price);
+    const t = parseFloat(total);
+    if (Number.isFinite(q)) {
+      if (Number.isFinite(p)) {
+        // qty + price -> total
+        setTotal((q * p).toFixed(2));
+      } else if (Number.isFinite(t) && Math.abs(q) > EPS) {
+        // qty + total -> price (keep total, compute price)
+        setPrice((t / q).toFixed(4));
+      }
     }
   };
 
   const handlePriceChange = (val: string) => {
     setPrice(val);
-    if (calcMode === 'total' && total) {
-      setQty((parseFloat(total) / parseFloat(val)).toFixed(4));
-    } else if (calcMode === 'manual' && qty) {
-      setTotal((parseFloat(qty) * parseFloat(val)).toFixed(2));
+    const q = parseFloat(qty);
+    const p = parseFloat(val);
+    const t = parseFloat(total);
+    if (Number.isFinite(p)) {
+      if (Number.isFinite(q)) {
+        // qty + price -> total
+        setTotal((q * p).toFixed(2));
+      } else if (Number.isFinite(t) && Math.abs(p) > EPS) {
+        // price + total -> qty (keep total, compute qty)
+        setQty((t / p).toFixed(4));
+      }
     }
   };
 
+  const handleTotalChange = (val: string) => {
+    setTotal(val);
+    const q = parseFloat(qty);
+    const p = parseFloat(price);
+    const t = parseFloat(val);
+    if (Number.isFinite(t)) {
+      if (Number.isFinite(p) && Math.abs(p) > EPS) {
+        // total + price -> qty (prefer keeping price)
+        setQty((t / p).toFixed(4));
+      } else if (Number.isFinite(q) && Math.abs(q) > EPS) {
+        // total + qty -> price
+        setPrice((t / q).toFixed(4));
+      }
+    }
+  };
+  
   const handleSubmit = async () => {
     if (!portId || !ticker || !price || !qty) return;
     setLoading(true);
-
+ 
     try {
       const txn: Transaction = {
         date,
@@ -83,107 +115,138 @@ export function AddTrade({ sheetId }: Props) {
   };
 
   return (
-    <Paper sx={{ p: 3, maxWidth: 600, mx: 'auto', mt: 4 }}>
-      <Typography variant="h6" gutterBottom fontWeight="bold" color="primary">
-        Add Transaction
+    <Box sx={{ maxWidth: 800, mx: 'auto' }}>
+      <Typography variant="h5" gutterBottom sx={{ fontWeight: 600, color: 'text.primary', mb: 3 }}>
+        New Transaction
       </Typography>
 
-      <Box display="flex" gap={2} mb={2}>
-        <FormControl fullWidth size="small">
-          <InputLabel>Portfolio</InputLabel>
-          <Select value={portId} label="Portfolio" onChange={(e) => setPortId(e.target.value)}>
-            {portfolios.map(p => (
-              <MenuItem key={p.id} value={p.id}>{p.name} ({p.currency})</MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-        <TextField 
-          type="date" label="Date" size="small" 
-          value={date} onChange={e => setDate(e.target.value)} 
-          InputLabelProps={{ shrink: true }} 
-        />
-      </Box>
+      <Grid container spacing={3}>
+        {/* General Info */}
+        <Grid size={{ xs: 12, md: 5 }}>
+          <Card variant="outlined" sx={{ height: '100%' }}>
+            <CardContent>
+              <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                GENERAL INFO
+              </Typography>
+              <Box display="flex" flexDirection="column" gap={2} mt={2}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Portfolio</InputLabel>
+                  <Select value={portId} label="Portfolio" onChange={(e) => setPortId(e.target.value)}>
+                    {portfolios.map(p => (
+                      <MenuItem key={p.id} value={p.id}>{p.name} ({p.currency})</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
 
-      <Box display="flex" gap={2} mb={2}>
-        <TextField 
-          fullWidth size="small" label="Ticker" 
-          value={ticker} onChange={e => setTicker(e.target.value.toUpperCase())}
-          InputProps={{
-            endAdornment: <InputAdornment position="end"><SearchIcon /></InputAdornment>
-          }}
-        />
-        <FormControl size="small" sx={{ minWidth: 120 }}>
-          <InputLabel>Type</InputLabel>
-          <Select value={type} label="Type" onChange={(e) => setType(e.target.value as any)}>
-            <MenuItem value="BUY">BUY</MenuItem>
-            <MenuItem value="SELL">SELL</MenuItem>
-            <MenuItem value="DIVIDEND">DIVIDEND</MenuItem>
-          </Select>
-        </FormControl>
-      </Box>
+                <TextField 
+                  type="date" label="Date" size="small" fullWidth
+                  value={date} onChange={e => setDate(e.target.value)} 
+                  InputLabelProps={{ shrink: true }} 
+                />
 
-      <Box bgcolor="#f5f5f5" p={2} borderRadius={2} mb={2}>
-        <Box display="flex" justifyContent="space-between" mb={1}>
-          <Typography variant="caption" fontWeight="bold">CALCULATION MODE</Typography>
-          <Select 
-            native size="small" variant="standard" 
-            value={calcMode} onChange={e => setCalcMode(e.target.value)}
-            sx={{ fontSize: '0.8rem' }}
+                <TextField 
+                  fullWidth size="small" label="Ticker" 
+                  value={ticker} onChange={e => setTicker(e.target.value.toUpperCase())}
+                  InputProps={{
+                    endAdornment: <InputAdornment position="end"><SearchIcon fontSize="small" color="action" /></InputAdornment>
+                  }}
+                />
+
+                <FormControl size="small" fullWidth>
+                  <InputLabel>Type</InputLabel>
+                  <Select value={type} label="Type" onChange={(e) => setType(e.target.value as any)}>
+                    <MenuItem value="BUY">Buy</MenuItem>
+                    <MenuItem value="SELL">Sell</MenuItem>
+                    <MenuItem value="DIVIDEND">Dividend</MenuItem>
+                    <MenuItem value="FEE">Fee</MenuItem>
+                  </Select>
+                </FormControl>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Financials */}
+        <Grid size={{ xs: 12, md: 7 }}>
+          <Card variant="outlined" sx={{ height: '100%' }}>
+            <CardContent>
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                 <Typography variant="subtitle2" color="text.secondary">
+                  FINANCIALS
+                </Typography>
+                <Tooltip title="Enter any two fields (Qty, Price, Total) and the third will be auto-calculated.">
+                  <InfoOutlinedIcon fontSize="small" color="action" sx={{ cursor: 'help' }} />
+                </Tooltip>
+              </Box>
+              
+              <Box display="flex" flexDirection="column" gap={2} mt={2}>
+                 <Grid container spacing={2}>
+                   <Grid size={{ xs: 6 }}>
+                     <Tooltip title="Number of shares/units bought or sold.">
+                       <TextField 
+                         label="Quantity" type="number" size="small" fullWidth
+                         value={qty} onChange={e => handleQtyChange(e.target.value)} 
+                       />
+                     </Tooltip>
+                   </Grid>
+                   <Grid size={{ xs: 6 }}>
+                      <Tooltip title="Price per single share/unit.">
+                        <TextField 
+                          label="Price" type="number" size="small" fullWidth
+                          value={price} onChange={e => handlePriceChange(e.target.value)} 
+                        />
+                      </Tooltip>
+                   </Grid>
+                   <Grid size={{ xs: 12 }}>
+                     <Tooltip title="Total transaction value (Quantity × Price).">
+                       <TextField 
+                         label="Total Cost" type="number" size="small" fullWidth
+                         value={total} onChange={e => handleTotalChange(e.target.value)} 
+                         InputProps={{
+                           startAdornment: <InputAdornment position="start">$</InputAdornment> // Generic currency symbol
+                         }}
+                       />
+                     </Tooltip>
+                   </Grid>
+                 </Grid>
+
+                 <Divider sx={{ my: 1 }} />
+                 
+                 <Box display="flex" gap={2}>
+                    <TextField 
+                      label="Comment" size="small" fullWidth 
+                      value={comment} onChange={e => setComment(e.target.value)} 
+                    />
+                    <Tooltip title="Date when these shares vest (if applicable for RSUs/Options).">
+                      <TextField 
+                        label="Vesting Date" type="date" size="small" 
+                        value={vestDate} onChange={e => setVestDate(e.target.value)}
+                        InputLabelProps={{ shrink: true }}
+                      />
+                    </Tooltip>
+                 </Box>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid size={{ xs: 12 }}>
+          <Button 
+            variant="contained" size="large" fullWidth
+            startIcon={<SaveIcon />} onClick={handleSubmit} disabled={loading}
+            sx={{ py: 1.5 }}
           >
-            <option value="manual">Manual (Qty & Price)</option>
-            <option value="total">Total Cost to Qty</option>
-          </Select>
-        </Box>
-
-        <Box display="flex" gap={2}>
-          {calcMode === 'manual' ? (
-             <TextField 
-               label="Quantity" type="number" size="small" fullWidth
-               value={qty} onChange={e => { setQty(e.target.value); if(price) setTotal((parseFloat(e.target.value)*parseFloat(price)).toFixed(2)); }} 
-             />
-          ) : (
-             <TextField 
-               label="Total Cost" type="number" size="small" fullWidth
-               value={total} onChange={e => handleTotalChange(e.target.value)} 
-             />
-          )}
-          
-          <TextField 
-            label="Price" type="number" size="small" fullWidth
-            value={price} onChange={e => handlePriceChange(e.target.value)} 
-          />
-        </Box>
-        
-        <Typography variant="caption" display="block" textAlign="right" mt={1} color="text.secondary">
-          Gross Value: {total || 0}
-        </Typography>
-      </Box>
-
-      <Box display="flex" gap={2} mb={2}>
-        <TextField 
-           label="Comment" size="small" fullWidth 
-           value={comment} onChange={e => setComment(e.target.value)} 
-        />
-        <TextField 
-           label="Vesting Date" type="date" size="small" 
-           value={vestDate} onChange={e => setVestDate(e.target.value)}
-           InputLabelProps={{ shrink: true }}
-        />
-      </Box>
-
-      <Button 
-        variant="contained" fullWidth size="large" 
-        startIcon={<SaveIcon />} onClick={handleSubmit} disabled={loading}
-      >
-        {loading ? 'Saving...' : 'Save Transaction'}
-      </Button>
+            {loading ? 'Saving...' : 'Save Transaction'}
+          </Button>
+        </Grid>
+      </Grid>
 
       <Snackbar 
         open={!!successMsg} autoHideDuration={3000} 
         onClose={() => setSuccessMsg('')}
       >
-        <Alert severity="success" variant="filled">{successMsg}</Alert>
+        <Alert severity="success" variant="filled" sx={{ width: '100%' }}>{successMsg}</Alert>
       </Snackbar>
-    </Paper>
+    </Box>
   );
 }

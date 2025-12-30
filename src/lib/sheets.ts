@@ -3,7 +3,6 @@ import type { Portfolio, Transaction } from './types';
 import { ensureGapi } from './google'; // Import the waiter
 
 const PORT_OPT_RANGE = 'Portfolio_Options!A2:M';
-const TX_APPEND_RANGE = 'Transaction_Log!A:J';
 
 export const ensureSchema = async (spreadsheetId: string) => {
   await ensureGapi(); // WAIT FOR GAPI

@@ -31,32 +31,30 @@ function App() {
   if (!sheetId) return <Login onLogin={setSheetId} />;
 
   return (
-    <Box sx={{ flexGrow: 1, bgcolor: '#f5f5f5', minHeight: '100vh' }}>
-      <AppBar position="static" color="default" elevation={1}>
+    <Box sx={{ flexGrow: 1, minHeight: '100vh', bgcolor: 'background.default' }}>
+      <AppBar position="static" color="inherit" elevation={0} sx={{ borderBottom: 1, borderColor: 'divider' }}>
         <Toolbar>
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1, fontWeight: 'bold', color: '#1976d2' }}>
+          <Typography variant="h5" component="div" sx={{ flexGrow: 1, color: 'text.primary', letterSpacing: '-0.5px' }}>
             Portfolios
           </Typography>
           
-          {/* LINK TO SHEET */}
           <Tooltip title="Open Google Sheet">
-            <IconButton onClick={openSheet} color="primary" sx={{ mr: 1 }}>
-              <OpenInNewIcon />
+            <IconButton onClick={openSheet} size="small" sx={{ mr: 1, color: 'text.secondary' }}>
+              <OpenInNewIcon fontSize="small" />
             </IconButton>
           </Tooltip>
 
-          <Button onClick={handleFixSchema} color="inherit" size="small">Reset Schema</Button>
-          <Button color="inherit" onClick={handleLogout} size="small" sx={{ ml: 1 }}>Logout</Button>
+          <Button onClick={handleFixSchema} color="inherit" size="small" sx={{ color: 'text.secondary' }}>Reset Schema</Button>
+          <Button color="inherit" onClick={handleLogout} size="small" sx={{ ml: 1, color: 'text.secondary' }}>Logout</Button>
         </Toolbar>
         
-        {/* TABS */}
         <Tabs value={tab} onChange={(_, v) => setTab(v)} centered textColor="primary" indicatorColor="primary">
-          <Tab label="Add Trade" />
-          <Tab label="Manage Portfolios" />
+          <Tab label="Add Trade" sx={{ textTransform: 'none', fontSize: '1rem' }} />
+          <Tab label="Manage Portfolios" sx={{ textTransform: 'none', fontSize: '1rem' }} />
         </Tabs>
       </AppBar>
       
-      <Container maxWidth="md">
+      <Container maxWidth="md" sx={{ mt: 5, pb: 8 }}>
         {tab === 0 ? (
           <AddTrade sheetId={sheetId} key={refreshKey} />
         ) : (

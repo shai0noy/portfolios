@@ -38,13 +38,13 @@ const loadScript = (src: string, globalVar: string) => {
 };
 
 // Create a persistent promise that resolves when GAPI is ready
-let gapiReadyPromise: Promise<void> | null = null;
+let gapiReadyPromise: Promise<boolean> | null = null;
 
 export const initGoogleClient = async () => {
   // If already initializing, return the existing promise
   if (gapiReadyPromise) return gapiReadyPromise;
 
-  gapiReadyPromise = new Promise<void>(async (resolve, reject) => {
+  gapiReadyPromise = new Promise<boolean>(async (resolve, reject) => {
     try {
       await loadScript('https://apis.google.com/js/api.js', 'gapi');
       await loadScript('https://accounts.google.com/gsi/client', 'google');
@@ -69,11 +69,13 @@ export const initGoogleClient = async () => {
           // Check for existing session
           const savedToken = localStorage.getItem('g_token');
           const savedExpiry = localStorage.getItem('g_expires');
+          let restored = false;
           if (savedToken && savedExpiry && Date.now() < parseInt(savedExpiry)) {
             window.gapi.client.setToken({ access_token: savedToken });
+            restored = true;
           }
           
-          resolve();
+          resolve(restored);
         } catch (e) {
           reject(e);
         }
