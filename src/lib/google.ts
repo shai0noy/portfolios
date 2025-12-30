@@ -1,6 +1,7 @@
 // src/lib/google.ts
 const CLIENT_ID = '557677701112-n7rlmpq9q5k5n5kmrtcr35j72bema1uo.apps.googleusercontent.com';
-const SCOPES = 'https://www.googleapis.com/auth/drive.file';
+// Request both drive.file (to create/manage files the app creates) and full sheets access
+const SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/spreadsheets';
 
 const DISCOVERY_DOCS = [
   "https://sheets.googleapis.com/$discovery/rest?version=v4",
@@ -73,6 +74,14 @@ export const initGoogleClient = async () => {
           if (savedToken && savedExpiry && Date.now() < parseInt(savedExpiry)) {
             window.gapi.client.setToken({ access_token: savedToken });
             restored = true;
+          } else if (savedToken) { // Token exists but expired, try silent refresh
+            try {
+              await refreshToken();
+              restored = true;
+            } catch (e) {
+              console.warn('Silent token refresh failed.', e);
+              // Let it resolve as not restored, user will need to sign in manually
+            }
           }
           
           resolve(restored);
@@ -90,10 +99,26 @@ export const initGoogleClient = async () => {
 
 // Helper to ensure GAPI is ready before use
 export const ensureGapi = async () => {
-  if (!window.gapi || !window.gapi.client) {
-    await initGoogleClient();
-  }
+  await initGoogleClient();
 };
+
+export const refreshToken = () => {
+  return new Promise((resolve, reject) => {
+    if (!tokenClient) return reject(new Error("Google Client not initialized"));
+    tokenClient.callback = (resp: any) => {
+      if (resp.error) reject(resp);
+      else {
+        const expiresAt = Date.now() + (resp.expires_in * 1000);
+        localStorage.setItem('g_token', resp.access_token);
+        localStorage.setItem('g_expires', expiresAt.toString());
+        window.gapi.client.setToken(resp);
+        resolve(resp);
+      }
+    };
+    tokenClient.requestAccessToken({ prompt: 'none' });
+  });
+};
+
 
 
 export const signIn = () => {

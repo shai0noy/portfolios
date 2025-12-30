@@ -88,7 +88,7 @@ export function Login({ onLogin }: { onLogin: (sheetId: string) => void }) {
             Portfolios
           </Typography>
           <Typography variant="body1" color="text.secondary" paragraph>
-            Private, secure portfolio tracking powered by your Google Sheets.
+            This is a purely client-side application. The code is open source and runs directly from GitHub Pages. All your data is stored in a private Google Sheet in your own Google Drive. No servers other than Google's can access your data, and the app can only access the Google Sheet it creates.
           </Typography>
           
           {error && <Typography color="error" sx={{ mb: 2 }}>{error}</Typography>}

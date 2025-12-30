@@ -1,11 +1,11 @@
-// src/App.tsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Login } from './components/Login';
 import { AddTrade } from './components/AddTrade';
 import { PortfolioManager } from './components/PortfolioManager';
 import { Dashboard } from './components/Dashboard';
-import { ensureSchema } from './lib/sheets';
-import { Box, AppBar, Toolbar, Typography, Container, Tabs, Tab, IconButton, Tooltip } from '@mui/material';
+import { ensureSchema, populateTestData } from './lib/sheets';
+import { initGoogleClient } from './lib/google';
+import { Box, AppBar, Toolbar, Typography, Container, Tabs, Tab, IconButton, Tooltip, CircularProgress } from '@mui/material';
 import { signOut } from './lib/google';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
@@ -16,6 +16,7 @@ function App() {
   const [sheetId, setSheetId] = useState<string | null>(localStorage.getItem('g_sheet_id'));
   const [tab, setTab] = useState(0);
   const [refreshKey, setRefreshKey] = useState(0); // Trigger to reload data
+  const [googleReady, setGoogleReady] = useState<boolean | null>(null);
 
   const handleLogout = () => {
     signOut();
@@ -28,11 +29,52 @@ function App() {
     }
   };
 
+  const handlePopulateTestData = async () => {
+    if (!sheetId) return;
+    if (!confirm('Populate sheet with 3 test portfolios and sample transactions?')) return;
+    try {
+      await populateTestData(sheetId);
+      setRefreshKey(k => k + 1);
+      // small feedback
+      alert('Test data populated (if not already present).');
+    } catch (e) {
+      console.error(e);
+      alert('Failed to populate test data: ' + (e instanceof Error ? e.message : String(e)));
+    }
+  };
+
   const openSheet = () => {
     if (sheetId) window.open(`https://docs.google.com/spreadsheets/d/${sheetId}`, '_blank');
   };
 
-  if (!sheetId) return <Login onLogin={setSheetId} />;
+  const handleLogin = (sid: string) => {
+    setSheetId(sid);
+    setGoogleReady(true);
+  };
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const restored = await initGoogleClient();
+        if (mounted) setGoogleReady(restored);
+        if (!restored) {
+          // Clear sheetId to force Login flow so the user can sign in
+          setSheetId(null);
+        }
+      } catch (e) {
+        if (mounted) setGoogleReady(false);
+        setSheetId(null);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
+
+  if (googleReady === null) {
+    return <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh"><CircularProgress /></Box>;
+  }
+
+  if (!sheetId || googleReady === false) return <Login onLogin={handleLogin} />;
 
   return (
     <Box sx={{ flexGrow: 1, minHeight: '100vh', bgcolor: 'background.default' }}>
@@ -40,7 +82,7 @@ function App() {
         <Toolbar>
           <AccountBalanceWalletIcon sx={{ color: 'primary.main', mr: 1.5 }} />
           <Typography variant="h5" component="div" sx={{ flexGrow: 0, color: 'text.primary', fontWeight: 700, letterSpacing: '-0.5px', mr: 4 }}>
-            My Wealth
+            Portfolios
           </Typography>
           
           <Tabs value={tab} onChange={(_, v) => setTab(v)} textColor="primary" indicatorColor="primary" sx={{ flexGrow: 1 }}>
@@ -50,6 +92,14 @@ function App() {
           </Tabs>
 
           <Box display="flex" gap={1}>
+            {/* Very hidden button only visible on localhost */}
+            {typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && (
+              <Tooltip title="Populate test data (localhost only)">
+                <IconButton onClick={handlePopulateTestData} size="small" sx={{ color: 'text.disabled', opacity: 0.15 }}>
+                  <BuildIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            )}
              <Tooltip title="Open Google Sheet">
               <IconButton onClick={openSheet} size="small" sx={{ color: 'text.secondary' }}>
                 <OpenInNewIcon fontSize="small" />

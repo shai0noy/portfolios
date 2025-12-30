@@ -22,14 +22,18 @@ export interface Transaction {
   type: 'BUY' | 'SELL' | 'DIVIDEND' | 'FEE';
   qty: number;
   price: number;
-  grossValue: number; // qty * price
   vestDate?: string;
   comment?: string;
+  commission?: number;
+  tax?: number;
 }
 
-export interface CalculatedTransaction extends Transaction {
-  commission: number;
-  netValue: number;
+export interface LiveData {
+  ticker: string;
+  exchange: string;
+  price: number;
+  name: string;
+  currency: string;
 }
 
 // Templates for quick setup
