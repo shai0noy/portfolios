@@ -1,8 +1,9 @@
 // src/lib/sheets.ts
-import type { Portfolio, Transaction } from './types';
+import type { Portfolio, Transaction, CalculatedTransaction } from './types';
 import { ensureGapi } from './google'; // Import the waiter
 
 const PORT_OPT_RANGE = 'Portfolio_Options!A2:M';
+const TX_FETCH_RANGE = 'Transaction_Log!A2:L'; // Fetch up to col L (Net Value)
 
 export const ensureSchema = async (spreadsheetId: string) => {
   await ensureGapi(); // WAIT FOR GAPI
@@ -62,6 +63,30 @@ export const fetchPortfolios = async (spreadsheetId: string): Promise<Portfolio[
     mgmtVal: parseFloat(r[4]), mgmtType: r[5], mgmtFreq: r[6],
     commRate: parseFloat(r[7]), commMin: parseFloat(r[8]), commMax: parseFloat(r[9]),
     currency: r[10], divPolicy: r[11], divCommRate: parseFloat(r[12])
+  }));
+};
+
+export const fetchTransactions = async (spreadsheetId: string): Promise<CalculatedTransaction[]> => {
+  await ensureGapi();
+  const res = await window.gapi.client.sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: TX_FETCH_RANGE,
+  });
+
+  const rows = res.result.values || [];
+  return rows.map((r: any) => ({
+    date: r[0],
+    portfolioId: r[1],
+    ticker: r[2],
+    exchange: r[3],
+    type: r[4],
+    qty: parseFloat(r[5]),
+    price: parseFloat(r[6]),
+    grossValue: parseFloat(r[7]),
+    vestDate: r[8],
+    comment: r[9],
+    commission: parseFloat(r[10]) || 0,
+    netValue: parseFloat(r[11]) || 0
   }));
 };
  

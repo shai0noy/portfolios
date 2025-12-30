@@ -4,7 +4,7 @@ import {
   Typography, Alert, Snackbar, InputAdornment, Grid, Card, CardContent, Divider, Tooltip 
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
-import SaveIcon from '@mui/icons-material/Save';
+import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import type { Portfolio, Transaction } from '../lib/types';
 import { addTransaction, fetchPortfolios } from '../lib/sheets';
@@ -212,19 +212,23 @@ export function AddTrade({ sheetId }: Props) {
 
                  <Divider sx={{ my: 1 }} />
                  
-                 <Box display="flex" gap={2}>
-                    <TextField 
-                      label="Comment" size="small" fullWidth 
-                      value={comment} onChange={e => setComment(e.target.value)} 
-                    />
-                    <Tooltip title="Date when these shares vest (if applicable for RSUs/Options).">
-                      <TextField 
-                        label="Vesting Date" type="date" size="small" 
-                        value={vestDate} onChange={e => setVestDate(e.target.value)}
-                        InputLabelProps={{ shrink: true }}
-                      />
-                    </Tooltip>
-                 </Box>
+                 <Grid container spacing={2}>
+                    <Grid size={{ xs: 6 }}>
+                       <TextField 
+                          label="Comment" size="small" fullWidth 
+                          value={comment} onChange={e => setComment(e.target.value)} 
+                        />
+                    </Grid>
+                    <Grid size={{ xs: 6 }}>
+                      <Tooltip title="Date when these shares vest (if applicable for RSUs/Options).">
+                        <TextField 
+                          label="Vesting Date" type="date" size="small" fullWidth
+                          value={vestDate} onChange={e => setVestDate(e.target.value)}
+                          InputLabelProps={{ shrink: true }}
+                        />
+                      </Tooltip>
+                    </Grid>
+                 </Grid>
               </Box>
             </CardContent>
           </Card>
@@ -233,7 +237,7 @@ export function AddTrade({ sheetId }: Props) {
         <Grid size={{ xs: 12 }}>
           <Button 
             variant="contained" size="large" fullWidth
-            startIcon={<SaveIcon />} onClick={handleSubmit} disabled={loading}
+            startIcon={<AddCircleOutlineIcon />} onClick={handleSubmit} disabled={loading}
             sx={{ py: 1.5 }}
           >
             {loading ? 'Saving...' : 'Save Transaction'}
