@@ -74,7 +74,6 @@ export const ensureSchema = async (spreadsheetId: string) => {
             rows: [{ values: [
               { userEnteredValue: { stringValue: 'Ticker' } }, { userEnteredValue: { stringValue: 'Exchange' } },
               { userEnteredValue: { stringValue: 'Live_Price' } }, { userEnteredValue: { stringValue: 'Display_Name' } },
-              { userEnteredValue: { stringValue: 'Currency' } }
               { userEnteredValue: { stringValue: 'Currency' } },
               { userEnteredValue: { stringValue: 'Sector' } }
             ] }],
@@ -177,7 +176,6 @@ export const syncAndFetchLiveData = async (spreadsheetId: string, transactions: 
     `=IFERROR(GOOGLEFINANCE(B${i+2}&":"&A${i+2}, "sector"), "Other")`,
   ]));
 
-  await window.gapi.client.sheets.spreadsheets.values.clear({ spreadsheetId, range: 'Live_Data!A2:E' });
   await window.gapi.client.sheets.spreadsheets.values.clear({ spreadsheetId, range: 'Live_Data!A2:F' });
   await window.gapi.client.sheets.spreadsheets.values.update({
     spreadsheetId,

@@ -216,11 +216,11 @@ export const AddTrade = ({ sheetId }: Props) => {
       </Typography>
 
       <Grid container spacing={2}>
-        <Grid item xs={12}>
+        <Grid size={12}>
           <Card variant="outlined">
             <CardContent>
               <Grid container spacing={2}>
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <FormControl fullWidth size="small">
                     <InputLabel>Portfolio</InputLabel>
                     <Select value={portId} label="Portfolio" onChange={(e) => setPortId(e.target.value)}>
@@ -230,7 +230,7 @@ export const AddTrade = ({ sheetId }: Props) => {
                     </Select>
                   </FormControl>
                 </Grid>
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField 
                     type="date" label="Date" size="small" fullWidth
                     value={date} onChange={e => setDate(e.target.value)} 
@@ -238,11 +238,11 @@ export const AddTrade = ({ sheetId }: Props) => {
                   />
                 </Grid>
 
-                <Grid item xs={12}>
+                <Grid size={12}>
                   <Divider sx={{ my: 1 }}>Trade Details</Divider>
                 </Grid>
 
-                <Grid item xs={12} sm={4}>
+                <Grid size={{ xs: 12, sm: 4 }}>
                   <TextField 
                     fullWidth size="small" label="Ticker" 
                     value={ticker} onChange={e => setTicker(e.target.value.toUpperCase())}
@@ -255,7 +255,7 @@ export const AddTrade = ({ sheetId }: Props) => {
                     }}
                   />
                 </Grid>
-                <Grid item xs={12} sm={4}>
+                <Grid size={{ xs: 12, sm: 4 }}>
                   <FormControl size="small" fullWidth>
                     <InputLabel>Exchange</InputLabel>
                     <Select value={exchange} label="Exchange" onChange={(e) => setExchange(e.target.value)}>
@@ -268,7 +268,7 @@ export const AddTrade = ({ sheetId }: Props) => {
                     </Select>
                   </FormControl>
                 </Grid>
-                <Grid item xs={12} sm={4}>
+                <Grid size={{ xs: 12, sm: 4 }}>
                   <FormControl size="small" fullWidth>
                     <InputLabel>Type</InputLabel>
                     <Select value={type} label="Type" onChange={(e) => setType(e.target.value as any)}>
@@ -279,9 +279,9 @@ export const AddTrade = ({ sheetId }: Props) => {
                   </FormControl>
                 </Grid>
 
-                {displayName && <Grid item xs={12}><Typography variant="h6" color="text.secondary">{displayName} <span style={{ fontSize: '0.8rem', color: '#9e9e9e' }}>({exchange})</span></Typography></Grid>}
+                {displayName && <Grid size={12}><Typography variant="h6" color="text.secondary">{displayName} <span style={{ fontSize: '0.8rem', color: '#9e9e9e' }}>({exchange})</span></Typography></Grid>}
                 
-                <Grid item xs={6} sm={4}>
+                <Grid size={{ xs: 6, sm: 4 }}>
                   <Tooltip title="Number of shares/units bought or sold.">
                     <TextField 
                       label="Quantity" type="number" size="small" fullWidth
@@ -289,7 +289,7 @@ export const AddTrade = ({ sheetId }: Props) => {
                     />
                   </Tooltip>
                 </Grid>
-                <Grid item xs={6} sm={4}>
+                <Grid size={{ xs: 6, sm: 4 }}>
                    <Tooltip title="Price per single share/unit.">
                      <TextField 
                        label="Price" type="number" size="small" fullWidth
@@ -304,7 +304,7 @@ export const AddTrade = ({ sheetId }: Props) => {
                      />
                    </Tooltip>
                 </Grid>
-                <Grid item xs={12} sm={4}>
+                <Grid size={{ xs: 12, sm: 4 }}>
                   <Tooltip title="Total transaction value (Quantity × Price).">
                     <TextField 
                       label="Total Cost" type="number" size="small" fullWidth
@@ -315,13 +315,13 @@ export const AddTrade = ({ sheetId }: Props) => {
                     />
                   </Tooltip>
                 </Grid>
-                <Grid item xs={6}>
+                <Grid size={6}>
                     <TextField 
                       label="Commission" type="number" size="small" fullWidth
                       value={commission} onChange={e => setCommission(e.target.value)} 
                     />
                 </Grid>
-                {(type === 'SELL' || type === 'DIVIDEND') && <Grid item xs={6}>
+                {(type === 'SELL' || type === 'DIVIDEND') && <Grid size={6}>
                   <Tooltip title="Tax on transaction (if applicable).">
                     <TextField 
                       label="Tax %" type="number" size="small" fullWidth
@@ -329,13 +329,13 @@ export const AddTrade = ({ sheetId }: Props) => {
                     />
                   </Tooltip>
                 </Grid>}
-                <Grid item xs={6}>
+                <Grid size={6}>
                     <TextField 
                        label="Comment" size="small" fullWidth 
                        value={comment} onChange={e => setComment(e.target.value)} 
                      />
                  </Grid>
-                 <Grid item xs={6}>
+                 <Grid size={6}>
                    <Tooltip title="Date when these shares vest (if applicable for RSUs/Options).">
                      <TextField 
                        label="Vesting Date" type="date" size="small" fullWidth
@@ -349,7 +349,7 @@ export const AddTrade = ({ sheetId }: Props) => {
           </Card>
         </Grid>
 
-        <Grid item xs={12}>
+        <Grid size={12}>
           <Button 
             variant="contained" size="large" fullWidth
             startIcon={<AddCircleOutlineIcon />} onClick={handleSubmit} disabled={loading}

@@ -7,9 +7,9 @@ DONE: Make the exchange display name less notable
 DONE: Make the ticker display name more notable
 DONE: New Transaction: should have section labels, tooltips (DONE)
 DONE: When displaying single portfolio in dash - use its currency by default
-Remove emoji from templates
-DONE: Check exisintg code for glaring issues
-DONE: add more tooltips where useful
+DONE: Remove emoji from templates
+DONE: Check existing code for glaring issues
+DONE: Add more tooltips where useful
 Allow importing from CSV - into new or exisintg portfolio
   Sample input cols: Symbol,Current Price,Date,Time,Change,Open,High,Low,Volume,Trade Date,Purchase Price,Quantity,Commission,High Limit,Low Limit,Comment,Transaction Type
   Sample input vals: GOOG,314.55,2025/12/30,16:00 EST,0.15997314,313.6,317.7,313.25,10406534,20241025,114.371429,35.0,0.0,,,,
@@ -17,8 +17,9 @@ Allow importing from CSV - into new or exisintg portfolio
 ON HOLD: Keep track of dividands since purchase! Add to sheet
 Add day change to dash rows and header
 Add more time ranges performance to header
-Populate sectors
-Improve code comments where truely helpful
+DONE: Populate sectors
+New Transaction UI - make comission field smaller, improve "ticker not found" location
+Improve code comments where truly helpful
 ON HOLD: Handle splits, etc, name changes
 ON HOLD: Support mobile screen sizes
 ON HOLD: Better ticker search - free text, multy options to select from

@@ -43,7 +43,7 @@ interface Holding {
   costOfSold: number;
 }
 
-const Dashboard = ({ sheetId }: DashboardProps) => {
+export const Dashboard = ({ sheetId }: DashboardProps) => {
   const [loading, setLoading] = useState(true);
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [groupByPortfolio, setGroupByPortfolio] = useState(true);
@@ -500,28 +500,26 @@ const Dashboard = ({ sheetId }: DashboardProps) => {
       {/* SUMMARY CARD */}
       <Paper sx={{ p: 3, mb: 4, bgcolor: 'primary.main', color: 'white' }}>
         <Grid container spacing={4} alignItems="center">
-          <Grid item xs={12} md={3}>
+          <Grid size={{ xs: 12, md: 3 }}>
             {selectedPortfolio ? (
               <>
-              <Button variant="outlined" color="inherit" onClick={() => setSelectedPortfolio(null)} sx={{ mb: 1 }}>
-                &larr; Back to All Portfolios
-          <Button 
-            variant="outlined" 
-            color="inherit" 
-            onClick={() => setSelectedPortfolio(null)} 
-            sx={{ mb: 1 }}
-            startIcon={<ArrowBackIcon />}
-          >
-            Back to All Portfolios
-              </Button>
-              <Typography variant="h5" fontWeight="bold">{selectedPortfolio}</Typography>
+                <Button 
+                  variant="outlined" 
+                  color="inherit" 
+                  onClick={() => setSelectedPortfolio(null)} 
+                  sx={{ mb: 1 }}
+                  startIcon={<ArrowBackIcon />}
+                >
+                  Back to All Portfolios
+                </Button>
+                <Typography variant="h5" fontWeight="bold">{selectedPortfolio}</Typography>
               </>
             ) : (
               <Typography variant="subtitle2" sx={{ opacity: 0.8 }}>TOTAL AUM</Typography>
             )}
             <Typography variant="h4" fontWeight="bold">{formatMoney(summary.aum, displayCurrency, 0)}</Typography>
           </Grid>
-          <Grid item xs={12} md={9}>
+          <Grid size={{ xs: 12, md: 9 }}>
             <Box display="flex" gap={4} justifyContent="flex-end" alignItems="center">
               <Select value={displayCurrency} onChange={handleCurrencyChange} size="small" sx={{ color: 'white', '& .MuiSvgIcon-root': { color: 'white' } }}>
                 <MenuItem value="USD">USD</MenuItem>
@@ -605,5 +603,3 @@ const Dashboard = ({ sheetId }: DashboardProps) => {
     </Box>
   );
 }
-
-export default Dashboard;

@@ -117,10 +117,10 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
           <InputLabel>Load Template</InputLabel>
           <Select value={template} label="Load Template" onChange={e => handleTemplate(e.target.value)}>
             <MenuItem value="">-- Select Template --</MenuItem>
-            <MenuItem value="std_il">🇮🇱 Standard IL (Broker/Bank)</MenuItem>
-            <MenuItem value="std_us">🇺🇸 Standard US (Broker)</MenuItem>
-            <MenuItem value="pension">☂️ Pension / Gemel</MenuItem>
-            <MenuItem value="rsu">🏢 RSU (Income Taxed)</MenuItem>
+            <MenuItem value="std_il">Standard IL (Broker/Bank)</MenuItem>
+            <MenuItem value="std_us">Standard US (Broker)</MenuItem>
+            <MenuItem value="pension">Pension / Gemel</MenuItem>
+            <MenuItem value="rsu">RSU (Income Taxed)</MenuItem>
           </Select>
         </FormControl>
       </Box>
