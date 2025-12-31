@@ -1,14 +1,17 @@
 // src/lib/sheets.ts
 import type { Portfolio, Transaction, LiveData } from './types';
-import { ensureGapi, signIn } from './google'; // Import the waiter + signIn
+import { ensureGapi, signIn } from './google'; 
+import { getTickerData } from './ticker';
 
 const PORT_OPT_RANGE = 'Portfolio_Options!A2:M';
 const TX_FETCH_RANGE = 'Transaction_Log!A2:L';
-const LIVE_DATA_RANGE = 'Live_Data!A2:F';
+// Adjusted range for new columns: Ticker, Exchange, Price, Name_En, Name_He, Currency, Sector, Change
+const LIVE_DATA_RANGE = 'Live_Data!A2:H'; 
+const CONFIG_RANGE = 'System_Config!A2:B'; // Renamed
 
-// Helper to get Sheet ID by Name (needed for batchUpdate)
+// Helper to get Sheet ID by Name
 async function getSheetId(spreadsheetId: string, sheetName: string, create = false): Promise<number> {
-  await ensureGapi(); // WAIT FOR GAPI
+  await ensureGapi(); 
   const res = await window.gapi.client.sheets.spreadsheets.get({ spreadsheetId });
   let sheet = res.result.sheets?.find((s: any) => s.properties.title === sheetName);
   if (!sheet && create) {
@@ -26,11 +29,12 @@ async function getSheetId(spreadsheetId: string, sheetName: string, create = fal
 }
 
 export const ensureSchema = async (spreadsheetId: string) => {
-  await ensureGapi(); // WAIT FOR GAPI
+  await ensureGapi(); 
   const sheetIds = {
     portfolio: await getSheetId(spreadsheetId, 'Portfolio_Options'),
     log: await getSheetId(spreadsheetId, 'Transaction_Log'),
     live: await getSheetId(spreadsheetId, 'Live_Data', true),
+    config: await getSheetId(spreadsheetId, 'System_Config', true),
   };
 
   const batchUpdate = {
@@ -67,15 +71,29 @@ export const ensureSchema = async (spreadsheetId: string) => {
             fields: 'userEnteredValue'
           }
         },
-        // 3. Live Data Headers
+        // 3. Live Data Headers (Updated)
         {
           updateCells: {
             range: { sheetId: sheetIds.live, startRowIndex: 0, endRowIndex: 1 },
             rows: [{ values: [
-              { userEnteredValue: { stringValue: 'Ticker' } }, { userEnteredValue: { stringValue: 'Exchange' } },
-              { userEnteredValue: { stringValue: 'Live_Price' } }, { userEnteredValue: { stringValue: 'Display_Name' } },
+              { userEnteredValue: { stringValue: 'Ticker' } }, 
+              { userEnteredValue: { stringValue: 'Exchange' } },
+              { userEnteredValue: { stringValue: 'Live_Price' } }, 
+              { userEnteredValue: { stringValue: 'Name_En' } },
+              { userEnteredValue: { stringValue: 'Name_He' } },
               { userEnteredValue: { stringValue: 'Currency' } },
-              { userEnteredValue: { stringValue: 'Sector' } }
+              { userEnteredValue: { stringValue: 'Sector' } },
+              { userEnteredValue: { stringValue: 'Day_Change_%' } }
+            ] }],
+            fields: 'userEnteredValue'
+          }
+        },
+        // 4. Config Sheet Headers
+        {
+          updateCells: {
+            range: { sheetId: sheetIds.config, startRowIndex: 0, endRowIndex: 1 },
+            rows: [{ values: [
+              { userEnteredValue: { stringValue: 'Key' } }, { userEnteredValue: { stringValue: 'Value' } }
             ] }],
             fields: 'userEnteredValue'
           }
@@ -85,10 +103,25 @@ export const ensureSchema = async (spreadsheetId: string) => {
   };
   
   await window.gapi.client.sheets.spreadsheets.batchUpdate(batchUpdate);
+
+  // Initial Config Data
+  const initialConfig = [
+    ['USDILS', '=GOOGLEFINANCE("CURRENCY:USDILS")'],
+    ['EURUSD', '=GOOGLEFINANCE("CURRENCY:EURUSD")'],
+    ['GBPUSD', '=GOOGLEFINANCE("CURRENCY:GBPUSD")'],
+    ['ILSUSD', '=GOOGLEFINANCE("CURRENCY:ILSUSD")']
+  ];
+
+  await window.gapi.client.sheets.spreadsheets.values.update({
+    spreadsheetId,
+    range: 'System_Config!A2',
+    valueInputOption: 'USER_ENTERED',
+    resource: { values: initialConfig }
+  });
 };
 
 export const fetchPortfolios = async (spreadsheetId: string): Promise<Portfolio[]> => {
-  await ensureGapi(); // WAIT FOR GAPI
+  await ensureGapi(); 
     const res = await window.gapi.client.sheets.spreadsheets.values.get({
     spreadsheetId,
     range: PORT_OPT_RANGE,
@@ -129,7 +162,7 @@ export const fetchTransactions = async (spreadsheetId: string): Promise<Transact
 };
 
 export const addPortfolio = async (spreadsheetId: string, p: Portfolio) => {
-  await ensureGapi(); // WAIT FOR GAPI
+  await ensureGapi(); 
   const row = [
     p.id, p.name, 
     p.cgt, p.incTax, 
@@ -147,7 +180,7 @@ export const addPortfolio = async (spreadsheetId: string, p: Portfolio) => {
 };
 
 export const addTransaction = async (spreadsheetId: string, t: Transaction) => {
-  await ensureGapi(); // WAIT FOR GAPI
+  await ensureGapi(); 
   const row = [
     t.date, t.portfolioId, t.ticker.toUpperCase(), t.exchange || '',
     t.type, t.qty, t.price, t.currency || '',
@@ -163,27 +196,9 @@ export const addTransaction = async (spreadsheetId: string, t: Transaction) => {
   });
 };
 
-export const syncAndFetchLiveData = async (spreadsheetId: string, transactions: Transaction[]): Promise<LiveData[]> => {
+// ONLY fetch live data from the sheet (fast)
+export const fetchLiveData = async (spreadsheetId: string): Promise<LiveData[]> => {
   await ensureGapi();
-  const uniqueTickers = [...new Map(transactions.map(t => [`${t.ticker}:${t.exchange}`, t])).values()];
-
-  const data = uniqueTickers.map((t, i) => ([
-    t.ticker,
-    t.exchange,
-    `=GOOGLEFINANCE(B${i+2}&":"&A${i+2}, "price")`,
-    `=IFERROR(GOOGLEFINANCE(B${i+2}&":"&A${i+2}, "name"), "")`,
-    `=GOOGLEFINANCE(B${i+2}&":"&A${i+2}, "currency")`,
-    `=IFERROR(GOOGLEFINANCE(B${i+2}&":"&A${i+2}, "sector"), "Other")`,
-  ]));
-
-  await window.gapi.client.sheets.spreadsheets.values.clear({ spreadsheetId, range: 'Live_Data!A2:F' });
-  await window.gapi.client.sheets.spreadsheets.values.update({
-    spreadsheetId,
-    range: 'Live_Data!A2',
-    valueInputOption: 'USER_ENTERED',
-    resource: { values: data }
-  });
-
   const res = await window.gapi.client.sheets.spreadsheets.values.get({
     spreadsheetId,
     range: LIVE_DATA_RANGE,
@@ -194,21 +209,95 @@ export const syncAndFetchLiveData = async (spreadsheetId: string, transactions: 
     ticker: r[0],
     exchange: r[1],
     price: parseFloat(r[2]),
-    name: r[3],
-    currency: r[4],
-    sector: r[5],
+    name: r[3], // Name En
+    name_he: r[4], // Name He
+    currency: r[5],
+    sector: r[6],
+    changePct: parseFloat(r[7]),
   }));
+};
+
+// Rebuild live data sheet with new formulas AND enriched metadata (slow, expensive)
+export const rebuildLiveData = async (spreadsheetId: string, transactions: Transaction[]) => {
+  await ensureGapi();
+  const uniqueTickers = [...new Map(transactions.map(t => [`${t.ticker}:${t.exchange}`, t])).values()];
+
+  // Fetch enriched metadata client-side (e.g. from Globes/Yahoo via proxy)
+  // This satisfies "Save english display name and Hebrew name" requirement
+  const enrichedData = await Promise.all(uniqueTickers.map(async (t) => {
+     let meta = null;
+     if (t.ticker && t.exchange) {
+       try {
+         meta = await getTickerData(t.ticker, t.exchange);
+       } catch (e) {
+         console.warn(`Failed to fetch metadata for ${t.ticker}`, e);
+       }
+     }
+     return { t, meta };
+  }));
+
+  const data = enrichedData.map(({ t, meta }, i) => ([
+    t.ticker,
+    t.exchange,
+    `=GOOGLEFINANCE(B${i+2}&":"&A${i+2}, "price")`, // Live Price (Formula)
+    meta?.name || `=IFERROR(GOOGLEFINANCE(B${i+2}&":"&A${i+2}, "name"), "")`, // Name En (Value preferred, fallback to formula)
+    meta?.name_he || "", // Name He (Value)
+    `=GOOGLEFINANCE(B${i+2}&":"&A${i+2}, "currency")`, // Currency (Formula)
+    `=IFERROR(GOOGLEFINANCE(B${i+2}&":"&A${i+2}, "sector"), "Other")`, // Sector (Formula)
+    `=IFERROR(GOOGLEFINANCE(B${i+2}&":"&A${i+2}, "changepct")/100, 0)`, // Change (Formula)
+  ]));
+
+  await window.gapi.client.sheets.spreadsheets.values.clear({ spreadsheetId, range: 'Live_Data!A2:H' });
+  if (data.length > 0) {
+    await window.gapi.client.sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: 'Live_Data!A2',
+      valueInputOption: 'USER_ENTERED',
+      resource: { values: data }
+    });
+  }
+};
+
+// Kept for backward compatibility
+export const syncAndFetchLiveData = async (spreadsheetId: string, transactions: Transaction[]): Promise<LiveData[]> => {
+  await rebuildLiveData(spreadsheetId, transactions);
+  return await fetchLiveData(spreadsheetId);
+};
+
+export const fetchSheetExchangeRates = async (spreadsheetId: string): Promise<Record<string, number>> => {
+  await ensureGapi();
+  const res = await window.gapi.client.sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: CONFIG_RANGE,
+  });
+  
+  const rows = res.result.values || [];
+  const rates: Record<string, number> = { USD: 1 };
+  
+  rows.forEach((r: any) => {
+    const pair = r[0]; 
+    const val = parseFloat(r[1]);
+    
+    if (pair && !isNaN(val)) {
+      if (pair.startsWith('USD') && pair.length === 6) {
+        const target = pair.substring(3);
+        rates[target] = val; 
+      } else if (pair.endsWith('USD') && pair.length === 6) {
+        const source = pair.substring(0, 3);
+        rates[source] = 1/val;
+      }
+    }
+  });
+  
+  return rates;
 };
 
 // Populate the spreadsheet with 3 sample portfolios and several transactions each
 export const populateTestData = async (spreadsheetId: string) => {
   await ensureGapi();
-  // Ensure we have an access token / user consent before writing
-  try { await signIn(); } catch (e) { /* user may have cancelled; continue and let writes fail with clear errors */ }
-  // Ensure headers/formulas exist first
-  try { await ensureSchema(spreadsheetId); } catch (e) { /* continue even if schema already exists */ }
+  try { await signIn(); } catch (e) { /* noop */ }
+  try { await ensureSchema(spreadsheetId); } catch (e) { /* noop */ }
 
-  // Define three portfolios with different params
   const portfolios: Portfolio[] = [
     {
       id: 'P-IL-GROWTH', name: 'Growth ILS',
@@ -227,29 +316,21 @@ export const populateTestData = async (spreadsheetId: string) => {
     }
   ];
 
-  // Append portfolios
   for (const p of portfolios) {
-    // ignore errors for duplicate appends
     try { await addPortfolio(spreadsheetId, p); } catch (e) { /* noop */ }
   }
 
-  // Define a handful of transactions for each portfolio
   const transactions: Transaction[] = [
-    // Growth ILS
-    { date: '2025-01-02', portfolioId: 'P-IL-GROWTH', ticker: 'TASE1', exchange: 'TASE', type: 'BUY', qty: 100, price: 50, currency: 'ILS', comment: 'Initial buy' },
-    { date: '2025-02-15', portfolioId: 'P-IL-GROWTH', ticker: 'TASE1', exchange: 'TASE', type: 'DIVIDEND', qty: 0, price: 0, currency: 'ILS', comment: 'Dividend payout' },
-    { date: '2025-06-10', portfolioId: 'P-IL-GROWTH', ticker: 'TASE2', exchange: 'TASE', type: 'BUY', qty: 50, price: 200, currency: 'ILS', comment: 'Add position' },
-
-    // Core USD
-    { date: '2025-03-01', portfolioId: 'P-USD-CORE', ticker: 'AAPL', exchange: 'NASDAQ', type: 'BUY', qty: 10, price: 150, currency: 'USD', comment: 'Core buy' },
-    { date: '2025-08-01', portfolioId: 'P-USD-CORE', ticker: 'AAPL', exchange: 'NASDAQ', type: 'DIVIDEND', qty: 0, price: 0, currency: 'USD', comment: 'Quarterly dividend' },
-    { date: '2025-11-20', portfolioId: 'P-USD-CORE', ticker: 'TSLA', exchange: 'NASDAQ', type: 'BUY', qty: 5, price: 700, currency: 'USD', comment: 'Speculative buy' },
-    { date: '2025-11-21', portfolioId: 'P-USD-CORE', ticker: 'AAPL', exchange: 'NASDAQ', type: 'SELL', qty: 5, price: 200, currency: 'USD', comment: 'Quarterly dividend' },
-
-    // RSU Account
-    { date: '2025-04-10', portfolioId: 'P-RSU', ticker: 'COMP', exchange: 'NASDAQ', type: 'BUY', qty: 200, price: 0.01, vestDate: '2025-04-10', currency: 'USD', comment: 'RSU vested' },
-    { date: '2025-07-10', portfolioId: 'P-RSU', ticker: 'COMP', exchange: 'NASDAQ', type: 'DIVIDEND', qty: 0, price: 0, currency: 'USD', comment: 'RSU dividend' },
-    { date: '2025-12-01', portfolioId: 'P-RSU', ticker: 'COMP', exchange: 'NASDAQ', type: 'SELL', qty: 50, price: 20, vestDate: '2099-01-01', currency: 'USD', comment: 'RSU unvested' }
+    { date: '2025-01-02', portfolioId: 'P-IL-GROWTH', ticker: 'TASE1', exchange: 'TASE', type: 'BUY', qty: 100, price: 50, grossValue: 5000, currency: 'ILS', comment: 'Initial buy' },
+    { date: '2025-02-15', portfolioId: 'P-IL-GROWTH', ticker: 'TASE1', exchange: 'TASE', type: 'DIVIDEND', qty: 0, price: 0, grossValue: 50, currency: 'ILS', comment: 'Dividend payout' },
+    { date: '2025-06-10', portfolioId: 'P-IL-GROWTH', ticker: 'TASE2', exchange: 'TASE', type: 'BUY', qty: 50, price: 200, grossValue: 10000, currency: 'ILS', comment: 'Add position' },
+    { date: '2025-03-01', portfolioId: 'P-USD-CORE', ticker: 'AAPL', exchange: 'NASDAQ', type: 'BUY', qty: 10, price: 150, grossValue: 1500, currency: 'USD', comment: 'Core buy' },
+    { date: '2025-08-01', portfolioId: 'P-USD-CORE', ticker: 'AAPL', exchange: 'NASDAQ', type: 'DIVIDEND', qty: 0, price: 0, grossValue: 5, currency: 'USD', comment: 'Quarterly dividend' },
+    { date: '2025-11-20', portfolioId: 'P-USD-CORE', ticker: 'TSLA', exchange: 'NASDAQ', type: 'BUY', qty: 5, price: 700, grossValue: 3500, currency: 'USD', comment: 'Speculative buy' },
+    { date: '2025-11-21', portfolioId: 'P-USD-CORE', ticker: 'AAPL', exchange: 'NASDAQ', type: 'SELL', qty: 5, price: 200, grossValue: 1000, currency: 'USD', comment: 'Quarterly dividend' },
+    { date: '2025-04-10', portfolioId: 'P-RSU', ticker: 'COMP', exchange: 'NASDAQ', type: 'BUY', qty: 200, price: 0.01, grossValue: 2, vestDate: '2025-04-10', currency: 'USD', comment: 'RSU vested' },
+    { date: '2025-07-10', portfolioId: 'P-RSU', ticker: 'COMP', exchange: 'NASDAQ', type: 'DIVIDEND', qty: 0, price: 0, grossValue: 20, currency: 'USD', comment: 'RSU dividend' },
+    { date: '2025-12-01', portfolioId: 'P-RSU', ticker: 'COMP', exchange: 'NASDAQ', type: 'SELL', qty: 50, price: 20, grossValue: 1000, vestDate: '2099-01-01', currency: 'USD', comment: 'RSU unvested' }
   ];
 
   for (const t of transactions) {

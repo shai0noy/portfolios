@@ -1,22 +1,41 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Login } from './components/Login';
 import { AddTrade } from './components/AddTrade';
 import { PortfolioManager } from './components/PortfolioManager';
 import { Dashboard } from './components/Dashboard';
-import { ensureSchema, populateTestData } from './lib/sheets';
+import { ImportCSV } from './components/ImportCSV';
+import { ensureSchema, populateTestData, fetchTransactions, rebuildLiveData } from './lib/sheets';
 import { initGoogleClient } from './lib/google';
-import { Box, AppBar, Toolbar, Typography, Container, Tabs, Tab, IconButton, Tooltip, CircularProgress } from '@mui/material';
+import { Box, AppBar, Toolbar, Typography, Container, Tabs, Tab, IconButton, Tooltip, CircularProgress, ThemeProvider, CssBaseline } from '@mui/material';
 import { signOut } from './lib/google';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import BuildIcon from '@mui/icons-material/Build';
 import LogoutIcon from '@mui/icons-material/Logout';
+import FileDownloadIcon from '@mui/icons-material/FileDownload';
+import Brightness4Icon from '@mui/icons-material/Brightness4';
+import Brightness7Icon from '@mui/icons-material/Brightness7';
+import SyncIcon from '@mui/icons-material/Sync';
+import { getTheme } from './theme';
 
 function App() {
   const [sheetId, setSheetId] = useState<string | null>(localStorage.getItem('g_sheet_id'));
   const [tab, setTab] = useState(0);
   const [refreshKey, setRefreshKey] = useState(0); // Trigger to reload data
   const [googleReady, setGoogleReady] = useState<boolean | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [mode, setMode] = useState<'light' | 'dark'>(() => (localStorage.getItem('themeMode') as 'light' | 'dark') || 'light');
+  const [rebuilding, setRebuilding] = useState(false);
+
+  const theme = useMemo(() => getTheme(mode), [mode]);
+
+  useEffect(() => {
+    localStorage.setItem('themeMode', mode);
+  }, [mode]);
+
+  const toggleColorMode = () => {
+    setMode((prevMode) => (prevMode === 'light' ? 'dark' : 'light'));
+  };
 
   const handleLogout = () => {
     signOut();
@@ -29,13 +48,30 @@ function App() {
     }
   };
 
+  const handleRebuildData = async () => {
+    if (!sheetId) return;
+    if (!confirm("This will rebuild the 'Live_Data' sheet by fetching fresh data from Google Finance for all tickers. Continue?")) return;
+    
+    setRebuilding(true);
+    try {
+      const txns = await fetchTransactions(sheetId);
+      await rebuildLiveData(sheetId, txns);
+      setRefreshKey(k => k + 1); // Refresh dashboard
+      // alert("Market data rebuilt successfully."); // Optional feedback
+    } catch (e) {
+      console.error(e);
+      alert("Error rebuilding market data.");
+    } finally {
+      setRebuilding(false);
+    }
+  };
+
   const handlePopulateTestData = async () => {
     if (!sheetId) return;
     if (!confirm('Populate sheet with 3 test portfolios and sample transactions?')) return;
     try {
       await populateTestData(sheetId);
       setRefreshKey(k => k + 1);
-      // small feedback
       alert('Test data populated (if not already present).');
     } catch (e) {
       console.error(e);
@@ -59,7 +95,6 @@ function App() {
         const restored = await initGoogleClient();
         if (mounted) setGoogleReady(restored);
         if (!restored) {
-          // Clear sheetId to force Login flow so the user can sign in
           setSheetId(null);
         }
       } catch (e) {
@@ -74,15 +109,15 @@ function App() {
     return <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh"><CircularProgress /></Box>;
   }
 
-  if (!sheetId || googleReady === false) return <Login onLogin={handleLogin} />;
-
-  return (
+  const content = !sheetId || googleReady === false ? (
+    <Login onLogin={handleLogin} />
+  ) : (
     <Box sx={{ flexGrow: 1, minHeight: '100vh', bgcolor: 'background.default' }}>
       <AppBar position="static" color="inherit" elevation={0} sx={{ borderBottom: 1, borderColor: 'divider' }}>
         <Toolbar>
           <AccountBalanceWalletIcon sx={{ color: 'primary.main', mr: 1.5 }} />
           <Typography variant="h5" component="div" sx={{ flexGrow: 0, color: 'text.primary', fontWeight: 700, letterSpacing: '-0.5px', mr: 4 }}>
-            Portfolios
+            My Portfolios
           </Typography>
           
           <Tabs value={tab} onChange={(_, v) => setTab(v)} textColor="primary" indicatorColor="primary" sx={{ flexGrow: 1 }}>
@@ -92,7 +127,24 @@ function App() {
           </Tabs>
 
           <Box display="flex" gap={1}>
-            {/* Very hidden button only visible on localhost */}
+             <Tooltip title="Switch Theme">
+              <IconButton onClick={toggleColorMode} size="small" sx={{ color: 'text.secondary' }}>
+                {mode === 'dark' ? <Brightness7Icon fontSize="small" /> : <Brightness4Icon fontSize="small" />}
+              </IconButton>
+            </Tooltip>
+
+            <Tooltip title="Rebuilds market data cache from Google Finance (takes longer)">
+              <IconButton onClick={handleRebuildData} size="small" sx={{ color: 'text.secondary' }} disabled={rebuilding}>
+                 {rebuilding ? <CircularProgress size={20} /> : <SyncIcon fontSize="small" />}
+              </IconButton>
+            </Tooltip>
+
+             <Tooltip title="Import Transactions (CSV)">
+              <IconButton onClick={() => setImportOpen(true)} size="small" sx={{ color: 'text.secondary' }}>
+                <FileDownloadIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+
             {typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && (
               <Tooltip title="Populate test data (localhost only)">
                 <IconButton onClick={handlePopulateTestData} size="small" sx={{ color: 'text.disabled', opacity: 0.15 }}>
@@ -130,7 +182,23 @@ function App() {
           <PortfolioManager sheetId={sheetId} onSuccess={() => setRefreshKey(k => k + 1)} />
         )}
       </Container>
+
+      {importOpen && (
+        <ImportCSV 
+          sheetId={sheetId} 
+          open={importOpen} 
+          onClose={() => setImportOpen(false)} 
+          onSuccess={() => { setRefreshKey(k => k + 1); setImportOpen(false); }} 
+        />
+      )}
     </Box>
+  );
+
+  return (
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      {content}
+    </ThemeProvider>
   );
 }
 

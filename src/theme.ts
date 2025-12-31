@@ -1,21 +1,24 @@
 import { createTheme } from '@mui/material/styles';
 
-const theme = createTheme({
+export const getTheme = (mode: 'light' | 'dark') => createTheme({
   palette: {
-    background: {
-      default: '#f8f9fa', // Light grey-white, clean
-      paper: '#ffffff',
-    },
-    primary: {
-      main: '#2c3e50', // Dark slate blue - professional, slightly classic
-    },
-    secondary: {
-      main: '#8e44ad',
-    },
-    text: {
-      primary: '#2c3e50',
-      secondary: '#607d8b',
-    },
+    mode,
+    ...(mode === 'light'
+      ? {
+          // Light Mode (Restored/Preserved)
+          background: { default: '#f8f9fa', paper: '#ffffff' },
+          primary: { main: '#2c3e50' },
+          text: { primary: '#2c3e50', secondary: '#607d8b' },
+          divider: '#e0e0e0',
+        }
+      : {
+          // Dark Mode (Improved)
+          background: { default: '#0d1117', paper: '#161b22' }, // Darker, slightly blueish grey (GitHub-like)
+          primary: { main: '#58a6ff' }, // GitHub/VSCode blue, readable on dark
+          secondary: { main: '#bc8cff' },
+          text: { primary: '#c9d1d9', secondary: '#8b949e' }, // Softer white and grey
+          divider: '#30363d',
+        }),
   },
   typography: {
     fontFamily: '"Inter", "Helvetica", "Arial", sans-serif',
@@ -33,30 +36,41 @@ const theme = createTheme({
       styleOverrides: {
         root: {
           backgroundImage: 'none',
-          boxShadow: '0px 2px 4px rgba(0,0,0,0.05)', // Minimal shadow
-          border: '1px solid #e0e0e0', // Subtle border
+          boxShadow: mode === 'light' ? '0px 2px 4px rgba(0,0,0,0.05)' : 'none',
+          border: mode === 'light' ? '1px solid #e0e0e0' : '1px solid #30363d',
           borderRadius: 8,
+          backgroundColor: mode === 'light' ? '#ffffff' : '#161b22', // Explicit paper bg
         },
       },
     },
     MuiButton: {
       styleOverrides: {
         root: {
-          textTransform: 'none', // Modern/Clean
+          textTransform: 'none',
           borderRadius: 6,
           fontWeight: 600,
           boxShadow: 'none',
-          '&:hover': {
-            boxShadow: '0px 2px 4px rgba(0,0,0,0.1)',
-          },
         },
-        containedPrimary: {
-           border: '1px solid #2c3e50',
-        },
-        outlined: {
-          borderWidth: '1px',
-        }
       },
+    },
+    MuiAppBar: {
+      styleOverrides: {
+        root: {
+          backgroundColor: mode === 'light' ? '#fff' : '#0d1117',
+          color: mode === 'light' ? '#2c3e50' : '#c9d1d9',
+          boxShadow: 'none',
+          borderBottom: '1px solid',
+          borderColor: mode === 'light' ? '#e0e0e0' : '#30363d',
+        },
+      },
+    },
+    MuiTableCell: {
+      styleOverrides: {
+        root: {
+          borderColor: mode === 'light' ? '#e0e0e0' : '#30363d',
+          color: mode === 'light' ? 'inherit' : '#c9d1d9',
+        }
+      }
     },
     MuiTextField: {
       defaultProps: {
@@ -65,7 +79,13 @@ const theme = createTheme({
       },
       styleOverrides: {
         root: {
-          backgroundColor: '#fff',
+          backgroundColor: mode === 'light' ? '#fff' : 'transparent',
+          '& .MuiOutlinedInput-notchedOutline': {
+            borderColor: mode === 'light' ? 'rgba(0, 0, 0, 0.23)' : '#30363d',
+          },
+          '&:hover .MuiOutlinedInput-notchedOutline': {
+             borderColor: mode === 'light' ? 'rgba(0, 0, 0, 0.87)' : '#8b949e',
+          }
         }
       }
     },
@@ -73,25 +93,18 @@ const theme = createTheme({
       defaultProps: {
         size: 'small',
       },
+      styleOverrides: {
+        icon: {
+          color: mode === 'light' ? 'rgba(0, 0, 0, 0.54)' : '#8b949e',
+        }
+      }
     },
-    MuiAppBar: {
+    MuiIconButton: {
       styleOverrides: {
         root: {
-          backgroundColor: '#fff',
-          color: '#2c3e50',
-          boxShadow: '0px 1px 0px #e0e0e0', // Bottom border instead of shadow
-        },
-      },
-    },
-    MuiTooltip: {
-      styleOverrides: {
-        tooltip: {
-          backgroundColor: '#2c3e50',
-          fontSize: '0.75rem',
-        },
-      },
-    },
+          color: mode === 'light' ? 'inherit' : '#8b949e',
+        }
+      }
+    }
   },
 });
-
-export default theme;

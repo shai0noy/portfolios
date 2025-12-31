@@ -1,35 +1,35 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
-  Box, Typography, Paper, Table, TableBody, TableCell, TableContainer,
-  TableHead, TableRow, CircularProgress, FormControlLabel, Switch, Grid,
-  Collapse, IconButton, TableSortLabel, Select, MenuItem, Button, Menu, Tooltip
+  Box, CircularProgress, FormControlLabel, Switch, IconButton, Tooltip
 } from '@mui/material';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import { fetchPortfolios, fetchTransactions, syncAndFetchLiveData } from '../lib/sheets';
+import RefreshIcon from '@mui/icons-material/Refresh';
+import { fetchPortfolios, fetchTransactions, fetchLiveData } from '../lib/sheets';
 import { ColumnSelector } from './ColumnSelector';
 import { getExchangeRates } from '../lib/currency';
 import type { LiveData } from '../lib/types';
+import { DashboardSummary } from './DashboardSummary';
+import { DashboardTable } from './DashboardTable';
 
 interface DashboardProps {
   sheetId: string;
 }
 interface Holding {
-  key: string; // Composite key: portfolioId_ticker
+  key: string;
   portfolioId: string;
   portfolioName: string;
   ticker: string;
   exchange: string;
   displayName: string;
+  name_he?: string; // Add name_he
   qtyVested: number;
   qtyUnvested: number;
   totalQty: number;
   avgCost: number;
-  currentPrice: number; // Last transaction price
+  currentPrice: number;
   mvVested: number;
   mvUnvested: number;
   totalMV: number;
-  realizedGain: number; // Net realized gain
+  realizedGain: number;
   realizedGainPct: number;
   realizedGainAfterTax: number;
   dividends: number;
@@ -39,22 +39,25 @@ interface Holding {
   totalGainPct: number;
   valueAfterTax: number;
   sector: string;
-  costBasis: number; // For unrealized calc
+  dayChangePct: number;
+  dayChangeVal: number;
+  costBasis: number;
   costOfSold: number;
+  stockCurrency: string;
 }
 
 export const Dashboard = ({ sheetId }: DashboardProps) => {
   const [loading, setLoading] = useState(true);
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [groupByPortfolio, setGroupByPortfolio] = useState(true);
-  const [sortBy, setSortBy] = useState<string>('totalMV');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [includeUnvested, setIncludeUnvested] = useState<boolean>(false);
-  const [displayCurrency, setDisplayCurrency] = useState('USD');
+  
+  // Persist Currency
+  const [displayCurrency, setDisplayCurrency] = useState(() => localStorage.getItem('displayCurrency') || 'USD');
+  
   const [exchangeRates, setExchangeRates] = useState<any>({ USD: 1, ILS: 3.7 });
   const [selectedPortfolio, setSelectedPortfolio] = useState<string | null>(null);
   const [portMap, setPortMap] = useState<Map<string, any>>(new Map());
-  const [contextMenu, setContextMenu] = useState<{ mouseX: number; mouseY: number; column: string; } | null>(null);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const openColSelector = Boolean(anchorEl);
 
@@ -67,8 +70,12 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
   };
 
   useEffect(() => {
-    getExchangeRates('USD').then(rates => setExchangeRates(rates));
-  }, []);
+    localStorage.setItem('displayCurrency', displayCurrency);
+  }, [displayCurrency]);
+
+  useEffect(() => {
+    getExchangeRates(sheetId).then(rates => setExchangeRates(rates));
+  }, [sheetId]);
 
   useEffect(() => {
     const selectedPort = portMap.get(selectedPortfolio || '');
@@ -76,10 +83,6 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
       setDisplayCurrency(selectedPort.currency);
     }
   }, [selectedPortfolio, portMap]);
-
-  const handleCurrencyChange = (event: any) => {
-    setDisplayCurrency(event.target.value);
-  };
 
   const [summary, setSummary] = useState({
     aum: 0,
@@ -89,6 +92,8 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
     totalReturn: 0,
     realizedGainAfterTax: 0,
     valueAfterTax: 0,
+    totalDayChange: 0,
+    totalDayChangePct: 0
   });
 
   useEffect(() => {
@@ -96,16 +101,24 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
   }, [sheetId, includeUnvested]);
 
   useEffect(() => {
-    if (selectedPortfolio) {
-      const portfolioHoldings = holdings.filter(h => h.portfolioName === selectedPortfolio);
-      const summary = portfolioHoldings.reduce((acc, h) => {
-        acc.aum += h.totalMV;
-        acc.totalUnrealized += h.unrealizedGain;
-        acc.totalRealized += h.realizedGain;
-        acc.totalDividends += h.dividends;
-        acc.totalReturn += h.totalGain;
-        acc.realizedGainAfterTax += h.realizedGainAfterTax;
-        acc.valueAfterTax += h.valueAfterTax;
+    const calculateSummary = (data: Holding[]) => {
+      // Calculate summary in BASE currency (USD) to allow summation of mixed currencies
+      const s = data.reduce((acc, h) => {
+        // Helper to convert TO USD from stock currency
+        const toUSD = (val: number) => {
+           if (!exchangeRates) return val;
+           const fromRate = exchangeRates[h.stockCurrency] || 1;
+           return h.stockCurrency === 'USD' ? val : val / fromRate;
+        };
+        
+        acc.aum += toUSD(h.totalMV);
+        acc.totalUnrealized += toUSD(h.unrealizedGain);
+        acc.totalRealized += toUSD(h.realizedGain);
+        acc.totalDividends += toUSD(h.dividends);
+        acc.totalReturn += toUSD(h.totalGain);
+        acc.realizedGainAfterTax += toUSD(h.realizedGainAfterTax);
+        acc.valueAfterTax += toUSD(h.valueAfterTax);
+        acc.totalDayChange += toUSD(h.dayChangeVal);
         return acc;
       }, {
         aum: 0,
@@ -115,26 +128,22 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         totalReturn: 0,
         realizedGainAfterTax: 0,
         valueAfterTax: 0,
+        totalDayChange: 0,
+        totalDayChangePct: 0
       });
-      setSummary(summary);
+
+      const prevClose = s.aum - s.totalDayChange;
+      s.totalDayChangePct = prevClose > 0 ? s.totalDayChange / prevClose : 0;
+      
+      setSummary(s);
+    };
+
+    if (selectedPortfolio) {
+      calculateSummary(holdings.filter(h => h.portfolioName === selectedPortfolio));
     } else {
-      const grandAUM = holdings.reduce((sum, h) => sum + h.totalMV, 0);
-      const grandUnrealized = holdings.reduce((sum, h) => sum + h.unrealizedGain, 0);
-      const grandRealized = holdings.reduce((sum, h) => sum + h.realizedGain, 0);
-      const grandDividends = holdings.reduce((sum, h) => sum + h.dividends, 0);
-      const grandRealizedAfterTax = holdings.reduce((sum, h) => sum + h.realizedGainAfterTax, 0);
-      const grandValueAfterTax = holdings.reduce((sum, h) => sum + h.valueAfterTax, 0);
-      setSummary({
-        aum: grandAUM,
-        totalUnrealized: grandUnrealized,
-        totalRealized: grandRealized,
-        totalDividends: grandDividends,
-        totalReturn: grandUnrealized + grandRealized + grandDividends,
-        realizedGainAfterTax: grandRealizedAfterTax,
-        valueAfterTax: grandValueAfterTax
-      });
+      calculateSummary(holdings);
     }
-  }, [selectedPortfolio, holdings]);
+  }, [selectedPortfolio, holdings, exchangeRates]);
 
   const loadData = async () => {
     setLoading(true);
@@ -144,7 +153,9 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         fetchTransactions(sheetId),
       ]);
 
-      const liveData = await syncAndFetchLiveData(sheetId, txns);
+      // Only fetch live data (fast), no rebuild here
+      const liveData = await fetchLiveData(sheetId);
+      
       const liveDataMap = new Map<string, LiveData>();
       liveData.forEach(d => liveDataMap.set(`${d.ticker}:${d.exchange}`, d));
 
@@ -153,27 +164,24 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
       const holdingMap = new Map<string, Holding>();
       const taxRate = 0.25;
 
-      // Sort transactions by date ascending
       txns.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-      // Filter out future transactions
       const today = new Date();
       const pastTxns = txns.filter(t => new Date(t.date) <= today);
-
-      // 1. Process Transactions
       const filteredTxns = includeUnvested ? pastTxns : pastTxns.filter(t => !t.vestDate || new Date(t.vestDate) <= new Date());
 
       filteredTxns.forEach(t => {
         const key = `${t.portfolioId}_${t.ticker}`;
         if (!holdingMap.has(key)) {
           const live = liveDataMap.get(`${t.ticker}:${t.exchange}`);
+          const p = newPortMap.get(t.portfolioId);
           holdingMap.set(key, {
             key,
             portfolioId: t.portfolioId,
-            portfolioName: newPortMap.get(t.portfolioId)?.name || t.portfolioId,
+            portfolioName: p?.name || t.portfolioId,
             ticker: t.ticker,
             exchange: t.exchange || '',
             displayName: live?.name || t.ticker,
+            name_he: live?.name_he, // Store Hebrew Name
             qtyVested: 0,
             qtyUnvested: 0,
             totalQty: 0,
@@ -191,9 +199,12 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
             totalGain: 0,
             totalGainPct: 0,
             valueAfterTax: 0,
-            sector: newPortMap.get(t.portfolioId)?.type || '',
+            sector: live?.sector || '',
+            dayChangePct: live?.changePct || 0,
+            dayChangeVal: 0,
             costBasis: 0,
             costOfSold: 0,
+            stockCurrency: live?.currency || t.currency || p?.currency || 'USD',
           });
         }
 
@@ -201,13 +212,11 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         const isVested = !t.vestDate || new Date(t.vestDate) <= new Date();
         const grossValue = t.qty * t.price;
 
-    // We use a weighted average cost basis (AVCO) method.
         if (t.type === 'BUY') {
           if (isVested) h.qtyVested += t.qty;
           else h.qtyUnvested += t.qty;
           h.costBasis += grossValue + (t.commission || 0);
         } else if (t.type === 'SELL') {
-      // Realized gains are calculated at the time of sale based on the current average cost.
           const avgCost = (h.qtyVested + h.qtyUnvested) > 0 ? h.costBasis / (h.qtyVested + h.qtyUnvested) : 0;
           const costOfSold = avgCost * t.qty;
           h.realizedGain += (grossValue - costOfSold);
@@ -216,13 +225,11 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
           if (isVested) h.qtyVested -= t.qty;
           else h.qtyUnvested -= t.qty;
         } else if (t.type === 'DIVIDEND') {
-      // Dividends are tracked separately and added to the total return.
           const taxAmount = grossValue * ((t.tax || 0) / 100);
           h.dividends += grossValue - (t.commission || 0) - taxAmount;
         }
       });
 
-      // 2. Finalize Calculations
       const processedHoldings: Holding[] = [];
 
       holdingMap.forEach(h => {
@@ -231,50 +238,39 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         h.mvVested = h.qtyVested * h.currentPrice;
         h.mvUnvested = h.qtyUnvested * h.currentPrice;
         h.totalMV = h.mvVested + h.mvUnvested;
-    
-    // Unrealized gain is the difference between current market value and the remaining cost basis.
+        
         const unrealized = h.totalMV - h.costBasis;
         h.unrealizedGain = unrealized;
         h.unrealizedGainPct = h.costBasis > 0 ? unrealized / h.costBasis : 0;
         h.realizedGainPct = h.costOfSold > 0 ? h.realizedGain / h.costOfSold : 0;
         h.realizedGainAfterTax = h.realizedGain * (1 - taxRate);
-    // Total gain includes both realized and unrealized gains plus dividends.
         h.totalGain = h.unrealizedGain + h.realizedGain + h.dividends;
         h.totalGainPct = h.costBasis + h.costOfSold > 0 ? h.totalGain / (h.costBasis + h.costOfSold) : 0;
-    // Value after tax estimates the net value if all positions were liquidated today (applying capital gains tax).
         h.valueAfterTax = h.totalMV - (h.unrealizedGain > 0 ? h.unrealizedGain * taxRate : 0);
+        h.dayChangeVal = h.totalMV * h.dayChangePct;
+
         processedHoldings.push(h);
       });
 
       setHoldings(processedHoldings);
     } catch (e) {
       console.error(e);
-      let msg = 'Error loading dashboard data';
-      try {
-        if (e && typeof e === 'object') {
-          if ((e as any).result) msg += ': ' + JSON.stringify((e as any).result);
-          else if ((e as any).body) msg += ': ' + ((typeof (e as any).body === 'string') ? (e as any).body : JSON.stringify((e as any).body));
-          else if ((e as any).message) msg += ': ' + (e as any).message;
-          else msg += ': ' + JSON.stringify(e);
-        } else {
-          msg += ': ' + String(e);
-        }
-      } catch (_err) {
-        msg += '.';
-      }
-      alert(msg);
+      // Suppress alert for common fetch errors if it's a silent reload
     } finally {
       setLoading(false);
     }
   };
 
-  const [columnVisibility, setColumnVisibility] = useState({
+  // Default Columns
+  const defaultColumns = {
     displayName: true,
     ticker: true,
     sector: true,
     qty: true,
     avgCost: true,
     currentPrice: true,
+    dayChangePct: true,
+    dayChangeVal: true,
     mv: true,
     unrealizedGain: true,
     unrealizedGainPct: true,
@@ -284,7 +280,16 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
     totalGain: true,
     totalGainPct: true,
     valueAfterTax: true,
+  };
+
+  const [columnVisibility, setColumnVisibility] = useState(() => {
+    const saved = localStorage.getItem('columnVisibility');
+    return saved ? { ...defaultColumns, ...JSON.parse(saved) } : defaultColumns;
   });
+
+  useEffect(() => {
+    localStorage.setItem('columnVisibility', JSON.stringify(columnVisibility));
+  }, [columnVisibility]);
 
   const columnDisplayNames: Record<string, string> = {
     displayName: 'Display Name',
@@ -293,6 +298,8 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
     qty: 'Quantity',
     avgCost: 'Avg Cost',
     currentPrice: 'Current Price',
+    dayChangePct: 'Day Change %',
+    dayChangeVal: 'Day Change $',
     mv: 'Market Value',
     unrealizedGain: 'Unrealized Gain',
     unrealizedGainPct: 'Unrealized Gain %',
@@ -316,263 +323,44 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
     return groups;
   }, [holdings, groupByPortfolio, selectedPortfolio]);
 
-  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
-
-  const toggleGroup = (name: string) => {
-    setExpandedGroups(prev => ({ ...prev, [name]: !(prev[name] ?? true) }));
-  };
-
-  const handleSort = (key: string) => {
-    if (sortBy === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
-    else { setSortBy(key); setSortDir('desc'); }
-  };
-
-  const handleContextMenu = (event: React.MouseEvent, column: string) => {
-    event.preventDefault();
-    setContextMenu({
-      mouseX: event.clientX - 2,
-      mouseY: event.clientY - 4,
-      column,
-    });
-  };
-
-  const handleCloseContextMenu = () => {
-    setContextMenu(null);
-  };
-
-  const handleHideColumn = () => {
-    if (contextMenu) {
-      setColumnVisibility((prev) => ({ ...prev, [contextMenu.column]: false }));
-    }
-    handleCloseContextMenu();
-  };
-
-  const getSortValue = (h: Holding, key: string) => {
-    switch (key) {
-      case 'ticker': return h.ticker || '';
-      case 'qty': return h.totalQty;
-      case 'qtyVested': return h.qtyVested;
-      case 'qtyUnvested': return h.qtyUnvested;
-      case 'avgCost': return h.avgCost;
-      case 'currentPrice': return h.currentPrice;
-      case 'marketValue': return h.totalMV;
-      case 'mvVested': return h.mvVested;
-      case 'mvUnvested': return h.mvUnvested;
-      case 'unrealized': {
-        const avg = h.totalQty > 0 ? h.costBasis / h.totalQty : 0;
-        const costVested = avg * h.qtyVested;
-        const mvV = h.mvVested;
-        const mvU = h.mvUnvested;
-        const effectiveMV = includeUnvested ? mvV + mvU : mvV;
-        const effectiveCost = includeUnvested ? costVested + (avg * h.qtyUnvested) : costVested;
-        return effectiveMV - effectiveCost;
-      }
-      case 'unrealizedPct': {
-        const avg2 = h.totalQty > 0 ? h.costBasis / h.totalQty : 0;
-        const costVested2 = avg2 * h.qtyVested;
-        const mvV2 = h.mvVested;
-        const mvU2 = h.mvUnvested;
-        const effectiveMV2 = includeUnvested ? mvV2 + mvU2 : mvV2;
-        const effectiveCost2 = includeUnvested ? costVested2 + (avg2 * h.qtyUnvested) : costVested2;
-        return effectiveCost2 > 0 ? (effectiveMV2 - effectiveCost2) / effectiveCost2 : 0;
-      }
-      case 'realizedGain': return h.realizedGain;
-      case 'totalRet': {
-        const unreal = getSortValue(h, 'unrealized') as number;
-        return unreal + h.realizedGain + h.dividends;
-      }
-      case 'totalMV': return h.totalMV;
-      default: return 0;
-    }
-  };
-
-  // Render helper for each portfolio group (keeps JSX cleaner)
-  const renderGroup = (entry: [string, Holding[]]) => {
-    const [groupName, groupHoldings] = entry;
-    const isExpanded = expandedGroups[groupName] ?? true;
-    const hasUnvested = groupHoldings.some(h => h.qtyUnvested > 0);
-
-    const sortedHoldings = [...groupHoldings].sort((a, b) => {
-      const va = getSortValue(a, sortBy);
-      const vb = getSortValue(b, sortBy);
-      if (va === vb) return 0;
-      if (typeof va === 'string' && typeof vb === 'string') {
-        return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
-      }
-      return sortDir === 'asc' ? (va as number) - (vb as number) : (vb as number) - (va as number);
-    });
-
-    return (
-      <Box key={groupName} component={Paper} sx={{ mb: 4, overflowX: 'auto' }}>
-        {groupByPortfolio && (
-          <Box display="flex" alignItems="center" justifyContent="space-between" p={1} bgcolor="#f5f5f5" borderBottom="1px solid #e0e0e0">
-            <Box display="flex" alignItems="center" gap={1} onClick={() => setSelectedPortfolio(groupName)} style={{ cursor: 'pointer' }}>
-              <IconButton size="small" onClick={(e) => { e.stopPropagation(); toggleGroup(groupName); }} sx={{ transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 200ms' }}>
-                <ExpandMoreIcon fontSize="small" />
-              </IconButton>
-              <Typography variant="subtitle1" color="primary" sx={{ fontWeight: 600 }}>{groupName}</Typography>
-            </Box>
-            <Typography variant="caption" sx={{ opacity: 0.7, pr: 1 }}>{groupHoldings.length} holdings</Typography>
-          </Box>
-        )}
-        <Collapse in={groupByPortfolio ? isExpanded : true} timeout="auto" unmountOnExit>
-          <Table size="small">
-            <TableHead>
-              {/* Keep this order: Identity, Quantity, Value, Gains */}
-              <TableRow sx={{ bgcolor: '#fafafa' }}>
-                {columnVisibility.displayName && <TableCell onContextMenu={(e) => handleContextMenu(e, 'displayName')}><Tooltip title="Display Name"><TableSortLabel active={sortBy === 'ticker'} direction={sortDir} onClick={() => handleSort('ticker')}>Display Name</TableSortLabel></Tooltip></TableCell>}
-                {columnVisibility.ticker && <TableCell onContextMenu={(e) => handleContextMenu(e, 'ticker')}><Tooltip title="Ticker Symbol"><TableSortLabel active={sortBy === 'ticker'} direction={sortDir} onClick={() => handleSort('ticker')}>Ticker</TableSortLabel></Tooltip></TableCell>}
-                {columnVisibility.sector && <TableCell onContextMenu={(e) => handleContextMenu(e, 'sector')}><Tooltip title="Sector"><TableSortLabel active={sortBy === 'sector'} direction={sortDir} onClick={() => handleSort('sector')}>Sector</TableSortLabel></Tooltip></TableCell>}
-                {columnVisibility.qty && <TableCell onContextMenu={(e) => handleContextMenu(e, 'qty')} align="right"><Tooltip title="Quantity"><TableSortLabel active={sortBy === 'qty'} direction={sortDir} onClick={() => handleSort('qty')}>Quantity</TableSortLabel></Tooltip></TableCell>}
-                {columnVisibility.avgCost && <TableCell onContextMenu={(e) => handleContextMenu(e, 'avgCost')} align="right"><Tooltip title="Average Cost"><TableSortLabel active={sortBy === 'avgCost'} direction={sortDir} onClick={() => handleSort('avgCost')}>Avg Cost</TableSortLabel></Tooltip></TableCell>}
-                {columnVisibility.currentPrice && <TableCell onContextMenu={(e) => handleContextMenu(e, 'currentPrice')} align="right"><Tooltip title="Current Price"><TableSortLabel active={sortBy === 'currentPrice'} direction={sortDir} onClick={() => handleSort('currentPrice')}>Current Price</TableSortLabel></Tooltip></TableCell>}
-                {columnVisibility.mv && <TableCell onContextMenu={(e) => handleContextMenu(e, 'mv')} align="right"><Tooltip title="Market Value"><TableSortLabel active={sortBy === 'marketValue'} direction={sortDir} onClick={() => handleSort('marketValue')}>Market Value</TableSortLabel></Tooltip></TableCell>}
-                {includeUnvested && <TableCell align="right"><Tooltip title="Vested Value"><TableSortLabel active={sortBy === 'mvVested'} direction={sortDir} onClick={() => handleSort('mvVested')}>Vested Value</TableSortLabel></Tooltip></TableCell>}
-                {hasUnvested && <TableCell align="right"><Tooltip title="Unvested Value"><TableSortLabel active={sortBy === 'mvUnvested'} direction={sortDir} onClick={() => handleSort('mvUnvested')}>Unvested Value</TableSortLabel></Tooltip></TableCell>}
-                {columnVisibility.unrealizedGain && <TableCell onContextMenu={(e) => handleContextMenu(e, 'unrealizedGain')} align="right"><Tooltip title="Unrealized Gain"><TableSortLabel active={sortBy === 'unrealizedGain'} direction={sortDir} onClick={() => handleSort('unrealizedGain')}>Unrealized Gain</TableSortLabel></Tooltip></TableCell>}
-                {columnVisibility.unrealizedGainPct && <TableCell onContextMenu={(e) => handleContextMenu(e, 'unrealizedGainPct')} align="right"><Tooltip title="Unrealized Gain %"><TableSortLabel active={sortBy === 'unrealizedGainPct'} direction={sortDir} onClick={() => handleSort('unrealizedGainPct')}>Unrealized Gain %</TableSortLabel></Tooltip></TableCell>}
-                {columnVisibility.realizedGain && <TableCell onContextMenu={(e) => handleContextMenu(e, 'realizedGain')} align="right"><Tooltip title="Realized Gain"><TableSortLabel active={sortBy === 'realizedGain'} direction={sortDir} onClick={() => handleSort('realizedGain')}>Realized Gain</TableSortLabel></Tooltip></TableCell>}
-                {columnVisibility.realizedGainPct && <TableCell onContextMenu={(e) => handleContextMenu(e, 'realizedGainPct')} align="right"><Tooltip title="Realized Gain %"><TableSortLabel active={sortBy === 'realizedGainPct'} direction={sortDir} onClick={() => handleSort('realizedGainPct')}>Realized Gain %</TableSortLabel></Tooltip></TableCell>}
-                {columnVisibility.realizedGainAfterTax && <TableCell onContextMenu={(e) => handleContextMenu(e, 'realizedGainAfterTax')} align="right"><Tooltip title="Realized Gain After Tax"><TableSortLabel active={sortBy === 'realizedGainAfterTax'} direction={sortDir} onClick={() => handleSort('realizedGainAfterTax')}>Realized Gain After Tax</TableSortLabel></Tooltip></TableCell>}
-                {columnVisibility.totalGain && <TableCell onContextMenu={(e) => handleContextMenu(e, 'totalGain')} align="right"><Tooltip title="Total Gain"><TableSortLabel active={sortBy === 'totalGain'} direction={sortDir} onClick={() => handleSort('totalGain')}>Total Gain</TableSortLabel></Tooltip></TableCell>}
-                {columnVisibility.totalGainPct && <TableCell onContextMenu={(e) => handleContextMenu(e, 'totalGainPct')} align="right"><Tooltip title="Total Gain %"><TableSortLabel active={sortBy === 'totalGainPct'} direction={sortDir} onClick={() => handleSort('totalGainPct')}>Total Gain %</TableSortLabel></Tooltip></TableCell>}
-                {columnVisibility.valueAfterTax && <TableCell onContextMenu={(e) => handleContextMenu(e, 'valueAfterTax')} align="right"><Tooltip title="Value After Tax"><TableSortLabel active={sortBy === 'valueAfterTax'} direction={sortDir} onClick={() => handleSort('valueAfterTax')}>Value After Tax</TableSortLabel></Tooltip></TableCell>}
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {sortedHoldings.map(h => {
-                const avg = h.totalQty > 0 ? h.costBasis / h.totalQty : 0;
-                const costVested = avg * h.qtyVested;
-                const costUnvested = avg * h.qtyUnvested;
-                const mvV = h.mvVested;
-                const mvU = h.mvUnvested;
-                const displayedVestedValue = mvV;
-                const displayedUnvestedValue = mvU;
-                const effectiveCost = includeUnvested ? costVested + costUnvested : costVested;
-                const unrealized = (includeUnvested ? h.totalMV : h.mvVested) - effectiveCost;
-                const unrealizedPct = effectiveCost > 0 ? unrealized / effectiveCost : 0;
-                const totalRet = unrealized + h.realizedGain + h.dividends;
-                const portfolio = portMap.get(h.portfolioId);
-                const holdingCurrency = portfolio?.currency || displayCurrency;
-
-                return (
-                  <TableRow key={h.key} hover>
-                    {columnVisibility.displayName && <TableCell sx={{ fontWeight: 'bold' }}>{h.displayName}</TableCell>}
-                    {columnVisibility.ticker && <TableCell>{h.ticker}</TableCell>}
-                    {columnVisibility.sector && <TableCell>{h.sector}</TableCell>}
-                    {columnVisibility.qty && <TableCell align="right">{h.totalQty.toLocaleString()}</TableCell>}
-                    {columnVisibility.avgCost && <TableCell align="right">{formatMoney(h.avgCost, holdingCurrency)}</TableCell>}
-                    {columnVisibility.currentPrice && <TableCell align="right">{formatMoney(h.currentPrice, holdingCurrency)}</TableCell>}
-                    {columnVisibility.mv && <TableCell align="right">{formatMoney(h.totalMV)}</TableCell>}
-                    {includeUnvested && <TableCell align="right">{formatMoney(displayedVestedValue)}</TableCell>}
-                    {hasUnvested && <TableCell align="right" sx={{ color: 'text.secondary' }}>{displayedUnvestedValue > 0 ? formatMoney(displayedUnvestedValue) : '-'}</TableCell>}
-                    {columnVisibility.unrealizedGain && <TableCell align="right"><Typography variant="body2" color={unrealized >= 0 ? 'success.main' : 'error.main'}>{formatMoney(unrealized)}</Typography></TableCell>}
-                    {columnVisibility.unrealizedGainPct && <TableCell align="right" sx={{ color: 'text.secondary' }}>{formatPct(unrealizedPct)}</TableCell>}
-                    {columnVisibility.realizedGain && <TableCell align="right">{formatMoney(h.realizedGain)}</TableCell>}
-                    {columnVisibility.realizedGainPct && <TableCell align="right" sx={{ color: 'text.secondary' }}>{formatPct(h.realizedGainPct)}</TableCell>}
-                    {columnVisibility.realizedGainAfterTax && <TableCell align="right">{formatMoney(h.realizedGainAfterTax)}</TableCell>}
-                    {columnVisibility.totalGain && <TableCell align="right" sx={{ fontWeight: 'bold', color: totalRet >= 0 ? 'success.dark' : 'error.dark' }}>{formatMoney(totalRet)}</TableCell>}
-                    {columnVisibility.totalGainPct && <TableCell align="right" sx={{ color: 'text.secondary' }}>{formatPct(h.totalGainPct)}</TableCell>}
-                    {columnVisibility.valueAfterTax && <TableCell align="right">{formatMoney(h.valueAfterTax)}</TableCell>}
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </Collapse>
-      </Box>
-    );
-  };
-
-  const formatMoney = (n: number, currency = displayCurrency, decimals = 2) => {
-    const rate = exchangeRates[currency] || 1;
-    const value = (n * rate).toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
-    if (currency === 'USD') return `$${value}`;
-    if (currency === 'ILS') return `₪${value}`;
-    return value;
-  }
-  const formatPct = (n: number) => (n * 100).toFixed(2) + '%';
-
   if (loading) return <Box display="flex" justifyContent="center" p={5}><CircularProgress /></Box>;
 
   return (
-    <Box sx={{ maxWidth: 1200, mx: 'auto', mt: 4 }}>
-      {/* SUMMARY CARD */}
-      <Paper sx={{ p: 3, mb: 4, bgcolor: 'primary.main', color: 'white' }}>
-        <Grid container spacing={4} alignItems="center">
-          <Grid size={{ xs: 12, md: 3 }}>
-            {selectedPortfolio ? (
-              <>
-                <Button 
-                  variant="outlined" 
-                  color="inherit" 
-                  onClick={() => setSelectedPortfolio(null)} 
-                  sx={{ mb: 1 }}
-                  startIcon={<ArrowBackIcon />}
-                >
-                  Back to All Portfolios
-                </Button>
-                <Typography variant="h5" fontWeight="bold">{selectedPortfolio}</Typography>
-              </>
-            ) : (
-              <Typography variant="subtitle2" sx={{ opacity: 0.8 }}>TOTAL AUM</Typography>
-            )}
-            <Typography variant="h4" fontWeight="bold">{formatMoney(summary.aum, displayCurrency, 0)}</Typography>
-          </Grid>
-          <Grid size={{ xs: 12, md: 9 }}>
-            <Box display="flex" gap={4} justifyContent="flex-end" alignItems="center">
-              <Select value={displayCurrency} onChange={handleCurrencyChange} size="small" sx={{ color: 'white', '& .MuiSvgIcon-root': { color: 'white' } }}>
-                <MenuItem value="USD">USD</MenuItem>
-                <MenuItem value="ILS">ILS</MenuItem>
-              </Select>
-              <Box textAlign="right">
-                <Typography variant="caption" sx={{ opacity: 0.8 }}>UNREALIZED GAIN</Typography>
-                <Typography variant="h6" color={summary.totalUnrealized >= 0 ? '#4caf50' : '#ff5252'}>
-                  {summary.totalUnrealized >= 0 ? '+' : ''}{formatMoney(summary.totalUnrealized, displayCurrency, 0)}
-                </Typography>
-              </Box>
-              <Box textAlign="right">
-                <Typography variant="caption" sx={{ opacity: 0.8 }}>REALIZED GAIN</Typography>
-                <Typography variant="h6">
-                  {summary.totalRealized >= 0 ? '+' : ''}{formatMoney(summary.totalRealized, displayCurrency, 0)}
-                </Typography>
-              </Box>
-              <Box textAlign="right">
-                <Typography variant="caption" sx={{ opacity: 0.8 }}>REALIZED GAIN AFTER TAX</Typography>
-                <Typography variant="h6">
-                  {summary.realizedGainAfterTax >= 0 ? '+' : ''}{formatMoney(summary.realizedGainAfterTax, displayCurrency, 0)}
-                </Typography>
-              </Box>
-              <Box textAlign="right">
-                <Typography variant="caption" sx={{ opacity: 0.8 }}>TOTAL RETURN</Typography>
-                <Typography variant="h6" fontWeight="bold">
-                  {summary.totalReturn >= 0 ? '+' : ''}{formatMoney(summary.totalReturn, displayCurrency, 0)}
-                </Typography>
-              </Box>
-              <Box textAlign="right">
-                <Typography variant="caption" sx={{ opacity: 0.8 }}>VALUE AFTER TAX</Typography>
-                <Typography variant="h6" fontWeight="bold">
-                  {formatMoney(summary.valueAfterTax, displayCurrency, 0)}
-                </Typography>
-              </Box>
-            </Box>
-          </Grid>
-        </Grid>
-      </Paper>
+    <Box sx={{ maxWidth: 1400, mx: 'auto', mt: 4 }}>
+      <DashboardSummary
+        summary={summary}
+        displayCurrency={displayCurrency}
+        exchangeRates={exchangeRates}
+        selectedPortfolio={selectedPortfolio}
+        onBack={() => setSelectedPortfolio(null)}
+        onCurrencyChange={setDisplayCurrency}
+      />
 
       {/* CONTROLS */}
       <Box display="flex" justifyContent="space-between" mb={2}>
-        <ColumnSelector
-          columns={columnVisibility}
-          columnDisplayNames={columnDisplayNames}
-          onColumnChange={(key, value) =>
-            setColumnVisibility((prev) => ({ ...prev, [key]: value }))
-          }
-          anchorEl={anchorEl}
-          open={openColSelector}
-          onClick={handleClickColSelector}
-          onClose={handleCloseColSelector}
-        />
+        <Box display="flex" gap={1}>
+          <ColumnSelector
+            columns={columnVisibility}
+            columnDisplayNames={columnDisplayNames}
+            onColumnChange={(key, value) =>
+              setColumnVisibility((prev: any) => ({ ...prev, [key]: value }))
+            }
+            anchorEl={anchorEl}
+            open={openColSelector}
+            onClick={handleClickColSelector}
+            onClose={handleCloseColSelector}
+          />
+          <Tooltip title="Refresh Data">
+            <IconButton 
+              onClick={() => loadData()} 
+              disabled={loading}
+              size="small"
+              sx={{ border: '1px solid #e0e0e0', borderRadius: 1 }}
+            >
+              <RefreshIcon />
+            </IconButton>
+          </Tooltip>
+        </Box>
         <Box>
           <FormControlLabel
             control={<Switch checked={includeUnvested} onChange={e => setIncludeUnvested(e.target.checked)} />}
@@ -586,20 +374,17 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         </Box>
       </Box>
 
-      {/* TABLES */}
-      {Object.entries(groupedData).map(renderGroup)}
-      <Menu
-        open={contextMenu !== null}
-        onClose={handleCloseContextMenu}
-        anchorReference="anchorPosition"
-        anchorPosition={
-          contextMenu !== null
-            ? { top: contextMenu.mouseY, left: contextMenu.mouseX }
-            : undefined
-        }
-      >
-        <MenuItem onClick={handleHideColumn}>Hide Column</MenuItem>
-      </Menu>
+      <DashboardTable 
+        holdings={holdings} 
+        groupedData={groupedData}
+        groupByPortfolio={groupByPortfolio}
+        displayCurrency={displayCurrency}
+        exchangeRates={exchangeRates}
+        includeUnvested={includeUnvested}
+        onSelectPortfolio={setSelectedPortfolio}
+        columnVisibility={columnVisibility}
+        onHideColumn={(col) => setColumnVisibility((prev: any) => ({ ...prev, [col]: false }))}
+      />
     </Box>
   );
 }

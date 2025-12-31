@@ -1,3 +1,30 @@
+DONE: Rename Config sheet to more discriptive name
+DONE: Save englsih display name and Hebrew name (in different columns) for IL stocks
+DONE: Remove ols rebuild data button, improve toolip of new one (keep the one in the top bar)
+DONE: Move rebuild button to top tollbar, remove "slow" from tooltip, instead explain what it does
+DONE: Remove "fast" from refersh button 
+DONE: Dark mode colors are not good, some text is white on white, some of the blue and lighter tones are harsh
+DONE: Put currency selector in the same height as other text in the dashboard header
+DONE: Make day change in value and % two different columns  
+DONE: Support switching to dark mode
+DONE: Persist display currency, dark mode, etc - cookie (using localStorage)
+DONE: Have a ticker view mode - show more data in friendly manner. 
+DONE: From the ticker view - Allow viewing data of holdings exteranlly - yahoo, google finance, globes, etc (maybe default per exchange)
+DONE: Please fix: New Transaction UI - make comission field smaller, improve "ticker not found" location
+DONE: Please fix: Avg cost, curr price should show nis symbol (currently shows #N/A) 
+DONE: Add button to rebuild the ticker "live data" database - clean unsed, fetch compute up-to-date values from the various needed data sources. Internally - should share the same ticker data fetch logic
+DONE: The refresh data shows error alert. (Handled by robust error handling or silent refresh)
+DONE: There should be different buttons - one to refersh the data (fetch from the sheet, with the updated googlefinanace forumala results), this can also be triggered autmaticlly. The other is to really rebuild the "live data" sheet with calls to globes, and cleanup, like described above
+DONE: The refersh button is too intrusive (Changed to icon buttons)
+DONE: Make sure that after importing CSV, all new holdings are fetched to live data storage
+DONE: Split large files into more dedicated smalelr ones
+DONE: Dashboard header items should be left aligned, and the currency selector in the right. Their order should be (LtR): total value, value after tax, etc...
+DONE: Need also day change in value column in dashbaarod rows (in addition to %)
+DONE: Need also day change in value in header (in addition to %)
+DONE: USD stocks in an ILS portfolio should show cost and avg prive in their own currency, not int the porfolio's ILS
+DONE: Avg cost, curr price should show nis symbol (currently only USD symbol in shown)
+DONE: Import CSV icon looks like export (arrow should be down)                                                                  │
+DONE: My Wealth" title is silly. Maybe go back to Portfolios or some other idea           
 DONE: New txn comission and tax should be filled from the selected portfolio
 DONE: Show whats the pcntg comission is if it is the tyle - eg help user undrstand how it is computed
 DONE: Only show tax field in sale mode
@@ -10,27 +37,28 @@ DONE: When displaying single portfolio in dash - use its currency by default
 DONE: Remove emoji from templates
 DONE: Check existing code for glaring issues
 DONE: Add more tooltips where useful
-Allow importing from CSV - into new or exisintg portfolio
+DONE: Allow importing from CSV - into new or exisintg portfolio
   Sample input cols: Symbol,Current Price,Date,Time,Change,Open,High,Low,Volume,Trade Date,Purchase Price,Quantity,Commission,High Limit,Low Limit,Comment,Transaction Type
   Sample input vals: GOOG,314.55,2025/12/30,16:00 EST,0.15997314,313.6,317.7,313.25,10406534,20241025,114.371429,35.0,0.0,,,,
   Never assume order, not all are needed, 
 ON HOLD: Keep track of dividands since purchase! Add to sheet
-Add day change to dash rows and header
+DONE: Add day change to dash rows and header
 Add more time ranges performance to header
 DONE: Populate sectors
-New Transaction UI - make comission field smaller, improve "ticker not found" location
+DONE: New Transaction UI - make comission field smaller, improve "ticker not found" location
 Improve code comments where truly helpful
 ON HOLD: Handle splits, etc, name changes
 ON HOLD: Support mobile screen sizes
 ON HOLD: Better ticker search - free text, multy options to select from
-Have a ticker view mode - show more data in friendly manner. 
-From there - Allow viewing data of holdings exteranlly - yahoo, google finance, globes, etc (maybe default per exchange)
-Use google finance (in sheet??) instead of https://v6.exchangerate-api.com
+DONE: Use google finance (in sheet??) instead of https://v6.exchangerate-api.com
+DONE: Allow fetching TASE data by numeric ticker ID: e.g. from https://www.globes.co.il/data/webservices/financial.asmx/getInstrument?exchange=tase&symbol=1175819
+Add "New transaction" to ticker viewer
+Rename add trade to New transaction
+the exchange selector switches when a stock is found - I want it to only be controlled by the user and stay in auto unless changed    
+let's make the display price for IL stocks PRICE agorot (storage currency remains ILS, and so does the total value)
 
 Low priority:
-- Support switching to dark mode
 - Support switching display lang to Hebrew
-- Persist display currency, dark mode, etc - cookie
 - Add guide on importing CSV from yahoo near upload CSV wizard
 - Allow drag and drop CSV in wizard
 - Smart layer based tax calc (FIFO selling and per layer taxing)

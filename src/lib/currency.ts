@@ -1,17 +1,27 @@
-// src/lib/currency.ts
-const BASE_URL = `/api/exchangerate/`;
+import { fetchSheetExchangeRates } from './sheets';
 
-export async function getExchangeRates(baseCurrency: string) {
+export async function getExchangeRates(sheetId: string) {
   try {
-    const response = await fetch(`${BASE_URL}${baseCurrency}`);
-    const data = await response.json();
-    if (data.result === 'success') {
-      return data.conversion_rates;
-    } else {
-      throw new Error('Failed to fetch exchange rates');
-    }
+    return await fetchSheetExchangeRates(sheetId);
   } catch (error) {
-    console.error('Error fetching exchange rates:', error);
-    throw new Error('Failed to fetch exchange rates');
+    console.error('Error fetching exchange rates from sheet:', error);
+    // Fallback defaults
+    return { USD: 1, ILS: 3.65, EUR: 0.92 }; 
   }
+}
+
+export function convertCurrency(amount: number, from: string, to: string, rates: Record<string, number>): number {
+  if (from === to) return amount;
+  if (!rates) return amount;
+
+  // Assuming rates are relative to a common base (USD).
+  // rate 'ILS' = 3.7 means 1 USD = 3.7 ILS.
+  
+  // Convert 'from' to USD (Base)
+  const fromRate = rates[from] || 1; 
+  const valInBase = from === 'USD' ? amount : amount / fromRate;
+
+  // Convert USD to 'to'
+  const toRate = rates[to] || 1;
+  return valInBase * toRate;
 }

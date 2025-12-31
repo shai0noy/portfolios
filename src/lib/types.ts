@@ -22,6 +22,8 @@ export interface Transaction {
   type: 'BUY' | 'SELL' | 'DIVIDEND' | 'FEE';
   qty: number;
   price: number;
+  grossValue: number;
+  currency?: string;
   vestDate?: string;
   comment?: string;
   commission?: number;
@@ -33,7 +35,10 @@ export interface LiveData {
   exchange: string;
   price: number;
   name: string;
+  name_he?: string;
   currency: string;
+  sector?: string;
+  changePct?: number;
 }
 
 // Templates for quick setup

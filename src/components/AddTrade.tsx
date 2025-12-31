@@ -5,7 +5,6 @@ import {
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
-import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import type { Portfolio, Transaction } from '../lib/types';
 import { addTransaction, fetchPortfolios } from '../lib/sheets';
 import { getTickerData } from '../lib/ticker';
@@ -54,7 +53,6 @@ export const AddTrade = ({ sheetId }: Props) => {
   const [tax, setTax] = useState<string>('');
   const [displayName, setDisplayName] = useState('');
   const [tickerCurrency, setTickerCurrency] = useState('');
-  const [commissionInfo, setCommissionInfo] = useState('');
 
   const debouncedTicker = useDebounce(ticker, 500);
   
@@ -78,21 +76,36 @@ export const AddTrade = ({ sheetId }: Props) => {
   }, [debouncedTicker, exchange]);
 
   useEffect(() => {
-    if (debouncedTicker && exchange) {
+    if (debouncedTicker) {
       setIsPriceLoading(true);
       setPriceError('');
       setDisplayName('');
-      getTickerData(debouncedTicker, exchange).then(data => {
-        setIsPriceLoading(false);
-        if (data) {
-          handlePriceChange(data.price.toString());
-          setDisplayName(data.name || '');
-          setTickerCurrency(data.currency || '');
-          if(data.exchange) setExchange(data.exchange);
-        } else {
-          setPriceError('Ticker not found');
-        }
-      });
+      setPrice(''); // Clear price on change
+      setTickerCurrency('');
+      
+      // If exchange is not set, we might wait or try default. 
+      // But above effect sets default exchange for numeric/text.
+      // We need to wait for exchange to be set? 
+      // Actually the dependency [debouncedTicker, exchange] handles it.
+      if (exchange) {
+        getTickerData(debouncedTicker, exchange).then(data => {
+          setIsPriceLoading(false);
+          if (data) {
+            handlePriceChange(data.price.toString());
+            setDisplayName(data.name || '');
+            setTickerCurrency(data.currency || '');
+            // if(data.exchange) setExchange(data.exchange); // Removed per user request
+          } else {
+            setPriceError('Ticker not found');
+          }
+        });
+      } else {
+         setIsPriceLoading(false); 
+      }
+    } else {
+       setDisplayName('');
+       setPrice('');
+       setTickerCurrency('');
     }
   }, [debouncedTicker, exchange]);
 
@@ -103,7 +116,6 @@ export const AddTrade = ({ sheetId }: Props) => {
     const t = parseFloat(total);
     if (!Number.isFinite(t) || t === 0) {
       setCommission('');
-      setCommissionInfo('');
       return;
     }
 
@@ -115,11 +127,9 @@ export const AddTrade = ({ sheetId }: Props) => {
       const clampedMin = Math.max(rawFee, min);
       const finalFee = max > 0 ? Math.min(clampedMin, max) : clampedMin;
       setCommission(finalFee.toFixed(2));
-      setCommissionInfo(`Rate: ${rate*100}%, Min: ${min}, Max: ${max > 0 ? max : 'N/A'}`);
     } else if (type === 'DIVIDEND') {
       const rate = selectedPort.divCommRate;
       setCommission((t * rate).toFixed(2));
-      setCommissionInfo(`Rate: ${rate*100}%`);
     }
   }, [portId, type, total, portfolios]);
 
@@ -145,7 +155,7 @@ export const AddTrade = ({ sheetId }: Props) => {
 
   const handlePriceChange = (val: string) => {
     setPrice(val);
-    setPriceError('');
+    // Don't set error here, purely input
     const q = parseFloat(qty);
     const p = parseFloat(val);
     const t = parseFloat(total);
@@ -181,14 +191,19 @@ export const AddTrade = ({ sheetId }: Props) => {
     setLoading(true);
  
     try {
+      const q = parseFloat(qty);
+      const p = parseFloat(price);
+      const t = parseFloat(total);
+      
       const txn: Transaction = {
         date,
         portfolioId: portId,
         ticker,
         exchange,
         type,
-        qty: parseFloat(qty),
-        price: parseFloat(price),
+        qty: q,
+        price: p,
+        grossValue: Number.isFinite(t) ? t : q * p,
         currency: tickerCurrency,
         vestDate,
         comment,
@@ -246,6 +261,8 @@ export const AddTrade = ({ sheetId }: Props) => {
                   <TextField 
                     fullWidth size="small" label="Ticker" 
                     value={ticker} onChange={e => setTicker(e.target.value.toUpperCase())}
+                    error={!!priceError}
+                    helperText={priceError}
                     InputProps={{
                       endAdornment: (
                         <InputAdornment position="end">
@@ -295,8 +312,6 @@ export const AddTrade = ({ sheetId }: Props) => {
                        label="Price" type="number" size="small" fullWidth
                        value={price} 
                        onChange={e => handlePriceChange(e.target.value)} 
-                       error={!!priceError}
-                       helperText={priceError}
                        InputProps={{
                          startAdornment: <InputAdornment position="start">{tickerCurrency}</InputAdornment>,
                          endAdornment: isPriceLoading ? <CircularProgress size={20} /> : null
@@ -315,27 +330,25 @@ export const AddTrade = ({ sheetId }: Props) => {
                     />
                   </Tooltip>
                 </Grid>
-                <Grid size={6}>
+                
+                {/* Compact Row for Fees & Vesting */}
+                <Grid size={{ xs: 4, sm: 3 }}>
                     <TextField 
                       label="Commission" type="number" size="small" fullWidth
                       value={commission} onChange={e => setCommission(e.target.value)} 
                     />
                 </Grid>
-                {(type === 'SELL' || type === 'DIVIDEND') && <Grid size={6}>
-                  <Tooltip title="Tax on transaction (if applicable).">
-                    <TextField 
-                      label="Tax %" type="number" size="small" fullWidth
-                      value={tax} onChange={e => setTax(e.target.value)}
-                    />
-                  </Tooltip>
-                </Grid>}
-                <Grid size={6}>
-                    <TextField 
-                       label="Comment" size="small" fullWidth 
-                       value={comment} onChange={e => setComment(e.target.value)} 
-                     />
-                 </Grid>
-                 <Grid size={6}>
+                {(type === 'SELL' || type === 'DIVIDEND') && (
+                  <Grid size={{ xs: 4, sm: 3 }}>
+                    <Tooltip title="Tax on transaction (if applicable).">
+                      <TextField 
+                        label="Tax %" type="number" size="small" fullWidth
+                        value={tax} onChange={e => setTax(e.target.value)}
+                      />
+                    </Tooltip>
+                  </Grid>
+                )}
+                 <Grid size={{ xs: 12, sm: (type === 'SELL' || type === 'DIVIDEND') ? 6 : 9 }}>
                    <Tooltip title="Date when these shares vest (if applicable for RSUs/Options).">
                      <TextField 
                        label="Vesting Date" type="date" size="small" fullWidth
@@ -343,6 +356,13 @@ export const AddTrade = ({ sheetId }: Props) => {
                        InputLabelProps={{ shrink: true }}
                      />
                    </Tooltip>
+                 </Grid>
+
+                <Grid size={{ xs: 12 }}>
+                    <TextField 
+                       label="Comment" size="small" fullWidth 
+                       value={comment} onChange={e => setComment(e.target.value)} 
+                     />
                  </Grid>
               </Grid>
             </CardContent>
