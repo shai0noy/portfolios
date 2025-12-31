@@ -2,9 +2,10 @@ import { useState, useEffect, useMemo } from 'react';
 import {
   Box, Typography, Paper, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, CircularProgress, FormControlLabel, Switch, Grid,
-  Collapse, IconButton, TableSortLabel, Select, MenuItem, Button, Menu
+  Collapse, IconButton, TableSortLabel, Select, MenuItem, Button, Menu, Tooltip
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { fetchPortfolios, fetchTransactions, syncAndFetchLiveData } from '../lib/sheets';
 import { ColumnSelector } from './ColumnSelector';
 import { getExchangeRates } from '../lib/currency';
@@ -42,7 +43,7 @@ interface Holding {
   costOfSold: number;
 }
 
-export function Dashboard({ sheetId }: DashboardProps) {
+const Dashboard = ({ sheetId }: DashboardProps) => {
   const [loading, setLoading] = useState(true);
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [groupByPortfolio, setGroupByPortfolio] = useState(true);
@@ -155,8 +156,12 @@ export function Dashboard({ sheetId }: DashboardProps) {
       // Sort transactions by date ascending
       txns.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
+      // Filter out future transactions
+      const today = new Date();
+      const pastTxns = txns.filter(t => new Date(t.date) <= today);
+
       // 1. Process Transactions
-      const filteredTxns = includeUnvested ? txns : txns.filter(t => !t.vestDate || new Date(t.vestDate) <= new Date());
+      const filteredTxns = includeUnvested ? pastTxns : pastTxns.filter(t => !t.vestDate || new Date(t.vestDate) <= new Date());
 
       filteredTxns.forEach(t => {
         const key = `${t.portfolioId}_${t.ticker}`;
@@ -196,11 +201,13 @@ export function Dashboard({ sheetId }: DashboardProps) {
         const isVested = !t.vestDate || new Date(t.vestDate) <= new Date();
         const grossValue = t.qty * t.price;
 
+    // We use a weighted average cost basis (AVCO) method.
         if (t.type === 'BUY') {
           if (isVested) h.qtyVested += t.qty;
           else h.qtyUnvested += t.qty;
           h.costBasis += grossValue + (t.commission || 0);
         } else if (t.type === 'SELL') {
+      // Realized gains are calculated at the time of sale based on the current average cost.
           const avgCost = (h.qtyVested + h.qtyUnvested) > 0 ? h.costBasis / (h.qtyVested + h.qtyUnvested) : 0;
           const costOfSold = avgCost * t.qty;
           h.realizedGain += (grossValue - costOfSold);
@@ -209,6 +216,7 @@ export function Dashboard({ sheetId }: DashboardProps) {
           if (isVested) h.qtyVested -= t.qty;
           else h.qtyUnvested -= t.qty;
         } else if (t.type === 'DIVIDEND') {
+      // Dividends are tracked separately and added to the total return.
           const taxAmount = grossValue * ((t.tax || 0) / 100);
           h.dividends += grossValue - (t.commission || 0) - taxAmount;
         }
@@ -223,13 +231,17 @@ export function Dashboard({ sheetId }: DashboardProps) {
         h.mvVested = h.qtyVested * h.currentPrice;
         h.mvUnvested = h.qtyUnvested * h.currentPrice;
         h.totalMV = h.mvVested + h.mvUnvested;
+    
+    // Unrealized gain is the difference between current market value and the remaining cost basis.
         const unrealized = h.totalMV - h.costBasis;
         h.unrealizedGain = unrealized;
         h.unrealizedGainPct = h.costBasis > 0 ? unrealized / h.costBasis : 0;
         h.realizedGainPct = h.costOfSold > 0 ? h.realizedGain / h.costOfSold : 0;
         h.realizedGainAfterTax = h.realizedGain * (1 - taxRate);
+    // Total gain includes both realized and unrealized gains plus dividends.
         h.totalGain = h.unrealizedGain + h.realizedGain + h.dividends;
         h.totalGainPct = h.costBasis + h.costOfSold > 0 ? h.totalGain / (h.costBasis + h.costOfSold) : 0;
+    // Value after tax estimates the net value if all positions were liquidated today (applying capital gains tax).
         h.valueAfterTax = h.totalMV - (h.unrealizedGain > 0 ? h.unrealizedGain * taxRate : 0);
         processedHoldings.push(h);
       });
@@ -408,23 +420,23 @@ export function Dashboard({ sheetId }: DashboardProps) {
             <TableHead>
               {/* Keep this order: Identity, Quantity, Value, Gains */}
               <TableRow sx={{ bgcolor: '#fafafa' }}>
-                {columnVisibility.displayName && <TableCell onContextMenu={(e) => handleContextMenu(e, 'displayName')}><TableSortLabel active={sortBy === 'ticker'} direction={sortDir} onClick={() => handleSort('ticker')}>Display Name</TableSortLabel></TableCell>}
-                {columnVisibility.ticker && <TableCell onContextMenu={(e) => handleContextMenu(e, 'ticker')}><TableSortLabel active={sortBy === 'ticker'} direction={sortDir} onClick={() => handleSort('ticker')}>Ticker</TableSortLabel></TableCell>}
-                {columnVisibility.sector && <TableCell onContextMenu={(e) => handleContextMenu(e, 'sector')}><TableSortLabel active={sortBy === 'sector'} direction={sortDir} onClick={() => handleSort('sector')}>Sector</TableSortLabel></TableCell>}
-                {columnVisibility.qty && <TableCell onContextMenu={(e) => handleContextMenu(e, 'qty')} align="right"><TableSortLabel active={sortBy === 'qty'} direction={sortDir} onClick={() => handleSort('qty')}>Quantity</TableSortLabel></TableCell>}
-                {columnVisibility.avgCost && <TableCell onContextMenu={(e) => handleContextMenu(e, 'avgCost')} align="right"><TableSortLabel active={sortBy === 'avgCost'} direction={sortDir} onClick={() => handleSort('avgCost')}>Avg Cost</TableSortLabel></TableCell>}
-                {columnVisibility.currentPrice && <TableCell onContextMenu={(e) => handleContextMenu(e, 'currentPrice')} align="right"><TableSortLabel active={sortBy === 'currentPrice'} direction={sortDir} onClick={() => handleSort('currentPrice')}>Current Price</TableSortLabel></TableCell>}
-                {columnVisibility.mv && <TableCell onContextMenu={(e) => handleContextMenu(e, 'mv')} align="right"><TableSortLabel active={sortBy === 'marketValue'} direction={sortDir} onClick={() => handleSort('marketValue')}>Market Value</TableSortLabel></TableCell>}
-                {includeUnvested && <TableCell align="right"><TableSortLabel active={sortBy === 'mvVested'} direction={sortDir} onClick={() => handleSort('mvVested')}>Vested Value</TableSortLabel></TableCell>}
-                {hasUnvested && <TableCell align="right"><TableSortLabel active={sortBy === 'mvUnvested'} direction={sortDir} onClick={() => handleSort('mvUnvested')}>Unvested Value</TableSortLabel></TableCell>}
-                {columnVisibility.unrealizedGain && <TableCell onContextMenu={(e) => handleContextMenu(e, 'unrealizedGain')} align="right"><TableSortLabel active={sortBy === 'unrealizedGain'} direction={sortDir} onClick={() => handleSort('unrealizedGain')}>Unrealized Gain</TableSortLabel></TableCell>}
-                {columnVisibility.unrealizedGainPct && <TableCell onContextMenu={(e) => handleContextMenu(e, 'unrealizedGainPct')} align="right"><TableSortLabel active={sortBy === 'unrealizedGainPct'} direction={sortDir} onClick={() => handleSort('unrealizedGainPct')}>Unrealized Gain %</TableSortLabel></TableCell>}
-                {columnVisibility.realizedGain && <TableCell onContextMenu={(e) => handleContextMenu(e, 'realizedGain')} align="right"><TableSortLabel active={sortBy === 'realizedGain'} direction={sortDir} onClick={() => handleSort('realizedGain')}>Realized Gain</TableSortLabel></TableCell>}
-                {columnVisibility.realizedGainPct && <TableCell onContextMenu={(e) => handleContextMenu(e, 'realizedGainPct')} align="right"><TableSortLabel active={sortBy === 'realizedGainPct'} direction={sortDir} onClick={() => handleSort('realizedGainPct')}>Realized Gain %</TableSortLabel></TableCell>}
-                {columnVisibility.realizedGainAfterTax && <TableCell onContextMenu={(e) => handleContextMenu(e, 'realizedGainAfterTax')} align="right"><TableSortLabel active={sortBy === 'realizedGainAfterTax'} direction={sortDir} onClick={() => handleSort('realizedGainAfterTax')}>Realized Gain After Tax</TableSortLabel></TableCell>}
-                {columnVisibility.totalGain && <TableCell onContextMenu={(e) => handleContextMenu(e, 'totalGain')} align="right"><TableSortLabel active={sortBy === 'totalGain'} direction={sortDir} onClick={() => handleSort('totalGain')}>Total Gain</TableSortLabel></TableCell>}
-                {columnVisibility.totalGainPct && <TableCell onContextMenu={(e) => handleContextMenu(e, 'totalGainPct')} align="right"><TableSortLabel active={sortBy === 'totalGainPct'} direction={sortDir} onClick={() => handleSort('totalGainPct')}>Total Gain %</TableSortLabel></TableCell>}
-                {columnVisibility.valueAfterTax && <TableCell onContextMenu={(e) => handleContextMenu(e, 'valueAfterTax')} align="right"><TableSortLabel active={sortBy === 'valueAfterTax'} direction={sortDir} onClick={() => handleSort('valueAfterTax')}>Value After Tax</TableSortLabel></TableCell>}
+                {columnVisibility.displayName && <TableCell onContextMenu={(e) => handleContextMenu(e, 'displayName')}><Tooltip title="Display Name"><TableSortLabel active={sortBy === 'ticker'} direction={sortDir} onClick={() => handleSort('ticker')}>Display Name</TableSortLabel></Tooltip></TableCell>}
+                {columnVisibility.ticker && <TableCell onContextMenu={(e) => handleContextMenu(e, 'ticker')}><Tooltip title="Ticker Symbol"><TableSortLabel active={sortBy === 'ticker'} direction={sortDir} onClick={() => handleSort('ticker')}>Ticker</TableSortLabel></Tooltip></TableCell>}
+                {columnVisibility.sector && <TableCell onContextMenu={(e) => handleContextMenu(e, 'sector')}><Tooltip title="Sector"><TableSortLabel active={sortBy === 'sector'} direction={sortDir} onClick={() => handleSort('sector')}>Sector</TableSortLabel></Tooltip></TableCell>}
+                {columnVisibility.qty && <TableCell onContextMenu={(e) => handleContextMenu(e, 'qty')} align="right"><Tooltip title="Quantity"><TableSortLabel active={sortBy === 'qty'} direction={sortDir} onClick={() => handleSort('qty')}>Quantity</TableSortLabel></Tooltip></TableCell>}
+                {columnVisibility.avgCost && <TableCell onContextMenu={(e) => handleContextMenu(e, 'avgCost')} align="right"><Tooltip title="Average Cost"><TableSortLabel active={sortBy === 'avgCost'} direction={sortDir} onClick={() => handleSort('avgCost')}>Avg Cost</TableSortLabel></Tooltip></TableCell>}
+                {columnVisibility.currentPrice && <TableCell onContextMenu={(e) => handleContextMenu(e, 'currentPrice')} align="right"><Tooltip title="Current Price"><TableSortLabel active={sortBy === 'currentPrice'} direction={sortDir} onClick={() => handleSort('currentPrice')}>Current Price</TableSortLabel></Tooltip></TableCell>}
+                {columnVisibility.mv && <TableCell onContextMenu={(e) => handleContextMenu(e, 'mv')} align="right"><Tooltip title="Market Value"><TableSortLabel active={sortBy === 'marketValue'} direction={sortDir} onClick={() => handleSort('marketValue')}>Market Value</TableSortLabel></Tooltip></TableCell>}
+                {includeUnvested && <TableCell align="right"><Tooltip title="Vested Value"><TableSortLabel active={sortBy === 'mvVested'} direction={sortDir} onClick={() => handleSort('mvVested')}>Vested Value</TableSortLabel></Tooltip></TableCell>}
+                {hasUnvested && <TableCell align="right"><Tooltip title="Unvested Value"><TableSortLabel active={sortBy === 'mvUnvested'} direction={sortDir} onClick={() => handleSort('mvUnvested')}>Unvested Value</TableSortLabel></Tooltip></TableCell>}
+                {columnVisibility.unrealizedGain && <TableCell onContextMenu={(e) => handleContextMenu(e, 'unrealizedGain')} align="right"><Tooltip title="Unrealized Gain"><TableSortLabel active={sortBy === 'unrealizedGain'} direction={sortDir} onClick={() => handleSort('unrealizedGain')}>Unrealized Gain</TableSortLabel></Tooltip></TableCell>}
+                {columnVisibility.unrealizedGainPct && <TableCell onContextMenu={(e) => handleContextMenu(e, 'unrealizedGainPct')} align="right"><Tooltip title="Unrealized Gain %"><TableSortLabel active={sortBy === 'unrealizedGainPct'} direction={sortDir} onClick={() => handleSort('unrealizedGainPct')}>Unrealized Gain %</TableSortLabel></Tooltip></TableCell>}
+                {columnVisibility.realizedGain && <TableCell onContextMenu={(e) => handleContextMenu(e, 'realizedGain')} align="right"><Tooltip title="Realized Gain"><TableSortLabel active={sortBy === 'realizedGain'} direction={sortDir} onClick={() => handleSort('realizedGain')}>Realized Gain</TableSortLabel></Tooltip></TableCell>}
+                {columnVisibility.realizedGainPct && <TableCell onContextMenu={(e) => handleContextMenu(e, 'realizedGainPct')} align="right"><Tooltip title="Realized Gain %"><TableSortLabel active={sortBy === 'realizedGainPct'} direction={sortDir} onClick={() => handleSort('realizedGainPct')}>Realized Gain %</TableSortLabel></Tooltip></TableCell>}
+                {columnVisibility.realizedGainAfterTax && <TableCell onContextMenu={(e) => handleContextMenu(e, 'realizedGainAfterTax')} align="right"><Tooltip title="Realized Gain After Tax"><TableSortLabel active={sortBy === 'realizedGainAfterTax'} direction={sortDir} onClick={() => handleSort('realizedGainAfterTax')}>Realized Gain After Tax</TableSortLabel></Tooltip></TableCell>}
+                {columnVisibility.totalGain && <TableCell onContextMenu={(e) => handleContextMenu(e, 'totalGain')} align="right"><Tooltip title="Total Gain"><TableSortLabel active={sortBy === 'totalGain'} direction={sortDir} onClick={() => handleSort('totalGain')}>Total Gain</TableSortLabel></Tooltip></TableCell>}
+                {columnVisibility.totalGainPct && <TableCell onContextMenu={(e) => handleContextMenu(e, 'totalGainPct')} align="right"><Tooltip title="Total Gain %"><TableSortLabel active={sortBy === 'totalGainPct'} direction={sortDir} onClick={() => handleSort('totalGainPct')}>Total Gain %</TableSortLabel></Tooltip></TableCell>}
+                {columnVisibility.valueAfterTax && <TableCell onContextMenu={(e) => handleContextMenu(e, 'valueAfterTax')} align="right"><Tooltip title="Value After Tax"><TableSortLabel active={sortBy === 'valueAfterTax'} direction={sortDir} onClick={() => handleSort('valueAfterTax')}>Value After Tax</TableSortLabel></Tooltip></TableCell>}
               </TableRow>
             </TableHead>
             <TableBody>
@@ -493,6 +505,14 @@ export function Dashboard({ sheetId }: DashboardProps) {
               <>
               <Button variant="outlined" color="inherit" onClick={() => setSelectedPortfolio(null)} sx={{ mb: 1 }}>
                 &larr; Back to All Portfolios
+          <Button 
+            variant="outlined" 
+            color="inherit" 
+            onClick={() => setSelectedPortfolio(null)} 
+            sx={{ mb: 1 }}
+            startIcon={<ArrowBackIcon />}
+          >
+            Back to All Portfolios
               </Button>
               <Typography variant="h5" fontWeight="bold">{selectedPortfolio}</Typography>
               </>
@@ -585,3 +605,5 @@ export function Dashboard({ sheetId }: DashboardProps) {
     </Box>
   );
 }
+
+export default Dashboard;

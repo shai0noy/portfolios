@@ -1,21 +1,30 @@
-New txn comission and tax should be filled from the selected portfolio
-dash should filter out txns with future dates
-Make the exchange display name less notable
-When displaying single portfolio in dash- use its currency by default
+DONE: New txn comission and tax should be filled from the selected portfolio
+DONE: Show whats the pcntg comission is if it is the tyle - eg help user undrstand how it is computed
+DONE: Only show tax field in sale mode
+DONE: Hide fee mode (but keep the type)
+DONE: Dash should filter out txns with future dates
+DONE: Make the exchange display name less notable
+DONE: Make the ticker display name more notable
+DONE: New Transaction: should have section labels, tooltips (DONE)
+DONE: When displaying single portfolio in dash - use its currency by default
 Remove emoji from templates
-add more tooltips where useful
+DONE: Check exisintg code for glaring issues
+DONE: add more tooltips where useful
 Allow importing from CSV - into new or exisintg portfolio
   Sample input cols: Symbol,Current Price,Date,Time,Change,Open,High,Low,Volume,Trade Date,Purchase Price,Quantity,Commission,High Limit,Low Limit,Comment,Transaction Type
   Sample input vals: GOOG,314.55,2025/12/30,16:00 EST,0.15997314,313.6,317.7,313.25,10406534,20241025,114.371429,35.0,0.0,,,,
   Never assume order, not all are needed, 
-Keep track of dividands since purchase! Add to sheet
+ON HOLD: Keep track of dividands since purchase! Add to sheet
 Add day change to dash rows and header
 Add more time ranges performance to header
 Populate sectors
-Handle splits, etc, name changes
-Support mobile screen sizes
-Better ticker search - free text, multy options to select from
-Allow viewing data of holdings exteranlly - allow choosing default yahoo, googlem, globes, etc (maybe default per exchange)
+Improve code comments where truely helpful
+ON HOLD: Handle splits, etc, name changes
+ON HOLD: Support mobile screen sizes
+ON HOLD: Better ticker search - free text, multy options to select from
+Have a ticker view mode - show more data in friendly manner. 
+From there - Allow viewing data of holdings exteranlly - yahoo, google finance, globes, etc (maybe default per exchange)
+Use google finance (in sheet??) instead of https://v6.exchangerate-api.com
 
 Low priority:
 - Support switching to dark mode
@@ -24,8 +33,8 @@ Low priority:
 - Add guide on importing CSV from yahoo near upload CSV wizard
 - Allow drag and drop CSV in wizard
 - Smart layer based tax calc (FIFO selling and per layer taxing)
-- Allow fetching Israeli price indecies (eg CPI)
-- Add graphs
-- Allow comparing portfolios to common indecies, eg CPI, SP500, TLV-125
+- Allow fetching Israeli price indecies (eg CPI) - https://api.cbs.gov.il/index/data/price?id=120010&format=json&download=false&startPeriod=01-2000&endPeriod=12-2019
+- ON HOLD: Add graphs
+- ON HOLD: Allow comparing portfolios to common indecies, eg CPI, SP500, TLV-125
 - Allow exporting CSV, sheet, holding sheet (flattaned)
-- Use Gemini for anlysis and insight
+- ON HOLD: Use Gemini for anlysis and insight

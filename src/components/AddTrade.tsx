@@ -32,7 +32,7 @@ function useDebounce(value: string, delay: number) {
 }
 
 
-export function AddTrade({ sheetId }: Props) {
+export const AddTrade = ({ sheetId }: Props) => {
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [loading, setLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
@@ -54,6 +54,7 @@ export function AddTrade({ sheetId }: Props) {
   const [tax, setTax] = useState<string>('');
   const [displayName, setDisplayName] = useState('');
   const [tickerCurrency, setTickerCurrency] = useState('');
+  const [commissionInfo, setCommissionInfo] = useState('');
 
   const debouncedTicker = useDebounce(ticker, 500);
   
@@ -94,6 +95,33 @@ export function AddTrade({ sheetId }: Props) {
       });
     }
   }, [debouncedTicker, exchange]);
+
+  useEffect(() => {
+    const selectedPort = portfolios.find(p => p.id === portId);
+    if (!selectedPort) return;
+
+    const t = parseFloat(total);
+    if (!Number.isFinite(t) || t === 0) {
+      setCommission('');
+      setCommissionInfo('');
+      return;
+    }
+
+    if (type === 'BUY' || type === 'SELL') {
+      const rate = selectedPort.commRate;
+      const min = selectedPort.commMin;
+      const max = selectedPort.commMax;
+      const rawFee = t * rate;
+      const clampedMin = Math.max(rawFee, min);
+      const finalFee = max > 0 ? Math.min(clampedMin, max) : clampedMin;
+      setCommission(finalFee.toFixed(2));
+      setCommissionInfo(`Rate: ${rate*100}%, Min: ${min}, Max: ${max > 0 ? max : 'N/A'}`);
+    } else if (type === 'DIVIDEND') {
+      const rate = selectedPort.divCommRate;
+      setCommission((t * rate).toFixed(2));
+      setCommissionInfo(`Rate: ${rate*100}%`);
+    }
+  }, [portId, type, total, portfolios]);
 
 
   // Handlers: whenever a field is changed, if one of the other two is present compute the third.
@@ -172,7 +200,7 @@ export function AddTrade({ sheetId }: Props) {
       
       setSuccessMsg('Transaction Saved!');
       // Reset critical fields
-      setQty(''); setTotal(''); setCommission(''); setTax('');
+      setQty(''); setTotal(''); setCommission(''); setTax(''); setTicker(''); setExchange(''); setDisplayName('');
     } catch (e) {
       console.error(e);
       alert('Error saving transaction');
@@ -247,12 +275,11 @@ export function AddTrade({ sheetId }: Props) {
                       <MenuItem value="BUY">Buy</MenuItem>
                       <MenuItem value="SELL">Sell</MenuItem>
                       <MenuItem value="DIVIDEND">Dividend</MenuItem>
-                      <MenuItem value="FEE">Fee</MenuItem>
                     </Select>
                   </FormControl>
                 </Grid>
 
-                {displayName && <Grid item xs={12}><Typography variant="h6" color="text.secondary">{displayName} ({exchange})</Typography></Grid>}
+                {displayName && <Grid item xs={12}><Typography variant="h6" color="text.secondary">{displayName} <span style={{ fontSize: '0.8rem', color: '#9e9e9e' }}>({exchange})</span></Typography></Grid>}
                 
                 <Grid item xs={6} sm={4}>
                   <Tooltip title="Number of shares/units bought or sold.">
@@ -294,14 +321,14 @@ export function AddTrade({ sheetId }: Props) {
                       value={commission} onChange={e => setCommission(e.target.value)} 
                     />
                 </Grid>
-                <Grid item xs={6}>
+                {(type === 'SELL' || type === 'DIVIDEND') && <Grid item xs={6}>
                   <Tooltip title="Tax on transaction (if applicable).">
                     <TextField 
                       label="Tax %" type="number" size="small" fullWidth
                       value={tax} onChange={e => setTax(e.target.value)}
                     />
                   </Tooltip>
-                </Grid>
+                </Grid>}
                 <Grid item xs={6}>
                     <TextField 
                        label="Comment" size="small" fullWidth 

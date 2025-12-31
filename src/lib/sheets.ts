@@ -4,7 +4,7 @@ import { ensureGapi, signIn } from './google'; // Import the waiter + signIn
 
 const PORT_OPT_RANGE = 'Portfolio_Options!A2:M';
 const TX_FETCH_RANGE = 'Transaction_Log!A2:L';
-const LIVE_DATA_RANGE = 'Live_Data!A2:E';
+const LIVE_DATA_RANGE = 'Live_Data!A2:F';
 
 // Helper to get Sheet ID by Name (needed for batchUpdate)
 async function getSheetId(spreadsheetId: string, sheetName: string, create = false): Promise<number> {
@@ -75,6 +75,8 @@ export const ensureSchema = async (spreadsheetId: string) => {
               { userEnteredValue: { stringValue: 'Ticker' } }, { userEnteredValue: { stringValue: 'Exchange' } },
               { userEnteredValue: { stringValue: 'Live_Price' } }, { userEnteredValue: { stringValue: 'Display_Name' } },
               { userEnteredValue: { stringValue: 'Currency' } }
+              { userEnteredValue: { stringValue: 'Currency' } },
+              { userEnteredValue: { stringValue: 'Sector' } }
             ] }],
             fields: 'userEnteredValue'
           }
@@ -166,15 +168,17 @@ export const syncAndFetchLiveData = async (spreadsheetId: string, transactions: 
   await ensureGapi();
   const uniqueTickers = [...new Map(transactions.map(t => [`${t.ticker}:${t.exchange}`, t])).values()];
 
-  const data = uniqueTickers.map(t => ([
+  const data = uniqueTickers.map((t, i) => ([
     t.ticker,
     t.exchange,
-    `=GOOGLEFINANCE("${t.exchange}:${t.ticker}", "price")`,
-    `=IFERROR(GOOGLEFINANCE("${t.exchange}:${t.ticker}", "name"), "")`,
-    `=GOOGLEFINANCE("${t.exchange}:${t.ticker}", "currency")`,
+    `=GOOGLEFINANCE(B${i+2}&":"&A${i+2}, "price")`,
+    `=IFERROR(GOOGLEFINANCE(B${i+2}&":"&A${i+2}, "name"), "")`,
+    `=GOOGLEFINANCE(B${i+2}&":"&A${i+2}, "currency")`,
+    `=IFERROR(GOOGLEFINANCE(B${i+2}&":"&A${i+2}, "sector"), "Other")`,
   ]));
 
   await window.gapi.client.sheets.spreadsheets.values.clear({ spreadsheetId, range: 'Live_Data!A2:E' });
+  await window.gapi.client.sheets.spreadsheets.values.clear({ spreadsheetId, range: 'Live_Data!A2:F' });
   await window.gapi.client.sheets.spreadsheets.values.update({
     spreadsheetId,
     range: 'Live_Data!A2',
@@ -194,6 +198,7 @@ export const syncAndFetchLiveData = async (spreadsheetId: string, transactions: 
     price: parseFloat(r[2]),
     name: r[3],
     currency: r[4],
+    sector: r[5],
   }));
 };
 
