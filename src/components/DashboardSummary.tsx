@@ -12,8 +12,16 @@ interface SummaryProps {
     totalReturn: number;
     realizedGainAfterTax: number;
     valueAfterTax: number;
+
     totalDayChange: number;
     totalDayChangePct: number;
+    perf1w: number;
+    perf1m: number;
+    perf3m: number;
+    perf1y: number;
+    perf3y: number;
+    perf5y: number;
+    perfYtd: number;
   };
   displayCurrency: string;
   exchangeRates: Record<string, number>;
@@ -45,7 +53,7 @@ export function DashboardSummary({ summary, displayCurrency, exchangeRates, sele
       <Box textAlign="left" minWidth={120}>
         <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase' }}>{label}</Typography>
         <Typography variant={isMain ? "h4" : "h6"} fontWeight={isMain ? "bold" : "medium"} color={color || 'text.primary'}>
-          {value >= 0 && label !== 'Total AUM' ? '+' : ''}{displayVal}
+          {displayVal}
         </Typography>
       </Box>
     );
@@ -81,10 +89,31 @@ export function DashboardSummary({ summary, displayCurrency, exchangeRates, sele
             <Box textAlign="left" minWidth={120}>
                <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase' }}>Day Change</Typography>
                <Typography variant="h6" fontWeight="medium" color={summary.totalDayChange >= 0 ? 'success.main' : 'error.main'}>
-                 {summary.totalDayChange >= 0 ? '+' : ''}{formatConverted(summary.totalDayChange)}
+                 {formatConverted(summary.totalDayChange)}
                  <span style={{ fontSize: '0.7em', marginLeft: 4, color: 'text.secondary' }}>
-                    ({summary.totalDayChangePct >= 0 ? '+' : ''}{formatPct(summary.totalDayChangePct)})
+                    ({formatPct(summary.totalDayChangePct)})
+
                   </span>
+               </Typography>
+            </Box>
+
+            {/* TODO: Implement actual calculations for these performance metrics */}
+            <Box textAlign="left" minWidth={120}>
+               <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase' }}>1W Change</Typography>
+               <Typography variant="h6" fontWeight="medium" color={summary.perf1w >= 0 ? 'success.main' : 'error.main'}>
+                 {formatPct(summary.perf1w)}
+               </Typography>
+            </Box>
+            <Box textAlign="left" minWidth={120}>
+               <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase' }}>1M Change</Typography>
+               <Typography variant="h6" fontWeight="medium" color={summary.perf1m >= 0 ? 'success.main' : 'error.main'}>
+                 {formatPct(summary.perf1m)}
+               </Typography>
+            </Box>
+            <Box textAlign="left" minWidth={120}>
+               <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase' }}>YTD Change</Typography>
+               <Typography variant="h6" fontWeight="medium" color={summary.perfYtd >= 0 ? 'success.main' : 'error.main'}>
+                 {formatPct(summary.perfYtd)}
                </Typography>
             </Box>
             

@@ -71,16 +71,21 @@ export const initGoogleClient = async () => {
           const savedToken = localStorage.getItem('g_token');
           const savedExpiry = localStorage.getItem('g_expires');
           let restored = false;
-          if (savedToken && savedExpiry && Date.now() < parseInt(savedExpiry)) {
-            window.gapi.client.setToken({ access_token: savedToken });
-            restored = true;
-          } else if (savedToken) { // Token exists but expired, try silent refresh
-            try {
-              await refreshToken();
+          if (savedToken && savedExpiry) {
+            const expiryTime = parseInt(savedExpiry);
+            const bufferMs = 5 * 60 * 1000; // 5 minutes buffer
+            if (Date.now() < expiryTime - bufferMs) {
+              window.gapi.client.setToken({ access_token: savedToken });
               restored = true;
-            } catch (e) {
-              console.warn('Silent token refresh failed.', e);
-              // Let it resolve as not restored, user will need to sign in manually
+            } else { // Token exists but expired or expiring soon, try silent refresh
+              try {
+                await refreshToken();
+                restored = true;
+              } catch (e) {
+                console.warn('Silent token refresh failed.', e);
+                // TODO: Improve UX when silent refresh fails. Guide user to sign in manually,
+                // potentially by dispatching an event or setting a global state.
+              }
             }
           }
           

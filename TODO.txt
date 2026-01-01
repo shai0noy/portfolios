@@ -1,3 +1,60 @@
+### Pleae be carful not to override entire file when updating tasks ###
+
+ON HOLD: Keep track of dividands since purchase! Add to sheet
+DONE: Add day change to dash rows and header
+PENDING: Add more time ranges performance to header - show  % gains for 1d, 1w, 1m, 3m, 1,3,5y, ytd (UI Placeholders Added)
+DONE: Make google account login last longer or auto renew!
+DONE: Populate sectors
+DONE: New Transaction UI - make comission field smaller, improve "ticker not found" location
+DONE: Improve code comments where truly helpful
+ON HOLD: Handle splits, etc, name changes
+ON HOLD: Support mobile screen sizes
+ON HOLD: Better ticker search - free text, multy options to select from
+DONE: Use google finance (in sheet??) instead of https://v6.exchangerate-api.com
+DONE: Allow fetching TASE data by numeric ticker ID: e.g. from https://www.globes.co.il/data/webservices/financial.asmx/getInstrument?exchange=tase&symbol=1175819
+DONE: Add "New transaction" to ticker viewer
+DONE: Rename add trade to New transaction
+DONE: Fix syntax error in DashboardTable.tsx (missing closing brace for TableProps interface)
+DONE: Fix syntax error in TickerDetails.tsx (missing closing brace for TickerDetailsProps interface)
+DONE: Fix ReferenceError: OpenInNewIcon is not defined in TickerDetails.tsx
+DONE: Move Refresh Data button to the right side of the toggles and increase space between it to them.
+DONE: Add robust error handling to data fetching functions in src/lib/sheets.ts to prevent dashboard loading issues.
+DONE: the exchange selector switches when a stock is found - I want it to only be controlled by the user and stay in auto unless changed    
+DONE: make the display price for IL stocks PRICE agorot (storage currency remains ILS, and so does the total value)
+DONE: When computing dashboard values, ignore txns with future dates. Show a small warning if any such exists.
+PENDING: ticker view should show % gains for 1d, 1w, 1m, 3m, 1,3,5y, ytd (UI Placeholders Added)
+PENDING: ticker view should show divedand gains (%) for same ranges (UI Placeholders Added)
+DONE: Allow editing portfolios (not their ID!)
+DONE: In portfolio headers in the dashboard - add a total value of the portfolio, day gain pct and day gain value, total gain unrealised
+DONE: Add  code comments where they will be truly helpful - search through the code, don't be lazy
+Impl actual gain % values in header
+DONE: Important: Improve google login handling - increase buffers, impl todos, make the session last long and require rarely re-login
+DONE: Make ILS - agorot conversion much more robust, e.g. improve `const priceInILS = (h.exchange === 'TASE' && h.stockCurrency === 'ILS') ? h.currentPrice / 100 : h.currentPrice`
+DONE: Complete priceUnit implementation - Update NewTransaction.tsx and TickerDetails.tsx to use priceUnit.
+DONE: Remove unneeded empty lines in Dashboard.tsx
+In ticker view, stock name is too small and should appear before the exchange name
+DONE: Implement stateful URLs using react-router-dom to persist view/filters.
+In ticker view replace new transaction with "Add Transaction"
+In ticker view also show base price, data age, refersh button (for this ticker only, not whole dashboard). You can also add more useful avilable detials
+Some dashboard text uses colors: #f44336 #4caf50 - those are not the correct light mode colors (correct one is eg #81c784)
+Some dashboard text uses colors: rgb(167, 107, 107), rgb(90, 139, 92) - those are not the correct dark mode colors
+Text colors #aecbfa, #c9d1d9 are a bit too dark in dark mode - not legible 
+When showing ticker data age, show it based on the age in the resoponse, not time of fetch call
+
+Low priority:
+- Support switching display lang to Hebrew - should also affect stock names when avilable (with cookie to persist)
+- Add guide on importing CSV from yahoo near upload CSV wizard
+- Allow drag and drop CSV in wizard
+- Smart layer based tax calc (FIFO selling and per layer taxing)
+- Allow fetching Israeli price indecies (eg CPI) - https://api.cbs.gov.il/index/data/price?id=120010&format=json&download=false&startPeriod=01-2000&endPeriod=12-2019
+- ON HOLD: Add chart to ticker view - it should allow day range, week, month 1,3,5 years, YTD, max
+- ON HOLD: Add portfolio usm chart for dashboard view
+- ON HOLD: Allow comparing portfolios to common indecies, eg CPI, SP500, TLV-125
+- Allow exporting CSV, sheet, holding sheet (flattaned)
+- ON HOLD: Use Gemini for anlysis and insight
+- ON HOLD: Forcast mode, where future txns, vesting are taken into account, and growth of holding is predicted based on custom uesr input or recent trends. Should also include taxes
+
+
 DONE: Rename Config sheet to more discriptive name
 DONE: Save englsih display name and Hebrew name (in different columns) for IL stocks
 DONE: Remove ols rebuild data button, improve toolip of new one (keep the one in the top bar)
@@ -43,41 +100,3 @@ DONE: Allow importing from CSV - into new or exisintg portfolio
   Sample input cols: Symbol,Current Price,Date,Time,Change,Open,High,Low,Volume,Trade Date,Purchase Price,Quantity,Commission,High Limit,Low Limit,Comment,Transaction Type
   Sample input vals: GOOG,314.55,2025/12/30,16:00 EST,0.15997314,313.6,317.7,313.25,10406534,20241025,114.371429,35.0,0.0,,,,
   Never assume order, not all are needed, 
-ON HOLD: Keep track of dividands since purchase! Add to sheet
-DONE: Add day change to dash rows and header
-Add more time ranges performance to header - show  % gains for 1d, 1w, 1m, 3m, 1,3,5y, ytd
-Make google account login last longer or auto renew!
-DONE: Populate sectors
-DONE: New Transaction UI - make comission field smaller, improve "ticker not found" location
-Improve code comments where truly helpful
-ON HOLD: Handle splits, etc, name changes
-ON HOLD: Support mobile screen sizes
-ON HOLD: Better ticker search - free text, multy options to select from
-DONE: Use google finance (in sheet??) instead of https://v6.exchangerate-api.com
-DONE: Allow fetching TASE data by numeric ticker ID: e.g. from https://www.globes.co.il/data/webservices/financial.asmx/getInstrument?exchange=tase&symbol=1175819
-DONE: Add "New transaction" to ticker viewer
-DONE: Rename add trade to New transaction
-DONE: Fix syntax error in DashboardTable.tsx (missing closing brace for TableProps interface)
-DONE: Fix syntax error in TickerDetails.tsx (missing closing brace for TickerDetailsProps interface)
-DONE: Fix ReferenceError: OpenInNewIcon is not defined in TickerDetails.tsx
-Move Refresh Data button to the right side of the toggles and increase space between it to them.
-DONE: Add robust error handling to data fetching functions in src/lib/sheets.ts to prevent dashboard loading issues.
-the exchange selector switches when a stock is found - I want it to only be controlled by the user and stay in auto unless changed    
-make the display price for IL stocks PRICE agorot (storage currency remains ILS, and so does the total value)
-When computing dashboard values, ignore txns with future dates. Show a small warning if any such exists.
-ticker view should show % gains for 1d, 1w, 1m, 3m, 1,3,5y, ytd
-ticker view should show divedand gains (%) for same ranges
-Allow editing portfolios (not their ID!)
-In portfolio headers in the dashboard - add a total value of the portfolio, day gain pct and day gain value, total gain unrealised
-Low priority:
-- Support switching display lang to Hebrew - should also affect stock names when avilable (with cookie to persist)
-- Add guide on importing CSV from yahoo near upload CSV wizard
-- Allow drag and drop CSV in wizard
-- Smart layer based tax calc (FIFO selling and per layer taxing)
-- Allow fetching Israeli price indecies (eg CPI) - https://api.cbs.gov.il/index/data/price?id=120010&format=json&download=false&startPeriod=01-2000&endPeriod=12-2019
-- ON HOLD: Add chart to ticker view - it should allow day range, week, month 1,3,5 years, YTD, max
-- ON HOLD: Add portfolio usm chart for dashboard view
-- ON HOLD: Allow comparing portfolios to common indecies, eg CPI, SP500, TLV-125
-- Allow exporting CSV, sheet, holding sheet (flattaned)
-- ON HOLD: Use Gemini for anlysis and insight
-- ON HOLD: Forcast mode, where future txns, vesting are taken into account, and growth of holding is predicted based on custom uesr input or recent trends. Should also include taxes

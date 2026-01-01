@@ -39,6 +39,7 @@ export interface LiveData {
   currency: string;
   sector?: string;
   changePct?: number;
+  priceUnit?: 'base' | 'agorot' | 'cents'; // Add priceUnit
 }
 
 // Templates for quick setup

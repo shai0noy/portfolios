@@ -5,8 +5,8 @@ import { getTickerData } from './ticker';
 
 const PORT_OPT_RANGE = 'Portfolio_Options!A2:M';
 const TX_FETCH_RANGE = 'Transaction_Log!A2:L';
-// Adjusted range for new columns: Ticker, Exchange, Price, Name_En, Name_He, Currency, Sector, Change
-const LIVE_DATA_RANGE = 'Live_Data!A2:H'; 
+// Adjusted range for new columns: Ticker, Exchange, Price, Name_En, Name_He, Currency, Sector, Change, Price_Unit
+const LIVE_DATA_RANGE = 'Live_Data!A2:I'; 
 const CONFIG_RANGE = 'System_Config!A2:B'; // Renamed
 
 // Helper to get Sheet ID by Name
@@ -83,7 +83,8 @@ export const ensureSchema = async (spreadsheetId: string) => {
               { userEnteredValue: { stringValue: 'Name_He' } },
               { userEnteredValue: { stringValue: 'Currency' } },
               { userEnteredValue: { stringValue: 'Sector' } },
-              { userEnteredValue: { stringValue: 'Day_Change_%' } }
+              { userEnteredValue: { stringValue: 'Day_Change_%' } },
+              { userEnteredValue: { stringValue: 'Price_Unit' } } // New Column
             ] }],
             fields: 'userEnteredValue'
           }
@@ -189,6 +190,43 @@ export const addPortfolio = async (spreadsheetId: string, p: Portfolio) => {
   });
 };
 
+export const updatePortfolio = async (spreadsheetId: string, p: Portfolio) => {
+  await ensureGapi();
+  const res = await window.gapi.client.sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: PORT_OPT_RANGE,
+  });
+
+  const rows = res.result.values || [];
+  let rowIndex = -1;
+  for (let i = 0; i < rows.length; i++) {
+    if (rows[i][0] === p.id) {
+      rowIndex = i + 2; // +2 because sheets are 1-indexed and we skip the header
+      break;
+    }
+  }
+
+  if (rowIndex === -1) {
+    throw new Error(`Portfolio with ID ${p.id} not found`);
+  }
+
+  const row = [
+    p.id, p.name,
+    p.cgt, p.incTax,
+    p.mgmtVal, p.mgmtType, p.mgmtFreq,
+    p.commRate, p.commMin, p.commMax,
+    p.currency, p.divPolicy, p.divCommRate
+  ];
+
+  const range = `Portfolio_Options!A${rowIndex}:M${rowIndex}`;
+  await window.gapi.client.sheets.spreadsheets.values.update({
+    spreadsheetId,
+    range: range,
+    valueInputOption: 'USER_ENTERED',
+    resource: { values: [row] }
+  });
+};
+
 export const addTransaction = async (spreadsheetId: string, t: Transaction) => {
   await ensureGapi(); 
   const row = [
@@ -225,6 +263,7 @@ export const fetchLiveData = async (spreadsheetId: string): Promise<LiveData[]> 
       currency: r[5],
       sector: r[6],
       changePct: parseFloat(r[7]),
+      priceUnit: r[8] || 'base',
     }));
   } catch (error) {
     console.error('Error fetching live data:', error);
@@ -260,9 +299,10 @@ export const rebuildLiveData = async (spreadsheetId: string, transactions: Trans
     `=GOOGLEFINANCE(B${i+2}&":"&A${i+2}, "currency")`, // Currency (Formula)
     `=IFERROR(GOOGLEFINANCE(B${i+2}&":"&A${i+2}, "sector"), "Other")`, // Sector (Formula)
     `=IFERROR(GOOGLEFINANCE(B${i+2}&":"&A${i+2}, "changepct")/100, 0)`, // Change (Formula)
+    meta?.priceUnit || 'base',
   ]));
 
-  await window.gapi.client.sheets.spreadsheets.values.clear({ spreadsheetId, range: 'Live_Data!A2:H' });
+  await window.gapi.client.sheets.spreadsheets.values.clear({ spreadsheetId, range: 'Live_Data!A2:I' });
   if (data.length > 0) {
     await window.gapi.client.sheets.spreadsheets.values.update({
       spreadsheetId,

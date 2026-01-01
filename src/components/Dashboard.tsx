@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
-  Box, CircularProgress, FormControlLabel, Switch, IconButton, Tooltip
+  Box, CircularProgress, FormControlLabel, Switch, IconButton, Tooltip, Alert
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import { fetchPortfolios, fetchTransactions, fetchLiveData } from '../lib/sheets';
@@ -44,19 +45,21 @@ interface Holding {
   costBasis: number;
   costOfSold: number;
   stockCurrency: string;
+  priceUnit?: 'base' | 'agorot' | 'cents';
 }
 
 export const Dashboard = ({ sheetId }: DashboardProps) => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [groupByPortfolio, setGroupByPortfolio] = useState(true);
   const [includeUnvested, setIncludeUnvested] = useState<boolean>(false);
-  
+  const [hasFutureTxns, setHasFutureTxns] = useState(false);  
   // Persist Currency
   const [displayCurrency, setDisplayCurrency] = useState(() => localStorage.getItem('displayCurrency') || 'USD');
   
   const [exchangeRates, setExchangeRates] = useState<any>({ USD: 1, ILS: 3.7 });
-  const [selectedPortfolio, setSelectedPortfolio] = useState<string | null>(null);
+  const [selectedPortfolioId, setSelectedPortfolioId] = useState<string | null>(searchParams.get('portfolioId'));
   const [portMap, setPortMap] = useState<Map<string, any>>(new Map());
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const openColSelector = Boolean(anchorEl);
@@ -78,11 +81,24 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
   }, [sheetId]);
 
   useEffect(() => {
-    const selectedPort = portMap.get(selectedPortfolio || '');
+    const portId = searchParams.get('portfolioId');
+    setSelectedPortfolioId(portId);
+    const selectedPort = portMap.get(portId || '');
     if (selectedPort) {
       setDisplayCurrency(selectedPort.currency);
+    } else if (!portId) {
+      // Reset to default if no portfolio is selected
+      setDisplayCurrency(localStorage.getItem('displayCurrency') || 'USD');
     }
-  }, [selectedPortfolio, portMap]);
+  }, [searchParams, portMap]);
+
+  const handleSelectPortfolio = (portfolioId: string | null) => {
+    if (portfolioId) {
+      setSearchParams({ portfolioId });
+    } else {
+      setSearchParams({});
+    }
+  };
 
   const [summary, setSummary] = useState({
     aum: 0,
@@ -138,12 +154,21 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
       setSummary(s);
     };
 
-    if (selectedPortfolio) {
-      calculateSummary(holdings.filter(h => h.portfolioName === selectedPortfolio));
+    if (selectedPortfolioId) {
+      calculateSummary(holdings.filter(h => h.portfolioId === selectedPortfolioId));
     } else {
       calculateSummary(holdings);
     }
-  }, [selectedPortfolio, holdings, exchangeRates]);
+  }, [selectedPortfolioId, holdings, exchangeRates]);
+
+  const getPriceInBaseCurrency = (holding: Holding) => {
+    if (holding.priceUnit === 'agorot' && holding.stockCurrency === 'ILS') {
+      return holding.currentPrice / 100;
+    } else if (holding.priceUnit === 'cents') {
+      return holding.currentPrice / 100;
+    }
+    return holding.currentPrice;
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -166,6 +191,8 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
 
       txns.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
       const today = new Date();
+      const futureTxns = txns.filter(t => new Date(t.date) > today);
+      setHasFutureTxns(futureTxns.length > 0);
       const pastTxns = txns.filter(t => new Date(t.date) <= today);
       const filteredTxns = includeUnvested ? pastTxns : pastTxns.filter(t => !t.vestDate || new Date(t.vestDate) <= new Date());
 
@@ -174,12 +201,13 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         if (!holdingMap.has(key)) {
           const live = liveDataMap.get(`${t.ticker}:${t.exchange}`);
           const p = newPortMap.get(t.portfolioId);
+          const defaultExchange = /\d/.test(t.ticker) ? 'TASE' : 'NASDAQ';
           holdingMap.set(key, {
             key,
             portfolioId: t.portfolioId,
             portfolioName: p?.name || t.portfolioId,
             ticker: t.ticker,
-            exchange: t.exchange || '',
+            exchange: t.exchange || live?.exchange || defaultExchange,
             displayName: live?.name || t.ticker,
             name_he: live?.name_he, // Store Hebrew Name
             qtyVested: 0,
@@ -205,6 +233,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
             costBasis: 0,
             costOfSold: 0,
             stockCurrency: live?.currency || t.currency || p?.currency || 'USD',
+            priceUnit: live?.priceUnit || 'base',
           });
         }
 
@@ -233,12 +262,17 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
       const processedHoldings: Holding[] = [];
 
       holdingMap.forEach(h => {
+        // Convert Agorot to ILS for TASE stocks before value calculations.
+        const priceInBase = getPriceInBaseCurrency(h);
+
         h.totalQty = h.qtyVested + h.qtyUnvested;
         h.avgCost = h.totalQty > 0 ? h.costBasis / h.totalQty : 0;
-        h.mvVested = h.qtyVested * h.currentPrice;
-        h.mvUnvested = h.qtyUnvested * h.currentPrice;
+        h.mvVested = h.qtyVested * priceInBase;
+        h.mvUnvested = h.qtyUnvested * priceInBase;
         h.totalMV = h.mvVested + h.mvUnvested;
         
+        
+        // Unrealized gain is the difference between current market value and the cost basis.
         const unrealized = h.totalMV - h.costBasis;
         h.unrealizedGain = unrealized;
         h.unrealizedGainPct = h.costBasis > 0 ? unrealized / h.costBasis : 0;
@@ -246,6 +280,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         h.realizedGainAfterTax = h.realizedGain * (1 - taxRate);
         h.totalGain = h.unrealizedGain + h.realizedGain + h.dividends;
         h.totalGainPct = h.costBasis + h.costOfSold > 0 ? h.totalGain / (h.costBasis + h.costOfSold) : 0;
+        // Approximate value after tax, assuming all unrealized gain is taxed at the standard rate.
         h.valueAfterTax = h.totalMV - (h.unrealizedGain > 0 ? h.unrealizedGain * taxRate : 0);
         h.dayChangeVal = h.totalMV * h.dayChangePct;
 
@@ -313,31 +348,36 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
 
   // Grouping Logic
   const groupedData = useMemo(() => {
-    const filteredHoldings = selectedPortfolio ? holdings.filter(h => h.portfolioName === selectedPortfolio) : holdings;
-    if (!groupByPortfolio) return { 'All Holdings': filteredHoldings };
+    const filteredHoldings = selectedPortfolioId ? holdings.filter(h => h.portfolioId === selectedPortfolioId) : holdings;
+    if (!groupByPortfolio || selectedPortfolioId) return { 'All Holdings': filteredHoldings };
     const groups: Record<string, Holding[]> = {};
     filteredHoldings.forEach(h => {
       if (!groups[h.portfolioName]) groups[h.portfolioName] = [];
       groups[h.portfolioName].push(h);
     });
     return groups;
-  }, [holdings, groupByPortfolio, selectedPortfolio]);
+  }, [holdings, groupByPortfolio, selectedPortfolioId]);
 
   if (loading) return <Box display="flex" justifyContent="center" p={5}><CircularProgress /></Box>;
 
   return (
     <Box sx={{ maxWidth: 1400, mx: 'auto', mt: 4 }}>
+      {hasFutureTxns && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          Note: Some transactions with future dates exist and are not included in the calculations.
+        </Alert>
+      )}
       <DashboardSummary
         summary={summary}
         displayCurrency={displayCurrency}
         exchangeRates={exchangeRates}
-        selectedPortfolio={selectedPortfolio}
-        onBack={() => setSelectedPortfolio(null)}
+        selectedPortfolio={portMap.get(selectedPortfolioId || '')?.name || null}
+        onBack={() => handleSelectPortfolio(null)}
         onCurrencyChange={setDisplayCurrency}
       />
 
       {/* CONTROLS */}
-      <Box display="flex" justifyContent="space-between" mb={2}>
+      <Box display="flex" justifyContent="space-between" mb={2} alignItems="center">
         <Box display="flex" gap={1}>
           <ColumnSelector
             columns={columnVisibility}
@@ -351,17 +391,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
             onClose={handleCloseColSelector}
           />
         </Box>
-        <Box>
-          <Tooltip title="Refresh Data">
-            <IconButton 
-              onClick={() => loadData()} 
-              disabled={loading}
-              size="small"
-              sx={{ ml: 2, border: 'none', borderRadius: 0 }}
-            >
-              <RefreshIcon />
-            </IconButton>
-          </Tooltip>
+        <Box display="flex" alignItems="center">
           <FormControlLabel
             control={<Switch checked={includeUnvested} onChange={e => setIncludeUnvested(e.target.checked)} />}
             label='Include Unvested'
@@ -370,7 +400,18 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
           <FormControlLabel
             control={<Switch checked={groupByPortfolio} onChange={e => setGroupByPortfolio(e.target.checked)} />}
             label="Group by Portfolio"
+            sx={{ mr: 2 }}
           />
+          <Tooltip title="Refresh Data">
+            <IconButton 
+              onClick={() => loadData()} 
+              disabled={loading}
+              size="small"
+              sx={{ border: 'none', borderRadius: 0 }}
+            >
+              <RefreshIcon />
+            </IconButton>
+          </Tooltip>
         </Box>
       </Box>
 
@@ -381,7 +422,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         displayCurrency={displayCurrency}
         exchangeRates={exchangeRates}
         includeUnvested={includeUnvested}
-        onSelectPortfolio={setSelectedPortfolio}
+        onSelectPortfolio={handleSelectPortfolio} // Updated prop
         columnVisibility={columnVisibility}
         onHideColumn={(col) => setColumnVisibility((prev: any) => ({ ...prev, [col]: false }))}
         sheetId={sheetId}

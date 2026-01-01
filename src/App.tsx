@@ -1,13 +1,14 @@
 import { useState, useEffect, useMemo } from 'react';
+import { Routes, Route, useNavigate, useLocation, Link as RouterLink } from 'react-router-dom';
 import { Login } from './components/Login';
-import { NewTransaction } from './components/NewTransaction';
+import { TransactionForm } from './components/NewTransaction';
 import { PortfolioManager } from './components/PortfolioManager';
 import { Dashboard } from './components/Dashboard';
 import { ImportCSV } from './components/ImportCSV';
+import { TickerDetails } from './components/TickerDetails'; // Import TickerDetails
 import { ensureSchema, populateTestData, fetchTransactions, rebuildLiveData } from './lib/sheets';
-import { initGoogleClient } from './lib/google';
+import { initGoogleClient, refreshToken, signOut } from './lib/google';
 import { Box, AppBar, Toolbar, Typography, Container, Tabs, Tab, IconButton, Tooltip, CircularProgress, ThemeProvider, CssBaseline } from '@mui/material';
-import { signOut } from './lib/google';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import BuildIcon from '@mui/icons-material/Build';
@@ -18,9 +19,20 @@ import Brightness7Icon from '@mui/icons-material/Brightness7';
 import SyncIcon from '@mui/icons-material/Sync';
 import { getTheme } from './theme';
 
+const tabMap: Record<string, number> = {
+  '/dashboard': 0,
+  '/transaction': 1,
+  '/portfolios': 2,
+};
+
+const reverseTabMap: Record<number, string> = {
+  0: '/dashboard',
+  1: '/transaction',
+  2: '/portfolios',
+};
+
 function App() {
   const [sheetId, setSheetId] = useState<string | null>(localStorage.getItem('g_sheet_id'));
-  const [tab, setTab] = useState(0);
   const [refreshKey, setRefreshKey] = useState(0); // Trigger to reload data
   const [googleReady, setGoogleReady] = useState<boolean | null>(null);
   const [importOpen, setImportOpen] = useState(false);
@@ -28,10 +40,24 @@ function App() {
   const [rebuilding, setRebuilding] = useState(false);
 
   const theme = useMemo(() => getTheme(mode), [mode]);
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const currentTab = tabMap[location.pathname] || 0;
+
+  useEffect(() => {
+    if (!location.pathname || location.pathname === '/') {
+      navigate('/dashboard');
+    }
+  }, [location.pathname, navigate]);
 
   useEffect(() => {
     localStorage.setItem('themeMode', mode);
   }, [mode]);
+
+  const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
+    navigate(reverseTabMap[newValue]);
+  };
 
   const toggleColorMode = () => {
     setMode((prevMode) => (prevMode === 'light' ? 'dark' : 'light'));
@@ -105,6 +131,34 @@ function App() {
     return () => { mounted = false; };
   }, []);
 
+  useEffect(() => {
+    if (!sheetId || !googleReady) return;
+
+    const checkToken = async () => {
+      const savedExpiry = localStorage.getItem('g_expires');
+      if (savedExpiry) {
+        const expiryTime = parseInt(savedExpiry);
+        const bufferMs = 15 * 60 * 1000; // 15 minutes buffer
+        if (Date.now() > expiryTime - bufferMs) {
+          console.log('Token nearing expiration, attempting silent refresh...');
+          try {
+            await refreshToken();
+            console.log('Token refreshed successfully.');
+          } catch (e) {
+            console.warn('Periodic silent token refresh failed.', e);
+            // Optionally handle logout if refresh persistently fails
+            // handleLogout();
+          }
+        }
+      }
+    };
+
+    checkToken(); // Initial check
+    const intervalId = setInterval(checkToken, 10 * 60 * 1000); // Check every 10 minutes
+
+    return () => clearInterval(intervalId);
+  }, [sheetId, googleReady]);
+
   if (googleReady === null) {
     return <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh"><CircularProgress /></Box>;
   }
@@ -120,10 +174,10 @@ function App() {
             My Portfolios
           </Typography>
           
-          <Tabs value={tab} onChange={(_, v) => setTab(v)} textColor="primary" indicatorColor="primary" sx={{ flexGrow: 1 }}>
-            <Tab label="Dashboard" sx={{ textTransform: 'none', fontSize: '1rem', minHeight: 64 }} />
-            <Tab label="Add Trade" sx={{ textTransform: 'none', fontSize: '1rem', minHeight: 64 }} />
-            <Tab label="Manage Portfolios" sx={{ textTransform: 'none', fontSize: '1rem', minHeight: 64 }} />
+          <Tabs value={currentTab} onChange={handleTabChange} textColor="primary" indicatorColor="primary" sx={{ flexGrow: 1 }}>
+            <Tab label="Dashboard" sx={{ textTransform: 'none', fontSize: '1rem', minHeight: 64 }} component={RouterLink} to="/dashboard" />
+            <Tab label="Add Trade" sx={{ textTransform: 'none', fontSize: '1rem', minHeight: 64 }} component={RouterLink} to="/transaction" />
+            <Tab label="Manage Portfolios" sx={{ textTransform: 'none', fontSize: '1rem', minHeight: 64 }} component={RouterLink} to="/portfolios" />
           </Tabs>
 
           <Box display="flex" gap={1}>
@@ -174,13 +228,21 @@ function App() {
       </AppBar>
       
       <Container maxWidth="xl" sx={{ mt: 5, pb: 8 }}>
-        {tab === 0 ? (
+        <Box sx={{ display: currentTab === 0 ? 'block' : 'none' }}>
           <Dashboard sheetId={sheetId} key={refreshKey} />
-        ) : tab === 1 ? (
-          <NewTransaction sheetId={sheetId} key={refreshKey} />
-        ) : (
-          <PortfolioManager sheetId={sheetId} onSuccess={() => setRefreshKey(k => k + 1)} />
-        )}
+        </Box>
+        <Box sx={{ display: currentTab === 1 ? 'block' : 'none' }}>
+          <TransactionForm sheetId={sheetId} key={refreshKey} />
+        </Box>
+
+        {/* Routes for components that should not be hidden, but mounted on navigation */}
+        <Routes>
+          <Route path="/dashboard" element={null} /> {/* Dummy route */}
+          <Route path="/transaction" element={null} /> {/* Dummy route */}
+          <Route path="/portfolios" element={<PortfolioManager sheetId={sheetId} onSuccess={() => setRefreshKey(k => k + 1)} />} />
+          <Route path="/portfolios/:portfolioId" element={<PortfolioManager sheetId={sheetId} onSuccess={() => setRefreshKey(k => k + 1)} />} />
+          <Route path="/ticker/:exchange/:ticker" element={<TickerDetails sheetId={sheetId} />} />
+        </Routes>
       </Container>
 
       {importOpen && (

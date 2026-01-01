@@ -36,8 +36,9 @@ function useDebounce(value: string, delay: number) {
 }
 
 
-export const NewTransaction = ({ sheetId, initialTicker, initialExchange, initialPrice, initialCurrency, onSaveSuccess }: Props) => {
+export const TransactionForm = ({ sheetId, initialTicker, initialExchange, initialPrice, initialCurrency, onSaveSuccess }: Props) => {
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
+  const [isPortfoliosLoading, setIsPortfoliosLoading] = useState(true);
   const [loading, setLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [isPriceLoading, setIsPriceLoading] = useState(false);
@@ -58,56 +59,79 @@ export const NewTransaction = ({ sheetId, initialTicker, initialExchange, initia
   const [tax, setTax] = useState<string>('');
   const [displayName, setDisplayName] = useState('');
   const [tickerCurrency, setTickerCurrency] = useState(initialCurrency || '');
+  const [priceUnit, setPriceUnit] = useState<'base' | 'agorot' | 'cents'>('base');
+  const [foundExchange, setFoundExchange] = useState('');
 
   const debouncedTicker = useDebounce(ticker, 500);
   
   useEffect(() => {
+    setIsPortfoliosLoading(true);
     fetchPortfolios(sheetId).then(ports => {
       setPortfolios(ports);
       if (ports.length > 0 && !portId) {
         setPortId(ports[0].id);
       }
+      setIsPortfoliosLoading(false);
+    }).catch(() => {
+      setIsPortfoliosLoading(false);
+      // Handle error if needed
     });
   }, [sheetId, portId]);
 
   useEffect(() => {
-    if (debouncedTicker && exchange === '') { // Only deduce if not manually set
-      if (/\d/.test(debouncedTicker)) {
-        setExchange('TASE');
-      } else {
-        setExchange('NASDAQ');
-      }
-    }
-  }, [debouncedTicker, exchange]);
-
-  useEffect(() => {
     if (debouncedTicker) {
+      const controller = new AbortController();
+      const signal = controller.signal;
+
       setIsPriceLoading(true);
       setPriceError('');
       setDisplayName('');
-      if (!initialPrice) setPrice(''); // Clear price on change only if not initial
-      if (!initialCurrency) setTickerCurrency(''); // Clear currency on change only if not initial
+      setFoundExchange(''); // Reset found exchange
+      setPrice(''); // Always clear price on ticker change
+      setTickerCurrency(''); // Always clear currency on ticker change
+      setPriceUnit('base'); // Reset price unit
       
-      if (exchange) {
-        getTickerData(debouncedTicker, exchange).then(data => {
+      let exchangeToFetch = exchange;
+      if (!exchangeToFetch) {
+        // Deduce exchange for fetching if not set
+        exchangeToFetch = /\d/.test(debouncedTicker) ? 'TASE' : 'NASDAQ';
+      }
+      
+      getTickerData(debouncedTicker, exchangeToFetch, signal).then(data => {
+        if (!signal.aborted) {
           setIsPriceLoading(false);
           if (data) {
-            if (!initialPrice) handlePriceChange(data.price.toString());
+            handlePriceChange(data.price.toString());
             setDisplayName(data.name || '');
-            if (!initialCurrency) setTickerCurrency(data.currency || '');
+            setPriceUnit(data.priceUnit || 'base');
+            if (data.priceUnit === 'agorot') {
+              setTickerCurrency('ILS');
+            } else {
+              setTickerCurrency(data.currency || '');
+            }
+            setFoundExchange(data.exchange || exchangeToFetch);
           } else {
-            setPriceError('Ticker not found');
+            setPriceError(`Ticker not found on ${exchangeToFetch}`);
           }
-        });
-      } else {
-         setIsPriceLoading(false); 
-      }
+        }
+      }).catch(err => {
+        if (err.name !== 'AbortError') {
+          console.error("Error fetching ticker data:", err);
+          setIsPriceLoading(false);
+          setPriceError('Error fetching ticker data');
+        }
+      });
+
+      return () => {
+        controller.abort();
+      };
     } else {
        setDisplayName('');
-       if (!initialPrice) setPrice('');
-       if (!initialCurrency) setTickerCurrency('');
+       setFoundExchange('');
+       setPrice('');
+       setTickerCurrency('');
     }
-  }, [debouncedTicker, exchange, initialPrice, initialCurrency]);
+  }, [debouncedTicker, exchange]);
 
   useEffect(() => {
     const selectedPort = portfolios.find(p => p.id === portId);
@@ -233,21 +257,26 @@ export const NewTransaction = ({ sheetId, initialTicker, initialExchange, initia
         New Transaction
       </Typography>
 
-      <Grid container spacing={2}>
-        <Grid size={12}>
-          <Card variant="outlined">
-            <CardContent>
-              <Grid container spacing={2}>
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  <FormControl fullWidth size="small">
-                    <InputLabel>Portfolio</InputLabel>
-                    <Select value={portId} label="Portfolio" onChange={(e) => setPortId(e.target.value)}>
-                      {portfolios.map(p => (
-                        <MenuItem key={p.id} value={p.id}>{p.name} ({p.currency})</MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
+      {isPortfoliosLoading ? (
+        <Box display="flex" justifyContent="center" alignItems="center" sx={{ minHeight: 200 }}>
+          <CircularProgress />
+        </Box>
+      ) : (
+        <Grid container spacing={2}>
+          <Grid size={12}>
+            <Card variant="outlined">
+              <CardContent>
+                <Grid container spacing={2}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel>Portfolio</InputLabel>
+                      <Select value={portId} label="Portfolio" onChange={(e) => setPortId(e.target.value)}>
+                        {portfolios.map(p => (
+                          <MenuItem key={p.id} value={p.id}>{p.name} ({p.currency})</MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField 
                     type="date" label="Date" size="small" fullWidth
@@ -299,7 +328,7 @@ export const NewTransaction = ({ sheetId, initialTicker, initialExchange, initia
                   </FormControl>
                 </Grid>
 
-                {displayName && <Grid size={12}><Typography variant="h6" color="text.secondary">{displayName} <span style={{ fontSize: '0.8rem', color: '#9e9e9e' }}>({exchange})</span></Typography></Grid>}
+                {displayName && <Grid size={12}><Typography variant="h6" color="text.secondary">{displayName} <span style={{ fontSize: '0.8rem', color: '#9e9e9e' }}>({foundExchange || exchange})</span></Typography></Grid>}
                 
                 <Grid size={{ xs: 6, sm: 4 }}>
                   <Tooltip title="Number of shares/units bought or sold.">
@@ -310,13 +339,13 @@ export const NewTransaction = ({ sheetId, initialTicker, initialExchange, initia
                   </Tooltip>
                 </Grid>
                 <Grid size={{ xs: 6, sm: 4 }}>
-                   <Tooltip title="Price per single share/unit.">
+                   <Tooltip title={`Price per single share/unit.${priceUnit === 'agorot' ? ' In Agorot.' : ''}`}>
                      <TextField 
                        label="Price" type="number" size="small" fullWidth
                        value={price} 
                        onChange={e => handlePriceChange(e.target.value)} 
                        InputProps={{
-                         startAdornment: <InputAdornment position="start">{tickerCurrency}</InputAdornment>,
+                         startAdornment: <InputAdornment position="start">{priceUnit === 'agorot' ? 'ag.' : tickerCurrency}</InputAdornment>,
                          endAdornment: isPriceLoading ? <CircularProgress size={20} /> : null
                        }}
                      />
@@ -382,6 +411,7 @@ export const NewTransaction = ({ sheetId, initialTicker, initialExchange, initia
           </Button>
         </Grid>
       </Grid>
+      )}
 
       <Snackbar 
         open={!!successMsg} autoHideDuration={3000} 

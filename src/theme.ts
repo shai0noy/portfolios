@@ -16,12 +16,12 @@ export const getTheme = (mode: 'light' | 'dark') => createTheme({
       : {
           // Dark Mode (Improved)
           background: { default: '#0d1117', paper: '#161b22' }, // Darker, slightly blueish grey (GitHub-like)
-          primary: { main: '#aecbfa' }, // Adjusted primary color for better visibility in dark mode
-          secondary: { main: '#bc8cff' },
-          text: { primary: '#c9d1d9', secondary: '#8b949e' }, // Softer white and grey
+          primary: { main: '#cce0ff' }, // Lighter blue for primary actions
+          secondary: { main: '#dcb6ff' }, // Lighter purple
+          text: { primary: '#f0f6fc', secondary: '#b1bac4' }, // Brighter primary, slightly lighter secondary
           divider: '#30363d',
-          success: { main: '#81c784' }, // Even brighter green for dark mode
-          error: { main: '#ef9a9a' },   // Even brighter red for dark mode
+          success: { main: '#81c784', dark: '#a5d6a7' }, // Brighter green for dark mode
+          error: { main: '#ef9a9a', dark: '#ffcdd2' },   // Brighter red for dark mode
         }),
   },
   typography: {
