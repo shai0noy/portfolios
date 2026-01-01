@@ -4,6 +4,8 @@ DONE: Remove ols rebuild data button, improve toolip of new one (keep the one in
 DONE: Move rebuild button to top tollbar, remove "slow" from tooltip, instead explain what it does
 DONE: Remove "fast" from refersh button 
 DONE: Dark mode colors are not good, some text is white on white, some of the blue and lighter tones are harsh
+DONE: Improve color contrast of red and green text in dark mode (made even brighter).
+DONE: Replace hardcoded '#fafafa' background in DashboardTable.tsx with theme-aware color.
 DONE: Put currency selector in the same height as other text in the dashboard header
 DONE: Make day change in value and % two different columns  
 DONE: Support switching to dark mode
@@ -43,7 +45,8 @@ DONE: Allow importing from CSV - into new or exisintg portfolio
   Never assume order, not all are needed, 
 ON HOLD: Keep track of dividands since purchase! Add to sheet
 DONE: Add day change to dash rows and header
-Add more time ranges performance to header
+Add more time ranges performance to header - show  % gains for 1d, 1w, 1m, 3m, 1,3,5y, ytd
+Make google account login last longer or auto renew!
 DONE: Populate sectors
 DONE: New Transaction UI - make comission field smaller, improve "ticker not found" location
 Improve code comments where truly helpful
@@ -52,18 +55,29 @@ ON HOLD: Support mobile screen sizes
 ON HOLD: Better ticker search - free text, multy options to select from
 DONE: Use google finance (in sheet??) instead of https://v6.exchangerate-api.com
 DONE: Allow fetching TASE data by numeric ticker ID: e.g. from https://www.globes.co.il/data/webservices/financial.asmx/getInstrument?exchange=tase&symbol=1175819
-Add "New transaction" to ticker viewer
-Rename add trade to New transaction
+DONE: Add "New transaction" to ticker viewer
+DONE: Rename add trade to New transaction
+DONE: Fix syntax error in DashboardTable.tsx (missing closing brace for TableProps interface)
+DONE: Fix syntax error in TickerDetails.tsx (missing closing brace for TickerDetailsProps interface)
+DONE: Fix ReferenceError: OpenInNewIcon is not defined in TickerDetails.tsx
+Move Refresh Data button to the right side of the toggles and increase space between it to them.
+DONE: Add robust error handling to data fetching functions in src/lib/sheets.ts to prevent dashboard loading issues.
 the exchange selector switches when a stock is found - I want it to only be controlled by the user and stay in auto unless changed    
-let's make the display price for IL stocks PRICE agorot (storage currency remains ILS, and so does the total value)
-
+make the display price for IL stocks PRICE agorot (storage currency remains ILS, and so does the total value)
+When computing dashboard values, ignore txns with future dates. Show a small warning if any such exists.
+ticker view should show % gains for 1d, 1w, 1m, 3m, 1,3,5y, ytd
+ticker view should show divedand gains (%) for same ranges
+Allow editing portfolios (not their ID!)
+In portfolio headers in the dashboard - add a total value of the portfolio, day gain pct and day gain value, total gain unrealised
 Low priority:
-- Support switching display lang to Hebrew
+- Support switching display lang to Hebrew - should also affect stock names when avilable (with cookie to persist)
 - Add guide on importing CSV from yahoo near upload CSV wizard
 - Allow drag and drop CSV in wizard
 - Smart layer based tax calc (FIFO selling and per layer taxing)
 - Allow fetching Israeli price indecies (eg CPI) - https://api.cbs.gov.il/index/data/price?id=120010&format=json&download=false&startPeriod=01-2000&endPeriod=12-2019
-- ON HOLD: Add graphs
+- ON HOLD: Add chart to ticker view - it should allow day range, week, month 1,3,5 years, YTD, max
+- ON HOLD: Add portfolio usm chart for dashboard view
 - ON HOLD: Allow comparing portfolios to common indecies, eg CPI, SP500, TLV-125
 - Allow exporting CSV, sheet, holding sheet (flattaned)
 - ON HOLD: Use Gemini for anlysis and insight
+- ON HOLD: Forcast mode, where future txns, vesting are taken into account, and growth of holding is predicted based on custom uesr input or recent trends. Should also include taxes
