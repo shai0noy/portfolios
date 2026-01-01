@@ -36,7 +36,7 @@ function useDebounce(value: string, delay: number) {
 }
 
 
-export const AddTrade = ({ sheetId, initialTicker, initialExchange, initialPrice, initialCurrency, onSaveSuccess }: Props) => {
+export const NewTransaction = ({ sheetId, initialTicker, initialExchange, initialPrice, initialCurrency, onSaveSuccess }: Props) => {
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [loading, setLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');

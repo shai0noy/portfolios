@@ -350,18 +350,18 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
             onClick={handleClickColSelector}
             onClose={handleCloseColSelector}
           />
+        </Box>
+        <Box>
           <Tooltip title="Refresh Data">
             <IconButton 
               onClick={() => loadData()} 
               disabled={loading}
               size="small"
-              sx={{ border: '1px solid #e0e0e0', borderRadius: 1 }}
+              sx={{ ml: 2, border: 'none', borderRadius: 0 }}
             >
               <RefreshIcon />
             </IconButton>
           </Tooltip>
-        </Box>
-        <Box>
           <FormControlLabel
             control={<Switch checked={includeUnvested} onChange={e => setIncludeUnvested(e.target.checked)} />}
             label='Include Unvested'
@@ -384,6 +384,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         onSelectPortfolio={setSelectedPortfolio}
         columnVisibility={columnVisibility}
         onHideColumn={(col) => setColumnVisibility((prev: any) => ({ ...prev, [col]: false }))}
+        sheetId={sheetId}
       />
     </Box>
   );

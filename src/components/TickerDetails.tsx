@@ -1,5 +1,7 @@
 import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, Box, Grid, Chip } from '@mui/material';
+import { NewTransaction } from './NewTransaction';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import { useState } from 'react';
 
 interface TickerDetailsProps {
   open: boolean;
@@ -13,9 +15,11 @@ interface TickerDetailsProps {
   dayChangePct: number;
   dayChangeVal: number;
   globesInstrumentId?: number; // TODO - extract data from globes fetch (also persist in storage)
+  sheetId: string;
 }
 
-export function TickerDetails({ open, onClose, ticker, exchange, name, price, currency, sector, dayChangePct, dayChangeVal, globesInstrumentId=0 }: TickerDetailsProps) {
+export function TickerDetails({ open, onClose, ticker, exchange, name, price, currency, sector, dayChangePct, dayChangeVal, globesInstrumentId=0, sheetId }: TickerDetailsProps) {
+  const [addTradeOpen, setAddTradeOpen] = useState(false);
   
   const formatMoney = (n: number, currency: string) => {
     let curr = currency;
@@ -96,8 +100,29 @@ export function TickerDetails({ open, onClose, ticker, exchange, name, price, cu
       </DialogContent>
       
       <DialogActions>
+        <Button onClick={() => setAddTradeOpen(true)}>New Transaction</Button>
         <Button onClick={onClose}>Close</Button>
       </DialogActions>
+
+      <Dialog open={addTradeOpen} onClose={() => setAddTradeOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>Add Transaction for {ticker}</DialogTitle>
+        <DialogContent>
+          <NewTransaction 
+            sheetId={sheetId}
+            initialTicker={ticker}
+            initialExchange={exchange}
+            initialPrice={price.toString()}
+            initialCurrency={currency}
+            onSaveSuccess={() => {
+              setAddTradeOpen(false);
+              onClose(); // Close ticker details after saving transaction
+            }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAddTradeOpen(false)}>Cancel</Button>
+        </DialogActions>
+      </Dialog>
     </Dialog>
   );
 }

@@ -10,14 +10,18 @@ export const getTheme = (mode: 'light' | 'dark') => createTheme({
           primary: { main: '#2c3e50' },
           text: { primary: '#2c3e50', secondary: '#607d8b' },
           divider: '#e0e0e0',
+          success: { main: '#4caf50' }, // Default Material-UI green for light mode
+          error: { main: '#f44336' },   // Default Material-UI red for light mode
         }
       : {
           // Dark Mode (Improved)
           background: { default: '#0d1117', paper: '#161b22' }, // Darker, slightly blueish grey (GitHub-like)
-          primary: { main: '#58a6ff' }, // GitHub/VSCode blue, readable on dark
+          primary: { main: '#aecbfa' }, // Adjusted primary color for better visibility in dark mode
           secondary: { main: '#bc8cff' },
           text: { primary: '#c9d1d9', secondary: '#8b949e' }, // Softer white and grey
           divider: '#30363d',
+          success: { main: '#81c784' }, // Even brighter green for dark mode
+          error: { main: '#ef9a9a' },   // Even brighter red for dark mode
         }),
   },
   typography: {

@@ -3,6 +3,7 @@ import {
   Box, Paper, Table, TableBody, TableCell, TableHead, TableRow, 
   Collapse, IconButton, TableSortLabel, Typography, Menu, MenuItem 
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { convertCurrency } from '../lib/currency';
 import { TickerDetails } from './TickerDetails';
@@ -48,11 +49,13 @@ interface TableProps {
   onSelectPortfolio: (id: string | null) => void;
   columnVisibility: Record<string, boolean>;
   onHideColumn: (column: string) => void;
+  sheetId: string;
 }
 
 export function DashboardTable({ 
-  groupedData, groupByPortfolio, displayCurrency, exchangeRates, includeUnvested, onSelectPortfolio, columnVisibility, onHideColumn 
+  groupedData, groupByPortfolio, displayCurrency, exchangeRates, includeUnvested, onSelectPortfolio, columnVisibility, onHideColumn, sheetId 
 }: TableProps) {
+  const theme = useTheme();
   
   const [sortBy, setSortBy] = useState<string>('totalMV');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
@@ -134,7 +137,7 @@ export function DashboardTable({
     return (
       <Box key={groupName} component={Paper} sx={{ mb: 4, overflowX: 'auto' }}>
         {groupByPortfolio && (
-          <Box display="flex" alignItems="center" justifyContent="space-between" p={1} bgcolor="#f5f5f5" borderBottom="1px solid #e0e0e0">
+          <Box display="flex" alignItems="center" justifyContent="space-between" p={1} bgcolor={theme.palette.background.default} borderBottom={`1px solid ${theme.palette.divider}`}>
             <Box display="flex" alignItems="center" gap={1} onClick={() => onSelectPortfolio(groupName)} style={{ cursor: 'pointer' }}>
               <IconButton size="small" onClick={(e) => { e.stopPropagation(); toggleGroup(groupName); }} sx={{ transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 200ms' }}>
                 <ExpandMoreIcon fontSize="small" />
@@ -147,7 +150,7 @@ export function DashboardTable({
         <Collapse in={groupByPortfolio ? isExpanded : true} timeout="auto" unmountOnExit>
           <Table size="small">
             <TableHead>
-              <TableRow sx={{ bgcolor: '#fafafa' }}>
+              <TableRow sx={{ bgcolor: theme.palette.background.paper }}>
                 {columnVisibility.displayName && <TableCell onContextMenu={(e) => handleContextMenu(e, 'displayName')}><TableSortLabel active={sortBy === 'ticker'} direction={sortDir} onClick={() => handleSort('ticker')}>Display Name</TableSortLabel></TableCell>}
                 {columnVisibility.ticker && <TableCell onContextMenu={(e) => handleContextMenu(e, 'ticker')}><TableSortLabel active={sortBy === 'ticker'} direction={sortDir} onClick={() => handleSort('ticker')}>Ticker</TableSortLabel></TableCell>}
                 {columnVisibility.sector && <TableCell onContextMenu={(e) => handleContextMenu(e, 'sector')}><TableSortLabel active={sortBy === 'sector'} direction={sortDir} onClick={() => handleSort('sector')}>Sector</TableSortLabel></TableCell>}
@@ -246,6 +249,7 @@ export function DashboardTable({
           sector={selectedHolding.sector}
           dayChangePct={selectedHolding.dayChangePct}
           dayChangeVal={selectedHolding.currentPrice * selectedHolding.dayChangePct} 
+          sheetId={sheetId}
         />
       )}
     </>

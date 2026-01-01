@@ -122,43 +122,53 @@ export const ensureSchema = async (spreadsheetId: string) => {
 
 export const fetchPortfolios = async (spreadsheetId: string): Promise<Portfolio[]> => {
   await ensureGapi(); 
+  try {
     const res = await window.gapi.client.sheets.spreadsheets.values.get({
-    spreadsheetId,
-    range: PORT_OPT_RANGE,
-  });
-  
-  const rows = res.result.values || [];
-  return rows.map((r: any) => ({
-    id: r[0], name: r[1],
-    cgt: parseFloat(r[2]), incTax: parseFloat(r[3]),
-    mgmtVal: parseFloat(r[4]), mgmtType: r[5], mgmtFreq: r[6],
-    commRate: parseFloat(r[7]), commMin: parseFloat(r[8]), commMax: parseFloat(r[9]),
-    currency: r[10], divPolicy: r[11], divCommRate: parseFloat(r[12])
-  }));
+      spreadsheetId,
+      range: PORT_OPT_RANGE,
+    });
+    
+    const rows = res.result.values || [];
+    return rows.map((r: any) => ({
+      id: r[0], name: r[1],
+      cgt: parseFloat(r[2]), incTax: parseFloat(r[3]),
+      mgmtVal: parseFloat(r[4]), mgmtType: r[5], mgmtFreq: r[6],
+      commRate: parseFloat(r[7]), commMin: parseFloat(r[8]), commMax: parseFloat(r[9]),
+      currency: r[10], divPolicy: r[11], divCommRate: parseFloat(r[12])
+    }));
+  } catch (error) {
+    console.error('Error fetching portfolios:', error);
+    return [];
+  }
 };
 
 export const fetchTransactions = async (spreadsheetId: string): Promise<Transaction[]> => {
   await ensureGapi();
-  const res = await window.gapi.client.sheets.spreadsheets.values.get({
-    spreadsheetId,
-    range: TX_FETCH_RANGE,
-  });
+  try {
+    const res = await window.gapi.client.sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: TX_FETCH_RANGE,
+    });
 
-  const rows = res.result.values || [];
-  return rows.map((r: any) => ({
-    date: r[0],
-    portfolioId: r[1],
-    ticker: r[2],
-    exchange: r[3],
-    type: r[4],
-    qty: parseFloat(r[5]),
-    price: parseFloat(r[6]),
-    currency: r[7],
-    vestDate: r[8],
-    comment: r[9],
-    commission: parseFloat(r[10]) || 0,
-    tax: parseFloat(r[11]) || 0,
-  }));
+    const rows = res.result.values || [];
+    return rows.map((r: any) => ({
+      date: r[0],
+      portfolioId: r[1],
+      ticker: r[2],
+      exchange: r[3],
+      type: r[4],
+      qty: parseFloat(r[5]),
+      price: parseFloat(r[6]),
+      currency: r[7],
+      vestDate: r[8],
+      comment: r[9],
+      commission: parseFloat(r[10]) || 0,
+      tax: parseFloat(r[11]) || 0,
+    }));
+  } catch (error) {
+    console.error('Error fetching transactions:', error);
+    return [];
+  }
 };
 
 export const addPortfolio = async (spreadsheetId: string, p: Portfolio) => {
@@ -199,22 +209,27 @@ export const addTransaction = async (spreadsheetId: string, t: Transaction) => {
 // ONLY fetch live data from the sheet (fast)
 export const fetchLiveData = async (spreadsheetId: string): Promise<LiveData[]> => {
   await ensureGapi();
-  const res = await window.gapi.client.sheets.spreadsheets.values.get({
-    spreadsheetId,
-    range: LIVE_DATA_RANGE,
-  });
+  try {
+    const res = await window.gapi.client.sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: LIVE_DATA_RANGE,
+    });
 
-  const rows = res.result.values || [];
-  return rows.map((r: any) => ({
-    ticker: r[0],
-    exchange: r[1],
-    price: parseFloat(r[2]),
-    name: r[3], // Name En
-    name_he: r[4], // Name He
-    currency: r[5],
-    sector: r[6],
-    changePct: parseFloat(r[7]),
-  }));
+    const rows = res.result.values || [];
+    return rows.map((r: any) => ({
+      ticker: r[0],
+      exchange: r[1],
+      price: parseFloat(r[2]),
+      name: r[3], // Name En
+      name_he: r[4], // Name He
+      currency: r[5],
+      sector: r[6],
+      changePct: parseFloat(r[7]),
+    }));
+  } catch (error) {
+    console.error('Error fetching live data:', error);
+    return [];
+  }
 };
 
 // Rebuild live data sheet with new formulas AND enriched metadata (slow, expensive)

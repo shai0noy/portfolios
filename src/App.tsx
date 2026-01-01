@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Login } from './components/Login';
-import { AddTrade } from './components/AddTrade';
+import { NewTransaction } from './components/NewTransaction';
 import { PortfolioManager } from './components/PortfolioManager';
 import { Dashboard } from './components/Dashboard';
 import { ImportCSV } from './components/ImportCSV';
@@ -177,7 +177,7 @@ function App() {
         {tab === 0 ? (
           <Dashboard sheetId={sheetId} key={refreshKey} />
         ) : tab === 1 ? (
-          <AddTrade sheetId={sheetId} key={refreshKey} />
+          <NewTransaction sheetId={sheetId} key={refreshKey} />
         ) : (
           <PortfolioManager sheetId={sheetId} onSuccess={() => setRefreshKey(k => k + 1)} />
         )}
