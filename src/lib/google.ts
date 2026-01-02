@@ -110,7 +110,14 @@ export const ensureGapi = async () => {
 export const refreshToken = () => {
   return new Promise((resolve, reject) => {
     if (!tokenClient) return reject(new Error("Google Client not initialized"));
+
+    // Add timeout to prevent hanging if silent refresh fails silently (e.g. popup blocked)
+    const timeoutId = setTimeout(() => {
+      reject(new Error("Silent token refresh timed out"));
+    }, 5000);
+
     tokenClient.callback = (resp: any) => {
+      clearTimeout(timeoutId);
       if (resp.error) reject(resp);
       else {
         const expiresAt = Date.now() + (resp.expires_in * 1000);
