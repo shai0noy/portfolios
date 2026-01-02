@@ -64,7 +64,11 @@ async function fetchGlobesStock(ticker: string, exchange: string, signal?: Abort
     }
   }
 
-  const url = `/api/globes/data/webservices/financial.asmx/getInstrument?exchange=${exchange}&symbol=${ticker}`;
+  const globesApiUrl = `https://www.globes.co.il/data/webservices/financial.asmx/getInstrument?exchange=${exchange}&symbol=${ticker}`;
+  const url = import.meta.env.DEV
+    ? `/api/globes/data/webservices/financial.asmx/getInstrument?exchange=${exchange}&symbol=${ticker}`
+    : `https://cors.sh/${globesApiUrl}`;
+  
   
   let text;
   try {
@@ -155,8 +159,10 @@ async function fetchYahooStock(ticker: string, signal?: AbortSignal): Promise<Ti
     }
   }
 
-  // Use the Vite proxy
-  const url = `/api/yahoo/v8/finance/chart/${ticker}?interval=1d&range=1d`;
+  const yahooApiUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=1d`;
+  const url = import.meta.env.DEV
+    ? `/api/yahoo/v8/finance/chart/${ticker}?interval=1d&range=1d`
+    : `https://cors.sh/${yahooApiUrl}`;
 
   let data;
   try {
@@ -239,8 +245,10 @@ async function fetchYahooHistorical(ticker: string, range: string = '5y', interv
     }
   }
 
-  // Use the Vite proxy
-  const url = `/api/yahoo/v8/finance/chart/${ticker}?range=${range}&interval=${interval}`;
+  const yahooApiUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?range=${range}&interval=${interval}`;
+  const url = import.meta.env.DEV
+    ? `/api/yahoo/v8/finance/chart/${ticker}?range=${range}&interval=${interval}`
+    : `https://cors.sh/${yahooApiUrl}`;
 
   let data;
   try {

@@ -1,4 +1,4 @@
-import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, Box, Grid, Chip, CircularProgress, Tooltip, IconButton } from '@mui/material';
+import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, Box, Chip, CircularProgress, Tooltip, IconButton } from '@mui/material';
 import { TransactionForm } from './NewTransaction';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import RefreshIcon from '@mui/icons-material/Refresh';
@@ -122,8 +122,8 @@ export function TickerDetails({ sheetId }: TickerDetailsProps) {
         {!loading && !error && !data && <Typography>No data available.</Typography>}
         {data && (
           <>
-            <Grid container spacing={2} sx={{ mb: 3 }}>
-              <Grid item xs={6}>
+            <Box display="flex" gap={2} sx={{ mb: 3 }}>
+              <Box sx={{ width: '50%' }}>
                 <Typography variant="caption" color="text.secondary">PRICE</Typography>
                 <Typography variant="h4">{formatMoney(data.price, data.currency, data.priceUnit)}</Typography>
                 {data.priceUnit !== 'base' && (
@@ -131,14 +131,14 @@ export function TickerDetails({ sheetId }: TickerDetailsProps) {
                     Base Price: {formatMoney(data.price / 100, data.currency, 'base')}
                   </Typography>
                 )}
-              </Grid>
-              <Grid item xs={6}>
+              </Box>
+              <Box sx={{ width: '50%' }}>
                 <Typography variant="caption" color="text.secondary">DAY CHANGE</Typography>
                 <Typography variant="h5" color={data.changePct >= 0 ? 'success.main' : 'error.main'}>
                   {formatPct(data.changePct)}
                 </Typography>
-              </Grid>
-            </Grid>
+              </Box>
+            </Box>
 
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
               <Typography variant="caption" color="text.secondary">
@@ -152,30 +152,29 @@ export function TickerDetails({ sheetId }: TickerDetailsProps) {
             </Box>
 
             <Typography variant="subtitle2" gutterBottom>Performance</Typography>
-            <Grid container spacing={1} sx={{ mb: 3 }}>
+            <Box display="grid" gridTemplateColumns="repeat(4, 1fr)" gap={1} sx={{ mb: 3 }}>
               {['1D', '1W', '1M', '3M', 'YTD', '1Y', '3Y', '5Y'].map(range => (
-                <Grid size={{ xs: 3 }} key={range}>
+                <Box key={range}>
                   <Box textAlign="center" p={1} sx={{ border: '1px solid #eee', borderRadius: 1 }}>
                     <Typography variant="caption" color="text.secondary">{range}</Typography>
                     <Typography variant="body2" color="text.primary">--%</Typography>
                   </Box>
-                </Grid>
+                </Box>
               ))}
-
-            </Grid>
+            </Box>
             {/* TODO: Fetch and display actual performance data */}
 
             <Typography variant="subtitle2" gutterBottom>Dividend Gains (%)</Typography>
-            <Grid container spacing={1} sx={{ mb: 3 }}>
+            <Box display="grid" gridTemplateColumns="repeat(3, 1fr)" gap={1} sx={{ mb: 3 }}>
               {['YTD', '1Y', '3Y', '5Y', 'All Time'].map(range => (
-                <Grid size={{ xs: 4 }} key={range}>
+                <Box key={range}>
                   <Box textAlign="center" p={1} sx={{ border: '1px solid #eee', borderRadius: 1 }}>
                     <Typography variant="caption" color="text.secondary">{range}</Typography>
                     <Typography variant="body2" color="text.primary">--%</Typography>
                   </Box>
-                </Grid>
+                </Box>
               ))}
-            </Grid>
+            </Box>
             {/* TODO: Fetch and display actual dividend gains data */}
 
             <Typography variant="subtitle2" gutterBottom>External Links</Typography>
