@@ -10,18 +10,18 @@ export const getTheme = (mode: 'light' | 'dark') => createTheme({
           primary: { main: '#2c3e50' },
           text: { primary: '#2c3e50', secondary: '#607d8b' },
           divider: '#e0e0e0',
-          success: { main: '#4caf50' }, // Default Material-UI green for light mode
-          error: { main: '#f44336' },   // Default Material-UI red for light mode
+          success: { main: '#66bb6a' }, // Custom brighter green for light mode
+          error: { main: '#ef5350' },   // Custom red for light mode
         }
       : {
           // Dark Mode (Improved)
           background: { default: '#0d1117', paper: '#161b22' }, // Darker, slightly blueish grey (GitHub-like)
-          primary: { main: '#cce0ff' }, // Lighter blue for primary actions
-          secondary: { main: '#dcb6ff' }, // Lighter purple
-          text: { primary: '#f0f6fc', secondary: '#b1bac4' }, // Brighter primary, slightly lighter secondary
+          primary: { main: '#e0f2f7' }, // Even brighter blue for primary actions
+          secondary: { main: '#e3b3ff' }, // Even brighter purple
+          text: { primary: '#ffffff', secondary: '#e0e0e0' }, // Pure white primary, very light grey secondary
           divider: '#30363d',
-          success: { main: '#81c784', dark: '#a5d6a7' }, // Brighter green for dark mode
-          error: { main: '#ef9a9a', dark: '#ffcdd2' },   // Brighter red for dark mode
+          success: { main: '#a5d6a7' }, // Brighter green for dark mode (using the previous 'dark' shade as main)
+          error: { main: '#ef9a9a' },   // Brighter red for dark mode (using the previous 'main' shade for consistency)
         }),
   },
   typography: {
