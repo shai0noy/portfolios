@@ -50,12 +50,12 @@ interface TableProps {
   onSelectPortfolio: (id: string | null) => void;
   columnVisibility: Record<string, boolean>;
   onHideColumn: (column: string) => void;
-  sheetId: string;
 }
 
-export function DashboardTable({ 
-  groupedData, groupByPortfolio, displayCurrency, exchangeRates, includeUnvested, onSelectPortfolio, columnVisibility, onHideColumn, sheetId 
-}: TableProps) {
+export function DashboardTable(props: TableProps) {
+  const { 
+    groupedData, groupByPortfolio, displayCurrency, exchangeRates, includeUnvested, onSelectPortfolio, columnVisibility, onHideColumn 
+  } = props;
   const theme = useTheme();
   const navigate = useNavigate();
   

@@ -109,7 +109,17 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
     realizedGainAfterTax: 0,
     valueAfterTax: 0,
     totalDayChange: 0,
-    totalDayChangePct: 0
+    totalDayChangePct: 0,
+    // Add missing performance properties
+    perf1d: 0, // Equivalent to totalDayChangePct
+    perf1w: 0,
+    perf1m: 0,
+    perf3m: 0,
+    perf1y: 0,
+    perf3y: 0,
+    perf5y: 0,
+    perfYtd: 0,
+    divYield: 0, // Placeholder
   });
 
   useEffect(() => {
@@ -145,11 +155,22 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         realizedGainAfterTax: 0,
         valueAfterTax: 0,
         totalDayChange: 0,
-        totalDayChangePct: 0
+        totalDayChangePct: 0,
+        // Initialize new performance properties as placeholders
+        perf1d: 0,
+        perf1w: 0,
+        perf1m: 0,
+        perf3m: 0,
+        perf1y: 0,
+        perf3y: 0,
+        perf5y: 0,
+        perfYtd: 0,
+        divYield: 0,
       });
 
       const prevClose = s.aum - s.totalDayChange;
       s.totalDayChangePct = prevClose > 0 ? s.totalDayChange / prevClose : 0;
+      s.perf1d = s.totalDayChangePct; // perf1d is the same as totalDayChangePct
       
       setSummary(s);
     };
@@ -425,7 +446,6 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         onSelectPortfolio={handleSelectPortfolio} // Updated prop
         columnVisibility={columnVisibility}
         onHideColumn={(col) => setColumnVisibility((prev: any) => ({ ...prev, [col]: false }))}
-        sheetId={sheetId}
       />
     </Box>
   );

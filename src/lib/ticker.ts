@@ -1,5 +1,7 @@
 // src/lib/ticker.ts
 
+import { fetchAllTaseTickers, type TaseTicker } from './taseApi';
+
 interface TickerData {
   price: number;
   name?: string;
@@ -12,7 +14,8 @@ interface TickerData {
 }
 
 // Simple in-memory cache with a Time-To-Live (TTL)
-const cache = new Map<string, { data: TickerData, timestamp: number }>();
+const tickerDataCache = new Map<string, { data: TickerData, timestamp: number }>();
+const historicalDataCache = new Map<string, { data: HistoricalDataPoint[], timestamp: number }>();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 // Using a CORS proxy to bypass browser restrictions when fetching data from external APIs.
@@ -27,12 +30,38 @@ const YAHOO_EXCHANGE_MAP: Record<string, string> = {
   // Add other mappings as needed
 };
 
+let taseTickersDataset: TaseTicker[] | null = null;
+let taseTickersDatasetLoading: Promise<TaseTicker[]> | null = null;
+
+export async function getTaseTickersDataset(signal?: AbortSignal, forceRefresh = false): Promise<TaseTicker[]> {
+  if (taseTickersDataset && !forceRefresh) {
+    return taseTickersDataset;
+  }
+  if (taseTickersDatasetLoading) {
+    return taseTickersDatasetLoading;
+  }
+
+  taseTickersDatasetLoading = (async () => {
+    try {
+      const tickers = await fetchAllTaseTickers(signal);
+      taseTickersDataset = tickers;
+      return tickers;
+    } catch (e) {
+      console.error('Failed to load TASE tickers dataset:', e);
+      return [];
+    } finally {
+      taseTickersDatasetLoading = null;
+    }
+  })();
+  return taseTickersDatasetLoading;
+}
+
 async function fetchGlobesStock(ticker: string, exchange: string, signal?: AbortSignal): Promise<TickerData | null> {
   const now = Date.now();
   const cacheKey = `globes:${exchange}:${ticker}`;
   
-  if (cache.has(cacheKey)) {
-    const cached = cache.get(cacheKey)!;
+  if (tickerDataCache.has(cacheKey)) {
+    const cached = tickerDataCache.get(cacheKey)!;
     if (now - cached.timestamp < CACHE_TTL) {
       return cached.data;
     }
@@ -45,8 +74,8 @@ async function fetchGlobesStock(ticker: string, exchange: string, signal?: Abort
      const response = await fetch(targetUrl, { signal });
      if (!response.ok) throw new Error('Network response was not ok');
      text = await response.text();
-  } catch (e) {
-     if (e.name === 'AbortError') {
+  } catch (e: unknown) {
+     if (e instanceof Error && e.name === 'AbortError') {
        console.log('Globes fetch aborted');
        return null;
      }
@@ -56,8 +85,8 @@ async function fetchGlobesStock(ticker: string, exchange: string, signal?: Abort
        if (!proxyResponse.ok) throw new Error('Proxy network response was not ok');
        const proxyData = await proxyResponse.json();
        text = proxyData.contents; 
-     } catch (proxyError) {
-       if (proxyError.name === 'AbortError') {
+     } catch (proxyError: unknown) {
+       if (proxyError instanceof Error && proxyError.name === 'AbortError') {
          console.log('Globes proxy fetch aborted');
          return null;
        }
@@ -108,7 +137,7 @@ async function fetchGlobesStock(ticker: string, exchange: string, signal?: Abort
       timestamp: now
     };
     
-    cache.set(cacheKey, { data: tickerData, timestamp: now });
+    tickerDataCache.set(cacheKey, { data: tickerData, timestamp: now });
     return tickerData;
   } catch (error) {
     console.error(`Failed to parse ticker data for ${ticker}:`, error);
@@ -120,8 +149,8 @@ async function fetchYahooStock(ticker: string, signal?: AbortSignal): Promise<Ti
   const now = Date.now();
   const cacheKey = `yahoo:${ticker}`;
 
-  if (cache.has(cacheKey)) {
-    const cached = cache.get(cacheKey)!;
+  if (tickerDataCache.has(cacheKey)) {
+    const cached = tickerDataCache.get(cacheKey)!;
     if (now - cached.timestamp < CACHE_TTL) {
       return cached.data;
     }
@@ -135,8 +164,8 @@ async function fetchYahooStock(ticker: string, signal?: AbortSignal): Promise<Ti
     const res = await fetch(targetUrl, { signal });
     if (!res.ok) throw new Error('Network response was not ok');
     data = await res.json();
-  } catch (e) {
-    if (e.name === 'AbortError') {
+  } catch (e: unknown) {
+    if (e instanceof Error && e.name === 'AbortError') {
       console.log('Yahoo fetch aborted');
       return null;
     }
@@ -146,8 +175,8 @@ async function fetchYahooStock(ticker: string, signal?: AbortSignal): Promise<Ti
         if (!proxyResponse.ok) throw new Error('Proxy network response was not ok');
         const proxyJson = await proxyResponse.json();
         data = JSON.parse(proxyJson.contents);
-    } catch (err) {
-        if (err.name === 'AbortError') {
+    } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'AbortError') {
           console.log('Yahoo proxy fetch aborted');
           return null;
         }
@@ -186,7 +215,7 @@ async function fetchYahooStock(ticker: string, signal?: AbortSignal): Promise<Ti
         timestamp: now
     };
 
-    cache.set(cacheKey, { data: tickerData, timestamp: now });
+    tickerDataCache.set(cacheKey, { data: tickerData, timestamp: now });
     return tickerData;
 
   } catch (error) {
@@ -204,10 +233,10 @@ async function fetchYahooHistorical(ticker: string, range: string = '5y', interv
   const now = Date.now();
   const cacheKey = `yahoo-hist:${ticker}:${range}:${interval}`;
 
-  if (cache.has(cacheKey)) {
-    const cached = cache.get(cacheKey)!;
+  if (historicalDataCache.has(cacheKey)) {
+    const cached = historicalDataCache.get(cacheKey)!;
     if (now - cached.timestamp < CACHE_TTL) {
-      return cached.data as HistoricalDataPoint[];
+      return cached.data;
     }
   }
 
@@ -218,8 +247,8 @@ async function fetchYahooHistorical(ticker: string, range: string = '5y', interv
     const res = await fetch(targetUrl, { signal });
     if (!res.ok) throw new Error('Network response was not ok');
     data = await res.json();
-  } catch (e) {
-    if (e.name === 'AbortError') {
+  } catch (e: unknown) {
+    if (e instanceof Error && e.name === 'AbortError') {
       console.log('Yahoo historical fetch aborted');
       return null;
     }
@@ -229,8 +258,8 @@ async function fetchYahooHistorical(ticker: string, range: string = '5y', interv
       if (!proxyResponse.ok) throw new Error('Proxy network response was not ok');
       const proxyJson = await proxyResponse.json();
       data = JSON.parse(proxyJson.contents);
-    } catch (err) {
-      if (err.name === 'AbortError') {
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === 'AbortError') {
         console.log('Yahoo historical proxy fetch aborted');
         return null;
       }
@@ -254,7 +283,7 @@ async function fetchYahooHistorical(ticker: string, range: string = '5y', interv
       close: closes[index],
     })).filter((d: HistoricalDataPoint) => d.close !== null && d.close !== undefined);
 
-    cache.set(cacheKey, { data: historicalData, timestamp: now });
+    historicalDataCache.set(cacheKey, { data: historicalData, timestamp: now });
     return historicalData;
   } catch (error) {
     console.error('Error parsing Yahoo historical data', error);
@@ -268,15 +297,15 @@ export async function getTickerData(ticker: string, exchange?: string, signal?: 
   const exchangeL = exchange?.toLowerCase();
   const cacheKey = exchangeL === 'tase' ? `globes:${exchangeL}:${ticker}` : `yahoo:${ticker}`;
 
-  if (!forceRefresh && cache.has(cacheKey)) {
-    const cached = cache.get(cacheKey)!;
+  if (!forceRefresh && tickerDataCache.has(cacheKey)) {
+    const cached = tickerDataCache.get(cacheKey)!;
     if (Date.now() - cached.timestamp < CACHE_TTL) {
       return cached.data;
     }
   }
   // Cache clear if forceRefresh is true
   if (forceRefresh) {
-    cache.delete(cacheKey);
+    tickerDataCache.delete(cacheKey);
   }
 
   if (exchangeL) {

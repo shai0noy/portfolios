@@ -109,16 +109,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
     setP(prev => ({ ...prev, id: val }));
   };
 
-  const handleEditClick = (portfolioId: string) => {
-    const portToEdit = portfolios.find(p => p.id === portfolioId);
-    if (portToEdit) {
-      setEditingPortfolio(portToEdit);
-      setP(portToEdit);
-      setEditMode(true);
-      setIdDirty(true); // Prevent auto-ID generation
-      setTemplate(''); // Reset template selection
-    }
-  };
+
 
   const cancelEdit = () => {
     setEditMode(false);
