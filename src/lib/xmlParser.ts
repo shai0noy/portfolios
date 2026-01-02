@@ -51,7 +51,7 @@ export function extractDataFromXml<T>(
  * @throws Error if fetch or proxy fetch fails.
  */
 export async function fetchXml(url: string, signal?: AbortSignal, useProxy: boolean = true): Promise<string> {
-    const PROXY_URL = 'https://api.allorigins.win/get?url=';
+    const PROXY_URL = 'https://corsproxy.io/?';
 
     try {
         const response = await fetch(url, { signal });
@@ -68,9 +68,7 @@ export async function fetchXml(url: string, signal?: AbortSignal, useProxy: bool
         try {
             const proxyResponse = await fetch(`${PROXY_URL}${encodeURIComponent(url)}`, { signal });
             if (!proxyResponse.ok) throw new Error(`Proxy network response was not ok for ${url}: ${proxyResponse.statusText}`);
-            const proxyData = await proxyResponse.json();
-            // Allorigins wraps the content in a 'contents' property
-            return proxyData.contents; 
+            return await proxyResponse.text();
         } catch (proxyError: unknown) {
             if (proxyError instanceof Error && proxyError.name === 'AbortError') {
                 throw proxyError; // Re-throw AbortError
