@@ -39,6 +39,7 @@ DONE: Addressed color contrast issues in light and dark modes (success/error col
 DONE: Please configure caching and optimize code so that Yahoo fetches are minimized
 In the ticker view - The top title should be just the name in large font, then the subtitle will be the exchange and symbol/ticker in the current font of the exchange 
 Pass forceRefresh to getTickerData to bypass cache
+CSV imprt should fill in exchange ID - if not in CSV, must be manually entered - can assist user with deduction logic 
 
 Low priority:
 - Support switching display lang to Hebrew - should also affect stock names when avilable (with cookie to persist)
