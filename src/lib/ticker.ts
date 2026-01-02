@@ -67,7 +67,7 @@ async function fetchGlobesStock(ticker: string, exchange: string, signal?: Abort
   const globesApiUrl = `https://www.globes.co.il/data/webservices/financial.asmx/getInstrument?exchange=${exchange}&symbol=${ticker}`;
   const url = import.meta.env.DEV
     ? `/api/globes/data/webservices/financial.asmx/getInstrument?exchange=${exchange}&symbol=${ticker}`
-    : `https://cors.sh/${globesApiUrl}`;
+    : `https://api.allorigins.win/raw?url=${encodeURIComponent(globesApiUrl)}`;
   
   
   let text;
@@ -162,7 +162,7 @@ async function fetchYahooStock(ticker: string, signal?: AbortSignal): Promise<Ti
   const yahooApiUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=1d`;
   const url = import.meta.env.DEV
     ? `/api/yahoo/v8/finance/chart/${ticker}?interval=1d&range=1d`
-    : `https://cors.sh/${yahooApiUrl}`;
+    : `https://api.allorigins.win/raw?url=${encodeURIComponent(yahooApiUrl)}`;
 
   let data;
   try {
@@ -248,7 +248,7 @@ async function fetchYahooHistorical(ticker: string, range: string = '5y', interv
   const yahooApiUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?range=${range}&interval=${interval}`;
   const url = import.meta.env.DEV
     ? `/api/yahoo/v8/finance/chart/${ticker}?range=${range}&interval=${interval}`
-    : `https://cors.sh/${yahooApiUrl}`;
+    : `https://api.allorigins.win/raw?url=${encodeURIComponent(yahooApiUrl)}`;
 
   let data;
   try {
