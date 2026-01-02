@@ -36,10 +36,9 @@ DONE: In ticker view, stock name is too small and should appear before the excha
 DONE: Implement stateful URLs using react-router-dom to persist view/filters.
 DONE: In ticker view, enhanced display of stock name, symbol, base price, data age, refresh button, and verified transaction prefill.
 DONE: Addressed color contrast issues in light and dark modes (success/error colors, primary/text legibility).
-
-DONE: Added extensive logging to ticker fetching functions in `src/lib/ticker.ts` and temporarily disabled caching for debugging purposes.
-DONE: Added extensive logging to ticker fetching functions in `src/lib/ticker.ts` and temporarily disabled caching for debugging purposes.
-
+DONE: Please configure caching and optimize code so that Yahoo fetches are minimized
+In the ticker view - The top title should be just the name in large font, then the subtitle will be the exchange and symbol/ticker in the current font of the exchange 
+Pass forceRefresh to getTickerData to bypass cache
 
 Low priority:
 - Support switching display lang to Hebrew - should also affect stock names when avilable (with cookie to persist)

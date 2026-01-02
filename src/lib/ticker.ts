@@ -18,9 +18,6 @@ const tickerDataCache = new Map<string, { data: TickerData, timestamp: number }>
 const historicalDataCache = new Map<string, { data: HistoricalDataPoint[], timestamp: number }>();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
-// Using a CORS proxy to bypass browser restrictions when fetching data from external APIs.
-const PROXY_URL = 'https://api.allorigins.win/get?url='; 
-
 const YAHOO_EXCHANGE_MAP: Record<string, string> = {
   'NMS': 'NASDAQ',
   'NYQ': 'NYSE',
@@ -67,32 +64,24 @@ async function fetchGlobesStock(ticker: string, exchange: string, signal?: Abort
     }
   }
 
-  const targetUrl = `https://www.globes.co.il/data/webservices/financial.asmx/getInstrument?exchange=${exchange}&symbol=${ticker}`;
+  const url = `/api/globes/data/webservices/financial.asmx/getInstrument?exchange=${exchange}&symbol=${ticker}`;
   
   let text;
   try {
-     const response = await fetch(targetUrl, { signal });
-     if (!response.ok) throw new Error('Network response was not ok');
+     const response = await fetch(url, { signal });
+     if (!response.ok) {
+        const errorBody = await response.text();
+        console.error(`Globes fetch failed with status ${response.status}:`, errorBody);
+        throw new Error(`Network response was not ok: ${response.statusText}`);
+     }
      text = await response.text();
   } catch (e: unknown) {
      if (e instanceof Error && e.name === 'AbortError') {
        console.log('Globes fetch aborted');
-       return null;
+     } else {
+        console.error('Globes fetch failed', e);
      }
-     console.warn('Direct fetch failed, trying proxy...', e);
-     try {
-       const proxyResponse = await fetch(`${PROXY_URL}${encodeURIComponent(targetUrl)}`, { signal });
-       if (!proxyResponse.ok) throw new Error('Proxy network response was not ok');
-       const proxyData = await proxyResponse.json();
-       text = proxyData.contents; 
-     } catch (proxyError: unknown) {
-       if (proxyError instanceof Error && proxyError.name === 'AbortError') {
-         console.log('Globes proxy fetch aborted');
-         return null;
-       }
-       console.error('Failed to fetch ticker data (CORS/Proxy error):', proxyError);
-       return null;
-     }
+     return null;
   }
 
   try {
@@ -166,38 +155,26 @@ async function fetchYahooStock(ticker: string, signal?: AbortSignal): Promise<Ti
     }
   }
 
-  // Yahoo Finance Chart API endpoint for daily data.
-  const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=1d`;
+  // Use the Vite proxy
+  const url = `/api/yahoo/v8/finance/chart/${ticker}?interval=1d&range=1d`;
 
   let data;
   try {
-    const res = await fetch(targetUrl, { signal });
-    if (!res.ok) throw new Error('Network response was not ok');
+    const res = await fetch(url, { signal });
+    if (!res.ok) {
+      // Log the response body for more context on the error
+      const errorBody = await res.text();
+      console.error(`Yahoo fetch failed with status ${res.status}:`, errorBody);
+      throw new Error(`Network response was not ok: ${res.statusText}`);
+    }
     data = await res.json();
   } catch (e: unknown) {
     if (e instanceof Error && e.name === 'AbortError') {
       console.log('Yahoo fetch aborted');
-      return null;
+    } else {
+      console.error('Yahoo fetch failed', e);
     }
-    console.warn('Direct fetch failed, trying proxy...', e);
-    try {
-        const proxyResponse = await fetch(`${PROXY_URL}${encodeURIComponent(targetUrl)}`, { signal });
-        if (!proxyResponse.ok) throw new Error('Proxy network response was not ok');
-        const proxyData = await proxyResponse.json();
-        console.log(`Proxy response for ${ticker}:`, proxyData.contents); // Log the raw content
-        if (typeof proxyData.contents === 'string' && proxyData.contents.trim().length > 0) {
-          data = JSON.parse(proxyData.contents);
-        } else {
-          throw new Error('Proxy returned empty or invalid contents');
-        }
-    } catch (err: unknown) {
-        if (err instanceof Error && err.name === 'AbortError') {
-          console.log('Yahoo proxy fetch aborted');
-          return null;
-        }
-        console.error('Yahoo fetch failed', err);
-        return null;
-    }
+    return null;
   }
 
   try {
@@ -262,32 +239,25 @@ async function fetchYahooHistorical(ticker: string, range: string = '5y', interv
     }
   }
 
-  const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?range=${range}&interval=${interval}`;
+  // Use the Vite proxy
+  const url = `/api/yahoo/v8/finance/chart/${ticker}?range=${range}&interval=${interval}`;
 
   let data;
   try {
-    const res = await fetch(targetUrl, { signal });
-    if (!res.ok) throw new Error('Network response was not ok');
+    const res = await fetch(url, { signal });
+    if (!res.ok) {
+      const errorBody = await res.text();
+      console.error(`Yahoo historical fetch failed with status ${res.status}:`, errorBody);
+      throw new Error(`Network response was not ok: ${res.statusText}`);
+    }
     data = await res.json();
   } catch (e: unknown) {
     if (e instanceof Error && e.name === 'AbortError') {
       console.log('Yahoo historical fetch aborted');
-      return null;
+    } else {
+      console.error('Yahoo historical fetch failed', e);
     }
-    console.warn('Direct historical fetch failed, trying proxy...', e);
-    try {
-      const proxyResponse = await fetch(`${PROXY_URL}${encodeURIComponent(targetUrl)}`, { signal });
-      if (!proxyResponse.ok) throw new Error('Proxy network response was not ok');
-      const proxyJson = await proxyResponse.json();
-      data = JSON.parse(proxyJson.contents);
-    } catch (err: unknown) {
-      if (err instanceof Error && err.name === 'AbortError') {
-        console.log('Yahoo historical proxy fetch aborted');
-        return null;
-      }
-      console.error('Yahoo historical fetch failed', err);
-      return null;
-    }
+    return null;
   }
 
   try {
@@ -315,7 +285,7 @@ async function fetchYahooHistorical(ticker: string, range: string = '5y', interv
 
 export { fetchYahooHistorical }; // Export for use in TickerDetails
 
-export async function getTickerData(ticker: string, exchange?: string, signal?: AbortSignal, forceRefresh = true): Promise<TickerData | null> {
+export async function getTickerData(ticker: string, exchange?: string, signal?: AbortSignal, forceRefresh = false): Promise<TickerData | null> {
   const exchangeL = exchange?.toLowerCase();
   const cacheKey = exchangeL === 'tase' ? `globes:${exchangeL}:${ticker}` : `yahoo:${ticker}`;
 
