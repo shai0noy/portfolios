@@ -105,9 +105,11 @@ export function TickerDetails({ sheetId }: TickerDetailsProps) {
       <DialogTitle>
         <Box display="flex" justifyContent="space-between" alignItems="center">
           <Box>
-            <Typography variant="h5" component="span" fontWeight="bold">{data.name || 'N/A'}</Typography>
-            <Typography variant="h6" component="span" color="text.secondary" sx={{ ml: 1 }}>{data.ticker}</Typography>
-            <Typography variant="body2" color="text.secondary" component="span" sx={{ ml: 1 }}>{data.exchange}</Typography>
+            <Typography variant="h5" component="div" fontWeight="bold">{data.name || 'N/A'}</Typography>
+            <Typography variant="subtitle1" component="div" color="text.secondary">
+              <Box component="span" fontWeight="bold">{data.ticker}</Box>
+              <Box component="span" sx={{ ml: 0.5 }}>({data.exchange})</Box>
+            </Typography>
           </Box>
           <Chip label={data.sector || 'Unknown Sector'} size="small" variant="outlined" />
         </Box>

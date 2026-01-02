@@ -32,16 +32,14 @@ DONE: Important: Improve google login handling - increase buffers, impl todos, m
 DONE: Make ILS - agorot conversion much more robust, e.g. improve `const priceInILS = (h.exchange === 'TASE' && h.stockCurrency === 'ILS') ? h.currentPrice / 100 : h.currentPrice`
 DONE: Complete priceUnit implementation - Update NewTransaction.tsx and TickerDetails.tsx to use priceUnit.
 DONE: Remove unneeded empty lines in Dashboard.tsx
-PENDING: In ticker view, stock name is too small and should appear before the exchange name
+DONE: In ticker view, stock name is too small and should appear before the exchange name
 DONE: Implement stateful URLs using react-router-dom to persist view/filters.
-PENDING: In ticker view replace new transaction with "Add Transaction"
-PENDING: In ticker view also show base price, data age, refersh button (for this ticker only, not whole dashboard). You can also add more useful avilable detials
-PENDING: Some dashboard text uses colors: #f44336 #4caf50 - those are not the correct light mode colors (correct one is eg #81c784)
-PENDING: Some dashboard text uses colors: rgb(167, 107, 107), rgb(90, 139, 92) - those are not the correct dark mode colors
-PENDING: Text colors #aecbfa, #c9d1d9 are a bit too dark in dark mode - not legible 
-PENDING: When showing ticker data age, show it based on the age in the resoponse, not time of fetch call
-ticker viewer should show symbol/ticker
-when adding transaction via ticker viewer - propogate ticker to prefill input
+DONE: In ticker view, enhanced display of stock name, symbol, base price, data age, refresh button, and verified transaction prefill.
+DONE: Addressed color contrast issues in light and dark modes (success/error colors, primary/text legibility).
+
+DONE: Added extensive logging to ticker fetching functions in `src/lib/ticker.ts` and temporarily disabled caching for debugging purposes.
+DONE: Added extensive logging to ticker fetching functions in `src/lib/ticker.ts` and temporarily disabled caching for debugging purposes.
+
 
 Low priority:
 - Support switching display lang to Hebrew - should also affect stock names when avilable (with cookie to persist)

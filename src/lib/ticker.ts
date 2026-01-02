@@ -101,7 +101,10 @@ async function fetchGlobesStock(ticker: string, exchange: string, signal?: Abort
     
     // Check if it's a valid Instrument response
     const instrument = xmlDoc.querySelector('Instrument');
-    if (!instrument) return null;
+    if (!instrument) {
+      console.log(`Globes: No instrument found for ${ticker}`);
+      return null;
+    }
 
     const lastNode = instrument.querySelector('last');
     const nameEnNode = instrument.querySelector('name_en');
@@ -110,10 +113,16 @@ async function fetchGlobesStock(ticker: string, exchange: string, signal?: Abort
     const currencyRateNode = instrument.querySelector('CurrencyRate');
     const changePctNode = instrument.querySelector('percentageChange');
 
-    if (!lastNode) return null;
+    if (!lastNode) {
+      console.log(`Globes: No last price found for ${ticker}`);
+      return null;
+    }
 
     let price = parseFloat(lastNode.textContent || '');
-    if (isNaN(price)) return null;
+    if (isNaN(price)) {
+      console.log(`Globes: Invalid price for ${ticker}`);
+      return null;
+    }
     
     let currency = currencyNode?.textContent || '';
     if (currency === 'NIS') currency = 'ILS';
@@ -137,6 +146,7 @@ async function fetchGlobesStock(ticker: string, exchange: string, signal?: Abort
       timestamp: now
     };
     
+    console.log(`Globes: Fetched data for ${ticker}:`, tickerData);
     tickerDataCache.set(cacheKey, { data: tickerData, timestamp: now });
     return tickerData;
   } catch (error) {
@@ -173,8 +183,13 @@ async function fetchYahooStock(ticker: string, signal?: AbortSignal): Promise<Ti
     try {
         const proxyResponse = await fetch(`${PROXY_URL}${encodeURIComponent(targetUrl)}`, { signal });
         if (!proxyResponse.ok) throw new Error('Proxy network response was not ok');
-        const proxyJson = await proxyResponse.json();
-        data = JSON.parse(proxyJson.contents);
+        const proxyData = await proxyResponse.json();
+        console.log(`Proxy response for ${ticker}:`, proxyData.contents); // Log the raw content
+        if (typeof proxyData.contents === 'string' && proxyData.contents.trim().length > 0) {
+          data = JSON.parse(proxyData.contents);
+        } else {
+          throw new Error('Proxy returned empty or invalid contents');
+        }
     } catch (err: unknown) {
         if (err instanceof Error && err.name === 'AbortError') {
           console.log('Yahoo proxy fetch aborted');
@@ -187,7 +202,10 @@ async function fetchYahooStock(ticker: string, signal?: AbortSignal): Promise<Ti
 
   try {
     const result = data?.chart?.result?.[0];
-    if (!result) return null;
+    if (!result) {
+      console.log(`Yahoo: No result found for ${ticker}`);
+      return null;
+    }
 
     const meta = result.meta;
     const price = meta.regularMarketPrice;
@@ -203,7 +221,10 @@ async function fetchYahooStock(ticker: string, signal?: AbortSignal): Promise<Ti
       changePct = (price - prevClose) / prevClose;
     }
 
-    if (!price) return null;
+    if (!price) {
+      console.log(`Yahoo: No price found for ${ticker}`);
+      return null;
+    }
 
     const tickerData: TickerData = {
         price,
@@ -215,6 +236,7 @@ async function fetchYahooStock(ticker: string, signal?: AbortSignal): Promise<Ti
         timestamp: now
     };
 
+    console.log(`Yahoo: Fetched data for ${ticker}:`, tickerData);
     tickerDataCache.set(cacheKey, { data: tickerData, timestamp: now });
     return tickerData;
 
@@ -293,7 +315,7 @@ async function fetchYahooHistorical(ticker: string, range: string = '5y', interv
 
 export { fetchYahooHistorical }; // Export for use in TickerDetails
 
-export async function getTickerData(ticker: string, exchange?: string, signal?: AbortSignal, forceRefresh = false): Promise<TickerData | null> {
+export async function getTickerData(ticker: string, exchange?: string, signal?: AbortSignal, forceRefresh = true): Promise<TickerData | null> {
   const exchangeL = exchange?.toLowerCase();
   const cacheKey = exchangeL === 'tase' ? `globes:${exchangeL}:${ticker}` : `yahoo:${ticker}`;
 
@@ -335,6 +357,7 @@ export async function getTickerData(ticker: string, exchange?: string, signal?: 
       data = await fetchGlobesStock(ticker, 'tase', signal);
       if (data) return { ...data, exchange: 'TASE' };
     }
+    console.log(`getTickerData: Ticker ${ticker} not found on any attempted exchange.`);
     return null; // Not found on any attempted exchange
   }
 }
