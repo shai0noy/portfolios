@@ -16,7 +16,6 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
-import SyncIcon from '@mui/icons-material/Sync';
 import { getTheme } from './theme';
 
 const tabMap: Record<string, number> = {
@@ -68,25 +67,20 @@ function App() {
     setSheetId(null);
   };
 
-  const handleFixSchema = async () => {
-    if (sheetId && confirm("This will reset header rows and formulas. Continue?")) {
-      await ensureSchema(sheetId);
-    }
-  };
-
-  const handleRebuildData = async () => {
+  const handleSetupSheet = async () => {
     if (!sheetId) return;
-    if (!confirm("This will rebuild the 'Live_Data' sheet by fetching fresh data from Google Finance for all tickers. Continue?")) return;
+    if (!confirm("This will reset sheet headers and rebuild all live data formulas. This can fix issues but is a heavy operation. Are you sure?")) return;
     
     setRebuilding(true);
     try {
+      await ensureSchema(sheetId);
       const txns = await fetchTransactions(sheetId);
       await rebuildLiveData(sheetId, txns);
       setRefreshKey(k => k + 1); // Refresh dashboard
-      // alert("Market data rebuilt successfully."); // Optional feedback
+      alert("Sheet setup complete. Headers and live data have been rebuilt.");
     } catch (e) {
       console.error(e);
-      alert("Error rebuilding market data.");
+      alert("Error during sheet setup: " + (e instanceof Error ? e.message : String(e)));
     } finally {
       setRebuilding(false);
     }
@@ -187,12 +181,6 @@ function App() {
               </IconButton>
             </Tooltip>
 
-            <Tooltip title="Rebuilds market data cache from Google Finance (takes longer)">
-              <IconButton onClick={handleRebuildData} size="small" sx={{ color: 'text.secondary' }} disabled={rebuilding}>
-                 {rebuilding ? <CircularProgress size={20} /> : <SyncIcon fontSize="small" />}
-              </IconButton>
-            </Tooltip>
-
              <Tooltip title="Import Transactions (CSV)">
               <IconButton onClick={() => setImportOpen(true)} size="small" sx={{ color: 'text.secondary' }}>
                 <FileDownloadIcon fontSize="small" />
@@ -212,9 +200,9 @@ function App() {
               </IconButton>
             </Tooltip>
 
-            <Tooltip title="Reset Spreadsheet Schema (Fix)">
-              <IconButton onClick={handleFixSchema} size="small" sx={{ color: 'text.secondary' }}>
-                <BuildIcon fontSize="small" />
+            <Tooltip title="Setup Sheet (Reset Schema & Rebuild Live Data)">
+              <IconButton onClick={handleSetupSheet} size="small" sx={{ color: 'text.secondary' }} disabled={rebuilding}>
+                 {rebuilding ? <CircularProgress size={20} /> : <BuildIcon fontSize="small" />}
               </IconButton>
             </Tooltip>
             

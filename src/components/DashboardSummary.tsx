@@ -1,5 +1,6 @@
-import { Box, Paper, Grid, Typography, Select, MenuItem } from '@mui/material';
+import { Box, Paper, Grid, Typography, Select, MenuItem, Tooltip } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import Button from '@mui/material/Button';
 import { convertCurrency } from '../lib/currency';
 
@@ -15,13 +16,21 @@ interface SummaryProps {
 
     totalDayChange: number;
     totalDayChangePct: number;
+    totalDayChangeIsIncomplete: boolean;
     perf1w: number;
+    perf1w_incomplete: boolean;
     perf1m: number;
+    perf1m_incomplete: boolean;
     perf3m: number;
+    perf3m_incomplete: boolean;
     perf1y: number;
+    perf1y_incomplete: boolean;
     perf3y: number;
+    perf3y_incomplete: boolean;
     perf5y: number;
+    perf5y_incomplete: boolean;
     perfYtd: number;
+    perfYtd_incomplete: boolean;
   };
   displayCurrency: string;
   exchangeRates: Record<string, number>;
@@ -34,7 +43,7 @@ export function DashboardSummary({ summary, displayCurrency, exchangeRates, sele
   
   const formatMoney = (n: number, currency: string, decimals = 0) => {
     const val = n.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
-    if (currency === 'USD') return `$${val}`;
+    if (currency === 'USD') return `${val}`;
     if (currency === 'ILS') return `₪${val}`;
     if (currency === 'EUR') return `€${val}`;
     return `${val} ${currency}`;
@@ -59,10 +68,49 @@ export function DashboardSummary({ summary, displayCurrency, exchangeRates, sele
     );
   };
 
+  const renderPerfValue = (label: string, percentage: number, isIncomplete: boolean) => {
+    const labelBox = (
+      <Box display="flex" alignItems="center">
+        <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase' }}>{label}</Typography>
+        {isIncomplete && (
+          <Tooltip title="Calculation is based on partial data as some holdings were missing live price information.">
+            <InfoOutlinedIcon sx={{ fontSize: '1rem', ml: 0.5, color: 'text.secondary' }} />
+          </Tooltip>
+        )}
+      </Box>
+    );
+
+    if (percentage === 0 || isNaN(percentage)) {
+        return (
+            <Box textAlign="left" minWidth={120}>
+                {labelBox}
+                <Typography variant="h6" fontWeight="medium" color="text.primary">
+                    -
+                </Typography>
+            </Box>
+        );
+    }
+
+    const absoluteChange = summary.aum - (summary.aum / (1 + percentage));
+    const color = percentage >= 0 ? 'success.main' : 'error.main';
+
+    return (
+        <Box textAlign="left" minWidth={120}>
+           {labelBox}
+           <Typography variant="h6" fontWeight="medium" color={color}>
+             {formatConverted(absoluteChange)}
+             <span style={{ fontSize: '0.7em', marginLeft: 4, color: 'text.secondary' }}>
+                ({formatPct(percentage)})
+              </span>
+           </Typography>
+        </Box>
+    );
+  };
+
   return (
     <Paper variant="outlined" sx={{ p: 3, mb: 4 }}>
       <Grid container spacing={4} alignItems="center">
-        <Grid size={{ xs: 12, md: 3 }}>
+        <Grid item xs={12} md={3}>
           {selectedPortfolio ? (
             <>
               <Button 
@@ -81,41 +129,45 @@ export function DashboardSummary({ summary, displayCurrency, exchangeRates, sele
           )}
           <Typography variant="h4" fontWeight="bold" color="primary">{formatConverted(summary.aum)}</Typography>
         </Grid>
-        <Grid size={{ xs: 12, md: 9 }}>
+        <Grid item xs={12} md={9}>
           <Box display="flex" gap={4} justifyContent="flex-end" alignItems="center" flexWrap="wrap">
-            {renderSummaryValue("Value After Tax", summary.valueAfterTax)}
+            <Box textAlign="left" minWidth={120}>
+                <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase' }}>Value After Tax</Typography>
+                <Typography variant="h6" fontWeight="medium" color="text.primary">
+                    {formatConverted(summary.valueAfterTax)}
+                    {summary.aum > 0 && (
+                        <span style={{ fontSize: '0.7em', marginLeft: 4, color: 'text.secondary' }}>
+                            ({formatPct(summary.valueAfterTax / summary.aum)})
+                        </span>
+                    )}
+                </Typography>
+            </Box>
             {renderSummaryValue("Unrealized Gain", summary.totalUnrealized, summary.totalUnrealized >= 0 ? 'success.main' : 'error.main')}
             {renderSummaryValue("Realized Gain", summary.totalRealized)}
             <Box textAlign="left" minWidth={120}>
-               <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase' }}>Day Change</Typography>
+                <Box display="flex" alignItems="center">
+                    <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase' }}>Day Change</Typography>
+                    {summary.totalDayChangeIsIncomplete && (
+                      <Tooltip title="Calculation is based on partial data as some holdings were missing live price information.">
+                        <InfoOutlinedIcon sx={{ fontSize: '1rem', ml: 0.5, color: 'text.secondary' }} />
+                      </Tooltip>
+                    )}
+                </Box>
                <Typography variant="h6" fontWeight="medium" color={summary.totalDayChange >= 0 ? 'success.main' : 'error.main'}>
                  {formatConverted(summary.totalDayChange)}
                  <span style={{ fontSize: '0.7em', marginLeft: 4, color: 'text.secondary' }}>
                     ({formatPct(summary.totalDayChangePct)})
-
                   </span>
                </Typography>
             </Box>
 
-            {/* TODO: Implement actual calculations for these performance metrics */}
-            <Box textAlign="left" minWidth={120}>
-               <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase' }}>1W Change</Typography>
-               <Typography variant="h6" fontWeight="medium" color={summary.perf1w >= 0 ? 'success.main' : 'error.main'}>
-                 {formatPct(summary.perf1w)}
-               </Typography>
-            </Box>
-            <Box textAlign="left" minWidth={120}>
-               <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase' }}>1M Change</Typography>
-               <Typography variant="h6" fontWeight="medium" color={summary.perf1m >= 0 ? 'success.main' : 'error.main'}>
-                 {formatPct(summary.perf1m)}
-               </Typography>
-            </Box>
-            <Box textAlign="left" minWidth={120}>
-               <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase' }}>YTD Change</Typography>
-               <Typography variant="h6" fontWeight="medium" color={summary.perfYtd >= 0 ? 'success.main' : 'error.main'}>
-                 {formatPct(summary.perfYtd)}
-               </Typography>
-            </Box>
+            {renderPerfValue("1W Change", summary.perf1w, summary.perf1w_incomplete)}
+            {renderPerfValue("1M Change", summary.perf1m, summary.perf1m_incomplete)}
+            {renderPerfValue("3M Change", summary.perf3m, summary.perf3m_incomplete)}
+            {renderPerfValue("YTD Change", summary.perfYtd, summary.perfYtd_incomplete)}
+            {renderPerfValue("1Y Change", summary.perf1y, summary.perf1y_incomplete)}
+            {renderPerfValue("3Y Change", summary.perf3y, summary.perf3y_incomplete)}
+            {renderPerfValue("5Y Change", summary.perf5y, summary.perf5y_incomplete)}
             
             <Select 
               value={displayCurrency} 

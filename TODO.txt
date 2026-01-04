@@ -1,45 +1,29 @@
 ### Pleae be carful not to override entire file when updating tasks ###
 
 ON HOLD: Keep track of dividands since purchase! Add to sheet
-DONE: Add day change to dash rows and header
 Add real time ranges performance to header (currently UI Placeholders Added in Dashboard.tsx)
-DONE: Make google account login last longer or auto renew!
-DONE: Populate sectors
-DONE: New Transaction UI - make comission field smaller, improve "ticker not found" location
-DONE: Improve code comments where truly helpful
 ON HOLD: Handle splits, etc, name changes
 ON HOLD: Support mobile screen sizes
 ON HOLD: Better ticker search - free text, multy options to select from
-DONE: Use google finance (in sheet??) instead of https://v6.exchangerate-api.com
-DONE: Allow fetching TASE data by numeric ticker ID: e.g. from https://www.globes.co.il/data/webservices/financial.asmx/getInstrument?exchange=tase&symbol=1175819
-DONE: Add "New transaction" to ticker viewer
-DONE: Rename add trade to New transaction
-DONE: Fix syntax error in DashboardTable.tsx (missing closing brace for TableProps interface)
-DONE: Fix syntax error in TickerDetails.tsx (missing closing brace for TickerDetailsProps interface)
-DONE: Fix ReferenceError: OpenInNewIcon is not defined in TickerDetails.tsx
-DONE: Move Refresh Data button to the right side of the toggles and increase space between it to them.
-DONE: Add robust error handling to data fetching functions in src/lib/sheets.ts to prevent dashboard loading issues.
-DONE: The exchange selector switches when a stock is found - I want it to only be controlled by the user and stay in auto unless changed    
-DONE: Make the display price for IL stocks PRICE agorot (storage currency remains ILS, and so does the total value)
-DONE: When computing dashboard values, ignore txns with future dates. Show a small warning if any such exists.
 Ticker view should show real % gains for 1d, 1w, 1m, 3m, 1,3,5y, ytd (currently UI Placeholders Added)
 Ticker view should show real divedand gains (%) for same ranges (currently UI Placeholders Added)
-DONE: Allow editing portfolios (not their ID!)
-DONE: In portfolio headers in the dashboard - add a total value of the portfolio, day gain pct and day gain value, total gain unrealised
-DONE: Add  code comments where they will be truly helpful - search through the code, don't be lazy
 Impl actual gain % values in header
-DONE: Important: Improve google login handling - increase buffers, impl todos, make the session last long and require rarely re-login
-DONE: Make ILS - agorot conversion much more robust, e.g. improve `const priceInILS = (h.exchange === 'TASE' && h.stockCurrency === 'ILS') ? h.currentPrice / 100 : h.currentPrice`
-DONE: Complete priceUnit implementation - Update NewTransaction.tsx and TickerDetails.tsx to use priceUnit.
-DONE: Remove unneeded empty lines in Dashboard.tsx
-DONE: In ticker view, stock name is too small and should appear before the exchange name
-DONE: Implement stateful URLs using react-router-dom to persist view/filters.
-DONE: In ticker view, enhanced display of stock name, symbol, base price, data age, refresh button, and verified transaction prefill.
-DONE: Addressed color contrast issues in light and dark modes (success/error colors, primary/text legibility).
-DONE: Please configure caching and optimize code so that Yahoo fetches are minimized
 In the ticker view - The top title should be just the name in large font, then the subtitle will be the exchange and symbol/ticker in the current font of the exchange 
 Pass forceRefresh to getTickerData to bypass cache
 CSV imprt should fill in exchange ID - if not in CSV, must be manually entered - can assist user with deduction logic 
+There is web fetch logic in many fiels and components - should move them all to a single file handling fetching data.
+In the dashboard rows, IL stock prices show price in NIS annotated with "ag." price should be shown in agorot too
+In single ticker view mode, the base price is shown in NIS while the market proce is in agorot. Both should be in agorot
+We should keep a new state/metadata/config sheet that will hold data about the program, for now, it should store the sheet schema creation date in the format "YYYYMMDD" - the schema update feature should update this field
+The state/metadata/config sheet should have an entry for the last "live data" rebuild time
+Dashboard header - fields should have both percent and absolute change - e.g. value after tax should metnion the percentage left, period change fields should have both value and percent
+Minimize Yahoo API calls - fetch data from cached "live data" sheet if possible
+in the dashboard summary, all chahnges other than day chnage should have smaller font and be placed on a line below
+When showing single ticker view, avoid calling apis to fetch data - use the one from the live data. When some live data is missing, only then try fetching. Clicking refesh should also prefer to load new data from the sheet first
+Use Finhub or marketstack over yahoo if possible or in addition (will reuqire to guide use rto create API key and add it to spreadsheet as part of setup)
+ON HOLD: Dashbaord header - portfolio pct grow should take into account the the amount of stock and buy date etc
+ON HOLD: Dashbaord header - Add portfolio gain (value&pct) since date (1m,1y,3y,5y,all) taking into account revenue and add transactions since date
+MuiBox-root css-2y0yn0 (portfolio block header) should not be affected by horizontal scroll of the box content
 
 Low priority:
 - Support switching display lang to Hebrew - should also affect stock names when avilable (with cookie to persist)
@@ -148,5 +132,35 @@ Super task: Create dataset of TASE tickers:
   [...]
 - Merge all fetched results into a searchanble dataset, keep their type and names, symbol and ID. Ignore instrument ID and quantity fields
 - Improve ticker search UI - it should now allow a smarter free search - currently if it is found in in the tase database - by en/he name or symbol (fuzzy search)
+
 DONE: Fix TS2322: Type '{ ..., sheetId: string; }' is not assignable to type 'IntrinsicAttributes & TableProps'. Property 'sheetId' does not exist on type 'IntrinsicAttributes & TableProps' in Dashboard.tsx (removed sheetId prop from DashboardTable call).
 DONE: Fix TS1484: 'TaseTicker' is a type and must be imported using a type-only import in ticker.ts.
+DONE: Important: Improve google login handling - increase buffers, impl todos, make the session last long and require rarely re-login
+DONE: Make ILS - agorot conversion much more robust, e.g. improve `const priceInILS = (h.exchange === 'TASE' && h.stockCurrency === 'ILS') ? h.currentPrice / 100 : h.currentPrice`
+DONE: Complete priceUnit implementation - Update NewTransaction.tsx and TickerDetails.tsx to use priceUnit.
+DONE: Remove unneeded empty lines in Dashboard.tsx
+DONE: In ticker view, stock name is too small and should appear before the exchange name
+DONE: Implement stateful URLs using react-router-dom to persist view/filters.
+DONE: In ticker view, enhanced display of stock name, symbol, base price, data age, refresh button, and verified transaction prefill.
+DONE: Addressed color contrast issues in light and dark modes (success/error colors, primary/text legibility).
+DONE: Please configure caching and optimize code so that Yahoo fetches are minimized
+DONE: Use google finance (in sheet??) instead of https://v6.exchangerate-api.com
+DONE: Allow fetching TASE data by numeric ticker ID: e.g. from https://www.globes.co.il/data/webservices/financial.asmx/getInstrument?exchange=tase&symbol=1175819
+DONE: Add "New transaction" to ticker viewer
+DONE: Rename add trade to New transaction
+DONE: Fix syntax error in DashboardTable.tsx (missing closing brace for TableProps interface)
+DONE: Fix syntax error in TickerDetails.tsx (missing closing brace for TickerDetailsProps interface)
+DONE: Fix ReferenceError: OpenInNewIcon is not defined in TickerDetails.tsx
+DONE: Move Refresh Data button to the right side of the toggles and increase space between it to them.
+DONE: Add robust error handling to data fetching functions in src/lib/sheets.ts to prevent dashboard loading issues.
+DONE: The exchange selector switches when a stock is found - I want it to only be controlled by the user and stay in auto unless changed    
+DONE: Make the display price for IL stocks PRICE agorot (storage currency remains ILS, and so does the total value)
+DONE: When computing dashboard values, ignore txns with future dates. Show a small warning if any such exists.
+DONE: Allow editing portfolios (not their ID!)
+DONE: In portfolio headers in the dashboard - add a total value of the portfolio, day gain pct and day gain value, total gain unrealised
+DONE: Add  code comments where they will be truly helpful - search through the code, don't be lazy
+DONE: Add day change to dash rows and header
+DONE: Make google account login last longer or auto renew!
+DONE: Populate sectors
+DONE: New Transaction UI - make comission field smaller, improve "ticker not found" location
+DONE: Improve code comments where truly helpful

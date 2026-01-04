@@ -90,6 +90,12 @@ export function TickerDetails({ sheetId }: TickerDetailsProps) {
 
     if ((exchange && exchange.toUpperCase() === 'TASE') || (data?.exchange === 'TASE')) {
       links.push({ name: 'Bizportal', url: `https://www.bizportal.co.il/realestates/quote/generalview/${ticker}` }); 
+      const isSecurity = true; // Currently assume true; TODO: Determine actual type
+      if (isSecurity) {
+        links.push({ name: 'Maya (TASE)', url: `https://market.tase.co.il/he/market_data/security/${ticker}` }); 
+      } else {
+        links.push({ name: 'Maya (TASE)', url: `https://market.tase.co.il/he/market_data/mutual-funds/${ticker}` }); 
+      } // TODO: Etc. for other types
     }
     
     return links;
@@ -157,7 +163,7 @@ export function TickerDetails({ sheetId }: TickerDetailsProps) {
                 <Box key={range}>
                   <Box textAlign="center" p={1} sx={{ border: '1px solid #eee', borderRadius: 1 }}>
                     <Typography variant="caption" color="text.secondary">{range}</Typography>
-                    <Typography variant="body2" color="text.primary">--%</Typography>
+                        <Typography variant="body2" color="text.primary">--%</Typography>
                   </Box>
                 </Box>
               ))}

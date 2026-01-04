@@ -9,7 +9,7 @@ interface TickerData {
   currency?: string;
   exchange?: string;
   changePct?: number; // Daily change percentage
-  priceUnit?: 'base' | 'agorot' | 'cents';
+  priceUnit?: string;
   timestamp?: number; // Last update time
 }
 
@@ -120,10 +120,12 @@ async function fetchGlobesStock(ticker: string, exchange: string, signal?: Abort
     let currency = currencyNode?.textContent || '';
     if (currency === 'NIS') currency = 'ILS';
     
-    let priceUnit: 'base' | 'agorot' = 'base';
+    let priceUnit: string;
     const rate = parseFloat(currencyRateNode?.textContent || '1');
     if (!isNaN(rate) && rate === 0.01) {
       priceUnit = 'agorot';
+    } else {
+      priceUnit = currency;
     }
 
     const changePct = parseFloat(changePctNode?.textContent || '0') / 100; // Convert percentage value to decimal
@@ -215,7 +217,7 @@ async function fetchYahooStock(ticker: string, signal?: AbortSignal): Promise<Ti
         currency,
         exchange: exchangeName,
         changePct,
-        priceUnit: 'base',
+        priceUnit: currency,
         timestamp: now
     };
 

@@ -45,7 +45,14 @@ interface Holding {
   costBasis: number;
   costOfSold: number;
   stockCurrency: string;
-  priceUnit?: 'base' | 'agorot' | 'cents';
+  priceUnit?: string;
+  perf1w: number;
+  perf1m: number;
+  perf3m: number;
+  perfYtd: number;
+  perf1y: number;
+  perf3y: number;
+  perf5y: number;
 }
 
 export const Dashboard = ({ sheetId }: DashboardProps) => {
@@ -100,6 +107,16 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
     }
   };
 
+  const perfPeriods = {
+    perf1w: 'perf1w',
+    perf1m: 'perf1m',
+    perf3m: 'perf3m',
+    perfYtd: 'perfYtd',
+    perf1y: 'perf1y',
+    perf3y: 'perf3y',
+    perf5y: 'perf5y',
+  } as const;
+
   const [summary, setSummary] = useState({
     aum: 0,
     totalUnrealized: 0,
@@ -110,15 +127,22 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
     valueAfterTax: 0,
     totalDayChange: 0,
     totalDayChangePct: 0,
-    // Add missing performance properties
-    perf1d: 0, // Equivalent to totalDayChangePct
+    totalDayChangeIsIncomplete: false,
+    perf1d: 0,
     perf1w: 0,
+    perf1w_incomplete: false,
     perf1m: 0,
+    perf1m_incomplete: false,
     perf3m: 0,
+    perf3m_incomplete: false,
     perf1y: 0,
+    perf1y_incomplete: false,
     perf3y: 0,
+    perf3y_incomplete: false,
     perf5y: 0,
+    perf5y_incomplete: false,
     perfYtd: 0,
+    perfYtd_incomplete: false,
     divYield: 0, // Placeholder
   });
 
@@ -128,9 +152,26 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
 
   useEffect(() => {
     const calculateSummary = (data: Holding[]) => {
-      // Calculate summary in BASE currency (USD) to allow summation of mixed currencies
+      
+      const initialAcc = {
+        aum: 0,
+        totalUnrealized: 0,
+        totalRealized: 0,
+        totalDividends: 0,
+        totalReturn: 0,
+        realizedGainAfterTax: 0,
+        valueAfterTax: 0,
+        totalDayChange: 0,
+        aumWithDayChangeData: 0,
+        holdingsWithDayChange: 0,
+        ...Object.fromEntries(Object.keys(perfPeriods).flatMap(p => [
+            [`totalChange_${p}`, 0],
+            [`aumFor_${p}`, 0],
+            [`holdingsFor_${p}`, 0]
+        ]))
+      };
+
       const s = data.reduce((acc, h) => {
-        // Helper to convert TO USD from stock currency
         const toUSD = (val: number) => {
            if (!exchangeRates) return val;
            const fromRate = exchangeRates[h.stockCurrency] || 1;
@@ -144,35 +185,45 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         acc.totalReturn += toUSD(h.totalGain);
         acc.realizedGainAfterTax += toUSD(h.realizedGainAfterTax);
         acc.valueAfterTax += toUSD(h.valueAfterTax);
-        acc.totalDayChange += toUSD(h.dayChangeVal);
-        return acc;
-      }, {
-        aum: 0,
-        totalUnrealized: 0,
-        totalRealized: 0,
-        totalDividends: 0,
-        totalReturn: 0,
-        realizedGainAfterTax: 0,
-        valueAfterTax: 0,
-        totalDayChange: 0,
-        totalDayChangePct: 0,
-        // Initialize new performance properties as placeholders
-        perf1d: 0,
-        perf1w: 0,
-        perf1m: 0,
-        perf3m: 0,
-        perf1y: 0,
-        perf3y: 0,
-        perf5y: 0,
-        perfYtd: 0,
-        divYield: 0,
-      });
+        
+        if (h.dayChangePct !== 0) {
+            acc.totalDayChange += toUSD(h.dayChangeVal);
+            acc.aumWithDayChangeData += toUSD(h.totalMV);
+            acc.holdingsWithDayChange++;
+        }
+        
+        for (const [key, holdingKey] of Object.entries(perfPeriods)) {
+            const perf = h[holdingKey as keyof Holding] as number;
+            if (perf && !isNaN(perf)) {
+                const change = toUSD(h.totalMV) - (toUSD(h.totalMV) / (1 + perf));
+                (acc as any)[`totalChange_${key}`] += change;
+                (acc as any)[`aumFor_${key}`] += toUSD(h.totalMV);
+                (acc as any)[`holdingsFor_${key}`]++;
+            }
+        }
 
-      const prevClose = s.aum - s.totalDayChange;
-      s.totalDayChangePct = prevClose > 0 ? s.totalDayChange / prevClose : 0;
-      s.perf1d = s.totalDayChangePct; // perf1d is the same as totalDayChangePct
+        return acc;
+      }, initialAcc);
+
+      const summaryResult: typeof summary = { ...summary, ...s, totalDayChangePct: 0, perf1d: 0 };
+      const totalHoldings = data.length;
+
+      const prevClose = s.aumWithDayChangeData - s.totalDayChange;
+      summaryResult.totalDayChangePct = prevClose > 0 ? s.totalDayChange / prevClose : 0;
+      summaryResult.perf1d = summaryResult.totalDayChangePct;
+      summaryResult.totalDayChangeIsIncomplete = s.holdingsWithDayChange > 0 && s.holdingsWithDayChange < totalHoldings;
       
-      setSummary(s);
+      for (const key of Object.keys(perfPeriods)) {
+        const totalChange = (s as any)[`totalChange_${key}`];
+        const aumForPeriod = (s as any)[`aumFor_${key}`];
+        const prevValue = aumForPeriod - totalChange;
+        (summaryResult as any)[key] = prevValue > 0 ? totalChange / prevValue : 0;
+
+        const holdingsForPeriod = (s as any)[`holdingsFor_${key}`];
+        (summaryResult as any)[`${key}_incomplete`] = holdingsForPeriod > 0 && holdingsForPeriod < totalHoldings;
+      }
+      
+      setSummary(summaryResult);
     };
 
     if (selectedPortfolioId) {
@@ -199,7 +250,6 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         fetchTransactions(sheetId),
       ]);
 
-      // Only fetch live data (fast), no rebuild here
       const liveData = await fetchLiveData(sheetId);
       
       const liveDataMap = new Map<string, LiveData>();
@@ -230,7 +280,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
             ticker: t.ticker,
             exchange: t.exchange || live?.exchange || defaultExchange,
             displayName: live?.name || t.ticker,
-            name_he: live?.name_he, // Store Hebrew Name
+            name_he: live?.name_he,
             qtyVested: 0,
             qtyUnvested: 0,
             totalQty: 0,
@@ -254,7 +304,14 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
             costBasis: 0,
             costOfSold: 0,
             stockCurrency: live?.currency || t.currency || p?.currency || 'USD',
-            priceUnit: live?.priceUnit || 'base',
+            priceUnit: live?.priceUnit,
+            perf1w: live?.changePct1w || 0,
+            perf1m: live?.changePct1m || 0,
+            perf3m: live?.changePct3m || 0,
+            perfYtd: live?.changePctYtd || 0,
+            perf1y: live?.changePct1y || 0,
+            perf3y: live?.changePct3y || 0,
+            perf5y: live?.changePct5y || 0,
           });
         }
 
@@ -283,7 +340,6 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
       const processedHoldings: Holding[] = [];
 
       holdingMap.forEach(h => {
-        // Convert Agorot to ILS for TASE stocks before value calculations.
         const priceInBase = getPriceInBaseCurrency(h);
 
         h.totalQty = h.qtyVested + h.qtyUnvested;
@@ -292,8 +348,6 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         h.mvUnvested = h.qtyUnvested * priceInBase;
         h.totalMV = h.mvVested + h.mvUnvested;
         
-        
-        // Unrealized gain is the difference between current market value and the cost basis.
         const unrealized = h.totalMV - h.costBasis;
         h.unrealizedGain = unrealized;
         h.unrealizedGainPct = h.costBasis > 0 ? unrealized / h.costBasis : 0;
@@ -301,7 +355,6 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         h.realizedGainAfterTax = h.realizedGain * (1 - taxRate);
         h.totalGain = h.unrealizedGain + h.realizedGain + h.dividends;
         h.totalGainPct = h.costBasis + h.costOfSold > 0 ? h.totalGain / (h.costBasis + h.costOfSold) : 0;
-        // Approximate value after tax, assuming all unrealized gain is taxed at the standard rate.
         h.valueAfterTax = h.totalMV - (h.unrealizedGain > 0 ? h.unrealizedGain * taxRate : 0);
         h.dayChangeVal = h.totalMV * h.dayChangePct;
 
@@ -311,7 +364,6 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
       setHoldings(processedHoldings);
     } catch (e) {
       console.error(e);
-      // Suppress alert for common fetch errors if it's a silent reload
     } finally {
       setLoading(false);
     }
