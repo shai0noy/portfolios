@@ -217,7 +217,7 @@ export function DashboardTable(props: TableProps) {
                 const totalRet = h.unrealizedGain + h.realizedGain + h.dividends;
                 
                 return (
-                  <TableRow key={h.key} hover onClick={() => navigate(`/ticker/${h.exchange.toUpperCase()}/${h.ticker}`)} sx={{ cursor: 'pointer' }}>
+                  <TableRow key={h.key} hover onClick={() => navigate(`/ticker/${h.exchange.toUpperCase()}/${h.ticker}`, { state: { holding: h } })} sx={{ cursor: 'pointer' }}>
                     {columnVisibility.displayName && <TableCell sx={{ fontWeight: 'bold' }}>{h.displayName}</TableCell>}
                     {columnVisibility.ticker && (
                       <TableCell>

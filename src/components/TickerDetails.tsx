@@ -81,7 +81,10 @@ export function TickerDetails() {
     return `${val} ${curr}`;
   };
 
-  const formatPct = (n: number) => (n * 100).toFixed(2) + '%';
+  const formatPct = (n?: number) => {
+    if (n === undefined || n === null || isNaN(n)) return '--%';
+    return (n * 100).toFixed(2) + '%';
+  }
 
   const getExternalLinks = () => {
     if (!ticker) return [];

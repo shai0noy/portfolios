@@ -1,11 +1,10 @@
 ### Pleae be carful not to override entire file when updating tasks ###
 
 ON HOLD: Keep track of dividands since purchase! Add to sheet
-Add real time ranges performance to header (currently UI Placeholders Added in Dashboard.tsx)
 ON HOLD: Handle splits, etc, name changes
 ON HOLD: Support mobile screen sizes
 ON HOLD: Better ticker search - free text, multy options to select from
-Ticker view should show real % gains for 1d, 1w, 1m, 3m, 1,3,5y, ytd (currently UI Placeholders Added)
+Ticker view should show real % gains for 1d, 1w, 1m, 3m, 1,3,5y, ytd (currently UI Placeholders Added) - for global stock - fetch from Holdings sheet (see sheet.ts) - for TASE - fetch from globes - wrap both fetching in a common API with the logic split inside it
 Ticker view should show real divedand gains (%) for same ranges (currently UI Placeholders Added)
 Impl actual gain % values in header
 In the ticker view - The top title should be just the name in large font, then the subtitle will be the exchange and symbol/ticker in the current font of the exchange 

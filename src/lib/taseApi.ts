@@ -73,9 +73,10 @@ export interface TaseTicker {
 export async function fetchTaseTickersByType(type: string, signal?: AbortSignal): Promise<TaseTicker[]> {
   const cacheKey = `tase:tickers:${type}`;
   return withTaseCache(cacheKey, async () => {
+    const globesApiUrl = `${TASE_API_BASE_URL}/listByType?exchange=tase&type=${type}`;
     const url = import.meta.env.DEV
       ? `/api/globes/data/webservices/financial.asmx/listByType?exchange=tase&type=${type}`
-      : `${TASE_API_BASE_URL}/listByType?exchange=tase&type=${type}`;
+      : `https://api.allorigins.win/raw?url=${encodeURIComponent(globesApiUrl)}`;
     const xmlString = await fetchXml(url, signal);
     const xmlDoc = parseXmlString(xmlString);
 
