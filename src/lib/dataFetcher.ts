@@ -35,9 +35,9 @@ const YAHOO_EXCHANGE_MAP: Record<string, string> = {
 let taseTickersDataset: TaseTicker[] | null = null;
 let taseTickersDatasetLoading: Promise<TaseTicker[]> | null = null;
 
-export async function getTaseTickersDataset(signal?: AbortSignal, forceRefresh = false): Promise<TaseTicker[]> {
+export function getTaseTickersDataset(signal?: AbortSignal, forceRefresh = false): Promise<TaseTicker[]> {
   if (taseTickersDataset && !forceRefresh) {
-    return taseTickersDataset;
+    return Promise.resolve(taseTickersDataset);
   }
   if (taseTickersDatasetLoading) {
     return taseTickersDatasetLoading;
@@ -46,8 +46,9 @@ export async function getTaseTickersDataset(signal?: AbortSignal, forceRefresh =
   taseTickersDatasetLoading = (async () => {
     try {
       const tickers = await fetchAllTaseTickers(signal);
-      taseTickersDataset = tickers;
-      return tickers;
+      const flattenedTickers = Object.values(tickers).flat();
+      taseTickersDataset = flattenedTickers;
+      return flattenedTickers;
     } catch (e) {
       console.error('Failed to load TASE tickers dataset:', e);
       return [];
@@ -340,4 +341,5 @@ export async function getTickerData(ticker: string, exchange?: string, signal?: 
   }
 }
 
-export { fetchYahooHistorical, TickerData, HistoricalDataPoint };
+export { fetchYahooHistorical };
+export type { TickerData, HistoricalDataPoint };

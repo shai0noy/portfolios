@@ -46,7 +46,7 @@ export interface Transaction {
   type: 'BUY' | 'SELL' | 'DIVIDEND' | 'FEE';
   qty: number;
   price: number;
-  grossValue: number;
+  grossValue?: number;
   currency?: string;
   vestDate?: string;
   comment?: string;

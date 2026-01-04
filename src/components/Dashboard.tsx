@@ -7,7 +7,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import { fetchPortfolios, fetchTransactions } from '../lib/sheets';
 import { ColumnSelector } from './ColumnSelector';
 import { getExchangeRates, convertCurrency } from '../lib/currency';
-import type { Portfolio, Holding, PriceUnit } from '../lib/types';
+import type { Holding, PriceUnit } from '../lib/types';
 import { DashboardSummary } from './DashboardSummary';
 import { DashboardTable } from './DashboardTable';
 

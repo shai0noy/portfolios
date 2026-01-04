@@ -4,18 +4,15 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import AddIcon from '@mui/icons-material/Add';
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getTickerData, fetchYahooHistorical } from '../lib/dataFetcher'; // Assuming getTickerData is here
+import { getTickerData } from '../lib/dataFetcher'; // Assuming getTickerData is here
 
-interface TickerDetailsProps {
-  sheetId: string;
-}
 
 interface TickerDetailsRouteParams extends Record<string, string | undefined> {
   exchange: string;
   ticker: string;
 }
 
-export function TickerDetails({ sheetId }: TickerDetailsProps) {
+export function TickerDetails() {
   const { exchange, ticker } = useParams<TickerDetailsRouteParams>();
   const navigate = useNavigate();
   const [data, setData] = useState<any>(null);

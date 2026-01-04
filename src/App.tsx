@@ -74,8 +74,8 @@ function App() {
     setRebuilding(true);
     try {
       await ensureSchema(sheetId);
-      const txns = await fetchTransactions(sheetId);
-      await rebuildHoldingsSheet(sheetId, txns);
+      await fetchTransactions(sheetId);
+      await rebuildHoldingsSheet(sheetId);
       setRefreshKey(k => k + 1); // Refresh dashboard
       alert("Sheet setup complete. Headers and live data have been rebuilt.");
     } catch (e) {
@@ -229,7 +229,7 @@ function App() {
           <Route path="/transaction" element={null} /> {/* Dummy route */}
           <Route path="/portfolios" element={<PortfolioManager sheetId={sheetId} onSuccess={() => setRefreshKey(k => k + 1)} />} />
           <Route path="/portfolios/:portfolioId" element={<PortfolioManager sheetId={sheetId} onSuccess={() => setRefreshKey(k => k + 1)} />} />
-          <Route path="/ticker/:exchange/:ticker" element={<TickerDetails sheetId={sheetId} />} />
+          <Route path="/ticker/:exchange/:ticker" element={<TickerDetails />} />
         </Routes>
       </Container>
 

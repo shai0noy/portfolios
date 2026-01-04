@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   TextField, Grid, Typography, CircularProgress, MenuItem, Select, FormControl, InputLabel,
-  List, ListItem, ListItemButton, ListItemText, Paper, Box, Divider, Chip, Tooltip
+  List, ListItemButton, ListItemText, Paper, Box, Divider, Chip, Tooltip
 } from '@mui/material';
 import { getTaseTickersDataset, getTickerData, type TaseTicker, type TickerData, DEFAULT_TASE_TYPE_CONFIG } from '../lib/ticker';
 import type { Portfolio } from '../lib/types';
@@ -179,14 +179,14 @@ export function TickerSearch({ onTickerSelect, initialTicker, initialExchange, p
   }, []);
 
   const handleOptionSelect = async (option: SearchOption) => {
-    if (option.rawTicker) {
+    if (option.rawTicker && 'price' in option.rawTicker) {
       onTickerSelect({ ...option.rawTicker, symbol: option.symbol, exchange: option.exchange });
     } else {
       setIsLoading(true);
       const data = await getTickerData(option.symbol, option.exchange);
       setIsLoading(false);
       if (data) {
-        onTickerSelect({ ...data, symbol: option.symbol });
+        onTickerSelect({ ...data, symbol: option.symbol, exchange: option.exchange });
       }
     }
     setOptions([]); 

@@ -258,7 +258,7 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
                       <TableCell>{t.type}</TableCell>
                       <TableCell align="right">{t.qty}</TableCell>
                       <TableCell align="right">{t.price.toFixed(2)}</TableCell>
-                      <TableCell align="right">{t.grossValue.toFixed(2)}</TableCell>
+                      <TableCell align="right">{t.grossValue?.toFixed(2)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

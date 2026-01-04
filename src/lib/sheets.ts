@@ -48,11 +48,11 @@ function createRowMapper<T extends readonly string[]>(headers: T) {
     };
 }
 
-function objectToRow<T>(obj: T, mapping: Record<keyof T, string>, headers: readonly string[]): any[] {
+function objectToRow<T, K extends keyof T>(obj: T, mapping: Record<K, string>, headers: readonly string[]): any[] {
     const invertedMapping = Object.fromEntries(Object.entries(mapping).map(([key, value]) => [value as string, key]));
     const row = new Array(headers.length).fill('');
     headers.forEach((header, i) => {
-        const key = invertedMapping[header] as keyof T;
+        const key = invertedMapping[header] as K;
         if (key && obj[key] !== undefined && obj[key] !== null) {
             row[i] = obj[key];
         }
@@ -62,20 +62,20 @@ function objectToRow<T>(obj: T, mapping: Record<keyof T, string>, headers: reado
 
 // --- Mappings from Sheet Headers to Typescript Object Keys ---
 
-const portfolioMapping: Record<keyof Portfolio, typeof portfolioHeaders[number]> = {
+const portfolioMapping: Record<keyof Omit<Portfolio, 'holdings'>, typeof portfolioHeaders[number]> = {
     id: 'Portfolio_ID', name: 'Display_Name', cgt: 'Cap_Gains_Tax_%', incTax: 'Income_Tax_Vest_%',
     mgmtVal: 'Mgmt_Fee_Val', mgmtType: 'Mgmt_Type', mgmtFreq: 'Mgmt_Freq', commRate: 'Comm_Rate_%',
     commMin: 'Comm_Min', commMax: 'Comm_Max_Fee', currency: 'Currency', divPolicy: 'Div_Policy',
     divCommRate: 'Div_Comm_Rate_%',
 };
-const portfolioNumericKeys: (keyof Portfolio)[] = ['cgt', 'incTax', 'mgmtVal', 'commRate', 'commMin', 'commMax', 'divCommRate'];
+const portfolioNumericKeys: (keyof Omit<Portfolio, 'holdings'>)[] = ['cgt', 'incTax', 'mgmtVal', 'commRate', 'commMin', 'commMax', 'divCommRate'];
 
 const transactionMapping: Record<keyof Omit<Transaction, 'grossValue'>, typeof transactionHeaders[number]> = {
     date: 'Date', portfolioId: 'Portfolio', ticker: 'Ticker', exchange: 'Exchange', type: 'Type',
     qty: 'Qty', price: 'Price', currency: 'Currency', vestDate: 'Vesting_Date', comment: 'Comments',
-    commission: 'Commission', tax: 'Tax %', grossValue: 'grossValue' // This will not be read from sheet
+    commission: 'Commission', tax: 'Tax %',
 };
-const transactionNumericKeys: (keyof Transaction)[] = ['qty', 'price', 'commission', 'tax'];
+const transactionNumericKeys: (keyof Omit<Transaction, 'grossValue'>)[] = ['qty', 'price', 'commission', 'tax'];
 
 const holdingMapping: Record<keyof Holding, typeof holdingsHeaders[number]> = {
     portfolioId: 'PortfolioId', ticker: 'Ticker', exchange: 'Exchange', qty: 'Quantity',
@@ -214,7 +214,7 @@ async function fetchSheetData<T>(spreadsheetId: string, range: string, rowMapper
 
 export const fetchPortfolios = async (spreadsheetId: string): Promise<Portfolio[]> => {
     const portfolios = await fetchSheetData(spreadsheetId, PORT_OPT_RANGE, (row) =>
-        mapRowToPortfolio<Portfolio>(row, portfolioMapping, portfolioNumericKeys)
+        mapRowToPortfolio<Omit<Portfolio, 'holdings'>>(row, portfolioMapping, portfolioNumericKeys)
     );
 
     let holdings: Holding[] = [];
@@ -246,9 +246,10 @@ export const fetchPortfolios = async (spreadsheetId: string): Promise<Portfolio[
 };
 
 export const fetchTransactions = async (spreadsheetId: string): Promise<Transaction[]> => {
-    return fetchSheetData(spreadsheetId, TX_FETCH_RANGE, (row) =>
-        mapRowToTransaction<Transaction>(row, transactionMapping, transactionNumericKeys)
+    const transactions = await fetchSheetData(spreadsheetId, TX_FETCH_RANGE, (row) =>
+        mapRowToTransaction<Omit<Transaction, 'grossValue'>>(row, transactionMapping, transactionNumericKeys)
     );
+    return transactions.map(t => ({...t, grossValue: t.qty * t.price}));
 };
 
 // --- Data Writing Functions ---
@@ -284,7 +285,7 @@ export const updatePortfolio = async (spreadsheetId: string, p: Portfolio) => {
     }
 
     const dataRows = values.slice(1);
-    const rowIndex = dataRows.findIndex(row => row[idColumnIndex] === p.id);
+    const rowIndex = dataRows.findIndex((row: any[]) => row[idColumnIndex] === p.id);
 
     if (rowIndex === -1) {
         throw new Error(`Portfolio with ID ${p.id} not found`);
@@ -329,10 +330,7 @@ export const addTransaction = async (spreadsheetId: string, t: Transaction) => {
 export const rebuildHoldingsSheet = async (spreadsheetId: string) => {
     await ensureGapi();
     const transactions = await fetchTransactions(spreadsheetId);
-    const portfolios = await fetchSheetData(spreadsheetId, PORT_OPT_RANGE, (row) =>
-        mapRowToPortfolio<Portfolio>(row, portfolioMapping, portfolioNumericKeys)
-    );
-    const portfolioMap = new Map(portfolios.map(p => [p.id, p]));
+
 
     const holdings: Record<string, Omit<Holding, 'totalValue' | 'price' | 'currency' | 'name' | 'name_he' | 'sector' | 'priceUnit' | 'changePct' | 'changePct1w' | 'changePct1m' | 'changePct3m' | 'changePctYtd' | 'changePct1y' | 'changePct3y' | 'changePct5y' | 'changePct10y'> & { portfolioId: string }> = {};
 
@@ -367,8 +365,6 @@ export const rebuildHoldingsSheet = async (spreadsheetId: string) => {
         const exchangeCell = `C${rowNum}`;
         const qtyCell = `D${rowNum}`;
         const priceCell = `E${rowNum}`;
-        const currencyCell = `F${rowNum}`;
-        const totalCell = `G${rowNum}`;
         const tickerAndExchange = `${exchangeCell}&":"&${tickerCell}`;
 
         const row = new Array(holdingsHeaders.length).fill('');

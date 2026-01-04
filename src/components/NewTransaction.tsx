@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   Box, TextField, Button, MenuItem, Select, InputLabel, FormControl, 
-  Typography, Alert, Snackbar, InputAdornment, Grid, Card, CardContent, Divider, Tooltip, CircularProgress, Chip 
+  Typography, Alert, InputAdornment, Grid, Card, CardContent, Divider, Tooltip, CircularProgress, Chip 
 } from '@mui/material';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -46,7 +46,6 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [isPortfoliosLoading, setIsPortfoliosLoading] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [successMsg, setSuccessMsg] = useState('');
   const [isPriceLoading, setIsPriceLoading] = useState(false);
   const [priceError, setPriceError] = useState('');
   
@@ -68,7 +67,6 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
   const [displayName, setDisplayName] = useState('');
   const [tickerCurrency, setTickerCurrency] = useState(locationState?.initialCurrency || '');
   const [priceUnit, setPriceUnit] = useState<'base' | 'agorot' | 'cents'>('base');
-  const [foundExchange, setFoundExchange] = useState(locationState?.initialExchange || '');
 
   const debouncedTicker = useDebounce(ticker, 500);
 
@@ -82,7 +80,6 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
           setPriceUnit((data.priceUnit || 'base') as PriceUnit);
           if (data.priceUnit === 'agorot') setTickerCurrency('ILS');
           else setTickerCurrency(data.currency || '');
-          setFoundExchange(data.exchange || locationState.initialExchange || '');
         } else {
           setPriceError(`Ticker not found on ${locationState.initialExchange}`);
         }
@@ -119,7 +116,6 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
       } else {
         setTickerCurrency(selected.currency || '');
       }
-      setFoundExchange(selected.exchange || '');
     } else {
       fetchTickerPrice(selected.symbol, selected.exchange || '');
     }
@@ -132,7 +128,6 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
 
             setIsPriceLoading(true);
             setPriceError('');
-            setFoundExchange(''); // Reset found exchange
             setPrice(''); // Always clear price on ticker change
             setTickerCurrency(''); // Always clear currency on ticker change
             setPriceUnit('base'); // Reset price unit
@@ -154,7 +149,6 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
             } else {
               setTickerCurrency(data.currency || '');
             }
-            setFoundExchange(data.exchange || exchangeToFetch);
           } else {
             setPriceError(`Ticker not found on ${exchangeToFetch}`);
           }
@@ -172,7 +166,6 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
       };
     } else {
        setDisplayName('');
-       setFoundExchange('');
        setPrice('');
        setTickerCurrency('');
     }
@@ -287,7 +280,6 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
 
       await addTransaction(sheetId, txn);
       
-      setSuccessMsg('Transaction Saved!');
       // Reset critical fields
       setQty(''); setTotal(''); setCommission(''); setTax(''); setTicker(''); setExchange(''); setDisplayName('');
       if (onSaveSuccess) {

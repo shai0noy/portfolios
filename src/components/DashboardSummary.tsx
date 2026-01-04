@@ -116,7 +116,7 @@ export function DashboardSummary({ summary, displayCurrency, exchangeRates, sele
   return (
     <Paper variant="outlined" sx={{ p: 3, mb: 4 }}>
 <Grid container spacing={4} alignItems="center">
-        <Grid xs={12} md={3}>
+        <Grid item xs={12} md={3}>
           {selectedPortfolio ? (
             <>
               <Button 
@@ -135,7 +135,7 @@ export function DashboardSummary({ summary, displayCurrency, exchangeRates, sele
           )}
           <Typography variant="h4" fontWeight="bold" color="primary">{formatConverted(summary.aum)}</Typography>
         </Grid>
-        <Grid xs={12} md={9}>
+        <Grid item xs={12} md={9}>
           <Box display="flex" gap={4} justifyContent="flex-end" alignItems="center" flexWrap="wrap">
             <Box textAlign="left" minWidth={120}>
                 <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase' }}>Value After Tax</Typography>
