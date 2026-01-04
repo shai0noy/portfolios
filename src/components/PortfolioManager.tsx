@@ -212,22 +212,22 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
 
           <Grid container spacing={3}>
             {/* IDENTITY */}
-            <Grid size={{ xs: 12, md: 6 }}>
+            <Grid xs={12} md={6}>
               <Card variant="outlined" sx={{ height: '100%' }}>
                 <CardContent>
                   <Typography variant="subtitle2" color="text.secondary" gutterBottom>
                     PORTFOLIO IDENTITY
                   </Typography>
                   <Grid container spacing={2} mt={1}>
-                    <Grid size={{ xs: 12 }}>
+                    <Grid xs={12}>
                       <TextField fullWidth size="small" label="Display Name" value={p.name} onChange={e => handleNameChange(e.target.value)} />
                     </Grid>
-                    <Grid size={{ xs: 6 }}>
+                    <Grid xs={6}>
                       <Tooltip title="Unique System ID (auto-generated). No spaces.">
                         <TextField fullWidth size="small" label="ID" value={p.id} onChange={(e) => handleIdChange(e.target.value)} disabled={editMode} />
                       </Tooltip>
                     </Grid>
-                    <Grid size={{ xs: 6 }}>
+                    <Grid xs={6}>
                       <FormControl fullWidth size="small">
                         <InputLabel>Currency</InputLabel>
                         <Select value={p.currency} label="Currency" onChange={e => set('currency', e.target.value)}>
@@ -242,7 +242,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
             </Grid>
 
             {/* FEES */}
-            <Grid size={{ xs: 12, md: 6 }}>
+            <Grid xs={12} md={6}>
               <Card variant="outlined" sx={{ height: '100%' }}>
                 <CardContent>
                   <Box display="flex" alignItems="center" gap={1} mb={1}>
@@ -252,14 +252,14 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                      </Tooltip>
                   </Box>
                   <Grid container spacing={2} mt={0}>
-                    <Grid size={{ xs: 4 }}>
+                    <Grid xs={4}>
                        {p.mgmtType === 'percentage' ? (
                          <PercentageField label="Value" field="mgmtVal" />
                        ) : (
                          <TextField fullWidth type="number" size="small" label="Value" value={p.mgmtVal} onChange={e => set('mgmtVal', parseFloat(e.target.value))} />
                        )}
                     </Grid>
-                    <Grid size={{ xs: 4 }}>
+                    <Grid xs={4}>
                       <FormControl fullWidth size="small">
                         <InputLabel>Type</InputLabel>
                         <Select value={p.mgmtType} label="Type" onChange={e => set('mgmtType', e.target.value)}>
@@ -268,7 +268,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                         </Select>
                       </FormControl>
                     </Grid>
-                    <Grid size={{ xs: 4 }}>
+                    <Grid xs={4}>
                       <FormControl fullWidth size="small">
                         <InputLabel>Freq</InputLabel>
                         <Select value={p.mgmtFreq} label="Frequency" onChange={e => set('mgmtFreq', e.target.value)}>
@@ -284,18 +284,18 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
             </Grid>
 
             {/* COMMISSION */}
-            <Grid size={{ xs: 12, md: 6 }}>
+            <Grid xs={12} md={6}>
               <Card variant="outlined" sx={{ height: '100%' }}>
                 <CardContent>
                   <Typography variant="subtitle2" color="text.secondary" gutterBottom>TRADING COSTS</Typography>
                   <Grid container spacing={2} mt={1}>
-                    <Grid size={{ xs: 4 }}>
+                    <Grid xs={4}>
                       <PercentageField label="Rate" field="commRate" tooltip="Commission rate per trade" />
                     </Grid>
-                    <Grid size={{ xs: 4 }}>
+                    <Grid xs={4}>
                       <TextField fullWidth type="number" size="small" label="Min Fee" value={p.commMin} onChange={e => set('commMin', parseFloat(e.target.value))} />
                     </Grid>
-                    <Grid size={{ xs: 4 }}>
+                    <Grid xs={4}>
                       <TextField fullWidth type="number" size="small" label="Max Fee" value={p.commMax} onChange={e => set('commMax', parseFloat(e.target.value))} />
                     </Grid>
                   </Grid>
@@ -304,18 +304,18 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
             </Grid>
 
             {/* TAX & DIV */}
-            <Grid size={{ xs: 12, md: 6 }}>
+            <Grid xs={12} md={6}>
               <Card variant="outlined" sx={{ height: '100%' }}>
                 <CardContent>
                   <Typography variant="subtitle2" color="text.secondary" gutterBottom>TAXATION & DIVIDENDS</Typography>
                   <Grid container spacing={2} mt={1}>
-                    <Grid size={{ xs: 4 }}>
+                    <Grid xs={4}>
                       <PercentageField label="Cap Gains" field="cgt" tooltip="Capital Gains Tax" />
                     </Grid>
-                    <Grid size={{ xs: 4 }}>
+                    <Grid xs={4}>
                        <PercentageField label="Inc. Tax" field="incTax" tooltip="Income Tax (for RSUs)" />
                     </Grid>
-                    <Grid size={{ xs: 12 }}>
+                    <Grid xs={12}>
                       <FormControl fullWidth size="small">
                         <InputLabel>Dividend Policy</InputLabel>
                         <Select value={p.divPolicy} label="Dividend Policy" onChange={e => set('divPolicy', e.target.value)}>
@@ -330,7 +330,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
               </Card>
             </Grid>
 
-            <Grid size={{ xs: 12 }}>
+            <Grid xs={12}>
                <Button 
                 variant="contained" fullWidth size="large" 
                 startIcon={<CheckCircleOutlineIcon />} onClick={handleSubmit} disabled={loading}

@@ -1,7 +1,6 @@
-// src/lib/ticker.ts
+// src/lib/dataFetcher.ts
 
-import { fetchAllTaseTickers, type TaseTicker, DEFAULT_TASE_TYPE_CONFIG } from './taseApi';
-import type { PriceUnit } from './types';
+import { fetchAllTaseTickers, type TaseTicker } from './taseApi';
 
 interface TickerData {
   price: number;
@@ -10,7 +9,7 @@ interface TickerData {
   currency?: string;
   exchange?: string;
   changePct?: number; // Daily change percentage
-  priceUnit?: PriceUnit;
+  priceUnit?: string;
   timestamp?: number; // Last update time
 }
 
@@ -33,38 +32,31 @@ const YAHOO_EXCHANGE_MAP: Record<string, string> = {
   // Add other mappings as needed
 };
 
-let taseTickersDataset: Record<string, TaseTicker[]> | null = null;
-let taseTickersDatasetLoading: Promise<Record<string, TaseTicker[]>> | null = null;
+let taseTickersDataset: TaseTicker[] | null = null;
+let taseTickersDatasetLoading: Promise<TaseTicker[]> | null = null;
 
-export async function getTaseTickersDataset(signal?: AbortSignal, forceRefresh = false): Promise<Record<string, TaseTicker[]>> {
-  if (!forceRefresh && taseTickersDataset) {
+export async function getTaseTickersDataset(signal?: AbortSignal, forceRefresh = false): Promise<TaseTicker[]> {
+  if (taseTickersDataset && !forceRefresh) {
     return taseTickersDataset;
   }
   if (taseTickersDatasetLoading) {
     return taseTickersDatasetLoading;
   }
 
-  console.log('Loading TASE tickers dataset...');
   taseTickersDatasetLoading = (async () => {
     try {
-      const tickersByType = await fetchAllTaseTickers(signal);
-      taseTickersDataset = tickersByType;
-      const totalCount = Object.values(tickersByType).reduce((acc, curr) => acc + curr.length, 0);
-      console.log(`Loaded ${totalCount} TASE tickers across ${Object.keys(tickersByType).length} types.`);
-      return tickersByType;
+      const tickers = await fetchAllTaseTickers(signal);
+      taseTickersDataset = tickers;
+      return tickers;
     } catch (e) {
       console.error('Failed to load TASE tickers dataset:', e);
-      taseTickersDataset = {}; // Set to empty object on error
-      return {};
+      return [];
     } finally {
       taseTickersDatasetLoading = null;
     }
   })();
   return taseTickersDatasetLoading;
 }
-
-// Preload the dataset
-getTaseTickersDataset();
 
 async function fetchGlobesStock(ticker: string, exchange: string, signal?: AbortSignal): Promise<TickerData | null> {
   const now = Date.now();
@@ -133,12 +125,12 @@ async function fetchGlobesStock(ticker: string, exchange: string, signal?: Abort
     let currency = currencyNode?.textContent || '';
     if (currency === 'NIS') currency = 'ILS';
     
-    let priceUnit: PriceUnit = currency as PriceUnit;
+    let priceUnit: string;
     const rate = parseFloat(currencyRateNode?.textContent || '1');
     if (!isNaN(rate) && rate === 0.01) {
       priceUnit = 'agorot';
     } else {
-      priceUnit = 'base';
+      priceUnit = currency;
     }
 
     const changePct = parseFloat(changePctNode?.textContent || '0') / 100; // Convert percentage value to decimal
@@ -230,7 +222,7 @@ async function fetchYahooStock(ticker: string, signal?: AbortSignal): Promise<Ti
         currency,
         exchange: exchangeName,
         changePct,
-        priceUnit: 'base',
+        priceUnit: currency,
         timestamp: now
     };
 
@@ -348,5 +340,4 @@ export async function getTickerData(ticker: string, exchange?: string, signal?: 
   }
 }
 
-export { fetchYahooHistorical, DEFAULT_TASE_TYPE_CONFIG };
-export type { TickerData, HistoricalDataPoint, PriceUnit, TaseTicker };
+export { fetchYahooHistorical, TickerData, HistoricalDataPoint };

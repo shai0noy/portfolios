@@ -12,6 +12,30 @@ export interface Portfolio {
   currency: 'USD' | 'ILS';
   divPolicy: 'cash_taxed' | 'accumulate_tax_free' | 'hybrid_rsu';
   divCommRate: number;
+  holdings?: Holding[];
+}
+
+export interface Holding {
+  portfolioId: string;
+  ticker: string;
+  exchange?: string;
+  qty: number;
+  price?: number;
+  currency?: string;
+  totalValue?: number;
+  name?: string;
+  name_he?: string;
+  sector?: string;
+  priceUnit?: PriceUnit;
+  changePct?: number;
+  changePct1w?: number;
+  changePct1m?: number;
+  changePct3m?: number;
+  changePctYtd?: number;
+  changePct1y?: number;
+  changePct3y?: number;
+  changePct5y?: number;
+  changePct10y?: number;
 }
 
 export interface Transaction {
@@ -30,25 +54,7 @@ export interface Transaction {
   tax?: number;
 }
 
-export interface LiveData {
-  ticker: string;
-  exchange: string;
-  price: number;
-  name: string;
-  name_he?: string;
-  currency: string;
-  sector?: string;
-  changePct?: number;
-  priceUnit?: 'base' | 'agorot' | 'cents'; // Add priceUnit
-  changePct1w?: number;
-  changePct1m?: number;
-  changePct3m?: number;
-  changePctYtd?: number;
-  changePct1y?: number;
-  changePct3y?: number;
-  changePct5y?: number;
-  changePct10y?: number;
-}
+export type PriceUnit = 'base' | 'agorot' | 'cents';
 
 // Templates for quick setup
 export const PORTFOLIO_TEMPLATES: Record<string, Partial<Portfolio>> = {

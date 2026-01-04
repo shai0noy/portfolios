@@ -1,10 +1,10 @@
 import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, Box, Chip, CircularProgress, Tooltip, IconButton } from '@mui/material';
-import { TransactionForm } from './NewTransaction';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import AddIcon from '@mui/icons-material/Add';
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getTickerData } from '../lib/ticker'; // Assuming getTickerData is here
+import { getTickerData, fetchYahooHistorical } from '../lib/dataFetcher'; // Assuming getTickerData is here
 
 interface TickerDetailsProps {
   sheetId: string;
@@ -21,7 +21,6 @@ export function TickerDetails({ sheetId }: TickerDetailsProps) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [addTradeOpen, setAddTradeOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   const fetchData = useCallback(async (forceRefresh = false) => {
@@ -59,6 +58,17 @@ export function TickerDetails({ sheetId }: TickerDetailsProps) {
 
   const handleClose = () => {
     navigate('/dashboard'); // Go back to dashboard on close
+  };
+
+  const handleAddTransaction = () => {
+    navigate('/transaction', {
+      state: {
+        initialTicker: ticker,
+        initialExchange: data?.exchange || exchange,
+        initialPrice: data?.price?.toString(),
+        initialCurrency: data?.currency,
+      }
+    });
   };
 
   const formatMoney = (n: number, currency: string, unit: 'base' | 'agorot' | 'cents' = 'base') => {
@@ -132,9 +142,9 @@ export function TickerDetails({ sheetId }: TickerDetailsProps) {
               <Box sx={{ width: '50%' }}>
                 <Typography variant="caption" color="text.secondary">PRICE</Typography>
                 <Typography variant="h4">{formatMoney(data.price, data.currency, data.priceUnit)}</Typography>
-                {data.priceUnit !== 'base' && (
+                {data.priceUnit === 'agorot' && (
                   <Typography variant="body2" color="text.secondary">
-                    Base Price: {formatMoney(data.price / 100, data.currency, 'base')}
+                    Base Price: {formatMoney(data.price, data.currency, 'base')}
                   </Typography>
                 )}
               </Box>
@@ -204,27 +214,9 @@ export function TickerDetails({ sheetId }: TickerDetailsProps) {
       </DialogContent>
       
       <DialogActions>
-        <Button onClick={() => setAddTradeOpen(true)}>Add Transaction</Button>
+        <Button onClick={handleAddTransaction} startIcon={<AddIcon />}>Add Transaction</Button>
         <Button onClick={handleClose}>Close</Button>
       </DialogActions>
-
-      <Dialog open={addTradeOpen} onClose={() => setAddTradeOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle>Add Transaction for {ticker}</DialogTitle>
-        <DialogContent>
-          <TransactionForm 
-            sheetId={sheetId}
-            initialTicker={ticker}
-            initialExchange={data?.exchange || exchange}
-            onSaveSuccess={() => {
-              setAddTradeOpen(false);
-              handleClose(); // Close ticker details after saving transaction
-            }}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setAddTradeOpen(false)}>Cancel</Button>
-        </DialogActions>
-      </Dialog>
     </Dialog>
   );
 }

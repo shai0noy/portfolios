@@ -4,17 +4,17 @@ import {
   Box, CircularProgress, FormControlLabel, Switch, IconButton, Tooltip, Alert
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import { fetchPortfolios, fetchTransactions, fetchLiveData } from '../lib/sheets';
+import { fetchPortfolios, fetchTransactions } from '../lib/sheets';
 import { ColumnSelector } from './ColumnSelector';
-import { getExchangeRates } from '../lib/currency';
-import type { LiveData } from '../lib/types';
+import { getExchangeRates, convertCurrency } from '../lib/currency';
+import type { Portfolio, Holding, PriceUnit } from '../lib/types';
 import { DashboardSummary } from './DashboardSummary';
 import { DashboardTable } from './DashboardTable';
 
 interface DashboardProps {
   sheetId: string;
 }
-interface Holding {
+interface DashboardHolding {
   key: string;
   portfolioId: string;
   portfolioName: string;
@@ -45,7 +45,7 @@ interface Holding {
   costBasis: number;
   costOfSold: number;
   stockCurrency: string;
-  priceUnit?: string;
+  priceUnit?: PriceUnit;
   perf1w: number;
   perf1m: number;
   perf3m: number;
@@ -58,7 +58,7 @@ interface Holding {
 export const Dashboard = ({ sheetId }: DashboardProps) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
-  const [holdings, setHoldings] = useState<Holding[]>([]);
+  const [holdings, setHoldings] = useState<DashboardHolding[]>([]);
   const [groupByPortfolio, setGroupByPortfolio] = useState(true);
   const [includeUnvested, setIncludeUnvested] = useState<boolean>(false);
   const [hasFutureTxns, setHasFutureTxns] = useState(false);  
@@ -151,7 +151,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
   }, [sheetId, includeUnvested]);
 
   useEffect(() => {
-    const calculateSummary = (data: Holding[]) => {
+    const calculateSummary = (data: DashboardHolding[]) => {
       
       const initialAcc = {
         aum: 0,
@@ -172,32 +172,31 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
       };
 
       const s = data.reduce((acc, h) => {
-        const toUSD = (val: number) => {
-           if (!exchangeRates) return val;
-           const fromRate = exchangeRates[h.stockCurrency] || 1;
-           return h.stockCurrency === 'USD' ? val : val / fromRate;
+        const toDisplayCurrency = (val: number) => {
+           return convertCurrency(val, h.stockCurrency, displayCurrency, exchangeRates);
         };
         
-        acc.aum += toUSD(h.totalMV);
-        acc.totalUnrealized += toUSD(h.unrealizedGain);
-        acc.totalRealized += toUSD(h.realizedGain);
-        acc.totalDividends += toUSD(h.dividends);
-        acc.totalReturn += toUSD(h.totalGain);
-        acc.realizedGainAfterTax += toUSD(h.realizedGainAfterTax);
-        acc.valueAfterTax += toUSD(h.valueAfterTax);
+        acc.aum += toDisplayCurrency(h.totalMV);
+        acc.totalUnrealized += toDisplayCurrency(h.unrealizedGain);
+        acc.totalRealized += toDisplayCurrency(h.realizedGain);
+        acc.totalDividends += toDisplayCurrency(h.dividends);
+        acc.totalReturn += toDisplayCurrency(h.totalGain);
+        acc.realizedGainAfterTax += toDisplayCurrency(h.realizedGainAfterTax);
+        acc.valueAfterTax += toDisplayCurrency(h.valueAfterTax);
         
         if (h.dayChangePct !== 0) {
-            acc.totalDayChange += toUSD(h.dayChangeVal);
-            acc.aumWithDayChangeData += toUSD(h.totalMV);
+            acc.totalDayChange += toDisplayCurrency(h.dayChangeVal);
+            acc.aumWithDayChangeData += toDisplayCurrency(h.totalMV);
             acc.holdingsWithDayChange++;
         }
         
         for (const [key, holdingKey] of Object.entries(perfPeriods)) {
-            const perf = h[holdingKey as keyof Holding] as number;
+            const perf = h[holdingKey as keyof DashboardHolding] as number;
             if (perf && !isNaN(perf)) {
-                const change = toUSD(h.totalMV) - (toUSD(h.totalMV) / (1 + perf));
+                const currentMVDisplay = toDisplayCurrency(h.totalMV);
+                const change = currentMVDisplay - (currentMVDisplay / (1 + perf));
                 (acc as any)[`totalChange_${key}`] += change;
-                (acc as any)[`aumFor_${key}`] += toUSD(h.totalMV);
+                (acc as any)[`aumFor_${key}`] += currentMVDisplay;
                 (acc as any)[`holdingsFor_${key}`]++;
             }
         }
@@ -233,7 +232,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
     }
   }, [selectedPortfolioId, holdings, exchangeRates]);
 
-  const getPriceInBaseCurrency = (holding: Holding) => {
+  const getPriceInBaseCurrency = (holding: DashboardHolding) => {
     if (holding.priceUnit === 'agorot' && holding.stockCurrency === 'ILS') {
       return holding.currentPrice / 100;
     } else if (holding.priceUnit === 'cents') {
@@ -249,15 +248,10 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         fetchPortfolios(sheetId),
         fetchTransactions(sheetId),
       ]);
-
-      const liveData = await fetchLiveData(sheetId);
       
-      const liveDataMap = new Map<string, LiveData>();
-      liveData.forEach(d => liveDataMap.set(`${d.ticker}:${d.exchange}`, d));
-
       const newPortMap = new Map(ports.map(p => [p.id, p]));
       setPortMap(newPortMap);
-      const holdingMap = new Map<string, Holding>();
+      const holdingMap = new Map<string, DashboardHolding>();
       const taxRate = 0.25;
 
       txns.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -266,6 +260,14 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
       setHasFutureTxns(futureTxns.length > 0);
       const pastTxns = txns.filter(t => new Date(t.date) <= today);
       const filteredTxns = includeUnvested ? pastTxns : pastTxns.filter(t => !t.vestDate || new Date(t.vestDate) <= new Date());
+
+      // Create a map of holdings from the portfolios
+      const liveDataMap = new Map<string, Holding>();
+      ports.forEach(p => {
+        p.holdings?.forEach(h => {
+          liveDataMap.set(`${h.ticker}:${h.exchange}`, h);
+        });
+      });
 
       filteredTxns.forEach(t => {
         const key = `${t.portfolioId}_${t.ticker}`;
@@ -337,7 +339,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         }
       });
 
-      const processedHoldings: Holding[] = [];
+      const processedHoldings: DashboardHolding[] = [];
 
       holdingMap.forEach(h => {
         const priceInBase = getPriceInBaseCurrency(h);
@@ -423,7 +425,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
   const groupedData = useMemo(() => {
     const filteredHoldings = selectedPortfolioId ? holdings.filter(h => h.portfolioId === selectedPortfolioId) : holdings;
     if (!groupByPortfolio || selectedPortfolioId) return { 'All Holdings': filteredHoldings };
-    const groups: Record<string, Holding[]> = {};
+    const groups: Record<string, DashboardHolding[]> = {};
     filteredHoldings.forEach(h => {
       if (!groups[h.portfolioName]) groups[h.portfolioName] = [];
       groups[h.portfolioName].push(h);

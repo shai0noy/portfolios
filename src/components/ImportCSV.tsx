@@ -34,7 +34,7 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
   const [headers, setHeaders] = useState<string[]>([]);
   const [rows, setRows] = useState<string[][]>([]);
   const [mapping, setMapping] = useState<Record<string, string>>({
-    ticker: '', date: '', type: '', qty: '', price: ''
+    ticker: '', date: '', type: '', qty: '', price: '', exchange: ''
   });
   const [parsedTxns, setParsedTxns] = useState<Transaction[]>([]);
   const [importing, setImporting] = useState(false);
@@ -72,6 +72,7 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
       if (lh.includes('qty') || lh.includes('quantity') || lh.includes('shares')) newMap.qty = h;
       if (lh.includes('price') || lh.includes('cost')) newMap.price = h;
       if (lh === 'purchase price') newMap.price = h;
+      if (lh.includes('exchange')) newMap.exchange = h;
     });
     setMapping(newMap);
   };
@@ -126,10 +127,17 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
       const qty = parseFloat(getVal('qty'));
       const price = parseFloat(getVal('price'));
 
+      let exchange = getVal('exchange').toUpperCase();
+      if (!exchange) {
+        const tickerVal = getVal('ticker');
+        exchange = /\d/.test(tickerVal) ? 'TASE' : 'NASDAQ'; // Deduction logic
+      }
+
       return {
         date: isoDate,
         portfolioId,
         ticker: getVal('ticker').toUpperCase(),
+        exchange, // Add exchange
         type,
         qty: isNaN(qty) ? 0 : Math.abs(qty), // Store absolute qty, logic handles sign
         price: isNaN(price) ? 0 : price,
@@ -200,8 +208,8 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
           <Box>
             <Typography gutterBottom>Map CSV Columns to Transaction Fields:</Typography>
             <Grid container spacing={2}>
-              {['ticker', 'date', 'type', 'qty', 'price'].map(field => (
-                <Grid size={{ xs: 6 }} key={field}>
+              {['ticker', 'date', 'type', 'qty', 'price', 'exchange'].map(field => (
+                <Grid key={field} xs={6} sm={4}>
                   <FormControl fullWidth size="small">
                     <InputLabel>{field.toUpperCase()}</InputLabel>
                     <Select 
@@ -234,6 +242,7 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
                   <TableRow>
                     <TableCell>Date</TableCell>
                     <TableCell>Ticker</TableCell>
+                    <TableCell>Exchange</TableCell>
                     <TableCell>Type</TableCell>
                     <TableCell align="right">Qty</TableCell>
                     <TableCell align="right">Price</TableCell>
@@ -245,6 +254,7 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
                     <TableRow key={i}>
                       <TableCell>{t.date}</TableCell>
                       <TableCell>{t.ticker}</TableCell>
+                      <TableCell>{t.exchange}</TableCell>
                       <TableCell>{t.type}</TableCell>
                       <TableCell align="right">{t.qty}</TableCell>
                       <TableCell align="right">{t.price.toFixed(2)}</TableCell>

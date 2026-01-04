@@ -58,11 +58,17 @@ export function DashboardSummary({ summary, displayCurrency, exchangeRates, sele
 
   const renderSummaryValue = (label: string, value: number, color?: string, isMain = false) => {
     const displayVal = formatConverted(value);
+    const percentage = summary.aum > 0 ? value / summary.aum : 0;
     return (
       <Box textAlign="left" minWidth={120}>
         <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase' }}>{label}</Typography>
         <Typography variant={isMain ? "h4" : "h6"} fontWeight={isMain ? "bold" : "medium"} color={color || 'text.primary'}>
           {displayVal}
+          {label === 'Unrealized Gain' && summary.aum > 0 && (
+            <span style={{ fontSize: '0.7em', marginLeft: 4, color: 'text.secondary' }}>
+              ({formatPct(percentage)})
+            </span>
+          )}
         </Typography>
       </Box>
     );
@@ -99,9 +105,9 @@ export function DashboardSummary({ summary, displayCurrency, exchangeRates, sele
            {labelBox}
            <Typography variant="h6" fontWeight="medium" color={color}>
              {formatConverted(absoluteChange)}
-             <span style={{ fontSize: '0.7em', marginLeft: 4, color: 'text.secondary' }}>
-                ({formatPct(percentage)})
-              </span>
+           </Typography>
+           <Typography variant="caption" color="text.secondary">
+              ({formatPct(percentage)})
            </Typography>
         </Box>
     );
@@ -109,8 +115,8 @@ export function DashboardSummary({ summary, displayCurrency, exchangeRates, sele
 
   return (
     <Paper variant="outlined" sx={{ p: 3, mb: 4 }}>
-      <Grid container spacing={4} alignItems="center">
-        <Grid item xs={12} md={3}>
+<Grid container spacing={4} alignItems="center">
+        <Grid xs={12} md={3}>
           {selectedPortfolio ? (
             <>
               <Button 
@@ -129,7 +135,7 @@ export function DashboardSummary({ summary, displayCurrency, exchangeRates, sele
           )}
           <Typography variant="h4" fontWeight="bold" color="primary">{formatConverted(summary.aum)}</Typography>
         </Grid>
-        <Grid item xs={12} md={9}>
+        <Grid xs={12} md={9}>
           <Box display="flex" gap={4} justifyContent="flex-end" alignItems="center" flexWrap="wrap">
             <Box textAlign="left" minWidth={120}>
                 <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase' }}>Value After Tax</Typography>

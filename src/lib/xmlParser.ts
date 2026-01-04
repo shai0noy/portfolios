@@ -19,26 +19,32 @@ export function parseXmlString(xmlString: string): Document {
 }
 
 /**
- * Extracts data from XML nodes using a provided selector and a mapping function.
+ * Extracts data from XML nodes using namespace-aware tag selection and a mapping function.
  * @param xmlDoc The DOM Document object to query.
- * @param selector The CSS selector to find the elements.
- * @param mapFunction A function that takes an Element and returns the desired data structure.
+ * @param namespaceUri The namespace URI of the elements to select.
+ * @param localName The local name of the elements to select.
+ * @param mapFunction A function that takes an Element and returns the desired data structure, or null to skip.
  * @returns An array of data extracted from the XML.
  */
-export function extractDataFromXml<T>(
+export function extractDataFromXmlNS<T>(
     xmlDoc: Document, 
-    selector: string, 
-    mapFunction: (element: Element) => T
+    namespaceUri: string,
+    localName: string, 
+    mapFunction: (element: Element) => T | null
 ): T[] {
-    const elements = xmlDoc.querySelectorAll(selector);
+    const elements = xmlDoc.getElementsByTagNameNS(namespaceUri, localName);
     const data: T[] = [];
-    elements.forEach(element => {
+    for (let i = 0; i < elements.length; i++) {
+        const element = elements[i];
         try {
-            data.push(mapFunction(element));
+            const result = mapFunction(element);
+            if (result !== null) {
+                data.push(result);
+            }
         } catch (error) {
             console.warn('Error mapping XML element:', element, error);
         }
-    });
+    }
     return data;
 }
 

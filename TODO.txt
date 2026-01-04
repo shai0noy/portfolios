@@ -14,16 +14,14 @@ CSV imprt should fill in exchange ID - if not in CSV, must be manually entered -
 There is web fetch logic in many fiels and components - should move them all to a single file handling fetching data.
 In the dashboard rows, IL stock prices show price in NIS annotated with "ag." price should be shown in agorot too
 In single ticker view mode, the base price is shown in NIS while the market proce is in agorot. Both should be in agorot
-We should keep a new state/metadata/config sheet that will hold data about the program, for now, it should store the sheet schema creation date in the format "YYYYMMDD" - the schema update feature should update this field
 The state/metadata/config sheet should have an entry for the last "live data" rebuild time
 Dashboard header - fields should have both percent and absolute change - e.g. value after tax should metnion the percentage left, period change fields should have both value and percent
 Minimize Yahoo API calls - fetch data from cached "live data" sheet if possible
 in the dashboard summary, all chahnges other than day chnage should have smaller font and be placed on a line below
 When showing single ticker view, avoid calling apis to fetch data - use the one from the live data. When some live data is missing, only then try fetching. Clicking refesh should also prefer to load new data from the sheet first
-Use Finhub or marketstack over yahoo if possible or in addition (will reuqire to guide use rto create API key and add it to spreadsheet as part of setup)
+ON HOLD: Use Finhub or marketstack over yahoo if possible or in addition (will reuqire to guide use rto create API key and add it to spreadsheet as part of setup)
 ON HOLD: Dashbaord header - portfolio pct grow should take into account the the amount of stock and buy date etc
 ON HOLD: Dashbaord header - Add portfolio gain (value&pct) since date (1m,1y,3y,5y,all) taking into account revenue and add transactions since date
-MuiBox-root css-2y0yn0 (portfolio block header) should not be affected by horizontal scroll of the box content
 
 Low priority:
 - Support switching display lang to Hebrew - should also affect stock names when avilable (with cookie to persist)
@@ -39,7 +37,7 @@ Low priority:
 - ON HOLD: Forcast mode, where future txns, vesting are taken into account, and growth of holding is predicted based on custom uesr input or recent trends. Should also include taxes
 
 
-Super task: Create dataset of TASE tickers:
+DONE: Super task: Create dataset of TASE tickers:
 - Use globes API to fetch the lists and join them
 - example url: https://www.globes.co.il/data/webservices/financial.asmx/listByType?exchange=tase&type=gov_generic
 - all avilable types and hebrew names for them are found here: 
@@ -131,7 +129,12 @@ Super task: Create dataset of TASE tickers:
   </anyType>
   [...]
 - Merge all fetched results into a searchanble dataset, keep their type and names, symbol and ID. Ignore instrument ID and quantity fields
-- Improve ticker search UI - it should now allow a smarter free search - currently if it is found in in the tase database - by en/he name or symbol (fuzzy search)
+DONE: Improve ticker search UI - it should now allow a smarter free search - currently if it is found in in the tase database - by en/he name or symbol (fuzzy search)
+DONE: Add symbol / chip to search results to indicate if it is already in any protfolio - perhaps with a tooltip to indicate which portfolios hold it. Also a chip for type along with the exchange one
+DONE: When clicking add transaction from ticker view - skip directly into adding a transaction for this ticker, skipping the search
+DONE: The state/metadata/config sheet should have an entry for the last "live data" rebuild time
+DONE: Minimize Yahoo API calls - fetch data from cached "Holdings" sheet if possible
+DONE: Rename Live_Data to Holdings
 
 DONE: Fix TS2322: Type '{ ..., sheetId: string; }' is not assignable to type 'IntrinsicAttributes & TableProps'. Property 'sheetId' does not exist on type 'IntrinsicAttributes & TableProps' in Dashboard.tsx (removed sheetId prop from DashboardTable call).
 DONE: Fix TS1484: 'TaseTicker' is a type and must be imported using a type-only import in ticker.ts.

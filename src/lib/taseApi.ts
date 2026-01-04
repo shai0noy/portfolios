@@ -1,7 +1,9 @@
 // src/lib/taseApi.ts
-import { fetchXml, parseXmlString, extractDataFromXml } from './xmlParser';
+import { fetchXml, parseXmlString, extractDataFromXmlNS } from './xmlParser';
 
 const TASE_API_BASE_URL = 'https://www.globes.co.il/data/webservices/financial.asmx';
+const TASE_API_NAMESPACE = 'http://financial.globes.co.il/';
+const XSI_NAMESPACE = 'http://www.w3.org/2001/XMLSchema-instance';
 
 const TASE_CACHE_TTL = 5 * 24 * 60 * 60 * 1000; // 5 days in milliseconds
 
@@ -18,8 +20,15 @@ function withTaseCache<T>(cacheKey: string, fetcher: () => Promise<T>): Promise<
     if (cached) {
       const parsed: CachedData<T> = JSON.parse(cached);
       if (now - parsed.timestamp < TASE_CACHE_TTL) {
-        console.log(`Cache hit for ${cacheKey}`);
-        return Promise.resolve(parsed.data);
+        // Check if cached data is an empty array
+        if (Array.isArray(parsed.data) && parsed.data.length === 0) {
+          console.warn(`Cached data for ${cacheKey} is empty, invalidating.`);
+          localStorage.removeItem(cacheKey);
+          // Proceed to fetch as if cache miss
+        } else {
+          console.log(`Cache hit for ${cacheKey}`);
+          return Promise.resolve(parsed.data);
+        }
       } else {
         console.log(`Cache expired for ${cacheKey}`);
         localStorage.removeItem(cacheKey); // Clear expired cache
@@ -33,7 +42,13 @@ function withTaseCache<T>(cacheKey: string, fetcher: () => Promise<T>): Promise<
   console.log(`Cache miss for ${cacheKey}, fetching data...`);
   return fetcher().then(data => {
     try {
-      localStorage.setItem(cacheKey, JSON.stringify({ data, timestamp: now }));
+      // Check if data is an empty array
+      if (Array.isArray(data) && data.length === 0) {
+        console.warn(`Fetched data for ${cacheKey} is empty, not caching.`);
+        localStorage.removeItem(cacheKey); // Ensure no bad cache remains
+      } else {
+        localStorage.setItem(cacheKey, JSON.stringify({ data, timestamp: now }));
+      }
     } catch (e) {
       console.error(`Error writing cache for ${cacheKey}:`, e);
     }
@@ -41,47 +56,12 @@ function withTaseCache<T>(cacheKey: string, fetcher: () => Promise<T>): Promise<
   });
 }
 
-export interface TaseInstrumentType {
-  type: string;
-  description: string; // Hebrew description
-  quantity: number;
-}
-
 export interface TaseTicker {
   symbol: string;
   name_he: string;
   name_en: string;
   instrumentId: string;
-}
-
-/**
- * Fetches the list of available instrument types from the TASE API.
- * @param signal AbortSignal for canceling the fetch.
- * @returns A promise that resolves to an array of TaseInstrumentType.
- */
-export async function fetchTaseInstrumentTypes(signal?: AbortSignal): Promise<TaseInstrumentType[]> {
-  const cacheKey = 'tase:instrumentTypes';
-  return withTaseCache(cacheKey, async () => {
-    const url = `${TASE_API_BASE_URL}/listTypes?exchange=tase`;
-    const xmlString = await fetchXml(url, signal);
-    const xmlDoc = parseXmlString(xmlString);
-
-    return extractDataFromXml(xmlDoc, 'Table1', (element) => {
-      const typeElement = element.querySelector('type');
-      const descriptionElement = element.querySelector('description');
-      const quantityElement = element.querySelector('quantity');
-
-      if (!typeElement || !descriptionElement || !quantityElement) {
-        throw new Error('Missing expected elements in TASE instrument type XML.');
-      }
-
-      return {
-        type: typeElement.textContent || '',
-        description: descriptionElement.textContent || '',
-        quantity: parseInt(quantityElement.textContent || '0', 10),
-      };
-    });
-  });
+  type: string;
 }
 
 /**
@@ -93,18 +73,25 @@ export async function fetchTaseInstrumentTypes(signal?: AbortSignal): Promise<Ta
 export async function fetchTaseTickersByType(type: string, signal?: AbortSignal): Promise<TaseTicker[]> {
   const cacheKey = `tase:tickers:${type}`;
   return withTaseCache(cacheKey, async () => {
-    const url = `${TASE_API_BASE_URL}/listByType?exchange=tase&type=${type}`;
+    const url = import.meta.env.DEV
+      ? `/api/globes/data/webservices/financial.asmx/listByType?exchange=tase&type=${type}`
+      : `${TASE_API_BASE_URL}/listByType?exchange=tase&type=${type}`;
     const xmlString = await fetchXml(url, signal);
     const xmlDoc = parseXmlString(xmlString);
 
-    return extractDataFromXml(xmlDoc, 'anyType[xsi|type="Instrument"]', (element) => {
-      const symbolElement = element.querySelector('symbol');
-      const nameHeElement = element.querySelector('name_he');
-      const nameEnElement = element.querySelector('name_en');
-      const instrumentIdElement = element.querySelector('instrumentId');
+    return extractDataFromXmlNS(xmlDoc, TASE_API_NAMESPACE, 'anyType', (element) => {
+      if (element.getAttributeNS(XSI_NAMESPACE, 'type') !== 'Instrument') {
+        return null;
+      }
+
+      const symbolElement = element.getElementsByTagNameNS(TASE_API_NAMESPACE, 'symbol')[0];
+      const nameHeElement = element.getElementsByTagNameNS(TASE_API_NAMESPACE, 'name_he')[0];
+      const nameEnElement = element.getElementsByTagNameNS(TASE_API_NAMESPACE, 'name_en')[0];
+      const instrumentIdElement = element.getElementsByTagNameNS(TASE_API_NAMESPACE, 'instrumentId')[0];
 
       if (!symbolElement || !nameHeElement || !nameEnElement || !instrumentIdElement) {
-        throw new Error(`Missing expected elements in TASE ticker XML for type: ${type}`);
+        console.warn('Missing expected elements in TASE ticker XML for type:', type, element);
+        return null;
       }
 
       return {
@@ -112,6 +99,7 @@ export async function fetchTaseTickersByType(type: string, signal?: AbortSignal)
         name_he: nameHeElement.textContent || '',
         name_en: nameEnElement.textContent || '',
         instrumentId: instrumentIdElement.textContent || '',
+        type: type,
       };
     });
   });
@@ -126,7 +114,7 @@ export interface TaseTypeConfig {
   };
 }
 
-const DEFAULT_TASE_TYPE_CONFIG: TaseTypeConfig = {
+export const DEFAULT_TASE_TYPE_CONFIG: TaseTypeConfig = {
   stock: { enabled: true, displayName: 'Stocks' },
   etf: { enabled: true, displayName: 'ETFs' },
   index: { enabled: false, displayName: 'Indices' },
@@ -149,22 +137,24 @@ const DEFAULT_TASE_TYPE_CONFIG: TaseTypeConfig = {
 export async function fetchAllTaseTickers(
   signal?: AbortSignal, 
   config: TaseTypeConfig = DEFAULT_TASE_TYPE_CONFIG
-): Promise<TaseTicker[]> {
-  const allTickers: TaseTicker[] = [];
-  const instrumentTypes = await fetchTaseInstrumentTypes(signal);
+): Promise<Record<string, TaseTicker[]>> {
+  const allTickersByType: Record<string, TaseTicker[]> = {};
+  const instrumentTypes = Object.keys(config);
 
-  const fetchPromises = instrumentTypes.map(async (typeInfo) => {
-    const typeConfig = config[typeInfo.type];
+  const fetchPromises = instrumentTypes.map(async (type) => {
+    const typeConfig = config[type];
     if (typeConfig && typeConfig.enabled) {
       try {
-        const tickers = await fetchTaseTickersByType(typeInfo.type, signal);
-        allTickers.push(...tickers);
+        console.log(`Fetching TASE tickers for type: ${type}`);
+        const tickers = await fetchTaseTickersByType(type, signal);
+        allTickersByType[type] = tickers;
       } catch (e) {
-        console.warn(`Failed to fetch tickers for type ${typeInfo.type}:`, e);
+        console.warn(`Failed to fetch tickers for type ${type}:`, e);
+        allTickersByType[type] = [];
       }
     }
   });
 
   await Promise.all(fetchPromises);
-  return allTickers;
+  return allTickersByType;
 }

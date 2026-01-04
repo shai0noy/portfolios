@@ -1,38 +1,34 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/lib/sheets.ts
-import type { Portfolio, Transaction, LiveData } from './types';
+import type { Portfolio, Transaction, Holding } from './types';
 import { ensureGapi, signIn } from './google';
-import { getTickerData } from './ticker';
+import { getTickerData } from './dataFetcher';
 
 // --- Canonical Headers & Ranges ---
 
-// Reverted portfolio and transaction headers to original to fix schema mismatch bug.
 const portfolioHeaders = ['Portfolio_ID', 'Display_Name', 'Cap_Gains_Tax_%', 'Income_Tax_Vest_%', 'Mgmt_Fee_Val', 'Mgmt_Type', 'Mgmt_Freq', 'Comm_Rate_%', 'Comm_Min', 'Comm_Max_Fee', 'Currency', 'Div_Policy', 'Div_Comm_Rate_%'] as const;
 const transactionHeaders = ['Date', 'Portfolio', 'Ticker', 'Exchange', 'Type', 'Qty', 'Price', 'Currency', 'Vesting_Date', 'Comments', 'Commission', 'Tax %'] as const;
 
-// LiveData sheet is auto-generated, so reordering/renaming is safe.
-const liveDataHeaders = ['Ticker', 'Exchange', 'Name_En', 'Name_He', 'Sector', 'Live_Price', 'Currency', 'Price_Unit', 'Day_Change', 'Change_1W', 'Change_1M', 'Change_3M', 'Change_YTD', 'Change_1Y', 'Change_3Y', 'Change_5Y', 'Change_10Y'] as const;
+const holdingsHeaders = [
+    'PortfolioId', 'Ticker', 'Exchange', 'Quantity', 'Live_Price', 'Currency', 'Total Holding Value', 
+    'Name_En', 'Name_He', 'Sector', 'Price_Unit', 'Day_Change',
+    'Change_1W', 'Change_1M', 'Change_3M', 'Change_YTD', 'Change_1Y', 'Change_3Y', 'Change_5Y', 'Change_10Y'
+] as const;
 const configHeaders = ['Key', 'Value'] as const;
 
 type Headers = readonly string[];
 
-function getRange(sheetName: string, headers: Headers): string {
-    const endColumn = String.fromCharCode(65 + headers.length - 1);
-    return `${sheetName}!A2:${endColumn}`;
-}
-
 const PORT_OPT_RANGE = `Portfolio_Options!A2:${String.fromCharCode(65 + portfolioHeaders.length - 1)}`;
 const TX_FETCH_RANGE = `Transaction_Log!A2:${String.fromCharCode(65 + transactionHeaders.length - 1)}`;
-const LIVE_DATA_RANGE = `Live_Data!A2:${String.fromCharCode(65 + liveDataHeaders.length - 1)}`;
-const CONFIG_RANGE = `Currency_Conversions!A2:${String.fromCharCode(65 + configHeaders.length - 1)}`;
-
+const CONFIG_RANGE = `Currency_Conversions!A2:B`;
+const METADATA_SHEET = 'App_Metadata';
+const metadataHeaders = ['Key', 'Value'] as const;
+const METADATA_RANGE = METADATA_SHEET + '!A:B';
+const HOLDINGS_SHEET = 'Holdings';
+const HOLDINGS_RANGE = `${HOLDINGS_SHEET}!A2:${String.fromCharCode(65 + holdingsHeaders.length - 1)}`;
 
 // --- Data Mapping Utilities ---
 
-/**
- * Creates a function that maps a sheet row array to a structured object.
- * @param headers - The canonical list of header names in the sheet.
- * @returns A function that takes a row and returns an object.
- */
 function createRowMapper<T extends readonly string[]>(headers: T) {
     const headerMap = new Map(headers.map((h, i) => [h, i]));
     return <U>(row: any[], mapping: Record<keyof U, typeof headers[number]>, numericKeys: (keyof U)[] = []) => {
@@ -52,13 +48,6 @@ function createRowMapper<T extends readonly string[]>(headers: T) {
     };
 }
 
-/**
- * Creates a function that maps a structured object back to a sheet row array.
- * @param obj The object to map.
- * @param mapping A map from object keys to sheet header names.
- * @param headers The canonical list of header names for ordering.
- * @returns An array of values ordered according to the headers.
- */
 function objectToRow<T>(obj: T, mapping: Record<keyof T, string>, headers: readonly string[]): any[] {
     const invertedMapping = Object.fromEntries(Object.entries(mapping).map(([key, value]) => [value as string, key]));
     const row = new Array(headers.length).fill('');
@@ -84,24 +73,27 @@ const portfolioNumericKeys: (keyof Portfolio)[] = ['cgt', 'incTax', 'mgmtVal', '
 const transactionMapping: Record<keyof Omit<Transaction, 'grossValue'>, typeof transactionHeaders[number]> = {
     date: 'Date', portfolioId: 'Portfolio', ticker: 'Ticker', exchange: 'Exchange', type: 'Type',
     qty: 'Qty', price: 'Price', currency: 'Currency', vestDate: 'Vesting_Date', comment: 'Comments',
-    commission: 'Commission', tax: 'Tax %',
+    commission: 'Commission', tax: 'Tax %', grossValue: 'grossValue' // This will not be read from sheet
 };
 const transactionNumericKeys: (keyof Transaction)[] = ['qty', 'price', 'commission', 'tax'];
 
-const liveDataMapping: Record<keyof LiveData, typeof liveDataHeaders[number]> = {
-    ticker: 'Ticker', exchange: 'Exchange', price: 'Live_Price', name: 'Name_En', name_he: 'Name_He',
-    currency: 'Currency', sector: 'Sector', changePct: 'Day_Change', priceUnit: 'Price_Unit',
-    changePct1w: 'Change_1W', changePct1m: 'Change_1M', changePct3m: 'Change_3M', changePctYtd: 'Change_YTD',
-    changePct1y: 'Change_1Y', changePct3y: 'Change_3Y', changePct5y: 'Change_5Y', changePct10y: 'Change_10Y',
+const holdingMapping: Record<keyof Holding, typeof holdingsHeaders[number]> = {
+    portfolioId: 'PortfolioId', ticker: 'Ticker', exchange: 'Exchange', qty: 'Quantity',
+    price: 'Live_Price', currency: 'Currency', totalValue: 'Total Holding Value',
+    name: 'Name_En', name_he: 'Name_He', sector: 'Sector', priceUnit: 'Price_Unit',
+    changePct: 'Day_Change', changePct1w: 'Change_1W', changePct1m: 'Change_1M', changePct3m: 'Change_3M', 
+    changePctYtd: 'Change_YTD', changePct1y: 'Change_1Y', changePct3y: 'Change_3Y', changePct5y: 'Change_5Y', changePct10y: 'Change_10Y',
 };
-const liveDataNumericKeys: (keyof LiveData)[] = ['price', 'changePct', 'changePct1w', 'changePct1m', 'changePct3m', 'changePctYtd', 'changePct1y', 'changePct3y', 'changePct5y', 'changePct10y'];
-
+const holdingNumericKeys: (keyof Holding)[] = [
+    'qty', 'price', 'totalValue', 'changePct', 'changePct1w', 'changePct1m', 'changePct3m', 
+    'changePctYtd', 'changePct1y', 'changePct3y', 'changePct5y', 'changePct10y'
+];
 
 // --- Mappers for each data type ---
 
 const mapRowToPortfolio = createRowMapper(portfolioHeaders);
 const mapRowToTransaction = createRowMapper(transactionHeaders);
-const mapRowToLiveData = createRowMapper(liveDataHeaders);
+const mapRowToHolding = createRowMapper(holdingsHeaders);
 
 // Helper to get Sheet ID by Name
 async function getSheetId(spreadsheetId: string, sheetName: string, create = false): Promise<number> {
@@ -138,9 +130,32 @@ export const ensureSchema = async (spreadsheetId: string) => {
     const sheetIds = {
         portfolio: await getSheetId(spreadsheetId, 'Portfolio_Options', true),
         log: await getSheetId(spreadsheetId, 'Transaction_Log', true),
-        live: await getSheetId(spreadsheetId, 'Live_Data', true),
+        holdings: await getSheetId(spreadsheetId, HOLDINGS_SHEET, true),
         config: await getSheetId(spreadsheetId, 'Currency_Conversions', true),
+        metadata: await getSheetId(spreadsheetId, METADATA_SHEET, true),
     };
+
+     // Rename Live_Data to Holdings if it exists
+     try {
+        const liveDataSheetId = await getSheetId(spreadsheetId, 'Live_Data');
+        if (liveDataSheetId) {
+            await window.gapi.client.sheets.spreadsheets.batchUpdate({
+                spreadsheetId,
+                resource: {
+                    requests: [{
+                        updateSheetProperties: {
+                            properties: { sheetId: liveDataSheetId, title: HOLDINGS_SHEET },
+                            fields: 'title'
+                        }
+                    }]
+                }
+            });
+            sheetIds.holdings = liveDataSheetId;
+            console.log(`Renamed sheet 'Live_Data' to '${HOLDINGS_SHEET}'`);
+        }
+    } catch (e) {
+        console.warn("Could not rename Live_Data sheet, likely doesn't exist.");
+    }
 
     const batchUpdate = {
         spreadsheetId,
@@ -148,8 +163,9 @@ export const ensureSchema = async (spreadsheetId: string) => {
             requests: [
                 createHeaderUpdateRequest(sheetIds.portfolio, portfolioHeaders as unknown as Headers),
                 createHeaderUpdateRequest(sheetIds.log, transactionHeaders as unknown as Headers),
-                createHeaderUpdateRequest(sheetIds.live, liveDataHeaders as unknown as Headers),
+                createHeaderUpdateRequest(sheetIds.holdings, holdingsHeaders as unknown as Headers),
                 createHeaderUpdateRequest(sheetIds.config, configHeaders as unknown as Headers),
+                createHeaderUpdateRequest(sheetIds.metadata, metadataHeaders as unknown as Headers),
             ]
         }
     };
@@ -170,6 +186,13 @@ export const ensureSchema = async (spreadsheetId: string) => {
         valueInputOption: 'USER_ENTERED',
         resource: { values: initialConfig }
     });
+
+    // Store schema creation date
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    await setMetadataValue(spreadsheetId, 'schema_created', `${yyyy}${mm}${dd}`);
 };
 
 // --- Data Fetching Functions ---
@@ -182,28 +205,49 @@ async function fetchSheetData<T>(spreadsheetId: string, range: string, rowMapper
             range,
         });
         const rows = res.result.values || [];
-        return rows.map(rowMapper).filter(item => (item as any).id !== ''); // Filter out empty-ID portfolios
+        return rows.map(rowMapper).filter(Boolean); 
     } catch (error) {
-        console.error(`Error fetching from range ${range}:`, error);
+        console.error("Error fetching from range " + range + ":", error);
         return [];
     }
 }
 
 export const fetchPortfolios = async (spreadsheetId: string): Promise<Portfolio[]> => {
-    return fetchSheetData(spreadsheetId, PORT_OPT_RANGE, (row) =>
+    const portfolios = await fetchSheetData(spreadsheetId, PORT_OPT_RANGE, (row) =>
         mapRowToPortfolio<Portfolio>(row, portfolioMapping, portfolioNumericKeys)
     );
+
+    let holdings: Holding[] = [];
+    try {
+        holdings = await fetchSheetData(spreadsheetId, HOLDINGS_RANGE, (row) =>
+            mapRowToHolding<Holding>(row, holdingMapping, holdingNumericKeys)
+        );
+    } catch (e) {
+        console.warn("Holdings sheet not found or error fetching, continuing without holdings data:", e);
+    }
+
+    if (holdings.length > 0) {
+        const holdingsByPortId = holdings.reduce((acc, holding) => {
+            const portId = holding.portfolioId;
+            if (!acc[portId]) {
+                acc[portId] = [];
+            }
+            acc[portId].push(holding);
+            return acc;
+        }, {} as Record<string, Holding[]>);
+
+        return portfolios.map(p => ({
+            ...p,
+            holdings: holdingsByPortId[p.id] || []
+        }));
+    }
+
+    return portfolios;
 };
 
 export const fetchTransactions = async (spreadsheetId: string): Promise<Transaction[]> => {
     return fetchSheetData(spreadsheetId, TX_FETCH_RANGE, (row) =>
         mapRowToTransaction<Transaction>(row, transactionMapping, transactionNumericKeys)
-    );
-};
-
-export const fetchLiveData = async (spreadsheetId: string): Promise<LiveData[]> => {
-    return fetchSheetData(spreadsheetId, LIVE_DATA_RANGE, (row) =>
-        mapRowToLiveData<LiveData>(row, liveDataMapping, liveDataNumericKeys)
     );
 };
 
@@ -278,72 +322,91 @@ export const addTransaction = async (spreadsheetId: string, t: Transaction) => {
         valueInputOption: 'USER_ENTERED',
         resource: { values: [row] }
     });
+    await rebuildHoldingsSheet(spreadsheetId); // Update holdings after adding transaction
 };
 
-// Rebuild live data sheet with new formulas AND enriched metadata
-export const rebuildLiveData = async (spreadsheetId:string, transactions: Transaction[]) => {
+// Rebuild Holdings sheet
+export const rebuildHoldingsSheet = async (spreadsheetId: string) => {
     await ensureGapi();
-    const uniqueTickers = [...new Map(transactions.filter(t => t.ticker).map(t => [`${t.ticker.toUpperCase()}:${(t.exchange || '').toUpperCase()}`, t])).values()];
+    const transactions = await fetchTransactions(spreadsheetId);
+    const portfolios = await fetchSheetData(spreadsheetId, PORT_OPT_RANGE, (row) =>
+        mapRowToPortfolio<Portfolio>(row, portfolioMapping, portfolioNumericKeys)
+    );
+    const portfolioMap = new Map(portfolios.map(p => [p.id, p]));
 
-    const enrichedData = await Promise.all(uniqueTickers.map(async (t) => {
+    const holdings: Record<string, Omit<Holding, 'totalValue' | 'price' | 'currency' | 'name' | 'name_he' | 'sector' | 'priceUnit' | 'changePct' | 'changePct1w' | 'changePct1m' | 'changePct3m' | 'changePctYtd' | 'changePct1y' | 'changePct3y' | 'changePct5y' | 'changePct10y'> & { portfolioId: string }> = {};
+
+    transactions.forEach(txn => {
+        if (txn.type === 'BUY' || txn.type === 'SELL') {
+            const key = `${txn.portfolioId}-${txn.ticker}-${txn.exchange}`;
+            if (!holdings[key]) {
+                holdings[key] = { portfolioId: txn.portfolioId, ticker: txn.ticker, exchange: txn.exchange || '', qty: 0 };
+            }
+            const multiplier = txn.type === 'BUY' ? 1 : -1;
+            holdings[key].qty += txn.qty * multiplier;
+        }
+    });
+
+    const uniqueHoldings = Object.values(holdings).filter(h => h.qty > 1e-6);
+
+    const enrichedData = await Promise.all(uniqueHoldings.map(async (h) => {
         let meta = null;
-        // Only call getTickerData for TASE stocks to get Hebrew name and price unit.
-        // For others, we'll rely on GOOGLEFINANCE formulas in the sheet.
-        if ((t.exchange || '').toUpperCase() === 'TASE') {
+        if ((h.exchange || '').toUpperCase() === 'TASE') {
             try {
-                meta = await getTickerData(t.ticker, t.exchange);
+                meta = await getTickerData(h.ticker, h.exchange);
             } catch (e) {
-                console.warn(`Failed to fetch metadata for ${t.ticker}`, e);
+                console.warn("Failed to fetch metadata for " + h.ticker, e);
             }
         }
-        return { t, meta };
+        return { h, meta };
     }));
 
-    const data = enrichedData.map(({ t, meta }, i) => {
+    const data = enrichedData.map(({ h, meta }, i) => {
         const rowNum = i + 2;
-        const tickerCell = `A${rowNum}`;
-        const exchangeCell = `B${rowNum}`;
-        const priceCell = `F${rowNum}`; // Live_Price is in column F
+        const tickerCell = `B${rowNum}`;
+        const exchangeCell = `C${rowNum}`;
+        const qtyCell = `D${rowNum}`;
+        const priceCell = `E${rowNum}`;
+        const currencyCell = `F${rowNum}`;
+        const totalCell = `G${rowNum}`;
         const tickerAndExchange = `${exchangeCell}&":"&${tickerCell}`;
-        
-        const row = new Array(liveDataHeaders.length).fill('');
 
-        row[0] = t.ticker.toUpperCase();
-        row[1] = (t.exchange || '').toUpperCase();
-        row[2] = meta?.name || `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "name"), "")`;
-        row[3] = meta?.name_he || "";
-        row[4] = `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "sector"), "Other")`;
-        row[5] = `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "price"))`;
-        row[6] = `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "currency"))`;
-        row[7] = meta?.priceUnit || `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "currency"))`;
-        row[8] = `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "changepct")/100, 0)`;
-        row[9] = `=IFERROR((${priceCell}/INDEX(GOOGLEFINANCE(${tickerAndExchange}, "close", TODAY()-7),2,2))-1, "")`;
-        row[10] = `=IFERROR((${priceCell}/INDEX(GOOGLEFINANCE(${tickerAndExchange}, "close", EDATE(TODAY(),-1)),2,2))-1, "")`;
-        row[11] = `=IFERROR((${priceCell}/INDEX(GOOGLEFINANCE(${tickerAndExchange}, "close", EDATE(TODAY(),-3)),2,2))-1, "")`;
-        row[12] = `=IFERROR(${priceCell} / INDEX(GOOGLEFINANCE(${tickerAndExchange}, "close", DATE(YEAR(TODAY())-1, 12, 31)), 2, 2) - 1, "")`;
-        row[13] = `=IFERROR((${priceCell}/INDEX(GOOGLEFINANCE(${tickerAndExchange}, "close", EDATE(TODAY(),-12)),2,2))-1, "")`;
-        row[14] = `=IFERROR((${priceCell}/INDEX(GOOGLEFINANCE(${tickerAndExchange}, "close", EDATE(TODAY(),-36)),2,2))-1, "")`;
-        row[15] = `=IFERROR((${priceCell}/INDEX(GOOGLEFINANCE(${tickerAndExchange}, "close", EDATE(TODAY(),-60)),2,2))-1, "")`;
-        row[16] = `=IFERROR((${priceCell}/INDEX(GOOGLEFINANCE(${tickerAndExchange}, "close", EDATE(TODAY(),-120)),2,2))-1, "")`;
+        const row = new Array(holdingsHeaders.length).fill('');
+
+        row[0] = h.portfolioId;
+        row[1] = h.ticker.toUpperCase();
+        row[2] = (h.exchange || '').toUpperCase();
+        row[3] = h.qty;
+        row[4] = meta?.price || `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "price"))`; // Live_Price
+        row[5] = meta?.currency || `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "currency"))`; // Currency
+        row[6] = `=${qtyCell}*${priceCell}`; // Total Holding Value
+        row[7] = meta?.name || `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "name"), "")`; // Name_En
+        row[8] = meta?.name_he || ""; // Name_He
+        row[9] = `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "sector"), "Other")`; // Sector
+        row[10] = meta?.priceUnit || ""; // Price_Unit
+        row[11] = meta?.changePct || `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "changepct")/100, 0)`; // Day_Change
+        row[12] = `=IFERROR((${priceCell}/INDEX(GOOGLEFINANCE(${tickerAndExchange}, "close", TODAY()-7),2,2))-1, "")`; // Change_1W
+        row[13] = `=IFERROR((${priceCell}/INDEX(GOOGLEFINANCE(${tickerAndExchange}, "close", EDATE(TODAY(),-1)),2,2))-1, "")`; // Change_1M
+        row[14] = `=IFERROR((${priceCell}/INDEX(GOOGLEFINANCE(${tickerAndExchange}, "close", EDATE(TODAY(),-3)),2,2))-1, "")`; // Change_3M
+        row[15] = `=IFERROR(${priceCell} / INDEX(GOOGLEFINANCE(${tickerAndExchange}, "close", DATE(YEAR(TODAY())-1, 12, 31)), 2, 2) - 1, "")`; // Change_YTD
+        row[16] = `=IFERROR((${priceCell}/INDEX(GOOGLEFINANCE(${tickerAndExchange}, "close", EDATE(TODAY(),-12)),2,2))-1, "")`; // Change_1Y
+        row[17] = `=IFERROR((${priceCell}/INDEX(GOOGLEFINANCE(${tickerAndExchange}, "close", EDATE(TODAY(),-36)),2,2))-1, "")`; // Change_3Y
+        row[18] = `=IFERROR((${priceCell}/INDEX(GOOGLEFINANCE(${tickerAndExchange}, "close", EDATE(TODAY(),-60)),2,2))-1, "")`; // Change_5Y
+        row[19] = `=IFERROR((${priceCell}/INDEX(GOOGLEFINANCE(${tickerAndExchange}, "close", EDATE(TODAY(),-120)),2,2))-1, "")`; // Change_10Y
         
         return row;
     });
 
-    await window.gapi.client.sheets.spreadsheets.values.clear({ spreadsheetId, range: `Live_Data!A2:${String.fromCharCode(65 + liveDataHeaders.length - 1)}` });
+    await window.gapi.client.sheets.spreadsheets.values.clear({ spreadsheetId, range: `${HOLDINGS_SHEET}!A2:${String.fromCharCode(65 + holdingsHeaders.length - 1)}` });
     if (data.length > 0) {
         await window.gapi.client.sheets.spreadsheets.values.update({
             spreadsheetId,
-            range: 'Live_Data!A2',
+            range: HOLDINGS_SHEET + '!A2',
             valueInputOption: 'USER_ENTERED',
             resource: { values: data }
         });
     }
-};
-
-// Kept for backward compatibility
-export const syncAndFetchLiveData = async (spreadsheetId: string, transactions: Transaction[]): Promise<LiveData[]> => {
-    await rebuildLiveData(spreadsheetId, transactions);
-    return await fetchLiveData(spreadsheetId);
+    await setMetadataValue(spreadsheetId, 'holdings_rebuild', new Date().toISOString());
 };
 
 export const fetchSheetExchangeRates = async (spreadsheetId: string): Promise<Record<string, number>> => {
@@ -359,7 +422,7 @@ export const fetchSheetExchangeRates = async (spreadsheetId: string): Promise<Re
     const keyIndex = configHeaders.indexOf('Key');
     const valueIndex = configHeaders.indexOf('Value');
 
-    rows.forEach((r: any) => {
+    rows.forEach((r: string[]) => {
         const pair = r[keyIndex];
         const val = parseFloat(r[valueIndex]);
 
@@ -375,6 +438,58 @@ export const fetchSheetExchangeRates = async (spreadsheetId: string): Promise<Re
     });
     return rates;
 };
+
+export async function getMetadataValue(spreadsheetId: string, key: string): Promise<string | null> {
+    await ensureGapi();
+    try {
+        const res = await window.gapi.client.sheets.spreadsheets.values.get({
+            spreadsheetId,
+            range: METADATA_RANGE,
+        });
+        const rows: string[][] = res.result.values || [];
+        const keyIndex = metadataHeaders.indexOf('Key');
+        const valueIndex = metadataHeaders.indexOf('Value');
+        const row = rows.find((r: any[]) => r[keyIndex] === key);
+        return row ? row[valueIndex] : null;
+    } catch (error) {
+        console.error("Error fetching metadata for key " + key + ":", error);
+        return null;
+    }
+}
+
+export async function setMetadataValue(spreadsheetId: string, key: string, value: string): Promise<void> {
+    await ensureGapi();
+    try {
+        const res = await window.gapi.client.sheets.spreadsheets.values.get({
+            spreadsheetId,
+            range: METADATA_RANGE,
+        });
+        const rows = res.result.values || [];
+        const keyIndex = metadataHeaders.indexOf('Key');
+        const existingRowIndex = rows.findIndex((r: any[]) => r[keyIndex] === key);
+
+        if (existingRowIndex > -1) {
+            // Update existing key
+            const rowNum = existingRowIndex + 1; // 1-based index
+            await window.gapi.client.sheets.spreadsheets.values.update({
+                spreadsheetId,
+                range: METADATA_SHEET + '!B' + rowNum,
+                valueInputOption: 'USER_ENTERED',
+                resource: { values: [[value]] }
+            });
+        } else {
+            // Append new key
+            await window.gapi.client.sheets.spreadsheets.values.append({
+                spreadsheetId,
+                range: METADATA_SHEET + '!A:A',
+                valueInputOption: 'USER_ENTERED',
+                resource: { values: [[key, value]] }
+            });
+        }
+    } catch (error) {
+        console.error("Error setting metadata for key " + key + ":", error);
+    }
+}
 
 // Populate the spreadsheet with 3 sample portfolios and several transactions each
 export const populateTestData = async (spreadsheetId: string) => {
@@ -393,21 +508,21 @@ export const populateTestData = async (spreadsheetId: string) => {
   }
 
   const transactions: Transaction[] = [
-    { date: '2025-01-02', portfolioId: 'P-IL-GROWTH', ticker: 'TASE1', exchange: 'TASE', type: 'BUY', qty: 100, price: 50, currency: 'ILS', comment: 'Initial buy' },
-    { date: '2025-02-15', portfolioId: 'P-IL-GROWTH', ticker: 'TASE1', exchange: 'TASE', type: 'DIVIDEND', qty: 0, price: 0, currency: 'ILS', comment: 'Dividend payout' },
-    { date: '2025-06-10', portfolioId: 'P-IL-GROWTH', ticker: 'TASE2', exchange: 'TASE', type: 'BUY', qty: 50, price: 200, currency: 'ILS', comment: 'Add position' },
-    { date: '2025-03-01', portfolioId: 'P-USD-CORE', ticker: 'AAPL', exchange: 'NASDAQ', type: 'BUY', qty: 10, price: 150, currency: 'USD', comment: 'Core buy' },
-    { date: '2025-08-01', portfolioId: 'P-USD-CORE', ticker: 'AAPL', exchange: 'NASDAQ', type: 'DIVIDEND', qty: 0, price: 0, currency: 'USD', comment: 'Quarterly dividend' },
-    { date: '2025-11-20', portfolioId: 'P-USD-CORE', ticker: 'TSLA', exchange: 'NASDAQ', type: 'BUY', qty: 5, price: 700, currency: 'USD', comment: 'Speculative buy' },
-    { date: '2025-11-21', portfolioId: 'P-USD-CORE', ticker: 'AAPL', exchange: 'NASDAQ', type: 'SELL', qty: 5, price: 200, currency: 'USD', comment: 'Trim position' },
-    { date: '2025-04-10', portfolioId: 'P-RSU', ticker: 'COMP', exchange: 'NASDAQ', type: 'BUY', qty: 200, price: 0.01, vestDate: '2025-04-10', currency: 'USD', comment: 'RSU vested' },
-    { date: '2025-07-10', portfolioId: 'P-RSU', ticker: 'COMP', exchange: 'NASDAQ', type: 'DIVIDEND', qty: 0, price: 0, currency: 'USD', comment: 'RSU dividend' },
-    { date: '2025-12-01', portfolioId: 'P-RSU', ticker: 'COMP', exchange: 'NASDAQ', type: 'SELL', qty: 50, price: 20, currency: 'USD', comment: 'Sell vested RSUs' }
+    { date: '2025-01-02', portfolioId: 'P-IL-GROWTH', ticker: 'TASE1', exchange: 'TASE', type: 'BUY', qty: 100, price: 50, grossValue: 5000, currency: 'ILS', comment: 'Initial buy' },
+    { date: '2025-02-15', portfolioId: 'P-IL-GROWTH', ticker: 'TASE1', exchange: 'TASE', type: 'DIVIDEND', qty: 0, price: 0, grossValue: 10, currency: 'ILS', comment: 'Dividend payout' },
+    { date: '2025-06-10', portfolioId: 'P-IL-GROWTH', ticker: 'TASE2', exchange: 'TASE', type: 'BUY', qty: 50, price: 200, grossValue: 10000, currency: 'ILS', comment: 'Add position' },
+    { date: '2025-03-01', portfolioId: 'P-USD-CORE', ticker: 'AAPL', exchange: 'NASDAQ', type: 'BUY', qty: 10, price: 150, grossValue: 1500, currency: 'USD', comment: 'Core buy' },
+    { date: '2025-08-01', portfolioId: 'P-USD-CORE', ticker: 'AAPL', exchange: 'NASDAQ', type: 'DIVIDEND', qty: 0, price: 0, grossValue: 5, currency: 'USD', comment: 'Quarterly dividend' },
+    { date: '2025-11-20', portfolioId: 'P-USD-CORE', ticker: 'TSLA', exchange: 'NASDAQ', type: 'BUY', qty: 5, price: 700, grossValue: 3500, currency: 'USD', comment: 'Speculative buy' },
+    { date: '2025-11-21', portfolioId: 'P-USD-CORE', ticker: 'AAPL', exchange: 'NASDAQ', type: 'SELL', qty: 5, price: 200, grossValue: 1000, currency: 'USD', comment: 'Trim position' },
+    { date: '2025-04-10', portfolioId: 'P-RSU', ticker: 'COMP', exchange: 'NASDAQ', type: 'BUY', qty: 200, price: 0.01, vestDate: '2025-04-10', grossValue: 2, currency: 'USD', comment: 'RSU vested' },
+    { date: '2025-07-10', portfolioId: 'P-RSU', ticker: 'COMP', exchange: 'NASDAQ', type: 'DIVIDEND', qty: 0, price: 0, grossValue: 10, currency: 'USD', comment: 'RSU dividend' },
+    { date: '2025-12-01', portfolioId: 'P-RSU', ticker: 'COMP', exchange: 'NASDAQ', type: 'SELL', qty: 50, price: 20, grossValue: 1000, currency: 'USD', comment: 'Sell vested RSUs' }
   ];
 
   for (const t of transactions) {
     try { await addTransaction(spreadsheetId, t); } catch (e) { console.warn("Could not add transaction (it might already exist)", e) }
   }
   
-  await syncAndFetchLiveData(spreadsheetId, transactions);
+  await rebuildHoldingsSheet(spreadsheetId);
 };

@@ -226,11 +226,11 @@ export function DashboardTable(props: TableProps) {
                     )}
                     {columnVisibility.sector && <TableCell>{h.sector}</TableCell>}
                     {columnVisibility.qty && <TableCell align="right">{h.totalQty.toLocaleString()}</TableCell>}
-                    {columnVisibility.avgCost && <TableCell align="right">{formatMoney(h.avgCost, h.stockCurrency, 2, h.priceUnit)}</TableCell>}
+                    {columnVisibility.avgCost && <TableCell align="right">{formatMoney(h.stockCurrency === 'ILS' && h.priceUnit === 'agorot' ? h.avgCost * 100 : h.avgCost, h.stockCurrency, 2, h.priceUnit)}</TableCell>}
                     {columnVisibility.currentPrice && <TableCell align="right">{formatMoney(h.currentPrice, h.stockCurrency, 2, h.priceUnit)}</TableCell>}
                     
                     {columnVisibility.dayChangeVal && <TableCell align="right" sx={{ color: h.dayChangePct >= 0 ? theme.palette.success.main : theme.palette.error.main }}>
-                      {formatConverted(h.dayChangeVal, h.stockCurrency)}
+                      {formatConverted(h.dayChangeVal, h.stockCurrency, 2, h.stockCurrency === 'ILS' && h.priceUnit === 'agorot' ? 'agorot' : 'base')}
                     </TableCell>}
                     {columnVisibility.dayChangePct && <TableCell align="right" sx={{ color: h.dayChangePct >= 0 ? theme.palette.success.main : theme.palette.error.main }}>
                       {formatPct(h.dayChangePct)}

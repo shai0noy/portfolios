@@ -6,7 +6,7 @@ import { PortfolioManager } from './components/PortfolioManager';
 import { Dashboard } from './components/Dashboard';
 import { ImportCSV } from './components/ImportCSV';
 import { TickerDetails } from './components/TickerDetails'; // Import TickerDetails
-import { ensureSchema, populateTestData, fetchTransactions, rebuildLiveData } from './lib/sheets';
+import { ensureSchema, populateTestData, fetchTransactions, rebuildHoldingsSheet } from './lib/sheets';
 import { initGoogleClient, refreshToken, signOut } from './lib/google';
 import { Box, AppBar, Toolbar, Typography, Container, Tabs, Tab, IconButton, Tooltip, CircularProgress, ThemeProvider, CssBaseline } from '@mui/material';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
@@ -75,7 +75,7 @@ function App() {
     try {
       await ensureSchema(sheetId);
       const txns = await fetchTransactions(sheetId);
-      await rebuildLiveData(sheetId, txns);
+      await rebuildHoldingsSheet(sheetId, txns);
       setRefreshKey(k => k + 1); // Refresh dashboard
       alert("Sheet setup complete. Headers and live data have been rebuilt.");
     } catch (e) {
