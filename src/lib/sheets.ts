@@ -487,6 +487,26 @@ export async function setMetadataValue(spreadsheetId: string, key: string, value
     }
 }
 
+export async function exportToSheet(spreadsheetId: string, sheetName: string, headers: string[], data: any[][]) {
+    await ensureGapi();
+    
+    await getSheetId(spreadsheetId, sheetName, true);
+
+    await window.gapi.client.sheets.spreadsheets.values.clear({
+        spreadsheetId,
+        range: sheetName,
+    });
+
+    const values = [headers, ...data];
+
+    await window.gapi.client.sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: `${sheetName}!A1`,
+        valueInputOption: 'USER_ENTERED',
+        resource: { values }
+    });
+}
+
 // Populate the spreadsheet with 3 sample portfolios and several transactions each
 export const populateTestData = async (spreadsheetId: string) => {
   await ensureGapi();

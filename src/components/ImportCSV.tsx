@@ -3,7 +3,11 @@ import {
   Box, Button, Typography, TextField, FormControl, InputLabel, Select, MenuItem, 
   Dialog, DialogTitle, DialogContent, DialogActions, Table, TableHead, TableRow, 
   TableCell, TableBody, Alert, Stepper, Step, StepLabel,
-  Grid
+  Grid,
+  Stack,
+  RadioGroup,
+  Radio,
+  FormControlLabel
 } from '@mui/material';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import type { Portfolio, Transaction } from '../lib/types';
@@ -21,7 +25,6 @@ const STEPS = ['Input Data', 'Map Columns', 'Review & Import'];
 export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [activeStep, setActiveStep] = useState(0);
-  // ...
   
   useEffect(() => {
     if (open) {
@@ -36,6 +39,8 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
   const [mapping, setMapping] = useState<Record<string, string>>({
     ticker: '', date: '', type: '', qty: '', price: '', exchange: ''
   });
+  const [manualExchange, setManualExchange] = useState('');
+  const [exchangeMode, setExchangeMode] = useState<'map' | 'manual' | 'deduce'>('deduce');
   const [parsedTxns, setParsedTxns] = useState<Transaction[]>([]);
   const [importing, setImporting] = useState(false);
 
@@ -54,7 +59,6 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
     const lines = text.split('\n').map(l => l.trim()).filter(l => l);
     if (lines.length < 2) return;
     
-    // Simple CSV parser (doesn't handle quoted commas well, but sufficient for simple exports)
     const head = lines[0].split(',').map(h => h.trim());
     const data = lines.slice(1).map(l => l.split(',').map(c => c.trim()));
     
@@ -75,6 +79,12 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
       if (lh.includes('exchange')) newMap.exchange = h;
     });
     setMapping(newMap);
+
+    if (newMap.exchange) {
+        setExchangeMode('map');
+    } else {
+        setExchangeMode('deduce');
+    }
   };
 
   const handleNext = () => {
@@ -90,6 +100,14 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
       if (!mapping.ticker || !mapping.date || !mapping.qty || !mapping.price) {
         alert("Please map all required fields (Ticker, Date, Qty, Price).");
         return;
+      }
+      if (exchangeMode === 'map' && !mapping.exchange) {
+        alert("Please select a column for Exchange or choose a different mode.");
+        return;
+      }
+      if (exchangeMode === 'manual' && !manualExchange) {
+          alert("Please enter a manual exchange or choose a different mode.");
+          return;
       }
       generatePreview();
       setActiveStep(2);
@@ -127,10 +145,14 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
       const qty = parseFloat(getVal('qty'));
       const price = parseFloat(getVal('price'));
 
-      let exchange = getVal('exchange').toUpperCase();
-      if (!exchange) {
-        const tickerVal = getVal('ticker');
-        exchange = /\d/.test(tickerVal) ? 'TASE' : 'NASDAQ'; // Deduction logic
+      let exchange: string;
+      if (exchangeMode === 'map') {
+          exchange = getVal('exchange').toUpperCase();
+      } else if (exchangeMode === 'manual') {
+          exchange = manualExchange;
+      } else { // deduce
+          const tickerVal = getVal('ticker');
+          exchange = /\d/.test(tickerVal) ? 'TASE' : 'NASDAQ';
       }
 
       return {
@@ -152,8 +174,6 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
   const handleImport = async () => {
     setImporting(true);
     try {
-      // Process in chunks to avoid rate limits? 
-      // For now, sequential await to be safe with GAPI
       for (const t of parsedTxns) {
         await addTransaction(sheetId, t);
       }
@@ -171,12 +191,12 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle>Import Transactions from CSV</DialogTitle>
       <DialogContent>
-        <Stepper activeStep={activeStep} sx={{ mb: 4, mt: 1 }}>
+        <Stepper activeStep={activeStep} sx={{ mb: 3, mt: 1 }}>
           {STEPS.map(label => <Step key={label}><StepLabel>{label}</StepLabel></Step>)}
         </Stepper>
 
         {activeStep === 0 && (
-          <Box display="flex" flexDirection="column" gap={3}>
+          <Stack spacing={3} sx={{ pt: 1 }}>
             <FormControl fullWidth size="small">
               <InputLabel>Target Portfolio</InputLabel>
               <Select value={portfolioId} label="Target Portfolio" onChange={e => setPortfolioId(e.target.value)}>
@@ -186,57 +206,109 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
               </Select>
             </FormControl>
 
-            <Box>
-              <Button component="label" variant="outlined" startIcon={<CloudUploadIcon />} sx={{ mb: 1 }}>
-                Upload CSV File
-                <input type="file" hidden accept=".csv" onChange={handleFileChange} />
-              </Button>
-              <Typography variant="caption" display="block" color="text.secondary">
-                Or paste CSV content below:
-              </Typography>
-              <TextField
-                multiline rows={6} fullWidth 
-                placeholder="Symbol,Date,Type,Qty,Price..."
-                value={csvText} onChange={e => setCsvText(e.target.value)}
-                sx={{ fontFamily: 'monospace' }}
-              />
-            </Box>
-          </Box>
+            <Stack spacing={1}>
+                <Box>
+                    <Button component="label" variant="outlined" startIcon={<CloudUploadIcon />}>
+                        Upload CSV File
+                        <input type="file" hidden accept=".csv" onChange={handleFileChange} />
+                    </Button>
+                </Box>
+                <Typography variant="caption" color="text.secondary">
+                    Or paste CSV content below:
+                </Typography>
+                <TextField
+                    multiline rows={8} fullWidth 
+                    placeholder="Symbol,Date,Type,Qty,Price..."
+                    value={csvText} onChange={e => setCsvText(e.target.value)}
+                    sx={{ fontFamily: 'monospace' }}
+                />
+            </Stack>
+          </Stack>
         )}
 
         {activeStep === 1 && (
-          <Box>
-            <Typography gutterBottom>Map CSV Columns to Transaction Fields:</Typography>
-            <Grid container spacing={2}>
-              {['ticker', 'date', 'type', 'qty', 'price', 'exchange'].map(field => (
-                <Grid key={field} xs={6} sm={4}>
-                  <FormControl fullWidth size="small">
-                    <InputLabel>{field.toUpperCase()}</InputLabel>
-                    <Select 
-                      value={mapping[field]} 
-                      label={field.toUpperCase()}
-                      onChange={e => setMapping(prev => ({ ...prev, [field]: e.target.value }))}
-                    >
-                      <MenuItem value="">-- Ignore --</MenuItem>
-                      {headers.map(h => <MenuItem key={h} value={h}>{h}</MenuItem>)}
-                    </Select>
-                  </FormControl>
+            <Stack spacing={2} sx={{ pt: 1 }}>
+                <Typography gutterBottom>Map CSV Columns to Transaction Fields:</Typography>
+                <Grid container spacing={2}>
+                    {['ticker', 'date', 'type', 'qty', 'price'].map(field => (
+                        <Grid item key={field} xs={12} sm={6} md={4}>
+                            <FormControl fullWidth size="small">
+                                <InputLabel>{field.charAt(0).toUpperCase() + field.slice(1)}</InputLabel>
+                                <Select
+                                    value={mapping[field]}
+                                    label={field.charAt(0).toUpperCase() + field.slice(1)}
+                                    onChange={e => setMapping(prev => ({ ...prev, [field]: e.target.value }))}
+                                >
+                                    <MenuItem value="">-- Ignore --</MenuItem>
+                                    {headers.map(h => <MenuItem key={h} value={h}>{h}</MenuItem>)}
+                                </Select>
+                            </FormControl>
+                        </Grid>
+                    ))}
                 </Grid>
-              ))}
-            </Grid>
-            
-            <Alert severity="info" sx={{ mt: 3 }}>
-              Default Type is "BUY" if not mapped or unrecognized.
-            </Alert>
-          </Box>
+
+                <Typography variant="body2" sx={{ pt: 1, fontWeight: 500 }}>Exchange</Typography>
+                <FormControl component="fieldset">
+                    <RadioGroup
+                        row
+                        value={exchangeMode}
+                        onChange={(e) => {
+                            const newMode = e.target.value as 'map' | 'manual' | 'deduce';
+                            setExchangeMode(newMode);
+                            if (newMode !== 'map') setMapping(prev => ({ ...prev, exchange: '' }));
+                            if (newMode !== 'manual') setManualExchange('');
+                        }}
+                    >
+                        <FormControlLabel value="map" control={<Radio size="small" />} label="Map from CSV" />
+                        <FormControlLabel value="manual" control={<Radio size="small" />} label="Manual Input" />
+                        <FormControlLabel value="deduce" control={<Radio size="small" />} label="Auto-Deduce" />
+                    </RadioGroup>
+                </FormControl>
+
+                {exchangeMode === 'map' && (
+                    <FormControl fullWidth size="small" sx={{ mt: 1 }}>
+                        <InputLabel>CSV Column for Exchange</InputLabel>
+                        <Select
+                            value={mapping.exchange}
+                            label="CSV Column for Exchange"
+                            onChange={e => setMapping(prev => ({ ...prev, exchange: e.target.value }))}
+                        >
+                            <MenuItem value="">-- Select Column --</MenuItem>
+                            {headers.map(h => <MenuItem key={h} value={h}>{h}</MenuItem>)}
+                        </Select>
+                    </FormControl>
+                )}
+
+                {exchangeMode === 'manual' && (
+                    <TextField
+                        label="Manual Exchange for all transactions"
+                        size="small"
+                        fullWidth
+                        sx={{ mt: 1 }}
+                        value={manualExchange}
+                        onChange={e => setManualExchange(e.target.value.toUpperCase())}
+                        helperText="e.g. NASDAQ, TASE"
+                    />
+                )}
+
+                {exchangeMode === 'deduce' && (
+                    <Alert severity="info" sx={{ mt: 1 }}>
+                        Exchange will be auto-detected based on ticker format ('TASE' for tickers with numbers, 'NASDAQ' otherwise).
+                    </Alert>
+                )}
+                
+                <Alert severity="info" sx={{ mt: 2 }}>
+                    Required: Ticker, Date, Qty, Price.
+                </Alert>
+            </Stack>
         )}
 
         {activeStep === 2 && (
-          <Box>
-            <Typography variant="subtitle2" gutterBottom>
+          <Stack spacing={1.5} sx={{ pt: 1 }}>
+            <Typography variant="subtitle2">
               Ready to import {parsedTxns.length} transactions:
             </Typography>
-            <Box sx={{ maxHeight: 300, overflow: 'auto', border: '1px solid #eee' }}>
+            <Box sx={{ maxHeight: 400, overflow: 'auto', border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
               <Table size="small" stickyHeader>
                 <TableHead>
                   <TableRow>
@@ -251,7 +323,7 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
                 </TableHead>
                 <TableBody>
                   {parsedTxns.map((t, i) => (
-                    <TableRow key={i}>
+                    <TableRow key={i} hover>
                       <TableCell>{t.date}</TableCell>
                       <TableCell>{t.ticker}</TableCell>
                       <TableCell>{t.exchange}</TableCell>
@@ -264,7 +336,7 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
                 </TableBody>
               </Table>
             </Box>
-          </Box>
+          </Stack>
         )}
 
       </DialogContent>

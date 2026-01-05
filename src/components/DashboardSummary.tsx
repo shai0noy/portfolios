@@ -2,13 +2,13 @@ import { Box, Paper, Grid, Typography, Select, MenuItem, Tooltip } from '@mui/ma
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import Button from '@mui/material/Button';
-import { convertCurrency } from '../lib/currency';
 
 interface SummaryProps {
   summary: {
     aum: number;
     totalUnrealized: number;
     totalRealized: number;
+    totalCostOfSold: number;
     totalDividends: number;
     totalReturn: number;
     realizedGainAfterTax: number;
@@ -39,83 +39,56 @@ interface SummaryProps {
   onCurrencyChange: (currency: string) => void;
 }
 
-export function DashboardSummary({ summary, displayCurrency, exchangeRates, selectedPortfolio, onBack, onCurrencyChange }: SummaryProps) {
+export function DashboardSummary({ summary, displayCurrency, onBack, onCurrencyChange, selectedPortfolio }: SummaryProps) {
   
   const formatMoney = (n: number, currency: string, decimals = 0) => {
     const val = n.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
-    if (currency === 'USD') return `${val}`;
+    if (currency === 'USD') return `$${val}`;
     if (currency === 'ILS') return `₪${val}`;
     if (currency === 'EUR') return `€${val}`;
     return `${val} ${currency}`;
   };
 
-  const formatConverted = (n: number) => {
-    const converted = convertCurrency(n, 'USD', displayCurrency, exchangeRates);
-    return formatMoney(converted, displayCurrency);
-  };
-
   const formatPct = (n: number) => (n * 100).toFixed(2) + '%';
 
-  const renderSummaryValue = (label: string, value: number, color?: string, isMain = false) => {
-    const displayVal = formatConverted(value);
-    const percentage = summary.aum > 0 ? value / summary.aum : 0;
-    return (
-      <Box textAlign="left" minWidth={120}>
-        <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase' }}>{label}</Typography>
-        <Typography variant={isMain ? "h4" : "h6"} fontWeight={isMain ? "bold" : "medium"} color={color || 'text.primary'}>
-          {displayVal}
-          {label === 'Unrealized Gain' && summary.aum > 0 && (
-            <span style={{ fontSize: '0.7em', marginLeft: 4, color: 'text.secondary' }}>
-              ({formatPct(percentage)})
-            </span>
-          )}
-        </Typography>
-      </Box>
-    );
-  };
-
-  const renderPerfValue = (label: string, percentage: number, isIncomplete: boolean) => {
-    const labelBox = (
-      <Box display="flex" alignItems="center">
-        <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase' }}>{label}</Typography>
-        {isIncomplete && (
-          <Tooltip title="Calculation is based on partial data as some holdings were missing live price information.">
-            <InfoOutlinedIcon sx={{ fontSize: '1rem', ml: 0.5, color: 'text.secondary' }} />
-          </Tooltip>
-        )}
-      </Box>
-    );
-
-    if (percentage === 0 || isNaN(percentage)) {
-        return (
-            <Box textAlign="left" minWidth={120}>
-                {labelBox}
-                <Typography variant="h6" fontWeight="medium" color="text.primary">
-                    -
-                </Typography>
-            </Box>
-        );
-    }
-
-    const absoluteChange = summary.aum - (summary.aum / (1 + percentage));
-    const color = percentage >= 0 ? 'success.main' : 'error.main';
-
+  const Stat = ({ label, value, pct, color, tooltip, isMain = false }: { label: string, value: number, pct?: number, color?: string, tooltip?: string, isMain?: boolean }) => {
     return (
         <Box textAlign="left" minWidth={120}>
-           {labelBox}
-           <Typography variant="h6" fontWeight="medium" color={color}>
-             {formatConverted(absoluteChange)}
-           </Typography>
-           <Typography variant="caption" color="text.secondary">
-              ({formatPct(percentage)})
-           </Typography>
+            <Box display="flex" alignItems="center">
+                <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase' }}>{label}</Typography>
+                {tooltip && (
+                    <Tooltip title={tooltip}>
+                        <InfoOutlinedIcon sx={{ fontSize: '1rem', ml: 0.5, color: 'text.secondary' }} />
+                    </Tooltip>
+                )}
+            </Box>
+            <Typography variant={isMain ? "h4" : "h6"} fontWeight={isMain ? "bold" : "medium"} color={color || 'text.primary'}>
+                {formatMoney(value, displayCurrency)}
+            </Typography>
+            {(pct !== undefined && !isNaN(pct)) && (
+                <Typography variant="caption" color={color || 'text.secondary'} sx={{ opacity: color ? 1 : 0.7 }}>
+                    ({formatPct(pct)})
+                </Typography>
+            )}
         </Box>
     );
   };
 
+  const PerfStat = ({ label, percentage, isIncomplete }: { label: string, percentage: number, isIncomplete: boolean }) => {
+    if (percentage === 0 || isNaN(percentage)) {
+        return <Stat label={label} value={0} pct={0} />;
+    }
+
+    const absoluteChange = summary.aum - (summary.aum / (1 + percentage));
+    const color = percentage >= 0 ? 'success.main' : 'error.main';
+    
+    return <Stat label={label} value={absoluteChange} pct={percentage} color={color} tooltip={isIncomplete ? "Calculation is based on partial data." : undefined} />;
+  }
+
+
   return (
     <Paper variant="outlined" sx={{ p: 3, mb: 4 }}>
-<Grid container spacing={4} alignItems="center">
+      <Grid container spacing={4} alignItems="center">
         <Grid item xs={12} md={3}>
           {selectedPortfolio ? (
             <>
@@ -133,48 +106,41 @@ export function DashboardSummary({ summary, displayCurrency, exchangeRates, sele
           ) : (
             <Typography variant="subtitle2" color="text.secondary">TOTAL AUM</Typography>
           )}
-          <Typography variant="h4" fontWeight="bold" color="primary">{formatConverted(summary.aum)}</Typography>
+          <Typography variant="h4" fontWeight="bold" color="primary">{formatMoney(summary.aum, displayCurrency)}</Typography>
         </Grid>
         <Grid item xs={12} md={9}>
           <Box display="flex" gap={4} justifyContent="flex-end" alignItems="center" flexWrap="wrap">
-            <Box textAlign="left" minWidth={120}>
-                <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase' }}>Value After Tax</Typography>
-                <Typography variant="h6" fontWeight="medium" color="text.primary">
-                    {formatConverted(summary.valueAfterTax)}
-                    {summary.aum > 0 && (
-                        <span style={{ fontSize: '0.7em', marginLeft: 4, color: 'text.secondary' }}>
-                            ({formatPct(summary.valueAfterTax / summary.aum)})
-                        </span>
-                    )}
-                </Typography>
-            </Box>
-            {renderSummaryValue("Unrealized Gain", summary.totalUnrealized, summary.totalUnrealized >= 0 ? 'success.main' : 'error.main')}
-            {renderSummaryValue("Realized Gain", summary.totalRealized)}
-            <Box textAlign="left" minWidth={120}>
-                <Box display="flex" alignItems="center">
-                    <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase' }}>Day Change</Typography>
-                    {summary.totalDayChangeIsIncomplete && (
-                      <Tooltip title="Calculation is based on partial data as some holdings were missing live price information.">
-                        <InfoOutlinedIcon sx={{ fontSize: '1rem', ml: 0.5, color: 'text.secondary' }} />
-                      </Tooltip>
-                    )}
-                </Box>
-               <Typography variant="h6" fontWeight="medium" color={summary.totalDayChange >= 0 ? 'success.main' : 'error.main'}>
-                 {formatConverted(summary.totalDayChange)}
-                 <span style={{ fontSize: '0.7em', marginLeft: 4, color: 'text.secondary' }}>
-                    ({formatPct(summary.totalDayChangePct)})
-                  </span>
-               </Typography>
-            </Box>
-
-            {renderPerfValue("1W Change", summary.perf1w, summary.perf1w_incomplete)}
-            {renderPerfValue("1M Change", summary.perf1m, summary.perf1m_incomplete)}
-            {renderPerfValue("3M Change", summary.perf3m, summary.perf3m_incomplete)}
-            {renderPerfValue("YTD Change", summary.perfYtd, summary.perfYtd_incomplete)}
-            {renderPerfValue("1Y Change", summary.perf1y, summary.perf1y_incomplete)}
-            {renderPerfValue("3Y Change", summary.perf3y, summary.perf3y_incomplete)}
-            {renderPerfValue("5Y Change", summary.perf5y, summary.perf5y_incomplete)}
+            <Stat 
+                label="Value After Tax"
+                value={summary.valueAfterTax}
+                pct={summary.aum > 0 ? summary.valueAfterTax / summary.aum : undefined}
+            />
+            <Stat 
+                label="Unrealized Gain"
+                value={summary.totalUnrealized}
+                pct={summary.aum > 0 ? summary.totalUnrealized / summary.aum : undefined}
+                color={summary.totalUnrealized >= 0 ? 'success.main' : 'error.main'}
+            />
+            <Stat 
+                label="Realized Gain"
+                value={summary.totalRealized}
+                pct={summary.totalCostOfSold > 0 ? summary.totalRealized / summary.totalCostOfSold : undefined}
+                color={summary.totalRealized >= 0 ? 'success.main' : 'error.main'}
+            />
+            <Stat
+                label="Day Change"
+                value={summary.totalDayChange}
+                pct={summary.totalDayChangePct}
+                color={summary.totalDayChange >= 0 ? 'success.main' : 'error.main'}
+                tooltip={summary.totalDayChangeIsIncomplete ? "Calculation is based on partial data." : undefined}
+            />
             
+            <PerfStat label="1W" percentage={summary.perf1w} isIncomplete={summary.perf1w_incomplete} />
+            <PerfStat label="1M" percentage={summary.perf1m} isIncomplete={summary.perf1m_incomplete} />
+            <PerfStat label="3M" percentage={summary.perf3m} isIncomplete={summary.perf3m_incomplete} />
+            <PerfStat label="YTD" percentage={summary.perfYtd} isIncomplete={summary.perfYtd_incomplete} />
+            <PerfStat label="1Y" percentage={summary.perf1y} isIncomplete={summary.perf1y_incomplete} />
+
             <Select 
               value={displayCurrency} 
               onChange={(e) => onCurrencyChange(e.target.value)} 

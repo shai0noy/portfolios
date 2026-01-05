@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
-  Box, CircularProgress, FormControlLabel, Switch, IconButton, Tooltip, Alert
+  Box, CircularProgress, FormControlLabel, Switch, IconButton, Tooltip, Alert, Button, Menu, MenuItem
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import { fetchPortfolios, fetchTransactions } from '../lib/sheets';
+import { fetchPortfolios, fetchTransactions, exportToSheet } from '../lib/sheets';
 import { ColumnSelector } from './ColumnSelector';
 import { getExchangeRates, convertCurrency } from '../lib/currency';
 import type { Holding, PriceUnit } from '../lib/types';
@@ -70,6 +70,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
   const [portMap, setPortMap] = useState<Map<string, any>>(new Map());
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const openColSelector = Boolean(anchorEl);
+  const [exportMenuAnchorEl, setExportMenuAnchorEl] = useState<null | HTMLElement>(null);
 
   const handleClickColSelector = (event: React.MouseEvent<HTMLButtonElement>) => {
     setAnchorEl(event.currentTarget);
@@ -121,6 +122,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
     aum: 0,
     totalUnrealized: 0,
     totalRealized: 0,
+    totalCostOfSold: 0,
     totalDividends: 0,
     totalReturn: 0,
     realizedGainAfterTax: 0,
@@ -157,6 +159,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         aum: 0,
         totalUnrealized: 0,
         totalRealized: 0,
+        totalCostOfSold: 0,
         totalDividends: 0,
         totalReturn: 0,
         realizedGainAfterTax: 0,
@@ -179,6 +182,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         acc.aum += toDisplayCurrency(h.totalMV);
         acc.totalUnrealized += toDisplayCurrency(h.unrealizedGain);
         acc.totalRealized += toDisplayCurrency(h.realizedGain);
+        acc.totalCostOfSold += toDisplayCurrency(h.costOfSold);
         acc.totalDividends += toDisplayCurrency(h.dividends);
         acc.totalReturn += toDisplayCurrency(h.totalGain);
         acc.realizedGainAfterTax += toDisplayCurrency(h.realizedGainAfterTax);
@@ -433,6 +437,104 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
     return groups;
   }, [holdings, groupByPortfolio, selectedPortfolioId]);
 
+  const downloadCSV = (data: any[], filename: string) => {
+      if (data.length === 0) return;
+      const headers = Object.keys(data[0]);
+      const csvContent = [
+          headers.join(','),
+          ...data.map(row => headers.map(header => {
+              let value = row[header];
+              if (typeof value === 'string') {
+                  value = `"${value.replace(/"/g, '""')}"`;
+              }
+              return value;
+          }).join(','))
+      ].join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', filename);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+  };
+
+  const handleExport = async (type: 'holdings' | 'transactions', format: 'csv' | 'sheet') => {
+      setExportMenuAnchorEl(null);
+      let data: any[];
+      let filename = '';
+      let headers: string[];
+
+      if (type === 'holdings') {
+          const filteredHoldings = selectedPortfolioId ? holdings.filter(h => h.portfolioId === selectedPortfolioId) : holdings;
+          data = filteredHoldings.map(h => ({
+              Portfolio: h.portfolioName,
+              Ticker: h.ticker,
+              Exchange: h.exchange,
+              Quantity: h.totalQty,
+              AvgCost: h.avgCost,
+              Price: h.currentPrice,
+              MarketValue: h.totalMV,
+              DayChangePct: h.dayChangePct,
+              UnrealizedGain: h.unrealizedGain,
+              RealizedGain: h.realizedGain,
+              Dividends: h.dividends,
+              TotalGain: h.totalGain,
+              Currency: h.stockCurrency,
+              Sector: h.sector,
+          }));
+          filename = 'holdings.csv';
+          if (data.length === 0) {
+            alert("No data to export.");
+            return;
+          }
+          headers = Object.keys(data[0] || {});
+
+      } else { // transactions
+          const txns = await fetchTransactions(sheetId);
+          const filteredTxns = selectedPortfolioId
+              ? txns.filter(t => t.portfolioId === selectedPortfolioId)
+              : txns;
+          data = filteredTxns.map(t => ({
+              Date: t.date,
+              Portfolio: portMap.get(t.portfolioId)?.name || t.portfolioId,
+              Ticker: t.ticker,
+              Exchange: t.exchange,
+              Type: t.type,
+              Qty: t.qty,
+              Price: t.price,
+              Currency: t.currency,
+              Comment: t.comment
+          }));
+          filename = 'transactions.csv';
+          if (data.length === 0) {
+            alert("No data to export.");
+            return;
+          }
+          headers = Object.keys(data[0] || {});
+      }
+
+      if (format === 'csv') {
+          downloadCSV(data, filename);
+      } else { // sheet
+          try {
+              setLoading(true);
+              const sheetName = type === 'holdings' ? 'Exported_Holdings' : 'Exported_Transactions';
+              const dataForSheet = data.map(row => headers.map(h => row[h]));
+              await exportToSheet(sheetId, sheetName, headers, dataForSheet);
+              alert(`Successfully exported to Google Sheet: ${sheetName}`);
+          } catch (e) {
+              console.error("Export to sheet failed:", e);
+              alert("Export to Google Sheet failed. See console for details.");
+          } finally {
+              setLoading(false);
+          }
+      }
+  };
+
   if (loading) return <Box display="flex" justifyContent="center" p={5}><CircularProgress /></Box>;
 
   return (
@@ -465,6 +567,27 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
             onClick={handleClickColSelector}
             onClose={handleCloseColSelector}
           />
+          <Button
+              aria-controls="export-menu"
+              aria-haspopup="true"
+              onClick={(e) => setExportMenuAnchorEl(e.currentTarget)}
+              variant="outlined"
+              size="small"
+          >
+              Export
+          </Button>
+          <Menu
+              id="export-menu"
+              anchorEl={exportMenuAnchorEl}
+              keepMounted
+              open={Boolean(exportMenuAnchorEl)}
+              onClose={() => setExportMenuAnchorEl(null)}
+          >
+              <MenuItem onClick={() => handleExport('holdings', 'csv')}>Holdings (CSV)</MenuItem>
+              <MenuItem onClick={() => handleExport('holdings', 'sheet')}>Holdings (Google Sheet)</MenuItem>
+              <MenuItem onClick={() => handleExport('transactions', 'csv')}>Transactions (CSV)</MenuItem>
+              <MenuItem onClick={() => handleExport('transactions', 'sheet')}>Transactions (Google Sheet)</MenuItem>
+          </Menu>
         </Box>
         <Box display="flex" alignItems="center">
           <FormControlLabel
