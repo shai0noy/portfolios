@@ -7,11 +7,13 @@ import {
   Stack,
   RadioGroup,
   Radio,
-  FormControlLabel
+  FormControlLabel,
+  Link
 } from '@mui/material';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import type { Portfolio, Transaction } from '../lib/types';
 import { addTransaction, fetchPortfolios } from '../lib/sheets';
+import { ImportHelp } from './ImportHelp';
 
 interface Props {
   sheetId: string;
@@ -25,6 +27,7 @@ const STEPS = ['Input Data', 'Map Columns', 'Review & Import'];
 export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [activeStep, setActiveStep] = useState(0);
+  const [helpOpen, setHelpOpen] = useState(false);
   
   useEffect(() => {
     if (open) {
@@ -43,15 +46,37 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
   const [exchangeMode, setExchangeMode] = useState<'map' | 'manual' | 'deduce'>('deduce');
   const [parsedTxns, setParsedTxns] = useState<Transaction[]>([]);
   const [importing, setImporting] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const processFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      setCsvText(evt.target?.result as string);
+    };
+    reader.readAsText(file);
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (evt) => {
-        setCsvText(evt.target?.result as string);
-      };
-      reader.readAsText(file);
+    if (file) processFile(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file && file.name.toLowerCase().endsWith('.csv')) {
+      processFile(file);
     }
   };
 
@@ -207,11 +232,37 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
             </FormControl>
 
             <Stack spacing={1}>
-                <Box>
+                <Alert severity="info" sx={{ mb: 1 }} action={
+                  <Button color="inherit" size="small" onClick={() => setHelpOpen(true)}>
+                    Help
+                  </Button>
+                }>
+                  <Typography variant="body2" component="div">
+                    <strong>Tip:</strong> Ensure your CSV includes these columns: <em>Symbol, Date, Type, Qty, Price</em>.
+                  </Typography>
+                </Alert>
+
+                <Box
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    sx={{
+                        border: '2px dashed',
+                        borderColor: isDragging ? 'primary.main' : 'grey.400',
+                        borderRadius: 1,
+                        p: 3,
+                        textAlign: 'center',
+                        bgcolor: isDragging ? 'action.hover' : 'background.paper',
+                        transition: 'all 0.2s ease-in-out'
+                    }}
+                >
                     <Button component="label" variant="outlined" startIcon={<CloudUploadIcon />}>
                         Upload CSV File
                         <input type="file" hidden accept=".csv" onChange={handleFileChange} />
                     </Button>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                        or drag and drop here
+                    </Typography>
                 </Box>
                 <Typography variant="caption" color="text.secondary">
                     Or paste CSV content below:
@@ -347,6 +398,7 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
           {activeStep === 2 ? (importing ? 'Importing...' : 'Import') : 'Next'}
         </Button>
       </DialogActions>
+      <ImportHelp open={helpOpen} onClose={() => setHelpOpen(false)} />
     </Dialog>
   );
 }

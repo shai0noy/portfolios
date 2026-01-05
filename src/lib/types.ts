@@ -12,8 +12,11 @@ export interface Portfolio {
   currency: 'USD' | 'ILS';
   divPolicy: 'cash_taxed' | 'accumulate_tax_free' | 'hybrid_rsu';
   divCommRate: number;
+  taxPolicy: TaxPolicy;
   holdings?: Holding[];
 }
+
+export type TaxPolicy = 'TAX_FREE' | 'REAL_GAIN' | 'NOMINAL_GAIN';
 
 export interface Holding {
   portfolioId: string;
@@ -69,7 +72,8 @@ export const PORTFOLIO_TEMPLATES: Record<string, Partial<Portfolio>> = {
     mgmtVal: 0,
     mgmtType: 'percentage',
     mgmtFreq: 'yearly',
-    divCommRate: 0
+    divCommRate: 0,
+    taxPolicy: 'REAL_GAIN'
   },
   'std_us': { 
     cgt: 0.25, 
@@ -82,7 +86,8 @@ export const PORTFOLIO_TEMPLATES: Record<string, Partial<Portfolio>> = {
     mgmtVal: 0,
     mgmtType: 'percentage',
     mgmtFreq: 'yearly',
-    divCommRate: 0
+    divCommRate: 0,
+    taxPolicy: 'NOMINAL_GAIN'
   },
   'rsu': { 
     cgt: 0.25, 
@@ -94,7 +99,8 @@ export const PORTFOLIO_TEMPLATES: Record<string, Partial<Portfolio>> = {
     mgmtVal: 0,
     mgmtType: 'percentage',
     mgmtFreq: 'yearly',
-    divCommRate: 0
+    divCommRate: 0,
+    taxPolicy: 'NOMINAL_GAIN'
   },
   'pension': { 
     cgt: 0, 
@@ -106,6 +112,7 @@ export const PORTFOLIO_TEMPLATES: Record<string, Partial<Portfolio>> = {
     mgmtVal: 0.007, // 0.7% from accumulation
     mgmtType: 'percentage',
     mgmtFreq: 'yearly',
-    divCommRate: 0
+    divCommRate: 0,
+    taxPolicy: 'TAX_FREE'
   }
 };

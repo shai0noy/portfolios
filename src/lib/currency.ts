@@ -25,3 +25,11 @@ export function convertCurrency(amount: number, from: string, to: string, rates:
   const toRate = rates[to] || 1;
   return valInBase * toRate;
 }
+
+export function formatNumber(n: number | undefined | null): string {
+  if (n === undefined || n === null || isNaN(n)) return '-';
+  const options: Intl.NumberFormatOptions = Number.isInteger(n)
+    ? { minimumFractionDigits: 0, maximumFractionDigits: 0 }
+    : { minimumFractionDigits: 2, maximumFractionDigits: 2 };
+  return n.toLocaleString(undefined, options);
+}

@@ -2,8 +2,11 @@
 
 import { fetchAllTaseTickers, type TaseTicker } from './taseApi';
 
+import { fetchXml, parseXmlString, extractDataFromXmlNS, getTextContent } from './xmlParser';
+
 interface TickerData {
   price: number;
+  openPrice?: number;
   name?: string;
   name_he?: string; // Hebrew name
   currency?: string;
@@ -11,6 +14,14 @@ interface TickerData {
   changePct?: number; // Daily change percentage
   priceUnit?: string;
   timestamp?: number; // Last update time
+  changePctYtd?: number;
+  changePct1w?: number;
+  changePct1m?: number;
+  changePct3m?: number;
+  changePct1y?: number;
+  changePct3y?: number;
+  changePct5y?: number;
+  changePct10y?: number;
 }
 
 interface HistoricalDataPoint {
@@ -105,46 +116,61 @@ async function fetchGlobesStock(ticker: string, exchange: string, signal?: Abort
       return null;
     }
 
-    const lastNode = instrument.querySelector('last');
-    const nameEnNode = instrument.querySelector('name_en');
-    const nameHeNode = instrument.querySelector('name_he');
-    const currencyNode = instrument.querySelector('currency');
-    const currencyRateNode = instrument.querySelector('CurrencyRate');
-    const changePctNode = instrument.querySelector('percentageChange');
+    const getText = (tag: string) => instrument.querySelector(tag)?.textContent || null;
 
-    if (!lastNode) {
-      console.log(`Globes: No last price found for ${ticker}`);
-      return null;
-    }
-
-    let price = parseFloat(lastNode.textContent || '');
-    if (isNaN(price)) {
-      console.log(`Globes: Invalid price for ${ticker}`);
-      return null;
-    }
-    
-    let currency = currencyNode?.textContent || '';
+    const last = parseFloat(getText('last') || '0');
+    const openPrice = parseFloat(getText('openPrice') || '0');
+    const name_en = getText('name_en');
+    const name_he = getText('name_he');
+    let currency = getText('currency') || 'ILS';
     if (currency === 'NIS') currency = 'ILS';
-    
-    let priceUnit: string;
-    const rate = parseFloat(currencyRateNode?.textContent || '1');
-    if (!isNaN(rate) && rate === 0.01) {
-      priceUnit = 'agorot';
-    } else {
-      priceUnit = currency;
-    }
+    const exchange = getText('exchange')?.toUpperCase() || 'TASE';
+    const percentageChange = parseFloat(getText('percentageChange') || '0');
+    const sector = getText('industry_sector');
+    const timestamp = getText('timestamp');
 
-    const changePct = parseFloat(changePctNode?.textContent || '0') / 100; // Convert percentage value to decimal
+    // Performance fields
+    const percentageChangeYear = parseFloat(getText('percentageChangeYear') || '0');
+    const lastWeekClosePrice = parseFloat(getText('LastWeekClosePrice') || '0');
+    const lastMonthClosePrice = parseFloat(getText('LastMonthClosePrice') || '0');
+    const last3MonthsAgoClosePrice = parseFloat(getText('Last3MonthsAgoClosePrice') || '0');
+    const lastYearClosePrice = parseFloat(getText('LastYearClosePrice') || '0');
+    const last3YearsAgoClosePrice = parseFloat(getText('Last3YearsAgoClosePrice') || '0');
 
-    const tickerData: TickerData = { 
-      price, 
-      name: nameEnNode?.textContent || undefined,
-      name_he: nameHeNode?.textContent || undefined,
-      currency: currency || undefined,
-      exchange: exchange.toUpperCase(),
+    const calculatePctChange = (current: number, previous: number) => {
+      if (!previous) return 0;
+      return (current - previous) / previous;
+    };
+
+    const changePct = percentageChange / 100;
+    const changePctYtd = percentageChangeYear; 
+    const changePct1w = calculatePctChange(last, lastWeekClosePrice);
+    const changePct1m = calculatePctChange(last, lastMonthClosePrice);
+    const changePct3m = calculatePctChange(last, last3MonthsAgoClosePrice);
+    const changePct1y = calculatePctChange(last, lastYearClosePrice);
+    const changePct3y = calculatePctChange(last, last3YearsAgoClosePrice);
+
+    const priceUnit = currency === 'ILS' ? 'agorot' : 'base';
+
+    const tickerData: TickerData = {
+      price: last,
+      openPrice,
+      name: name_en || undefined,
+      name_he: name_he || undefined,
+      currency,
+      exchange,
       changePct,
       priceUnit,
-      timestamp: now
+      timestamp: timestamp ? new Date(timestamp).valueOf() : now,
+      sector: sector || undefined,
+      changePctYtd,
+      changePct1w,
+      changePct1m,
+      changePct3m,
+      changePct1y,
+      changePct3y,
+      changePct5y: 0, // Not available in API
+      changePct10y: 0, // Not available in API
     };
     
     console.log(`Globes: Fetched data for ${ticker}:`, tickerData);
@@ -200,6 +226,7 @@ async function fetchYahooStock(ticker: string, signal?: AbortSignal): Promise<Ti
 
     const meta = result.meta;
     const price = meta.regularMarketPrice;
+    const openPrice = meta.chartPreviousClose; // Yahoo sometimes has regularMarketOpen, but chartPreviousClose is more reliable for daily open
     const currency = meta.currency;
     const exchangeCode = meta.exchangeName;
     const exchangeName = YAHOO_EXCHANGE_MAP[exchangeCode] || exchangeCode;
@@ -219,6 +246,7 @@ async function fetchYahooStock(ticker: string, signal?: AbortSignal): Promise<Ti
 
     const tickerData: TickerData = {
         price,
+        openPrice,
         name: longName,
         currency,
         exchange: exchangeName,
@@ -313,9 +341,10 @@ export async function getTickerData(ticker: string, exchange?: string, signal?: 
     // If exchange is specified, use the dedicated fetch function
     if (exchangeL === 'tase') {
       return fetchGlobesStock(ticker, 'tase', signal);
+    } else {
+      // Default to Yahoo for other specified exchanges like NASDAQ, NYSE, etc.
+      return fetchYahooStock(ticker, signal);
     }
-    // Default to Yahoo for other specified exchanges
-    return fetchYahooStock(ticker, signal);
   } else {
     // AUTO MODE: Try to deduce and fetch
     const isNumeric = /\d/.test(ticker);

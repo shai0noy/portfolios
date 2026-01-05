@@ -1,5 +1,5 @@
 // src/lib/taseApi.ts
-import { fetchXml, parseXmlString, extractDataFromXmlNS } from './xmlParser';
+import { fetchXml, parseXmlString, extractDataFromXmlNS, getTextContent } from './xmlParser';
 
 const TASE_API_BASE_URL = 'https://www.globes.co.il/data/webservices/financial.asmx';
 const TASE_API_NAMESPACE = 'http://financial.globes.co.il/';

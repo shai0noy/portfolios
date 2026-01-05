@@ -49,6 +49,18 @@ export function extractDataFromXmlNS<T>(
 }
 
 /**
+ * Helper function to get the text content of the first element matching the tag and namespace.
+ * @param element The parent element to search within.
+ * @param tagName The local name of the tag.
+ * @param namespace The namespace URI.
+ * @returns The text content or null if not found.
+ */
+export function getTextContent(element: Element | Document, tagName: string, namespace: string | null = null): string | null {
+    const els = namespace ? element.getElementsByTagNameNS(namespace, tagName) : element.getElementsByTagName(tagName);
+    return els && els.length > 0 ? els[0].textContent : null;
+}
+
+/**
  * Fetches XML from a given URL, optionally using a proxy.
  * @param url The URL to fetch.
  * @param signal AbortSignal for canceling the fetch.

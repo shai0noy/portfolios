@@ -4,9 +4,11 @@ import type { Portfolio, Transaction, Holding } from './types';
 import { ensureGapi, signIn } from './google';
 import { getTickerData } from './dataFetcher';
 
+const DEFAULT_SHEET_NAME = 'Portfolios_App_Data';
+
 // --- Canonical Headers & Ranges ---
 
-const portfolioHeaders = ['Portfolio_ID', 'Display_Name', 'Cap_Gains_Tax_%', 'Income_Tax_Vest_%', 'Mgmt_Fee_Val', 'Mgmt_Type', 'Mgmt_Freq', 'Comm_Rate_%', 'Comm_Min', 'Comm_Max_Fee', 'Currency', 'Div_Policy', 'Div_Comm_Rate_%'] as const;
+const portfolioHeaders = ['Portfolio_ID', 'Display_Name', 'Cap_Gains_Tax_%', 'Income_Tax_Vest_%', 'Mgmt_Fee_Val', 'Mgmt_Type', 'Mgmt_Freq', 'Comm_Rate_%', 'Comm_Min', 'Comm_Max_Fee', 'Currency', 'Div_Policy', 'Div_Comm_Rate_%', 'Tax_Policy'] as const;
 const transactionHeaders = ['Date', 'Portfolio', 'Ticker', 'Exchange', 'Type', 'Qty', 'Price', 'Currency', 'Vesting_Date', 'Comments', 'Commission', 'Tax %'] as const;
 
 const holdingsHeaders = [
@@ -66,7 +68,7 @@ const portfolioMapping: Record<keyof Omit<Portfolio, 'holdings'>, typeof portfol
     id: 'Portfolio_ID', name: 'Display_Name', cgt: 'Cap_Gains_Tax_%', incTax: 'Income_Tax_Vest_%',
     mgmtVal: 'Mgmt_Fee_Val', mgmtType: 'Mgmt_Type', mgmtFreq: 'Mgmt_Freq', commRate: 'Comm_Rate_%',
     commMin: 'Comm_Min', commMax: 'Comm_Max_Fee', currency: 'Currency', divPolicy: 'Div_Policy',
-    divCommRate: 'Div_Comm_Rate_%',
+    divCommRate: 'Div_Comm_Rate_%', taxPolicy: 'Tax_Policy'
 };
 const portfolioNumericKeys: (keyof Omit<Portfolio, 'holdings'>)[] = ['cgt', 'incTax', 'mgmtVal', 'commRate', 'commMin', 'commMax', 'divCommRate'];
 
@@ -252,6 +254,66 @@ export const fetchTransactions = async (spreadsheetId: string): Promise<Transact
     return transactions.map(t => ({...t, grossValue: t.qty * t.price}));
 };
 
+export const getSpreadsheet = (): string | null => {
+    return localStorage.getItem('g_sheet_id');
+};
+
+export const createPortfolioSpreadsheet = async (title: string = DEFAULT_SHEET_NAME): Promise<string | null> => {
+    await ensureGapi();
+    try {
+        const spreadsheet = await window.gapi.client.sheets.spreadsheets.create({
+            properties: {
+                title: title,
+            },
+        });
+        const spreadsheetId = spreadsheet.result.spreadsheetId;
+        if (spreadsheetId) {
+            await ensureSchema(spreadsheetId);
+        }
+        return spreadsheetId;
+    } catch (error) {
+        console.error("Error creating spreadsheet:", error);
+        return null;
+    }
+};
+
+export const createEmptySpreadsheet = async (title: string): Promise<string | null> => {
+    await ensureGapi();
+    try {
+        const spreadsheet = await window.gapi.client.sheets.spreadsheets.create({
+            properties: { title }
+        });
+        const newSpreadsheetId = spreadsheet.result.spreadsheetId;
+        return newSpreadsheetId;
+    } catch (error) {
+        console.error('Error creating empty spreadsheet:', error);
+        return null;
+    }
+};
+
+export const fetchHolding = async (spreadsheetId: string, ticker: string, exchange: string): Promise<Holding | null> => {
+    await ensureGapi();
+    try {
+        const res = await window.gapi.client.sheets.spreadsheets.values.get({
+            spreadsheetId,
+            range: HOLDINGS_RANGE,
+        });
+        const rows = res.result.values || [];
+        const tickerIndex = holdingsHeaders.indexOf('Ticker');
+        const exchangeIndex = holdingsHeaders.indexOf('Exchange');
+
+        const holdingRow = rows.find(row => row[tickerIndex] === ticker.toUpperCase() && row[exchangeIndex] === exchange.toUpperCase());
+
+        if (holdingRow) {
+            return mapRowToHolding<Holding>(holdingRow, holdingMapping, holdingNumericKeys);
+        }
+        return null;
+    } catch (error) {
+        console.error(`Error fetching holding for ${ticker}:${exchange}:`, error);
+        return null;
+    }
+}; 
+
 // --- Data Writing Functions ---
 
 export const addPortfolio = async (spreadsheetId: string, p: Portfolio) => {
@@ -378,9 +440,10 @@ export const rebuildHoldingsSheet = async (spreadsheetId: string) => {
         row[6] = `=${qtyCell}*${priceCell}`; // Total Holding Value
         row[7] = meta?.name || `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "name"), "")`; // Name_En
         row[8] = meta?.name_he || ""; // Name_He
-        row[9] = `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "sector"), "Other")`; // Sector
+        row[9] = meta?.sector || `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "sector"), "Other")`; // Sector
         row[10] = meta?.priceUnit || ""; // Price_Unit
         row[11] = meta?.changePct || `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "changepct")/100, 0)`; // Day_Change
+        // Performance Columns - Always write formulas
         row[12] = `=IFERROR((${priceCell}/INDEX(GOOGLEFINANCE(${tickerAndExchange}, "close", TODAY()-7),2,2))-1, "")`; // Change_1W
         row[13] = `=IFERROR((${priceCell}/INDEX(GOOGLEFINANCE(${tickerAndExchange}, "close", EDATE(TODAY(),-1)),2,2))-1, "")`; // Change_1M
         row[14] = `=IFERROR((${priceCell}/INDEX(GOOGLEFINANCE(${tickerAndExchange}, "close", EDATE(TODAY(),-3)),2,2))-1, "")`; // Change_3M
@@ -487,10 +550,10 @@ export async function setMetadataValue(spreadsheetId: string, key: string, value
     }
 }
 
-export async function exportToSheet(spreadsheetId: string, sheetName: string, headers: string[], data: any[][]) {
+export async function exportToSheet(spreadsheetId: string, sheetName: string, headers: string[], data: any[][]): Promise<number> {
     await ensureGapi();
     
-    await getSheetId(spreadsheetId, sheetName, true);
+    const sheetId = await getSheetId(spreadsheetId, sheetName, true);
 
     await window.gapi.client.sheets.spreadsheets.values.clear({
         spreadsheetId,
@@ -505,6 +568,8 @@ export async function exportToSheet(spreadsheetId: string, sheetName: string, he
         valueInputOption: 'USER_ENTERED',
         resource: { values }
     });
+
+    return sheetId;
 }
 
 // Populate the spreadsheet with 3 sample portfolios and several transactions each
@@ -514,9 +579,9 @@ export const populateTestData = async (spreadsheetId: string) => {
   try { await ensureSchema(spreadsheetId); } catch (e) { console.error("Schema creation failed", e) }
 
   const portfolios: Portfolio[] = [
-    { id: 'P-IL-GROWTH', name: 'Growth ILS', cgt: 0.25, incTax: 0, mgmtVal: 0, mgmtType: 'percentage', mgmtFreq: 'yearly', commRate: 0.001, commMin: 5, commMax: 0, currency: 'ILS', divPolicy: 'cash_taxed', divCommRate: 0 },
-    { id: 'P-USD-CORE', name: 'Core USD', cgt: 0.25, incTax: 0, mgmtVal: 0, mgmtType: 'percentage', mgmtFreq: 'yearly', commRate: 0, commMin: 0, commMax: 0, currency: 'USD', divPolicy: 'cash_taxed', divCommRate: 0 },
-    { id: 'P-RSU', name: 'RSU Account', cgt: 0.25, incTax: 0.5, mgmtVal: 0, mgmtType: 'percentage', mgmtFreq: 'yearly', commRate: 0, commMin: 0, commMax: 0, currency: 'USD', divPolicy: 'hybrid_rsu', divCommRate: 0 }
+    { id: 'P-IL-GROWTH', name: 'Growth ILS', cgt: 0.25, incTax: 0, mgmtVal: 0, mgmtType: 'percentage', mgmtFreq: 'yearly', commRate: 0.001, commMin: 5, commMax: 0, currency: 'ILS', divPolicy: 'cash_taxed', divCommRate: 0, taxPolicy: 'REAL_GAIN' },
+    { id: 'P-USD-CORE', name: 'Core USD', cgt: 0.25, incTax: 0, mgmtVal: 0, mgmtType: 'percentage', mgmtFreq: 'yearly', commRate: 0, commMin: 0, commMax: 0, currency: 'USD', divPolicy: 'cash_taxed', divCommRate: 0, taxPolicy: 'NOMINAL_GAIN' },
+    { id: 'P-RSU', name: 'RSU Account', cgt: 0.25, incTax: 0.5, mgmtVal: 0, mgmtType: 'percentage', mgmtFreq: 'yearly', commRate: 0, commMin: 0, commMax: 0, currency: 'USD', divPolicy: 'hybrid_rsu', divCommRate: 0, taxPolicy: 'NOMINAL_GAIN' }
   ];
 
   for (const p of portfolios) {

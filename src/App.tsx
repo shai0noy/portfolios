@@ -8,15 +8,18 @@ import { ImportCSV } from './components/ImportCSV';
 import { TickerDetails } from './components/TickerDetails'; // Import TickerDetails
 import { ensureSchema, populateTestData, fetchTransactions, rebuildHoldingsSheet } from './lib/sheets';
 import { initGoogleClient, refreshToken, signOut } from './lib/google';
-import { Box, AppBar, Toolbar, Typography, Container, Tabs, Tab, IconButton, Tooltip, CircularProgress, ThemeProvider, CssBaseline } from '@mui/material';
+import { Box, AppBar, Toolbar, Typography, Container, Tabs, Tab, IconButton, Tooltip, CircularProgress, ThemeProvider, CssBaseline, Menu, MenuItem, Snackbar, Alert, ListItemIcon, ListItemText, Button } from '@mui/material';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import BuildIcon from '@mui/icons-material/Build';
 import LogoutIcon from '@mui/icons-material/Logout';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
+import MenuIcon from '@mui/icons-material/Menu';
 import { getTheme } from './theme';
+import { exportDashboardData } from './lib/exporter';
 
 const tabMap: Record<string, number> = {
   '/dashboard': 0,
@@ -31,7 +34,10 @@ const reverseTabMap: Record<number, string> = {
 };
 
 function App() {
-  const [sheetId, setSheetId] = useState<string | null>(localStorage.getItem('g_sheet_id'));
+  const [sheetId, setSheetId] = useState<string | null>(() => {
+    const saved = localStorage.getItem('g_sheet_id');
+    return saved === 'null' ? null : saved;
+  });
   const [refreshKey, setRefreshKey] = useState(0); // Trigger to reload data
   const [googleReady, setGoogleReady] = useState<boolean | null>(null);
   const [importOpen, setImportOpen] = useState(false);
@@ -125,129 +131,273 @@ function App() {
     return () => { mounted = false; };
   }, []);
 
-  useEffect(() => {
-    if (!sheetId || !googleReady) return;
+  const [exportMenuAnchorElApp, setExportMenuAnchorElApp] = useState<null | HTMLElement>(null);
+  const [exportInProgress, setExportInProgress] = useState(false);
 
-    const checkToken = async () => {
-      const savedExpiry = localStorage.getItem('g_expires');
-      if (savedExpiry) {
-        const expiryTime = parseInt(savedExpiry);
-        const bufferMs = 15 * 60 * 1000; // 15 minutes buffer
-        if (Date.now() > expiryTime - bufferMs) {
-          console.log('Token nearing expiration, attempting silent refresh...');
-          try {
-            await refreshToken();
-            console.log('Token refreshed successfully.');
-          } catch (e) {
-            console.warn('Periodic silent token refresh failed.', e);
-            // Optionally handle logout if refresh persistently fails
-            // handleLogout();
-          }
-        }
-      }
-    };
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [snackbarSeverity, setSnackbarSeverity] = useState<'success' | 'error' | 'info'>('info');
+  const [snackbarAction, setSnackbarAction] = useState<React.ReactNode | null>(null);
 
-    checkToken(); // Initial check
-    const intervalId = setInterval(checkToken, 10 * 60 * 1000); // Check every 10 minutes
+  const [mobileMoreAnchorEl, setMobileMoreAnchorEl] = useState<null | HTMLElement>(null);
+  const isMobileMenuOpen = Boolean(mobileMoreAnchorEl);
 
-    return () => clearInterval(intervalId);
-  }, [sheetId, googleReady]);
+  const handleMobileMenuClose = () => {
+    setMobileMoreAnchorEl(null);
+  };
+
+  const handleMobileMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    setMobileMoreAnchorEl(event.currentTarget);
+  };
+
+  const handleSnackbarClose = (_?: any, reason?: string) => {
+    if (reason === 'clickaway') return;
+    setSnackbarOpen(false);
+    setSnackbarAction(null); // Clear action on close
+  };
+
+  const mobileMenuId = 'primary-search-account-menu-mobile';
+  const renderMobileMenu = (
+    <Menu
+      anchorEl={mobileMoreAnchorEl}
+      anchorOrigin={{
+        vertical: 'top',
+        horizontal: 'right',
+      }}
+      id={mobileMenuId}
+      keepMounted
+      transformOrigin={{
+        vertical: 'top',
+        horizontal: 'right',
+      }}
+      open={isMobileMenuOpen}
+      onClose={handleMobileMenuClose}
+    >
+      <MenuItem onClick={toggleColorMode}>
+        <ListItemIcon>
+          {mode === 'dark' ? <Brightness7Icon fontSize="small" /> : <Brightness4Icon fontSize="small" />}
+        </ListItemIcon>
+        <ListItemText>Switch Theme</ListItemText>
+      </MenuItem>
+      <MenuItem onClick={() => { setImportOpen(true); handleMobileMenuClose(); }}>
+        <ListItemIcon>
+          <CloudUploadIcon fontSize="small" />
+        </ListItemIcon>
+        <ListItemText>Import Transactions</ListItemText>
+      </MenuItem>
+      <MenuItem onClick={(e) => { setExportMenuAnchorElApp(e.currentTarget); handleMobileMenuClose(); }}>
+        <ListItemIcon>
+          <FileDownloadIcon fontSize="small" />
+        </ListItemIcon>
+        <ListItemText>Export Data</ListItemText>
+      </MenuItem>
+      <MenuItem onClick={() => { openSheet(); handleMobileMenuClose(); }}>
+        <ListItemIcon>
+          <OpenInNewIcon fontSize="small" />
+        </ListItemIcon>
+        <ListItemText>Open Google Sheet</ListItemText>
+      </MenuItem>
+      <MenuItem onClick={() => { handleSetupSheet(); handleMobileMenuClose(); }} disabled={rebuilding}>
+        <ListItemIcon>
+          {rebuilding ? <CircularProgress size={20} /> : <BuildIcon fontSize="small" />}
+        </ListItemIcon>
+        <ListItemText>Setup Sheet</ListItemText>
+      </MenuItem>
+      <MenuItem onClick={() => { handleLogout(); handleMobileMenuClose(); }}>
+        <ListItemIcon>
+          <LogoutIcon fontSize="small" />
+        </ListItemIcon>
+        <ListItemText>Logout</ListItemText>
+      </MenuItem>
+    </Menu>
+  );
 
   if (googleReady === null) {
     return <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh"><CircularProgress /></Box>;
   }
 
-  const content = !sheetId || googleReady === false ? (
-    <Login onLogin={handleLogin} />
-  ) : (
-    <Box sx={{ flexGrow: 1, minHeight: '100vh', bgcolor: 'background.default' }}>
-      <AppBar position="static" color="inherit" elevation={0} sx={{ borderBottom: 1, borderColor: 'divider' }}>
-        <Toolbar>
-          <AccountBalanceWalletIcon sx={{ color: 'primary.main', mr: 1.5 }} />
-          <Typography variant="h5" component="div" sx={{ flexGrow: 0, color: 'text.primary', fontWeight: 700, letterSpacing: '-0.5px', mr: 4 }}>
-            My Portfolios
-          </Typography>
-          
-          <Tabs value={currentTab} onChange={handleTabChange} textColor="primary" indicatorColor="primary" sx={{ flexGrow: 1 }}>
-            <Tab label="Dashboard" sx={{ textTransform: 'none', fontSize: '1rem', minHeight: 64 }} component={RouterLink} to="/dashboard" />
-            <Tab label="Add Trade" sx={{ textTransform: 'none', fontSize: '1rem', minHeight: 64 }} component={RouterLink} to="/transaction" />
-            <Tab label="Manage Portfolios" sx={{ textTransform: 'none', fontSize: '1rem', minHeight: 64 }} component={RouterLink} to="/portfolios" />
-          </Tabs>
-
-          <Box display="flex" gap={1}>
-             <Tooltip title="Switch Theme">
-              <IconButton onClick={toggleColorMode} size="small" sx={{ color: 'text.secondary' }}>
-                {mode === 'dark' ? <Brightness7Icon fontSize="small" /> : <Brightness4Icon fontSize="small" />}
-              </IconButton>
-            </Tooltip>
-
-             <Tooltip title="Import Transactions (CSV)">
-              <IconButton onClick={() => setImportOpen(true)} size="small" sx={{ color: 'text.secondary' }}>
-                <FileDownloadIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-
-            {typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && (
-              <Tooltip title="Populate test data (localhost only)">
-                <IconButton onClick={handlePopulateTestData} size="small" sx={{ color: 'text.disabled', opacity: 0.15 }}>
-                  <BuildIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-            )}
-             <Tooltip title="Open Google Sheet">
-              <IconButton onClick={openSheet} size="small" sx={{ color: 'text.secondary' }}>
-                <OpenInNewIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-
-            <Tooltip title="Setup Sheet (Reset Schema & Rebuild Live Data)">
-              <IconButton onClick={handleSetupSheet} size="small" sx={{ color: 'text.secondary' }} disabled={rebuilding}>
-                 {rebuilding ? <CircularProgress size={20} /> : <BuildIcon fontSize="small" />}
-              </IconButton>
-            </Tooltip>
-            
-             <Tooltip title="Logout">
-              <IconButton onClick={handleLogout} size="small" sx={{ color: 'text.secondary' }}>
-                <LogoutIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          </Box>
-        </Toolbar>
-      </AppBar>
-      
-      <Container maxWidth="xl" sx={{ mt: 5, pb: 8 }}>
-        <Box sx={{ display: currentTab === 0 ? 'block' : 'none' }}>
-          <Dashboard sheetId={sheetId} key={refreshKey} />
-        </Box>
-        <Box sx={{ display: currentTab === 1 ? 'block' : 'none' }}>
-          <TransactionForm sheetId={sheetId} key={refreshKey} />
-        </Box>
-
-        {/* Routes for components that should not be hidden, but mounted on navigation */}
-        <Routes>
-          <Route path="/dashboard" element={null} /> {/* Dummy route */}
-          <Route path="/transaction" element={null} /> {/* Dummy route */}
-          <Route path="/portfolios" element={<PortfolioManager sheetId={sheetId} onSuccess={() => setRefreshKey(k => k + 1)} />} />
-          <Route path="/portfolios/:portfolioId" element={<PortfolioManager sheetId={sheetId} onSuccess={() => setRefreshKey(k => k + 1)} />} />
-          <Route path="/ticker/:exchange/:ticker" element={<TickerDetails />} />
-        </Routes>
-      </Container>
-
-      {importOpen && (
-        <ImportCSV 
-          sheetId={sheetId} 
-          open={importOpen} 
-          onClose={() => setImportOpen(false)} 
-          onSuccess={() => { setRefreshKey(k => k + 1); setImportOpen(false); }} 
-        />
-      )}
-    </Box>
-  );
+  if (!sheetId || googleReady === false) {
+    return <Login onLogin={handleLogin} />;
+  }
 
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      {content}
+      <Box sx={{ flexGrow: 1, minHeight: '100vh', bgcolor: 'background.default' }}>
+        <AppBar position="static" color="inherit" elevation={0} sx={{ borderBottom: 1, borderColor: 'divider' }}>
+          <Toolbar sx={{ flexWrap: { xs: 'wrap', sm: 'nowrap' }, gap: { xs: 1, sm: 0 } }}>
+            <AccountBalanceWalletIcon sx={{ color: 'primary.main', mr: 1.5 }} />
+            <Typography variant="h5" component="div" sx={{ flexGrow: 0, flexShrink: 1, minWidth: 0, color: 'text.primary', fontWeight: 700, letterSpacing: '-0.5px', mr: { xs: 1, sm: 4 }, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: { xs: 140, sm: 'none' } }}>
+              My Portfolios
+            </Typography>
+            
+            <Tabs value={currentTab} onChange={handleTabChange} textColor="primary" indicatorColor="primary" variant="scrollable" scrollButtons="auto" allowScrollButtonsMobile sx={{ flexGrow: 1, minWidth: 0 }}>
+              <Tab label="Dashboard" sx={{ textTransform: 'none', fontSize: { xs: '0.9rem', sm: '1rem' }, minHeight: 64, minWidth: 64 }} component={RouterLink} to="/dashboard" />
+              <Tab label="Add Trade" sx={{ textTransform: 'none', fontSize: { xs: '0.9rem', sm: '1rem' }, minHeight: 64, minWidth: 64 }} component={RouterLink} to="/transaction" />
+              <Tab label="Manage Portfolios" sx={{ textTransform: 'none', fontSize: { xs: '0.9rem', sm: '1rem' }, minHeight: 64, minWidth: 80 }} component={RouterLink} to="/portfolios" />
+            </Tabs>
+
+            <Box sx={{ display: { xs: 'flex', md: 'none' } }}>
+              <IconButton
+                size="large"
+                aria-label="show more"
+                aria-controls={mobileMenuId}
+                aria-haspopup="true"
+                onClick={handleMobileMenuOpen}
+                color="inherit"
+              >
+                <MenuIcon />
+              </IconButton>
+            </Box>
+
+            <Box display="flex" gap={1} sx={{ display: { xs: 'none', md: 'flex' }, flexShrink: 0, alignItems: 'center' }}>
+               <Tooltip title="Switch Theme">
+                <IconButton onClick={toggleColorMode} size="small" sx={{ color: 'text.secondary' }}>
+                  {mode === 'dark' ? <Brightness7Icon fontSize="small" /> : <Brightness4Icon fontSize="small" />}
+                </IconButton>
+              </Tooltip>
+
+               <Tooltip title="Import Transactions via CSV">
+                <IconButton onClick={() => setImportOpen(true)} size="small" sx={{ color: 'text.secondary' }}>
+                  <CloudUploadIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+
+              <Tooltip title="Export data (CSV / Google Sheet)">
+                <IconButton onClick={(e) => setExportMenuAnchorElApp(e.currentTarget)} size="small" sx={{ color: 'text.secondary' }}>
+                  {exportInProgress ? <CircularProgress size={18} /> : <FileDownloadIcon fontSize="small" />}
+                </IconButton>
+              </Tooltip>
+
+              {typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && (
+                <Tooltip title="Populate test data (localhost only)">
+                  <IconButton onClick={handlePopulateTestData} size="small" sx={{ color: 'text.disabled', opacity: 0.15 }}>
+                    <BuildIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              )}
+               <Tooltip title="Open Google Sheet">
+                <IconButton onClick={openSheet} size="small" sx={{ color: 'text.secondary' }}>
+                  <OpenInNewIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+
+              <Tooltip title="Setup Sheet (Reset Schema & Rebuild Live Data)">
+                <IconButton onClick={handleSetupSheet} size="small" sx={{ color: 'text.secondary' }} disabled={rebuilding}>
+                   {rebuilding ? <CircularProgress size={20} /> : <BuildIcon fontSize="small" />}
+                </IconButton>
+              </Tooltip>
+              
+               <Tooltip title="Logout">
+                <IconButton onClick={handleLogout} size="small" sx={{ color: 'text.secondary' }}>
+                  <LogoutIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </Box>
+          </Toolbar>
+        </AppBar>
+        {renderMobileMenu}
+
+        <Menu
+          id="app-export-menu"
+          anchorEl={exportMenuAnchorElApp}
+          open={Boolean(exportMenuAnchorElApp)}
+          onClose={() => setExportMenuAnchorElApp(null)}
+        >
+          <MenuItem disabled={exportInProgress} onClick={() => {
+            setExportMenuAnchorElApp(null);
+            setExportInProgress(true);
+            exportDashboardData({ type: 'holdings', format: 'csv', sheetId, setLoading: setExportInProgress, onSuccess: (msg) => { setSnackbarMessage(msg); setSnackbarSeverity('success'); setSnackbarOpen(true); setExportInProgress(false); }, onError: (msg) => { setSnackbarMessage(msg); setSnackbarSeverity('error'); setSnackbarOpen(true); setExportInProgress(false); } });
+          }}>Holdings (CSV)</MenuItem>
+          <MenuItem disabled={exportInProgress} onClick={() => {
+            setExportMenuAnchorElApp(null);
+            setExportInProgress(true);
+            exportDashboardData({
+              type: 'holdings', format: 'sheet', sheetId, setLoading: setExportInProgress, 
+              onSuccess: (msg, url) => {
+                setSnackbarMessage(msg);
+                setSnackbarSeverity('success');
+                setSnackbarAction(<Button color="inherit" size="small" onClick={() => window.open(url, '_blank')}>Open Sheet</Button>);
+                setSnackbarOpen(true);
+                setExportInProgress(false); 
+              },
+              onError: (msg) => { setSnackbarMessage(msg); setSnackbarSeverity('error'); setSnackbarAction(null); setSnackbarOpen(true); setExportInProgress(false); }
+            });
+          }}>Holdings (Google Sheet)</MenuItem>
+          <MenuItem disabled={exportInProgress} onClick={() => {
+            setExportMenuAnchorElApp(null);
+            setExportInProgress(true);
+            exportDashboardData({ type: 'transactions', format: 'csv', sheetId, setLoading: setExportInProgress, onSuccess: (msg) => { setSnackbarMessage(msg); setSnackbarSeverity('success'); setSnackbarOpen(true); setExportInProgress(false); }, onError: (msg) => { setSnackbarMessage(msg); setSnackbarSeverity('error'); setSnackbarOpen(true); setExportInProgress(false); } });
+          }}>Transactions (CSV)</MenuItem>
+          <MenuItem disabled={exportInProgress} onClick={() => {
+            setExportMenuAnchorElApp(null);
+            setExportInProgress(true);
+            exportDashboardData({
+              type: 'transactions', format: 'sheet', sheetId, setLoading: setExportInProgress, 
+              onSuccess: (msg, url) => {
+                setSnackbarMessage(msg);
+                setSnackbarSeverity('success');
+                setSnackbarAction(<Button color="inherit" size="small" onClick={() => window.open(url, '_blank')}>Open Sheet</Button>);
+                setSnackbarOpen(true);
+                setExportInProgress(false); 
+              },
+              onError: (msg) => { setSnackbarMessage(msg); setSnackbarSeverity('error'); setSnackbarAction(null); setSnackbarOpen(true); setExportInProgress(false); }
+            });
+          }}>Transactions (Google Sheet)</MenuItem>
+          <MenuItem disabled={exportInProgress} onClick={() => {
+            setExportMenuAnchorElApp(null);
+            setExportInProgress(true);
+            exportDashboardData({
+              type: 'both', format: 'sheet', sheetId, setLoading: setExportInProgress, 
+              onSuccess: (msg, url) => {
+                setSnackbarMessage(msg);
+                setSnackbarSeverity('success');
+                setSnackbarAction(<Button color="inherit" size="small" onClick={() => window.open(url, '_blank')}>Open Sheet</Button>);
+                setSnackbarOpen(true);
+                setExportInProgress(false); 
+              },
+              onError: (msg) => { setSnackbarMessage(msg); setSnackbarSeverity('error'); setSnackbarAction(null); setSnackbarOpen(true); setExportInProgress(false); }
+            });
+          }}>Export transactions & holdings (to Sheet)</MenuItem>
+        </Menu>
+        
+        <Container maxWidth="xl" sx={{ mt: 5, pb: 8 }}>
+          {sheetId && (
+            <>
+              <Box sx={{ display: currentTab === 0 ? 'block' : 'none' }}>
+                <Dashboard sheetId={sheetId} key={refreshKey} />
+              </Box>
+              <Box sx={{ display: currentTab === 1 ? 'block' : 'none' }}>
+                <TransactionForm sheetId={sheetId} key={refreshKey} />
+              </Box>
+      
+              {/* Routes for components that should not be hidden, but mounted on navigation */}
+              <Routes>
+                <Route path="/dashboard" element={null} /> {/* Dummy route */}
+                <Route path="/transaction" element={null} /> {/* Dummy route */}
+                <Route path="/portfolios" element={<PortfolioManager sheetId={sheetId} onSuccess={() => setRefreshKey(k => k + 1)} />} />
+                <Route path="/portfolios/:portfolioId" element={<PortfolioManager sheetId={sheetId} onSuccess={() => setRefreshKey(k => k + 1)} />} />
+                <Route path="/ticker/:exchange/:ticker" element={<TickerDetails sheetId={sheetId} />} />
+              </Routes>
+            </>
+          )}
+        </Container>
+  
+        {importOpen && (
+          <ImportCSV 
+            sheetId={sheetId} 
+            open={importOpen} 
+            onClose={() => setImportOpen(false)} 
+            onSuccess={() => { setRefreshKey(k => k + 1); setImportOpen(false); }} 
+          />
+        )}
+
+        <Snackbar open={snackbarOpen} autoHideDuration={10000} onClose={handleSnackbarClose}>
+          <Alert onClose={handleSnackbarClose} severity={snackbarSeverity} sx={{ width: '100%' }} action={snackbarAction}>
+            {snackbarMessage}
+          </Alert>
+        </Snackbar>
+      </Box>
     </ThemeProvider>
   );
 }
