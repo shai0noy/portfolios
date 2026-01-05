@@ -4,12 +4,9 @@ ON HOLD: Keep track of dividands since purchase! Add to sheet
 ON HOLD: Handle splits, etc, name changes
 ON HOLD: Support mobile screen sizes
 ON HOLD: Better ticker search - free text, multy options to select from
-Ticker view should show real % gains for 1d, 1w, 1m, 3m, 1,3,5y, ytd (currently UI Placeholders Added) - for global stock - fetch from Holdings sheet (see sheet.ts) - for TASE - fetch from globes - wrap both fetching in a common API with the logic split inside it
 Ticker view should show real divedand gains (%) for same ranges (currently UI Placeholders Added)
 Impl actual gain % values in header
-DONE: In the ticker view - The top title should be just the name in large font, then the subtitle will be the exchange and symbol/ticker in the current font of the exchange 
 Pass forceRefresh to getTickerData to bypass cache
-DONE: CSV imprt should fill in exchange ID - if not in CSV, must be manually entered - can assist user with deduction logic 
 There is web fetch logic in many fiels and components - should move them all to a single file handling fetching data.
 In the dashboard rows, IL stock prices show price in NIS annotated with "ag." price should be shown in agorot too
 In single ticker view mode, the base price is shown in NIS while the market proce is in agorot. Both should be in agorot
@@ -17,14 +14,14 @@ The state/metadata/config sheet should have an entry for the last "live data" re
 Dashboard header - fields should have both percent and absolute change - e.g. value after tax should metnion the percentage left, period change fields should have both value and percent
 Minimize Yahoo API calls - fetch data from cached "live data" sheet if possible
 in the dashboard summary, all chahnges other than day chnage should have smaller font and be placed on a line below
-When showing single ticker view, avoid calling apis to fetch data - use the one from the live data. When some live data is missing, only then try fetching. Clicking refesh should also prefer to load new data from the sheet first
 ON HOLD: Use Finhub or marketstack over yahoo if possible or in addition (will reuqire to guide use rto create API key and add it to spreadsheet as part of setup)
 ON HOLD: Dashbaord header - portfolio pct grow should take into account the the amount of stock and buy date etc
 ON HOLD: Dashbaord header - Add portfolio gain (value&pct) since date (1m,1y,3y,5y,all) taking into account revenue and add transactions since date
+Portfolio list - should show a tax policy name not key
+New portfolio UI - auto populate ID based on name - verify name chars are valid Uppercase a-z and - only
 
 Low priority:
 - Support switching display lang to Hebrew - should also affect stock names when avilable (with cookie to persist)
-- Add guide on importing CSV from yahoo near upload CSV wizard
 - Allow drag and drop CSV in wizard
 - Smart layer based tax calc (FIFO selling and per layer taxing)
 - Allow fetching Israeli price indecies (eg CPI) - https://api.cbs.gov.il/index/data/price?id=120010&format=json&download=false&startPeriod=01-2000&endPeriod=12-2019
@@ -34,106 +31,6 @@ Low priority:
 - Allow exporting CSV, sheet, holding sheet (flattaned)
 - ON HOLD: Use Gemini for anlysis and insight
 - ON HOLD: Forcast mode, where future txns, vesting are taken into account, and growth of holding is predicted based on custom uesr input or recent trends. Should also include taxes
-
-
-DONE: Super task: Create dataset of TASE tickers:
-- Use globes API to fetch the lists and join them
-- example url: https://www.globes.co.il/data/webservices/financial.asmx/listByType?exchange=tase&type=gov_generic
-- all avilable types and hebrew names for them are found here: 
-  <type>index</type>
-  <description>מדדים</description>
-  <quantity>141</quantity>
-  </Table1>
-  <Table1 diffgr:id="Table12" msdata:rowOrder="1" diffgr:hasChanges="inserted">
-  <type>makam</type>
-  <description>מק"מ</description>
-  <quantity>12</quantity>
-  </Table1>
-  <Table1 diffgr:id="Table13" msdata:rowOrder="2" diffgr:hasChanges="inserted">
-  <type>stock</type>
-  <description>מניות</description>
-  <quantity>3</quantity>
-  </Table1>
-  <Table1 diffgr:id="Table14" msdata:rowOrder="3" diffgr:hasChanges="inserted">
-  <type>gov_generic</type>
-  <description>אג"ח ממשלתי</description>
-  <quantity>18</quantity>
-  </Table1>
-  <Table1 diffgr:id="Table15" msdata:rowOrder="4" diffgr:hasChanges="inserted">
-  <type>bond_conversion</type>
-  <description>אג"ח להמרה</description>
-  <quantity>37</quantity>
-  </Table1>
-  <Table1 diffgr:id="Table16" msdata:rowOrder="5" diffgr:hasChanges="inserted">
-  <type>bond_ta</type>
-  <description>אג"ח</description>
-  <quantity>932</quantity>
-  </Table1>
-  <Table1 diffgr:id="Table17" msdata:rowOrder="6" diffgr:hasChanges="inserted">
-  <type>etf</type>
-  <description>תעודות סל</description>
-  <quantity>506</quantity>
-  </Table1>
-  <Table1 diffgr:id="Table18" msdata:rowOrder="7" diffgr:hasChanges="inserted">
-  <type>fund</type>
-  <description>קרנות נאמנות</description>
-  <quantity>2614</quantity>
-  </Table1>
-  <Table1 diffgr:id="Table19" msdata:rowOrder="8" diffgr:hasChanges="inserted">
-  <type>option_ta</type>
-  <description>כתבי אופציה</description>
-  <quantity>69</quantity>
-  </Table1>
-  <Table1 diffgr:id="Table110" msdata:rowOrder="9" diffgr:hasChanges="inserted">
-  <type>option_maof</type>
-  <description>אופציות מעו"ף</description>
-  <quantity>765</quantity>
-  </Table1>
-  <Table1 diffgr:id="Table111" msdata:rowOrder="10" diffgr:hasChanges="inserted">
-  <type>option_other</type>
-  <description>נגזרים אחרים</description>
-  <quantity>10451</quantity>
-  </Table1>
-  <Table1 diffgr:id="Table112" msdata:rowOrder="11" diffgr:hasChanges="inserted">
-  <type>stock</type>
-  <description>מניות</description>
-  <quantity>548</quantity>
-- Code should be able to fetch from all, but each type should have a flag to set if fetching it is enabled.
-- Each such fetch should be cached for at least 5d!
-- example output:
-  <ArrayOfAnyType xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://financial.globes.co.il/">
-  <anyType xsi:type="Instrument" feeder="0">
-  <symbol>GB092602</symbol>
-  <name_he>ממשלתי גנרית שקלית מח"מ 2</name_he>
-  <name_en>GOV GENERIC ILS DUR 2</name_en>
-  <instrumentId>262650</instrumentId>
-  </anyType>
-  <anyType xsi:type="Instrument" feeder="0">
-  <symbol>GB092602Y</symbol>
-  <name_he>ממשלתי גנרי שיקלית בשנים 2</name_he>
-  <name_en>GOV GENERIC ILS BY YEARS 2</name_en>
-  <instrumentId>297313</instrumentId>
-  </anyType>
-  <anyType xsi:type="Instrument" feeder="0">
-  <symbol>GB092605</symbol>
-  <name_he>ממשלתי גנרית שקלית מח"מ 5</name_he>
-  <name_en>GOV GENERIC ILS DUR 5</name_en>
-  <instrumentId>262651</instrumentId>
-  </anyType>
-  <anyType xsi:type="Instrument" feeder="0">
-  <symbol>GB092605Y</symbol>
-  <name_he>ממשלתי גנרי שיקלית בשנים 5</name_he>
-  <name_en>GOV GENERIC ILS BY YEARS 5</name_en>
-  <instrumentId>297314</instrumentId>
-  </anyType>
-  [...]
-- Merge all fetched results into a searchanble dataset, keep their type and names, symbol and ID. Ignore instrument ID and quantity fields
-DONE: Improve ticker search UI - it should now allow a smarter free search - currently if it is found in in the tase database - by en/he name or symbol (fuzzy search)
-DONE: Add symbol / chip to search results to indicate if it is already in any protfolio - perhaps with a tooltip to indicate which portfolios hold it. Also a chip for type along with the exchange one
-DONE: When clicking add transaction from ticker view - skip directly into adding a transaction for this ticker, skipping the search
-DONE: The state/metadata/config sheet should have an entry for the last "live data" rebuild time
-DONE: Minimize Yahoo API calls - fetch data from cached "Holdings" sheet if possible
-DONE: Rename Live_Data to Holdings
 
 DONE: Fix TS2322: Type '{ ..., sheetId: string; }' is not assignable to type 'IntrinsicAttributes & TableProps'. Property 'sheetId' does not exist on type 'IntrinsicAttributes & TableProps' in Dashboard.tsx (removed sheetId prop from DashboardTable call).
 DONE: Fix TS1484: 'TaseTicker' is a type and must be imported using a type-only import in ticker.ts.
