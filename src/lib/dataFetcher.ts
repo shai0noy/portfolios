@@ -81,15 +81,10 @@ async function fetchGlobesStock(ticker: string, exchange: string, signal?: Abort
     }
   }
 
-  const globesApiUrl = `https://www.globes.co.il/data/webservices/financial.asmx/getInstrument?exchange=${exchange}&symbol=${ticker}`;
-  const url = import.meta.env.DEV
-    ? `/api/globes/data/webservices/financial.asmx/getInstrument?exchange=${exchange}&symbol=${ticker}`
-    : `https://api.allorigins.win/raw?url=${encodeURIComponent(globesApiUrl)}`;
-  
-  
+  const globesApiUrl = `https://portfolios.noy-shai.workers.dev/?apiId=globes_data&exchange=${exchange}&ticker=${ticker}`;
   let text;
   try {
-     const response = await fetch(url, { signal });
+     const response = await fetch(globesApiUrl, { signal });
      if (!response.ok) {
         const errorBody = await response.text();
         console.error(`Globes fetch failed with status ${response.status}:`, errorBody);

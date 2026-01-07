@@ -20,6 +20,9 @@ ON HOLD: Dashbaord header - Add portfolio gain (value&pct) since date (1m,1y,3y,
 Portfolio list - should show a tax policy name not key
 New portfolio UI - auto populate ID based on name - verify name chars are valid Uppercase a-z and - only
 
+All yahoo calls shold use https://portfolios.noy-shai.workers.dev/?apiId=yahoo_hist&ticker=GOOG (replace GOOG, return val is the same) - without proxies
+
+
 Add column to Trasnactions "Source" - fill it only for imports with "CSV_Import_yyyymmdd_hhmm" 
 Add column to txns "Orig_Open_Price_At_Date" set to open price of the stock at the date of txn - NOT using a goog finance formula, but rather the open price at the date a known at time of writing
 Add column to txns "Split_Adj_Open_Price" - this is using a goog finance formula
