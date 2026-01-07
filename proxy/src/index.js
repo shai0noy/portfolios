@@ -1,6 +1,10 @@
 const API_MAP = {
   "yahoo_hist": "https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=3mo&range=max&events=split,div",
-  "globes_data": "https://www.globes.co.il/data/webservices/financial.asmx/getInstrument?exchange={exchange}&symbol={ticker}"
+  "globes_data": "https://www.globes.co.il/data/webservices/financial.asmx/getInstrument?exchange={exchange}&symbol={ticker}",
+  "globes_list": "https://www.globes.co.il/data/webservices/news.asmx/listByType?exchange={exchange}&type={type}",
+  "globes_exchange_state": "https://www.globes.co.il/data/webservices/financial.asmx/ExchangeState?exchange={exchange}",
+  "globes_get_exchanges": "https://www.globes.co.il/data/webservices/financial.asmx/getExchange",
+  "globes_get_exchanges_details": "https://www.globes.co.il/data/webservices/financial.asmx/GetExchangesDetails"
 };
 
 // Regex: English (a-z), Hebrew (א-ת), and symbols: , . : - ^ and space
@@ -48,11 +52,12 @@ export default {
     };
 
     try {
+      const referer = apiId.startsWith("globes") ? "https://www.globes.co.il/" : "https://finance.yahoo.com/";
       const response = await fetch(targetUrlString, {
         method: "GET",
         headers: {
           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-          "Referer": "https://finance.yahoo.com/",
+          "Referer": referer,
           "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,mobile/v1,*/*;q=0.8",
           "Accept-Language": "en-US,en;q=0.5",
         },
