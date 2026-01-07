@@ -20,6 +20,16 @@ ON HOLD: Dashbaord header - Add portfolio gain (value&pct) since date (1m,1y,3y,
 Portfolio list - should show a tax policy name not key
 New portfolio UI - auto populate ID based on name - verify name chars are valid Uppercase a-z and - only
 
+Add column to Trasnactions "Source" - fill it only for imports with "CSV_Import_yyyymmdd_hhmm" 
+Add column to txns "Orig_Open_Price_At_Date" set to open price of the stock at the date of txn - NOT using a goog finance formula, but rather the open price at the date a known at time of writing
+Add column to txns "Split_Adj_Open_Price" - this is using a goog finance formula
+Add column to txns "Split_Ratio" = Orig_Open_Price_At_Date / split_adj_open_price  -> using dynamic formula
+Add column to txns "Split_Adjusted_Price" = Price / Split_Ratio -> using dynamic formula
+Add column to txns "Split_Adjusted_Qty" = Price * Split_Ratio -> using dynamic formula
+Rename Trasnactions column Price to Original_Price
+Rename Trasnactions column Qty to Original_Qty
+All current logic that reads qty/price should use the adjusted ones. The orignal price/qty are only written to
+
 Low priority:
 - Support switching display lang to Hebrew - should also affect stock names when avilable (with cookie to persist)
 - Allow drag and drop CSV in wizard
