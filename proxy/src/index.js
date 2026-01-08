@@ -1,5 +1,6 @@
 const API_MAP = {
   "yahoo_hist": "https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=3mo&range=max&events=split,div",
+  "yahoo_open": "https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1d&range=1d",
   "globes_data": "https://www.globes.co.il/data/webservices/financial.asmx/getInstrument?exchange={exchange}&symbol={ticker}",
   "globes_list": "https://www.globes.co.il/data/webservices/news.asmx/listByType?exchange={exchange}&type={type}",
   "globes_exchange_state": "https://www.globes.co.il/data/webservices/financial.asmx/ExchangeState?exchange={exchange}",
@@ -11,22 +12,35 @@ const API_MAP = {
 // Regex: English (a-z), Hebrew (א-ת), Numbers (0-9) and symbols: , . : - ^ and space
 const VALID_VALUE_REGEX = /^[a-zA-Z0-9\u05D0-\u05EA,.:\-^ ]+$/;
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*", // Allow any origin
+  "Access-Control-Allow-Methods": "GET, HEAD, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type", // Add any other headers your client might send
+};
+
 export default {
   async fetch(request, env, ctx) {
+    // Handle CORS preflight requests
+    if (request.method === "OPTIONS") {
+      return new Response(null, {
+        headers: corsHeaders,
+      });
+    }
+
     const url = new URL(request.url);
     const params = url.searchParams;
     const apiId = params.get("apiId");
 
     // 1. Validate API ID
     if (!apiId || !API_MAP[apiId]) {
-      return new Response("Invalid or missing apiId", { status: 400 });
+      return new Response("Invalid or missing apiId", { status: 400, headers: corsHeaders });
     }
 
     // 2. Validate all provided arguments
     for (const [key, value] of params.entries()) {
       if (key === "apiId") continue;
       if (!VALID_VALUE_REGEX.test(value)) {
-        return new Response(`Invalid characters in parameter: ${key}`, { status: 403 });
+        return new Response(`Invalid characters in parameter: ${key}`, { status: 403, headers: corsHeaders });
       }
     }
 
@@ -44,7 +58,7 @@ export default {
 
     // Safety Check for any remaining placeholders
     if (targetUrlString.includes("{") && targetUrlString.includes("}")) {
-      return new Response("Missing required parameters for this API", { status: 400 });
+        return new Response("Missing required parameters for this API", { status: 400, headers: corsHeaders });
     }
 
     const targetUrl = new URL(targetUrlString);
@@ -82,16 +96,21 @@ export default {
 
       // Check for blocking
       if (response.status === 403 || response.status === 429) {
-        return new Response(`Origin API Blocked: ${response.status}`, { status: response.status });
+        return new Response(`Origin API Blocked: ${response.status}`, { status: response.status, headers: corsHeaders });
       }
 
       // Clone response to add custom headers
       const newResponse = new Response(response.body, response);
       newResponse.headers.set("X-Proxy-Cache-TTL", "5 Days");
 
+      // Add CORS headers to the actual response
+      Object.keys(corsHeaders).forEach(key => {
+        newResponse.headers.set(key, corsHeaders[key]);
+      });
+
       return newResponse;
     } catch (err) {
-      return new Response(`Network Error connecting to origin for ${apiId}`, { status: 502 });
+      return new Response(`Network Error connecting to origin for ${apiId}`, { status: 502, headers: corsHeaders });
     }
   }
 };

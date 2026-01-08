@@ -1,6 +1,6 @@
 // src/lib/fetching/index.ts
 import { fetchGlobesStockQuote } from './globes';
-import { fetchYahooStockQuote } from './yahoo';
+import { fetchYahooStockQuote, fetchYahooOpenPriceOnDate } from './yahoo';
 import { fetchAllTaseTickers, DEFAULT_TASE_TYPE_CONFIG } from './stock_list';
 import { tickerDataCache, CACHE_TTL } from './utils/cache';
 import type { TickerData, TaseTicker, TaseTypeConfig } from './types';
@@ -8,11 +8,12 @@ import type { TickerData, TaseTicker, TaseTypeConfig } from './types';
 export * from './types';
 export * from './stock_list';
 export * from './cbs';
+export { fetchYahooOpenPriceOnDate }; // Export the function
 
-let taseTickersDataset: TaseTicker[] | null = null;
-let taseTickersDatasetLoading: Promise<TaseTicker[]> | null = null;
+let taseTickersDataset: Record<string, TaseTicker[]> | null = null;
+let taseTickersDatasetLoading: Promise<Record<string, TaseTicker[]>> | null = null;
 
-export function getTaseTickersDataset(signal?: AbortSignal, forceRefresh = false): Promise<TaseTicker[]> {
+export function getTaseTickersDataset(signal?: AbortSignal, forceRefresh = false): Promise<Record<string, TaseTicker[]>> {
   if (taseTickersDataset && !forceRefresh) {
     return Promise.resolve(taseTickersDataset);
   }
@@ -24,13 +25,13 @@ export function getTaseTickersDataset(signal?: AbortSignal, forceRefresh = false
     try {
       console.log('Loading TASE tickers dataset...');
       const tickers = await fetchAllTaseTickers(signal);
-      const flattenedTickers = Object.values(tickers).flat();
-      taseTickersDataset = flattenedTickers;
-      console.log(`Loaded ${taseTickersDataset.length} TASE tickers across ${Object.keys(tickers).length} types.`);
-      return flattenedTickers;
+      taseTickersDataset = tickers;
+      const totalCount = Object.values(tickers).reduce((acc, curr) => acc + (Array.isArray(curr) ? curr.length : 0), 0);
+      console.log(`Loaded ${totalCount} TASE tickers across ${Object.keys(tickers).length} types.`);
+      return tickers;
     } catch (e) {
       console.error('Failed to load TASE tickers dataset:', e);
-      return [];
+      return {};
     } finally {
       taseTickersDatasetLoading = null;
     }

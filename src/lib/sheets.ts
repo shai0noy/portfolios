@@ -14,8 +14,9 @@ interface TxnColumnDef {
   formula?: (rowRef: string, cols: TransactionColumns) => string;
 }
 
-// Utility type to enforce all keys of Transaction are present	ype TransactionColumns = {
-  [K in keyof Required<Omit<Transaction, 'grossValue'>>]: TxnColumnDef;
+// Utility type to enforce all keys of Transaction are present
+type TransactionColumns = {
+  [K in keyof Omit<Transaction, 'grossValue'>]: TxnColumnDef;
 };
 
 const TXN_COLS: TransactionColumns = {

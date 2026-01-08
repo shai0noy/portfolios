@@ -94,6 +94,10 @@ export function TickerSearch({ onTickerSelect, initialTicker, initialExchange, p
       });
 
       const searchTaseType = (tickers: TaseTicker[], instrumentType: string) => {
+        if (!Array.isArray(tickers)) {
+          console.warn(`Tase tickers for type ${instrumentType} is not an array:`, tickers);
+          return [];
+        }
         return tickers.filter(item =>
           (item.symbol.toUpperCase().includes(term) ||
           item.name_en.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -155,10 +159,10 @@ export function TickerSearch({ onTickerSelect, initialTicker, initialExchange, p
   }, [taseDataset, getOwnedInPortfolios]);
 
   useEffect(() => {
-    if (!isPortfoliosLoading) {
+    if (!isPortfoliosLoading && !isTaseDatasetLoading) {
       searchTickers(debouncedInput, selectedExchange);
     }
-  }, [debouncedInput, selectedExchange, searchTickers, isPortfoliosLoading]);
+  }, [debouncedInput, selectedExchange, searchTickers, isPortfoliosLoading, isTaseDatasetLoading]);
 
   const filteredOptions = useMemo(() => {
     // TODO: Remove after debug
