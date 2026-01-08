@@ -16,9 +16,10 @@ in the dashboard summary, all chahnges other than day chnage should have smaller
 ON HOLD: Use Finhub or marketstack over yahoo if possible or in addition (will reuqire to guide use rto create API key and add it to spreadsheet as part of setup)
 ON HOLD: Dashbaord header - portfolio pct grow should take into account the the amount of stock and buy date etc
 ON HOLD: Dashbaord header - Add portfolio gain (value&pct) since date (1m,1y,3y,5y,all) taking into account revenue and add transactions since date
+TODO: Fix GOOGLEFINANCE formula for Split_Adj_Open_Price to fetch historical price on the transaction date, not current price.
 DONE: Portfolio list - should show a tax policy name not key
 DONE: New portfolio UI - auto populate ID based on name - verify name chars are valid Uppercase a-z and - only
-
+In add transaction - For tase sticks, the "total price" should be ILS,  but currently computed as agorot
 DONE: All yahoo calls shold use https://portfolios.noy-shai.workers.dev/?apiId=yahoo_hist&ticker=GOOG (replace GOOG, return val is the same) - without proxies
 
 DONE:

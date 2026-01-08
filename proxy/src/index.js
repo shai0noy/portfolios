@@ -1,6 +1,6 @@
 const API_MAP = {
   "yahoo_hist": "https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=3mo&range=max&events=split,div",
-  "yahoo_open": "https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1d&range=1d",
+  "yahoo_open": "https://query1.finance.yahoo.com/v8/finance/chart/{ticker}", // Date/range will be added from params
   "globes_data": "https://www.globes.co.il/data/webservices/financial.asmx/getInstrument?exchange={exchange}&symbol={ticker}",
   "globes_list": "https://www.globes.co.il/data/webservices/news.asmx/listByType?exchange={exchange}&type={type}",
   "globes_exchange_state": "https://www.globes.co.il/data/webservices/financial.asmx/ExchangeState?exchange={exchange}",
@@ -64,11 +64,26 @@ export default {
     const targetUrl = new URL(targetUrlString);
 
     // Append other params as query string for APIs that need them (like CBS)
-    for (const [key, value] of params.entries()) {
-      if (key === 'apiId') continue;
-      // Only append if it wasn't a placeholder
-      if (!API_MAP[apiId].includes(`{${key}}`)) {
-        targetUrl.searchParams.append(key, value);
+    // Special handling for yahoo_open date
+    if (apiId === 'yahoo_open') {
+      const date = params.get('date'); // Expected format YYYY-MM-DD
+      if (date) {
+        const startDate = new Date(date + 'T00:00:00Z');
+        const endDate = new Date(startDate);
+        endDate.setDate(startDate.getDate() + 1);
+        targetUrl.searchParams.append('period1', Math.floor(startDate.getTime() / 1000).toString());
+        targetUrl.searchParams.append('period2', Math.floor(endDate.getTime() / 1000).toString());
+        targetUrl.searchParams.append('interval', '1d');
+      } else {
+        return new Response("Missing date parameter for yahoo_open", { status: 400, headers: corsHeaders });
+      }
+    } else {
+      for (const [key, value] of params.entries()) {
+        if (key === 'apiId') continue;
+        // Only append if it wasn't a placeholder
+        if (!API_MAP[apiId].includes(`{${key}}`)) {
+          targetUrl.searchParams.append(key, value);
+        }
       }
     }
 
@@ -80,7 +95,7 @@ export default {
       const referer = isGlobes ? "https://www.globes.co.il/" : isCbs ? "https://www.cbs.gov.il/" : "https://finance.yahoo.com/";
       const accept = "application/json, text/plain, text/html, application/xhtml+xml, application/xml;q=0.9, image/avif, image/webp, mobile/v1, */*;q=0.8";
 
-      const response = await fetch(targetUrl.toString(), {
+      const fetchOpts = {
         method: "GET",
         headers: {
           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -88,18 +103,29 @@ export default {
           "Accept": accept,
           "Accept-Language": "en-US,en;q=0.5",
         },
-        cf: {
-          cacheTtl: 432000, // 5 days
-          cacheEverything: true
-        }
-      });
+      };
 
-      // Check for blocking
-      if (response.status === 403 || response.status === 429) {
-        return new Response(`Origin API Blocked: ${response.status}`, { status: response.status, headers: corsHeaders });
+      let response = await fetch(targetUrl.toString(), fetchOpts);
+
+      // Check for blocking or other errors before caching
+      if (!response.ok || response.status === 403 || response.status === 429) {
+        console.warn(`Origin fetch not OK for ${apiId} - ${targetUrl.toString()}: ${response.status}`);
+        // Return without Cloudflare caching headers
+        const newResponse = new Response(response.body, response);
+        Object.keys(corsHeaders).forEach(key => {
+          newResponse.headers.set(key, corsHeaders[key]);
+        });
+        return newResponse;
       }
 
-      // Clone response to add custom headers
+      // Successful response, apply caching
+      fetchOpts.cf = {
+        cacheTtl: 432000, // 5 days
+        cacheEverything: true
+      };
+      // Re-fetch with caching enabled for the successful response
+      response = await fetch(targetUrl.toString(), fetchOpts);
+      
       const newResponse = new Response(response.body, response);
       newResponse.headers.set("X-Proxy-Cache-TTL", "5 Days");
 

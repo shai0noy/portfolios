@@ -8,65 +8,69 @@ const DEFAULT_SHEET_NAME = 'Portfolios_App_Data';
 
 // --- Column Definitions ---
 interface TxnColumnDef {
-  colName: string;
-  colId: string;
-  numeric?: boolean;
-  formula?: (rowRef: string, cols: TransactionColumns) => string;
+    key: keyof Omit<Transaction, 'grossValue'>;
+    colName: string;
+    colId: string;
+    numeric?: boolean;
+    formula?: (rowNum: number, cols: TransactionColumns) => string;
 }
 
 // Utility type to enforce all keys of Transaction are present
 type TransactionColumns = {
-  [K in keyof Omit<Transaction, 'grossValue'>]: TxnColumnDef;
+    [K in keyof Omit<Transaction, 'grossValue'>]: TxnColumnDef;
 };
 
 const TXN_COLS: TransactionColumns = {
-  date: { colName: 'Date', colId: 'A' },
-  portfolioId: { colName: 'Portfolio', colId: 'B' },
-  ticker: { colName: 'Ticker', colId: 'C' },
-  exchange: { colName: 'Exchange', colId: 'D' },
-  type: { colName: 'Type', colId: 'E' },
-  Original_Qty: { colName: 'Original_Qty', colId: 'F', numeric: true },
-  Original_Price: { colName: 'Original_Price', colId: 'G', numeric: true },
-  currency: { colName: 'Currency', colId: 'H' },
-  vestDate: { colName: 'Vesting_Date', colId: 'I' },
-  comment: { colName: 'Comments', colId: 'J' },
-  commission: { colName: 'Commission', colId: 'K', numeric: true },
-  tax: { colName: 'Tax %', colId: 'L', numeric: true },
-  Source: { colName: 'Source', colId: 'M' },
-  Orig_Open_Price_At_Date: { colName: 'Orig_Open_Price_At_Date', colId: 'N', numeric: true },
-  Split_Adj_Open_Price: {
-    colName: 'Split_Adj_Open_Price',
-    colId: 'O',
-    numeric: true,
-    formula: (rowRef, cols) => `=IFERROR(GOOGLEFINANCE(${cols.ticker.colId}${rowRef}&":"&${cols.exchange.colId}${rowRef}, "price", ${cols.date.colId}${rowRef}), "")`
-  },
-  Split_Ratio: {
-    colName: 'Split_Ratio',
-    colId: 'P',
-    numeric: true,
-    formula: (rowRef, cols) => `=IFERROR(IF(${cols.Split_Adj_Open_Price.colId}${rowRef}=0, 1, ${cols.Orig_Open_Price_At_Date.colId}${rowRef} / ${cols.Split_Adj_Open_Price.colId}${rowRef}), 1)`
-  },
-  Split_Adjusted_Price: {
-    colName: 'Split_Adjusted_Price',
-    colId: 'Q',
-    numeric: true,
-    formula: (rowRef, cols) => `=IFERROR(${cols.Original_Price.colId}${rowRef} / ${cols.Split_Ratio.colId}${rowRef}, ${cols.Original_Price.colId}${rowRef})`
-  },
-  Split_Adjusted_Qty: {
-    colName: 'Split_Adjusted_Qty',
-    colId: 'R',
-    numeric: true,
-    formula: (rowRef, cols) => `=IFERROR(${cols.Original_Qty.colId}${rowRef} * ${cols.Split_Ratio.colId}${rowRef}, ${cols.Original_Qty.colId}${rowRef})`
-  },
+    date: { key: 'date', colName: 'Date', colId: 'A' },
+    portfolioId: { key: 'portfolioId', colName: 'Portfolio', colId: 'B' },
+    ticker: { key: 'ticker', colName: 'Ticker', colId: 'C' },
+    exchange: { key: 'exchange', colName: 'Exchange', colId: 'D' },
+    type: { key: 'type', colName: 'Type', colId: 'E' },
+    Original_Qty: { key: 'Original_Qty', colName: 'Original_Qty', colId: 'F', numeric: true },
+    Original_Price: { key: 'Original_Price', colName: 'Original_Price', colId: 'G', numeric: true },
+    currency: { key: 'currency', colName: 'Currency', colId: 'H' },
+    vestDate: { key: 'vestDate', colName: 'Vesting_Date', colId: 'I' },
+    comment: { key: 'comment', colName: 'Comments', colId: 'J' },
+    commission: { key: 'commission', colName: 'Commission', colId: 'K', numeric: true },
+    tax: { key: 'tax', colName: 'Tax %', colId: 'L', numeric: true },
+    Source: { key: 'Source', colName: 'Source', colId: 'M' },
+      Orig_Open_Price_At_Date: { key: 'Orig_Open_Price_At_Date', colName: 'Orig_Open_Price_At_Date', colId: 'N', numeric: true },
+      Split_Adj_Open_Price: {
+        key: 'Split_Adj_Open_Price',
+        colName: 'Split_Adj_Open_Price',
+        colId: 'O',
+        numeric: true,
+        // TODO: This formula likely fetches current price, not historical on date. Needs to be INDEX(GOOGLEFINANCE(..., "all", date), 2, 2) or similar
+        formula: (rowNum, cols) => `=IFERROR(INDEX(GOOGLEFINANCE(${cols.exchange.colId}${rowNum}&":"&${cols.ticker.colId}${rowNum}, "price", ${cols.date.colId}${rowNum}), 2, 2), "")`
+      },          Split_Ratio: {
+            key: 'Split_Ratio',
+            colName: 'Split_Ratio',
+            colId: 'P',
+            numeric: true,
+            formula: (rowNum, cols) => `=IFERROR(IF(OR(ISBLANK(${cols.Split_Adj_Open_Price.colId}${rowNum}), ${cols.Split_Adj_Open_Price.colId}${rowNum}=0, ISBLANK(${cols.Orig_Open_Price_At_Date.colId}${rowNum})), 1, ${cols.Orig_Open_Price_At_Date.colId}${rowNum} / ${cols.Split_Adj_Open_Price.colId}${rowNum}), 1)`
+          },    Split_Adjusted_Price: {
+        key: 'Split_Adjusted_Price',
+        colName: 'Split_Adjusted_Price',
+        colId: 'Q',
+        numeric: true,
+        formula: (rowNum, cols) => `=IFERROR(${cols.Original_Price.colId}${rowNum} / ${cols.Split_Ratio.colId}${rowNum}, ${cols.Original_Price.colId}${rowNum})`
+    },
+    Split_Adjusted_Qty: {
+        key: 'Split_Adjusted_Qty',
+        colName: 'Split_Adjusted_Qty',
+        colId: 'R',
+        numeric: true,
+        formula: (rowNum, cols) => `=IFERROR(${cols.Original_Qty.colId}${rowNum} * ${cols.Split_Ratio.colId}${rowNum}, ${cols.Original_Qty.colId}${rowNum})`
+    },
 };
 
 const transactionHeaders = Object.values(TXN_COLS).map(c => c.colName) as unknown as readonly string[];
-const transactionMapping: Record<keyof Omit<Transaction, 'grossValue'>, string> = 
-  Object.keys(TXN_COLS).reduce((acc, key) => {
-    const k = key as keyof Omit<Transaction, 'grossValue'>;
-    acc[k] = TXN_COLS[k].colName;
-    return acc;
-  }, {} as Record<keyof Omit<Transaction, 'grossValue'>, string>);
+const transactionMapping: Record<keyof Omit<Transaction, 'grossValue'>, string> =
+    Object.keys(TXN_COLS).reduce((acc, key) => {
+        const k = key as keyof Omit<Transaction, 'grossValue'>;
+        acc[k] = TXN_COLS[k].colName;
+        return acc;
+    }, {} as Record<keyof Omit<Transaction, 'grossValue'>, string>);
 
 const transactionNumericKeys = Object.keys(TXN_COLS).filter(key => TXN_COLS[key as keyof Transaction].numeric).map(key => key) as unknown as (keyof Omit<Transaction, 'grossValue'>)[];
 
@@ -75,7 +79,7 @@ const transactionNumericKeys = Object.keys(TXN_COLS).filter(key => TXN_COLS[key 
 const portfolioHeaders = ['Portfolio_ID', 'Display_Name', 'Cap_Gains_Tax_%', 'Income_Tax_Vest_%', 'Mgmt_Fee_Val', 'Mgmt_Type', 'Mgmt_Freq', 'Comm_Rate_%', 'Comm_Min', 'Comm_Max_Fee', 'Currency', 'Div_Policy', 'Div_Comm_Rate_%', 'Tax_Policy'] as const;
 
 const holdingsHeaders = [
-    'PortfolioId', 'Ticker', 'Exchange', 'Quantity', 'Live_Price', 'Currency', 'Total Holding Value', 
+    'PortfolioId', 'Ticker', 'Exchange', 'Quantity', 'Live_Price', 'Currency', 'Total Holding Value',
     'Name_En', 'Name_He', 'Sector', 'Price_Unit', 'Day_Change',
     'Change_1W', 'Change_1M', 'Change_3M', 'Change_YTD', 'Change_1Y', 'Change_3Y', 'Change_5Y', 'Change_10Y'
 ] as const;
@@ -84,7 +88,8 @@ const configHeaders = ['Key', 'Value'] as const;
 type Headers = readonly string[];
 
 const PORT_OPT_RANGE = `Portfolio_Options!A2:${String.fromCharCode(65 + portfolioHeaders.length - 1)}`;
-const TX_FETCH_RANGE = `Transaction_Log!A2:${String.fromCharCode(65 + transactionHeaders.length - 1)}`;
+const TX_SHEET_NAME = 'Transaction_Log';
+const TX_FETCH_RANGE = `${TX_SHEET_NAME}!A2:${String.fromCharCode(65 + transactionHeaders.length - 1)}`;
 const CONFIG_RANGE = `Currency_Conversions!A2:B`;
 const METADATA_SHEET = 'App_Metadata';
 const metadataHeaders = ['Key', 'Value'] as const;
@@ -104,10 +109,12 @@ function createRowMapper<T extends readonly string[]>(headers: T) {
             if (index !== undefined && row[index] !== undefined && row[index] !== null) {
                 let value: any = row[index];
                 if (numericKeys.includes(key)) {
-                    value = parseFloat(String(value).replace(/,/g, '').replace(/%/, '')) || 0;
-                    if (mapping[key].includes('%')) value = value / 100;
+                    const numVal = parseFloat(String(value).replace(/,/g, '').replace(/%/, ''));
+                    obj[key] = isNaN(numVal) ? 0 : numVal;
+                    if (mapping[key].includes('%')) obj[key] = (obj[key] as number) / 100;
+                } else {
+                    obj[key] = value;
                 }
-                obj[key] = value;
             }
         }
         return obj as U;
@@ -115,17 +122,17 @@ function createRowMapper<T extends readonly string[]>(headers: T) {
 }
 
 function objectToRow<T extends object>(obj: T, headers: readonly string[], colDefs: TransactionColumns): any[] {
-    const row = new Array(headers.length).fill('');
-    Object.keys(colDefs).forEach((key, i) => {
-        const keyOfT = key as keyof T;
-        const colDef = colDefs[keyOfT as keyof TransactionColumns];
-        const value = obj[keyOfT];
+    const row = new Array(headers.length).fill(null);
+    const keys = Object.keys(colDefs) as Array<keyof TransactionColumns>;
+
+    keys.forEach((key, i) => {
+        const colDef = colDefs[key];
+        const value = (obj as any)[key];
 
         if (value !== undefined && value !== null) {
             row[i] = value;
-        } else if (colDef.formula) {
-            row[i] = colDef.formula('ROW()', TXN_COLS);
         }
+        // Formulas are added in a separate update step
     });
     return row;
 }
@@ -144,11 +151,11 @@ const holdingMapping: Record<keyof Holding, typeof holdingsHeaders[number]> = {
     portfolioId: 'PortfolioId', ticker: 'Ticker', exchange: 'Exchange', qty: 'Quantity',
     price: 'Live_Price', currency: 'Currency', totalValue: 'Total Holding Value',
     name: 'Name_En', name_he: 'Name_He', sector: 'Sector', priceUnit: 'Price_Unit',
-    changePct: 'Day_Change', changePct1w: 'Change_1W', changePct1m: 'Change_1M', changePct3m: 'Change_3M', 
+    changePct: 'Day_Change', changePct1w: 'Change_1W', changePct1m: 'Change_1M', changePct3m: 'Change_3M',
     changePctYtd: 'Change_YTD', changePct1y: 'Change_1Y', changePct3y: 'Change_3Y', changePct5y: 'Change_5Y', changePct10y: 'Change_10Y',
 };
 const holdingNumericKeys: (keyof Holding)[] = [
-    'qty', 'price', 'totalValue', 'changePct', 'changePct1w', 'changePct1m', 'changePct3m', 
+    'qty', 'price', 'totalValue', 'changePct', 'changePct1w', 'changePct1m', 'changePct3m',
     'changePctYtd', 'changePct1y', 'changePct3y', 'changePct5y', 'changePct10y'
 ];
 
@@ -192,14 +199,14 @@ export const ensureSchema = async (spreadsheetId: string) => {
     await ensureGapi();
     const sheetIds = {
         portfolio: await getSheetId(spreadsheetId, 'Portfolio_Options', true),
-        log: await getSheetId(spreadsheetId, 'Transaction_Log', true),
+        log: await getSheetId(spreadsheetId, TX_SHEET_NAME, true),
         holdings: await getSheetId(spreadsheetId, HOLDINGS_SHEET, true),
         config: await getSheetId(spreadsheetId, 'Currency_Conversions', true),
         metadata: await getSheetId(spreadsheetId, METADATA_SHEET, true),
     };
 
-     // Rename Live_Data to Holdings if it exists
-     try {
+    // Rename Live_Data to Holdings if it exists
+    try {
         const liveDataSheetId = await getSheetId(spreadsheetId, 'Live_Data');
         if (liveDataSheetId) {
             await window.gapi.client.sheets.spreadsheets.batchUpdate({
@@ -261,8 +268,8 @@ export const ensureSchema = async (spreadsheetId: string) => {
 // --- Data Fetching Functions ---
 
 async function fetchSheetData<T>(
-    spreadsheetId: string, 
-    range: string, 
+    spreadsheetId: string,
+    range: string,
     rowMapper: (row: any[]) => T,
     valueRenderOption = 'FORMATTED_VALUE'
 ): Promise<T[]> {
@@ -274,7 +281,7 @@ async function fetchSheetData<T>(
             valueRenderOption,
         });
         const rows = res.result.values || [];
-        return rows.map(rowMapper).filter(Boolean); 
+        return rows.map(rowMapper).filter(Boolean);
     } catch (error) {
         console.error("Error fetching from range " + range + ":", error);
         return [];
@@ -316,12 +323,12 @@ export const fetchPortfolios = async (spreadsheetId: string): Promise<Portfolio[
 
 export const fetchTransactions = async (spreadsheetId: string): Promise<Transaction[]> => {
     const transactions = await fetchSheetData(
-        spreadsheetId, 
-        TX_FETCH_RANGE, 
+        spreadsheetId,
+        TX_FETCH_RANGE,
         (row) => mapRowToTransaction<Omit<Transaction, 'grossValue'>>(row, transactionMapping, transactionNumericKeys),
         'FORMATTED_VALUE' // Fetch formatted values to get results of formulas
     );
-    return transactions.map(t => ({...t, grossValue: t.Original_Qty * t.Original_Price}));
+    return transactions.map(t => ({ ...t, grossValue: t.Original_Qty * t.Original_Price }));
 };
 
 export const getSpreadsheet = (): string | null => {
@@ -382,7 +389,7 @@ export const fetchHolding = async (spreadsheetId: string, ticker: string, exchan
         console.error(`Error fetching holding for ${ticker}:${exchange}:`, error);
         return null;
     }
-}; 
+};
 
 // --- Data Writing Functions ---
 
@@ -438,38 +445,245 @@ export const updatePortfolio = async (spreadsheetId: string, p: Portfolio) => {
 
 
 export const addTransaction = async (spreadsheetId: string, t: Transaction) => {
+
+
     await ensureGapi();
 
+
+
+
+
     let origOpenPrice: number | null = null;
+
+
     if (t.exchange && t.exchange.toUpperCase() !== 'TASE' && t.type !== 'DIVIDEND' && t.type !== 'FEE') {
+
+
         try {
-            origOpenPrice = await fetchYahooOpenPriceOnDate(t.ticker, t.date);
+
+
+            const formattedDate = t.date.split('T')[0];
+
+
+            origOpenPrice = await fetchYahooOpenPriceOnDate(t.ticker, formattedDate);
+
+
         } catch (e) {
+
+
             console.warn(`Failed to fetch open price for ${t.ticker} on ${t.date}:`, e);
+
+
         }
+
+
     }
 
+
+
+
+
     const rowData: any = {
-      ...t,
-      ticker: t.ticker.toUpperCase(),
-      exchange: (t.exchange || '').toUpperCase(),
-      vestDate: t.vestDate || '',
-      comment: t.comment || '',
-      commission: t.commission || 0,
-      tax: t.tax || 0,
-      Source: t.Source || '',
-      Orig_Open_Price_At_Date: origOpenPrice,
+
+
+        ...t,
+
+
+        ticker: t.ticker.toUpperCase(),
+
+
+        exchange: (t.exchange || '').toUpperCase(),
+
+
+        vestDate: t.vestDate || '',
+
+
+        comment: t.comment || '',
+
+
+        commission: t.commission || 0,
+
+
+        tax: t.tax || 0,
+
+
+        Source: t.Source || '',
+
+
+        Orig_Open_Price_At_Date: origOpenPrice !== null ? origOpenPrice : '',
+
+
     };
 
-    const row = objectToRow(rowData, transactionHeaders, TXN_COLS);
 
-    await window.gapi.client.sheets.spreadsheets.values.append({
-        spreadsheetId,
-        range: 'Transaction_Log!A:A',
-        valueInputOption: 'USER_ENTERED',
-        resource: { values: [row] }
+
+
+
+    // Step 1: Append only the values that are not formulas
+
+
+    const valuesToAppend = Object.values(TXN_COLS).map(colDef => {
+
+
+        return colDef.formula ? null : rowData[colDef.key] ?? null;
+
+
     });
+
+
+
+
+
+    const appendResult = await window.gapi.client.sheets.spreadsheets.values.append({
+
+
+        spreadsheetId,
+
+
+        range: `${TX_SHEET_NAME}!A:A`,
+
+
+        valueInputOption: 'USER_ENTERED',
+
+
+        insertDataOption: 'INSERT_ROWS',
+
+
+        resource: { values: [valuesToAppend] }
+
+
+    });
+
+
+
+
+
+    const updatedRange = appendResult.result.updates.updatedRange;
+
+
+    if (!updatedRange) {
+
+
+        throw new Error("Could not determine range of appended row.");
+
+
+    }
+
+
+    const rowNumMatch = updatedRange.match(/(\d+):/);
+
+
+    if (!rowNumMatch) {
+
+
+        throw new Error("Could not parse row number from range: " + updatedRange);
+
+
+    }
+
+
+    const rowNum = parseInt(rowNumMatch[1]);
+
+
+
+
+
+    // Step 2: Update the formula cells in the new row
+
+
+    const formulaColDefs = Object.values(TXN_COLS).filter(colDef => !!colDef.formula);
+
+
+        const txSheetId = await getSheetId(spreadsheetId, TX_SHEET_NAME); // Fetch sheetId once BEFORE map
+
+
+    
+
+
+        const requests = formulaColDefs.map((colDef) => { // .map is NOT async
+
+
+            const formula = colDef.formula!(rowNum, TXN_COLS);
+
+
+            const colIndex = Object.values(TXN_COLS).indexOf(colDef);
+
+
+            return {
+
+
+                updateCells: {
+
+
+                    range: {
+
+
+                        sheetId: txSheetId, // Use fetched sheetId
+
+
+                        startRowIndex: rowNum - 1,
+
+
+                        endRowIndex: rowNum,
+
+
+                        startColumnIndex: colIndex,
+
+
+                        endColumnIndex: colIndex + 1,
+
+
+                    },
+
+
+                    rows: [
+
+
+                        { values: [{ userEnteredValue: { formulaValue: formula } }] }
+
+
+                    ],
+
+
+                    fields: 'userEnteredValue.formulaValue'
+
+
+                }
+
+
+            };
+
+
+        });
+
+
+
+
+
+    if (requests.length > 0) {
+
+
+        await window.gapi.client.sheets.spreadsheets.batchUpdate({
+
+
+            spreadsheetId,
+
+
+            resource: { requests }
+
+
+        });
+
+
+    }
+
+
+
+
+
     await rebuildHoldingsSheet(spreadsheetId);
+
+
 };
 
 // Rebuild Holdings sheet
@@ -536,7 +750,7 @@ export const rebuildHoldingsSheet = async (spreadsheetId: string) => {
         row[17] = `=IFERROR((${priceCell}/INDEX(GOOGLEFINANCE(${tickerAndExchange}, "close", EDATE(TODAY(),-36)),2,2))-1, "")`; // Change_3Y
         row[18] = `=IFERROR((${priceCell}/INDEX(GOOGLEFINANCE(${tickerAndExchange}, "close", EDATE(TODAY(),-60)),2,2))-1, "")`; // Change_5Y
         row[19] = `=IFERROR((${priceCell}/INDEX(GOOGLEFINANCE(${tickerAndExchange}, "close", EDATE(TODAY(),-120)),2,2))-1, "")`; // Change_10Y
-        
+
         return row;
     });
 
@@ -636,7 +850,7 @@ export async function setMetadataValue(spreadsheetId: string, key: string, value
 
 export async function exportToSheet(spreadsheetId: string, sheetName: string, headers: string[], data: any[][]): Promise<number> {
     await ensureGapi();
-    
+
     const sheetId = await getSheetId(spreadsheetId, sheetName, true);
 
     await window.gapi.client.sheets.spreadsheets.values.clear({
@@ -658,36 +872,36 @@ export async function exportToSheet(spreadsheetId: string, sheetName: string, he
 
 // Populate the spreadsheet with 3 sample portfolios and several transactions each
 export const populateTestData = async (spreadsheetId: string) => {
-  await ensureGapi();
-  try { await signIn(); } catch (e) { console.error("Sign-in failed", e) }
-  try { await ensureSchema(spreadsheetId); } catch (e) { console.error("Schema creation failed", e) }
+    await ensureGapi();
+    try { await signIn(); } catch (e) { console.error("Sign-in failed", e) }
+    try { await ensureSchema(spreadsheetId); } catch (e) { console.error("Schema creation failed", e) }
 
-  const portfolios: Portfolio[] = [
-    { id: 'P-IL-GROWTH', name: 'Growth ILS', cgt: 0.25, incTax: 0, mgmtVal: 0, mgmtType: 'percentage', mgmtFreq: 'yearly', commRate: 0.001, commMin: 5, commMax: 0, currency: 'ILS', divPolicy: 'cash_taxed', divCommRate: 0, taxPolicy: 'REAL_GAIN' },
-    { id: 'P-USD-CORE', name: 'Core USD', cgt: 0.25, incTax: 0, mgmtVal: 0, mgmtType: 'percentage', mgmtFreq: 'yearly', commRate: 0, commMin: 0, commMax: 0, currency: 'USD', divPolicy: 'cash_taxed', divCommRate: 0, taxPolicy: 'NOMINAL_GAIN' },
-    { id: 'P-RSU', name: 'RSU Account', cgt: 0.25, incTax: 0.5, mgmtVal: 0, mgmtType: 'percentage', mgmtFreq: 'yearly', commRate: 0, commMin: 0, commMax: 0, currency: 'USD', divPolicy: 'hybrid_rsu', divCommRate: 0, taxPolicy: 'NOMINAL_GAIN' }
-  ];
+    const portfolios: Portfolio[] = [
+        { id: 'P-IL-GROWTH', name: 'Growth ILS', cgt: 0.25, incTax: 0, mgmtVal: 0, mgmtType: 'percentage', mgmtFreq: 'yearly', commRate: 0.001, commMin: 5, commMax: 0, currency: 'ILS', divPolicy: 'cash_taxed', divCommRate: 0, taxPolicy: 'REAL_GAIN' },
+        { id: 'P-USD-CORE', name: 'Core USD', cgt: 0.25, incTax: 0, mgmtVal: 0, mgmtType: 'percentage', mgmtFreq: 'yearly', commRate: 0, commMin: 0, commMax: 0, currency: 'USD', divPolicy: 'cash_taxed', divCommRate: 0, taxPolicy: 'NOMINAL_GAIN' },
+        { id: 'P-RSU', name: 'RSU Account', cgt: 0.25, incTax: 0.5, mgmtVal: 0, mgmtType: 'percentage', mgmtFreq: 'yearly', commRate: 0, commMin: 0, commMax: 0, currency: 'USD', divPolicy: 'hybrid_rsu', divCommRate: 0, taxPolicy: 'NOMINAL_GAIN' }
+    ];
 
-  for (const p of portfolios) {
-    try { await addPortfolio(spreadsheetId, p); } catch (e) { console.warn("Could not add portfolio (it might already exist)", e) }
-  }
+    for (const p of portfolios) {
+        try { await addPortfolio(spreadsheetId, p); } catch (e) { console.warn("Could not add portfolio (it might already exist)", e) }
+    }
 
-  const transactions: Transaction[] = [
-    { date: '2025-01-02', portfolioId: 'P-IL-GROWTH', ticker: 'TASE1', exchange: 'TASE', type: 'BUY', Original_Qty: 100, Original_Price: 50, grossValue: 5000, currency: 'ILS', comment: 'Initial buy' },
-    { date: '2025-02-15', portfolioId: 'P-IL-GROWTH', ticker: 'TASE1', exchange: 'TASE', type: 'DIVIDEND', Original_Qty: 0, Original_Price: 0, grossValue: 10, currency: 'ILS', comment: 'Dividend payout' },
-    { date: '2025-06-10', portfolioId: 'P-IL-GROWTH', ticker: 'TASE2', exchange: 'TASE', type: 'BUY', Original_Qty: 50, Original_Price: 200, grossValue: 10000, currency: 'ILS', comment: 'Add position' },
-    { date: '2025-03-01', portfolioId: 'P-USD-CORE', ticker: 'AAPL', exchange: 'NASDAQ', type: 'BUY', Original_Qty: 10, Original_Price: 150, grossValue: 1500, currency: 'USD', comment: 'Core buy' },
-    { date: '2025-08-01', portfolioId: 'P-USD-CORE', ticker: 'AAPL', exchange: 'NASDAQ', type: 'DIVIDEND', Original_Qty: 0, Original_Price: 0, grossValue: 5, currency: 'USD', comment: 'Quarterly dividend' },
-    { date: '2025-11-20', portfolioId: 'P-USD-CORE', ticker: 'TSLA', exchange: 'NASDAQ', type: 'BUY', Original_Qty: 5, Original_Price: 700, grossValue: 3500, currency: 'USD', comment: 'Speculative buy' },
-    { date: '2025-11-21', portfolioId: 'P-USD-CORE', ticker: 'AAPL', exchange: 'NASDAQ', type: 'SELL', Original_Qty: 5, Original_Price: 200, grossValue: 1000, currency: 'USD', comment: 'Trim position' },
-    { date: '2025-04-10', portfolioId: 'P-RSU', ticker: 'COMP', exchange: 'NASDAQ', type: 'BUY', Original_Qty: 200, Original_Price: 0.01, vestDate: '2025-04-10', grossValue: 2, currency: 'USD', comment: 'RSU vested' },
-    { date: '2025-07-10', portfolioId: 'P-RSU', ticker: 'COMP', exchange: 'NASDAQ', type: 'DIVIDEND', Original_Qty: 0, Original_Price: 0, grossValue: 10, currency: 'USD', comment: 'RSU dividend' },
-    { date: '2025-12-01', portfolioId: 'P-RSU', ticker: 'COMP', exchange: 'NASDAQ', type: 'SELL', Original_Qty: 50, Original_Price: 20, grossValue: 1000, currency: 'USD', comment: 'Sell vested RSUs' }
-  ];
+    const transactions: Transaction[] = [
+        { date: '2025-01-02', portfolioId: 'P-IL-GROWTH', ticker: 'TASE1', exchange: 'TASE', type: 'BUY', Original_Qty: 100, Original_Price: 50, grossValue: 5000, currency: 'ILS', comment: 'Initial buy' },
+        { date: '2025-02-15', portfolioId: 'P-IL-GROWTH', ticker: 'TASE1', exchange: 'TASE', type: 'DIVIDEND', Original_Qty: 0, Original_Price: 0, grossValue: 10, currency: 'ILS', comment: 'Dividend payout' },
+        { date: '2025-06-10', portfolioId: 'P-IL-GROWTH', ticker: 'TASE2', exchange: 'TASE', type: 'BUY', Original_Qty: 50, Original_Price: 200, grossValue: 10000, currency: 'ILS', comment: 'Add position' },
+        { date: '2025-03-01', portfolioId: 'P-USD-CORE', ticker: 'AAPL', exchange: 'NASDAQ', type: 'BUY', Original_Qty: 10, Original_Price: 150, grossValue: 1500, currency: 'USD', comment: 'Core buy' },
+        { date: '2025-08-01', portfolioId: 'P-USD-CORE', ticker: 'AAPL', exchange: 'NASDAQ', type: 'DIVIDEND', Original_Qty: 0, Original_Price: 0, grossValue: 5, currency: 'USD', comment: 'Quarterly dividend' },
+        { date: '2025-11-20', portfolioId: 'P-USD-CORE', ticker: 'TSLA', exchange: 'NASDAQ', type: 'BUY', Original_Qty: 5, Original_Price: 700, grossValue: 3500, currency: 'USD', comment: 'Speculative buy' },
+        { date: '2025-11-21', portfolioId: 'P-USD-CORE', ticker: 'AAPL', exchange: 'NASDAQ', type: 'SELL', Original_Qty: 5, Original_Price: 200, grossValue: 1000, currency: 'USD', comment: 'Trim position' },
+        { date: '2025-04-10', portfolioId: 'P-RSU', ticker: 'COMP', exchange: 'NASDAQ', type: 'BUY', Original_Qty: 200, Original_Price: 0.01, vestDate: '2025-04-10', grossValue: 2, currency: 'USD', comment: 'RSU vested' },
+        { date: '2025-07-10', portfolioId: 'P-RSU', ticker: 'COMP', exchange: 'NASDAQ', type: 'DIVIDEND', Original_Qty: 0, Original_Price: 0, grossValue: 10, currency: 'USD', comment: 'RSU dividend' },
+        { date: '2025-12-01', portfolioId: 'P-RSU', ticker: 'COMP', exchange: 'NASDAQ', type: 'SELL', Original_Qty: 50, Original_Price: 20, grossValue: 1000, currency: 'USD', comment: 'Sell vested RSUs' }
+    ];
 
-  for (const t of transactions) {
-    try { await addTransaction(spreadsheetId, t); } catch (e) { console.warn("Could not add transaction (it might already exist)", e) }
-  }
-  
-  await rebuildHoldingsSheet(spreadsheetId);
+    for (const t of transactions) {
+        try { await addTransaction(spreadsheetId, t); } catch (e) { console.warn("Could not add transaction (it might already exist)", e) }
+    }
+
+    await rebuildHoldingsSheet(spreadsheetId);
 };

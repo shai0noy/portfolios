@@ -6,6 +6,8 @@ import {
 } from '@mui/material';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import VisibilityIcon from '@mui/icons-material/Visibility';
+import SearchIcon from '@mui/icons-material/Search';
+import DashboardIcon from '@mui/icons-material/Dashboard';
 import type { Portfolio, Transaction, PriceUnit } from '../lib/types';
 import { addTransaction, fetchPortfolios } from '../lib/sheets';
 import { getTickerData, type TickerData } from '../lib/fetching';
@@ -13,30 +15,8 @@ import { TickerSearch } from './TickerSearch';
 
 interface Props {
   sheetId: string;
-  initialTicker?: string;
-  initialExchange?: string;
-  initialPrice?: string;
-  initialCurrency?: string;
   onSaveSuccess?: () => void;
 }
-
-// Custom hook for debouncing
-function useDebounce(value: string, delay: number) {
-  const [debouncedValue, setDebouncedValue] = useState(value);
-
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [value, delay]);
-
-  return debouncedValue;
-}
-
 
 export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
   const navigate = useNavigate();
@@ -46,8 +26,8 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [isPortfoliosLoading, setIsPortfoliosLoading] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [isPriceLoading, setIsPriceLoading] = useState(false);
   const [priceError, setPriceError] = useState('');
+  const [saveSuccess, setSaveSuccess] = useState(false);
   
   // Form State
   const [selectedTicker, setSelectedTicker] = useState<(TickerData & { symbol: string }) | null>(null);
@@ -68,21 +48,28 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
   const [tickerCurrency, setTickerCurrency] = useState(locationState?.initialCurrency || '');
   const [priceUnit, setPriceUnit] = useState<'base' | 'agorot' | 'cents'>('base');
 
-  const debouncedTicker = useDebounce(ticker, 500);
-
   useEffect(() => {
     if (locationState?.initialTicker) {
       const fetchData = async () => {
+        setLoading(true);
         const data = await getTickerData(locationState.initialTicker!, locationState.initialExchange || '');
         if (data) {
-          setSelectedTicker({ ...data, symbol: locationState.initialTicker! });
+          const combinedData = { ...data, symbol: locationState.initialTicker!, exchange: data.exchange || locationState.initialExchange || '' };
+          setSelectedTicker(combinedData);
           setDisplayName(data.name || '');
+          setPrice(data.price?.toString() || '');
           setPriceUnit((data.priceUnit || 'base') as PriceUnit);
           if (data.priceUnit === 'agorot') setTickerCurrency('ILS');
           else setTickerCurrency(data.currency || '');
+          setExchange(data.exchange || locationState.initialExchange || '');
+          setTicker(locationState.initialTicker!)
+          setShowForm(true);
         } else {
           setPriceError(`Ticker not found on ${locationState.initialExchange}`);
+          setSelectedTicker(null);
+          setShowForm(false);
         }
+        setLoading(false);
       };
       fetchData();
     }
@@ -98,7 +85,6 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
       setIsPortfoliosLoading(false);
     }).catch(() => {
       setIsPortfoliosLoading(false);
-      // Handle error if needed
     });
   }, [sheetId, portId]);
 
@@ -107,9 +93,10 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
     setTicker(selected.symbol);
     setDisplayName(selected.name || '');
     setExchange(selected.exchange || '');
-    setShowForm(false); // Hide form until user clicks "Add Transaction"
+    setShowForm(false); // Hide form, show summary card
+    setPriceError('');
     if (selected.price) {
-      handlePriceChange(selected.price.toString());
+      setPrice(selected.price.toString());
       setPriceUnit((selected.priceUnit || 'base') as PriceUnit);
       if (selected.priceUnit === 'agorot') {
         setTickerCurrency('ILS');
@@ -117,64 +104,20 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
         setTickerCurrency(selected.currency || '');
       }
     } else {
-      fetchTickerPrice(selected.symbol, selected.exchange || '');
+      setPrice('');
+      setTickerCurrency('');
+      setPriceUnit('base');
     }
+    setQty(''); // Clear form fields for new entry
+    setTotal('');
+    setComment('');
+    setCommission('');
+    setTax('');
+    setVestDate('');
+    setType('BUY');
+    setDate(new Date().toISOString().split('T')[0]);
+    setSaveSuccess(false);
   };
-
-  const fetchTickerPrice = (currentTicker: string, currentExchange: string) => {
-    if (currentTicker) {
-      const controller = new AbortController();
-      const signal = controller.signal;
-
-            setIsPriceLoading(true);
-            setPriceError('');
-            setPrice(''); // Always clear price on ticker change
-            setTickerCurrency(''); // Always clear currency on ticker change
-            setPriceUnit('base'); // Reset price unit
-      
-            let exchangeToFetch = currentExchange;
-            if (!exchangeToFetch) {
-              // Deduce exchange for fetching if not set
-              exchangeToFetch = /\d/.test(currentTicker) ? 'TASE' : 'NASDAQ';
-            }
-      
-            getTickerData(currentTicker, exchangeToFetch, signal).then(data => {        if (!signal.aborted) {
-          setIsPriceLoading(false);
-          if (data) {
-            handlePriceChange(data.price.toString());
-            setDisplayName(data.name || '');
-            setPriceUnit((data.priceUnit || 'base') as PriceUnit);
-            if (data.priceUnit === 'agorot') {
-              setTickerCurrency('ILS');
-            } else {
-              setTickerCurrency(data.currency || '');
-            }
-          } else {
-            setPriceError(`Ticker not found on ${exchangeToFetch}`);
-          }
-        }
-      }).catch(err => {
-        if (err.name !== 'AbortError') {
-          console.error("Error fetching ticker data:", err);
-          setIsPriceLoading(false);
-          setPriceError('Error fetching ticker data');
-        }
-      });
-
-      return () => {
-        controller.abort();
-      };
-    } else {
-       setDisplayName('');
-       setPrice('');
-       setTickerCurrency('');
-    }
-  };
-
-  useEffect(() => {
-    const cleanup = fetchTickerPrice(debouncedTicker, exchange);
-    return cleanup;
-  }, [debouncedTicker, exchange]);
 
   useEffect(() => {
     const selectedPort = portfolios.find(p => p.id === portId);
@@ -201,39 +144,23 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
   }, [portId, type, total, portfolios]);
 
 
-  // Handlers: whenever a field is changed, if one of the other two is present compute the third.
   const EPS = 1e-12;
 
   const handleQtyChange = (val: string) => {
     setQty(val);
     const q = parseFloat(val);
     const p = parseFloat(price);
-    const t = parseFloat(total);
-    if (Number.isFinite(q)) {
-      if (Number.isFinite(p)) {
-        // qty + price -> total
-        setTotal((q * p).toFixed(2));
-      } else if (Number.isFinite(t) && Math.abs(q) > EPS) {
-        // qty + total -> price (keep total, compute price)
-        setPrice((t / q).toFixed(4));
-      }
+    if (Number.isFinite(q) && Number.isFinite(p)) {
+      setTotal((q * p).toFixed(2));
     }
   };
 
   const handlePriceChange = (val: string) => {
     setPrice(val);
-    // Don't set error here, purely input
     const q = parseFloat(qty);
     const p = parseFloat(val);
-    const t = parseFloat(total);
-    if (Number.isFinite(p)) {
-      if (Number.isFinite(q)) {
-        // qty + price -> total
-        setTotal((q * p).toFixed(2));
-      } else if (Number.isFinite(t) && Math.abs(p) > EPS) {
-        // price + total -> qty (keep total, compute qty)
-        setQty((t / p).toFixed(4));
-      }
+    if (Number.isFinite(q) && Number.isFinite(p)) {
+      setTotal((q * p).toFixed(2));
     }
   };
 
@@ -244,10 +171,8 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
     const t = parseFloat(val);
     if (Number.isFinite(t)) {
       if (Number.isFinite(p) && Math.abs(p) > EPS) {
-        // total + price -> qty (prefer keeping price)
         setQty((t / p).toFixed(4));
       } else if (Number.isFinite(q) && Math.abs(q) > EPS) {
-        // total + qty -> price
         setPrice((t / q).toFixed(4));
       }
     }
@@ -256,11 +181,11 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
   const handleSubmit = async () => {
     if (!portId || !ticker || !price || !qty) return;
     setLoading(true);
+    setSaveSuccess(false);
  
     try {
       const q = parseFloat(qty);
       const p = parseFloat(price);
-      const t = parseFloat(total);
       
       const txn: Transaction = {
         date,
@@ -270,7 +195,6 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
         type,
         Original_Qty: q,
         Original_Price: p,
-        grossValue: Number.isFinite(t) ? t : q * p,
         currency: tickerCurrency,
         vestDate,
         comment,
@@ -279,12 +203,20 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
       };
 
       await addTransaction(sheetId, txn);
-      
-      // Reset critical fields
-      setQty(''); setTotal(''); setCommission(''); setTax(''); setTicker(''); setExchange(''); setDisplayName('');
+      setSaveSuccess(true);
       if (onSaveSuccess) {
         onSaveSuccess();
       }
+      // Clear form for next entry of the SAME ticker
+      setQty(''); 
+      setTotal(''); 
+      setCommission(''); 
+      setTax(''); 
+      setComment('');
+      setVestDate('');
+      setType('BUY');
+      setDate(new Date().toISOString().split('T')[0]);
+      setShowForm(false); // Hide form, show summary card again
     } catch (e) {
       console.error(e);
       alert('Error saving transaction');
@@ -299,301 +231,166 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
     }
   };
 
+  const handleSearchAgain = () => {
+    setSelectedTicker(null);
+    setTicker('');
+    setExchange('');
+    setDisplayName('');
+    setPrice('');
+    setTickerCurrency('');
+    setShowForm(false);
+    setSaveSuccess(false);
+    navigate('/transaction', { replace: true, state: {} }); // Clear location state
+  };
+
   return (
     <Box sx={{ maxWidth: 800, mx: 'auto' }}>
-      <Typography variant="h5" gutterBottom sx={{ fontWeight: 600, color: 'text.primary', mb: 3 }}>
+      <Typography variant="h5" gutterBottom sx={{ fontWeight: 600, color: 'text.primary', mb: 2 }}>
         New Transaction
       </Typography>
 
-            <Grid container spacing={2}>
-
-              {!locationState?.initialTicker && (
-                <Grid item xs={12}>
-                  <TickerSearch 
-                    onTickerSelect={handleTickerSelect} 
-                    portfolios={portfolios} 
-                    isPortfoliosLoading={isPortfoliosLoading}
-                  />
-                </Grid>
-              )}
-
-      
-
-              {(selectedTicker) && (
-
-                <Grid item xs={12}>
-
-                  <Card variant='outlined' sx={{ mt: 2, p: 1 }}>
-
-                    <CardContent>
-                      <Typography variant="h6" gutterBottom>{displayName || selectedTicker.name}</Typography>
-                      
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap', mb: 2 }}>
-                        <Chip label={`${exchange}: ${ticker}`} color="primary" variant="outlined" />
-                        {isPriceLoading && <CircularProgress size={20} />}
-                        {!isPriceLoading && price && (
-                          <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
-                            {priceUnit === 'agorot' ? 'ag.' : tickerCurrency} {price}
-                          </Typography>
-                        )}
-                      </Box>
-
-                      {priceError && <Alert severity="error" sx={{ mb: 2 }}>{priceError}</Alert>}
-
-                      <Box sx={{ display: 'flex', gap: 2 }}>
-                        <Button variant="contained" startIcon={<AddCircleOutlineIcon />} onClick={() => setShowForm(true)} disabled={showForm}>
-                          Add Transaction
-                        </Button>
-                        <Button variant="outlined" startIcon={<VisibilityIcon />} onClick={handleViewTicker}>
-                          View Ticker
-                        </Button>
-                      </Box>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              )}
-
-      
-
-              {showForm && selectedTicker && (
-
-                <>
-
-                  <Grid item xs={12}>
-
-                    <Card variant="outlined" sx={{ mt: 2 }}>
-
-                      <CardContent>
-
-                        <Grid container spacing={2}>
-
-                          <Grid item xs={12} sm={6}>
-
-                            <FormControl fullWidth size="small">
-
-                              <InputLabel>Portfolio</InputLabel>
-
-                              <Select value={portId} label="Portfolio" onChange={(e) => setPortId(e.target.value)} disabled={isPortfoliosLoading}>
-
-                                {isPortfoliosLoading ? <MenuItem value="">Loading...</MenuItem> : portfolios.map(p => (
-
-                                  <MenuItem key={p.id} value={p.id}>{p.name} ({p.currency})</MenuItem>
-
-                                ))}
-
-                              </Select>
-
-                            </FormControl>
-
-                          </Grid>
-
-                          <Grid item xs={12} sm={6}>
-
-                            <TextField 
-
-                              type="date" label="Date" size="small" fullWidth
-
-                              value={date} onChange={e => setDate(e.target.value)} 
-
-                              InputLabelProps={{ shrink: true }} 
-
-                            />
-
-                          </Grid>
-
-      
-
-                          <Grid item xs={12}>
-
-                            <Divider sx={{ my: 1 }}>Trade Details</Divider>
-
-                          </Grid>
-
-      
-
-                          <Grid item xs={12} sm={4}>
-
-                            <FormControl size="small" fullWidth>
-
-                              <InputLabel>Type</InputLabel>
-
-                              <Select value={type} label="Type" onChange={(e) => setType(e.target.value as any)}>
-
-                                <MenuItem value="BUY">Buy</MenuItem>
-
-                                <MenuItem value="SELL">Sell</MenuItem>
-
-                                <MenuItem value="DIVIDEND">Dividend</MenuItem>
-
-                              </Select>
-
-                            </FormControl>
-
-                          </Grid>
-
-                          <Grid item xs={6} sm={4}>
-
-                            <Tooltip title="Number of shares/units bought or sold.">
-
-                              <TextField 
-
-                                label="Quantity" type="number" size="small" fullWidth
-
-                                value={qty} onChange={e => handleQtyChange(e.target.value)} 
-
-                              />
-
-                            </Tooltip>
-
-                          </Grid>
-
-                          <Grid item xs={6} sm={4}>
-
-                             <Tooltip title={`Price per single share/unit.${priceUnit === 'agorot' ? ' In Agorot.' : ''}`}>
-
-                               <TextField 
-
-                                 label="Price" type="number" size="small" fullWidth
-
-                                 value={price} 
-
-                                 onChange={e => handlePriceChange(e.target.value)} 
-
-                                 InputProps={{
-
-                                   startAdornment: <InputAdornment position="start">{priceUnit === 'agorot' ? 'ag.' : tickerCurrency}</InputAdornment>,
-
-                                   endAdornment: isPriceLoading ? <CircularProgress size={20} /> : null
-
-                                 }}
-
-                               />
-
-                             </Tooltip>
-
-                          </Grid>
-
-                          <Grid item xs={12} sm={4}>
-
-                            <Tooltip title="Total transaction value (Quantity × Price).">
-
-                              <TextField 
-
-                                label="Total Cost" type="number" size="small" fullWidth
-
-                                value={total} onChange={e => handleTotalChange(e.target.value)} 
-
-                                InputProps={{
-
-                                  startAdornment: <InputAdornment position="start">{tickerCurrency}</InputAdornment>
-
-                                }}
-
-                              />
-
-                            </Tooltip>
-
-                          </Grid>
-
-                          
-
-                          <Grid item xs={4} sm={3}>
-
-                              <TextField 
-
-                                label="Commission" type="number" size="small" fullWidth
-
-                                value={commission} onChange={e => setCommission(e.target.value)} 
-
-                              />
-
-                          </Grid>
-
-                          {(type === 'SELL' || type === 'DIVIDEND') && (
-
-                            <Grid item xs={4} sm={3}>
-
-                              <Tooltip title="Tax on transaction (if applicable).">
-
-                                <TextField 
-
-                                  label="Tax %" type="number" size="small" fullWidth
-
-                                  value={tax} onChange={e => setTax(e.target.value)}
-
-                                />
-
-                              </Tooltip>
-
-                            </Grid>
-
-                          )}
-
-                           <Grid item xs={12} sm={(type === 'SELL' || type === 'DIVIDEND') ? 6 : 9}>
-
-                             <Tooltip title="Date when these shares vest (if applicable for RSUs/Options).">
-
-                               <TextField 
-
-                                 label="Vesting Date" type="date" size="small" fullWidth
-
-                                 value={vestDate} onChange={e => setVestDate(e.target.value)}
-
-                                 InputLabelProps={{ shrink: true }}
-
-                               />
-
-                             </Tooltip>
-
-                           </Grid>
-
-      
-
-                          <Grid item xs={12}>
-
-                              <TextField 
-
-                                 label="Comment" size="small" fullWidth 
-
-                                 value={comment} onChange={e => setComment(e.target.value)} 
-
-                               />
-
-                           </Grid>
-
-                        </Grid>
-
-                      </CardContent>
-
-                    </Card>
-
+      {selectedTicker && (
+         <Button variant="text" startIcon={<SearchIcon />} onClick={handleSearchAgain} sx={{ mb: 2 }}>
+           Back to Search
+         </Button>
+      )}
+
+      {saveSuccess && (
+        <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSaveSuccess(false)} action={
+          <Button color="inherit" size="small" onClick={() => navigate('/dashboard')}>
+            Dashboard
+          </Button>
+        }>
+          Transaction for {ticker} saved!
+        </Alert>
+      )}
+
+      <Grid container spacing={2}>
+        {(!selectedTicker && !locationState?.initialTicker) && (
+          <Grid item xs={12}>
+            <TickerSearch 
+              onTickerSelect={handleTickerSelect} 
+              portfolios={portfolios} 
+              isPortfoliosLoading={isPortfoliosLoading}
+            />
+          </Grid>
+        )}
+
+        {(selectedTicker) && (
+          <Grid item xs={12}>
+            <Card variant='outlined' sx={{ mt: 0, p: 1 }}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>{displayName || selectedTicker.name}</Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap', mb: 2 }}>
+                  <Chip label={`${exchange}: ${ticker}`} color="primary" variant="outlined" />
+                  {price && (
+                    <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+                      {priceUnit === 'agorot' ? 'ag.' : tickerCurrency} {price}
+                    </Typography>
+                  )}
+                </Box>
+
+                {priceError && <Alert severity="error" sx={{ mb: 2 }}>{priceError}</Alert>}
+
+                {!showForm && (
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                    <Button variant="contained" startIcon={<AddCircleOutlineIcon />} onClick={() => { setShowForm(true); setSaveSuccess(false); }}>Add Another for {ticker}</Button>
+                    <Button variant="outlined" startIcon={<VisibilityIcon />} onClick={handleViewTicker}>View Ticker</Button>
+                  </Box>
+                )}
+              </CardContent>
+            </Card>
+          </Grid>
+        )}
+
+        {showForm && selectedTicker && (
+          <>
+            <Grid item xs={12}>
+              <Card variant="outlined" sx={{ mt: 2 }}>
+                <CardContent>
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} sm={6}>
+                      <FormControl fullWidth size="small">
+                        <InputLabel>Portfolio</InputLabel>
+                        <Select value={portId} label="Portfolio" onChange={(e) => setPortId(e.target.value)} disabled={isPortfoliosLoading}>
+                          {isPortfoliosLoading ? <MenuItem value="">Loading...</MenuItem> : portfolios.map(p => (
+                            <MenuItem key={p.id} value={p.id}>{p.name} ({p.currency})</MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <TextField 
+                        type="date" label="Date" size="small" fullWidth
+                        value={date} onChange={e => setDate(e.target.value)} 
+                        InputLabelProps={{ shrink: true }} 
+                      />
+                    </Grid>
+                    <Grid item xs={12}><Divider sx={{ my: 1 }}>Trade Details</Divider></Grid>
+                    <Grid item xs={12} sm={4}>
+                      <FormControl size="small" fullWidth>
+                        <InputLabel>Type</InputLabel>
+                        <Select value={type} label="Type" onChange={(e) => setType(e.target.value as any)}>
+                          <MenuItem value="BUY">Buy</MenuItem>
+                          <MenuItem value="SELL">Sell</MenuItem>
+                          <MenuItem value="DIVIDEND">Dividend</MenuItem>
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                    <Grid item xs={6} sm={4}>
+                      <Tooltip title="Number of shares/units bought or sold.">
+                        <TextField label="Original Quantity" type="number" size="small" fullWidth value={qty} onChange={e => handleQtyChange(e.target.value)} />
+                      </Tooltip>
+                    </Grid>
+                    <Grid item xs={6} sm={4}>
+                       <Tooltip title={`Price per single share/unit.${priceUnit === 'agorot' ? ' In Agorot.' : ''}`}>
+                         <TextField 
+                           label="Original Price" type="number" size="small" fullWidth
+                           value={price} 
+                           onChange={e => handlePriceChange(e.target.value)} 
+                           InputProps={{ startAdornment: <InputAdornment position="start">{priceUnit === 'agorot' ? 'ag.' : tickerCurrency}</InputAdornment> }}
+                         />
+                       </Tooltip>
+                    </Grid>
+                    <Grid item xs={12} sm={4}>
+                      <Tooltip title="Total transaction value (Quantity × Price).">
+                        <TextField 
+                          label="Total Cost" type="number" size="small" fullWidth
+                          value={total} onChange={e => handleTotalChange(e.target.value)} 
+                          InputProps={{ startAdornment: <InputAdornment position="start">{tickerCurrency}</InputAdornment> }}
+                        />
+                      </Tooltip>
+                    </Grid>
+                    <Grid item xs={4} sm={3}>
+                        <TextField label="Commission" type="number" size="small" fullWidth value={commission} onChange={e => setCommission(e.target.value)} />
+                    </Grid>
+                    {(type === 'SELL' || type === 'DIVIDEND') && (
+                      <Grid item xs={4} sm={3}>
+                        <Tooltip title="Tax on transaction (if applicable).">
+                          <TextField label="Tax %" type="number" size="small" fullWidth value={tax} onChange={e => setTax(e.target.value)} />
+                        </Tooltip>
+                      </Grid>
+                    )}
+                     <Grid item xs={12} sm={(type === 'SELL' || type === 'DIVIDEND') ? 6 : 9}>
+                       <Tooltip title="Date when these shares vest (if applicable for RSUs/Options).">
+                         <TextField label="Vesting Date" type="date" size="small" fullWidth value={vestDate} onChange={e => setVestDate(e.target.value)} InputLabelProps={{ shrink: true }} />
+                       </Tooltip>
+                     </Grid>
+                    <Grid item xs={12}>
+                        <TextField label="Comment" size="small" fullWidth value={comment} onChange={e => setComment(e.target.value)} />
+                     </Grid>
                   </Grid>
-
-      
-
-                  <Grid item xs={12}>
-
-                    <Button 
-
-                      variant="contained" size="large" fullWidth
-
-                      startIcon={<AddCircleOutlineIcon />} onClick={handleSubmit} disabled={loading}
-
-                      sx={{ py: 1.5 }}
-
-                    >
-
-                      {loading ? 'Saving...' : 'Save Transaction'}
-
-                    </Button>
-
-                  </Grid>
-
-                </>
-
-              )}
-
+                </CardContent>
+              </Card>
             </Grid>
+            <Grid item xs={12}>
+              <Button variant="contained" size="large" fullWidth startIcon={<AddCircleOutlineIcon />} onClick={handleSubmit} disabled={loading}>
+                {loading ? 'Saving...' : 'Save Transaction'}
+              </Button>
+            </Grid>
+          </>
+        )}
+      </Grid>
     </Box>
   );
 };
