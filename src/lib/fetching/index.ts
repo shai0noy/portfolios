@@ -7,6 +7,7 @@ import type { TickerData, TaseTicker, TaseTypeConfig } from './types';
 
 export * from './types';
 export * from './stock_list';
+export * from './cbs';
 
 let taseTickersDataset: TaseTicker[] | null = null;
 let taseTickersDatasetLoading: Promise<TaseTicker[]> | null = null;

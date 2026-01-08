@@ -13,6 +13,12 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { type Portfolio, PORTFOLIO_TEMPLATES } from '../lib/types';
 import { addPortfolio, fetchPortfolios, updatePortfolio } from '../lib/sheets';
 
+const taxPolicyNames: { [key: string]: string } = {
+  REAL_GAIN: "Israel (Real Gain - Inflation Adjusted)",
+  NOMINAL_GAIN: "Fixed (Nominal Gain)",
+  TAX_FREE: "Tax Free (e.g. Pension/IRA)",
+};
+
 interface Props {
   sheetId: string;
   onSuccess: () => void;
@@ -96,11 +102,12 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
   };
 
   const handleNameChange = (val: string) => {
+    const sanitizedVal = val.toUpperCase().replace(/[^A-Z-]/g, '');
     setP(prev => {
-      const updates: any = { name: val };
+      const updates: any = { name: sanitizedVal };
       if (!idDirty) {
-        // Auto-generate ID: lowercase, underscores, alphanumeric only
-        updates.id = val.toLowerCase().trim().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+        // Auto-generate ID from sanitized name
+        updates.id = sanitizedVal;
       }
       return { ...prev, ...updates };
     });
@@ -108,7 +115,8 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
 
   const handleIdChange = (val: string) => {
     setIdDirty(true);
-    setP(prev => ({ ...prev, id: val }));
+    const sanitizedId = val.toUpperCase().replace(/[^A-Z-]/g, '');
+    setP(prev => ({ ...prev, id: sanitizedId }));
   };
 
 
@@ -324,9 +332,9 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                             if (val === 'TAX_FREE') set('cgt', 0);
                           }}
                         >
-                          <MenuItem value="REAL_GAIN">Israel (Real Gain - Inflation Adjusted)</MenuItem>
-                          <MenuItem value="NOMINAL_GAIN">Fixed (Nominal Gain)</MenuItem>
-                          <MenuItem value="TAX_FREE">Tax Free (e.g. Pension/IRA)</MenuItem>
+                          {Object.entries(taxPolicyNames).map(([key, name]) => (
+                            <MenuItem key={key} value={key}>{name}</MenuItem>
+                          ))}
                         </Select>
                       </FormControl>
                     </Grid>
@@ -410,7 +418,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                     <TableCell>{port.id}</TableCell>
                     <TableCell>{port.name}</TableCell>
                     <TableCell>{port.currency}</TableCell>
-                    <TableCell>{port.taxPolicy}</TableCell>
+                    <TableCell>{taxPolicyNames[port.taxPolicy] || port.taxPolicy}</TableCell>
                     <TableCell>
                       <Button size="small" onClick={() => navigate(`/portfolios/${port.id}`)} sx={{ mr: 1 }}>Edit</Button>
                       <Button size="small" color="error" onClick={() => alert('Delete: ' + port.id)}>Delete</Button>
