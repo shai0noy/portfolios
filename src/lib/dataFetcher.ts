@@ -188,10 +188,7 @@ async function fetchYahooStock(ticker: string, signal?: AbortSignal): Promise<Ti
     }
   }
 
-  const yahooApiUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=1d`;
-  const url = import.meta.env.DEV
-    ? `/api/yahoo/v8/finance/chart/${ticker}?interval=1d&range=1d`
-    : `https://api.allorigins.win/raw?url=${encodeURIComponent(yahooApiUrl)}`;
+  const url = `https://portfolios.noy-shai.workers.dev/?apiId=yahoo_hist&ticker=${ticker}`;
 
   let data;
   try {
@@ -260,63 +257,6 @@ async function fetchYahooStock(ticker: string, signal?: AbortSignal): Promise<Ti
   }
 }
 
-async function fetchYahooHistorical(ticker: string, range: string = '5y', interval: string = '1d', signal?: AbortSignal): Promise<HistoricalDataPoint[] | null> {
-  const now = Date.now();
-  const cacheKey = `yahoo-hist:${ticker}:${range}:${interval}`;
-
-  if (historicalDataCache.has(cacheKey)) {
-    const cached = historicalDataCache.get(cacheKey)!;
-    if (now - cached.timestamp < CACHE_TTL) {
-      return cached.data;
-    }
-  }
-
-  const yahooApiUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?range=${range}&interval=${interval}`;
-  const url = import.meta.env.DEV
-    ? `/api/yahoo/v8/finance/chart/${ticker}?range=${range}&interval=${interval}`
-    : `https://api.allorigins.win/raw?url=${encodeURIComponent(yahooApiUrl)}`;
-
-  let data;
-  try {
-    const res = await fetch(url, { signal });
-    if (!res.ok) {
-      const errorBody = await res.text();
-      console.error(`Yahoo historical fetch failed with status ${res.status}:`, errorBody);
-      throw new Error(`Network response was not ok: ${res.statusText}`);
-    }
-    data = await res.json();
-  } catch (e: unknown) {
-    if (e instanceof Error && e.name === 'AbortError') {
-      console.log('Yahoo historical fetch aborted');
-    } else {
-      console.error('Yahoo historical fetch failed', e);
-    }
-    return null;
-  }
-
-  try {
-    const result = data?.chart?.result?.[0];
-    if (!result || !result.timestamp || !result.indicators?.quote?.[0]?.close) {
-      console.error('Invalid historical data format', result);
-      return null;
-    }
-
-    const timestamps = result.timestamp;
-    const closes = result.indicators.quote[0].close;
-
-    const historicalData: HistoricalDataPoint[] = timestamps.map((ts: number, index: number) => ({
-      date: ts * 1000, // Convert to milliseconds
-      close: closes[index],
-    })).filter((d: HistoricalDataPoint) => d.close !== null && d.close !== undefined);
-
-    historicalDataCache.set(cacheKey, { data: historicalData, timestamp: now });
-    return historicalData;
-  } catch (error) {
-    console.error('Error parsing Yahoo historical data', error);
-    return null;
-  }
-}
-
 export async function getTickerData(ticker: string, exchange?: string, signal?: AbortSignal, forceRefresh = false): Promise<TickerData | null> {
   const exchangeL = exchange?.toLowerCase();
   const cacheKey = exchangeL === 'tase' ? `globes:${exchangeL}:${ticker}` : `yahoo:${ticker}`;
@@ -365,5 +305,4 @@ export async function getTickerData(ticker: string, exchange?: string, signal?: 
   }
 }
 
-export { fetchYahooHistorical };
 export type { TickerData, HistoricalDataPoint };
