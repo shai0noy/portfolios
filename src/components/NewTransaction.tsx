@@ -8,7 +8,7 @@ import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import type { Portfolio, Transaction, PriceUnit } from '../lib/types';
 import { addTransaction, fetchPortfolios } from '../lib/sheets';
-import { getTickerData, type TickerData } from '../lib/ticker';
+import { getTickerData, type TickerData } from '../lib/fetching';
 import { TickerSearch } from './TickerSearch';
 
 interface Props {
@@ -268,8 +268,8 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
         ticker,
         exchange,
         type,
-        qty: q,
-        price: p,
+        Original_Qty: q,
+        Original_Price: p,
         grossValue: Number.isFinite(t) ? t : q * p,
         currency: tickerCurrency,
         vestDate,

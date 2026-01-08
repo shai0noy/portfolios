@@ -2,14 +2,76 @@
 // src/lib/sheets.ts
 import type { Portfolio, Transaction, Holding } from './types';
 import { ensureGapi, signIn } from './google';
-import { getTickerData } from './dataFetcher';
+import { getTickerData, fetchYahooOpenPriceOnDate } from './fetching';
 
 const DEFAULT_SHEET_NAME = 'Portfolios_App_Data';
+
+// --- Column Definitions ---
+interface TxnColumnDef {
+  colName: string;
+  colId: string;
+  numeric?: boolean;
+  formula?: (rowRef: string, cols: TransactionColumns) => string;
+}
+
+// Utility type to enforce all keys of Transaction are present	ype TransactionColumns = {
+  [K in keyof Required<Omit<Transaction, 'grossValue'>>]: TxnColumnDef;
+};
+
+const TXN_COLS: TransactionColumns = {
+  date: { colName: 'Date', colId: 'A' },
+  portfolioId: { colName: 'Portfolio', colId: 'B' },
+  ticker: { colName: 'Ticker', colId: 'C' },
+  exchange: { colName: 'Exchange', colId: 'D' },
+  type: { colName: 'Type', colId: 'E' },
+  Original_Qty: { colName: 'Original_Qty', colId: 'F', numeric: true },
+  Original_Price: { colName: 'Original_Price', colId: 'G', numeric: true },
+  currency: { colName: 'Currency', colId: 'H' },
+  vestDate: { colName: 'Vesting_Date', colId: 'I' },
+  comment: { colName: 'Comments', colId: 'J' },
+  commission: { colName: 'Commission', colId: 'K', numeric: true },
+  tax: { colName: 'Tax %', colId: 'L', numeric: true },
+  Source: { colName: 'Source', colId: 'M' },
+  Orig_Open_Price_At_Date: { colName: 'Orig_Open_Price_At_Date', colId: 'N', numeric: true },
+  Split_Adj_Open_Price: {
+    colName: 'Split_Adj_Open_Price',
+    colId: 'O',
+    numeric: true,
+    formula: (rowRef, cols) => `=IFERROR(GOOGLEFINANCE(${cols.ticker.colId}${rowRef}&":"&${cols.exchange.colId}${rowRef}, "price", ${cols.date.colId}${rowRef}), "")`
+  },
+  Split_Ratio: {
+    colName: 'Split_Ratio',
+    colId: 'P',
+    numeric: true,
+    formula: (rowRef, cols) => `=IFERROR(IF(${cols.Split_Adj_Open_Price.colId}${rowRef}=0, 1, ${cols.Orig_Open_Price_At_Date.colId}${rowRef} / ${cols.Split_Adj_Open_Price.colId}${rowRef}), 1)`
+  },
+  Split_Adjusted_Price: {
+    colName: 'Split_Adjusted_Price',
+    colId: 'Q',
+    numeric: true,
+    formula: (rowRef, cols) => `=IFERROR(${cols.Original_Price.colId}${rowRef} / ${cols.Split_Ratio.colId}${rowRef}, ${cols.Original_Price.colId}${rowRef})`
+  },
+  Split_Adjusted_Qty: {
+    colName: 'Split_Adjusted_Qty',
+    colId: 'R',
+    numeric: true,
+    formula: (rowRef, cols) => `=IFERROR(${cols.Original_Qty.colId}${rowRef} * ${cols.Split_Ratio.colId}${rowRef}, ${cols.Original_Qty.colId}${rowRef})`
+  },
+};
+
+const transactionHeaders = Object.values(TXN_COLS).map(c => c.colName) as unknown as readonly string[];
+const transactionMapping: Record<keyof Omit<Transaction, 'grossValue'>, string> = 
+  Object.keys(TXN_COLS).reduce((acc, key) => {
+    const k = key as keyof Omit<Transaction, 'grossValue'>;
+    acc[k] = TXN_COLS[k].colName;
+    return acc;
+  }, {} as Record<keyof Omit<Transaction, 'grossValue'>, string>);
+
+const transactionNumericKeys = Object.keys(TXN_COLS).filter(key => TXN_COLS[key as keyof Transaction].numeric).map(key => key) as unknown as (keyof Omit<Transaction, 'grossValue'>)[];
 
 // --- Canonical Headers & Ranges ---
 
 const portfolioHeaders = ['Portfolio_ID', 'Display_Name', 'Cap_Gains_Tax_%', 'Income_Tax_Vest_%', 'Mgmt_Fee_Val', 'Mgmt_Type', 'Mgmt_Freq', 'Comm_Rate_%', 'Comm_Min', 'Comm_Max_Fee', 'Currency', 'Div_Policy', 'Div_Comm_Rate_%', 'Tax_Policy'] as const;
-const transactionHeaders = ['Date', 'Portfolio', 'Ticker', 'Exchange', 'Type', 'Qty', 'Price', 'Currency', 'Vesting_Date', 'Comments', 'Commission', 'Tax %'] as const;
 
 const holdingsHeaders = [
     'PortfolioId', 'Ticker', 'Exchange', 'Quantity', 'Live_Price', 'Currency', 'Total Holding Value', 
@@ -41,7 +103,8 @@ function createRowMapper<T extends readonly string[]>(headers: T) {
             if (index !== undefined && row[index] !== undefined && row[index] !== null) {
                 let value: any = row[index];
                 if (numericKeys.includes(key)) {
-                    value = parseFloat(String(value).replace(/,/g, '')) || 0;
+                    value = parseFloat(String(value).replace(/,/g, '').replace(/%/, '')) || 0;
+                    if (mapping[key].includes('%')) value = value / 100;
                 }
                 obj[key] = value;
             }
@@ -50,13 +113,17 @@ function createRowMapper<T extends readonly string[]>(headers: T) {
     };
 }
 
-function objectToRow<T, K extends keyof T>(obj: T, mapping: Record<K, string>, headers: readonly string[]): any[] {
-    const invertedMapping = Object.fromEntries(Object.entries(mapping).map(([key, value]) => [value as string, key]));
+function objectToRow<T extends object>(obj: T, headers: readonly string[], colDefs: TransactionColumns): any[] {
     const row = new Array(headers.length).fill('');
-    headers.forEach((header, i) => {
-        const key = invertedMapping[header] as K;
-        if (key && obj[key] !== undefined && obj[key] !== null) {
-            row[i] = obj[key];
+    Object.keys(colDefs).forEach((key, i) => {
+        const keyOfT = key as keyof T;
+        const colDef = colDefs[keyOfT as keyof TransactionColumns];
+        const value = obj[keyOfT];
+
+        if (value !== undefined && value !== null) {
+            row[i] = value;
+        } else if (colDef.formula) {
+            row[i] = colDef.formula('ROW()', TXN_COLS);
         }
     });
     return row;
@@ -71,13 +138,6 @@ const portfolioMapping: Record<keyof Omit<Portfolio, 'holdings'>, typeof portfol
     divCommRate: 'Div_Comm_Rate_%', taxPolicy: 'Tax_Policy'
 };
 const portfolioNumericKeys: (keyof Omit<Portfolio, 'holdings'>)[] = ['cgt', 'incTax', 'mgmtVal', 'commRate', 'commMin', 'commMax', 'divCommRate'];
-
-const transactionMapping: Record<keyof Omit<Transaction, 'grossValue'>, typeof transactionHeaders[number]> = {
-    date: 'Date', portfolioId: 'Portfolio', ticker: 'Ticker', exchange: 'Exchange', type: 'Type',
-    qty: 'Qty', price: 'Price', currency: 'Currency', vestDate: 'Vesting_Date', comment: 'Comments',
-    commission: 'Commission', tax: 'Tax %',
-};
-const transactionNumericKeys: (keyof Omit<Transaction, 'grossValue'>)[] = ['qty', 'price', 'commission', 'tax'];
 
 const holdingMapping: Record<keyof Holding, typeof holdingsHeaders[number]> = {
     portfolioId: 'PortfolioId', ticker: 'Ticker', exchange: 'Exchange', qty: 'Quantity',
@@ -199,12 +259,18 @@ export const ensureSchema = async (spreadsheetId: string) => {
 
 // --- Data Fetching Functions ---
 
-async function fetchSheetData<T>(spreadsheetId: string, range: string, rowMapper: (row: any[]) => T): Promise<T[]> {
+async function fetchSheetData<T>(
+    spreadsheetId: string, 
+    range: string, 
+    rowMapper: (row: any[]) => T,
+    valueRenderOption = 'FORMATTED_VALUE'
+): Promise<T[]> {
     await ensureGapi();
     try {
         const res = await window.gapi.client.sheets.spreadsheets.values.get({
             spreadsheetId,
             range,
+            valueRenderOption,
         });
         const rows = res.result.values || [];
         return rows.map(rowMapper).filter(Boolean); 
@@ -248,10 +314,13 @@ export const fetchPortfolios = async (spreadsheetId: string): Promise<Portfolio[
 };
 
 export const fetchTransactions = async (spreadsheetId: string): Promise<Transaction[]> => {
-    const transactions = await fetchSheetData(spreadsheetId, TX_FETCH_RANGE, (row) =>
-        mapRowToTransaction<Omit<Transaction, 'grossValue'>>(row, transactionMapping, transactionNumericKeys)
+    const transactions = await fetchSheetData(
+        spreadsheetId, 
+        TX_FETCH_RANGE, 
+        (row) => mapRowToTransaction<Omit<Transaction, 'grossValue'>>(row, transactionMapping, transactionNumericKeys),
+        'FORMATTED_VALUE' // Fetch formatted values to get results of formulas
     );
-    return transactions.map(t => ({...t, grossValue: t.qty * t.price}));
+    return transactions.map(t => ({...t, grossValue: t.Original_Qty * t.Original_Price}));
 };
 
 export const getSpreadsheet = (): string | null => {
@@ -369,15 +438,29 @@ export const updatePortfolio = async (spreadsheetId: string, p: Portfolio) => {
 
 export const addTransaction = async (spreadsheetId: string, t: Transaction) => {
     await ensureGapi();
-    const row = objectToRow({
+
+    let origOpenPrice: number | null = null;
+    if (t.exchange && t.exchange.toUpperCase() !== 'TASE' && t.type !== 'DIVIDEND' && t.type !== 'FEE') {
+        try {
+            origOpenPrice = await fetchYahooOpenPriceOnDate(t.ticker, t.date);
+        } catch (e) {
+            console.warn(`Failed to fetch open price for ${t.ticker} on ${t.date}:`, e);
+        }
+    }
+
+    const rowData: any = {
       ...t,
       ticker: t.ticker.toUpperCase(),
       exchange: (t.exchange || '').toUpperCase(),
       vestDate: t.vestDate || '',
       comment: t.comment || '',
       commission: t.commission || 0,
-      tax: t.tax || 0
-    }, transactionMapping, transactionHeaders);
+      tax: t.tax || 0,
+      Source: t.Source || '',
+      Orig_Open_Price_At_Date: origOpenPrice,
+    };
+
+    const row = objectToRow(rowData, transactionHeaders, TXN_COLS);
 
     await window.gapi.client.sheets.spreadsheets.values.append({
         spreadsheetId,
@@ -385,14 +468,13 @@ export const addTransaction = async (spreadsheetId: string, t: Transaction) => {
         valueInputOption: 'USER_ENTERED',
         resource: { values: [row] }
     });
-    await rebuildHoldingsSheet(spreadsheetId); // Update holdings after adding transaction
+    await rebuildHoldingsSheet(spreadsheetId);
 };
 
 // Rebuild Holdings sheet
 export const rebuildHoldingsSheet = async (spreadsheetId: string) => {
     await ensureGapi();
     const transactions = await fetchTransactions(spreadsheetId);
-
 
     const holdings: Record<string, Omit<Holding, 'totalValue' | 'price' | 'currency' | 'name' | 'name_he' | 'sector' | 'priceUnit' | 'changePct' | 'changePct1w' | 'changePct1m' | 'changePct3m' | 'changePctYtd' | 'changePct1y' | 'changePct3y' | 'changePct5y' | 'changePct10y'> & { portfolioId: string }> = {};
 
@@ -403,7 +485,8 @@ export const rebuildHoldingsSheet = async (spreadsheetId: string) => {
                 holdings[key] = { portfolioId: txn.portfolioId, ticker: txn.ticker, exchange: txn.exchange || '', qty: 0 };
             }
             const multiplier = txn.type === 'BUY' ? 1 : -1;
-            holdings[key].qty += txn.qty * multiplier;
+            const qty = parseFloat(txn.Split_Adjusted_Qty || txn.Original_Qty.toString());
+            holdings[key].qty += qty * multiplier;
         }
     });
 
@@ -589,16 +672,16 @@ export const populateTestData = async (spreadsheetId: string) => {
   }
 
   const transactions: Transaction[] = [
-    { date: '2025-01-02', portfolioId: 'P-IL-GROWTH', ticker: 'TASE1', exchange: 'TASE', type: 'BUY', qty: 100, price: 50, grossValue: 5000, currency: 'ILS', comment: 'Initial buy' },
-    { date: '2025-02-15', portfolioId: 'P-IL-GROWTH', ticker: 'TASE1', exchange: 'TASE', type: 'DIVIDEND', qty: 0, price: 0, grossValue: 10, currency: 'ILS', comment: 'Dividend payout' },
-    { date: '2025-06-10', portfolioId: 'P-IL-GROWTH', ticker: 'TASE2', exchange: 'TASE', type: 'BUY', qty: 50, price: 200, grossValue: 10000, currency: 'ILS', comment: 'Add position' },
-    { date: '2025-03-01', portfolioId: 'P-USD-CORE', ticker: 'AAPL', exchange: 'NASDAQ', type: 'BUY', qty: 10, price: 150, grossValue: 1500, currency: 'USD', comment: 'Core buy' },
-    { date: '2025-08-01', portfolioId: 'P-USD-CORE', ticker: 'AAPL', exchange: 'NASDAQ', type: 'DIVIDEND', qty: 0, price: 0, grossValue: 5, currency: 'USD', comment: 'Quarterly dividend' },
-    { date: '2025-11-20', portfolioId: 'P-USD-CORE', ticker: 'TSLA', exchange: 'NASDAQ', type: 'BUY', qty: 5, price: 700, grossValue: 3500, currency: 'USD', comment: 'Speculative buy' },
-    { date: '2025-11-21', portfolioId: 'P-USD-CORE', ticker: 'AAPL', exchange: 'NASDAQ', type: 'SELL', qty: 5, price: 200, grossValue: 1000, currency: 'USD', comment: 'Trim position' },
-    { date: '2025-04-10', portfolioId: 'P-RSU', ticker: 'COMP', exchange: 'NASDAQ', type: 'BUY', qty: 200, price: 0.01, vestDate: '2025-04-10', grossValue: 2, currency: 'USD', comment: 'RSU vested' },
-    { date: '2025-07-10', portfolioId: 'P-RSU', ticker: 'COMP', exchange: 'NASDAQ', type: 'DIVIDEND', qty: 0, price: 0, grossValue: 10, currency: 'USD', comment: 'RSU dividend' },
-    { date: '2025-12-01', portfolioId: 'P-RSU', ticker: 'COMP', exchange: 'NASDAQ', type: 'SELL', qty: 50, price: 20, grossValue: 1000, currency: 'USD', comment: 'Sell vested RSUs' }
+    { date: '2025-01-02', portfolioId: 'P-IL-GROWTH', ticker: 'TASE1', exchange: 'TASE', type: 'BUY', Original_Qty: 100, Original_Price: 50, grossValue: 5000, currency: 'ILS', comment: 'Initial buy' },
+    { date: '2025-02-15', portfolioId: 'P-IL-GROWTH', ticker: 'TASE1', exchange: 'TASE', type: 'DIVIDEND', Original_Qty: 0, Original_Price: 0, grossValue: 10, currency: 'ILS', comment: 'Dividend payout' },
+    { date: '2025-06-10', portfolioId: 'P-IL-GROWTH', ticker: 'TASE2', exchange: 'TASE', type: 'BUY', Original_Qty: 50, Original_Price: 200, grossValue: 10000, currency: 'ILS', comment: 'Add position' },
+    { date: '2025-03-01', portfolioId: 'P-USD-CORE', ticker: 'AAPL', exchange: 'NASDAQ', type: 'BUY', Original_Qty: 10, Original_Price: 150, grossValue: 1500, currency: 'USD', comment: 'Core buy' },
+    { date: '2025-08-01', portfolioId: 'P-USD-CORE', ticker: 'AAPL', exchange: 'NASDAQ', type: 'DIVIDEND', Original_Qty: 0, Original_Price: 0, grossValue: 5, currency: 'USD', comment: 'Quarterly dividend' },
+    { date: '2025-11-20', portfolioId: 'P-USD-CORE', ticker: 'TSLA', exchange: 'NASDAQ', type: 'BUY', Original_Qty: 5, Original_Price: 700, grossValue: 3500, currency: 'USD', comment: 'Speculative buy' },
+    { date: '2025-11-21', portfolioId: 'P-USD-CORE', ticker: 'AAPL', exchange: 'NASDAQ', type: 'SELL', Original_Qty: 5, Original_Price: 200, grossValue: 1000, currency: 'USD', comment: 'Trim position' },
+    { date: '2025-04-10', portfolioId: 'P-RSU', ticker: 'COMP', exchange: 'NASDAQ', type: 'BUY', Original_Qty: 200, Original_Price: 0.01, vestDate: '2025-04-10', grossValue: 2, currency: 'USD', comment: 'RSU vested' },
+    { date: '2025-07-10', portfolioId: 'P-RSU', ticker: 'COMP', exchange: 'NASDAQ', type: 'DIVIDEND', Original_Qty: 0, Original_Price: 0, grossValue: 10, currency: 'USD', comment: 'RSU dividend' },
+    { date: '2025-12-01', portfolioId: 'P-RSU', ticker: 'COMP', exchange: 'NASDAQ', type: 'SELL', Original_Qty: 50, Original_Price: 20, grossValue: 1000, currency: 'USD', comment: 'Sell vested RSUs' }
   ];
 
   for (const t of transactions) {

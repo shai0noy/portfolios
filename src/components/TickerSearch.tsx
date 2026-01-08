@@ -3,7 +3,7 @@ import {
   TextField, Grid, Typography, CircularProgress, MenuItem, Select, FormControl, InputLabel,
   List, ListItemButton, ListItemText, Paper, Box, Divider, Chip, Tooltip
 } from '@mui/material';
-import { getTaseTickersDataset, getTickerData, type TaseTicker, type TickerData, DEFAULT_TASE_TYPE_CONFIG } from '../lib/ticker';
+import { getTaseTickersDataset, getTickerData, type TaseTicker, type TickerData, DEFAULT_TASE_TYPE_CONFIG } from '../lib/fetching';
 import type { Portfolio } from '../lib/types';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
 

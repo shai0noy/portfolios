@@ -7,7 +7,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import type { Portfolio, Transaction } from '../lib/types';
 import { addTransaction, fetchPortfolios } from '../lib/sheets';
-import { getTickerData } from '../lib/ticker';
+import { getTickerData } from '../lib/fetching';
 
 interface Props {
   sheetId: string;

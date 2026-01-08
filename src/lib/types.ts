@@ -1,3 +1,4 @@
+// src/lib/types.ts
 export interface Portfolio {
   id: string;
   name: string;
@@ -47,14 +48,15 @@ export interface Transaction {
   ticker: string;
   exchange?: string;
   type: 'BUY' | 'SELL' | 'DIVIDEND' | 'FEE';
-  qty: number;
-  price: number;
+  Original_Qty: number;
+  Original_Price: number;
   grossValue?: number;
   currency?: string;
   vestDate?: string;
   comment?: string;
   commission?: number;
   tax?: number;
+  Source?: string;
 }
 
 export type PriceUnit = 'base' | 'agorot' | 'cents';

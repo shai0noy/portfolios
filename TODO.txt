@@ -20,7 +20,7 @@ ON HOLD: Dashbaord header - Add portfolio gain (value&pct) since date (1m,1y,3y,
 Portfolio list - should show a tax policy name not key
 New portfolio UI - auto populate ID based on name - verify name chars are valid Uppercase a-z and - only
 
-All yahoo calls shold use https://portfolios.noy-shai.workers.dev/?apiId=yahoo_hist&ticker=GOOG (replace GOOG, return val is the same) - without proxies
+DONE: All yahoo calls shold use https://portfolios.noy-shai.workers.dev/?apiId=yahoo_hist&ticker=GOOG (replace GOOG, return val is the same) - without proxies
 
 
 Add column to Trasnactions "Source" - fill it only for imports with "CSV_Import_yyyymmdd_hhmm" 

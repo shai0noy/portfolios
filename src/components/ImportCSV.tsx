@@ -180,18 +180,22 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
           exchange = /\d/.test(tickerVal) ? 'TASE' : 'NASDAQ';
       }
 
+      const now = new Date();
+      const sourceId = `CSV_Import_${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}_${now.getHours().toString().padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}`;
+
       return {
         date: isoDate,
         portfolioId,
         ticker: getVal('ticker').toUpperCase(),
         exchange, // Add exchange
         type,
-        qty: isNaN(qty) ? 0 : Math.abs(qty), // Store absolute qty, logic handles sign
-        price: isNaN(price) ? 0 : price,
+        Original_Qty: isNaN(qty) ? 0 : Math.abs(qty), // Store absolute qty, logic handles sign
+        Original_Price: isNaN(price) ? 0 : price,
         grossValue: (isNaN(qty) ? 0 : Math.abs(qty)) * (isNaN(price) ? 0 : price),
-        comment: 'Imported via CSV'
+        comment: 'Imported via CSV',
+        Source: sourceId,
       };
-    }).filter(t => t.ticker && t.qty > 0); // Filter invalid rows
+    }).filter(t => t.ticker && t.Original_Qty > 0); // Filter invalid rows
 
     setParsedTxns(txns);
   };
@@ -367,8 +371,8 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
                     <TableCell>Ticker</TableCell>
                     <TableCell>Exchange</TableCell>
                     <TableCell>Type</TableCell>
-                    <TableCell align="right">Qty</TableCell>
-                    <TableCell align="right">Price</TableCell>
+                    <TableCell align="right">Orig. Qty</TableCell>
+                    <TableCell align="right">Orig. Price</TableCell>
                     <TableCell align="right">Total</TableCell>
                   </TableRow>
                 </TableHead>
@@ -379,8 +383,8 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
                       <TableCell>{t.ticker}</TableCell>
                       <TableCell>{t.exchange}</TableCell>
                       <TableCell>{t.type}</TableCell>
-                      <TableCell align="right">{t.qty}</TableCell>
-                      <TableCell align="right">{t.price.toFixed(2)}</TableCell>
+                      <TableCell align="right">{t.Original_Qty}</TableCell>
+                      <TableCell align="right">{t.Original_Price.toFixed(2)}</TableCell>
                       <TableCell align="right">{t.grossValue?.toFixed(2)}</TableCell>
                     </TableRow>
                   ))}

@@ -4,7 +4,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import AddIcon from '@mui/icons-material/Add';
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getTickerData } from '../lib/dataFetcher'; // Assuming getTickerData is here
+import { getTickerData, type TickerData } from '../lib/fetching';
 import { fetchHolding, getMetadataValue } from '../lib/sheets';
 import type { Holding, PriceUnit } from '../lib/types';
 import { formatNumber } from '../lib/currency';
