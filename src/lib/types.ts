@@ -57,6 +57,12 @@ export interface Transaction {
   commission?: number;
   tax?: number;
   Source?: string;
+  Creation_Date: string;
+  Orig_Open_Price_At_Creation_Date?: number;
+  Split_Adj_Open_Price?: number;
+  Split_Ratio?: number;
+  Split_Adjusted_Price?: number;
+  Split_Adjusted_Qty?: number;
 }
 
 export type PriceUnit = 'base' | 'agorot' | 'cents';

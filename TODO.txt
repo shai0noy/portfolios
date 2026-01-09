@@ -21,6 +21,8 @@ DONE: Portfolio list - should show a tax policy name not key
 DONE: New portfolio UI - auto populate ID based on name - verify name chars are valid Uppercase a-z and - only
 In add transaction - For tase sticks, the "total price" should be ILS,  but currently computed as agorot
 DONE: All yahoo calls shold use https://portfolios.noy-shai.workers.dev/?apiId=yahoo_hist&ticker=GOOG (replace GOOG, return val is the same) - without proxies
+In import CSV, if the date format in the file is unclear, allow the user to choose it (clear ones are dd-mm-yyyy, yyyy-mm-dd, yyyymmdd, unclear onces are e.g. 2024/1/1/ and 1/1/2024) All types should be supported 
+
 
 DONE:
     Add column to Trasnactions "Source" - fill it only for imports with "Import_yyyymmdd_hhmm" 

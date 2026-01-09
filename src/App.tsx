@@ -5,10 +5,11 @@ import { TransactionForm } from './components/NewTransaction';
 import { PortfolioManager } from './components/PortfolioManager';
 import { Dashboard } from './components/Dashboard';
 import { ImportCSV } from './components/ImportCSV';
-import { TickerDetails } from './components/TickerDetails'; // Import TickerDetails
+import { TickerDetails } from './components/TickerDetails';
 import { ensureSchema, populateTestData, fetchTransactions, rebuildHoldingsSheet } from './lib/sheets';
-import { initGoogleClient, refreshToken, signOut } from './lib/google';
-import { Box, AppBar, Toolbar, Typography, Container, Tabs, Tab, IconButton, Tooltip, CircularProgress, ThemeProvider, CssBaseline, Menu, MenuItem, Snackbar, Alert, ListItemIcon, ListItemText, Button } from '@mui/material';
+import { initGoogleClient, refreshToken, signOut, signIn } from './lib/google';
+import { SessionExpiredError } from './lib/errors';
+import { Box, AppBar, Toolbar, Typography, Container, Tabs, Tab, IconButton, Tooltip, CircularProgress, ThemeProvider, CssBaseline, Menu, MenuItem, Snackbar, Alert, ListItemIcon, ListItemText, Button, Modal } from '@mui/material';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
@@ -43,6 +44,7 @@ function App() {
   const [importOpen, setImportOpen] = useState(false);
   const [mode, setMode] = useState<'light' | 'dark'>(() => (localStorage.getItem('themeMode') as 'light' | 'dark') || 'light');
   const [rebuilding, setRebuilding] = useState(false);
+  const [sessionExpired, setSessionExpired] = useState(false);
 
   const theme = useMemo(() => getTheme(mode), [mode]);
   const location = useLocation();
@@ -154,6 +156,31 @@ function App() {
     if (reason === 'clickaway') return;
     setSnackbarOpen(false);
     setSnackbarAction(null); // Clear action on close
+  };
+
+  useEffect(() => {
+    const handleErrors = (event: PromiseRejectionEvent) => {
+      if (event.reason instanceof SessionExpiredError) {
+        setSessionExpired(true);
+      }
+    };
+    window.addEventListener('unhandledrejection', handleErrors);
+    return () => {
+      window.removeEventListener('unhandledrejection', handleErrors);
+    };
+  }, []);
+
+  const handleReconnect = async () => {
+    try {
+      await signIn();
+      setSessionExpired(false);
+      setRefreshKey(k => k + 1); // Refresh data
+    } catch (e) {
+      console.error("Failed to reconnect", e);
+      setSnackbarMessage('Failed to sign in. Please try again.');
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+    }
   };
 
   const mobileMenuId = 'primary-search-account-menu-mobile';
@@ -397,6 +424,28 @@ function App() {
             {snackbarMessage}
           </Alert>
         </Snackbar>
+
+        <Modal open={sessionExpired}>
+          <Box sx={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: 400,
+            bgcolor: 'background.paper',
+            border: '2px solid #000',
+            boxShadow: 24,
+            p: 4,
+          }}>
+            <Typography variant="h6" component="h2">
+              Session Expired
+            </Typography>
+            <Typography sx={{ mt: 2 }}>
+              Your session has expired. Please sign in again to continue.
+            </Typography>
+            <Button onClick={handleReconnect} variant="contained" sx={{ mt: 2 }}>Sign In</Button>
+          </Box>
+        </Modal>
       </Box>
     </ThemeProvider>
   );

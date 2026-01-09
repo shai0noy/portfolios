@@ -40,6 +40,10 @@ export async function exportDashboardData(opts: {
   const { type, format, sheetId, holdings, selectedPortfolioId, portMap, setLoading, setExportMenuAnchorEl, onSuccess, onError } = opts;
   setExportMenuAnchorEl?.(null);
 
+  const t = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const stamp = `${t.getFullYear()}${pad(t.getMonth()+1)}${pad(t.getDate())}_${pad(t.getHours())}${pad(t.getMinutes())}${pad(t.getSeconds())}`;
+
   let data: any[] = [];
   let filename = '';
   let headers: string[] = [];
@@ -153,8 +157,8 @@ export async function exportDashboardData(opts: {
       headers = transactionsHeaders;
     } else {
       // both & csv not supported as a single CSV; fallback to exporting holdings then transactions separately
-      if ((holdingsData || []).length > 0) downloadCSV(holdingsData!, `holdings_${new Date().toISOString()}.csv`);
-      if ((transactionsData || []).length > 0) downloadCSV(transactionsData!, `transactions_${new Date().toISOString()}.csv`);
+      if ((holdingsData || []).length > 0) downloadCSV(holdingsData!, `holdings_${stamp}.csv`);
+      if ((transactionsData || []).length > 0) downloadCSV(transactionsData!, `transactions_${stamp}.csv`);
       onSuccess?.('Downloaded CSV exports');
       return;
     }
@@ -175,10 +179,6 @@ export async function exportDashboardData(opts: {
     setLoading?.(true);
 
     // Create a timestamped title to avoid duplicates
-    const t = new Date();
-    const pad = (n: number) => String(n).padStart(2, '0');
-    const stamp = `${t.getFullYear()}${pad(t.getMonth()+1)}${pad(t.getDate())}_${pad(t.getHours())}${pad(t.getMinutes())}${pad(t.getSeconds())}`;
-
     const sheetsToWrite: Array<{sheetName: string, headers: string[], data: any[]}> = [];
 
     if (type === 'holdings' || type === 'both') {

@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { ensureGoogleApis } from './gapiLoader';
+import { SessionExpiredError } from './errors';
 
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const SCOPES = 'https://www.googleapis.com/auth/spreadsheets';
@@ -123,8 +124,7 @@ export const ensureGapi = async () => {
             callback: (response: google.accounts.oauth2.TokenResponse) => {
               if (response.error) {
                 console.warn("Silent refresh failed:", response);
-                signOut(); // Sign out if silent refresh fails
-                reject(new Error(response.error_description || 'Session Expired'));
+                reject(new SessionExpiredError(response.error_description || 'Session Expired'));
                 return;
               }
               storeToken(response);
@@ -134,8 +134,7 @@ export const ensureGapi = async () => {
             },
             error_callback: (error: any) => {
               console.warn("Silent refresh error callback:", error);
-              signOut();
-              reject(new Error(error.message || 'Session Expired'));
+              reject(new SessionExpiredError(error.message || 'Session Expired'));
             },
           });
           tokenClient.requestAccessToken({ prompt: 'none' });

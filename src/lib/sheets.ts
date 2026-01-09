@@ -2,13 +2,14 @@
 // src/lib/sheets.ts
 import type { Portfolio, Transaction, Holding } from './types';
 import { ensureGapi, signIn } from './google';
-import { getTickerData, fetchYahooOpenPriceOnDate } from './fetching';
+import { getTickerData, fetchYahooStockQuote } from './fetching';
+import { toGoogleSheetDateFormat } from './date';
 
 const DEFAULT_SHEET_NAME = 'Portfolios_App_Data';
 
 // --- Column Definitions ---
 interface TxnColumnDef {
-    key: keyof Omit<Transaction, 'grossValue'>;
+    key: keyof Omit<Transaction, 'grossValue'> | string;
     colName: string;
     colId: string;
     numeric?: boolean;
@@ -18,6 +19,8 @@ interface TxnColumnDef {
 // Utility type to enforce all keys of Transaction are present
 type TransactionColumns = {
     [K in keyof Omit<Transaction, 'grossValue'>]: TxnColumnDef;
+} & {
+    [key: string]: TxnColumnDef;
 };
 
 const TXN_COLS: TransactionColumns = {
@@ -34,31 +37,34 @@ const TXN_COLS: TransactionColumns = {
     commission: { key: 'commission', colName: 'Commission', colId: 'K', numeric: true },
     tax: { key: 'tax', colName: 'Tax %', colId: 'L', numeric: true },
     Source: { key: 'Source', colName: 'Source', colId: 'M' },
-      Orig_Open_Price_At_Date: { key: 'Orig_Open_Price_At_Date', colName: 'Orig_Open_Price_At_Date', colId: 'N', numeric: true },
-      Split_Adj_Open_Price: {
+    Creation_Date: { key: 'Creation_Date', colName: 'Creation_Date', colId: 'N' },
+    Orig_Open_Price_At_Creation_Date: { key: 'Orig_Open_Price_At_Creation_Date', colName: 'Orig_Open_Price_At_Creation_Date', colId: 'O', numeric: true },
+    Split_Adj_Open_Price: {
         key: 'Split_Adj_Open_Price',
         colName: 'Split_Adj_Open_Price',
-        colId: 'O',
+        colId: 'P',
         numeric: true,
         // TODO: This formula likely fetches current price, not historical on date. Needs to be INDEX(GOOGLEFINANCE(..., "all", date), 2, 2) or similar
-        formula: (rowNum, cols) => `=IFERROR(INDEX(GOOGLEFINANCE(${cols.exchange.colId}${rowNum}&":"&${cols.ticker.colId}${rowNum}, "price", ${cols.date.colId}${rowNum}), 2, 2), "")`
-      },          Split_Ratio: {
-            key: 'Split_Ratio',
-            colName: 'Split_Ratio',
-            colId: 'P',
-            numeric: true,
-            formula: (rowNum, cols) => `=IFERROR(IF(OR(ISBLANK(${cols.Split_Adj_Open_Price.colId}${rowNum}), ${cols.Split_Adj_Open_Price.colId}${rowNum}=0, ISBLANK(${cols.Orig_Open_Price_At_Date.colId}${rowNum})), 1, ${cols.Orig_Open_Price_At_Date.colId}${rowNum} / ${cols.Split_Adj_Open_Price.colId}${rowNum}), 1)`
-          },    Split_Adjusted_Price: {
+        formula: (rowNum, cols) => `=IFERROR(INDEX(GOOGLEFINANCE(${cols.exchange.colId}${rowNum}&":"&${cols.ticker.colId}${rowNum}, "open", ${cols.Creation_Date.colId}${rowNum}), 2, 2), "")`
+    },
+    Split_Ratio: {
+        key: 'Split_Ratio',
+        colName: 'Split_Ratio',
+        colId: 'Q',
+        numeric: true,
+        formula: (rowNum, cols) => `=ROUND(IFERROR(IF(OR(ISBLANK(${cols.Split_Adj_Open_Price.colId}${rowNum}), ${cols.Split_Adj_Open_Price.colId}${rowNum}=0, ISBLANK(${cols.Orig_Open_Price_At_Creation_Date.colId}${rowNum})), 1, ${cols.Orig_Open_Price_At_Creation_Date.colId}${rowNum} / ${cols.Split_Adj_Open_Price.colId}${rowNum}), 1), 2)`
+    },
+    Split_Adjusted_Price: {
         key: 'Split_Adjusted_Price',
         colName: 'Split_Adjusted_Price',
-        colId: 'Q',
+        colId: 'R',
         numeric: true,
         formula: (rowNum, cols) => `=IFERROR(${cols.Original_Price.colId}${rowNum} / ${cols.Split_Ratio.colId}${rowNum}, ${cols.Original_Price.colId}${rowNum})`
     },
     Split_Adjusted_Qty: {
         key: 'Split_Adjusted_Qty',
         colName: 'Split_Adjusted_Qty',
-        colId: 'R',
+        colId: 'S',
         numeric: true,
         formula: (rowNum, cols) => `=IFERROR(${cols.Original_Qty.colId}${rowNum} * ${cols.Split_Ratio.colId}${rowNum}, ${cols.Original_Qty.colId}${rowNum})`
     },
@@ -258,11 +264,7 @@ export const ensureSchema = async (spreadsheetId: string) => {
     });
 
     // Store schema creation date
-    const today = new Date();
-    const yyyy = today.getFullYear();
-    const mm = String(today.getMonth() + 1).padStart(2, '0');
-    const dd = String(today.getDate()).padStart(2, '0');
-    await setMetadataValue(spreadsheetId, 'schema_created', `${yyyy}${mm}${dd}`);
+    await setMetadataValue(spreadsheetId, 'schema_created', toGoogleSheetDateFormat(new Date()));
 };
 
 // --- Data Fetching Functions ---
@@ -284,7 +286,7 @@ async function fetchSheetData<T>(
         return rows.map(rowMapper).filter(Boolean);
     } catch (error) {
         console.error("Error fetching from range " + range + ":", error);
-        return [];
+        throw error; // Re-throw the error to be handled by the caller
     }
 }
 
@@ -387,7 +389,7 @@ export const fetchHolding = async (spreadsheetId: string, ticker: string, exchan
         return null;
     } catch (error) {
         console.error(`Error fetching holding for ${ticker}:${exchange}:`, error);
-        return null;
+        throw error;
     }
 };
 
@@ -445,245 +447,109 @@ export const updatePortfolio = async (spreadsheetId: string, p: Portfolio) => {
 
 
 export const addTransaction = async (spreadsheetId: string, t: Transaction) => {
-
-
     await ensureGapi();
 
+    const rowData: { [key: string]: any } = {};
 
+    Object.values(TXN_COLS).forEach(colDef => {
+        const key = colDef.key as keyof Transaction;
 
-
-
-    let origOpenPrice: number | null = null;
-
-
-    if (t.exchange && t.exchange.toUpperCase() !== 'TASE' && t.type !== 'DIVIDEND' && t.type !== 'FEE') {
-
-
-        try {
-
-
-            const formattedDate = t.date.split('T')[0];
-
-
-            origOpenPrice = await fetchYahooOpenPriceOnDate(t.ticker, formattedDate);
-
-
-        } catch (e) {
-
-
-            console.warn(`Failed to fetch open price for ${t.ticker} on ${t.date}:`, e);
-
-
+        switch (key) {
+            case 'date':
+                rowData[key] = t.date ? toGoogleSheetDateFormat(new Date(t.date)) : '';
+                break;
+            case 'ticker':
+                rowData[key] = t.ticker.toUpperCase();
+                break;
+            case 'exchange':
+                rowData[key] = (t.exchange || '').toUpperCase();
+                break;
+            case 'vestDate':
+                rowData[key] = t.vestDate ? toGoogleSheetDateFormat(new Date(t.vestDate)) : '';
+                break;
+            case 'comment':
+            case 'Source':
+                rowData[key] = t[key] || '';
+                break;
+            case 'commission':
+            case 'tax':
+                rowData[key] = t[key] || 0;
+                break;
+            case 'Creation_Date':
+                rowData[key] = toGoogleSheetDateFormat(new Date());
+                break;
+            case 'Orig_Open_Price_At_Creation_Date':
+                rowData[key] = t[key];
+                break;
+            // Calculated fields are handled by formulas in the sheet, so we don't provide a value here
+            case 'Split_Adj_Open_Price':
+            case 'Split_Ratio':
+            case 'Split_Adjusted_Price':
+            case 'Split_Adjusted_Qty':
+                break;
+            default:
+                if (key in t) {
+                    rowData[key] = t[key as keyof Transaction];
+                }
         }
-
-
-    }
-
-
-
-
-
-    const rowData: any = {
-
-
-        ...t,
-
-
-        ticker: t.ticker.toUpperCase(),
-
-
-        exchange: (t.exchange || '').toUpperCase(),
-
-
-        vestDate: t.vestDate || '',
-
-
-        comment: t.comment || '',
-
-
-        commission: t.commission || 0,
-
-
-        tax: t.tax || 0,
-
-
-        Source: t.Source || '',
-
-
-        Orig_Open_Price_At_Date: origOpenPrice !== null ? origOpenPrice : '',
-
-
-    };
-
-
-
-
+    });
 
     // Step 1: Append only the values that are not formulas
-
-
     const valuesToAppend = Object.values(TXN_COLS).map(colDef => {
-
-
         return colDef.formula ? null : rowData[colDef.key] ?? null;
-
-
     });
-
-
-
-
 
     const appendResult = await window.gapi.client.sheets.spreadsheets.values.append({
-
-
         spreadsheetId,
-
-
         range: `${TX_SHEET_NAME}!A:A`,
-
-
         valueInputOption: 'USER_ENTERED',
-
-
         insertDataOption: 'INSERT_ROWS',
-
-
         resource: { values: [valuesToAppend] }
-
-
     });
 
-
-
-
-
     const updatedRange = appendResult.result.updates.updatedRange;
-
-
     if (!updatedRange) {
-
-
         throw new Error("Could not determine range of appended row.");
-
-
     }
-
 
     const rowNumMatch = updatedRange.match(/(\d+):/);
-
-
     if (!rowNumMatch) {
-
-
         throw new Error("Could not parse row number from range: " + updatedRange);
-
-
     }
-
-
     const rowNum = parseInt(rowNumMatch[1]);
 
-
-
-
-
     // Step 2: Update the formula cells in the new row
-
-
     const formulaColDefs = Object.values(TXN_COLS).filter(colDef => !!colDef.formula);
+    const txSheetId = await getSheetId(spreadsheetId, TX_SHEET_NAME);
 
-
-        const txSheetId = await getSheetId(spreadsheetId, TX_SHEET_NAME); // Fetch sheetId once BEFORE map
-
-
-    
-
-
-        const requests = formulaColDefs.map((colDef) => { // .map is NOT async
-
-
-            const formula = colDef.formula!(rowNum, TXN_COLS);
-
-
-            const colIndex = Object.values(TXN_COLS).indexOf(colDef);
-
-
-            return {
-
-
-                updateCells: {
-
-
-                    range: {
-
-
-                        sheetId: txSheetId, // Use fetched sheetId
-
-
-                        startRowIndex: rowNum - 1,
-
-
-                        endRowIndex: rowNum,
-
-
-                        startColumnIndex: colIndex,
-
-
-                        endColumnIndex: colIndex + 1,
-
-
-                    },
-
-
-                    rows: [
-
-
-                        { values: [{ userEnteredValue: { formulaValue: formula } }] }
-
-
-                    ],
-
-
-                    fields: 'userEnteredValue.formulaValue'
-
-
-                }
-
-
-            };
-
-
-        });
-
-
-
-
+    const requests = formulaColDefs.map((colDef) => {
+        const formula = colDef.formula!(rowNum, TXN_COLS);
+        const colIndex = Object.values(TXN_COLS).indexOf(colDef);
+        return {
+            updateCells: {
+                range: {
+                    sheetId: txSheetId,
+                    startRowIndex: rowNum - 1,
+                    endRowIndex: rowNum,
+                    startColumnIndex: colIndex,
+                    endColumnIndex: colIndex + 1,
+                },
+                rows: [
+                    { values: [{ userEnteredValue: { formulaValue: formula } }] }
+                ],
+                fields: 'userEnteredValue.formulaValue'
+            }
+        };
+    });
 
     if (requests.length > 0) {
-
-
         await window.gapi.client.sheets.spreadsheets.batchUpdate({
-
-
             spreadsheetId,
-
-
             resource: { requests }
-
-
         });
-
-
     }
 
-
-
-
-
     await rebuildHoldingsSheet(spreadsheetId);
-
-
 };
 
 // Rebuild Holdings sheet
@@ -763,7 +629,7 @@ export const rebuildHoldingsSheet = async (spreadsheetId: string) => {
             resource: { values: data }
         });
     }
-    await setMetadataValue(spreadsheetId, 'holdings_rebuild', new Date().toISOString());
+    await setMetadataValue(spreadsheetId, 'holdings_rebuild', toGoogleSheetDateFormat(new Date()));
 };
 
 export const fetchSheetExchangeRates = async (spreadsheetId: string): Promise<Record<string, number>> => {
@@ -810,7 +676,7 @@ export async function getMetadataValue(spreadsheetId: string, key: string): Prom
         return row ? row[valueIndex] : null;
     } catch (error) {
         console.error("Error fetching metadata for key " + key + ":", error);
-        return null;
+        throw error;
     }
 }
 
@@ -845,6 +711,7 @@ export async function setMetadataValue(spreadsheetId: string, key: string, value
         }
     } catch (error) {
         console.error("Error setting metadata for key " + key + ":", error);
+        throw error;
     }
 }
 

@@ -1,6 +1,5 @@
 const API_MAP = {
   "yahoo_hist": "https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=3mo&range=max&events=split,div",
-  "yahoo_open": "https://query1.finance.yahoo.com/v8/finance/chart/{ticker}", // Date/range will be added from params
   "globes_data": "https://www.globes.co.il/data/webservices/financial.asmx/getInstrument?exchange={exchange}&symbol={ticker}",
   "globes_list": "https://www.globes.co.il/data/webservices/news.asmx/listByType?exchange={exchange}&type={type}",
   "globes_exchange_state": "https://www.globes.co.il/data/webservices/financial.asmx/ExchangeState?exchange={exchange}",
@@ -46,7 +45,7 @@ export default {
 
     // 3. Build target URL
     let targetUrlString = API_MAP[apiId];
-    
+
     // Replace placeholders for APIs that use them
     for (const [key, value] of params.entries()) {
       if (key === "apiId") continue;
@@ -58,40 +57,27 @@ export default {
 
     // Safety Check for any remaining placeholders
     if (targetUrlString.includes("{") && targetUrlString.includes("}")) {
-        return new Response("Missing required parameters for this API", { status: 400, headers: corsHeaders });
+      return new Response("Missing required parameters for this API", { status: 400, headers: corsHeaders });
     }
 
     const targetUrl = new URL(targetUrlString);
 
     // Append other params as query string for APIs that need them (like CBS)
-    // Special handling for yahoo_open date
-    if (apiId === 'yahoo_open') {
-      const date = params.get('date'); // Expected format YYYY-MM-DD
-      if (date) {
-        const startDate = new Date(date + 'T00:00:00Z');
-        const endDate = new Date(startDate);
-        endDate.setDate(startDate.getDate() + 1);
-        targetUrl.searchParams.append('period1', Math.floor(startDate.getTime() / 1000).toString());
-        targetUrl.searchParams.append('period2', Math.floor(endDate.getTime() / 1000).toString());
-        targetUrl.searchParams.append('interval', '1d');
-      } else {
-        return new Response("Missing date parameter for yahoo_open", { status: 400, headers: corsHeaders });
-      }
-    } else {
-      for (const [key, value] of params.entries()) {
-        if (key === 'apiId') continue;
-        // Only append if it wasn't a placeholder
-        if (!API_MAP[apiId].includes(`{${key}}`)) {
-          targetUrl.searchParams.append(key, value);
-        }
+
+    for (const [key, value] of params.entries()) {
+      if (key === 'apiId') continue;
+      // Only append if it wasn't a placeholder
+      if (!API_MAP[apiId].includes(`{${key}}`)) {
+        targetUrl.searchParams.append(key, value);
       }
     }
+
 
     // 5. Fetch from origin with caching
     try {
       const isCbs = apiId === 'cbs_price_index';
       const isGlobes = apiId.startsWith("globes");
-      
+
       const referer = isGlobes ? "https://www.globes.co.il/" : isCbs ? "https://www.cbs.gov.il/" : "https://finance.yahoo.com/";
       const accept = "application/json, text/plain, text/html, application/xhtml+xml, application/xml;q=0.9, image/avif, image/webp, mobile/v1, */*;q=0.8";
 
@@ -125,7 +111,7 @@ export default {
       };
       // Re-fetch with caching enabled for the successful response
       response = await fetch(targetUrl.toString(), fetchOpts);
-      
+
       const newResponse = new Response(response.body, response);
       newResponse.headers.set("X-Proxy-Cache-TTL", "5 Days");
 

@@ -32,6 +32,8 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
   // Form State
   const [selectedTicker, setSelectedTicker] = useState<(TickerData & { symbol: string }) | null>(null);
   const [showForm, setShowForm] = useState(!!locationState?.initialTicker);
+  // The date state is stored in 'yyyy-MM-dd' format, which is required by the <input type="date"> element.
+  // The conversion to Google Sheets format ('dd/MM/yyyy') happens in `addTransaction` on submission.
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [portId, setPortId] = useState('');
   const [ticker, setTicker] = useState(locationState?.initialTicker || '');
@@ -195,6 +197,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
         type,
         Original_Qty: q,
         Original_Price: p,
+        Orig_Open_Price_At_Creation_Date: selectedTicker?.openPrice || 0,
         currency: tickerCurrency,
         vestDate,
         comment,
@@ -309,7 +312,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
               <Card variant="outlined" sx={{ mt: 2 }}>
                 <CardContent>
                   <Grid container spacing={2}>
-                    <Grid item xs={12} sm={6}>
+                    <Grid item xs={12} sm={4}>
                       <FormControl fullWidth size="small">
                         <InputLabel>Portfolio</InputLabel>
                         <Select value={portId} label="Portfolio" onChange={(e) => setPortId(e.target.value)} disabled={isPortfoliosLoading}>
@@ -319,14 +322,13 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
                         </Select>
                       </FormControl>
                     </Grid>
-                    <Grid item xs={12} sm={6}>
+                    <Grid item xs={12} sm={4}>
                       <TextField 
                         type="date" label="Date" size="small" fullWidth
                         value={date} onChange={e => setDate(e.target.value)} 
                         InputLabelProps={{ shrink: true }} 
                       />
                     </Grid>
-                    <Grid item xs={12}><Divider sx={{ my: 1 }}>Trade Details</Divider></Grid>
                     <Grid item xs={12} sm={4}>
                       <FormControl size="small" fullWidth>
                         <InputLabel>Type</InputLabel>
@@ -337,15 +339,16 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
                         </Select>
                       </FormControl>
                     </Grid>
+                    <Grid item xs={12}><Divider sx={{ my: 1 }}>Trade Details</Divider></Grid>
                     <Grid item xs={6} sm={4}>
                       <Tooltip title="Number of shares/units bought or sold.">
-                        <TextField label="Original Quantity" type="number" size="small" fullWidth value={qty} onChange={e => handleQtyChange(e.target.value)} />
+                        <TextField label="Quantity" type="number" size="small" fullWidth value={qty} onChange={e => handleQtyChange(e.target.value)} />
                       </Tooltip>
                     </Grid>
                     <Grid item xs={6} sm={4}>
                        <Tooltip title={`Price per single share/unit.${priceUnit === 'agorot' ? ' In Agorot.' : ''}`}>
                          <TextField 
-                           label="Original Price" type="number" size="small" fullWidth
+                           label="Price" type="number" size="small" fullWidth
                            value={price} 
                            onChange={e => handlePriceChange(e.target.value)} 
                            InputProps={{ startAdornment: <InputAdornment position="start">{priceUnit === 'agorot' ? 'ag.' : tickerCurrency}</InputAdornment> }}

@@ -149,15 +149,19 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
       };
 
       // Date Parsing (handle 20241025 or 2025/12/30)
-      let rawDate = getVal('date');
-      let isoDate = new Date().toISOString().split('T')[0];
+      const rawDate = getVal('date');
+      let isoDate = '';
       
+      let d: Date;
       // Try to parse YYYYMMDD
       if (rawDate.match(/^\d{8}$/)) {
-        isoDate = `${rawDate.substring(0,4)}-${rawDate.substring(4,6)}-${rawDate.substring(6,8)}`;
+        d = new Date(`${rawDate.substring(0,4)}-${rawDate.substring(4,6)}-${rawDate.substring(6,8)}`);
       } else {
-        const d = new Date(rawDate);
-        if (!isNaN(d.getTime())) isoDate = d.toISOString().split('T')[0];
+        d = new Date(rawDate);
+      }
+
+      if (d && !isNaN(d.getTime())) {
+        isoDate = d.toISOString().split('T')[0];
       }
 
       // Type Parsing

@@ -1,6 +1,6 @@
 // src/lib/fetching/index.ts
 import { fetchGlobesStockQuote } from './globes';
-import { fetchYahooStockQuote, fetchYahooOpenPriceOnDate } from './yahoo';
+import { fetchYahooStockQuote } from './yahoo';
 import { fetchAllTaseTickers, DEFAULT_TASE_TYPE_CONFIG } from './stock_list';
 import { tickerDataCache, CACHE_TTL } from './utils/cache';
 import type { TickerData, TaseTicker, TaseTypeConfig } from './types';
@@ -8,7 +8,9 @@ import type { TickerData, TaseTicker, TaseTypeConfig } from './types';
 export * from './types';
 export * from './stock_list';
 export * from './cbs';
-export { fetchYahooOpenPriceOnDate }; // Export the function
+export * from './yahoo';
+export * from './globes';
+
 
 let taseTickersDataset: Record<string, TaseTicker[]> | null = null;
 let taseTickersDatasetLoading: Promise<Record<string, TaseTicker[]>> | null = null;

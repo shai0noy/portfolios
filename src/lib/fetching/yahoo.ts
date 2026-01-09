@@ -49,7 +49,12 @@ export async function fetchYahooStockQuote(ticker: string, signal?: AbortSignal)
 
     const meta = result.meta;
     const price = meta.regularMarketPrice;
-    const openPrice = meta.chartPreviousClose;
+    
+    // Get the last open price from the indicators
+    const quote = result.indicators?.quote?.[0];
+    const openPrices = quote?.open || [];
+    const openPrice =  openPrices.length > 0 ? openPrices[openPrices.length - 1] : null;
+
     const currency = meta.currency;
     const exchangeCode = meta.exchangeName;
     const exchangeName = YAHOO_EXCHANGE_MAP[exchangeCode] || exchangeCode;
@@ -81,45 +86,6 @@ export async function fetchYahooStockQuote(ticker: string, signal?: AbortSignal)
 
   } catch (error) {
     console.error('Error parsing Yahoo data', error);
-    return null;
-  }
-}
-
-export async function fetchYahooOpenPriceOnDate(ticker: string, date: string, signal?: AbortSignal): Promise<number | null> {
-  const cacheKey = `yahoo-open:${ticker}:${date}`;
-  const now = Date.now();
-
-  // Basic in-memory cache for this function call to avoid rapid re-fetches
-  const cached = tickerDataCache.get(cacheKey);
-  if (cached && now - cached.timestamp < CACHE_TTL) {
-    return cached.data.openPrice || null;
-  }
-
-  const url = `https://portfolios.noy-shai.workers.dev/?apiId=yahoo_open&ticker=${ticker}&date=${date}`;
-
-  try {
-    const res = await fetch(url, { signal });
-    if (!res.ok) {
-      const errorBody = await res.text();
-      console.error(`Yahoo open price fetch failed for ${ticker} on ${date} with status ${res.status}:`, errorBody);
-      throw new Error(`Network response not ok: ${res.statusText}`);
-    }
-    const data = await res.json();
-    const openPrice = data?.openPrice;
-
-    if (typeof openPrice === 'number') {
-      // Cache the result
-      tickerDataCache.set(cacheKey, { data: { openPrice } as TickerData, timestamp: now });
-      return openPrice;
-    }
-    console.warn(`No open price found for ${ticker} on ${date}`);
-    return null;
-  } catch (e: unknown) {
-    if (e instanceof Error && e.name === 'AbortError') {
-      console.log('Yahoo open price fetch aborted');
-    } else {
-      console.error(`Failed to fetch/parse open price for ${ticker} on ${date}:`, e);
-    }
     return null;
   }
 }
