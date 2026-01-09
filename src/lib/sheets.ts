@@ -754,16 +754,16 @@ export const populateTestData = async (spreadsheetId: string) => {
     }
 
     const transactions: Transaction[] = [
-        { date: '2025-01-02', portfolioId: 'P-IL-GROWTH', ticker: 'TASE1', exchange: 'TASE', type: 'BUY', Original_Qty: 100, Original_Price: 50, grossValue: 5000, currency: 'ILS', comment: 'Initial buy' },
-        { date: '2025-02-15', portfolioId: 'P-IL-GROWTH', ticker: 'TASE1', exchange: 'TASE', type: 'DIVIDEND', Original_Qty: 0, Original_Price: 0, grossValue: 10, currency: 'ILS', comment: 'Dividend payout' },
-        { date: '2025-06-10', portfolioId: 'P-IL-GROWTH', ticker: 'TASE2', exchange: 'TASE', type: 'BUY', Original_Qty: 50, Original_Price: 200, grossValue: 10000, currency: 'ILS', comment: 'Add position' },
-        { date: '2025-03-01', portfolioId: 'P-USD-CORE', ticker: 'AAPL', exchange: 'NASDAQ', type: 'BUY', Original_Qty: 10, Original_Price: 150, grossValue: 1500, currency: 'USD', comment: 'Core buy' },
-        { date: '2025-08-01', portfolioId: 'P-USD-CORE', ticker: 'AAPL', exchange: 'NASDAQ', type: 'DIVIDEND', Original_Qty: 0, Original_Price: 0, grossValue: 5, currency: 'USD', comment: 'Quarterly dividend' },
-        { date: '2025-11-20', portfolioId: 'P-USD-CORE', ticker: 'TSLA', exchange: 'NASDAQ', type: 'BUY', Original_Qty: 5, Original_Price: 700, grossValue: 3500, currency: 'USD', comment: 'Speculative buy' },
-        { date: '2025-11-21', portfolioId: 'P-USD-CORE', ticker: 'AAPL', exchange: 'NASDAQ', type: 'SELL', Original_Qty: 5, Original_Price: 200, grossValue: 1000, currency: 'USD', comment: 'Trim position' },
-        { date: '2025-04-10', portfolioId: 'P-RSU', ticker: 'COMP', exchange: 'NASDAQ', type: 'BUY', Original_Qty: 200, Original_Price: 0.01, vestDate: '2025-04-10', grossValue: 2, currency: 'USD', comment: 'RSU vested' },
-        { date: '2025-07-10', portfolioId: 'P-RSU', ticker: 'COMP', exchange: 'NASDAQ', type: 'DIVIDEND', Original_Qty: 0, Original_Price: 0, grossValue: 10, currency: 'USD', comment: 'RSU dividend' },
-        { date: '2025-12-01', portfolioId: 'P-RSU', ticker: 'COMP', exchange: 'NASDAQ', type: 'SELL', Original_Qty: 50, Original_Price: 20, grossValue: 1000, currency: 'USD', comment: 'Sell vested RSUs' }
+        { date: '2025-01-02', portfolioId: 'P-IL-GROWTH', ticker: 'TASE1', exchange: 'TASE', type: 'BUY', Original_Qty: 100, Original_Price: 50, currency: 'ILS', comment: 'Initial buy', commission: 5, tax: 0, Source: 'MANUAL', Orig_Open_Price_At_Creation_Date: 49.5, vestDate: '' },
+        { date: '2025-02-15', portfolioId: 'P-IL-GROWTH', ticker: 'TASE1', exchange: 'TASE', type: 'DIVIDEND', Original_Qty: 1, Original_Price: 10, currency: 'ILS', comment: 'Dividend payout', commission: 0, tax: 0.25, Source: 'MANUAL', Orig_Open_Price_At_Creation_Date: 0, vestDate: '' },
+        { date: '2025-06-10', portfolioId: 'P-IL-GROWTH', ticker: 'TASE2', exchange: 'TASE', type: 'BUY', Original_Qty: 50, Original_Price: 200, currency: 'ILS', comment: 'Add position', commission: 10, tax: 0, Source: 'MANUAL', Orig_Open_Price_At_Creation_Date: 199, vestDate: '' },
+        { date: '2025-03-01', portfolioId: 'P-USD-CORE', ticker: 'AAPL', exchange: 'NASDAQ', type: 'BUY', Original_Qty: 10, Original_Price: 150, currency: 'USD', comment: 'Core buy', commission: 1, tax: 0, Source: 'MANUAL', Orig_Open_Price_At_Creation_Date: 149, vestDate: '' },
+        { date: '2025-08-01', portfolioId: 'P-USD-CORE', ticker: 'AAPL', exchange: 'NASDAQ', type: 'DIVIDEND', Original_Qty: 1, Original_Price: 5, currency: 'USD', comment: 'Quarterly dividend', commission: 0, tax: 0.25, Source: 'MANUAL', Orig_Open_Price_At_Creation_Date: 0, vestDate: '' },
+        { date: '2025-11-20', portfolioId: 'P-USD-CORE', ticker: 'TSLA', exchange: 'NASDAQ', type: 'BUY', Original_Qty: 5, Original_Price: 700, currency: 'USD', comment: 'Speculative buy', commission: 1, tax: 0, Source: 'MANUAL', Orig_Open_Price_At_Creation_Date: 695, vestDate: '' },
+        { date: '2025-11-21', portfolioId: 'P-USD-CORE', ticker: 'AAPL', exchange: 'NASDAQ', type: 'SELL', Original_Qty: 5, Original_Price: 200, currency: 'USD', comment: 'Trim position', commission: 1, tax: 0.25, Source: 'MANUAL', Orig_Open_Price_At_Creation_Date: 201, vestDate: '' },
+        { date: '2025-04-10', portfolioId: 'P-RSU', ticker: 'COMP', exchange: 'NASDAQ', type: 'BUY', Original_Qty: 200, Original_Price: 0.01, currency: 'USD', comment: 'RSU vested', commission: 0, tax: 0, Source: 'MANUAL', Orig_Open_Price_At_Creation_Date: 15, vestDate: '2025-04-10' },
+        { date: '2025-07-10', portfolioId: 'P-RSU', ticker: 'COMP', exchange: 'NASDAQ', type: 'DIVIDEND', Original_Qty: 1, Original_Price: 10, currency: 'USD', comment: 'RSU dividend', commission: 0, tax: 0.5, Source: 'MANUAL', Orig_Open_Price_At_Creation_Date: 0, vestDate: '' },
+        { date: '2025-12-01', portfolioId: 'P-RSU', ticker: 'COMP', exchange: 'NASDAQ', type: 'SELL', Original_Qty: 50, Original_Price: 20, currency: 'USD', comment: 'Sell vested RSUs', commission: 1, tax: 0.25, Source: 'MANUAL', Orig_Open_Price_At_Creation_Date: 20, vestDate: '' }
     ];
 
     for (const t of transactions) {

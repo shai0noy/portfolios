@@ -5,10 +5,19 @@ const API_MAP = {
   "globes_exchange_state": "https://www.globes.co.il/data/webservices/financial.asmx/ExchangeState?exchange={exchange}",
   "globes_get_exchanges": "https://www.globes.co.il/data/webservices/financial.asmx/getExchange",
   "globes_get_exchanges_details": "https://www.globes.co.il/data/webservices/financial.asmx/GetExchangesDetails",
-  "cbs_price_index": "https://api.cbs.gov.il/index/data/price?id={id}&format=json&download=false&startPeriod={start}&endPeriod={end}"
+  "cbs_price_index": "https://api.cbs.gov.il/index/data/price?id={id}&format=json&download=false&startPeriod={start}&endPeriod={end}",
+  "tase_list_stocks": "https://xxxx?api_key={taseApiKey}",
 };
 
 // Regex: English (a-z), Hebrew (א-ת), Numbers (0-9) and symbols: , . : - ^ and space
+function replacePlaceholder(urlString, key, value) {
+  const placeholder = `{${key}}`;
+  if (urlString.includes(placeholder)) {
+    return urlString.split(placeholder).join(encodeURIComponent(value));
+  }
+  return urlString;
+}
+
 const VALID_VALUE_REGEX = /^[a-zA-Z0-9\u05D0-\u05EA,.:\-^ ]+$/;
 
 const corsHeaders = {
@@ -19,6 +28,8 @@ const corsHeaders = {
 
 export default {
   async fetch(request, env, ctx) {
+    const taseApiKey = env.TASE_API_KEY;
+ 
     // Handle CORS preflight requests
     if (request.method === "OPTIONS") {
       return new Response(null, {
@@ -42,17 +53,17 @@ export default {
         return new Response(`Invalid characters in parameter: ${key}`, { status: 403, headers: corsHeaders });
       }
     }
-
+  
     // 3. Build target URL
     let targetUrlString = API_MAP[apiId];
 
     // Replace placeholders for APIs that use them
     for (const [key, value] of params.entries()) {
       if (key === "apiId") continue;
-      const placeholder = `{${key}}`;
-      if (targetUrlString.includes(placeholder)) {
-        targetUrlString = targetUrlString.split(placeholder).join(encodeURIComponent(value));
-      }
+      targetUrlString = replacePlaceholder(targetUrlString, key, value);
+    }
+    for (const [key, value] of Object.entries({taseApiKey})) {
+      targetUrlString = replacePlaceholder(targetUrlString, key, value);
     }
 
     // Safety Check for any remaining placeholders

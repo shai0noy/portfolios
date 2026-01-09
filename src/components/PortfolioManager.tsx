@@ -16,7 +16,8 @@ import { addPortfolio, fetchPortfolios, updatePortfolio } from '../lib/sheets';
 const taxPolicyNames: { [key: string]: string } = {
   REAL_GAIN: "Israel (Real Gain - Inflation Adjusted)",
   NOMINAL_GAIN: "Fixed (Nominal Gain)",
-  TAX_FREE: "Tax Free (e.g. Pension/IRA)",
+  TAX_FREE: "Tax Free",
+  PENSION: "Pension (Income Taxed)"
 };
 
 interface Props {
@@ -169,21 +170,124 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
   // Helper to update state
   const set = (field: keyof Portfolio, val: any) => setP((prev: any) => ({ ...prev, [field]: val }));
 
-  // Helper for Percentage Fields (Display 0-100, Store 0.0-1.0)
-  const PercentageField = ({ label, field, tooltip }: { label: string, field: keyof Portfolio, tooltip?: string }) => {
-    const val = (p[field] as number) * 100;
+  useEffect(() => {
+    const updates: Partial<Portfolio> = {};
+    let needsUpdate = false;
+
+    // Auto-adjust tax values based on policies
+    if (p.taxPolicy === 'TAX_FREE') {
+      if (p.cgt !== 0) { updates.cgt = 0; needsUpdate = true; }
+      if (p.incTax !== 0) { updates.incTax = 0; needsUpdate = true; }
+      if (p.divCommRate !== 0) { updates.divCommRate = 0; needsUpdate = true; }
+    } else if (p.taxPolicy === 'PENSION') {
+      // For pension, CGT is simply the income tax rate
+      if (p.cgt !== p.incTax) {
+        updates.cgt = p.incTax;
+        needsUpdate = true;
+      }
+    }
+
+    // Auto-adjust dividend fee based on dividend policy
+    if (p.divPolicy !== 'cash_taxed' && p.divCommRate !== 0) {
+      updates.divCommRate = 0; // If not taxed, fee is 0
+      needsUpdate = true;
+    }
     
-    // Avoid floating point display artifacts (e.g. 25.0000001)
-    const displayVal = Number.isFinite(val) ? parseFloat(val.toFixed(4)).toString() : '';
+    if (needsUpdate) {
+      setP(prev => ({ ...prev, ...updates }));
+    }
+  }, [p.taxPolicy, p.incTax, p.cgt, p.divPolicy, p.divCommRate]);
+
+  // Helper for debounced numeric fields
+  const NumericField = ({ label, field, tooltip, disabled }: { label: string, field: keyof Portfolio, tooltip?: string, disabled?: boolean }) => {
+    // This state is to allow for typing trailing decimals, e.g. "25."
+    const [localDisplay, setLocalDisplay] = useState<string | null>(null);
+
+    const val = p[field] as number;
+    const displayVal = Number.isFinite(val) ? val.toString() : '';
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const v = e.target.value;
+
+      if (v === '' || v === '-') {
+        setLocalDisplay(v);
+        set(field, 0);
+        return;
+      }
+      
+      // Allow trailing decimal
+      if (v.endsWith('.')) {
+        setLocalDisplay(v);
+      } else {
+        setLocalDisplay(null);
+      }
+      
+      let num = parseFloat(v);
+      if (isNaN(num)) return;
+
+      if (num < 0) num = 0;
+      set(field, num);
+    };
 
     const textField = (
         <TextField 
           fullWidth type="number" size="small" label={label} 
-          value={displayVal}
-          onChange={e => {
-            const num = parseFloat(e.target.value);
-            set(field, isNaN(num) ? 0 : num / 100);
-          }}
+          value={localDisplay !== null ? localDisplay : displayVal}
+          disabled={disabled}
+          onChange={handleChange}
+          onBlur={() => setLocalDisplay(null)}
+        />
+    );
+
+    if (tooltip) {
+      return (
+        <Tooltip title={tooltip} placement="top" arrow>
+          {textField}
+        </Tooltip>
+      );
+    }
+    return textField;
+  };
+
+  // Helper for Percentage Fields (Display 0-100, Store 0.0-1.0)
+  const PercentageField = ({ label, field, tooltip, disabled }: { label: string, field: keyof Portfolio, tooltip?: string, disabled?: boolean }) => {
+    // This state is to allow for typing trailing decimals, e.g. "25."
+    const [localDisplay, setLocalDisplay] = useState<string | null>(null);
+
+    const val = (p[field] as number) * 100;
+    const displayVal = Number.isFinite(val) ? parseFloat(val.toFixed(4)).toString() : '';
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const v = e.target.value;
+
+      if (v === '' || v === '-') {
+        setLocalDisplay(v);
+        set(field, 0);
+        return;
+      }
+      
+      // Allow trailing decimal
+      if (v.endsWith('.')) {
+        setLocalDisplay(v);
+      } else {
+        setLocalDisplay(null);
+      }
+      
+      let num = parseFloat(v);
+      if (isNaN(num)) return;
+
+      if (num > 100) num = 100;
+      if (num < 0) num = 0;
+      set(field, num / 100);
+    };
+
+    const textField = (
+        <TextField 
+          fullWidth type="number" size="small" label={label} 
+          value={localDisplay !== null ? localDisplay : displayVal}
+          disabled={disabled}
+          onChange={handleChange}
+          onBlur={() => setLocalDisplay(null)}
           InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
         />
     );
@@ -214,7 +318,8 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                   <MenuItem value="">-- Select Template --</MenuItem>
                   <MenuItem value="std_il">Standard IL (Broker/Bank)</MenuItem>
                   <MenuItem value="std_us">Standard US (Broker)</MenuItem>
-                  <MenuItem value="pension">Pension / Gemel</MenuItem>
+                  <MenuItem value="pension">Pension</MenuItem>
+                  <MenuItem value="hishtalmut">Hishtalmut / Gemmel</MenuItem>
                   <MenuItem value="rsu">RSU (Income Taxed)</MenuItem>
                 </Select>
               </FormControl>
@@ -267,7 +372,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                        {p.mgmtType === 'percentage' ? (
                          <PercentageField label="Value" field="mgmtVal" />
                        ) : (
-                         <TextField fullWidth type="number" size="small" label="Value" value={p.mgmtVal} onChange={e => set('mgmtVal', parseFloat(e.target.value))} />
+                         <NumericField label="Value" field="mgmtVal" />
                        )}
                     </Grid>
                     <Grid item xs={4}>
@@ -304,10 +409,10 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                       <PercentageField label="Rate" field="commRate" tooltip="Commission rate per trade" />
                     </Grid>
                     <Grid item xs={4}>
-                      <TextField fullWidth type="number" size="small" label="Min Fee" value={p.commMin} onChange={e => set('commMin', parseFloat(e.target.value))} />
+                      <NumericField label="Min Fee" field="commMin" />
                     </Grid>
                     <Grid item xs={4}>
-                      <TextField fullWidth type="number" size="small" label="Max Fee" value={p.commMax} onChange={e => set('commMax', parseFloat(e.target.value))} />
+                      <NumericField label="Max Fee" field="commMax" />
                     </Grid>
                   </Grid>
                 </CardContent>
@@ -326,11 +431,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                         <Select 
                           value={p.taxPolicy} 
                           label="Cap. Gain Tax Policy" 
-                          onChange={e => {
-                            const val = e.target.value;
-                            set('taxPolicy', val);
-                            if (val === 'TAX_FREE') set('cgt', 0);
-                          }}
+                          onChange={e => set('taxPolicy', e.target.value)}
                         >
                           {Object.entries(taxPolicyNames).map(([key, name]) => (
                             <MenuItem key={key} value={key}>{name}</MenuItem>
@@ -339,12 +440,12 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                       </FormControl>
                     </Grid>
                     <Grid item xs={6}>
-                      <PercentageField label="Cap Gains" field="cgt" tooltip="Capital Gains Tax" />
+                      <PercentageField label="Gains Tax" field="cgt" tooltip="Capital Gains Tax" disabled={p.taxPolicy === 'TAX_FREE' || p.taxPolicy === 'PENSION'} />
                     </Grid>
                     <Grid item xs={6}>
-                       <PercentageField label="Inc. Tax" field="incTax" tooltip="Income Tax (for RSUs)" />
+                       <PercentageField label="Tax on Base Price" field="incTax" tooltip="Income Tax (for RSUs)" disabled={p.taxPolicy === 'TAX_FREE'} />
                     </Grid>
-                    <Grid item xs={12}>
+                    <Grid item xs={6}>
                       <FormControl fullWidth size="small">
                         <InputLabel>Dividend Policy</InputLabel>
                         <Select value={p.divPolicy} label="Dividend Policy" onChange={e => set('divPolicy', e.target.value)}>
@@ -353,6 +454,14 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                           <MenuItem value="hybrid_rsu">Accumulate Unvested / Cash Vested</MenuItem>
                         </Select>
                       </FormControl>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <PercentageField 
+                        label="Div Tax/Fee Rate" 
+                        field="divCommRate" 
+                        tooltip="Tax or fee rate on cash dividends" 
+                        disabled={p.taxPolicy === 'TAX_FREE' || p.divPolicy !== 'cash_taxed'}
+                      />
                     </Grid>
                   </Grid>
                 </CardContent>

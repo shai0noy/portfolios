@@ -17,7 +17,7 @@ export interface Portfolio {
   holdings?: Holding[];
 }
 
-export type TaxPolicy = 'TAX_FREE' | 'REAL_GAIN' | 'NOMINAL_GAIN';
+export type TaxPolicy = 'TAX_FREE' | 'REAL_GAIN' | 'NOMINAL_GAIN' | 'PENSION';
 
 export interface Holding {
   portfolioId: string;
@@ -57,7 +57,7 @@ export interface Transaction {
   commission?: number;
   tax?: number;
   Source?: string;
-  Creation_Date: string;
+  Creation_Date?: string;
   Orig_Open_Price_At_Creation_Date?: number;
   Split_Adj_Open_Price?: number;
   Split_Ratio?: number;
@@ -110,7 +110,7 @@ export const PORTFOLIO_TEMPLATES: Record<string, Partial<Portfolio>> = {
     divCommRate: 0,
     taxPolicy: 'NOMINAL_GAIN'
   },
-  'pension': { 
+  'hishtalmut': { 
     cgt: 0, 
     incTax: 0,
     commRate: 0, 
@@ -122,5 +122,18 @@ export const PORTFOLIO_TEMPLATES: Record<string, Partial<Portfolio>> = {
     mgmtFreq: 'yearly',
     divCommRate: 0,
     taxPolicy: 'TAX_FREE'
+  },
+  'pension': { 
+    cgt: 0.33, 
+    incTax: 0.33,
+    commRate: 0, 
+    commMin: 0,
+    currency: 'ILS', 
+    divPolicy: 'accumulate_tax_free', 
+    mgmtVal: 0.002, // 0.2% from accumulation
+    mgmtType: 'percentage',
+    mgmtFreq: 'yearly',
+    divCommRate: 0,
+    taxPolicy: 'PENSION'
   }
 };
