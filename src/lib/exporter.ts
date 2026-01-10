@@ -48,7 +48,7 @@ export async function exportDashboardData(opts: {
   let filename = '';
   let headers: string[] = [];
 
-  const effectiveSheetId = sheetId || getSpreadsheet() || undefined;
+  const effectiveSheetId = sheetId || await getSpreadsheet() || undefined;
 
   // Prepare holdings data if requested
   let holdingsData: any[] | null = null;

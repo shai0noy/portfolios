@@ -3,7 +3,7 @@ import { ensureGoogleApis } from './gapiLoader';
 import { SessionExpiredError } from './errors';
 
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-const SCOPES = 'https://www.googleapis.com/auth/spreadsheets';
+const SCOPES = 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file';
 
 let tokenClient: google.accounts.oauth2.TokenClient | null = null;
 let gapiInstance: any = null;
@@ -15,6 +15,7 @@ export async function initGoogleClient(): Promise<boolean> {
     await gapiInstance.client.init({
       discoveryDocs: [
         'https://sheets.googleapis.com/$discovery/rest?version=v4',
+        'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest',
       ],
     });
 
@@ -155,7 +156,31 @@ export async function checkSheetExists(spreadsheetId: string): Promise<boolean> 
       console.warn(`Sheet with ID ${spreadsheetId} not found.`);
       return false;
     }
-    console.error("Error checking sheet existence:", error);
-    throw error; // Re-throw other errors
-  }
-}
+        console.error("Error checking sheet existence:", error);
+        throw error; // Re-throw other errors
+      }
+    }
+    
+    export async function findSpreadsheetByName(fileName: string): Promise<string | null> {
+        await ensureGapi();
+        try {
+            const response = await gapiInstance.client.drive.files.list({
+                q: `name='${fileName}' and 'me' in owners and trashed=false`,
+                spaces: 'drive',
+                fields: 'files(id, name)',
+            });
+    
+            const files = response.result.files;
+            if (files && files.length > 0) {
+                console.log(`Found ${files.length} files with name ${fileName}. Taking the first one.`);
+                return files[0].id;
+            } else {
+                console.log(`No file named '${fileName}' found.`);
+                return null;
+            }
+        } catch (error) {
+            console.error("Error searching for spreadsheet:", error);
+            return null;
+        }
+    }
+    

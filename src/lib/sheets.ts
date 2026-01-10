@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/lib/sheets.ts
 import type { Portfolio, Transaction, Holding } from './types';
-import { ensureGapi, signIn } from './google';
+import { ensureGapi, signIn, findSpreadsheetByName } from './google';
 import { getTickerData, fetchYahooStockQuote } from './fetching';
 import { toGoogleSheetDateFormat } from './date';
 
@@ -45,7 +45,7 @@ const TXN_COLS: TransactionColumns = {
         colId: 'P',
         numeric: true,
         // TODO: This formula likely fetches current price, not historical on date. Needs to be INDEX(GOOGLEFINANCE(..., "all", date), 2, 2) or similar
-        formula: (rowNum, cols) => `=IFERROR(INDEX(GOOGLEFINANCE(${cols.exchange.colId}${rowNum}&":"&${cols.ticker.colId}${rowNum}, "open", ${cols.Creation_Date.colId}${rowNum}), 2, 2), "")`
+        formula: (rowNum, cols) => `=INDEX(GOOGLEFINANCE(${cols.exchange.colId}${rowNum}&":"&${cols.ticker.colId}${rowNum}, "open", ${cols.Creation_Date.colId}${rowNum}), 2, 2)`
     },
     Split_Ratio: {
         key: 'Split_Ratio',
@@ -330,11 +330,31 @@ export const fetchTransactions = async (spreadsheetId: string): Promise<Transact
         (row) => mapRowToTransaction<Omit<Transaction, 'grossValue'>>(row, transactionMapping, transactionNumericKeys),
         'FORMATTED_VALUE' // Fetch formatted values to get results of formulas
     );
-    return transactions.map(t => ({ ...t, grossValue: t.Original_Qty * t.Original_Price }));
+    return transactions.map(t => ({ 
+        ...t,
+        qty: parseFloat(t.Split_Adjusted_Qty || t.Original_Qty || 0),
+        price: parseFloat(t.Split_Adjusted_Price || t.Original_Price || 0),
+        grossValue: (t.Original_Qty || 0) * (t.Original_Price || 0) 
+    }));
 };
 
-export const getSpreadsheet = (): string | null => {
-    return localStorage.getItem('g_sheet_id');
+export const getSpreadsheet = async (): Promise<string | null> => {
+    const storedId = localStorage.getItem('g_sheet_id');
+    if (storedId) {
+        return storedId;
+    }
+
+    console.log("No sheet ID in local storage, searching in Google Drive...");
+    const foundId = await findSpreadsheetByName(DEFAULT_SHEET_NAME);
+
+    if (foundId) {
+        console.log(`Found sheet with ID: ${foundId}. Storing it in local storage.`);
+        localStorage.setItem('g_sheet_id', foundId);
+        return foundId;
+    }
+
+    console.log("No existing spreadsheet found in Drive.");
+    return null;
 };
 
 export const createPortfolioSpreadsheet = async (title: string = DEFAULT_SHEET_NAME): Promise<string | null> => {
@@ -746,7 +766,8 @@ export const populateTestData = async (spreadsheetId: string) => {
     const portfolios: Portfolio[] = [
         { id: 'P-IL-GROWTH', name: 'Growth ILS', cgt: 0.25, incTax: 0, mgmtVal: 0, mgmtType: 'percentage', mgmtFreq: 'yearly', commRate: 0.001, commMin: 5, commMax: 0, currency: 'ILS', divPolicy: 'cash_taxed', divCommRate: 0, taxPolicy: 'REAL_GAIN' },
         { id: 'P-USD-CORE', name: 'Core USD', cgt: 0.25, incTax: 0, mgmtVal: 0, mgmtType: 'percentage', mgmtFreq: 'yearly', commRate: 0, commMin: 0, commMax: 0, currency: 'USD', divPolicy: 'cash_taxed', divCommRate: 0, taxPolicy: 'NOMINAL_GAIN' },
-        { id: 'P-RSU', name: 'RSU Account', cgt: 0.25, incTax: 0.5, mgmtVal: 0, mgmtType: 'percentage', mgmtFreq: 'yearly', commRate: 0, commMin: 0, commMax: 0, currency: 'USD', divPolicy: 'hybrid_rsu', divCommRate: 0, taxPolicy: 'NOMINAL_GAIN' }
+        { id: 'P-RSU', name: 'RSU Account', cgt: 0.25, incTax: 0.5, mgmtVal: 0, mgmtType: 'percentage', mgmtFreq: 'yearly', commRate: 0, commMin: 0, commMax: 0, currency: 'USD', divPolicy: 'hybrid_rsu', divCommRate: 0, taxPolicy: 'NOMINAL_GAIN' },
+        { id: 'P-GEMMEL', name: 'Gemmel', cgt: 0, incTax: 0, mgmtVal: 0, mgmtType: 'percentage', mgmtFreq: 'yearly', commRate: 0, commMin: 0, commMax: 0, currency: 'ILS', divPolicy: 'cash_taxed', divCommRate: 0, taxPolicy: 'REAL_GAIN' }
     ];
 
     for (const p of portfolios) {
@@ -754,16 +775,26 @@ export const populateTestData = async (spreadsheetId: string) => {
     }
 
     const transactions: Transaction[] = [
-        { date: '2025-01-02', portfolioId: 'P-IL-GROWTH', ticker: 'TASE1', exchange: 'TASE', type: 'BUY', Original_Qty: 100, Original_Price: 50, currency: 'ILS', comment: 'Initial buy', commission: 5, tax: 0, Source: 'MANUAL', Orig_Open_Price_At_Creation_Date: 49.5, vestDate: '' },
-        { date: '2025-02-15', portfolioId: 'P-IL-GROWTH', ticker: 'TASE1', exchange: 'TASE', type: 'DIVIDEND', Original_Qty: 1, Original_Price: 10, currency: 'ILS', comment: 'Dividend payout', commission: 0, tax: 0.25, Source: 'MANUAL', Orig_Open_Price_At_Creation_Date: 0, vestDate: '' },
-        { date: '2025-06-10', portfolioId: 'P-IL-GROWTH', ticker: 'TASE2', exchange: 'TASE', type: 'BUY', Original_Qty: 50, Original_Price: 200, currency: 'ILS', comment: 'Add position', commission: 10, tax: 0, Source: 'MANUAL', Orig_Open_Price_At_Creation_Date: 199, vestDate: '' },
-        { date: '2025-03-01', portfolioId: 'P-USD-CORE', ticker: 'AAPL', exchange: 'NASDAQ', type: 'BUY', Original_Qty: 10, Original_Price: 150, currency: 'USD', comment: 'Core buy', commission: 1, tax: 0, Source: 'MANUAL', Orig_Open_Price_At_Creation_Date: 149, vestDate: '' },
-        { date: '2025-08-01', portfolioId: 'P-USD-CORE', ticker: 'AAPL', exchange: 'NASDAQ', type: 'DIVIDEND', Original_Qty: 1, Original_Price: 5, currency: 'USD', comment: 'Quarterly dividend', commission: 0, tax: 0.25, Source: 'MANUAL', Orig_Open_Price_At_Creation_Date: 0, vestDate: '' },
-        { date: '2025-11-20', portfolioId: 'P-USD-CORE', ticker: 'TSLA', exchange: 'NASDAQ', type: 'BUY', Original_Qty: 5, Original_Price: 700, currency: 'USD', comment: 'Speculative buy', commission: 1, tax: 0, Source: 'MANUAL', Orig_Open_Price_At_Creation_Date: 695, vestDate: '' },
-        { date: '2025-11-21', portfolioId: 'P-USD-CORE', ticker: 'AAPL', exchange: 'NASDAQ', type: 'SELL', Original_Qty: 5, Original_Price: 200, currency: 'USD', comment: 'Trim position', commission: 1, tax: 0.25, Source: 'MANUAL', Orig_Open_Price_At_Creation_Date: 201, vestDate: '' },
-        { date: '2025-04-10', portfolioId: 'P-RSU', ticker: 'COMP', exchange: 'NASDAQ', type: 'BUY', Original_Qty: 200, Original_Price: 0.01, currency: 'USD', comment: 'RSU vested', commission: 0, tax: 0, Source: 'MANUAL', Orig_Open_Price_At_Creation_Date: 15, vestDate: '2025-04-10' },
-        { date: '2025-07-10', portfolioId: 'P-RSU', ticker: 'COMP', exchange: 'NASDAQ', type: 'DIVIDEND', Original_Qty: 1, Original_Price: 10, currency: 'USD', comment: 'RSU dividend', commission: 0, tax: 0.5, Source: 'MANUAL', Orig_Open_Price_At_Creation_Date: 0, vestDate: '' },
-        { date: '2025-12-01', portfolioId: 'P-RSU', ticker: 'COMP', exchange: 'NASDAQ', type: 'SELL', Original_Qty: 50, Original_Price: 20, currency: 'USD', comment: 'Sell vested RSUs', commission: 1, tax: 0.25, Source: 'MANUAL', Orig_Open_Price_At_Creation_Date: 20, vestDate: '' }
+        // P-IL-GROWTH Portfolio
+        { date: '01/02/2025', portfolioId: 'P-IL-GROWTH', ticker: '604611', exchange: 'TASE', type: 'BUY', Original_Qty: 100, Original_Price: 180, currency: 'ILS', comment: 'Initial buy Leumi', commission: 5, tax: 0, Source: 'MANUAL', Creation_Date: '01/02/2025', Orig_Open_Price_At_Creation_Date: 179.5, vestDate: '' },
+        { date: '02/15/2025', portfolioId: 'P-IL-GROWTH', ticker: '604611', exchange: 'TASE', type: 'DIVIDEND', Original_Qty: 1, Original_Price: 10, currency: 'ILS', comment: 'Dividend payout', commission: 0, tax: 0.25, Source: 'MANUAL', Creation_Date: '02/15/2025', Orig_Open_Price_At_Creation_Date: 0, vestDate: '' },
+        { date: '06/10/2025', portfolioId: 'P-IL-GROWTH', ticker: '604611', exchange: 'TASE', type: 'BUY', Original_Qty: 50, Original_Price: 190, currency: 'ILS', comment: 'Add to Leumi', commission: 10, tax: 0, Source: 'BROKER_CSV', Creation_Date: '06/10/2025', Orig_Open_Price_At_Creation_Date: 189, vestDate: '' },
+        { date: '07/15/2025', portfolioId: 'P-IL-GROWTH', ticker: '604611', exchange: 'TASE', type: 'SELL', Original_Qty: 30, Original_Price: 200, currency: 'ILS', comment: 'Sell some Leumi', commission: 8, tax: 0.25, Source: 'MANUAL', Creation_Date: '07/15/2025', Orig_Open_Price_At_Creation_Date: 200, vestDate: '' },
+
+        // P-USD-CORE Portfolio
+        { date: '03/01/2025', portfolioId: 'P-USD-CORE', ticker: 'AAPL', exchange: 'NASDAQ', type: 'BUY', Original_Qty: 10, Original_Price: 150, currency: 'USD', comment: 'Core buy', commission: 1, tax: 0, Source: 'MANUAL', Creation_Date: '03/01/2025', Orig_Open_Price_At_Creation_Date: 149, vestDate: '' },
+        { date: '08/01/2025', portfolioId: 'P-USD-CORE', ticker: 'AAPL', exchange: 'NASDAQ', type: 'DIVIDEND', Original_Qty: 1, Original_Price: 5, currency: 'USD', comment: 'Quarterly dividend', commission: 0, tax: 0.25, Source: 'MANUAL', Creation_Date: '08/01/2025', Orig_Open_Price_At_Creation_Date: 0, vestDate: '' },
+        { date: '11/20/2025', portfolioId: 'P-USD-CORE', ticker: 'META', exchange: 'NASDAQ', type: 'BUY', Original_Qty: 5, Original_Price: 300, currency: 'USD', comment: 'Speculative buy', commission: 1, tax: 0, Source: 'MANUAL', Creation_Date: '11/20/2025', Orig_Open_Price_At_Creation_Date: 298, vestDate: '' },
+        { date: '11/21/2025', portfolioId: 'P-USD-CORE', ticker: 'AAPL', exchange: 'NASDAQ', type: 'SELL', Original_Qty: 5, Original_Price: 200, currency: 'USD', comment: 'Trim position', commission: 1, tax: 0.25, Source: 'MANUAL', Creation_Date: '11/21/2025', Orig_Open_Price_At_Creation_Date: 201, vestDate: '' },
+
+        // P-RSU Portfolio (vesting GOOG shares)
+        { date: '04/10/2025', portfolioId: 'P-RSU', ticker: 'GOOG', exchange: 'NASDAQ', type: 'BUY', Original_Qty: 10, Original_Price: 0.01, currency: 'USD', comment: 'RSU vested', commission: 0, tax: 0, Source: 'BROKER_CSV', Creation_Date: '04/10/2025', Orig_Open_Price_At_Creation_Date: 140, vestDate: '04/10/2025' },
+        { date: '07/10/2025', portfolioId: 'P-RSU', ticker: 'GOOG', exchange: 'NASDAQ', type: 'DIVIDEND', Original_Qty: 1, Original_Price: 2, currency: 'USD', comment: 'RSU dividend', commission: 0, tax: 0.5, Source: 'BROKER_CSV', Creation_Date: '07/10/2025', Orig_Open_Price_At_Creation_Date: 0, vestDate: '' },
+        { date: '12/01/2025', portfolioId: 'P-RSU', ticker: 'GOOG', exchange: 'NASDAQ', type: 'SELL', Original_Qty: 2, Original_Price: 155, currency: 'USD', comment: 'Sell vested RSUs for tax', commission: 1, tax: 0.25, Source: 'BROKER_CSV', Creation_Date: '12/01/2025', Orig_Open_Price_At_Creation_Date: 155, vestDate: '' },
+        
+        // P-GEMMEL Portfolio
+        { date: '04/01/2025', portfolioId: 'P-GEMMEL', ticker: '123456', exchange: 'IL_FUND', type: 'BUY', Original_Qty: 100, Original_Price: 100, currency: 'ILS', comment: 'Gemmel buy 1', commission: 0, tax: 0, Source: 'MANUAL', Creation_Date: '04/01/2025', Orig_Open_Price_At_Creation_Date: 100, vestDate: '' },
+        { date: '05/01/2025', portfolioId: 'P-GEMMEL', ticker: '123456', exchange: 'IL_FUND', type: 'BUY', Original_Qty: 50, Original_Price: 105, currency: 'ILS', comment: 'Gemmel buy 2', commission: 0, tax: 0, Source: 'MANUAL', Creation_Date: '05/01/2025', Orig_Open_Price_At_Creation_Date: 105, vestDate: '' },
     ];
 
     for (const t of transactions) {

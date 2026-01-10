@@ -44,7 +44,8 @@ interface SearchOption {
 
 export function TickerSearch({ onTickerSelect, initialTicker, initialExchange, portfolios, isPortfoliosLoading }: TickerSearchProps) {
   const [taseDataset, setTaseDataset] = useState<Record<string, TaseTicker[]>>({});
-  const [isTaseDatasetLoading, setIsTaseDatasetLoading] = useState(true);
+  const [isTaseDatasetLoading, setIsTaseDatasetLoading] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
   const [inputValue, setInputValue] = useState(initialTicker || '');
   const [options, setOptions] = useState<SearchOption[]>([]);
   const [selectedExchange, setSelectedExchange] = useState(initialExchange || 'ALL');
@@ -55,11 +56,14 @@ export function TickerSearch({ onTickerSelect, initialTicker, initialExchange, p
   const debouncedInput = useDebounce(inputValue, 300);
 
   useEffect(() => {
-    getTaseTickersDataset().then(data => {
-      setTaseDataset(data);
-      setIsTaseDatasetLoading(false);
-    });
-  }, []);
+    if (isFocused && Object.keys(taseDataset).length === 0) {
+        setIsTaseDatasetLoading(true);
+        getTaseTickersDataset().then(data => {
+            setTaseDataset(data);
+            setIsTaseDatasetLoading(false);
+        });
+    }
+  }, [isFocused, taseDataset]);
 
   const getOwnedInPortfolios = useCallback((symbol: string) => {
     if (!portfolios || portfolios.length === 0) return undefined;
@@ -159,10 +163,10 @@ export function TickerSearch({ onTickerSelect, initialTicker, initialExchange, p
   }, [taseDataset, getOwnedInPortfolios]);
 
   useEffect(() => {
-    if (!isPortfoliosLoading && !isTaseDatasetLoading) {
+    if (isFocused && !isPortfoliosLoading && !isTaseDatasetLoading) {
       searchTickers(debouncedInput, selectedExchange);
     }
-  }, [debouncedInput, selectedExchange, searchTickers, isPortfoliosLoading, isTaseDatasetLoading]);
+  }, [debouncedInput, selectedExchange, searchTickers, isPortfoliosLoading, isTaseDatasetLoading, isFocused]);
 
   const filteredOptions = useMemo(() => {
     // TODO: Remove after debug
@@ -202,6 +206,7 @@ export function TickerSearch({ onTickerSelect, initialTicker, initialExchange, p
       <Grid container spacing={1} alignItems="center" sx={{ mb: 1 }}>
         <Grid item xs={12} sm={6}>
           <TextField
+            onFocus={() => setIsFocused(true)}
             label={`Search Ticker ${selectedExchange === 'ALL' ? '' : `(${selectedExchange})`}`}
             size="small"
             fullWidth

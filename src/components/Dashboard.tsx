@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
-  Box, CircularProgress, FormControlLabel, Switch, IconButton, Tooltip, Alert
+  Box, CircularProgress, FormControlLabel, Switch, IconButton, Tooltip, Alert, Typography
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import { fetchPortfolios, fetchTransactions } from '../lib/sheets';
@@ -429,7 +429,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
   // Grouping Logic
   const groupedData = useMemo(() => {
     const filteredHoldings = selectedPortfolioId ? holdings.filter(h => h.portfolioId === selectedPortfolioId) : holdings;
-    if (!groupByPortfolio || selectedPortfolioId) return { 'All Holdings': filteredHoldings };
+    if (!groupByPortfolio || selectedPortfolioId || filteredHoldings.length === 0) return { 'All Holdings': filteredHoldings };
     const groups: Record<string, DashboardHolding[]> = {};
     filteredHoldings.forEach(h => {
       if (!groups[h.portfolioName]) groups[h.portfolioName] = [];
@@ -442,11 +442,6 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
 
   return (
     <Box sx={{ maxWidth: 1400, mx: 'auto', mt: 4 }}>
-      {hasFutureTxns && (
-        <Alert severity="warning" sx={{ mb: 2 }}>
-          Note: Some transactions with future dates exist and are not included in the calculations.
-        </Alert>
-      )}
       <DashboardSummary
         summary={summary}
         displayCurrency={displayCurrency}
@@ -455,6 +450,11 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         onBack={() => handleSelectPortfolio(null)}
         onCurrencyChange={setDisplayCurrency}
       />
+      {hasFutureTxns && (
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'right', mt: 0.5, mb: 1, fontSize: '0.7rem' }}>
+          Note: Some transactions with future dates exist and are not included in the calculations.
+        </Typography>
+      )}
 
       {/* CONTROLS */}
       <Box display="flex" justifyContent="space-between" mb={2} alignItems="center">
