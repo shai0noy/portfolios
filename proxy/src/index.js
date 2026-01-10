@@ -6,7 +6,7 @@ const API_MAP = {
   "globes_get_exchanges": "https://www.globes.co.il/data/webservices/financial.asmx/getExchange",
   "globes_get_exchanges_details": "https://www.globes.co.il/data/webservices/financial.asmx/GetExchangesDetails",
   "cbs_price_index": "https://api.cbs.gov.il/index/data/price?id={id}&format=json&download=false&startPeriod={start}&endPeriod={end}",
-  "tase_list_stocks": "https://xxxx?api_key={taseApiKey}",
+  "tase_list_stocks": "https://datawise.tase.co.il/v1/basic-securities/trade-securities-list/{yestarday_slash_format}?api_key={taseApiKey}",
 };
 
 // Regex: English (a-z), Hebrew (א-ת), Numbers (0-9) and symbols: , . : - ^ and space
@@ -28,8 +28,13 @@ const corsHeaders = {
 
 export default {
   async fetch(request, env, ctx) {
-    const taseApiKey = env.TASE_API_KEY;
- 
+    const defaults = {
+      taseApiKey: env.TASE_API_KEY,
+      // Yestarday date in YYYY/MM/DD format
+      yestarday_slash_format: new Date(new Date().getTime() - 24 * 60 * 60 * 1000)
+        .toISOString().split('T')[0].replace(/-/g, '/'),
+    };
+
     // Handle CORS preflight requests
     if (request.method === "OPTIONS") {
       return new Response(null, {
@@ -53,7 +58,7 @@ export default {
         return new Response(`Invalid characters in parameter: ${key}`, { status: 403, headers: corsHeaders });
       }
     }
-  
+
     // 3. Build target URL
     let targetUrlString = API_MAP[apiId];
 
@@ -62,7 +67,7 @@ export default {
       if (key === "apiId") continue;
       targetUrlString = replacePlaceholder(targetUrlString, key, value);
     }
-    for (const [key, value] of Object.entries({taseApiKey})) {
+    for (const [key, value] of Object.entries(defaults)) {
       targetUrlString = replacePlaceholder(targetUrlString, key, value);
     }
 
@@ -86,21 +91,23 @@ export default {
 
     // 5. Fetch from origin with caching
     try {
-      const isCbs = apiId === 'cbs_price_index';
-      const isGlobes = apiId.startsWith("globes");
-
-      const referer = isGlobes ? "https://www.globes.co.il/" : isCbs ? "https://www.cbs.gov.il/" : "https://finance.yahoo.com/";
-      const accept = "application/json, text/plain, text/html, application/xhtml+xml, application/xml;q=0.9, image/avif, image/webp, mobile/v1, */*;q=0.8";
-
       const fetchOpts = {
         method: "GET",
         headers: {
           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-          "Referer": referer,
-          "Accept": accept,
+          "Accept": "application/json, text/plain, text/html, application/xhtml+xml, application/xml;q=0.9, image/avif, image/webp, mobile/v1, */*;q=0.8",
           "Accept-Language": "en-US,en;q=0.5",
         },
       };
+      if (apiId === 'tase_list_stocks') {
+      } else if (apiId === 'cbs_price_index') {
+        fetchOpts.headers["Referer"] = "https://www.cbs.gov.il/";
+      } else if (apiId.startsWith("globes")) {
+        fetchOpts.headers["Referer"] = "https://www.globes.co.il/";
+      } else if (apiId.startsWith("yahoo")) {
+        fetchOpts.headers["Referer"] = "https://finance.yahoo.com/";
+      }
+
 
       let response = await fetch(targetUrl.toString(), fetchOpts);
 
@@ -120,11 +127,11 @@ export default {
         cacheTtl: 432000, // 5 days
         cacheEverything: true
       };
-      // Re-fetch with caching enabled for the successful response
+      // Re-fetch with caching enabled for the successful response  // TODO FIX!
       response = await fetch(targetUrl.toString(), fetchOpts);
 
       const newResponse = new Response(response.body, response);
-      newResponse.headers.set("X-Proxy-Cache-TTL", "5 Days");
+      newResponse.headers.set("X-Proxy-Cache-TTL", "5 Days"); // TODO FIX
 
       // Add CORS headers to the actual response
       Object.keys(corsHeaders).forEach(key => {
