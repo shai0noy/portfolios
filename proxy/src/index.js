@@ -110,7 +110,7 @@ export default {
         }
       };
       if (apiId === 'tase_list_stocks') {
-        fetchOpts.headers["apikey"] = env.TASE_API_KEY;
+        fetchOpts.headers["apiKey"] = env.TASE_API_KEY;
       } else if (apiId === 'cbs_price_index') {
         fetchOpts.headers["Referer"] = "https://www.cbs.gov.il/";
       } else if (apiId.startsWith("globes")) {
