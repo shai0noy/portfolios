@@ -29,7 +29,6 @@ const corsHeaders = {
 export default {
   async fetch(request, env, ctx) {
     const defaults = {
-      taseApiKey: env.TASE_API_KEY,
       // Yestarday date in YYYY/MM/DD format
       yestarday_slash_format: new Date(new Date().getTime() - 24 * 60 * 60 * 1000)
         .toISOString().split('T')[0].replace(/-/g, '/'),
@@ -100,6 +99,7 @@ export default {
         },
       };
       if (apiId === 'tase_list_stocks') {
+        fetchOpts.headers["apikey"] = env.TASE_API_KEY;
       } else if (apiId === 'cbs_price_index') {
         fetchOpts.headers["Referer"] = "https://www.cbs.gov.il/";
       } else if (apiId.startsWith("globes")) {
