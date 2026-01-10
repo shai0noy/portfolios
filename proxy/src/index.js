@@ -6,7 +6,7 @@ const API_MAP = {
   "globes_get_exchanges": "https://www.globes.co.il/data/webservices/financial.asmx/getExchange",
   "globes_get_exchanges_details": "https://www.globes.co.il/data/webservices/financial.asmx/GetExchangesDetails",
   "cbs_price_index": "https://api.cbs.gov.il/index/data/price?id={id}&format=json&download=false&startPeriod={start}&endPeriod={end}",
-  "tase_list_stocks": "https://datawise.tase.co.il/v1/basic-securities/trade-securities-list/{yestarday_slash_format}?api_key={taseApiKey}",
+  "tase_list_stocks": "https://datawise.tase.co.il/v1/basic-securities/trade-securities-list/{yestarday_slash_format}",
 };
 
 // Regex: English (a-z), Hebrew (א-ת), Numbers (0-9) and symbols: , . : - ^ and space
@@ -97,6 +97,17 @@ export default {
           "Accept": "application/json, text/plain, text/html, application/xhtml+xml, application/xml;q=0.9, image/avif, image/webp, mobile/v1, */*;q=0.8",
           "Accept-Language": "en-US,en;q=0.5",
         },
+        cacheTtl: 12 * 3600, // 12 hours,
+        cacheEverything: true,
+        cf: {
+          cacheTtl:  12 * 3600, // 12 hours,
+          cacheEverything: true,
+          cacheTtlByStatus: {
+            "200-299": 12 * 3600, // 12 hours,
+            "404": 1 * 3600, // 1 hour
+            "500-599": 10, // 10 seconds
+          },
+        }
       };
       if (apiId === 'tase_list_stocks') {
         fetchOpts.headers["apikey"] = env.TASE_API_KEY;
@@ -121,17 +132,9 @@ export default {
         });
         return newResponse;
       }
-
-      // Successful response, apply caching
-      fetchOpts.cf = {
-        cacheTtl: 432000, // 5 days
-        cacheEverything: true
-      };
-      // Re-fetch with caching enabled for the successful response  // TODO FIX!
-      response = await fetch(targetUrl.toString(), fetchOpts);
-
+ 
       const newResponse = new Response(response.body, response);
-      newResponse.headers.set("X-Proxy-Cache-TTL", "5 Days"); // TODO FIX
+      newResponse.headers.set("X-Proxy-Cache-TTL", "12 hours"); 
 
       // Add CORS headers to the actual response
       Object.keys(corsHeaders).forEach(key => {
