@@ -122,9 +122,16 @@ export default {
 
       let urlToFetch = targetUrl.toString();
       // Specific fix for TASE API trailing slash issue. It must be ...trade-securities-list/2025/12/30
-      if (apiId === 'tase_list_stocks' && urlToFetch.endsWith('/')) {
-        urlToFetch = urlToFetch.slice(0, -1);
+      if (apiId === 'tase_list_stocks') {
+        if (urlToFetch.endsWith('/')) {
+          urlToFetch = urlToFetch.slice(0, -1);
+        }
+        if (urlToFetch.includes('/?')) {
+          urlToFetch = urlToFetch.replace('/?', '?');
+        }
       }
+
+      console.log(`Fetching URL for ${apiId}: ${urlToFetch}`);
       let response = await fetch(urlToFetch, fetchOpts);
 
       // Check for blocking or other errors before caching
