@@ -30,9 +30,16 @@ const corsHeaders = {
 export default {
   async fetch(request, env, ctx) {
     const defaults = {
-      // Yestarday date in YYYY/MM/DD format
-      yestarday_slash_format: new Date(new Date().getTime() - 24 * 60 * 60 * 1000)
-        .toISOString().split('T')[0].replace(/-/g, '/'),
+      // Provides the last active TASE trading day in YYYY/MM/DD format.
+      // TASE is closed on Saturday. 
+      yestarday_slash_format: (() => {
+        const today = new Date();
+        const dayOfWeek = today.getDay(); // Sunday = 0, ..., Saturday = 6
+        const daysToSubtract =  dayOfWeek === 0 ?2 : 1;
+        const targetDate = new Date();
+        targetDate.setDate(today.getDate() - daysToSubtract);
+        return targetDate.toISOString().split('T')[0].replace(/-/g, '/');
+      })(),
     };
 
     // Handle CORS preflight requests
