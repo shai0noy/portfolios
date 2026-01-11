@@ -65,7 +65,7 @@ export function DashboardSummary({ summary, displayCurrency, exchangeRates, onBa
                 )}
             </Box>
             <Typography variant={isMain ? "h4" : "h6"} fontWeight={isMain ? "bold" : "medium"} color={color || 'text.primary'}>
-                {formatMoney(value, displayCurrency)}
+                {formatCurrency(value, displayCurrency)}
             </Typography>
             {(pct !== undefined && !isNaN(pct)) && (
                 <Typography variant="caption" color={color || 'text.secondary'} sx={{ opacity: color ? 1 : 0.7 }}>
@@ -81,7 +81,10 @@ export function DashboardSummary({ summary, displayCurrency, exchangeRates, onBa
         return <Stat label={label} value={0} pct={0} />;
     }
 
-    const absoluteChange = summary.aum - (summary.aum / (1 + percentage));
+    const currentAUM = summary.aum;
+    // Calculate the previous value in the display currency
+    const previousAUM = currentAUM / (1 + percentage);
+    const absoluteChange = currentAUM - previousAUM;
     const color = percentage >= 0 ? 'success.main' : 'error.main';
     
     return <Stat label={label} value={absoluteChange} pct={percentage} color={color} tooltip={isIncomplete ? "Calculation is based on partial data." : undefined} />;
@@ -120,13 +123,13 @@ export function DashboardSummary({ summary, displayCurrency, exchangeRates, onBa
             <Stat 
                 label="Unrealized Gain"
                 value={summary.totalUnrealized}
-                pct={summary.aum > 0 ? summary.totalUnrealized / summary.aum : undefined}
+                pct={summary.totalUnrealizedGainPct}
                 color={summary.totalUnrealized >= 0 ? 'success.main' : 'error.main'}
             />
             <Stat 
                 label="Realized Gain"
                 value={summary.totalRealized}
-                pct={summary.totalCostOfSold > 0 ? summary.totalRealized / summary.totalCostOfSold : undefined}
+                pct={summary.totalRealizedGainPct}
                 color={summary.totalRealized >= 0 ? 'success.main' : 'error.main'}
             />
             <Stat

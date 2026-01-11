@@ -8,5 +8,11 @@ export default defineConfig(({ mode }) => {
   return {
     base: '/portfolios',
     plugins: [react()],
+    server: {
+      headers: {
+        'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
+        'Cross-Origin-Embedder-Policy': 'require-corp'
+      }
+    }
   }
 })

@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { ensureGapi, findSpreadsheetByName } from '../google';
+import { SessionExpiredError } from '../errors';
 import { getTickerData } from '../fetching';
 import { toGoogleSheetDateFormat } from '../date';
 import type { Portfolio, Transaction, Holding } from '../types';
@@ -20,8 +21,7 @@ const mapRowToTransaction = createRowMapper(transactionHeaders);
 const mapRowToHolding = createRowMapper(holdingsHeaders);
 
 export const ensureSchema = async (spreadsheetId: string) => {
-    await ensureGapi();
-    const gapi = (window as any).gapi;
+    let gapi = await ensureGapi();
     const sheetIds = {
         portfolio: await getSheetId(spreadsheetId, 'Portfolio_Options', true),
         log: await getSheetId(spreadsheetId, TX_SHEET_NAME, true),
@@ -57,7 +57,7 @@ export const ensureSchema = async (spreadsheetId: string) => {
     };
 
     const initialConfig = [
-        createCurrencyRow('USDILS'), createCurrencyRow('EURILS'), createCurrencyRow('GBPILS'),
+        createCurrencyRow('USDILS'), createCurrencyRow('EURILS'), createCurrencyRow('GBPILS'), createCurrencyRow('USDEUR'),
     ];
     await gapi.client.sheets.spreadsheets.values.update({
         spreadsheetId, range: CONFIG_RANGE, valueInputOption: 'USER_ENTERED',
@@ -67,8 +67,7 @@ export const ensureSchema = async (spreadsheetId: string) => {
 };
 
 export const fetchHolding = async (spreadsheetId: string, ticker: string, exchange: string): Promise<Holding | null> => {
-    await ensureGapi();
-    const gapi = (window as any).gapi;
+    let gapi = await ensureGapi();
     try {
         const res = await gapi.client.sheets.spreadsheets.values.get({
             spreadsheetId,
@@ -91,6 +90,7 @@ export const fetchHolding = async (spreadsheetId: string, ticker: string, exchan
 };
 
 export const fetchPortfolios = async (spreadsheetId: string): Promise<Portfolio[]> => {
+    await ensureGapi();
     const portfolios = await fetchSheetData(spreadsheetId, PORT_OPT_RANGE, (row) =>
         mapRowToPortfolio<Omit<Portfolio, 'holdings'>>(row, portfolioMapping, portfolioNumericKeys)
     );
@@ -114,17 +114,25 @@ export const fetchPortfolios = async (spreadsheetId: string): Promise<Portfolio[
 };
 
 export const fetchTransactions = async (spreadsheetId: string): Promise<Transaction[]> => {
+    await ensureGapi();
     const transactions = await fetchSheetData(
         spreadsheetId, TX_FETCH_RANGE,
         (row) => mapRowToTransaction<Omit<Transaction, 'grossValue'>>(row, transactionMapping, transactionNumericKeys),
-        'FORMULA' // Fetch formulas to get the raw formulas for calculation
+        'FORMATTED_VALUE' // Fetch formulas to get the raw formulas for calculation
     );
-    return transactions.map(t => ({
-        ...t,
-        qty: parseFloat(t.Split_Adjusted_Qty || t.Original_Qty || 0),
-        price: parseFloat(t.Split_Adjusted_Price || t.Original_Price || 0),
-        grossValue: (t.Original_Qty || 0) * (t.Original_Price || 0)
-    }));
+    return transactions.map(t => {
+        const cleanNumber = (val: any) => {
+            if (typeof val === 'number') return val;
+            if (!val) return 0;
+            return parseFloat(String(val).replace(/[^0-9.-]+/g, ""));
+        };
+        return {
+            ...t,
+            qty: cleanNumber(t.Split_Adjusted_Qty || t.Original_Qty),
+            price: cleanNumber(t.Split_Adjusted_Price || t.Original_Price),
+            grossValue: cleanNumber(t.Original_Qty) * cleanNumber(t.Original_Price)
+        };
+    });
 };
 
 export const getSpreadsheet = async (): Promise<string | null> => {
@@ -142,8 +150,7 @@ export const getSpreadsheet = async (): Promise<string | null> => {
 };
 
 export const createPortfolioSpreadsheet = async (title: string = DEFAULT_SHEET_NAME): Promise<string | null> => {
-    await ensureGapi();
-    const gapi = (window as any).gapi;
+    const gapi = await ensureGapi();
     try {
         const spreadsheet = await gapi.client.sheets.spreadsheets.create({ properties: { title: title } });
         const spreadsheetId = spreadsheet.result.spreadsheetId;
@@ -156,8 +163,7 @@ export const createPortfolioSpreadsheet = async (title: string = DEFAULT_SHEET_N
 };
 
 export const createEmptySpreadsheet = async (title: string): Promise<string | null> => {
-    await ensureGapi();
-    const gapi = (window as any).gapi;
+    const gapi = await ensureGapi();
     try {
         const spreadsheet = await gapi.client.sheets.spreadsheets.create({ properties: { title } });
         const newSpreadsheetId = spreadsheet.result.spreadsheetId;
@@ -169,8 +175,7 @@ export const createEmptySpreadsheet = async (title: string): Promise<string | nu
 };
 
 export const addTransaction = async (spreadsheetId: string, t: Transaction) => {
-    await ensureGapi();
-    const gapi = (window as any).gapi;
+    let gapi = await ensureGapi();
     const rowData: { [key: string]: any } = {};
 
     Object.values(TXN_COLS).forEach(colDef => {
@@ -248,8 +253,7 @@ function createHoldingRow(h: Omit<Holding, 'totalValue' | 'price' | 'currency' |
 }
 
 export const rebuildHoldingsSheet = async (spreadsheetId: string) => {
-    await ensureGapi();
-    const gapi = (window as any).gapi;
+    let gapi = await ensureGapi();
     const transactions = await fetchTransactions(spreadsheetId);
     const holdings: Record<string, Omit<Holding, 'totalValue' | 'price' | 'currency' | 'name' | 'name_he' | 'sector' | 'priceUnit' | 'changePct' | 'changePct1w' | 'changePct1m' | 'changePct3m' | 'changePctYtd' | 'changePct1y' | 'changePct3y' | 'changePct5y' | 'changePct10y'> & { portfolioId: string }> = {};
 
@@ -296,8 +300,7 @@ export const rebuildHoldingsSheet = async (spreadsheetId: string) => {
 };
 
 export const addPortfolio = async (spreadsheetId: string, p: Portfolio) => {
-    await ensureGapi();
-    const gapi = (window as any).gapi;
+    let gapi = await ensureGapi();
     const row = objectToRow(p, portfolioHeaders, portfolioMapping);
     await gapi.client.sheets.spreadsheets.values.append({
         spreadsheetId, range: 'Portfolio_Options!A:A', valueInputOption: 'USER_ENTERED',
@@ -306,8 +309,7 @@ export const addPortfolio = async (spreadsheetId: string, p: Portfolio) => {
 };
 
 export const updatePortfolio = async (spreadsheetId: string, p: Portfolio) => {
-    await ensureGapi();
-    const gapi = (window as any).gapi;
+    let gapi = await ensureGapi();
     const { result } = await gapi.client.sheets.spreadsheets.values.get({
         spreadsheetId, range: `Portfolio_Options!A1:${String.fromCharCode(65 + portfolioHeaders.length - 1)}`
     });
@@ -330,8 +332,7 @@ export const updatePortfolio = async (spreadsheetId: string, p: Portfolio) => {
 };
 
 export async function getMetadataValue(spreadsheetId: string, key: string): Promise<string | null> {
-    await ensureGapi();
-    const gapi = (window as any).gapi;
+    let gapi = await ensureGapi();
     try {
         const res = await gapi.client.sheets.spreadsheets.values.get({ spreadsheetId, range: METADATA_RANGE });
         const rows: string[][] = res.result.values || [];
@@ -343,8 +344,7 @@ export async function getMetadataValue(spreadsheetId: string, key: string): Prom
 }
 
 export async function setMetadataValue(spreadsheetId: string, key: string, value: string): Promise<void> {
-    await ensureGapi();
-    const gapi = (window as any).gapi;
+    let gapi = await ensureGapi();
     try {
         const res = await gapi.client.sheets.spreadsheets.values.get({ spreadsheetId, range: METADATA_RANGE });
         const rows = res.result.values || [];
@@ -364,8 +364,7 @@ export async function setMetadataValue(spreadsheetId: string, key: string, value
 }
 
 export async function exportToSheet(spreadsheetId: string, sheetName: string, headers: string[], data: any[][]): Promise<number> {
-    await ensureGapi();
-    const gapi = (window as any).gapi;
+    let gapi = await ensureGapi();
     const sheetId = await getSheetId(spreadsheetId, sheetName, true);
     await gapi.client.sheets.spreadsheets.values.clear({ spreadsheetId, range: sheetName });
     const values = [headers, ...data];
@@ -375,30 +374,65 @@ export async function exportToSheet(spreadsheetId: string, sheetName: string, he
     return sheetId;
 }
 
-export const fetchSheetExchangeRates = async (spreadsheetId: string): Promise<Record<string, number>> => {
-    await ensureGapi();
-    const gapi = (window as any).gapi;
+export const fetchSheetExchangeRates = async (spreadsheetId: string): Promise<any> => {
+    let gapi = await ensureGapi();
     const res = await gapi.client.sheets.spreadsheets.values.get({
-        spreadsheetId, range: CONFIG_RANGE, valueRenderOption: 'FORMULA'
+        spreadsheetId, range: CONFIG_RANGE, valueRenderOption: 'FORMATTED_VALUE'
     });
     const rows = res.result.values || [];
-    const rates: Record<string, number> = { USD: 1 };
     const keyIndex = configHeaders.indexOf('Key');
-    const valueIndex = configHeaders.indexOf('Value');
+
+    const periodIndices: Record<string, number> = {
+        current: configHeaders.indexOf('Value'),
+        ago1d: configHeaders.indexOf('1D Ago'),
+        ago1w: configHeaders.indexOf('1W Ago'),
+        ago1m: configHeaders.indexOf('1M Ago'),
+        ago3m: configHeaders.indexOf('3M Ago'),
+        ytd: configHeaders.indexOf('YTD'),
+        ago1y: configHeaders.indexOf('1Y Ago'),
+        ago3y: configHeaders.indexOf('3Y Ago'),
+        ago5y: configHeaders.indexOf('5Y Ago'),
+    };
+
+    const allRates: any = {};
+    for (const period in periodIndices) {
+        allRates[period] = { USD: 1 };
+    }
+
     rows.forEach((r: string[]) => {
         const pair = r[keyIndex];
-        const val = parseFloat(r[valueIndex]);
-        if (pair && !isNaN(val)) {
-            if (pair.startsWith('USD') && pair.length === 6) {
-                const target = pair.substring(3);
-                rates[target] = val;
-            } else if (pair.endsWith('USD') && pair.length === 6) {
-                const source = pair.substring(0, 3);
-                rates[source] = 1 / val;
+        if (!pair) return;
+
+        for (const period in periodIndices) {
+            const index = periodIndices[period];
+            const valueStr = r[index];
+            const val = parseFloat(valueStr);
+
+            if (!isNaN(val)) {
+                const rates = allRates[period];
+                if (pair === 'USDILS') {
+                    rates['ILS'] = val;
+                } else if (pair === 'USDEUR') {
+                    rates['EUR'] = val;
+                } else if (pair === 'USDGBP') {
+                    rates['GBP'] = val;
+                } else if (pair.startsWith('USD')) {
+                    const target = pair.substring(3);
+                    rates[target] = val;
+                } else if (pair.endsWith('USD') && pair.length === 6) {
+                    const source = pair.substring(0, 3);
+                    // rates[source] = 1 / val; // This is USDEUR, so 1 / val is EURUSD
+                }
             }
         }
     });
-    return rates;
+
+    for (const period in periodIndices) {
+        logIfFalsy(allRates[period]['ILS'], `USDILS rate missing for ${period}`);
+        logIfFalsy(allRates[period]['EUR'], `USDEUR rate missing for ${period}`);
+    }
+
+    return allRates;
 };
 
 // Add this missing function

@@ -101,6 +101,15 @@ export function Login({ onLogin }: { onLogin: (sheetId: string) => void }) {
     try {
       await signIn();
       setIsSignedIn(true);
+      const savedSheetId = localStorage.getItem('g_sheet_id');
+      if (savedSheetId && savedSheetId !== 'null') {
+        const exists = await checkSheetExists(savedSheetId);
+        if (exists) {
+          onLogin(savedSheetId);
+        } else {
+            localStorage.removeItem('g_sheet_id');
+        }
+      }
     } catch (err: any) {
       console.error(err);
       setError('Login failed: ' + err.message);

@@ -97,27 +97,42 @@ export const ensureGapi = async (): Promise<any> => {
     }
 
     console.log('Token missing or expired, attempting silent refresh...');
-    return new Promise((resolve, reject) => {
-        tokenClient = google.accounts.oauth2.initTokenClient({
-            client_id: CLIENT_ID,
-            scope: SCOPES,
-            prompt: 'none',
-            callback: (response: google.accounts.oauth2.TokenResponse) => {
-                if (response.error) {
-                    console.warn("Silent refresh failed:", response);
-                    return reject(new SessionExpiredError(response.error_description || 'Session Expired'));
-                }
-                storeToken(response);
-                console.log("Silent refresh successful.");
-                resolve(gapiInstance);
-            },
-            error_callback: (error: any) => {
-                console.warn("Silent refresh error callback:", error);
-                reject(new SessionExpiredError(error.message || 'Session Expired'));
-            },
+    try {
+        await new Promise((resolve, reject) => {
+            tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: CLIENT_ID,
+                scope: SCOPES,
+                prompt: 'none',
+                callback: (response: google.accounts.oauth2.TokenResponse) => {
+                    if (response.error) {
+                        console.warn("Silent refresh failed callback:", response);
+                        // Pass the whole response to the reject
+                        return reject(new SessionExpiredError(response.error_description || response.error)); // Wrap in SessionExpiredError
+                    }
+                    storeToken(response);
+                    console.log("Silent refresh successful.");
+                    resolve(gapiInstance);
+                },
+                error_callback: (error: any) => {
+                    console.warn("Silent refresh error callback:", error);
+                     // Pass the error object
+                    reject(new SessionExpiredError(error.message || 'Session Expired')); // Wrap in SessionExpiredError
+                },
+            });
+            tokenClient.requestAccessToken({ prompt: 'none' });
         });
-        tokenClient.requestAccessToken({ prompt: 'none' });
-    });
+        return gapiInstance;
+    } catch (error: any) {
+        console.log("Caught error from silent refresh promise:", error);
+        if (error instanceof SessionExpiredError) {
+             console.warn("SessionExpiredError caught, propagating to caller...");
+             throw error;
+        } else {
+            // This case should be less likely now
+            console.error("Unhandled error during token refresh:", error);
+            throw error;
+        }
+    }
 };
 
 export async function checkSheetExists(spreadsheetId: string): Promise<boolean> {
