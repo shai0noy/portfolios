@@ -75,11 +75,6 @@ export default {
       return new Response("Missing required parameters for this API", { status: 400, headers: corsHeaders });
     }
 
-    // Specific fix for TASE API trailing slash issue. It must be ...trade-securities-list/2025/12/30
-    if (apiId === 'tase_list_stocks' && targetUrlString.endsWith('/')) {
-      targetUrlString = targetUrlString.slice(0, -2);
-    }
-
     const targetUrl = new URL(targetUrlString);
 
     // Append other params as query string for APIs that need them (like CBS)
@@ -125,7 +120,19 @@ export default {
       }
 
 
-      let response = await fetch(targetUrl.toString(), fetchOpts);
+      let urlToFetch = targetUrl.toString();
+      // Specific fix for TASE API trailing slash issue. It must be ...trade-securities-list/2025/12/30
+      if (apiId === 'tase_list_stocks') {
+        if (urlToFetch.endsWith('/')) {
+          urlToFetch = urlToFetch.slice(0, -1);
+        }
+        if (urlToFetch.includes('/?')) {
+          urlToFetch = urlToFetch.replace('/?', '?');
+        }
+      }
+
+      console.log(`Fetching URL for ${apiId}: ${urlToFetch}`);
+      let response = await fetch(urlToFetch, fetchOpts);
 
       // Check for blocking or other errors before caching
       if (!response.ok || response.status === 403 || response.status === 429) {
