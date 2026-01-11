@@ -1,4 +1,4 @@
-import { fetchTransactions, exportToSheet, fetchPortfolios, createEmptySpreadsheet, getSpreadsheet } from './sheets';
+import { fetchTransactions, exportToSheet, fetchPortfolios, createEmptySpreadsheet, getSpreadsheet } from './sheets/index';
 
 export const downloadCSV = (data: any[], filename: string) => {
   const csvContent = [

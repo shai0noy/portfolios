@@ -1,7 +1,8 @@
-import { Box, Paper, Grid, Typography, Select, MenuItem, Tooltip } from '@mui/material';
+import { Box, Paper, Typography, Grid, Tooltip, IconButton, Select, MenuItem, FormControl, InputLabel } from '@mui/material';
+import { convertCurrency, formatCurrency } from '../lib/currency';
+import { logIfFalsy } from '../lib/utils';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
-import Button from '@mui/material/Button';
 
 interface SummaryProps {
   summary: {
@@ -39,7 +40,8 @@ interface SummaryProps {
   onCurrencyChange: (currency: string) => void;
 }
 
-export function DashboardSummary({ summary, displayCurrency, onBack, onCurrencyChange, selectedPortfolio }: SummaryProps) {
+export function DashboardSummary({ summary, displayCurrency, exchangeRates, onBack, onCurrencyChange, selectedPortfolio }: SummaryProps) {
+  logIfFalsy(exchangeRates, "DashboardSummary: exchangeRates missing");
   
   const formatMoney = (n: number, currency: string, decimals = 0) => {
     const val = n.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });

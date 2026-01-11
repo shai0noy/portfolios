@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Box, Button, Typography, CircularProgress, Paper, Container, TextField, Stack } from '@mui/material';
 import GoogleIcon from '@mui/icons-material/Google';
-import { initGoogleClient, signIn, checkSheetExists } from '../lib/google';
-import { createPortfolioSpreadsheet } from '../lib/sheets';
+import { initializeGapi, signIn, checkSheetExists } from '../lib/google';
+import { createPortfolioSpreadsheet } from '../lib/sheets/index';
 
 function extractSheetIdFromUrl(url: string): string | null {
   const match = url.match(/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
@@ -17,7 +17,7 @@ export function Login({ onLogin }: { onLogin: (sheetId: string) => void }) {
 
   const checkInitialSession = useCallback(async () => {
     try {
-      const sessionRestored = await initGoogleClient();
+      const sessionRestored = await initializeGapi();
       setIsSignedIn(sessionRestored);
       const savedSheetId = localStorage.getItem('g_sheet_id');
       

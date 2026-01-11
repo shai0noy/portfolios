@@ -4,9 +4,10 @@ import {
   Box, CircularProgress, FormControlLabel, Switch, IconButton, Tooltip, Alert, Typography
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import { fetchPortfolios, fetchTransactions } from '../lib/sheets';
+import { fetchPortfolios, fetchTransactions } from '../lib/sheets/index';
 import { ColumnSelector } from './ColumnSelector';
 import { getExchangeRates, convertCurrency } from '../lib/currency';
+import { logIfFalsy } from '../lib/utils';
 import type { Holding, PriceUnit } from '../lib/types';
 import { DashboardSummary } from './DashboardSummary';
 import { DashboardTable } from './DashboardTable';
@@ -18,34 +19,47 @@ interface DashboardHolding {
   key: string;
   portfolioId: string;
   portfolioName: string;
+  portfolioCurrency: string;
   ticker: string;
   exchange: string;
   displayName: string;
-  name_he?: string; // Add name_he
+  name_he?: string;
   qtyVested: number;
   qtyUnvested: number;
   totalQty: number;
-  avgCost: number;
-  currentPrice: number;
-  mvVested: number;
-  mvUnvested: number;
-  totalMV: number;
-  realizedGain: number;
-  realizedGainPct: number;
-  realizedGainAfterTax: number;
-  dividends: number;
-  unrealizedGain: number;
-  unrealizedGainPct: number;
-  totalGain: number;
-  totalGainPct: number;
-  valueAfterTax: number;
-  sector: string;
-  dayChangePct: number;
-  dayChangeVal: number;
-  costBasis: number;
-  costOfSold: number;
+  currentPrice: number; // In stock currency
   stockCurrency: string;
   priceUnit?: PriceUnit;
+
+  // Values in Portfolio Base Currency
+  costBasisPortfolioCurrency: number;
+  costOfSoldPortfolioCurrency: number;
+  proceedsPortfolioCurrency: number;
+  dividendsPortfolioCurrency: number;
+  unrealizedGainPortfolioCurrency: number;
+  realizedGainPortfolioCurrency: number;
+  totalGainPortfolioCurrency: number;
+  marketValuePortfolioCurrency: number;
+  dayChangeValuePortfolioCurrency: number;
+
+  // Display fields (can be derived in components)
+  avgCost: number; // Display only
+  mvVested: number; // Display only
+  mvUnvested: number; // Display only
+  totalMV: number; // Display only
+  realizedGain: number; // Display only
+  realizedGainPct: number; // Display only
+  realizedGainAfterTax: number; // Display only
+  dividends: number; // Display only
+  unrealizedGain: number; // Display only
+  unrealizedGainPct: number; // Display only
+  totalGain: number; // Display only
+  totalGainPct: number; // Display only
+  valueAfterTax: number; // Display only
+  dayChangeVal: number; // Display only
+
+  sector: string;
+  dayChangePct: number;
   perf1w: number;
   perf1m: number;
   perf3m: number;
@@ -176,18 +190,19 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
       };
 
       const s = data.reduce((acc, h) => {
-        const toDisplayCurrency = (val: number) => {
-           return convertCurrency(val, h.stockCurrency, displayCurrency, exchangeRates);
+        const stockCurrency = logIfFalsy(h.stockCurrency, `Holding stockCurrency missing`, h);
+        const toDisplayCurrency = (val: number, fromCur: string = stockCurrency) => {
+           return convertCurrency(val, fromCur, displayCurrency, exchangeRates);
         };
         
         acc.aum += toDisplayCurrency(h.totalMV);
-        acc.totalUnrealized += toDisplayCurrency(h.unrealizedGain);
-        acc.totalRealized += toDisplayCurrency(h.realizedGain);
-        acc.totalCostOfSold += toDisplayCurrency(h.costOfSold);
-        acc.totalDividends += toDisplayCurrency(h.dividends);
-        acc.totalReturn += toDisplayCurrency(h.totalGain);
-        acc.realizedGainAfterTax += toDisplayCurrency(h.realizedGainAfterTax);
-        acc.valueAfterTax += toDisplayCurrency(h.valueAfterTax);
+        acc.totalUnrealized += h.unrealizedGain; // Already in display currency
+        acc.totalRealized += convertCurrency(h.realizedGain, h.stockCurrency, displayCurrency, exchangeRates);
+        acc.totalCostOfSold += convertCurrency(h.costOfSold, h.stockCurrency, displayCurrency, exchangeRates);
+        acc.totalDividends += convertCurrency(h.dividends, h.stockCurrency, displayCurrency, exchangeRates);
+        acc.totalReturn += h.totalGain; // Already in display currency
+        acc.realizedGainAfterTax += convertCurrency(h.realizedGainAfterTax, h.stockCurrency, displayCurrency, exchangeRates);
+        acc.valueAfterTax += h.valueAfterTax; // Already in display currency
         
         if (h.dayChangePct !== 0) {
             acc.totalDayChange += toDisplayCurrency(h.dayChangeVal);
@@ -278,7 +293,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         const key = `${t.portfolioId}_${t.ticker}`;
         if (!holdingMap.has(key)) {
           const live = liveDataMap.get(`${t.ticker}:${t.exchange}`);
-          const p = newPortMap.get(t.portfolioId);
+          const p = logIfFalsy(newPortMap.get(t.portfolioId), `Portfolio not found for ID ${t.portfolioId}`, t);
           const defaultExchange = /\d/.test(t.ticker) ? 'TASE' : 'NASDAQ';
           holdingMap.set(key, {
             key,
@@ -309,6 +324,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
             dayChangePct: live?.changePct || 0,
             dayChangeVal: 0,
             costBasis: 0,
+            costBasisPortfolioCurrency: 0,
             costOfSold: 0,
             stockCurrency: live?.currency || t.currency || p?.currency || 'USD',
             priceUnit: live?.priceUnit,
@@ -325,13 +341,17 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         const h = holdingMap.get(key)!;
         const isVested = !t.vestDate || new Date(t.vestDate) <= new Date();
         const grossValue = t.qty * t.price;
+        const commission = t.commission || 0;
+        const originalPricePortfolioCurrency = logIfFalsy(t.Original_Price_Portfolio_Currency, `Original_Price_Portfolio_Currency missing for ${t.ticker}`, t) || 0;
 
         if (t.type === 'BUY') {
           if (isVested) h.qtyVested += t.qty;
           else h.qtyUnvested += t.qty;
-          h.costBasis += grossValue + (t.commission || 0);
+          h.costBasis += grossValue + commission;
+          h.costBasisPortfolioCurrency += (t.qty * originalPricePortfolioCurrency) + commission; // Assuming commission is in stock currency, need to convert if not
         } else if (t.type === 'SELL') {
-          const avgCost = (h.qtyVested + h.qtyUnvested) > 0 ? h.costBasis / (h.qtyVested + h.qtyUnvested) : 0;
+          const totalQty = h.qtyVested + h.qtyUnvested;
+          const avgCost = totalQty > 0 ? h.costBasis / totalQty : 0;
           const costOfSold = avgCost * t.qty;
           h.realizedGain += (grossValue - costOfSold);
           h.costBasis -= costOfSold;
@@ -354,15 +374,21 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         h.mvVested = h.qtyVested * priceInBase;
         h.mvUnvested = h.qtyUnvested * priceInBase;
         h.totalMV = h.mvVested + h.mvUnvested;
+
+        const port = portMap.get(h.portfolioId);
+        const portfolioCurrency = port?.currency || 'USD';
+
+        const costBasisInDisplayCurrency = convertCurrency(h.costBasisPortfolioCurrency, portfolioCurrency, displayCurrency, exchangeRates);
         
-        const unrealized = h.totalMV - h.costBasis;
+        const currentMVDisplay = convertCurrency(h.totalMV, h.stockCurrency, displayCurrency, exchangeRates);
+        const unrealized = currentMVDisplay - costBasisInDisplayCurrency;
         h.unrealizedGain = unrealized;
-        h.unrealizedGainPct = h.costBasis > 0 ? unrealized / h.costBasis : 0;
-        h.realizedGainPct = h.costOfSold > 0 ? h.realizedGain / h.costOfSold : 0;
+        h.unrealizedGainPct = costBasisInDisplayCurrency > 0 ? unrealized / costBasisInDisplayCurrency : 0;
+        h.realizedGainPct = h.costOfSold > 0 ? h.realizedGain / h.costOfSold : 0; // This needs to be in display currency too
         h.realizedGainAfterTax = h.realizedGain * (1 - taxRate);
         h.totalGain = h.unrealizedGain + h.realizedGain + h.dividends;
-        h.totalGainPct = h.costBasis + h.costOfSold > 0 ? h.totalGain / (h.costBasis + h.costOfSold) : 0;
-        h.valueAfterTax = h.totalMV - (h.unrealizedGain > 0 ? h.unrealizedGain * taxRate : 0);
+        h.totalGainPct = costBasisInDisplayCurrency + h.costOfSold > 0 ? h.totalGain / (costBasisInDisplayCurrency + h.costOfSold) : 0;
+        h.valueAfterTax = currentMVDisplay - (h.unrealizedGain > 0 ? h.unrealizedGain * taxRate : 0);
         h.dayChangeVal = h.totalMV * h.dayChangePct;
 
         processedHoldings.push(h);

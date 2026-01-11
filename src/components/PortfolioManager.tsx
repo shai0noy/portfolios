@@ -11,7 +11,7 @@ import {
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { type Portfolio, PORTFOLIO_TEMPLATES } from '../lib/types';
-import { addPortfolio, fetchPortfolios, updatePortfolio } from '../lib/sheets';
+import { addPortfolio, fetchPortfolios, updatePortfolio } from '../lib/sheets/index';
 
 const taxPolicyNames: { [key: string]: string } = {
   REAL_GAIN: "Israel (Real Gain - Inflation Adjusted)",

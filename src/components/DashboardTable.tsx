@@ -6,6 +6,7 @@ import {
 import { useTheme } from '@mui/material/styles';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { convertCurrency } from '../lib/currency';
+import { logIfFalsy } from '../lib/utils';
 import { useNavigate } from 'react-router-dom';
 
 interface Holding {
@@ -63,6 +64,8 @@ export function DashboardTable(props: TableProps) {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [contextMenu, setContextMenu] = useState<{ mouseX: number; mouseY: number; column: string; } | null>(null);
+
+  logIfFalsy(exchangeRates, "DashboardTable: exchangeRates missing");
 
   const toggleGroup = (name: string) => {
     setExpandedGroups(prev => ({ ...prev, [name]: !(prev[name] ?? true) }));

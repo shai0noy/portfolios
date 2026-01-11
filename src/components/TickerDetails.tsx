@@ -5,7 +5,7 @@ import AddIcon from '@mui/icons-material/Add';
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getTickerData, type TickerData } from '../lib/fetching';
-import { fetchHolding, getMetadataValue } from '../lib/sheets';
+import { fetchHolding, getMetadataValue } from '../lib/sheets/index';
 import type { Holding, PriceUnit } from '../lib/types';
 import { formatNumber } from '../lib/currency';
 

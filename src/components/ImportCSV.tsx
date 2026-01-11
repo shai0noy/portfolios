@@ -12,7 +12,7 @@ import {
 } from '@mui/material';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import type { Portfolio, Transaction } from '../lib/types';
-import { addTransaction, fetchPortfolios } from '../lib/sheets';
+import { addTransaction, fetchPortfolios } from '../lib/sheets/index';
 import { ImportHelp } from './ImportHelp';
 
 interface Props {

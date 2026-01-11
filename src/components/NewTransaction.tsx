@@ -9,7 +9,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import SearchIcon from '@mui/icons-material/Search';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import type { Portfolio, Transaction, PriceUnit } from '../lib/types';
-import { addTransaction, fetchPortfolios } from '../lib/sheets';
+import { addTransaction, fetchPortfolios } from '../lib/sheets/index';
 import { getTickerData, type TickerData } from '../lib/fetching';
 import { TickerSearch } from './TickerSearch';
 

@@ -6,8 +6,8 @@ import { PortfolioManager } from './components/PortfolioManager';
 import { Dashboard } from './components/Dashboard';
 import { ImportCSV } from './components/ImportCSV';
 import { TickerDetails } from './components/TickerDetails';
-import { ensureSchema, populateTestData, fetchTransactions, rebuildHoldingsSheet } from './lib/sheets';
-import { initGoogleClient, refreshToken, signOut, signIn } from './lib/google';
+import { ensureSchema, populateTestData, fetchTransactions, rebuildHoldingsSheet } from './lib/sheets/index';
+import { initializeGapi, signOut, signIn } from './lib/google';
 import { SessionExpiredError } from './lib/errors';
 import { Box, AppBar, Toolbar, Typography, Container, Tabs, Tab, IconButton, Tooltip, CircularProgress, ThemeProvider, CssBaseline, Menu, MenuItem, Snackbar, Alert, ListItemIcon, ListItemText, Button, Modal } from '@mui/material';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
@@ -96,7 +96,7 @@ function App() {
 
   const handlePopulateTestData = async () => {
     if (!sheetId) return;
-    if (!confirm('Populate sheet with 3 test portfolios and sample transactions?')) return;
+    if (!confirm('Populate sheet with test portfolios and sample transactions?')) return;
     try {
       await populateTestData(sheetId);
       setRefreshKey(k => k + 1);
@@ -120,11 +120,8 @@ function App() {
     let mounted = true;
     (async () => {
       try {
-        const restored = await initGoogleClient();
-        if (mounted) setGoogleReady(restored);
-        if (!restored) {
-          setSheetId(null);
-        }
+        await initializeGapi();
+        if (mounted) setGoogleReady(true);
       } catch (e) {
         if (mounted) setGoogleReady(false);
         setSheetId(null);
