@@ -5,62 +5,17 @@ import {
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import { convertCurrency, formatCurrency, calculatePerformanceInDisplayCurrency, calculateHoldingDisplayValues } from '../lib/currency';
+import { convertCurrency, formatCurrency, formatPrice, calculatePerformanceInDisplayCurrency, calculateHoldingDisplayValues } from '../lib/currency';
 import { logIfFalsy } from '../lib/utils';
 import { useNavigate } from 'react-router-dom';
-
-interface Holding {
-  key: string;
-  portfolioId: string;
-  portfolioName: string;
-  ticker: string;
-  exchange: string;
-  displayName: string;
-  sector: string;
-  qtyVested: number;
-  qtyUnvested: number;
-  totalQty: number;
-  avgCost: number;
-  currentPrice: number;
-  mvVested: number;
-  mvUnvested: number;
-  totalMV: number;
-  realizedGain: number;
-  realizedGainPct: number;
-  realizedGainAfterTax: number;
-  dividends: number;
-  unrealizedGain: number;
-  unrealizedGainPct: number;
-  totalGain: number;
-  totalGainPct: number;
-  valueAfterTax: number;
-  dayChangePct: number;
-  dayChangeVal: number;
-  costBasis: number;
-  stockCurrency: string;
-  priceUnit?: 'base' | 'agorot' | 'cents';
-  portfolioCurrency: string;
-  dayChangeValuePortfolioCurrency: number;
-  unrealizedGainPortfolioCurrency: number;
-  realizedGainPortfolioCurrency: number;
-  totalGainPortfolioCurrency: number;
-  marketValuePortfolioCurrency: number;
-  costBasisStockCurrency: number;
-  costOfSoldStockCurrency: number;
-  proceedsStockCurrency: number;
-  dividendsStockCurrency: number;
-  costBasisPortfolioCurrency: number;
-  costOfSoldPortfolioCurrency: number;
-  proceedsPortfolioCurrency: number;
-  dividendsPortfolioCurrency: number;
-}
+import type { DashboardHolding, ExchangeRates } from '../lib/types';
 
 interface TableProps {
-  holdings: Holding[];
-  groupedData: Record<string, Holding[]>;
+  holdings: DashboardHolding[];
+  groupedData: Record<string, DashboardHolding[]>;
   groupByPortfolio: boolean;
   displayCurrency: string;
-  exchangeRates: Record<string, number>;
+  exchangeRates: ExchangeRates;
   includeUnvested: boolean;
   onSelectPortfolio: (id: string | null) => void;
   columnVisibility: Record<string, boolean>;
@@ -102,37 +57,17 @@ export function DashboardTable(props: TableProps) {
     handleCloseContextMenu();
   };
 
-  // Formats a number as currency, handling USD, ILS, and EUR symbols.
-  // Uses priceUnit to determine if the price is in a sub-unit like Agorot.
-  const formatMoney = (n: number, currency: string, decimals = 2, priceUnit: 'base' | 'agorot' | 'cents' = 'base') => {
-    let curr = currency;
-    if (curr === '#N/A' || !curr) curr = 'ILS'; 
-    const val = n.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
-    if (curr === 'USD') return `$${val}`;
-    if (curr === 'ILS' || curr === 'NIS') {
-      if (priceUnit === 'agorot') return `${val} ag.`; // Agorot
-      return `₪${val}`;
-    }
-    if (curr === 'EUR') return `€${val}`;
-    return `${val} ${curr}`;
-  };
-
-  // Converts a value from a base currency to the display currency, handling sub-units.
-  const formatConverted = (n: number, fromCurrency: string, decimals = 0, priceUnit: 'base' | 'agorot' | 'cents' = 'base') => {
+  // Converts a value from a base currency to the display currency, handling sub-units only if explicitly needed for display
+  // For standard monetary values (MV, Gains), we expect inputs in standard units (e.g. ILS, not Agorot)
+  const formatConverted = (n: number, fromCurrency: string, decimals = 0) => {
     const safeFrom = (fromCurrency === '#N/A' || !fromCurrency) ? 'ILS' : fromCurrency;
-    let valueInBase = n;
-    if (priceUnit === 'agorot') {
-      valueInBase = n / 100;
-    } else if (priceUnit === 'cents') {
-      valueInBase = n / 100;
-    }
-    const converted = convertCurrency(valueInBase, safeFrom, displayCurrency, exchangeRates);
-    return formatMoney(converted, displayCurrency, decimals);
+    const converted = convertCurrency(n, safeFrom, displayCurrency, exchangeRates);
+    return formatCurrency(converted, displayCurrency, decimals);
   };
 
   const formatPct = (n: number) => (n * 100).toFixed(2) + '%';
 
-  const getSortValue = (h: Holding, key: string) => {
+  const getSortValue = (h: DashboardHolding, key: string) => {
     const toDisplay = (val: number, curr: string) => convertCurrency(val, curr, displayCurrency, exchangeRates);
     switch (key) {
       case 'ticker': return h.ticker || '';
@@ -150,7 +85,7 @@ export function DashboardTable(props: TableProps) {
     }
   };
 
-  const renderGroup = ([groupName, groupHoldings]: [string, Holding[]]) => {
+  const renderGroup = ([groupName, groupHoldings]: [string, DashboardHolding[]]) => {
     const isExpanded = expandedGroups[groupName] ?? true;
     const hasUnvested = groupHoldings.some(h => h.qtyUnvested > 0);
 
@@ -189,13 +124,13 @@ export function DashboardTable(props: TableProps) {
             </Box>
             <Box display="flex" alignItems="center" gap={2} flexWrap="wrap" pr={1}>
               <Typography variant="body2">
-                Total: {formatMoney(groupSummary.totalMV, displayCurrency, 0)}
+                Total: {formatCurrency(groupSummary.totalMV, displayCurrency, 0)}
               </Typography>
               <Typography variant="body2" color={groupSummary.totalDayChange >= 0 ? 'success.main' : 'error.main'}>
-                Day: {formatMoney(groupSummary.totalDayChange, displayCurrency, 0)} ({formatPct(groupDayChangePct)})
+                Day: {formatCurrency(groupSummary.totalDayChange, displayCurrency, 0)} ({formatPct(groupDayChangePct)})
               </Typography>
               <Typography variant="body2" color={groupSummary.totalUnrealizedGain >= 0 ? 'success.main' : 'error.main'}>
-                Unrealized: {formatMoney(groupSummary.totalUnrealizedGain, displayCurrency, 0)}
+                Unrealized: {formatCurrency(groupSummary.totalUnrealizedGain, displayCurrency, 0)}
               </Typography>
             </Box>
           </Box>
@@ -245,21 +180,21 @@ export function DashboardTable(props: TableProps) {
                     {columnVisibility.ticker ? <TableCell>{h.ticker}</TableCell> : null}
                     {columnVisibility.sector ? <TableCell>{h.sector}</TableCell> : null}
                     {columnVisibility.qty ? <TableCell align="right">{h.totalQty.toLocaleString()}</TableCell> : null}
-                    {columnVisibility.avgCost ? <TableCell align="right">{formatMoney(h.avgCost, h.stockCurrency, 2, h.priceUnit)}</TableCell> : null}
-                    {columnVisibility.currentPrice ? <TableCell align="right">{formatMoney(h.currentPrice, h.stockCurrency, 2, h.priceUnit)}</TableCell> : null}
-                    {columnVisibility.dayChangeVal ? <TableCell align="right" sx={{ color: dayChangePctDisplay >= 0 ? theme.palette.success.main : theme.palette.error.main }}>{formatMoney(dayChangeValDisplay * h.totalQty, displayCurrency, 2)}</TableCell> : null}
+                    {columnVisibility.avgCost ? <TableCell align="right">{formatPrice(h.avgCost, h.stockCurrency, 2, h.priceUnit)}</TableCell> : null}
+                    {columnVisibility.currentPrice ? <TableCell align="right">{formatPrice(h.currentPrice, h.stockCurrency, 2, h.priceUnit)}</TableCell> : null}
+                    {columnVisibility.dayChangeVal ? <TableCell align="right" sx={{ color: dayChangePctDisplay >= 0 ? theme.palette.success.main : theme.palette.error.main }}>{formatCurrency(dayChangeValDisplay * h.totalQty, displayCurrency, 2)}</TableCell> : null}
                     {columnVisibility.dayChangePct ? <TableCell align="right" sx={{ color: dayChangePctDisplay >= 0 ? theme.palette.success.main : theme.palette.error.main }}>{formatPct(dayChangePctDisplay)}</TableCell> : null}
-                    {columnVisibility.mv ? <TableCell align="right">{formatMoney(displayVals.marketValue, displayCurrency)}</TableCell> : null}
+                    {columnVisibility.mv ? <TableCell align="right">{formatCurrency(displayVals.marketValue, displayCurrency)}</TableCell> : null}
                     {includeUnvested ? <TableCell align="right">{formatConverted(displayedVestedValue, h.portfolioCurrency)}</TableCell> : null}
                     {hasUnvested && displayedUnvestedValue > 0 ? <TableCell align="right" sx={{ color: 'text.secondary' }}>{formatConverted(displayedUnvestedValue, h.portfolioCurrency)}</TableCell> : hasUnvested ? <TableCell align="right" sx={{ color: 'text.secondary' }}>-</TableCell> : null}
-                    {columnVisibility.unrealizedGain ? <TableCell align="right"><Typography variant="body2" color={displayVals.unrealizedGain >= 0 ? theme.palette.success.main : theme.palette.error.main}>{formatMoney(displayVals.unrealizedGain, displayCurrency)}</Typography></TableCell> : null}
+                    {columnVisibility.unrealizedGain ? <TableCell align="right"><Typography variant="body2" color={displayVals.unrealizedGain >= 0 ? theme.palette.success.main : theme.palette.error.main}>{formatCurrency(displayVals.unrealizedGain, displayCurrency)}</Typography></TableCell> : null}
                     {columnVisibility.unrealizedGainPct ? <TableCell align="right" sx={{ color: 'text.secondary' }}>{formatPct(displayVals.unrealizedGainPct)}</TableCell> : null}
-                    {columnVisibility.realizedGain ? <TableCell align="right">{formatMoney(displayVals.realizedGain, displayCurrency)}</TableCell> : null}
+                    {columnVisibility.realizedGain ? <TableCell align="right">{formatCurrency(displayVals.realizedGain, displayCurrency)}</TableCell> : null}
                     {columnVisibility.realizedGainPct ? <TableCell align="right" sx={{ color: 'text.secondary' }}>{formatPct(displayVals.realizedGainPct)}</TableCell> : null}
-                    {columnVisibility.realizedGainAfterTax ? <TableCell align="right">{formatMoney(displayVals.realizedGainAfterTax, displayCurrency)}</TableCell> : null}
-                    {columnVisibility.totalGain ? <TableCell align="right" sx={{ fontWeight: 'bold', color: displayVals.totalGain >= 0 ? theme.palette.success.dark : theme.palette.error.dark }}>{formatMoney(displayVals.totalGain, displayCurrency)}</TableCell> : null}
+                    {columnVisibility.realizedGainAfterTax ? <TableCell align="right">{formatCurrency(displayVals.realizedGainAfterTax, displayCurrency)}</TableCell> : null}
+                    {columnVisibility.totalGain ? <TableCell align="right" sx={{ fontWeight: 'bold', color: displayVals.totalGain >= 0 ? theme.palette.success.dark : theme.palette.error.dark }}>{formatCurrency(displayVals.totalGain, displayCurrency)}</TableCell> : null}
                     {columnVisibility.totalGainPct ? <TableCell align="right" sx={{ color: 'text.secondary' }}>{formatPct(displayVals.totalGainPct)}</TableCell> : null}
-                    {columnVisibility.valueAfterTax ? <TableCell align="right">{formatMoney(displayVals.valueAfterTax, displayCurrency)}</TableCell> : null}
+                    {columnVisibility.valueAfterTax ? <TableCell align="right">{formatCurrency(displayVals.valueAfterTax, displayCurrency)}</TableCell> : null}
                   </TableRow>
                 );
               })}

@@ -1,83 +1,25 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
-  Box, CircularProgress, FormControlLabel, Switch, IconButton, Tooltip, Alert, Typography
+  Box, CircularProgress, FormControlLabel, Switch, IconButton, Tooltip, Typography
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import { fetchPortfolios, fetchTransactions } from '../lib/sheets/index';
 import { ColumnSelector } from './ColumnSelector';
 import { getExchangeRates, convertCurrency, calculatePerformanceInDisplayCurrency, calculateHoldingDisplayValues } from '../lib/currency';
 import { logIfFalsy } from '../lib/utils';
-import type { Holding, PriceUnit } from '../lib/types';
+import type { Holding, DashboardHolding, ExchangeRates } from '../lib/types';
 import { DashboardSummary } from './DashboardSummary';
 import { DashboardTable } from './DashboardTable';
 import { SessionExpiredError } from '../lib/errors';
-import { Login } from './Login'; // Assuming Login component path
+import { Login } from './Login';
 
 interface DashboardProps {
   sheetId: string;
 }
-interface DashboardHolding {
-  key: string;
-  portfolioId: string;
-  portfolioName: string;
-  portfolioCurrency: string;
-  ticker: string;
-  exchange: string;
-  displayName: string;
-  name_he?: string;
-  qtyVested: number;
-  qtyUnvested: number;
-  totalQty: number;
-  currentPrice: number; // In stock currency
-  stockCurrency: string;
-  priceUnit?: PriceUnit;
-
-  // Values in Portfolio Base Currency
-  costBasisPortfolioCurrency: number;
-  costOfSoldPortfolioCurrency: number;
-  proceedsPortfolioCurrency: number;
-  dividendsPortfolioCurrency: number;
-  unrealizedGainPortfolioCurrency: number;
-  realizedGainPortfolioCurrency: number;
-  totalGainPortfolioCurrency: number;
-  marketValuePortfolioCurrency: number;
-  dayChangeValuePortfolioCurrency: number;
-
-  // Values in Stock Currency
-  costBasisStockCurrency: number;
-  costOfSoldStockCurrency: number;
-  proceedsStockCurrency: number;
-  dividendsStockCurrency: number;
-
-  // Display fields (can be derived in components)
-  avgCost: number; // Display only
-  mvVested: number; // Display only
-  mvUnvested: number; // Display only
-  totalMV: number; // Display only
-  realizedGain: number; // Display only
-  realizedGainPct: number; // Display only
-  realizedGainAfterTax: number; // Display only
-  dividends: number; // Display only
-  unrealizedGain: number; // Display only
-  unrealizedGainPct: number; // Display only
-  totalGain: number; // Display only
-  totalGainPct: number; // Display only
-  valueAfterTax: number; // Display only
-  dayChangeVal: number; // Display only
-
-  sector: string;
-  dayChangePct: number;
-  perf1w: number;
-  perf1m: number;
-  perf3m: number;
-  perfYtd: number;
-  perf1y: number;
-  perf3y: number;
-  perf5y: number;
-}
 
 export const Dashboard = ({ sheetId }: DashboardProps) => {
+  console.log('Dashboard: Render', { sheetId });
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [holdings, setHoldings] = useState<DashboardHolding[]>([]);
@@ -88,8 +30,9 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
   // Persist Currency
   const [displayCurrency, setDisplayCurrency] = useState(() => localStorage.getItem('displayCurrency') || 'USD');
   
-  const [exchangeRates, setExchangeRates] = useState<any>({ USD: 1, ILS: 3.7 });
+  const [exchangeRates, setExchangeRates] = useState<ExchangeRates>({ current: { USD: 1, ILS: 3.7 } });
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<string | null>(searchParams.get('portfolioId'));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [portMap, setPortMap] = useState<Map<string, any>>(new Map());
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const openColSelector = Boolean(anchorEl);
@@ -106,10 +49,12 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
     localStorage.setItem('displayCurrency', displayCurrency);
   }, [displayCurrency]);
 
-
-
   useEffect(() => {
-    getExchangeRates(sheetId).then(rates => setExchangeRates(rates));
+    console.log('Dashboard: fetching exchange rates');
+    getExchangeRates(sheetId).then(rates => {
+        console.log('Dashboard: got exchange rates', rates);
+        setExchangeRates(rates);
+    });
   }, [sheetId]);
 
   useEffect(() => {
@@ -176,10 +121,13 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
 
   useEffect(() => {
     const fetchData = async () => {
+      console.log('Dashboard: fetchData effect running');
       try {
         setLoading(true);
         setLoginRequired(false);
+        console.log('Dashboard: calling loadData');
         await loadData();
+        console.log('Dashboard: loadData returned');
       } catch (error) {
         console.error('Error caught in fetchData:', error);
         if (error instanceof SessionExpiredError) {
@@ -187,9 +135,9 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
           setLoginRequired(true);
         } else {
           console.error('Error loading data (not SessionExpiredError):', error);
-          // Optionally show an error message to the user
         }
       } finally {
+        console.log('Dashboard: fetchData finally block');
         setLoading(false);
       }
     };
@@ -206,7 +154,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         totalCostOfSoldDisplay: 0,
         totalDividendsDisplay: 0,
         totalReturnDisplay: 0,
-        realizedGainAfterTaxDisplay: 0, // TODO: This needs proper tax handling by currency
+        realizedGainAfterTaxDisplay: 0,
         valueAfterTaxDisplay: 0,
         totalDayChange: 0,
         aumWithDayChangeData: 0,
@@ -305,23 +253,6 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
     };
 
     if (selectedPortfolioId) {
-      summaryResult.perf1d = summaryResult.totalDayChangePct;
-      summaryResult.totalDayChangeIsIncomplete = s.holdingsWithDayChange > 0 && s.holdingsWithDayChange < totalHoldings;
-      
-      for (const key of Object.keys(perfPeriods)) {
-        const totalChange = (s as any)[`totalChange_${key}`];
-        const aumForPeriod = (s as any)[`aumFor_${key}`];
-        const prevValue = aumForPeriod - totalChange;
-        (summaryResult as any)[key] = prevValue > 0 ? totalChange / prevValue : 0;
-
-        const holdingsForPeriod = (s as any)[`holdingsFor_${key}`];
-        (summaryResult as any)[`${key}_incomplete`] = holdingsForPeriod > 0 && holdingsForPeriod < totalHoldings;
-      }
-      
-      setSummary(summaryResult);
-    };
-
-    if (selectedPortfolioId) {
       calculateSummary(holdings.filter(h => h.portfolioId === selectedPortfolioId));
     } else {
       calculateSummary(holdings);
@@ -338,10 +269,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
       } catch (error) {
         console.error('Error reloading data after login:', error);
         if (error instanceof SessionExpiredError) {
-          // This should ideally not happen immediately after a successful login
           setLoginRequired(true);
-        } else {
-          // Handle other potential errors during data load
         }
       } finally {
         setLoading(false);
@@ -360,17 +288,19 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
   };
 
   const loadData = async () => {
+    console.log('loadData: starting');
     setLoading(true);
     try {
+      console.log('loadData: calling fetchPortfolios and fetchTransactions');
       const [ports, txns] = await Promise.all([
         fetchPortfolios(sheetId),
         fetchTransactions(sheetId),
       ]);
+      console.log('loadData: fetched data', { portsCount: ports.length, txnsCount: txns.length });
       
       const newPortMap = new Map(ports.map(p => [p.id, p]));
       setPortMap(newPortMap);
       const holdingMap = new Map<string, DashboardHolding>();
-      const taxRate = 0.25;
 
       txns.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
       const today = new Date();
@@ -489,7 +419,8 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
               holdingMap.forEach(h => {
                 h.totalQty = h.qtyVested + h.qtyUnvested;
                 const priceInStockCurrency = getPriceInBaseCurrency(h);
-                const currentPricePC = convertCurrency(priceInStockCurrency, h.stockCurrency, h.portfolioCurrency, exchangeRates.current);
+                // Use new typed convertCurrency which supports full ExchangeRates object
+                const currentPricePC = convertCurrency(priceInStockCurrency, h.stockCurrency, h.portfolioCurrency, exchangeRates);
                 
         h.marketValuePortfolioCurrency = h.totalQty * currentPricePC;
                 h.unrealizedGainPortfolioCurrency = h.marketValuePortfolioCurrency - h.costBasisPortfolioCurrency;
@@ -510,11 +441,13 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         
                 processedHoldings.push(h);
               });
+      console.log('loadData: processing complete', processedHoldings.length);
       setHoldings(processedHoldings);
     } catch (e) {
-      console.error(e);
+      console.error('loadData error:', e);
       throw e;
     } finally {
+      console.log('loadData: finished');
       setLoading(false);
     }
   };

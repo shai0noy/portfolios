@@ -1,15 +1,15 @@
 import { fetchSheetExchangeRates } from './sheets/index';
-import { logIfFalsy } from './utils';
+import type { ExchangeRates, DashboardHolding, Currency, PriceUnit } from './types';
 
 const CACHE_KEY = 'exchangeRates';
 const CACHE_DURATION = 60 * 60 * 1000; // 1 hour
 
 interface RateCache {
   timestamp: number;
-  data: any;
+  data: ExchangeRates;
 }
 
-export async function getExchangeRates(sheetId: string) {
+export async function getExchangeRates(sheetId: string): Promise<ExchangeRates> {
   try {
     const cached = localStorage.getItem(CACHE_KEY);
     if (cached) {
@@ -28,7 +28,7 @@ export async function getExchangeRates(sheetId: string) {
       data: rates
     }));
     
-    return rates;
+    return rates as ExchangeRates;
   } catch (error) {
     console.error('Error fetching exchange rates from sheet:', error);
     // Fallback to cache if available even if expired
@@ -38,27 +38,28 @@ export async function getExchangeRates(sheetId: string) {
         return JSON.parse(cached).data;
     }
     // Fallback defaults
-    return { USD: 1, ILS: 3.65, EUR: 0.92 }; 
+    return { current: { USD: 1, ILS: 3.65, EUR: 0.92 } }; 
   }
 }
 
-export function convertCurrency(amount: number, from: string, to: string, rates: any): number {
-  if (!amount) return 0;
-  if (from === to) return amount;
+export function convertCurrency(amount: number, from: Currency, to: Currency, rates: ExchangeRates | Record<string, number>): number {
+  if (typeof amount !== 'number' || isNaN(amount)) return 0;
   
   // Safe normalization
   const fromNorm = (from || 'USD').trim().toUpperCase();
   const toNorm = (to || 'USD').trim().toUpperCase();
+  
   if (fromNorm === toNorm) return amount;
 
-  // Handle rates structure
-  let currentRates = rates;
-  if (rates && rates.current) {
-    currentRates = rates.current;
+  // Handle rates structure: support both full ExchangeRates object and a simple Record<string, number>
+  let currentRates: Record<string, number>;
+  if ('current' in rates) {
+      currentRates = (rates as ExchangeRates).current;
+  } else {
+      currentRates = rates as Record<string, number>;
   }
 
   if (!currentRates) {
-    // console.warn("convertCurrency: rates are missing", { rates });
     return amount;
   }
 
@@ -66,8 +67,8 @@ export function convertCurrency(amount: number, from: string, to: string, rates:
   const fromRate = currentRates[fromNorm]; 
   const toRate = currentRates[toNorm]; 
 
-  if (fromNorm !== 'USD' && !fromRate) return amount;
-  if (toNorm !== 'USD' && !toRate) return amount;
+  if (fromNorm !== 'USD' && !fromRate) return amount; // Cannot convert
+  if (toNorm !== 'USD' && !toRate) return amount; // Cannot convert
 
   // Convert
   const amountInUSD = fromNorm === 'USD' ? amount : amount / fromRate;
@@ -77,11 +78,11 @@ export function convertCurrency(amount: number, from: string, to: string, rates:
 export const calculatePerformanceInDisplayCurrency = (
   currentPrice: number,
   stockCurrency: string,
-  priceUnit: string | undefined,
+  priceUnit: PriceUnit | undefined,
   perfPct: number,
   period: string,
   displayCurrency: string,
-  exchangeRates: any
+  exchangeRates: ExchangeRates
 ) => {
   if (!perfPct) return { changeVal: 0, changePct: 0 };
 
@@ -94,7 +95,9 @@ export const calculatePerformanceInDisplayCurrency = (
   const prevPriceStock = adjustedCurrentPrice / (1 + perfPct);
   
   // Handle historical rates
-  const historicalRates = exchangeRates[period] || exchangeRates.current || exchangeRates;
+  // Try to find historical rates for the period, fallback to current
+  const historicalRates = (exchangeRates[period] as Record<string, number>) || exchangeRates.current;
+  
   const prevPriceDisplay = convertCurrency(prevPriceStock, stockCurrency, displayCurrency, historicalRates);
 
   const changeVal = priceDisplayNow - prevPriceDisplay;
@@ -104,8 +107,7 @@ export const calculatePerformanceInDisplayCurrency = (
 };
 
 // Shared helper to calculate display values (Cost Basis, MV, Gains)
-// Expects an enriched holding object with both Stock and Portfolio currency fields
-export const calculateHoldingDisplayValues = (h: any, displayCurrency: string, exchangeRates: any) => {
+export const calculateHoldingDisplayValues = (h: DashboardHolding, displayCurrency: string, exchangeRates: ExchangeRates) => {
     const convert = (val: number, from: string) => convertCurrency(val, from, displayCurrency, exchangeRates);
     
     let costBasis = 0;
@@ -176,7 +178,29 @@ export function formatCurrency(n: number, currency: string, decimals = 2): strin
   if (n === undefined || n === null || isNaN(n)) return '-';
   const val = n.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
   if (currency === 'USD') return `$${val}`;
-  if (currency === 'ILS') return `₪${val}`;
+  if (currency === 'ILS' || currency === 'NIS') return `₪${val}`;
   if (currency === 'EUR') return `€${val}`;
   return `${val} ${currency}`;
+}
+
+export function formatPrice(n: number, currency: string, decimals = 2, priceUnit: PriceUnit = 'base'): string {
+    if (n === undefined || n === null || isNaN(n)) return '-';
+    
+    // If we are displaying in Agorot, we don't convert the value, just the label usually, 
+    // BUT the previous logic in DashboardTable was:
+    // if (priceUnit === 'agorot') return `${val} ag.`;
+    // This implies 'n' is passed in Agorot (e.g. 150) and displayed as "150 ag."
+    
+    const val = n.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+    const curr = (currency || 'ILS').toUpperCase();
+
+    if (curr === 'ILS' || curr === 'NIS') {
+      if (priceUnit === 'agorot') return `${val} ag.`;
+      return `₪${val}`;
+    }
+    if (priceUnit === 'cents' && curr === 'USD') {
+        return `${val}¢`;
+    }
+    
+    return formatCurrency(n, currency, decimals);
 }

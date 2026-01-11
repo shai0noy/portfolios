@@ -67,6 +67,73 @@ export interface Transaction {
 
 export type PriceUnit = 'base' | 'agorot' | 'cents';
 
+export type Currency = 'USD' | 'ILS' | 'EUR' | string;
+
+export interface ExchangeRates {
+  current: Record<string, number>;
+  [key: string]: Record<string, number> | number; // Allow historical dates (e.g. 'ago1w') or other structures if necessary
+}
+
+export interface DashboardHolding {
+  key: string;
+  portfolioId: string;
+  portfolioName: string;
+  portfolioCurrency: string;
+  ticker: string;
+  exchange: string;
+  displayName: string;
+  name_he?: string;
+  qtyVested: number;
+  qtyUnvested: number;
+  totalQty: number;
+  currentPrice: number; // In stock currency
+  stockCurrency: string;
+  priceUnit?: PriceUnit;
+
+  // Values in Portfolio Base Currency
+  costBasisPortfolioCurrency: number;
+  costOfSoldPortfolioCurrency: number;
+  proceedsPortfolioCurrency: number;
+  dividendsPortfolioCurrency: number;
+  unrealizedGainPortfolioCurrency: number;
+  realizedGainPortfolioCurrency: number;
+  totalGainPortfolioCurrency: number;
+  marketValuePortfolioCurrency: number;
+  dayChangeValuePortfolioCurrency: number;
+
+  // Values in Stock Currency
+  costBasisStockCurrency: number;
+  costOfSoldStockCurrency: number;
+  proceedsStockCurrency: number;
+  dividendsStockCurrency: number;
+
+  // Display fields (can be derived in components, but often pre-calculated)
+  avgCost: number; 
+  mvVested: number; 
+  mvUnvested: number; 
+  totalMV: number; 
+  realizedGain: number; 
+  realizedGainPct: number; 
+  realizedGainAfterTax: number; 
+  dividends: number; 
+  unrealizedGain: number; 
+  unrealizedGainPct: number; 
+  totalGain: number; 
+  totalGainPct: number; 
+  valueAfterTax: number; 
+  dayChangeVal: number; 
+
+  sector: string;
+  dayChangePct: number;
+  perf1w: number;
+  perf1m: number;
+  perf3m: number;
+  perfYtd: number;
+  perf1y: number;
+  perf3y: number;
+  perf5y: number;
+}
+
 // Templates for quick setup
 export const PORTFOLIO_TEMPLATES: Record<string, Partial<Portfolio>> = {
   'std_il': { 
