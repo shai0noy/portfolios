@@ -34,7 +34,7 @@ export function ColumnSelector({
         aria-expanded={open ? "true" : undefined}
         onClick={onClick}
       >
-        Show/Hide Columns
+        Select Columns
       </Button>
       <Menu
         id="basic-menu"
