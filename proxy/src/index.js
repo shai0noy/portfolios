@@ -6,16 +6,17 @@ const API_MAP = {
   "globes_get_exchanges": "https://www.globes.co.il/data/webservices/financial.asmx/getExchange",
   "globes_get_exchanges_details": "https://www.globes.co.il/data/webservices/financial.asmx/GetExchangesDetails",
   "cbs_price_index": "https://api.cbs.gov.il/index/data/price?id={id}&format=json&download=false&startPeriod={start}&endPeriod={end}",
-  "tase_list_stocks": "https://datawise.tase.co.il/v1/basic-securities/trade-securities-list/{yestarday_slash_format}",
+  "tase_list_stocks": "https://datawise.tase.co.il/v1/basic-securities/trade-securities-list/{raw:yestarday_slash_format}",
 };
 
 // Regex: English (a-z), Hebrew (א-ת), Numbers (0-9) and symbols: , . : - ^ and space
 function replacePlaceholder(urlString, key, value) {
-  const placeholder = `{${key}}`;
-  if (urlString.includes(placeholder)) {
-    return urlString.split(placeholder).join(encodeURIComponent(value));
-  }
-  return urlString;
+  // Use replaceAll for clarity and performance. It's supported in CF Workers.
+  // We can chain them because we assume `{key}` and `{raw:key}` won't overlap in a problematic way.
+  // We process raw placeholders first, then the encoded ones.
+  return urlString
+    .replaceAll(`{raw:${key}}`, value)
+    .replaceAll(`{${key}}`, encodeURIComponent(value));
 }
 
 const VALID_VALUE_REGEX = /^[a-zA-Z0-9\u05D0-\u05EA,.:\-^ ]+$/;
