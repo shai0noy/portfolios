@@ -7,6 +7,18 @@ import { toGoogleSheetDateFormat } from './date';
 
 const DEFAULT_SHEET_NAME = 'Portfolios_App_Data';
 
+// --- Formula Generators ---
+
+function getGoogleFinanceFormula(query: string, attribute: string, dateExpression?: string) {
+    const dateArg = dateExpression ? `, ${dateExpression}` : "";
+    return `=IFERROR(INDEX(GOOGLEFINANCE(${query}, "${attribute}"${dateArg}), 2, 2), "")`;
+}
+
+function getHistoricalPriceFormula(tickerOrPair: string, dateExpression: string, isCurrency: boolean = false) {
+    const query = isCurrency ? `"CURRENCY:${tickerOrPair}"` : tickerOrPair;
+    return getGoogleFinanceFormula(query, "price", dateExpression);
+}
+
 // --- Column Definitions ---
 interface TxnColumnDef {
     key: keyof Omit<Transaction, 'grossValue'> | string;
@@ -32,17 +44,24 @@ const TXN_COLS: TransactionColumns = {
     Original_Qty: { key: 'Original_Qty', colName: 'Original_Qty', colId: 'F', numeric: true },
     Original_Price: { key: 'Original_Price', colName: 'Original_Price', colId: 'G', numeric: true },
     currency: { key: 'currency', colName: 'Currency', colId: 'H' },
-    vestDate: { key: 'vestDate', colName: 'Vesting_Date', colId: 'I' },
-    comment: { key: 'comment', colName: 'Comments', colId: 'J' },
-    commission: { key: 'commission', colName: 'Commission', colId: 'K', numeric: true },
-    tax: { key: 'tax', colName: 'Tax %', colId: 'L', numeric: true },
-    Source: { key: 'Source', colName: 'Source', colId: 'M' },
-    Creation_Date: { key: 'Creation_Date', colName: 'Creation_Date', colId: 'N' },
-    Orig_Open_Price_At_Creation_Date: { key: 'Orig_Open_Price_At_Creation_Date', colName: 'Orig_Open_Price_At_Creation_Date', colId: 'O', numeric: true },
+    Original_Price_NIS: {
+        key: 'Original_Price_NIS',
+        colName: 'Original_Price_NIS',
+        colId: 'I',
+        numeric: true,
+        formula: (rowNum, cols) => `=IF(${cols.currency.colId}${rowNum}="ILS", ${cols.Original_Price.colId}${rowNum}, ${cols.Original_Price.colId}${rowNum} * INDEX(GOOGLEFINANCE("CURRENCY:" & ${cols.currency.colId}${rowNum} & "ILS", "price", ${cols.date.colId}${rowNum}), 2, 2))`
+    },
+    vestDate: { key: 'vestDate', colName: 'Vesting_Date', colId: 'J' },
+    comment: { key: 'comment', colName: 'Comments', colId: 'K' },
+    commission: { key: 'commission', colName: 'Commission', colId: 'L', numeric: true },
+    tax: { key: 'tax', colName: 'Tax %', colId: 'M', numeric: true },
+    Source: { key: 'Source', colName: 'Source', colId: 'N' },
+    Creation_Date: { key: 'Creation_Date', colName: 'Creation_Date', colId: 'O' },
+    Orig_Open_Price_At_Creation_Date: { key: 'Orig_Open_Price_At_Creation_Date', colName: 'Orig_Open_Price_At_Creation_Date', colId: 'P', numeric: true },
     Split_Adj_Open_Price: {
         key: 'Split_Adj_Open_Price',
         colName: 'Split_Adj_Open_Price',
-        colId: 'P',
+        colId: 'Q',
         numeric: true,
         // TODO: This formula likely fetches current price, not historical on date. Needs to be INDEX(GOOGLEFINANCE(..., "all", date), 2, 2) or similar
         formula: (rowNum, cols) => `=INDEX(GOOGLEFINANCE(${cols.exchange.colId}${rowNum}&":"&${cols.ticker.colId}${rowNum}, "open", ${cols.Creation_Date.colId}${rowNum}), 2, 2)`
@@ -50,21 +69,21 @@ const TXN_COLS: TransactionColumns = {
     Split_Ratio: {
         key: 'Split_Ratio',
         colName: 'Split_Ratio',
-        colId: 'Q',
+        colId: 'R',
         numeric: true,
         formula: (rowNum, cols) => `=ROUND(IFERROR(IF(OR(ISBLANK(${cols.Split_Adj_Open_Price.colId}${rowNum}), ${cols.Split_Adj_Open_Price.colId}${rowNum}=0, ISBLANK(${cols.Orig_Open_Price_At_Creation_Date.colId}${rowNum})), 1, ${cols.Orig_Open_Price_At_Creation_Date.colId}${rowNum} / ${cols.Split_Adj_Open_Price.colId}${rowNum}), 1), 2)`
     },
     Split_Adjusted_Price: {
         key: 'Split_Adjusted_Price',
         colName: 'Split_Adjusted_Price',
-        colId: 'R',
+        colId: 'S',
         numeric: true,
         formula: (rowNum, cols) => `=IFERROR(${cols.Original_Price.colId}${rowNum} / ${cols.Split_Ratio.colId}${rowNum}, ${cols.Original_Price.colId}${rowNum})`
     },
     Split_Adjusted_Qty: {
         key: 'Split_Adjusted_Qty',
         colName: 'Split_Adjusted_Qty',
-        colId: 'S',
+        colId: 'T',
         numeric: true,
         formula: (rowNum, cols) => `=IFERROR(${cols.Original_Qty.colId}${rowNum} * ${cols.Split_Ratio.colId}${rowNum}, ${cols.Original_Qty.colId}${rowNum})`
     },
@@ -89,7 +108,7 @@ const holdingsHeaders = [
     'Name_En', 'Name_He', 'Sector', 'Price_Unit', 'Day_Change',
     'Change_1W', 'Change_1M', 'Change_3M', 'Change_YTD', 'Change_1Y', 'Change_3Y', 'Change_5Y', 'Change_10Y'
 ] as const;
-const configHeaders = ['Key', 'Value'] as const;
+const configHeaders = ['Key', 'Value', '1D Ago', '1W Ago', '1M Ago', '3M Ago', '6M Ago', 'YTD', '1Y Ago', '3Y Ago', '5Y Ago'] as const;
 
 type Headers = readonly string[];
 
@@ -246,14 +265,30 @@ export const ensureSchema = async (spreadsheetId: string) => {
         }
     };
 
-    await window.gapi.client.sheets.spreadsheets.batchUpdate(batchUpdate);
 
+    await window.gapi.client.sheets.spreadsheets.batchUpdate(batchUpdate);
     // Initial Config Data
+    const createCurrencyRow = (currencyPair: string) => {
+        return [
+            currencyPair,
+            `=GOOGLEFINANCE("CURRENCY:${currencyPair}")`, // Current Value
+            getHistoricalPriceFormula(currencyPair, "TODAY()-1", true),    // 1D Ago
+            getHistoricalPriceFormula(currencyPair, "TODAY()-7", true),    // 1W Ago
+            getHistoricalPriceFormula(currencyPair, "EDATE(TODAY(),-1)", true),  // 1M Ago
+            getHistoricalPriceFormula(currencyPair, "EDATE(TODAY(),-3)", true),  // 3M Ago
+            getHistoricalPriceFormula(currencyPair, "EDATE(TODAY(),-6)", true),  // 6M Ago
+            getHistoricalPriceFormula(currencyPair, "DATE(YEAR(TODAY()),1,1)", true), // YTD
+            getHistoricalPriceFormula(currencyPair, "EDATE(TODAY(),-12)", true), // 1Y Ago
+            getHistoricalPriceFormula(currencyPair, "EDATE(TODAY(),-36)", true), // 3Y Ago
+            getHistoricalPriceFormula(currencyPair, "EDATE(TODAY(),-60)", true), // 5Y Ago
+        ];
+    };
+
     const initialConfig = [
-        ['USDILS', '=GOOGLEFINANCE("CURRENCY:USDILS")'],
-        ['EURUSD', '=GOOGLEFINANCE("CURRENCY:EURUSD")'],
-        ['GBPUSD', '=GOOGLEFINANCE("CURRENCY:GBPUSD")'],
-        ['ILSUSD', '=GOOGLEFINANCE("CURRENCY:ILSUSD")']
+        createCurrencyRow('USDILS'),
+        createCurrencyRow('EURUSD'),
+        createCurrencyRow('GBPUSD'),
+        createCurrencyRow('ILSUSD'),
     ];
 
     await window.gapi.client.sheets.spreadsheets.values.update({
@@ -339,6 +374,7 @@ export const fetchTransactions = async (spreadsheetId: string): Promise<Transact
 };
 
 export const getSpreadsheet = async (): Promise<string | null> => {
+    await ensureGapi(); // Ensure GAPI is loaded and user is signed in
     const storedId = localStorage.getItem('g_sheet_id');
     if (storedId) {
         return storedId;
@@ -572,6 +608,43 @@ export const addTransaction = async (spreadsheetId: string, t: Transaction) => {
     await rebuildHoldingsSheet(spreadsheetId);
 };
 
+// Helper function to create a row for the Holdings sheet
+function createHoldingRow(h: Omit<Holding, 'totalValue' | 'price' | 'currency' | 'name' | 'name_he' | 'sector' | 'priceUnit' | 'changePct' | 'changePct1w' | 'changePct1m' | 'changePct3m' | 'changePctYtd' | 'changePct1y' | 'changePct3y' | 'changePct5y' | 'changePct10y'>, meta: any, rowNum: number) {
+    const tickerCell = `B${rowNum}`;
+    const exchangeCell = `C${rowNum}`;
+    const qtyCell = `D${rowNum}`;
+    const priceCell = `E${rowNum}`;
+    const tickerAndExchange = `${exchangeCell}&":"&${tickerCell}`;
+
+    const row = new Array(holdingsHeaders.length).fill('');
+
+    row[0] = h.portfolioId;
+    row[1] = h.ticker.toUpperCase();
+    row[2] = (h.exchange || '').toUpperCase();
+    row[3] = h.qty;
+    row[4] = meta?.price || `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "price"))`; // Live_Price
+    row[5] = meta?.currency || `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "currency"))`; // Currency
+    row[6] = `=${qtyCell}*${priceCell}`; // Total Holding Value
+    row[7] = meta?.name || `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "name"), "")`; // Name_En
+    row[8] = meta?.name_he || ""; // Name_He
+    row[9] = meta?.sector || `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "sector"), "Other")`; // Sector
+    row[10] = meta?.priceUnit || ""; // Price_Unit
+    row[11] = meta?.changePct || `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "changepct")/100, 0)`; // Day_Change
+
+    // Performance Columns - Always write formulas
+    const priceFormula = (dateExpr: string) => getHistoricalPriceFormula(tickerAndExchange, dateExpr).substring(1);
+    row[12] = `=IFERROR((${priceCell}/${priceFormula("TODAY()-7")})-1, "")`; // Change_1W
+    row[13] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-1)")})-1, "")`; // Change_1M
+    row[14] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-3)")})-1, "")`; // Change_3M
+    row[15] = `=IFERROR(${priceCell} / ${priceFormula("DATE(YEAR(TODAY())-1, 12, 31)")} - 1, "")`; // Change_YTD
+    row[16] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-12)")})-1, "")`; // Change_1Y
+    row[17] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-36)")})-1, "")`; // Change_3Y
+    row[18] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-60)")})-1, "")`; // Change_5Y
+    row[19] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-120)")})-1, "")`; // Change_10Y
+
+    return row;
+}
+
 // Rebuild Holdings sheet
 export const rebuildHoldingsSheet = async (spreadsheetId: string) => {
     await ensureGapi();
@@ -605,40 +678,7 @@ export const rebuildHoldingsSheet = async (spreadsheetId: string) => {
         return { h, meta };
     }));
 
-    const data = enrichedData.map(({ h, meta }, i) => {
-        const rowNum = i + 2;
-        const tickerCell = `B${rowNum}`;
-        const exchangeCell = `C${rowNum}`;
-        const qtyCell = `D${rowNum}`;
-        const priceCell = `E${rowNum}`;
-        const tickerAndExchange = `${exchangeCell}&":"&${tickerCell}`;
-
-        const row = new Array(holdingsHeaders.length).fill('');
-
-        row[0] = h.portfolioId;
-        row[1] = h.ticker.toUpperCase();
-        row[2] = (h.exchange || '').toUpperCase();
-        row[3] = h.qty;
-        row[4] = meta?.price || `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "price"))`; // Live_Price
-        row[5] = meta?.currency || `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "currency"))`; // Currency
-        row[6] = `=${qtyCell}*${priceCell}`; // Total Holding Value
-        row[7] = meta?.name || `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "name"), "")`; // Name_En
-        row[8] = meta?.name_he || ""; // Name_He
-        row[9] = meta?.sector || `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "sector"), "Other")`; // Sector
-        row[10] = meta?.priceUnit || ""; // Price_Unit
-        row[11] = meta?.changePct || `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "changepct")/100, 0)`; // Day_Change
-        // Performance Columns - Always write formulas
-        row[12] = `=IFERROR((${priceCell}/INDEX(GOOGLEFINANCE(${tickerAndExchange}, "close", TODAY()-7),2,2))-1, "")`; // Change_1W
-        row[13] = `=IFERROR((${priceCell}/INDEX(GOOGLEFINANCE(${tickerAndExchange}, "close", EDATE(TODAY(),-1)),2,2))-1, "")`; // Change_1M
-        row[14] = `=IFERROR((${priceCell}/INDEX(GOOGLEFINANCE(${tickerAndExchange}, "close", EDATE(TODAY(),-3)),2,2))-1, "")`; // Change_3M
-        row[15] = `=IFERROR(${priceCell} / INDEX(GOOGLEFINANCE(${tickerAndExchange}, "close", DATE(YEAR(TODAY())-1, 12, 31)), 2, 2) - 1, "")`; // Change_YTD
-        row[16] = `=IFERROR((${priceCell}/INDEX(GOOGLEFINANCE(${tickerAndExchange}, "close", EDATE(TODAY(),-12)),2,2))-1, "")`; // Change_1Y
-        row[17] = `=IFERROR((${priceCell}/INDEX(GOOGLEFINANCE(${tickerAndExchange}, "close", EDATE(TODAY(),-36)),2,2))-1, "")`; // Change_3Y
-        row[18] = `=IFERROR((${priceCell}/INDEX(GOOGLEFINANCE(${tickerAndExchange}, "close", EDATE(TODAY(),-60)),2,2))-1, "")`; // Change_5Y
-        row[19] = `=IFERROR((${priceCell}/INDEX(GOOGLEFINANCE(${tickerAndExchange}, "close", EDATE(TODAY(),-120)),2,2))-1, "")`; // Change_10Y
-
-        return row;
-    });
+    const data = enrichedData.map(({ h, meta }, i) => createHoldingRow(h, meta, i + 2));
 
     await window.gapi.client.sheets.spreadsheets.values.clear({ spreadsheetId, range: `${HOLDINGS_SHEET}!A2:${String.fromCharCode(65 + holdingsHeaders.length - 1)}` });
     if (data.length > 0) {

@@ -6,7 +6,7 @@ const API_MAP = {
   "globes_get_exchanges": "https://www.globes.co.il/data/webservices/financial.asmx/getExchange",
   "globes_get_exchanges_details": "https://www.globes.co.il/data/webservices/financial.asmx/GetExchangesDetails",
   "cbs_price_index": "https://api.cbs.gov.il/index/data/price?id={id}&format=json&download=false&startPeriod={start}&endPeriod={end}",
-  "tase_list_stocks": "https://datawise.tase.co.il/v1/basic-securities/trade-securities-list/{yestarday_slash_format}?",
+  "tase_list_stocks": "https://datawise.tase.co.il/v1/basic-securities/trade-securities-list/{yestarday_slash_format}",
 };
 
 // Regex: English (a-z), Hebrew (א-ת), Numbers (0-9) and symbols: , . : - ^ and space
@@ -75,7 +75,8 @@ export default {
       return new Response("Missing required parameters for this API", { status: 400, headers: corsHeaders });
     }
 
-    if (apiId === 'tase_list_stocks' && targetUrlString.endsWith('/?')) {
+    // Specific fix for TASE API trailing slash issue. It must be ...trade-securities-list/2025/12/30
+    if (apiId === 'tase_list_stocks' && targetUrlString.endsWith('/')) {
       targetUrlString = targetUrlString.slice(0, -2);
     }
 
