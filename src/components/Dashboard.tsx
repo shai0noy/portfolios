@@ -6,8 +6,9 @@ import {
 import RefreshIcon from '@mui/icons-material/Refresh';
 import { fetchPortfolios, fetchTransactions } from '../lib/sheets/index';
 import { ColumnSelector } from './ColumnSelector';
-import { getExchangeRates, convertCurrency, calculatePerformanceInDisplayCurrency, calculateHoldingDisplayValues } from '../lib/currency';
+import { getExchangeRates, convertCurrency, calculatePerformanceInDisplayCurrency, calculateHoldingDisplayValues, normalizeCurrency, fromAgorot } from '../lib/currency';
 import { logIfFalsy } from '../lib/utils';
+import { Currency } from '../lib/types';
 import type { Holding, DashboardHolding, ExchangeRates } from '../lib/types';
 import { DashboardSummary } from './DashboardSummary';
 import { DashboardTable } from './DashboardTable';
@@ -19,7 +20,6 @@ interface DashboardProps {
 }
 
 export const Dashboard = ({ sheetId }: DashboardProps) => {
-  console.log('Dashboard: Render', { sheetId });
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [holdings, setHoldings] = useState<DashboardHolding[]>([]);
@@ -27,8 +27,8 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
   const [groupByPortfolio, setGroupByPortfolio] = useState(true);
   const [includeUnvested, setIncludeUnvested] = useState<boolean>(false);
   const [hasFutureTxns, setHasFutureTxns] = useState(false);  
-  // Persist Currency
-  const [displayCurrency, setDisplayCurrency] = useState(() => localStorage.getItem('displayCurrency') || 'USD');
+  // Persist Currency - normalize initial value
+  const [displayCurrency, setDisplayCurrency] = useState<string>(() => normalizeCurrency(localStorage.getItem('displayCurrency') || 'USD'));
   
   const [exchangeRates, setExchangeRates] = useState<ExchangeRates>({ current: { USD: 1, ILS: 3.7 } });
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<string | null>(searchParams.get('portfolioId'));
@@ -50,9 +50,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
   }, [displayCurrency]);
 
   useEffect(() => {
-    console.log('Dashboard: fetching exchange rates');
     getExchangeRates(sheetId).then(rates => {
-        console.log('Dashboard: got exchange rates', rates);
         setExchangeRates(rates);
     });
   }, [sheetId]);
@@ -62,10 +60,10 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
     setSelectedPortfolioId(portId);
     const selectedPort = portMap.get(portId || '');
     if (selectedPort) {
-      setDisplayCurrency(selectedPort.currency);
+      setDisplayCurrency(normalizeCurrency(selectedPort.currency));
     } else if (!portId) {
       // Reset to default if no portfolio is selected
-      setDisplayCurrency(localStorage.getItem('displayCurrency') || 'USD');
+      setDisplayCurrency(normalizeCurrency(localStorage.getItem('displayCurrency') || 'USD'));
     }
   }, [searchParams, portMap]);
 
@@ -121,13 +119,10 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
 
   useEffect(() => {
     const fetchData = async () => {
-      console.log('Dashboard: fetchData effect running');
       try {
         setLoading(true);
         setLoginRequired(false);
-        console.log('Dashboard: calling loadData');
         await loadData();
-        console.log('Dashboard: loadData returned');
       } catch (error) {
         console.error('Error caught in fetchData:', error);
         if (error instanceof SessionExpiredError) {
@@ -137,7 +132,6 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
           console.error('Error loading data (not SessionExpiredError):', error);
         }
       } finally {
-        console.log('Dashboard: fetchData finally block');
         setLoading(false);
       }
     };
@@ -278,25 +272,13 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
     fetchData();
   };
 
-  const getPriceInBaseCurrency = (holding: DashboardHolding) => {
-    if (holding.priceUnit === 'agorot' && holding.stockCurrency === 'ILS') {
-      return holding.currentPrice / 100;
-    } else if (holding.priceUnit === 'cents') {
-      return holding.currentPrice / 100;
-    }
-    return holding.currentPrice;
-  };
-
   const loadData = async () => {
-    console.log('loadData: starting');
     setLoading(true);
     try {
-      console.log('loadData: calling fetchPortfolios and fetchTransactions');
       const [ports, txns] = await Promise.all([
         fetchPortfolios(sheetId),
         fetchTransactions(sheetId),
       ]);
-      console.log('loadData: fetched data', { portsCount: ports.length, txnsCount: txns.length });
       
       const newPortMap = new Map(ports.map(p => [p.id, p]));
       setPortMap(newPortMap);
@@ -319,14 +301,23 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
       filteredTxns.forEach(t => {
         const key = `${t.portfolioId}_${t.ticker}`;
         const p = logIfFalsy(newPortMap.get(t.portfolioId), `Portfolio not found for ID ${t.portfolioId}`, t);
-        const portfolioCurrency = (p?.currency || 'USD').trim().toUpperCase();
+        const portfolioCurrency = normalizeCurrency(p?.currency || 'USD');
 
         if (!holdingMap.has(key)) {
           const live = liveDataMap.get(`${t.ticker}:${t.exchange}`);
           const defaultExchange = /\d/.test(t.ticker) ? 'TASE' : 'NASDAQ';
-          const defaultCurrency = defaultExchange === 'TASE' ? 'ILS' : 'USD';
-          const stockCurrency = (live?.currency || t.currency || defaultCurrency).trim().toUpperCase();
+          const defaultCurrency = defaultExchange === 'TASE' ? Currency.ILS : Currency.USD;
+          const stockCurrency = normalizeCurrency(live?.currency || t.currency || defaultCurrency);
           
+          let currentPrice = live?.price || 0;
+          // TASE stocks are typically quoted in Agorot (1/100 ILS).
+          // We normalize all prices to the major currency unit (ILS) for consistent storage and calculations.
+          if (live?.priceUnit === 'agorot') {
+              currentPrice = fromAgorot(currentPrice);
+          } else if (live?.priceUnit === 'cents') {
+              currentPrice = currentPrice / 100;
+          }
+
           holdingMap.set(key, {
             key,
             portfolioId: t.portfolioId,
@@ -339,7 +330,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
             qtyVested: 0,
             qtyUnvested: 0,
             totalQty: 0,
-            currentPrice: live?.price || 0,
+            currentPrice: currentPrice,
             stockCurrency,
             priceUnit: live?.priceUnit,
             costBasisPortfolioCurrency: 0,
@@ -355,7 +346,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
             costOfSoldStockCurrency: 0,
             proceedsStockCurrency: 0,
             dividendsStockCurrency: 0,
-            // Initialize display fields to 0, they will be derived later
+            // Initialize display fields
             avgCost: 0, mvVested: 0, mvUnvested: 0, totalMV: 0, realizedGain: 0, realizedGainPct: 0, realizedGainAfterTax: 0, dividends: 0, unrealizedGain: 0, unrealizedGainPct: 0, totalGain: 0, totalGainPct: 0, valueAfterTax: 0, dayChangeVal: 0,
             sector: live?.sector || '',
             dayChangePct: live?.changePct || 0,
@@ -418,7 +409,10 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
               const processedHoldings: DashboardHolding[] = [];
               holdingMap.forEach(h => {
                 h.totalQty = h.qtyVested + h.qtyUnvested;
-                const priceInStockCurrency = getPriceInBaseCurrency(h);
+                // No need to convert from Agorot here anymore, as currentPrice is already normalized.
+                // Just ensure we use the 'currentPrice' (Major Unit) for MV calculation.
+                const priceInStockCurrency = h.currentPrice; 
+                
                 // Use new typed convertCurrency which supports full ExchangeRates object
                 const currentPricePC = convertCurrency(priceInStockCurrency, h.stockCurrency, h.portfolioCurrency, exchangeRates);
                 
@@ -441,13 +435,11 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         
                 processedHoldings.push(h);
               });
-      console.log('loadData: processing complete', processedHoldings.length);
       setHoldings(processedHoldings);
     } catch (e) {
       console.error('loadData error:', e);
       throw e;
     } finally {
-      console.log('loadData: finished');
       setLoading(false);
     }
   };
@@ -516,7 +508,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
   }, [holdings, groupByPortfolio, selectedPortfolioId]);
 
   if (loginRequired) {
-    return <Login onLoginSuccess={handleLoginSuccess} />;
+    return <Login onLogin={handleLoginSuccess} />;
   }
 
   if (loading) return <Box display="flex" justifyContent="center" p={5}><CircularProgress /></Box>;

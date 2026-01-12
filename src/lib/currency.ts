@@ -1,5 +1,6 @@
 import { fetchSheetExchangeRates } from './sheets/index';
-import type { ExchangeRates, DashboardHolding, Currency, PriceUnit } from './types';
+import { Currency } from './types';
+import type { ExchangeRates, DashboardHolding, PriceUnit } from './types';
 
 const CACHE_KEY = 'exchangeRates';
 const CACHE_DURATION = 60 * 60 * 1000; // 1 hour
@@ -42,16 +43,32 @@ export async function getExchangeRates(sheetId: string): Promise<ExchangeRates> 
   }
 }
 
-export function convertCurrency(amount: number, from: Currency, to: Currency, rates: ExchangeRates | Record<string, number>): number {
+export function normalizeCurrency(input: string): Currency {
+  if (!input) return Currency.USD;
+  const upper = input.trim().toUpperCase();
+  if (upper === 'NIS' || upper === 'ILS') return Currency.ILS;
+  if (upper === 'EUR') return Currency.EUR;
+  if (upper === 'GBP') return Currency.GBP;
+  if (upper === 'USD') return Currency.USD;
+  return Currency.USD; // Default fallback
+}
+
+export function toAgorot(amount: number): number {
+    return amount * 100;
+}
+
+export function fromAgorot(amount: number): number {
+    return amount / 100;
+}
+
+export function convertCurrency(amount: number, from: Currency | string, to: Currency | string, rates: ExchangeRates | Record<string, number>): number {
   if (typeof amount !== 'number' || isNaN(amount)) return 0;
   
-  // Safe normalization
-  const fromNorm = (from || 'USD').trim().toUpperCase();
-  const toNorm = (to || 'USD').trim().toUpperCase();
+  const fromNorm = normalizeCurrency(from as string);
+  const toNorm = normalizeCurrency(to as string);
   
   if (fromNorm === toNorm) return amount;
 
-  // Handle rates structure: support both full ExchangeRates object and a simple Record<string, number>
   let currentRates: Record<string, number>;
   if ('current' in rates) {
       currentRates = (rates as ExchangeRates).current;
@@ -67,17 +84,16 @@ export function convertCurrency(amount: number, from: Currency, to: Currency, ra
   const fromRate = currentRates[fromNorm]; 
   const toRate = currentRates[toNorm]; 
 
-  if (fromNorm !== 'USD' && !fromRate) return amount; // Cannot convert
-  if (toNorm !== 'USD' && !toRate) return amount; // Cannot convert
+  if (fromNorm !== Currency.USD && !fromRate) return amount; 
+  if (toNorm !== Currency.USD && !toRate) return amount; 
 
-  // Convert
-  const amountInUSD = fromNorm === 'USD' ? amount : amount / fromRate;
-  return toNorm === 'USD' ? amountInUSD : amountInUSD * toRate;
+  const amountInUSD = fromNorm === Currency.USD ? amount : amount / fromRate;
+  return toNorm === Currency.USD ? amountInUSD : amountInUSD * toRate;
 }
 
 export const calculatePerformanceInDisplayCurrency = (
   currentPrice: number,
-  stockCurrency: string,
+  stockCurrency: Currency | string,
   priceUnit: PriceUnit | undefined,
   perfPct: number,
   period: string,
@@ -85,20 +101,23 @@ export const calculatePerformanceInDisplayCurrency = (
   exchangeRates: ExchangeRates
 ) => {
   if (!perfPct) return { changeVal: 0, changePct: 0 };
+  
+  // NOTE: currentPrice is expected to be in MAJOR units (ILS, USD) as per new rule.
+  // priceUnit is kept for compatibility if needed, but currentPrice logic should assume Major Units.
+  
+  const normStockCurrency = normalizeCurrency(stockCurrency as string);
+  const normDisplayCurrency = normalizeCurrency(displayCurrency);
 
-  let adjustedCurrentPrice = currentPrice;
-  if (priceUnit === 'agorot') adjustedCurrentPrice /= 100;
-  else if (priceUnit === 'cents') adjustedCurrentPrice /= 100;
+  // Convert current price to Display Currency
+  const priceDisplayNow = convertCurrency(currentPrice, normStockCurrency, normDisplayCurrency, exchangeRates);
 
-  const priceDisplayNow = convertCurrency(adjustedCurrentPrice, stockCurrency, displayCurrency, exchangeRates);
-
-  const prevPriceStock = adjustedCurrentPrice / (1 + perfPct);
+  // Infer previous price in Stock Currency
+  const prevPriceStock = currentPrice / (1 + perfPct);
   
   // Handle historical rates
-  // Try to find historical rates for the period, fallback to current
   const historicalRates = (exchangeRates[period] as Record<string, number>) || exchangeRates.current;
   
-  const prevPriceDisplay = convertCurrency(prevPriceStock, stockCurrency, displayCurrency, historicalRates);
+  const prevPriceDisplay = convertCurrency(prevPriceStock, normStockCurrency, normDisplayCurrency, historicalRates);
 
   const changeVal = priceDisplayNow - prevPriceDisplay;
   const changePct = prevPriceDisplay !== 0 ? changeVal / prevPriceDisplay : 0;
@@ -106,24 +125,18 @@ export const calculatePerformanceInDisplayCurrency = (
   return { changeVal, changePct };
 };
 
-// Shared helper to calculate display values (Cost Basis, MV, Gains)
 export const calculateHoldingDisplayValues = (h: DashboardHolding, displayCurrency: string, exchangeRates: ExchangeRates) => {
-    const convert = (val: number, from: string) => convertCurrency(val, from, displayCurrency, exchangeRates);
+    const normDisplay = normalizeCurrency(displayCurrency);
+    const convert = (val: number, from: Currency) => convertCurrency(val, from, normDisplay, exchangeRates);
     
     let costBasis = 0;
     let costOfSold = 0;
     let proceeds = 0;
     let dividends = 0;
 
-    const normDisplay = (displayCurrency || '').trim().toUpperCase();
-    const normStock = (h.stockCurrency || '').trim().toUpperCase();
-    const normPort = (h.portfolioCurrency || '').trim().toUpperCase();
+    const normStock = h.stockCurrency; // Already normalized in DashboardHolding
+    const normPort = h.portfolioCurrency; // Already normalized in DashboardHolding
 
-    // Strategy:
-    // 1. Native View: If Display == Stock, use Stock Currency Basis (Accurate Native Return)
-    // 2. Portfolio View: If Display == Portfolio, use Portfolio Currency Basis (Accurate Portfolio Return)
-    // 3. Third Currency: Convert Portfolio Currency Basis (Preserves Portfolio Return %)
-    
     if (normDisplay === normStock && (h.costBasisStockCurrency > 0 || h.qtyVested + h.qtyUnvested > 0)) {
         costBasis = h.costBasisStockCurrency;
         costOfSold = h.costOfSoldStockCurrency;
@@ -174,33 +187,33 @@ export function formatNumber(n: number | undefined | null): string {
   return n.toLocaleString(undefined, options);
 }
 
-export function formatCurrency(n: number, currency: string, decimals = 2): string {
+export function formatCurrency(n: number, currency: string | Currency, decimals = 2): string {
   if (n === undefined || n === null || isNaN(n)) return '-';
+  const norm = normalizeCurrency(currency as string);
   const val = n.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
-  if (currency === 'USD') return `$${val}`;
-  if (currency === 'ILS' || currency === 'NIS') return `₪${val}`;
-  if (currency === 'EUR') return `€${val}`;
-  return `${val} ${currency}`;
+  if (norm === Currency.USD) return `$${val}`;
+  if (norm === Currency.ILS) return `₪${val}`;
+  if (norm === Currency.EUR) return `€${val}`;
+  if (norm === Currency.GBP) return `£${val}`;
+  return `${val} ${norm}`;
 }
 
-export function formatPrice(n: number, currency: string, decimals = 2, priceUnit: PriceUnit = 'base'): string {
+// Strictly used for displaying Ticker Costs/Prices. 
+// Enforces rule: ILS prices always shown in Agorot.
+export function formatPrice(n: number, currency: string | Currency, decimals = 2, priceUnit?: PriceUnit): string {
     if (n === undefined || n === null || isNaN(n)) return '-';
     
-    // If we are displaying in Agorot, we don't convert the value, just the label usually, 
-    // BUT the previous logic in DashboardTable was:
-    // if (priceUnit === 'agorot') return `${val} ag.`;
-    // This implies 'n' is passed in Agorot (e.g. 150) and displayed as "150 ag."
-    
-    const val = n.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
-    const curr = (currency || 'ILS').toUpperCase();
+    const norm = normalizeCurrency(currency as string);
 
-    if (curr === 'ILS' || curr === 'NIS') {
-      if (priceUnit === 'agorot') return `${val} ag.`;
-      return `₪${val}`;
-    }
-    if (priceUnit === 'cents' && curr === 'USD') {
-        return `${val}¢`;
+    // Rule: Ticker costs in ILS are ALWAYS displayed in Agorot
+    if (norm === Currency.ILS) {
+        const agorotVal = toAgorot(n);
+        // Display as integer usually for agorot, or 2 decimals? "150 ag." vs "150.00 ag."
+        // Usually prices like 1234.5 ag exists. Let's keep decimals.
+        const val = agorotVal.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+        return `${val} ag.`;
     }
     
+    // Fallback for others
     return formatCurrency(n, currency, decimals);
 }

@@ -5,9 +5,10 @@ import {
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import { convertCurrency, formatCurrency, formatPrice, calculatePerformanceInDisplayCurrency, calculateHoldingDisplayValues } from '../lib/currency';
+import { convertCurrency, formatCurrency, formatPrice, calculatePerformanceInDisplayCurrency, calculateHoldingDisplayValues, normalizeCurrency } from '../lib/currency';
 import { logIfFalsy } from '../lib/utils';
 import { useNavigate } from 'react-router-dom';
+import { Currency } from '../lib/types';
 import type { DashboardHolding, ExchangeRates } from '../lib/types';
 
 interface TableProps {
@@ -57,25 +58,28 @@ export function DashboardTable(props: TableProps) {
     handleCloseContextMenu();
   };
 
-  // Converts a value from a base currency to the display currency, handling sub-units only if explicitly needed for display
-  // For standard monetary values (MV, Gains), we expect inputs in standard units (e.g. ILS, not Agorot)
-  const formatConverted = (n: number, fromCurrency: string, decimals = 0) => {
-    const safeFrom = (fromCurrency === '#N/A' || !fromCurrency) ? 'ILS' : fromCurrency;
-    const converted = convertCurrency(n, safeFrom, displayCurrency, exchangeRates);
-    return formatCurrency(converted, displayCurrency, decimals);
+  const formatConverted = (n: number, fromCurrency: string | Currency, decimals = 0) => {
+    // fromCurrency might be "NIS" or "usd" string, normalize it
+    const normFrom = normalizeCurrency(fromCurrency as string);
+    const normDisplay = normalizeCurrency(displayCurrency);
+    const converted = convertCurrency(n, normFrom, normDisplay, exchangeRates);
+    return formatCurrency(converted, normDisplay, decimals);
   };
 
   const formatPct = (n: number) => (n * 100).toFixed(2) + '%';
 
   const getSortValue = (h: DashboardHolding, key: string) => {
-    const toDisplay = (val: number, curr: string) => convertCurrency(val, curr, displayCurrency, exchangeRates);
+    const normStock = normalizeCurrency(h.stockCurrency);
+    const normDisplay = normalizeCurrency(displayCurrency);
+    const toDisplay = (val: number, curr: Currency) => convertCurrency(val, curr, normDisplay, exchangeRates);
+    
     switch (key) {
       case 'ticker': return h.ticker || '';
       case 'qty': return h.totalQty;
-      case 'avgCost': return toDisplay(h.avgCost, h.stockCurrency);
-      case 'currentPrice': return toDisplay(h.currentPrice, h.stockCurrency);
-      case 'dayChangePct': return calculatePerformanceInDisplayCurrency(h.currentPrice, h.stockCurrency, h.priceUnit, h.dayChangePct, 'ago1d', displayCurrency, exchangeRates).changePct;
-      case 'dayChangeVal': return calculatePerformanceInDisplayCurrency(h.currentPrice, h.stockCurrency, h.priceUnit, h.dayChangePct, 'ago1d', displayCurrency, exchangeRates).changeVal * h.totalQty;
+      case 'avgCost': return toDisplay(h.avgCost, normStock);
+      case 'currentPrice': return toDisplay(h.currentPrice, normStock);
+      case 'dayChangePct': return calculatePerformanceInDisplayCurrency(h.currentPrice, normStock, h.priceUnit, h.dayChangePct, 'ago1d', displayCurrency, exchangeRates).changePct;
+      case 'dayChangeVal': return calculatePerformanceInDisplayCurrency(h.currentPrice, normStock, h.priceUnit, h.dayChangePct, 'ago1d', displayCurrency, exchangeRates).changeVal * h.totalQty;
       case 'marketValue': return calculateHoldingDisplayValues(h, displayCurrency, exchangeRates).marketValue;
       case 'unrealized': return calculateHoldingDisplayValues(h, displayCurrency, exchangeRates).unrealizedGain;
       case 'realizedGain': return calculateHoldingDisplayValues(h, displayCurrency, exchangeRates).realizedGain;
@@ -91,7 +95,9 @@ export function DashboardTable(props: TableProps) {
 
     const groupSummary = groupHoldings.reduce((acc, h) => {
       const displayVals = calculateHoldingDisplayValues(h, displayCurrency, exchangeRates);
-      const { changeVal } = calculatePerformanceInDisplayCurrency(h.currentPrice, h.stockCurrency, h.priceUnit, h.dayChangePct, 'ago1d', displayCurrency, exchangeRates);
+      // Ensure we use normalized currency for calculations
+      const normStock = normalizeCurrency(h.stockCurrency);
+      const { changeVal } = calculatePerformanceInDisplayCurrency(h.currentPrice, normStock, h.priceUnit, h.dayChangePct, 'ago1d', displayCurrency, exchangeRates);
       const dayChange = changeVal * h.totalQty;
       
       acc.totalMV += displayVals.marketValue;
@@ -165,7 +171,7 @@ export function DashboardTable(props: TableProps) {
             </TableHead>
             <TableBody>
               {sortedHoldings.map(h => {
-                const displayedVestedValue = h.mvVested; // TODO: Adjust if needed but usually ratio is same
+                const displayedVestedValue = h.mvVested;
                 const displayedUnvestedValue = h.mvUnvested;
                 
                 // Dynamic Calculation
