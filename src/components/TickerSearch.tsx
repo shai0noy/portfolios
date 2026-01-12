@@ -169,14 +169,7 @@ export function TickerSearch({ onTickerSelect, initialTicker, initialExchange, p
   }, [debouncedInput, selectedExchange, searchTickers, isPortfoliosLoading, isTaseDatasetLoading, isFocused]);
 
   const filteredOptions = useMemo(() => {
-    // TODO: Remove after debug
-    console.log('Filtering options with selectedType:', selectedType, 'options count:', options.length);
-    if (options.length > 0) {
-        console.log('First option type:', options[0].type);
-    }
     const filtered = options.filter(option => selectedType === 'ALL' || option.type === selectedType);
-    // TODO: Remove after debug
-    console.log('Filtered options count:', filtered.length);
     return filtered.slice(0, 50);
   }, [options, selectedType]);
 

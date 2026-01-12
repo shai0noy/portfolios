@@ -7,7 +7,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { getTickerData, type TickerData } from '../lib/fetching';
 import { fetchHolding, getMetadataValue } from '../lib/sheets/index';
 import type { Holding, PriceUnit } from '../lib/types';
-import { formatNumber } from '../lib/currency';
+import { formatNumber, formatPrice } from '../lib/currency';
 
 interface TickerDetailsRouteParams extends Record<string, string | undefined> {
   exchange: string;
@@ -81,21 +81,6 @@ export function TickerDetails({ sheetId }: { sheetId: string }) {
         initialCurrency: data?.currency,
       }
     });
-  };
-
-  const formatMoney = (n: number, currency: string, unit: PriceUnit = 'base') => {
-    let curr = currency;
-    if (curr === '#N/A' || !curr) curr = 'ILS'; // Fallback
-    
-    const value = unit === 'agorot' ? n : n;
-    const val = formatNumber(value);
-
-    if (curr === 'USD') return `$${val}`;
-    if (curr === 'ILS' || curr === 'NIS') {
-      return unit === 'agorot' ? `${val} ag` : `₪${val}`;
-    }
-    if (curr === 'EUR') return `€${val}`;
-    return `${val} ${curr}`;
   };
 
   const formatPct = (n?: number) => {
@@ -178,9 +163,9 @@ export function TickerDetails({ sheetId }: { sheetId: string }) {
             <Box display="flex" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
               <Box display="flex" alignItems="baseline" sx={{ gap: 1, flex: 1, minWidth: 0 }}>
                 <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>PRICE</Typography>
-                <Typography variant="h6" component="div" fontWeight={600} sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{formatMoney(displayData.price, displayData.currency, displayData.priceUnit)}</Typography>
+                <Typography variant="h6" component="div" fontWeight={600} sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{formatPrice(displayData.price, displayData.currency, 2, displayData.priceUnit)}</Typography>
                 {displayData.openPrice && (
-                  <Typography variant="caption" color="text.secondary" sx={{ ml: 1, whiteSpace: 'nowrap' }}>Open: {formatMoney(displayData.openPrice, displayData.currency, displayData.priceUnit)}</Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ ml: 1, whiteSpace: 'nowrap' }}>Open: {formatPrice(displayData.openPrice, displayData.currency, 2, displayData.priceUnit)}</Typography>
                 )}
               </Box>
 

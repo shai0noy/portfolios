@@ -34,11 +34,36 @@ export const ensureSchema = async (spreadsheetId: string) => {
         spreadsheetId,
         resource: {
             requests: [
+                // Update headers for all sheets to ensure schema synchronization.
+                // This guarantees the sheet columns match the code's expected structure, 
+                // allowing for safe addition or renaming of columns in the future.
                 createHeaderUpdateRequest(sheetIds.portfolio, portfolioHeaders as unknown as Headers),
                 createHeaderUpdateRequest(sheetIds.log, transactionHeaders as unknown as Headers),
                 createHeaderUpdateRequest(sheetIds.holdings, holdingsHeaders as unknown as Headers),
                 createHeaderUpdateRequest(sheetIds.config, configHeaders as unknown as Headers),
                 createHeaderUpdateRequest(sheetIds.metadata, metadataHeaders as unknown as Headers),
+                // Format Date columns (A=date, K=vestDate, P=Creation_Date) to YYYY-MM-DD
+                {
+                    repeatCell: {
+                        range: { sheetId: sheetIds.log, startColumnIndex: 0, endColumnIndex: 1, startRowIndex: 1 },
+                        cell: { userEnteredFormat: { numberFormat: { type: 'DATE', pattern: 'yyyy-mm-dd' } } },
+                        fields: 'userEnteredFormat.numberFormat'
+                    }
+                },
+                {
+                    repeatCell: {
+                        range: { sheetId: sheetIds.log, startColumnIndex: 10, endColumnIndex: 11, startRowIndex: 1 },
+                        cell: { userEnteredFormat: { numberFormat: { type: 'DATE', pattern: 'yyyy-mm-dd' } } },
+                        fields: 'userEnteredFormat.numberFormat'
+                    }
+                },
+                {
+                    repeatCell: {
+                        range: { sheetId: sheetIds.log, startColumnIndex: 15, endColumnIndex: 16, startRowIndex: 1 },
+                        cell: { userEnteredFormat: { numberFormat: { type: 'DATE', pattern: 'yyyy-mm-dd' } } },
+                        fields: 'userEnteredFormat.numberFormat'
+                    }
+                }
             ]
         }
     };
@@ -175,54 +200,95 @@ export const createEmptySpreadsheet = async (title: string): Promise<string | nu
 };
 
 export const addTransaction = async (spreadsheetId: string, t: Transaction) => {
-    let gapi = await ensureGapi();
-    const rowData: { [key: string]: any } = {};
+    await batchAddTransactions(spreadsheetId, [t]);
+};
 
-    Object.values(TXN_COLS).forEach(colDef => {
-        const key = colDef.key;
-        switch (key) {
-            case 'date': rowData[key] = t.date ? toGoogleSheetDateFormat(new Date(t.date)) : ''; break;
-            case 'ticker': rowData[key] = logIfFalsy(t.ticker, `Transaction ticker missing`, t).toUpperCase(); break;
-            case 'exchange': rowData[key] = (t.exchange || '').toUpperCase(); break;
-            case 'vestDate': rowData[key] = t.vestDate ? toGoogleSheetDateFormat(new Date(t.vestDate)) : ''; break;
-            case 'comment': case 'Source': rowData[key] = (t as any)[key] || ''; break;
-            case 'commission': case 'tax': rowData[key] = (t as any)[key] || 0; break;
-            case 'Creation_Date': rowData[key] = toGoogleSheetDateFormat(new Date()); break;
-            case 'Orig_Open_Price_At_Creation_Date': rowData[key] = (t as any)[key]; break;
-            default: if (key in t) rowData[key] = (t as any)[key];
-        }
+export const batchAddTransactions = async (spreadsheetId: string, transactions: Transaction[]) => {
+    let gapi = await ensureGapi();
+    const allValuesToAppend: any[][] = [];
+
+    transactions.forEach(t => {
+        const rowData: { [key: string]: any } = {};
+        Object.values(TXN_COLS).forEach(colDef => {
+            const key = colDef.key;
+            switch (key) {
+                case 'date': rowData[key] = t.date ? toGoogleSheetDateFormat(new Date(t.date)) : ''; break;
+                case 'ticker': rowData[key] = logIfFalsy(t.ticker, `Transaction ticker missing`, t).toUpperCase(); break;
+                case 'exchange': rowData[key] = (t.exchange || '').toUpperCase(); break;
+                case 'vestDate': rowData[key] = t.vestDate ? toGoogleSheetDateFormat(new Date(t.vestDate)) : ''; break;
+                case 'comment': case 'Source': rowData[key] = (t as any)[key] || ''; break;
+                case 'commission': {
+                    const comm = (t as any).commission || 0;
+                    const isILAG = (t.currency || '').toUpperCase() === 'ILAG';
+                    // If currency is ILAG (Agorot), and commission was entered in ILS (standard), store as Agorot.
+                    rowData[key] = isILAG ? comm * 100 : comm;
+                    break;
+                }
+                            case 'tax': rowData[key] = (t as any)[key] || 0; break;
+                            case 'Creation_Date': {
+                                const cDate = (t as any).Creation_Date ? new Date((t as any).Creation_Date) : new Date();
+                                rowData[key] = toGoogleSheetDateFormat(cDate);
+                                break;
+                            }
+                            case 'Orig_Open_Price_At_Creation_Date': rowData[key] = (t as any)[key]; break;                default: if (key in t) rowData[key] = (t as any)[key];
+            }
+        });
+        const rowValues = Object.values(TXN_COLS).map(colDef => colDef.formula ? null : rowData[colDef.key] ?? null);
+        allValuesToAppend.push(rowValues);
     });
 
-    const valuesToAppend = Object.values(TXN_COLS).map(colDef => colDef.formula ? null : rowData[colDef.key] ?? null);
+    if (allValuesToAppend.length === 0) return;
+
     const appendResult = await gapi.client.sheets.spreadsheets.values.append({
         spreadsheetId, range: `${TX_SHEET_NAME}!A:A`, valueInputOption: 'USER_ENTERED',
-        insertDataOption: 'INSERT_ROWS', resource: { values: [valuesToAppend] }
+        insertDataOption: 'INSERT_ROWS', resource: { values: allValuesToAppend }
     });
 
     const updatedRange = appendResult.result.updates.updatedRange;
-    if (!updatedRange) throw new Error("Could not determine range of appended row.");
-    const rowNumMatch = updatedRange.match(/(\d+):/);
-    if (!rowNumMatch) throw new Error("Could not parse row number from range: " + updatedRange);
-    const rowNum = parseInt(rowNumMatch[1]);
+    if (!updatedRange) throw new Error("Could not determine range of appended rows.");
+    
+    // Parse range (e.g. "Transaction_Log!A10:V12") to find start row
+    const match = updatedRange.match(/!A(\d+):/);
+    if (!match) throw new Error("Could not parse start row number from range: " + updatedRange);
+    const startRow = parseInt(match[1]);
+    const endRow = startRow + allValuesToAppend.length; // Exclusive end index for loop? No, row numbers are inclusive in sheets logic but batchUpdate uses indices.
 
+    // Apply Formulas
     const formulaColDefs = Object.values(TXN_COLS).filter(colDef => !!colDef.formula);
     const txSheetId = await getSheetId(spreadsheetId, TX_SHEET_NAME);
-    const requests = formulaColDefs.map((colDef) => {
-        const formula = colDef.formula!(rowNum, TXN_COLS);
-        const colIndex = Object.values(TXN_COLS).indexOf(colDef);
-        return {
-            updateCells: {
-                range: { sheetId: txSheetId, startRowIndex: rowNum - 1, endRowIndex: rowNum, startColumnIndex: colIndex, endColumnIndex: colIndex + 1 },
-                rows: [{ values: [{ userEnteredValue: { formulaValue: formula } }] }],
-                fields: 'userEnteredValue.formulaValue'
-            }
-        };
-    });
+    const requests = [];
+
+    // Optimization: Generate one request per column for the entire range, or one request per cell?
+    // Using updateCells with a grid range is better.
+    
+    // Actually, we can't easily do one request per column because formula depends on row number.
+    // But we can generate the formulas and send them in one big batchUpdate.
+    
+    for (let i = 0; i < transactions.length; i++) {
+        const rowNum = startRow + i;
+        formulaColDefs.forEach((colDef) => {
+            const formula = colDef.formula!(rowNum, TXN_COLS);
+            const colIndex = Object.values(TXN_COLS).indexOf(colDef);
+            requests.push({
+                updateCells: {
+                    range: { sheetId: txSheetId, startRowIndex: rowNum - 1, endRowIndex: rowNum, startColumnIndex: colIndex, endColumnIndex: colIndex + 1 },
+                    rows: [{ values: [{ userEnteredValue: { formulaValue: formula } }] }],
+                    fields: 'userEnteredValue.formulaValue'
+                }
+            });
+        });
+    }
+
     if (requests.length > 0) {
+        // Batch requests in chunks if too large (Google limit is around 100k requests but payload size matters)
+        // For test data (few rows), one batch is fine.
         await gapi.client.sheets.spreadsheets.batchUpdate({ spreadsheetId, resource: { requests } });
     }
+    
+    // Only rebuild holdings once after batch insert
     await rebuildHoldingsSheet(spreadsheetId);
 };
+
 
 function createHoldingRow(h: Omit<Holding, 'totalValue' | 'price' | 'currency' | 'name' | 'name_he' | 'sector' | 'priceUnit' | 'changePct' | 'changePct1w' | 'changePct1m' | 'changePct3m' | 'changePctYtd' | 'changePct1y' | 'changePct3y' | 'changePct5y' | 'changePct10y'>, meta: any, rowNum: number): any[] | null {
     const tickerCell = `B${rowNum}`;
@@ -230,31 +296,38 @@ function createHoldingRow(h: Omit<Holding, 'totalValue' | 'price' | 'currency' |
     const qtyCell = `D${rowNum}`; const priceCell = `E${rowNum}`;
     const tickerAndExchange = `${exchangeCell}&":"&${tickerCell}`;
     const row = new Array(holdingsHeaders.length).fill('');
+    
+    const isTASE = (h.exchange || '').toUpperCase() === 'TASE';
+    
     row[0] = h.portfolioId;
     row[1] = String(h.ticker).toUpperCase();
     row[2] = (h.exchange || '').toUpperCase(); row[3] = h.qty;
     row[4] = meta?.price || `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "price"))`;
-    row[5] = meta?.currency || `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "currency"))`;
+    // Explicitly use 'ILAG' for TASE stocks as they are quoted in Agorot
+    row[5] = isTASE ? 'ILAG' : (meta?.currency || `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "currency"))`);
     row[6] = `=${qtyCell}*${priceCell}`;
     row[7] = meta?.name || `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "name"), "")`;
     row[8] = meta?.name_he || ""; row[9] = meta?.sector || `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "sector"), "Other")`;
-    row[10] = meta?.priceUnit || ""; row[11] = meta?.changePct || `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "changepct")/100, 0)`;
+    
+    // Index 10 is now Day_Change (Price_Unit removed)
+    row[10] = meta?.changePct || `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "changepct")/100, 0)`;
 
     const priceFormula = (dateExpr: string) => getHistoricalPriceFormula(tickerAndExchange, dateExpr).substring(1);
-    row[12] = `=IFERROR((${priceCell}/${priceFormula("TODAY()-7")})-1, "")`; // Change_1W
-    row[13] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-1)")})-1, "")`; // Change_1M
-    row[14] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-3)")})-1, "")`; // Change_3M
-    row[15] = `=IFERROR(${priceCell} / ${priceFormula("DATE(YEAR(TODAY())-1, 12, 31)")} - 1, "")`; // Change_YTD
-    row[16] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-12)")})-1, "")`; // Change_1Y
-    row[17] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-36)")})-1, "")`; // Change_3Y
-    row[18] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-60)")})-1, "")`; // Change_5Y
-    row[19] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-120)")})-1, "")`; // Change_10Y
+    row[11] = `=IFERROR((${priceCell}/${priceFormula("TODAY()-7")})-1, "")`; // Change_1W
+    row[12] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-1)")})-1, "")`; // Change_1M
+    row[13] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-3)")})-1, "")`; // Change_3M
+    row[14] = `=IFERROR(${priceCell} / ${priceFormula("DATE(YEAR(TODAY())-1, 12, 31)")} - 1, "")`; // Change_YTD
+    row[15] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-12)")})-1, "")`; // Change_1Y
+    row[16] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-36)")})-1, "")`; // Change_3Y
+    row[17] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-60)")})-1, "")`; // Change_5Y
+    row[18] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-120)")})-1, "")`; // Change_10Y
     return row;
 }
 
 export const rebuildHoldingsSheet = async (spreadsheetId: string) => {
     let gapi = await ensureGapi();
     const transactions = await fetchTransactions(spreadsheetId);
+    // Removed priceUnit from Omit type
     const holdings: Record<string, Omit<Holding, 'totalValue' | 'price' | 'currency' | 'name' | 'name_he' | 'sector' | 'priceUnit' | 'changePct' | 'changePct1w' | 'changePct1m' | 'changePct3m' | 'changePctYtd' | 'changePct1y' | 'changePct3y' | 'changePct5y' | 'changePct10y'> & { portfolioId: string }> = {};
 
     transactions.forEach(txn => {
@@ -276,17 +349,11 @@ export const rebuildHoldingsSheet = async (spreadsheetId: string) => {
             try { meta = await getTickerData(h.ticker, h.exchange); } catch (e) { console.warn("Failed to fetch TASE metadata for " + h.ticker, e); }
         }
         
-
-        
         return { h, meta };
         
     }));
         
-
-        
     const data = enrichedData.map(({ h, meta }, i) => createHoldingRow(h, meta, i + 2));
-        
-
         
     await gapi.client.sheets.spreadsheets.values.clear({ spreadsheetId, range: `${HOLDINGS_SHEET}!A2:${String.fromCharCode(65 + holdingsHeaders.length - 1)}` });
         

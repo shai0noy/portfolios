@@ -14,85 +14,83 @@ export const TXN_COLS: TransactionColumns = {
     Original_Qty: { key: 'Original_Qty', colName: 'Original_Qty', colId: 'F', numeric: true },
     Original_Price: { key: 'Original_Price', colName: 'Original_Price', colId: 'G', numeric: true },
     currency: { key: 'currency', colName: 'Currency', colId: 'H' },
-    Original_Price_NIS: {
-        key: 'Original_Price_NIS',
-        colName: 'Original_Price_NIS',
+    
+    // Original_Price_ILAG: Converts the original price to ILAG (Agorot).
+    // If currency is ILS, price is in ILS, so * 100.
+    // If currency is USD, price is USD, so * USDILS * 100.
+    // If other, convert to ILS then * 100.
+    Original_Price_ILAG: {
+        key: 'Original_Price_ILAG',
+        colName: 'Original_Price_ILAG',
         colId: 'I',
         numeric: true,
-        // Formula to convert the original price to NIS based on the transaction date exchange rate.
         formula: (rowNum, cols) => {
             const txnCurr = `${cols.currency.colId}${rowNum}`;
             const origPrice = `${cols.Original_Price.colId}${rowNum}`;
             const txnDate = `${cols.date.colId}${rowNum}`;
             const usdToIlsFormula = getUsdIlsFormula(txnDate);
-            return `=IF(${txnCurr}="ILS", ${origPrice}, IF(${txnCurr}="USD", ${origPrice} * ${usdToIlsFormula}, ${origPrice} * INDEX(GOOGLEFINANCE("CURRENCY:" & ${txnCurr} & "ILS", "price", ${txnDate}), 2, 2)))`;
+            // ILAG is 1/100 of ILS.
+            // If txn in ILS, value is already in ILS major units (e.g. 1.50). In ILAG it is 150.
+            return `=IF(${txnCurr}="ILAG", ${origPrice}, IF(${txnCurr}="ILS", ${origPrice}*100, IF(${txnCurr}="USD", ${origPrice} * ${usdToIlsFormula} * 100, ${origPrice} * INDEX(GOOGLEFINANCE("CURRENCY:" & ${txnCurr} & "ILS", "price", ${txnDate}), 2, 2) * 100)))`;
         }
     },
-    // Portfolio_Currency: Dynamically fetches the portfolio's base currency from the Portfolio_Options sheet.
-    Portfolio_Currency: {
-        key: 'Portfolio_Currency',
-        colName: 'Portfolio_Currency',
+    
+    // Original_Price_USD: Converts the original transaction price to USD.
+    // Replaces Original_Price_Portfolio_Currency to standardise on USD for intermediate calcs.
+    Original_Price_USD: {
+        key: 'Original_Price_USD',
+        colName: 'Original_Price_USD',
         colId: 'J',
-        // VLOOKUP searches for the Portfolio_ID (col B) in the first column of Portfolio_Options!A:K
-        // and returns the value from the 11th column (Portfolio Currency).
-        formula: (rowNum, cols) => `=IFERROR(VLOOKUP(${cols.portfolioId.colId}${rowNum}, Portfolio_Options!A:K, 11, FALSE), "")`
-    },
-    // Original_Price_Portfolio_Currency: Converts the original transaction price to the portfolio's base currency.
-    Original_Price_Portfolio_Currency: {
-        key: 'Original_Price_Portfolio_Currency',
-        colName: 'Original_Price_Portfolio_Currency',
-        colId: 'K',
         numeric: true,
-        // Uses the exchange rate on the transaction date between the transaction currency and the portfolio's base currency.
         formula: (rowNum, cols) => {
             const txnCurr = `${cols.currency.colId}${rowNum}`;
-            const portCurr = `${cols.Portfolio_Currency.colId}${rowNum}`;
             const origPrice = `${cols.Original_Price.colId}${rowNum}`;
             const txnDate = `${cols.date.colId}${rowNum}`;
             const usdIlsFormula = getUsdIlsFormula(txnDate);
 
-            const convertToILS = `IF(${txnCurr}="ILS", ${origPrice}, IF(${txnCurr}="USD", ${origPrice} * ${usdIlsFormula}, ${origPrice} * INDEX(GOOGLEFINANCE("CURRENCY:" & ${txnCurr} & "ILS", "price", ${txnDate}), 2, 2)))`;
-            const convertToUSD = `IF(${txnCurr}="USD", ${origPrice}, ${origPrice} / INDEX(GOOGLEFINANCE("CURRENCY:USD" & ${txnCurr}, "price", ${txnDate}), 2, 2))`;
-
-            return `=IF(${txnCurr}=${portCurr}, ${origPrice}, ` +
-                   `IF(${portCurr}="ILS", ${convertToILS}, ` +
-                   `IF(${portCurr}="USD", ${convertToUSD}, ` +
-                   `${origPrice} * INDEX(GOOGLEFINANCE("CURRENCY:" & ${txnCurr} & ${portCurr}, "price", ${txnDate}), 2, 2)` +
+            // If already USD, return price.
+            // If ILS, divide by USDILS rate.
+            // Else, look up CROSS to USD.
+            return `=IF(${txnCurr}="USD", ${origPrice}, ` +
+                   `IF(${txnCurr}="ILAG", ${origPrice} / 100 / ${usdIlsFormula}, ` +
+                   `IF(${txnCurr}="ILS", ${origPrice} / ${usdIlsFormula}, ` +
+                   `${origPrice} * INDEX(GOOGLEFINANCE("CURRENCY:" & ${txnCurr} & "USD", "price", ${txnDate}), 2, 2)` +
                    `)))`;
         }
     },
-    vestDate: { key: 'vestDate', colName: 'Vesting_Date', colId: 'L' },
-    comment: { key: 'comment', colName: 'Comments', colId: 'M' },
-    commission: { key: 'commission', colName: 'Commission', colId: 'N', numeric: true },
-    tax: { key: 'tax', colName: 'Tax %', colId: 'O', numeric: true },
-    Source: { key: 'Source', colName: 'Source', colId: 'P' },
-    Creation_Date: { key: 'Creation_Date', colName: 'Creation_Date', colId: 'Q' },
-    Orig_Open_Price_At_Creation_Date: { key: 'Orig_Open_Price_At_Creation_Date', colName: 'Orig_Open_Price_At_Creation_Date', colId: 'R', numeric: true },
+    vestDate: { key: 'vestDate', colName: 'Vesting_Date', colId: 'K' },
+    comment: { key: 'comment', colName: 'Comments', colId: 'L' },
+    // Renamed to Commission_In_Txn_Currency
+    commission: { key: 'commission', colName: 'Commission', colId: 'M', numeric: true },
+    tax: { key: 'tax', colName: 'Tax %', colId: 'N', numeric: true },
+    Source: { key: 'Source', colName: 'Source', colId: 'O' },
+    Creation_Date: { key: 'Creation_Date', colName: 'Creation_Date', colId: 'P' },
+    Orig_Open_Price_At_Creation_Date: { key: 'Orig_Open_Price_At_Creation_Date', colName: 'Orig_Open_Price_At_Creation_Date', colId: 'Q', numeric: true },
     Split_Adj_Open_Price: {
         key: 'Split_Adj_Open_Price',
         colName: 'Split_Adj_Open_Price',
-        colId: 'S',
+        colId: 'R',
         numeric: true,
         formula: (rowNum, cols) => `=INDEX(GOOGLEFINANCE(${cols.exchange.colId}${rowNum}&":"&${cols.ticker.colId}${rowNum}, "open", ${cols.Creation_Date.colId}${rowNum}), 2, 2)`
     },
     Split_Ratio: {
         key: 'Split_Ratio',
         colName: 'Split_Ratio',
-        colId: 'T',
+        colId: 'S',
         numeric: true,
         formula: (rowNum, cols) => `=ROUND(IFERROR(IF(OR(ISBLANK(${cols.Split_Adj_Open_Price.colId}${rowNum}), ${cols.Split_Adj_Open_Price.colId}${rowNum}=0, ISBLANK(${cols.Orig_Open_Price_At_Creation_Date.colId}${rowNum})), 1, ${cols.Orig_Open_Price_At_Creation_Date.colId}${rowNum} / ${cols.Split_Adj_Open_Price.colId}${rowNum}), 1), 2)`
     },
     Split_Adjusted_Price: {
         key: 'Split_Adjusted_Price',
         colName: 'Split_Adjusted_Price',
-        colId: 'U',
+        colId: 'T',
         numeric: true,
         formula: (rowNum, cols) => `=IFERROR(${cols.Original_Price.colId}${rowNum} / ${cols.Split_Ratio.colId}${rowNum}, ${cols.Original_Price.colId}${rowNum})`
     },
     Split_Adjusted_Qty: {
         key: 'Split_Adjusted_Qty',
         colName: 'Split_Adjusted_Qty',
-        colId: 'V',
+        colId: 'U',
         numeric: true,
         formula: (rowNum, cols) => `=IFERROR(${cols.Original_Qty.colId}${rowNum} * ${cols.Split_Ratio.colId}${rowNum}, ${cols.Original_Qty.colId}${rowNum})`
     },
@@ -114,9 +112,10 @@ export const transactionNumericKeys = Object.keys(TXN_COLS).filter(key => TXN_CO
 
 export const portfolioHeaders = ['Portfolio_ID', 'Display_Name', 'Cap_Gains_Tax_%', 'Income_Tax_Vest_%', 'Mgmt_Fee_Val', 'Mgmt_Type', 'Mgmt_Freq', 'Comm_Rate_%', 'Comm_Min', 'Comm_Max_Fee', 'Currency', 'Div_Policy', 'Div_Comm_Rate_%', 'Tax_Policy'] as const;
 
+// Merged Price_Unit into Currency logic, removed explicit Price_Unit column
 export const holdingsHeaders = [
     'PortfolioId', 'Ticker', 'Exchange', 'Quantity', 'Live_Price', 'Currency', 'Total Holding Value',
-    'Name_En', 'Name_He', 'Sector', 'Price_Unit', 'Day_Change',
+    'Name_En', 'Name_He', 'Sector', 'Day_Change',
     'Change_1W', 'Change_1M', 'Change_3M', 'Change_YTD', 'Change_1Y', 'Change_3Y', 'Change_5Y', 'Change_10Y'
 ] as const;
 export const configHeaders = ['Key', 'Value', '1D Ago', '1W Ago', '1M Ago', '3M Ago', '6M Ago', 'YTD', '1Y Ago', '3Y Ago', '5Y Ago'] as const;
@@ -148,7 +147,7 @@ export const portfolioNumericKeys: (keyof Omit<Portfolio, 'holdings'>)[] = ['cgt
 export const holdingMapping: Record<keyof Holding, typeof holdingsHeaders[number]> = {
     portfolioId: 'PortfolioId', ticker: 'Ticker', exchange: 'Exchange', qty: 'Quantity',
     price: 'Live_Price', currency: 'Currency', totalValue: 'Total Holding Value',
-    name: 'Name_En', name_he: 'Name_He', sector: 'Sector', priceUnit: 'Price_Unit',
+    name: 'Name_En', name_he: 'Name_He', sector: 'Sector', 
     changePct: 'Day_Change', changePct1w: 'Change_1W', changePct1m: 'Change_1M', changePct3m: 'Change_3M',
     changePctYtd: 'Change_YTD', changePct1y: 'Change_1Y', changePct3y: 'Change_3Y', changePct5y: 'Change_5Y', changePct10y: 'Change_10Y',
 };

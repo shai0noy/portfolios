@@ -312,7 +312,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
           let currentPrice = live?.price || 0;
           // TASE stocks are typically quoted in Agorot (1/100 ILS).
           // We normalize all prices to the major currency unit (ILS) for consistent storage and calculations.
-          if (live?.priceUnit === 'agorot') {
+          if (stockCurrency === Currency.ILAG) {
               currentPrice = fromAgorot(currentPrice);
           } else if (live?.priceUnit === 'cents') {
               currentPrice = currentPrice / 100;
@@ -357,14 +357,25 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
 
         const h = holdingMap.get(key)!;
         const isVested = !t.vestDate || new Date(t.vestDate) <= new Date();
-        const originalPricePortfolioCurrency = logIfFalsy(t.Original_Price_Portfolio_Currency, `Original_Price_Portfolio_Currency missing for ${t.ticker}`, t) || 0;
+        // Determine Original Price in Portfolio Currency (Major Unit)
+        let originalPricePortfolioCurrency = 0;
+        
+        if (portfolioCurrency === Currency.ILS) {
+             // If Portfolio is ILS, use Original_Price_ILAG (in Agorot) and convert to ILS Major Unit
+             const priceInAgorot = logIfFalsy((t as any).Original_Price_ILAG, `Original_Price_ILAG missing for ${t.ticker}`, t) || 0;
+             originalPricePortfolioCurrency = fromAgorot(priceInAgorot);
+        } else {
+             // Otherwise use USD value and convert to Portfolio Currency if needed
+             const priceInUSD = logIfFalsy((t as any).Original_Price_USD, `Original_Price_USD missing for ${t.ticker}`, t) || 0;
+             originalPricePortfolioCurrency = convertCurrency(priceInUSD, Currency.USD, portfolioCurrency, exchangeRates);
+        }
 
         const txnValuePortfolioCurrency = t.qty * originalPricePortfolioCurrency;
         const txnValueStockCurrency = t.qty * (t.price || 0);
 
         if (t.type === 'BUY') {
             if (isVested) h.qtyVested += t.qty; else h.qtyUnvested += t.qty;
-            h.costBasisPortfolioCurrency += txnValuePortfolioCurrency; // NO commission
+            h.costBasisPortfolioCurrency += txnValuePortfolioCurrency; // NO commission included in basis? User didn't specify. Assuming raw price.
             h.costBasisStockCurrency += txnValueStockCurrency;
         } else if (t.type === 'SELL') {
             const totalQtyPreSell = h.qtyVested + h.qtyUnvested;
@@ -376,7 +387,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
             const costOfSoldSC = avgCostSC * t.qty;
 
             h.costOfSoldPortfolioCurrency += costOfSoldPC;
-            h.proceedsPortfolioCurrency += txnValuePortfolioCurrency; // NO commission
+            h.proceedsPortfolioCurrency += txnValuePortfolioCurrency; 
             h.costBasisPortfolioCurrency -= costOfSoldPC;
             
             h.costOfSoldStockCurrency += costOfSoldSC;

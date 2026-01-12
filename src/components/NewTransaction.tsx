@@ -61,7 +61,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
           setDisplayName(data.name || '');
           setPrice(data.price?.toString() || '');
           setPriceUnit((data.priceUnit || 'base') as PriceUnit);
-          if (data.priceUnit === 'agorot') setTickerCurrency('ILS');
+          if (data.priceUnit === 'agorot') setTickerCurrency('ILAG');
           else setTickerCurrency(data.currency || '');
           setExchange(data.exchange || locationState.initialExchange || '');
           setTicker(locationState.initialTicker!)
@@ -101,7 +101,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
       setPrice(selected.price.toString());
       setPriceUnit((selected.priceUnit || 'base') as PriceUnit);
       if (selected.priceUnit === 'agorot') {
-        setTickerCurrency('ILS');
+        setTickerCurrency('ILAG');
       } else {
         setTickerCurrency(selected.currency || '');
       }

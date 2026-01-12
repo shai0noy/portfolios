@@ -10,7 +10,7 @@ import {
 } from '@mui/material';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
-import { type Portfolio, PORTFOLIO_TEMPLATES } from '../lib/types';
+import { type Portfolio, PORTFOLIO_TEMPLATES, Currency } from '../lib/types';
 import { addPortfolio, fetchPortfolios, updatePortfolio } from '../lib/sheets/index';
 
 const taxPolicyNames: { [key: string]: string } = {
@@ -39,7 +39,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
   // Form State
   const [template, setTemplate] = useState('');
   const [p, setP] = useState<Partial<Portfolio>>({
-    id: '', name: '', currency: 'ILS',
+    id: '', name: '', currency: Currency.ILS,
     cgt: 0.25, incTax: 0,
     mgmtVal: 0, mgmtType: 'percentage', mgmtFreq: 'yearly',
     commRate: 0.001, commMin: 0, commMax: 0,
@@ -70,7 +70,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
       setEditingPortfolio(null);
       setShowNewPortfolioForm(false);
       setP({
-        id: '', name: '', currency: 'ILS',
+        id: '', name: '', currency: Currency.ILS,
         cgt: 0.25, incTax: 0,
         mgmtVal: 0, mgmtType: 'percentage', mgmtFreq: 'yearly',
         commRate: 0.001, commMin: 0, commMax: 0,
@@ -126,7 +126,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
     setEditMode(false);
     setEditingPortfolio(null);
     setP({
-      id: '', name: '', currency: 'ILS',
+      id: '', name: '', currency: Currency.ILS,
       cgt: 0.25, incTax: 0,
       mgmtVal: 0, mgmtType: 'percentage', mgmtFreq: 'yearly',
       commRate: 0.001, commMin: 0, commMax: 0,

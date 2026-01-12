@@ -4,7 +4,8 @@ export enum Currency {
   USD = 'USD',
   ILS = 'ILS',
   EUR = 'EUR',
-  GBP = 'GBP'
+  GBP = 'GBP',
+  ILAG = 'ILAG'
 }
 
 export interface ExchangeRates {
@@ -136,6 +137,8 @@ export interface Transaction {
   Split_Ratio?: number;
   Split_Adjusted_Price?: number;
   Split_Adjusted_Qty?: number;
+  Original_Price_USD?: number;
+  Original_Price_ILAG?: number;
 }
 
 // Templates for quick setup
