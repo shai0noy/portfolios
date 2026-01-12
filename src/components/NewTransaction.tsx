@@ -2,16 +2,16 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   Box, TextField, Button, MenuItem, Select, InputLabel, FormControl, 
-  Typography, Alert, InputAdornment, Grid, Card, CardContent, Divider, Tooltip, CircularProgress, Chip 
+  Typography, Alert, InputAdornment, Grid, Card, CardContent, Divider, Tooltip, Chip 
 } from '@mui/material';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import SearchIcon from '@mui/icons-material/Search';
-import DashboardIcon from '@mui/icons-material/Dashboard';
-import type { Portfolio, Transaction, PriceUnit } from '../lib/types';
+import { type Portfolio, type Transaction, type PriceUnit  } from '../lib/types';
 import { addTransaction, fetchPortfolios } from '../lib/sheets/index';
 import { getTickerData, type TickerData } from '../lib/fetching';
 import { TickerSearch } from './TickerSearch';
+import { normalizeCurrency } from '../lib/currency';
 
 interface Props {
   sheetId: string;
@@ -21,7 +21,7 @@ interface Props {
 export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const locationState = location.state as { initialTicker?: string, initialExchange?: string, initialPrice?: string, initialCurrency?: string } | null;
+  const locationState = location.state as { prefilledTicker?: string, prefilledExchange?: string, initialPrice?: string, initialCurrency?: string } | null;
 
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [isPortfoliosLoading, setIsPortfoliosLoading] = useState(true);
@@ -31,13 +31,13 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
   
   // Form State
   const [selectedTicker, setSelectedTicker] = useState<(TickerData & { symbol: string }) | null>(null);
-  const [showForm, setShowForm] = useState(!!locationState?.initialTicker);
+  const [showForm, setShowForm] = useState(!!locationState?.prefilledTicker);
   // The date state is stored in 'yyyy-MM-dd' format, which is required by the <input type="date"> element.
   // The conversion to Google Sheets format ('dd/MM/yyyy') happens in `addTransaction` on submission.
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [portId, setPortId] = useState('');
-  const [ticker, setTicker] = useState(locationState?.initialTicker || '');
-  const [exchange, setExchange] = useState(locationState?.initialExchange || '');
+  const [ticker, setTicker] = useState(locationState?.prefilledTicker || '');
+  const [exchange, setExchange] = useState(locationState?.prefilledExchange || '');
   const [type, setType] = useState<'BUY' | 'SELL' | 'DIVIDEND' | 'FEE'>('BUY');
   const [qty, setQty] = useState<string>('');
   const [price, setPrice] = useState<string>(locationState?.initialPrice || '');
@@ -51,23 +51,23 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
   const [priceUnit, setPriceUnit] = useState<'base' | 'agorot' | 'cents'>('base');
 
   useEffect(() => {
-    if (locationState?.initialTicker) {
+    if (locationState?.prefilledTicker) {
       const fetchData = async () => {
         setLoading(true);
-        const data = await getTickerData(locationState.initialTicker!, locationState.initialExchange || '');
+        const data = await getTickerData(locationState.prefilledTicker!, locationState.prefilledExchange || '');
         if (data) {
-          const combinedData = { ...data, symbol: locationState.initialTicker!, exchange: data.exchange || locationState.initialExchange || '' };
+          const combinedData = { ...data, symbol: locationState.prefilledTicker!, exchange: data.exchange || locationState.prefilledExchange || '' };
           setSelectedTicker(combinedData);
           setDisplayName(data.name || '');
           setPrice(data.price?.toString() || '');
           setPriceUnit((data.priceUnit || 'base') as PriceUnit);
           if (data.priceUnit === 'agorot') setTickerCurrency('ILAG');
           else setTickerCurrency(data.currency || '');
-          setExchange(data.exchange || locationState.initialExchange || '');
-          setTicker(locationState.initialTicker!)
+          setExchange(data.exchange || locationState.prefilledExchange || '');
+          setTicker(locationState.prefilledTicker!)
           setShowForm(true);
         } else {
-          setPriceError(`Ticker not found on ${locationState.initialExchange}`);
+          setPriceError(`Ticker not found on ${locationState.prefilledExchange}`);
           setSelectedTicker(null);
           setShowForm(false);
         }
@@ -198,7 +198,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
         Original_Qty: q,
         Original_Price: p,
         Orig_Open_Price_At_Creation_Date: selectedTicker?.openPrice || 0,
-        currency: tickerCurrency,
+        currency: normalizeCurrency(tickerCurrency),
         vestDate,
         comment,
         commission: parseFloat(commission) || 0,
@@ -269,7 +269,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
       )}
 
       <Grid container spacing={2}>
-        {(!selectedTicker && !locationState?.initialTicker) && (
+        {(!selectedTicker && !locationState?.prefilledTicker) && (
           <Grid item xs={12}>
             <TickerSearch 
               onTickerSelect={handleTickerSelect} 

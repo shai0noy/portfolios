@@ -43,6 +43,7 @@ export async function getExchangeRates(sheetId: string): Promise<ExchangeRates> 
   }
 }
 
+// TODO: Rename
 export function normalizeCurrency(input: string): Currency {
   if (!input) return Currency.USD;
   const upper = input.trim().toUpperCase();

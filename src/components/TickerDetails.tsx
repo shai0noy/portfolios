@@ -4,10 +4,10 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import AddIcon from '@mui/icons-material/Add';
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getTickerData, type TickerData } from '../lib/fetching';
+import { getTickerData } from '../lib/fetching';
 import { fetchHolding, getMetadataValue } from '../lib/sheets/index';
-import type { Holding, PriceUnit } from '../lib/types';
-import { formatNumber, formatPrice } from '../lib/currency';
+import type { Holding } from '../lib/types';
+import { formatPrice } from '../lib/currency';
 
 interface TickerDetailsRouteParams extends Record<string, string | undefined> {
   exchange: string;
@@ -34,7 +34,7 @@ export function TickerDetails({ sheetId }: { sheetId: string }) {
       try {
         let tickerDataPromise: Promise<any> = Promise.resolve(null);
         if (knownLiveExchanges.includes(upperExchange)) {
-          tickerDataPromise = getTickerData(ticker, upperExchange, undefined, forceRefresh);
+          tickerDataPromise = getTickerData(ticker, exchange, undefined, forceRefresh);
         }
         const holdingDataPromise = fetchHolding(sheetId, ticker, upperExchange);
         const sheetRebuildTimePromise = getMetadataValue(sheetId, 'holdings_rebuild');
@@ -75,8 +75,8 @@ export function TickerDetails({ sheetId }: { sheetId: string }) {
   const handleAddTransaction = () => {
     navigate('/transaction', {
       state: {
-        initialTicker: ticker,
-        initialExchange: data?.exchange || exchange,
+        prefilledTicker: ticker,
+        prefilledExchange: data?.exchange || exchange,
         initialPrice: data?.price?.toString(),
         initialCurrency: data?.currency,
       }

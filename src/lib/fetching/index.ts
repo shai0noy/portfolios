@@ -1,9 +1,9 @@
 // src/lib/fetching/index.ts
 import { fetchGlobesStockQuote } from './globes';
 import { fetchYahooStockQuote } from './yahoo';
-import { fetchAllTaseTickers, DEFAULT_TASE_TYPE_CONFIG } from './stock_list';
+import { fetchAllTaseTickers } from './stock_list';
 import { tickerDataCache, CACHE_TTL } from './utils/cache';
-import type { TickerData, TaseTicker, TaseTypeConfig } from './types';
+import type { TickerData, TaseTicker } from './types';
 
 export * from './types';
 export * from './stock_list';
@@ -41,9 +41,10 @@ export function getTaseTickersDataset(signal?: AbortSignal, forceRefresh = false
   return taseTickersDatasetLoading;
 }
 
-export async function getTickerData(ticker: string, exchange?: string, signal?: AbortSignal, forceRefresh = false): Promise<TickerData | null> {
+export async function getTickerData(ticker: string, exchange: string, signal?: AbortSignal, forceRefresh = false, numericSecurityId?: string | number): Promise<TickerData | null> {
   const exchangeL = exchange?.toLowerCase();
-  const cacheKey = exchangeL === 'tase' ? `globes:tase:${ticker}` : `yahoo:${ticker}`;
+  const globesTicker = numericSecurityId ? String(numericSecurityId) : ticker;
+  const cacheKey = exchangeL === 'tase' ? `globes:tase:${globesTicker}` : `yahoo:${ticker}`;
 
   if (!forceRefresh && tickerDataCache.has(cacheKey)) {
     const cached = tickerDataCache.get(cacheKey)!;
@@ -55,25 +56,12 @@ export async function getTickerData(ticker: string, exchange?: string, signal?: 
     tickerDataCache.delete(cacheKey);
   }
 
+  const secId = numericSecurityId ? Number(numericSecurityId) : undefined;
   if (exchangeL === 'tase') {
-    return fetchGlobesStockQuote(ticker, 'tase', signal);
+    return fetchGlobesStockQuote(ticker, secId, 'tase', signal);
   } else if (exchangeL) {
     return fetchYahooStockQuote(ticker, signal);
-  } else {
-    const isNumeric = /\d/.test(ticker);
-    let data: TickerData | null = null;
-    if (isNumeric) {
-      data = await fetchGlobesStockQuote(ticker, 'tase', signal);
-      if (data) return { ...data, exchange: 'TASE' };
-      data = await fetchYahooStockQuote(ticker, signal);
-      if (data) return data;
-    } else {
-      data = await fetchYahooStockQuote(ticker, signal);
-      if (data) return data;
-      data = await fetchGlobesStockQuote(ticker, 'tase', signal);
-      if (data) return { ...data, exchange: 'TASE' };
-    }
-    console.log(`getTickerData: Ticker ${ticker} not found on any attempted exchange.`);
-    return null;
   }
+
+  return null;
 }

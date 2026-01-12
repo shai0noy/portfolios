@@ -26,12 +26,38 @@ export interface HistoricalDataPoint {
   close: number;
 }
 
-export interface TaseTicker {
+export interface TaseSecurity {
+  tradeDate: string;
+  securityId: number;
+  securityFullTypeCode: string;
+  isin: string;
+  corporateId: string;
+  issuerId: number;
+  securityIsIncludedInContinuousIndices: number[];
+  securityName: string;
   symbol: string;
-  name_he: string;
+  companySuperSector: string;
+  companySector: string;
+  companySubSector: string;
+  companyName: string;
+}
+
+export interface TaseTicker {
+  // Fields from TASE API
+  securityId: number;
+  securityName: string;
+  symbol: string;
+  companyName: string;
+  companySuperSector: string;
+  companySector: string;
+  companySubSector: string;
+
+  // Fields from Globes
+  globesInstrumentId: string;
+  type: string; // 'stock', 'etf', etc.
+  name_he: string; // Globes has hebrew and english names
   name_en: string;
-  instrumentId: string;
-  type: string;
+  taseType: string; // TASE type string
 }
 
 // Configuration for TASE ticker types

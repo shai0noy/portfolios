@@ -1,0 +1,1447 @@
+{
+  "securitiesTypes": {
+    "result": [
+      {
+        "securityMainTypeCode": "01",
+        "securityMainTypeDesc": "SHARE",
+        "securityFullTypeCode": "0101",
+        "securityTypeDesc": "Ordinary Share"
+      },
+      {
+        "securityMainTypeCode": "01",
+        "securityMainTypeDesc": "SHARE",
+        "securityFullTypeCode": "0102",
+        "securityTypeDesc": "Preferred  Share"
+      },
+      {
+        "securityMainTypeCode": "01",
+        "securityMainTypeDesc": "SHARE",
+        "securityFullTypeCode": "0103",
+        "securityTypeDesc": "Preferr & Cum  share"
+      },
+      {
+        "securityMainTypeCode": "01",
+        "securityMainTypeDesc": "SHARE",
+        "securityFullTypeCode": "0104",
+        "securityTypeDesc": "Stock"
+      },
+      {
+        "securityMainTypeCode": "01",
+        "securityMainTypeDesc": "SHARE",
+        "securityFullTypeCode": "0105",
+        "securityTypeDesc": "Founders share"
+      },
+      {
+        "securityMainTypeCode": "01",
+        "securityMainTypeDesc": "SHARE",
+        "securityFullTypeCode": "0106",
+        "securityTypeDesc": "Cumulative share"
+      },
+      {
+        "securityMainTypeCode": "01",
+        "securityMainTypeDesc": "SHARE",
+        "securityFullTypeCode": "0107",
+        "securityTypeDesc": "Participating share"
+      },
+      {
+        "securityMainTypeCode": "01",
+        "securityMainTypeDesc": "SHARE",
+        "securityFullTypeCode": "0108",
+        "securityTypeDesc": "Cum & particip share"
+      },
+      {
+        "securityMainTypeCode": "01",
+        "securityMainTypeDesc": "SHARE",
+        "securityFullTypeCode": "0109",
+        "securityTypeDesc": "Management share"
+      },
+      {
+        "securityMainTypeCode": "01",
+        "securityMainTypeDesc": "SHARE",
+        "securityFullTypeCode": "0110",
+        "securityTypeDesc": "Deferred share"
+      },
+      {
+        "securityMainTypeCode": "01",
+        "securityMainTypeDesc": "SHARE",
+        "securityFullTypeCode": "0111",
+        "securityTypeDesc": "Preference share"
+      },
+      {
+        "securityMainTypeCode": "01",
+        "securityMainTypeDesc": "SHARE",
+        "securityFullTypeCode": "0112",
+        "securityTypeDesc": "Redeemable share"
+      },
+      {
+        "securityMainTypeCode": "01",
+        "securityMainTypeDesc": "SHARE",
+        "securityFullTypeCode": "0113",
+        "securityTypeDesc": "Closed- Mutual fund"
+      },
+      {
+        "securityMainTypeCode": "01",
+        "securityMainTypeDesc": "SHARE",
+        "securityFullTypeCode": "0114",
+        "securityTypeDesc": "Reit"
+      },
+      {
+        "securityMainTypeCode": "01",
+        "securityMainTypeDesc": "SHARE",
+        "securityFullTypeCode": "0198",
+        "securityTypeDesc": "Share no voting right"
+      },
+      {
+        "securityMainTypeCode": "01",
+        "securityMainTypeDesc": "SHARE",
+        "securityFullTypeCode": "0199",
+        "securityTypeDesc": "Share held by issuer"
+      },
+      {
+        "securityMainTypeCode": "02",
+        "securityMainTypeDesc": "WARRANT",
+        "securityFullTypeCode": "0201",
+        "securityTypeDesc": "Warrant for share"
+      },
+      {
+        "securityMainTypeCode": "02",
+        "securityMainTypeDesc": "WARRANT",
+        "securityFullTypeCode": "0202",
+        "securityTypeDesc": "convertible Warrant"
+      },
+      {
+        "securityMainTypeCode": "02",
+        "securityMainTypeDesc": "WARRANT",
+        "securityFullTypeCode": "0203",
+        "securityTypeDesc": "Warrant for warrant"
+      },
+      {
+        "securityMainTypeCode": "02",
+        "securityMainTypeDesc": "WARRANT",
+        "securityFullTypeCode": "0204",
+        "securityTypeDesc": "Participate unit warrant"
+      },
+      {
+        "securityMainTypeCode": "02",
+        "securityMainTypeDesc": "WARRANT",
+        "securityFullTypeCode": "0205",
+        "securityTypeDesc": "Straddle"
+      },
+      {
+        "securityMainTypeCode": "02",
+        "securityMainTypeDesc": "WARRANT",
+        "securityFullTypeCode": "0206",
+        "securityTypeDesc": "WARRANT FOR EMPLOYEE"
+      },
+      {
+        "securityMainTypeCode": "02",
+        "securityMainTypeDesc": "WARRANT",
+        "securityFullTypeCode": "0207",
+        "securityTypeDesc": "WARRANT FOR OTHERS"
+      },
+      {
+        "securityMainTypeCode": "03",
+        "securityMainTypeDesc": "CONVERT. BOND",
+        "securityFullTypeCode": "0301",
+        "securityTypeDesc": "Convertible"
+      },
+      {
+        "securityMainTypeCode": "03",
+        "securityMainTypeDesc": "CONVERT. BOND",
+        "securityFullTypeCode": "0302",
+        "securityTypeDesc": "Capital note"
+      },
+      {
+        "securityMainTypeCode": "03",
+        "securityMainTypeDesc": "CONVERT. BOND",
+        "securityFullTypeCode": "0303",
+        "securityTypeDesc": "Promissory note"
+      },
+      {
+        "securityMainTypeCode": "03",
+        "securityMainTypeDesc": "CONVERT. BOND",
+        "securityFullTypeCode": "0304",
+        "securityTypeDesc": "Unpaid convertible bond"
+      },
+      {
+        "securityMainTypeCode": "03",
+        "securityMainTypeDesc": "CONVERT. BOND",
+        "securityFullTypeCode": "0305",
+        "securityTypeDesc": "Purchase convertible"
+      },
+      {
+        "securityMainTypeCode": "03",
+        "securityMainTypeDesc": "CONVERT. BOND",
+        "securityFullTypeCode": "0306",
+        "securityTypeDesc": "Payment In-Kind Conv Bond"
+      },
+      {
+        "securityMainTypeCode": "04",
+        "securityMainTypeDesc": "GOVT. BOND",
+        "securityFullTypeCode": "0401",
+        "securityTypeDesc": "Government bond"
+      },
+      {
+        "securityMainTypeCode": "04",
+        "securityMainTypeDesc": "GOVT. BOND",
+        "securityFullTypeCode": "0402",
+        "securityTypeDesc": "Government \"GILBOA\""
+      },
+      {
+        "securityMainTypeCode": "04",
+        "securityMainTypeDesc": "GOVT. BOND",
+        "securityFullTypeCode": "0403",
+        "securityTypeDesc": "Government bond - \"RIMON\""
+      },
+      {
+        "securityMainTypeCode": "04",
+        "securityMainTypeDesc": "GOVT. BOND",
+        "securityFullTypeCode": "0404",
+        "securityTypeDesc": "Government bond - \"SAGI\""
+      },
+      {
+        "securityMainTypeCode": "04",
+        "securityMainTypeDesc": "GOVT. BOND",
+        "securityFullTypeCode": "0405",
+        "securityTypeDesc": "Government \"IMPROV SAGI\""
+      },
+      {
+        "securityMainTypeCode": "04",
+        "securityMainTypeDesc": "GOVT. BOND",
+        "securityFullTypeCode": "0406",
+        "securityTypeDesc": "Government bond - \"GALIL\""
+      },
+      {
+        "securityMainTypeCode": "04",
+        "securityMainTypeDesc": "GOVT. BOND",
+        "securityFullTypeCode": "0407",
+        "securityTypeDesc": "Governmen\"IMPROV GALIL\""
+      },
+      {
+        "securityMainTypeCode": "04",
+        "securityMainTypeDesc": "GOVT. BOND",
+        "securityFullTypeCode": "0408",
+        "securityTypeDesc": "Government bond - \"GEVA\""
+      },
+      {
+        "securityMainTypeCode": "04",
+        "securityMainTypeDesc": "GOVT. BOND",
+        "securityFullTypeCode": "0409",
+        "securityTypeDesc": "Government bond - \"KEFIR\""
+      },
+      {
+        "securityMainTypeCode": "04",
+        "securityMainTypeDesc": "GOVT. BOND",
+        "securityFullTypeCode": "0410",
+        "securityTypeDesc": "Government bond - \"GILON\""
+      },
+      {
+        "securityMainTypeCode": "04",
+        "securityMainTypeDesc": "GOVT. BOND",
+        "securityFullTypeCode": "0411",
+        "securityTypeDesc": "Government bond- \"SHAHAR\""
+      },
+      {
+        "securityMainTypeCode": "04",
+        "securityMainTypeDesc": "GOVT. BOND",
+        "securityFullTypeCode": "0412",
+        "securityTypeDesc": "Government - \"NEW KFIR\""
+      },
+      {
+        "securityMainTypeCode": "04",
+        "securityMainTypeDesc": "GOVT. BOND",
+        "securityFullTypeCode": "0413",
+        "securityTypeDesc": "Government  \"NEW GILON\""
+      },
+      {
+        "securityMainTypeCode": "04",
+        "securityMainTypeDesc": "GOVT. BOND",
+        "securityFullTypeCode": "0414",
+        "securityTypeDesc": "Government bond - T-Bill"
+      },
+      {
+        "securityMainTypeCode": "04",
+        "securityMainTypeDesc": "GOVT. BOND",
+        "securityFullTypeCode": "0415",
+        "securityTypeDesc": "Government Global Bond"
+      },
+      {
+        "securityMainTypeCode": "05",
+        "securityMainTypeDesc": "CORP. BOND",
+        "securityFullTypeCode": "0501",
+        "securityTypeDesc": "Corporate bond"
+      },
+      {
+        "securityMainTypeCode": "05",
+        "securityMainTypeDesc": "CORP. BOND",
+        "securityFullTypeCode": "0502",
+        "securityTypeDesc": "Unpaid bond"
+      },
+      {
+        "securityMainTypeCode": "05",
+        "securityMainTypeDesc": "CORP. BOND",
+        "securityFullTypeCode": "0503",
+        "securityTypeDesc": "Interchangeable bond"
+      },
+      {
+        "securityMainTypeCode": "05",
+        "securityMainTypeDesc": "CORP. BOND",
+        "securityFullTypeCode": "0504",
+        "securityTypeDesc": "ETF for bonds"
+      },
+      {
+        "securityMainTypeCode": "05",
+        "securityMainTypeDesc": "CORP. BOND",
+        "securityFullTypeCode": "0505",
+        "securityTypeDesc": "Structured bond"
+      },
+      {
+        "securityMainTypeCode": "05",
+        "securityMainTypeDesc": "CORP. BOND",
+        "securityFullTypeCode": "0506",
+        "securityTypeDesc": "Certificate of Deposit"
+      },
+      {
+        "securityMainTypeCode": "05",
+        "securityMainTypeDesc": "CORP. BOND",
+        "securityFullTypeCode": "0507",
+        "securityTypeDesc": "Multi Redemptions Bond"
+      },
+      {
+        "securityMainTypeCode": "05",
+        "securityMainTypeDesc": "CORP. BOND",
+        "securityFullTypeCode": "0508",
+        "securityTypeDesc": "Commercial Papers"
+      },
+      {
+        "securityMainTypeCode": "05",
+        "securityMainTypeDesc": "CORP. BOND",
+        "securityFullTypeCode": "0509",
+        "securityTypeDesc": "Equity Linked Bond"
+      },
+      {
+        "securityMainTypeCode": "05",
+        "securityMainTypeDesc": "CORP. BOND",
+        "securityFullTypeCode": "0510",
+        "securityTypeDesc": "Equity bond to be convert"
+      },
+      {
+        "securityMainTypeCode": "05",
+        "securityMainTypeDesc": "CORP. BOND",
+        "securityFullTypeCode": "0511",
+        "securityTypeDesc": "Equity Bond to be Deleted"
+      },
+      {
+        "securityMainTypeCode": "05",
+        "securityMainTypeDesc": "CORP. BOND",
+        "securityFullTypeCode": "0512",
+        "securityTypeDesc": "Participating bond"
+      },
+      {
+        "securityMainTypeCode": "05",
+        "securityMainTypeDesc": "CORP. BOND",
+        "securityFullTypeCode": "0513",
+        "securityTypeDesc": "Payment In-Kind Bond"
+      },
+      {
+        "securityMainTypeCode": "05",
+        "securityMainTypeDesc": "CORP. BOND",
+        "securityFullTypeCode": "0514",
+        "securityTypeDesc": "Hybrid Bond"
+      },
+      {
+        "securityMainTypeCode": "06",
+        "securityMainTypeDesc": "YIELD GRP.",
+        "securityFullTypeCode": "0601",
+        "securityTypeDesc": null
+      },
+      {
+        "securityMainTypeCode": "07",
+        "securityMainTypeDesc": "R&D UNIT",
+        "securityFullTypeCode": "0701",
+        "securityTypeDesc": "Research & develop unit"
+      },
+      {
+        "securityMainTypeCode": "08",
+        "securityMainTypeDesc": "TREASURY BILL",
+        "securityFullTypeCode": "0801",
+        "securityTypeDesc": "Short term treasury Bill"
+      },
+      {
+        "securityMainTypeCode": "09",
+        "securityMainTypeDesc": "RIGHTS",
+        "securityFullTypeCode": "0901",
+        "securityTypeDesc": "Rights"
+      },
+      {
+        "securityMainTypeCode": "10",
+        "securityMainTypeDesc": "MUTUAL FUND",
+        "securityFullTypeCode": "1001",
+        "securityTypeDesc": "Mutual fund"
+      },
+      {
+        "securityMainTypeCode": "11",
+        "securityMainTypeDesc": "WARRANT - BOND",
+        "securityFullTypeCode": "1101",
+        "securityTypeDesc": "Warrant bond"
+      },
+      {
+        "securityMainTypeCode": "12",
+        "securityMainTypeDesc": "PART. UNIT",
+        "securityFullTypeCode": "1201",
+        "securityTypeDesc": "Participating unit"
+      },
+      {
+        "securityMainTypeCode": "12",
+        "securityMainTypeDesc": "PART. UNIT",
+        "securityFullTypeCode": "1202",
+        "securityTypeDesc": "Part Unit with equity"
+      },
+      {
+        "securityMainTypeCode": "13",
+        "securityMainTypeDesc": "PURCHASE WARRANT",
+        "securityFullTypeCode": "1301",
+        "securityTypeDesc": "Purchase warrant"
+      },
+      {
+        "securityMainTypeCode": "13",
+        "securityMainTypeDesc": "PURCHASE WARRANT",
+        "securityFullTypeCode": "1302",
+        "securityTypeDesc": "Pur warrant (Part unit)"
+      },
+      {
+        "securityMainTypeCode": "14",
+        "securityMainTypeDesc": "DOLLAR OPTION",
+        "securityFullTypeCode": "1401",
+        "securityTypeDesc": null
+      },
+      {
+        "securityMainTypeCode": "14",
+        "securityMainTypeDesc": "DOLLAR OPTION",
+        "securityFullTypeCode": "1402",
+        "securityTypeDesc": null
+      },
+      {
+        "securityMainTypeCode": "15",
+        "securityMainTypeDesc": "WARRANT FOR BOND",
+        "securityFullTypeCode": "1501",
+        "securityTypeDesc": "Warrant for bond"
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1601",
+        "securityTypeDesc": "Call options - TA35"
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1602",
+        "securityTypeDesc": "Call options - Dollar"
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1604",
+        "securityTypeDesc": "Call options - Banks"
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1605",
+        "securityTypeDesc": "Call options - Euro"
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1608",
+        "securityTypeDesc": "Call options - ICL"
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1609",
+        "securityTypeDesc": "Call options - Poalim"
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1610",
+        "securityTypeDesc": "Call options - Leumi"
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1611",
+        "securityTypeDesc": "Call options - Teva"
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1612",
+        "securityTypeDesc": "Call options - Discount"
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1613",
+        "securityTypeDesc": "Call options - Mizrahi"
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1614",
+        "securityTypeDesc": "Call options - Avner"
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1615",
+        "securityTypeDesc": "Call options - Isramco"
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1616",
+        "securityTypeDesc": "Call options - Ratio"
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1617",
+        "securityTypeDesc": "Call options - GVA"
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1618",
+        "securityTypeDesc": "Call options - GVB"
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1619",
+        "securityTypeDesc": "Call options - Bezeq"
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1620",
+        "securityTypeDesc": "Call options - Perrigo"
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1621",
+        "securityTypeDesc": "Call options - TA125"
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1622",
+        "securityTypeDesc": "Call options - Fibi Bank"
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1623",
+        "securityTypeDesc": "Call options - Nice"
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1624",
+        "securityTypeDesc": "Call options - Delek Gr."
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1625",
+        "securityTypeDesc": "Call options - Isramco"
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1626",
+        "securityTypeDesc": "Call options-Israel Corp."
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1627",
+        "securityTypeDesc": "Call options - Opko"
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1628",
+        "securityTypeDesc": "Call options - Frutarom"
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1629",
+        "securityTypeDesc": "Call options - Elbit"
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1630",
+        "securityTypeDesc": "Call options - Azrieli"
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1631",
+        "securityTypeDesc": "Call options - Delek Dr."
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1632",
+        "securityTypeDesc": "Call options - Paz Oil"
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1633",
+        "securityTypeDesc": "Call options-Gazit Globe"
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1634",
+        "securityTypeDesc": "Call options - Melisron"
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1635",
+        "securityTypeDesc": "Call options - Strauss"
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1637",
+        "securityTypeDesc": "Call options - Ormat"
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1638",
+        "securityTypeDesc": "Call options - Mylan"
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1639",
+        "securityTypeDesc": "Call options - Partner"
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1640",
+        "securityTypeDesc": "Call options - Cellcom"
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1641",
+        "securityTypeDesc": "Call options - Harel Inv."
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1642",
+        "securityTypeDesc": "Call options - Shufersal"
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1643",
+        "securityTypeDesc": "Call options - Phoenix"
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1644",
+        "securityTypeDesc": "Call options - Bazan"
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1645",
+        "securityTypeDesc": "Call options - Alony-Hetz"
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1646",
+        "securityTypeDesc": "Call options - TASE"
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1647",
+        "securityTypeDesc": "Call options - BIG"
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1649",
+        "securityTypeDesc": "Call options - AMOT"
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1650",
+        "securityTypeDesc": "Call options - Enlight"
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1651",
+        "securityTypeDesc": "Call options - Argo"
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1652",
+        "securityTypeDesc": "Call options - Klal"
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1653",
+        "securityTypeDesc": "Call options - Menora"
+      },
+      {
+        "securityMainTypeCode": "16",
+        "securityMainTypeDesc": "CALL OPTION",
+        "securityFullTypeCode": "1654",
+        "securityTypeDesc": "Call options - Migdal"
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1701",
+        "securityTypeDesc": "Put options - TA35"
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1702",
+        "securityTypeDesc": "Put options - Dollar"
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1704",
+        "securityTypeDesc": "Put options - Banks"
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1705",
+        "securityTypeDesc": "Put options - Euro"
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1708",
+        "securityTypeDesc": "Put options - ICL"
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1709",
+        "securityTypeDesc": "Put options - Poalim"
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1710",
+        "securityTypeDesc": "Put options - Leumi"
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1711",
+        "securityTypeDesc": "Put options - Teva"
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1712",
+        "securityTypeDesc": "Put options - Discount"
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1713",
+        "securityTypeDesc": "Put options - Mizrahi"
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1714",
+        "securityTypeDesc": "Put options - Avner"
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1715",
+        "securityTypeDesc": "Put options - Isramco"
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1716",
+        "securityTypeDesc": "Put options - Ratio"
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1717",
+        "securityTypeDesc": "Put options - GVA"
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1718",
+        "securityTypeDesc": "Put options - GVB"
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1719",
+        "securityTypeDesc": "Put options - Bezeq"
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1720",
+        "securityTypeDesc": "Put options - Perrigo"
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1721",
+        "securityTypeDesc": "Put options - TA125"
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1722",
+        "securityTypeDesc": "Put options - Fibi Bank"
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1723",
+        "securityTypeDesc": "Put options - Nice"
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1724",
+        "securityTypeDesc": "Put options - Delek Gr."
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1725",
+        "securityTypeDesc": "Put options - Isramco"
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1726",
+        "securityTypeDesc": "Put options-Israel Corp."
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1727",
+        "securityTypeDesc": "Put options - Opko"
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1728",
+        "securityTypeDesc": "Put options - Frutarom"
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1729",
+        "securityTypeDesc": "Put options - Elbit"
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1730",
+        "securityTypeDesc": "Put options - Azrieli"
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1731",
+        "securityTypeDesc": "Put options - Delek Dr."
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1732",
+        "securityTypeDesc": "Put options - Paz Oil"
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1733",
+        "securityTypeDesc": "Put options - Gazit Globe"
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1734",
+        "securityTypeDesc": "Put options - Melisron"
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1735",
+        "securityTypeDesc": "Put options - Strauss"
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1737",
+        "securityTypeDesc": "Put options - Ormat"
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1738",
+        "securityTypeDesc": "Put options - Mylan"
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1739",
+        "securityTypeDesc": "Put options - Partner"
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1740",
+        "securityTypeDesc": "Put options - Cellcom"
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1741",
+        "securityTypeDesc": "Put options - Harel Inv."
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1742",
+        "securityTypeDesc": "Put options - Shufersal"
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1743",
+        "securityTypeDesc": "Put options - Phoenix"
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1744",
+        "securityTypeDesc": "Put options - Bazan"
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1745",
+        "securityTypeDesc": "Put options - Alony-Hetz"
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1746",
+        "securityTypeDesc": "Put options - TASE"
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1747",
+        "securityTypeDesc": "Put options - BIG"
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1749",
+        "securityTypeDesc": "Put options - AMOT"
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1750",
+        "securityTypeDesc": "Put options - Enlight"
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1751",
+        "securityTypeDesc": "Put options - Argo"
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1752",
+        "securityTypeDesc": "Put options - Klal"
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1753",
+        "securityTypeDesc": "Put options - Menora"
+      },
+      {
+        "securityMainTypeCode": "17",
+        "securityMainTypeDesc": "PUT OPTION",
+        "securityFullTypeCode": "1754",
+        "securityTypeDesc": "Put options - Migdal"
+      },
+      {
+        "securityMainTypeCode": "18",
+        "securityMainTypeDesc": "FUTURE",
+        "securityFullTypeCode": "1801",
+        "securityTypeDesc": "Futures - TA35"
+      },
+      {
+        "securityMainTypeCode": "18",
+        "securityMainTypeDesc": "FUTURE",
+        "securityFullTypeCode": "1802",
+        "securityTypeDesc": "Futures - Dollar"
+      },
+      {
+        "securityMainTypeCode": "18",
+        "securityMainTypeDesc": "FUTURE",
+        "securityFullTypeCode": "1803",
+        "securityTypeDesc": "Futures - Interest rate"
+      },
+      {
+        "securityMainTypeCode": "18",
+        "securityMainTypeDesc": "FUTURE",
+        "securityFullTypeCode": "1804",
+        "securityTypeDesc": "Futures - Banks"
+      },
+      {
+        "securityMainTypeCode": "18",
+        "securityMainTypeDesc": "FUTURE",
+        "securityFullTypeCode": "1805",
+        "securityTypeDesc": "Futures - Euro"
+      },
+      {
+        "securityMainTypeCode": "18",
+        "securityMainTypeDesc": "FUTURE",
+        "securityFullTypeCode": "1806",
+        "securityTypeDesc": "Future-Medium term Shahar"
+      },
+      {
+        "securityMainTypeCode": "18",
+        "securityMainTypeDesc": "FUTURE",
+        "securityFullTypeCode": "1807",
+        "securityTypeDesc": "Future-Long term Shahar"
+      },
+      {
+        "securityMainTypeCode": "18",
+        "securityMainTypeDesc": "FUTURE",
+        "securityFullTypeCode": "1821",
+        "securityTypeDesc": "Futures - TA125"
+      },
+      {
+        "securityMainTypeCode": "18",
+        "securityMainTypeDesc": "FUTURE",
+        "securityFullTypeCode": "1848",
+        "securityTypeDesc": "Futures - TA90"
+      },
+      {
+        "securityMainTypeCode": "19",
+        "securityMainTypeDesc": "W.CALL",
+        "securityFullTypeCode": "1901",
+        "securityTypeDesc": "Weekly Call options-TA35"
+      },
+      {
+        "securityMainTypeCode": "19",
+        "securityMainTypeDesc": "W.CALL",
+        "securityFullTypeCode": "1902",
+        "securityTypeDesc": "Weekly Call option-Dollar"
+      },
+      {
+        "securityMainTypeCode": "20",
+        "securityMainTypeDesc": "W.PUT",
+        "securityFullTypeCode": "2001",
+        "securityTypeDesc": "Weekly Put options - TA35"
+      },
+      {
+        "securityMainTypeCode": "20",
+        "securityMainTypeDesc": "W.PUT",
+        "securityFullTypeCode": "2002",
+        "securityTypeDesc": "Weekly Put options-Dollar"
+      },
+      {
+        "securityMainTypeCode": "21",
+        "securityMainTypeDesc": "W.FUTURE",
+        "securityFullTypeCode": "2101",
+        "securityTypeDesc": "Weekly Futures - TA35"
+      },
+      {
+        "securityMainTypeCode": "21",
+        "securityMainTypeDesc": "W.FUTURE",
+        "securityFullTypeCode": "2102",
+        "securityTypeDesc": "Weekly Futures - Dollar"
+      },
+      {
+        "securityMainTypeCode": "32",
+        "securityMainTypeDesc": "ETF FOR SHARES",
+        "securityFullTypeCode": "3201",
+        "securityTypeDesc": null
+      },
+      {
+        "securityMainTypeCode": "32",
+        "securityMainTypeDesc": "ETF FOR SHARES",
+        "securityFullTypeCode": "3202",
+        "securityTypeDesc": null
+      },
+      {
+        "securityMainTypeCode": "32",
+        "securityMainTypeDesc": "ETF FOR SHARES",
+        "securityFullTypeCode": "3203",
+        "securityTypeDesc": null
+      },
+      {
+        "securityMainTypeCode": "32",
+        "securityMainTypeDesc": "ETF FOR SHARES",
+        "securityFullTypeCode": "3204",
+        "securityTypeDesc": null
+      },
+      {
+        "securityMainTypeCode": "32",
+        "securityMainTypeDesc": "ETF FOR SHARES",
+        "securityFullTypeCode": "3205",
+        "securityTypeDesc": null
+      },
+      {
+        "securityMainTypeCode": "32",
+        "securityMainTypeDesc": "ETF FOR SHARES",
+        "securityFullTypeCode": "3206",
+        "securityTypeDesc": null
+      },
+      {
+        "securityMainTypeCode": "32",
+        "securityMainTypeDesc": "ETF FOR SHARES",
+        "securityFullTypeCode": "3207",
+        "securityTypeDesc": null
+      },
+      {
+        "securityMainTypeCode": "32",
+        "securityMainTypeDesc": "ETF FOR SHARES",
+        "securityFullTypeCode": "3208",
+        "securityTypeDesc": null
+      },
+      {
+        "securityMainTypeCode": "32",
+        "securityMainTypeDesc": "ETF FOR SHARES",
+        "securityFullTypeCode": "3209",
+        "securityTypeDesc": null
+      },
+      {
+        "securityMainTypeCode": "32",
+        "securityMainTypeDesc": "ETF FOR SHARES",
+        "securityFullTypeCode": "3210",
+        "securityTypeDesc": null
+      },
+      {
+        "securityMainTypeCode": "33",
+        "securityMainTypeDesc": "REV. CERTIFICATE-SHR",
+        "securityFullTypeCode": "3301",
+        "securityTypeDesc": null
+      },
+      {
+        "securityMainTypeCode": "33",
+        "securityMainTypeDesc": "REV. CERTIFICATE-SHR",
+        "securityFullTypeCode": "3302",
+        "securityTypeDesc": null
+      },
+      {
+        "securityMainTypeCode": "33",
+        "securityMainTypeDesc": "REV. CERTIFICATE-SHR",
+        "securityFullTypeCode": "3303",
+        "securityTypeDesc": null
+      },
+      {
+        "securityMainTypeCode": "34",
+        "securityMainTypeDesc": "CALL COV.WARRANT-SHR",
+        "securityFullTypeCode": "3401",
+        "securityTypeDesc": null
+      },
+      {
+        "securityMainTypeCode": "34",
+        "securityMainTypeDesc": "CALL COV.WARRANT-SHR",
+        "securityFullTypeCode": "3402",
+        "securityTypeDesc": null
+      },
+      {
+        "securityMainTypeCode": "34",
+        "securityMainTypeDesc": "CALL COV.WARRANT-SHR",
+        "securityFullTypeCode": "3403",
+        "securityTypeDesc": null
+      },
+      {
+        "securityMainTypeCode": "34",
+        "securityMainTypeDesc": "CALL COV.WARRANT-SHR",
+        "securityFullTypeCode": "3404",
+        "securityTypeDesc": null
+      },
+      {
+        "securityMainTypeCode": "35",
+        "securityMainTypeDesc": "PUT COV.WARRANT-SHR",
+        "securityFullTypeCode": "3501",
+        "securityTypeDesc": null
+      },
+      {
+        "securityMainTypeCode": "35",
+        "securityMainTypeDesc": "PUT COV.WARRANT-SHR",
+        "securityFullTypeCode": "3502",
+        "securityTypeDesc": null
+      },
+      {
+        "securityMainTypeCode": "35",
+        "securityMainTypeDesc": "PUT COV.WARRANT-SHR",
+        "securityFullTypeCode": "3503",
+        "securityTypeDesc": null
+      },
+      {
+        "securityMainTypeCode": "35",
+        "securityMainTypeDesc": "PUT COV.WARRANT-SHR",
+        "securityFullTypeCode": "3504",
+        "securityTypeDesc": null
+      },
+      {
+        "securityMainTypeCode": "36",
+        "securityMainTypeDesc": "ETF FOR BONDS",
+        "securityFullTypeCode": "3601",
+        "securityTypeDesc": null
+      },
+      {
+        "securityMainTypeCode": "36",
+        "securityMainTypeDesc": "ETF FOR BONDS",
+        "securityFullTypeCode": "3602",
+        "securityTypeDesc": null
+      },
+      {
+        "securityMainTypeCode": "36",
+        "securityMainTypeDesc": "ETF FOR BONDS",
+        "securityFullTypeCode": "3603",
+        "securityTypeDesc": null
+      },
+      {
+        "securityMainTypeCode": "36",
+        "securityMainTypeDesc": "ETF FOR BONDS",
+        "securityFullTypeCode": "3604",
+        "securityTypeDesc": null
+      },
+      {
+        "securityMainTypeCode": "36",
+        "securityMainTypeDesc": "ETF FOR BONDS",
+        "securityFullTypeCode": "3605",
+        "securityTypeDesc": null
+      },
+      {
+        "securityMainTypeCode": "36",
+        "securityMainTypeDesc": "ETF FOR BONDS",
+        "securityFullTypeCode": "3606",
+        "securityTypeDesc": null
+      },
+      {
+        "securityMainTypeCode": "36",
+        "securityMainTypeDesc": "ETF FOR BONDS",
+        "securityFullTypeCode": "3607",
+        "securityTypeDesc": null
+      },
+      {
+        "securityMainTypeCode": "36",
+        "securityMainTypeDesc": "ETF FOR BONDS",
+        "securityFullTypeCode": "3608",
+        "securityTypeDesc": null
+      },
+      {
+        "securityMainTypeCode": "36",
+        "securityMainTypeDesc": "ETF FOR BONDS",
+        "securityFullTypeCode": "3609",
+        "securityTypeDesc": null
+      },
+      {
+        "securityMainTypeCode": "36",
+        "securityMainTypeDesc": "ETF FOR BONDS",
+        "securityFullTypeCode": "3610",
+        "securityTypeDesc": null
+      },
+      {
+        "securityMainTypeCode": "37",
+        "securityMainTypeDesc": "REV.CERTIFICATE-BOND",
+        "securityFullTypeCode": "3701",
+        "securityTypeDesc": null
+      },
+      {
+        "securityMainTypeCode": "37",
+        "securityMainTypeDesc": "REV.CERTIFICATE-BOND",
+        "securityFullTypeCode": "3702",
+        "securityTypeDesc": null
+      },
+      {
+        "securityMainTypeCode": "37",
+        "securityMainTypeDesc": "REV.CERTIFICATE-BOND",
+        "securityFullTypeCode": "3703",
+        "securityTypeDesc": null
+      },
+      {
+        "securityMainTypeCode": "38",
+        "securityMainTypeDesc": "CALL COV.WARRNT-BOND",
+        "securityFullTypeCode": "3801",
+        "securityTypeDesc": null
+      },
+      {
+        "securityMainTypeCode": "38",
+        "securityMainTypeDesc": "CALL COV.WARRNT-BOND",
+        "securityFullTypeCode": "3802",
+        "securityTypeDesc": null
+      },
+      {
+        "securityMainTypeCode": "38",
+        "securityMainTypeDesc": "CALL COV.WARRNT-BOND",
+        "securityFullTypeCode": "3803",
+        "securityTypeDesc": null
+      },
+      {
+        "securityMainTypeCode": "38",
+        "securityMainTypeDesc": "CALL COV.WARRNT-BOND",
+        "securityFullTypeCode": "3804",
+        "securityTypeDesc": null
+      },
+      {
+        "securityMainTypeCode": "39",
+        "securityMainTypeDesc": "PUT COV.WARRANT-BOND",
+        "securityFullTypeCode": "3901",
+        "securityTypeDesc": null
+      },
+      {
+        "securityMainTypeCode": "39",
+        "securityMainTypeDesc": "PUT COV.WARRANT-BOND",
+        "securityFullTypeCode": "3902",
+        "securityTypeDesc": null
+      },
+      {
+        "securityMainTypeCode": "39",
+        "securityMainTypeDesc": "PUT COV.WARRANT-BOND",
+        "securityFullTypeCode": "3903",
+        "securityTypeDesc": null
+      },
+      {
+        "securityMainTypeCode": "39",
+        "securityMainTypeDesc": "PUT COV.WARRANT-BOND",
+        "securityFullTypeCode": "3904",
+        "securityTypeDesc": null
+      },
+      {
+        "securityMainTypeCode": "40",
+        "securityMainTypeDesc": "ETN",
+        "securityFullTypeCode": "4001",
+        "securityTypeDesc": "Certificate Deposit NIS"
+      },
+      {
+        "securityMainTypeCode": "40",
+        "securityMainTypeDesc": "ETN",
+        "securityFullTypeCode": "4002",
+        "securityTypeDesc": "Certifica Deposit Foreign"
+      },
+      {
+        "securityMainTypeCode": "41",
+        "securityMainTypeDesc": "HIGH TECH FUND",
+        "securityFullTypeCode": "4101",
+        "securityTypeDesc": "High Tech Fund"
+      },
+      {
+        "securityMainTypeCode": "42",
+        "securityMainTypeDesc": "ETF (stock market)",
+        "securityFullTypeCode": "4201",
+        "securityTypeDesc": "ETF (stock market)"
+      },
+      {
+        "securityMainTypeCode": "43",
+        "securityMainTypeDesc": "ETF (bond market)",
+        "securityFullTypeCode": "4301",
+        "securityTypeDesc": "ETF (bond market)"
+      },
+      {
+        "securityMainTypeCode": "44",
+        "securityMainTypeDesc": "FOREIGN FUND EQUITY",
+        "securityFullTypeCode": "4401",
+        "securityTypeDesc": "Trade foreign fund Equity"
+      },
+      {
+        "securityMainTypeCode": "45",
+        "securityMainTypeDesc": "FOREIGN FUND BONDS",
+        "securityFullTypeCode": "4501",
+        "securityTypeDesc": "Traded foreign fund Bonds"
+      },
+      {
+        "securityMainTypeCode": "46",
+        "securityMainTypeDesc": "INVESTMENT FUND",
+        "securityFullTypeCode": "4601",
+        "securityTypeDesc": "Private Fund Subscription"
+      },
+      {
+        "securityMainTypeCode": "46",
+        "securityMainTypeDesc": "INVESTMENT FUND",
+        "securityFullTypeCode": "4602",
+        "securityTypeDesc": "Private Fund Series"
+      },
+      {
+        "securityMainTypeCode": "46",
+        "securityMainTypeDesc": "INVESTMENT FUND",
+        "securityFullTypeCode": "4603",
+        "securityTypeDesc": "Hedge Fund Subscription"
+      },
+      {
+        "securityMainTypeCode": "46",
+        "securityMainTypeDesc": "INVESTMENT FUND",
+        "securityFullTypeCode": "4604",
+        "securityTypeDesc": "Hedge Fund Series"
+      },
+      {
+        "securityMainTypeCode": "46",
+        "securityMainTypeDesc": "INVESTMENT FUND",
+        "securityFullTypeCode": "4605",
+        "securityTypeDesc": "Fix Date M.Fund Sb"
+      },
+      {
+        "securityMainTypeCode": "46",
+        "securityMainTypeDesc": "INVESTMENT FUND",
+        "securityFullTypeCode": "4606",
+        "securityTypeDesc": "Fix Date M.Fund Rd"
+      },
+      {
+        "securityMainTypeCode": "90",
+        "securityMainTypeDesc": "ISSUANCE ID",
+        "securityFullTypeCode": "9001",
+        "securityTypeDesc": "Issuance Identification"
+      }
+    ],
+    "total": 240
+  }
+}

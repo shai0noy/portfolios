@@ -3,28 +3,34 @@ import { tickerDataCache, CACHE_TTL } from './utils/cache';
 import { fetchXml, parseXmlString } from './utils/xml_parser';
 import type { TickerData } from './types';
 
-export async function fetchGlobesStockQuote(ticker: string, exchange: string, signal?: AbortSignal): Promise<TickerData | null> {
+export async function fetchGlobesStockQuote(symbol: string, securityId: number | undefined, exchange: string, signal?: AbortSignal): Promise<TickerData | null> {
+  exchange = exchange.toLowerCase();
+  if (exchange === 'tase' && !securityId) {
+    console.warn(`fetchGlobesStockQuote: TASE requires a numeric security ID.`);
+  }
+
   const now = Date.now();
-  const cacheKey = `globes:${exchange}:${ticker}`;
+  const identifier = (exchange === 'tase' && securityId) ? securityId.toString() : symbol.toUpperCase();
+  const cacheKey = `globes:${exchange}:${identifier}`;
 
   const cached = tickerDataCache.get(cacheKey);
   if (cached && now - cached.timestamp < CACHE_TTL) {
     return cached.data;
   }
 
-  const globesApiUrl = `https://portfolios.noy-shai.workers.dev/?apiId=globes_data&exchange=${exchange}&ticker=${ticker}`;
+  const globesApiUrl = `https://portfolios.noy-shai.workers.dev/?apiId=globes_data&exchange=${exchange}&ticker=${identifier}`;
   let text;
   try {
-     text = await fetchXml(globesApiUrl, signal);
+    text = await fetchXml(globesApiUrl, signal);
   } catch (e: unknown) {
-     return null;
+    return null;
   }
 
   try {
     const xmlDoc = parseXmlString(text);
     const instrument = xmlDoc.querySelector('Instrument');
     if (!instrument) {
-      console.log(`Globes: No instrument found for ${ticker}`);
+      console.log(`Globes: No instrument found for ${identifier}`);
       return null;
     }
 
@@ -83,11 +89,11 @@ export async function fetchGlobesStockQuote(ticker: string, exchange: string, si
       changePct5y: 0,
       changePct10y: 0,
     };
-    
+
     tickerDataCache.set(cacheKey, { data: tickerData, timestamp: now });
     return tickerData;
   } catch (error) {
-    console.error(`Failed to parse ticker data for ${ticker}:`, error);
+    console.error(`Failed to parse ticker data for ${identifier}:`, error);
     return null;
   }
 }

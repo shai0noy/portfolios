@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   TextField, Grid, Typography, CircularProgress, MenuItem, Select, FormControl, InputLabel,
   List, ListItemButton, ListItemText, Paper, Box, Divider, Chip, Tooltip
@@ -9,8 +9,8 @@ import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
 
 interface TickerSearchProps {
   onTickerSelect: (ticker: TickerData & { symbol: string }) => void;
-  initialTicker?: string;
-  initialExchange?: string;
+  prefilledTicker?: string;
+  prefilledExchange?: string;
   portfolios: Portfolio[];
   isPortfoliosLoading: boolean;
 }
@@ -32,23 +32,95 @@ function useDebounce(value: string, delay: number) {
   return debouncedValue;
 }
 
-interface SearchOption {
+interface SearchResult {
   symbol: string;
+  numericSecurityId?: number; // TASE specific
   name: string;
   exchange: string;
   type?: string;
-  instrumentId?: string; // TASE specific
+  globesInstrumentId?: string; // TASE specific
   rawTicker?: TaseTicker | TickerData;
   ownedInPortfolios?: string[];
 }
 
-export function TickerSearch({ onTickerSelect, initialTicker, initialExchange, portfolios, isPortfoliosLoading }: TickerSearchProps) {
+function getOwnedInPortfolios(symbol: string, portfolios: Portfolio[]) {
+  if (!portfolios || portfolios.length === 0) return undefined;
+  const owningPortfolios = portfolios.filter(p =>
+    p.holdings && p.holdings.some(h => h.ticker === symbol)
+  );
+  return owningPortfolios.length > 0 ? owningPortfolios.map(p => p.name) : undefined;
+}
+
+function processTaseResult(t: TaseTicker, instrumentType: string, portfolios: Portfolio[]): SearchResult {
+  return {
+    symbol: t.symbol,
+    numericSecurityId: t.securityId,
+    name: t.name_en,
+    exchange: 'TASE',
+    type: instrumentType,
+    globesInstrumentId: t.globesInstrumentId,
+    rawTicker: t,
+    ownedInPortfolios: getOwnedInPortfolios(t.symbol, portfolios),
+  };
+}
+
+function searchTaseType(
+  tickers: TaseTicker[],
+  instrumentType: string,
+  termUC: string,
+  portfolios: Portfolio[]
+): SearchResult[] {
+  return tickers.filter(item =>
+  (item.symbol.toUpperCase().includes(termUC) || item.securityId.toString() === termUC ||
+    item.name_en.toUpperCase().includes(termUC) ||
+    item.name_he.toUpperCase().includes(termUC))
+  ).map(t => processTaseResult(t, instrumentType, portfolios));
+}
+
+async function performSearch(
+  searchTerm: string,
+  exchange: string,
+  taseDataset: Record<string, TaseTicker[]>,
+  portfolios: Portfolio[]
+): Promise<SearchResult[]> {
+  const termUC = searchTerm.toUpperCase();
+  let results: SearchResult[] = [];
+  const isNumeric = /^[0-9]+$/.test(termUC);
+
+  if (exchange === 'TASE' || exchange === 'ALL') {
+    Object.entries(taseDataset).forEach(([type, tickers]) => {
+      results = results.concat(searchTaseType(tickers, type, termUC, portfolios));
+    });
+  }
+  // TODO - impl a cached data set for lookup of non-TASE exchanges, use globes as source
+  if (!isNumeric && (exchange === 'NASDAQ' || exchange === 'NYSE' || exchange === 'ALL')) {
+    const data = await getTickerData(termUC, exchange);
+    if (data) {
+      results.push({
+        symbol: termUC,
+        numericSecurityId: undefined, // Non-TASE tickers don't have numericSecurityId
+        name: data.name || searchTerm,
+        exchange: data.exchange || 'Unknown',
+        rawTicker: data,
+        ownedInPortfolios: getOwnedInPortfolios(termUC, portfolios),
+      });
+    }
+  }
+
+  return results.reduce((acc, current) => {
+    const existing = acc.find(item => item.symbol === current.symbol && item.exchange === current.exchange);
+    if (!existing) acc.push(current);
+    return acc;
+  }, [] as SearchResult[]);
+}
+
+export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchange, portfolios, isPortfoliosLoading }: TickerSearchProps) {
   const [taseDataset, setTaseDataset] = useState<Record<string, TaseTicker[]>>({});
   const [isTaseDatasetLoading, setIsTaseDatasetLoading] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
-  const [inputValue, setInputValue] = useState(initialTicker || '');
-  const [options, setOptions] = useState<SearchOption[]>([]);
-  const [selectedExchange, setSelectedExchange] = useState(initialExchange || 'ALL');
+  const [inputValue, setInputValue] = useState(prefilledTicker || '');
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [selectedExchange, setSelectedExchange] = useState(prefilledExchange || 'ALL');
   const [selectedType, setSelectedType] = useState('ALL');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,121 +129,37 @@ export function TickerSearch({ onTickerSelect, initialTicker, initialExchange, p
 
   useEffect(() => {
     if (isFocused && Object.keys(taseDataset).length === 0) {
-        setIsTaseDatasetLoading(true);
-        getTaseTickersDataset().then(data => {
-            setTaseDataset(data);
-            setIsTaseDatasetLoading(false);
-        });
+      setIsTaseDatasetLoading(true);
+      getTaseTickersDataset().then(data => {
+        setTaseDataset(data);
+        setIsTaseDatasetLoading(false);
+      });
     }
   }, [isFocused, taseDataset]);
 
-  const getOwnedInPortfolios = useCallback((symbol: string) => {
-    if (!portfolios || portfolios.length === 0) return undefined;
-    const owningPortfolios = portfolios.filter(p => 
-      p.holdings && p.holdings.some(h => h.ticker === symbol)
-    );
-    return owningPortfolios.length > 0 ? owningPortfolios.map(p => p.name) : undefined;
-  }, [portfolios]);
-
-  const searchTickers = useCallback(async (searchTerm: string, exchange: string) => {
-    if (!searchTerm) {
-      setOptions([]);
-      return;
-    }
-    setIsLoading(true);
-    setError(null);
-
-    const term = searchTerm.toUpperCase();
-
-    try {
-      let results: SearchOption[] = [];
-      const isNumeric = /^[0-9]+$/.test(term);
-
-      const processTaseResult = (t: TaseTicker, instrumentType: string): SearchOption => ({
-        symbol: t.symbol,
-        name: t.name_en,
-        exchange: 'TASE',
-        type: instrumentType,
-        instrumentId: t.instrumentId,
-        rawTicker: t,
-        ownedInPortfolios: getOwnedInPortfolios(t.symbol),
-      });
-
-      const searchTaseType = (tickers: TaseTicker[], instrumentType: string) => {
-        if (!Array.isArray(tickers)) {
-          console.warn(`Tase tickers for type ${instrumentType} is not an array:`, tickers);
-          return [];
-        }
-        return tickers.filter(item =>
-          (item.symbol.toUpperCase().includes(term) ||
-          item.name_en.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          item.name_he.includes(searchTerm))
-        ).map(t => processTaseResult(t, instrumentType));
-      };
-
-      if (exchange === 'TASE') {
-        Object.entries(taseDataset).forEach(([type, tickers]) => {
-          results = results.concat(searchTaseType(tickers, type));
-        });
-      } else if (exchange === 'NASDAQ' || exchange === 'NYSE') {
-        const data = await getTickerData(term, exchange);
-        if (data) {
-          results.push({
-            symbol: term,
-            name: data.name || term,
-            exchange: data.exchange || exchange,
-            rawTicker: data,
-            ownedInPortfolios: getOwnedInPortfolios(term),
-          });
-        }
-      } else { // ALL Exchanges
-        Object.entries(taseDataset).forEach(([type, tickers]) => {
-          results = results.concat(searchTaseType(tickers, type));
-        });
-
-        if (!isNumeric) {
-          const data = await getTickerData(term, undefined);
-          if (data) {
-            const nonTaseResult: SearchOption = {
-              symbol: term,
-              name: data.name || term,
-              exchange: data.exchange || 'Unknown',
-              rawTicker: data,
-              ownedInPortfolios: getOwnedInPortfolios(term),
-            };
-            if (!results.some(r => r.symbol === nonTaseResult.symbol && r.exchange === nonTaseResult.exchange)) {
-              results.push(nonTaseResult);
-            }
-          }
-        }
-      }
-
-      const uniqueResults = results.reduce((acc, current) => {
-        const existing = acc.find(item => item.symbol === current.symbol && item.exchange === current.exchange);
-        if (!existing) acc.push(current);
-        return acc;
-      }, [] as SearchOption[]);
-
-      setOptions(uniqueResults);
-    } catch (err) {
-      console.error('Error searching tickers:', err);
-      setError('Failed to search tickers.');
-      setOptions([]);
-    }
-
-    setIsLoading(false);
-  }, [taseDataset, getOwnedInPortfolios]);
-
   useEffect(() => {
     if (isFocused && !isPortfoliosLoading && !isTaseDatasetLoading) {
-      searchTickers(debouncedInput, selectedExchange);
+      if (!debouncedInput) {
+        setSearchResults([]);
+        return;
+      }
+      setIsLoading(true);
+      setError(null);
+      performSearch(debouncedInput, selectedExchange, taseDataset, portfolios)
+        .then(setSearchResults)
+        .catch(err => {
+          console.error('Error searching tickers:', err);
+          setError('Failed to search tickers.');
+          setSearchResults([]);
+        })
+        .finally(() => setIsLoading(false));
     }
-  }, [debouncedInput, selectedExchange, searchTickers, isPortfoliosLoading, isTaseDatasetLoading, isFocused]);
+  }, [debouncedInput, selectedExchange, isPortfoliosLoading, isTaseDatasetLoading, isFocused, taseDataset, portfolios]);
 
-  const filteredOptions = useMemo(() => {
-    const filtered = options.filter(option => selectedType === 'ALL' || option.type === selectedType);
+  const filteredResults = useMemo(() => {
+    const filtered = selectedType === 'ALL' ? searchResults : searchResults.filter(opt => opt.type === selectedType);
     return filtered.slice(0, 50);
-  }, [options, selectedType]);
+  }, [searchResults, selectedType]);
 
   const typeFilterOptions = useMemo(() => {
     return Object.entries(DEFAULT_TASE_TYPE_CONFIG)
@@ -179,19 +167,19 @@ export function TickerSearch({ onTickerSelect, initialTicker, initialExchange, p
       .map(([key, { displayName }]) => ({ key, displayName }));
   }, []);
 
-  const handleOptionSelect = async (option: SearchOption) => {
-    if (option.rawTicker && 'price' in option.rawTicker) {
-      onTickerSelect({ ...option.rawTicker, symbol: option.symbol, exchange: option.exchange });
+  const handleOptionSelect = async (result: SearchResult) => {
+    if (result.rawTicker && 'price' in result.rawTicker) {
+      onTickerSelect({ ...result.rawTicker, symbol: result.symbol, exchange: result.exchange });
     } else {
       setIsLoading(true);
-      const data = await getTickerData(option.symbol, option.exchange);
+      const data = await getTickerData(result.symbol, result.exchange);
       setIsLoading(false);
       if (data) {
-        onTickerSelect({ ...data, symbol: option.symbol, exchange: option.exchange });
+        onTickerSelect({ ...data, symbol: result.symbol, exchange: result.exchange });
       }
     }
-    setOptions([]); 
-    setInputValue(option.symbol);
+    setSearchResults([]);
+    setInputValue(result.symbol);
   };
 
   return (
@@ -248,18 +236,19 @@ export function TickerSearch({ onTickerSelect, initialTicker, initialExchange, p
         {error && <Grid item xs={12}><Typography color="error">{error}</Typography></Grid>}
       </Grid>
 
-      {(filteredOptions.length > 0) && (
+      {(filteredResults.length > 0) && (
         <Paper elevation={2} sx={{ maxHeight: 300, overflowY: 'auto', my: 1 }}>
           <List dense>
-            {filteredOptions.map((option, index) => (
-              <Box key={option.instrumentId || `${option.symbol}-${option.exchange}`}>
+            {filteredResults.map((option, index) => (
+              <Box key={`${option.exchange}:${option.symbol}`}>
                 <ListItemButton onClick={() => handleOptionSelect(option)}>
                   <ListItemText
                     primary={<Typography variant="body1">{option.name}</Typography>}
                     secondaryTypographyProps={{ component: 'div' }} // Render secondary as div
                     secondary={
                       <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mt: 0.5 }}>
-                        <Chip label={`${option.exchange}:${option.symbol}`} size="small" variant="outlined" />
+                        <Chip
+                          label={`${option.exchange}:${option.symbol}${option.numericSecurityId ? ` (${option.numericSecurityId})` : ''}`} size="small" variant="outlined" />
                         {option.type && DEFAULT_TASE_TYPE_CONFIG[option.type] && <Chip label={DEFAULT_TASE_TYPE_CONFIG[option.type]?.displayName || option.type} size="small" color="primary" variant="outlined" />}
                         {option.ownedInPortfolios && (
                           <Tooltip title={`Owned in: ${option.ownedInPortfolios.join(', ')}`}>
@@ -270,7 +259,7 @@ export function TickerSearch({ onTickerSelect, initialTicker, initialExchange, p
                     }
                   />
                 </ListItemButton>
-                {index < filteredOptions.length - 1 && <Divider />}
+                {index < filteredResults.length - 1 && <Divider />}
               </Box>
             ))}
           </List>
