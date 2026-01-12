@@ -1,7 +1,7 @@
 const API_MAP = {
   "yahoo_hist": "https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=3mo&range=max&events=split,div",
   "globes_data": "https://www.globes.co.il/data/webservices/financial.asmx/getInstrument?exchange={exchange}&symbol={ticker}",
-  "globes_list": "https://www.globes.co.il/data/webservices/news.asmx/listByType?exchange={exchange}&type={type}",
+  "globes_list": "https://www.globes.co.il/data/webservices/financial.asmx/listByType?exchange={exchange}&type={type}",
   "globes_exchange_state": "https://www.globes.co.il/data/webservices/financial.asmx/ExchangeState?exchange={exchange}",
   "globes_get_exchanges": "https://www.globes.co.il/data/webservices/financial.asmx/getExchange",
   "globes_get_exchanges_details": "https://www.globes.co.il/data/webservices/financial.asmx/GetExchangesDetails",
