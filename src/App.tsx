@@ -6,10 +6,10 @@ import { PortfolioManager } from './components/PortfolioManager';
 import { Dashboard } from './components/Dashboard';
 import { ImportCSV } from './components/ImportCSV';
 import { TickerDetails } from './components/TickerDetails';
-import { ensureSchema, populateTestData, fetchTransactions, rebuildHoldingsSheet } from './lib/sheets/index';
+import { ensureSchema, populateTestData, fetchTransactions, rebuildHoldingsSheet, getMetadataValue, SHEET_STRUCTURE_VERSION_DATE } from './lib/sheets/index';
 import { initializeGapi, signOut, signIn } from './lib/google';
 import { SessionExpiredError } from './lib/errors';
-import { Box, AppBar, Toolbar, Typography, Container, Tabs, Tab, IconButton, Tooltip, CircularProgress, ThemeProvider, CssBaseline, Menu, MenuItem, Snackbar, Alert, ListItemIcon, ListItemText, Button, Modal } from '@mui/material';
+import { Box, AppBar, Toolbar, Typography, Container, Tabs, Tab, IconButton, Tooltip, CircularProgress, ThemeProvider, CssBaseline, Menu, MenuItem, Snackbar, Alert, ListItemIcon, ListItemText, Button, Modal, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions } from '@mui/material';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
@@ -45,6 +45,7 @@ function App() {
   const [mode, setMode] = useState<'light' | 'dark'>(() => (localStorage.getItem('themeMode') as 'light' | 'dark') || 'light');
   const [rebuilding, setRebuilding] = useState(false);
   const [sessionExpired, setSessionExpired] = useState(false);
+  const [schemaVersionMismatch, setSchemaVersionMismatch] = useState<'old' | 'new' | null>(null);
 
   const theme = useMemo(() => getTheme(mode), [mode]);
   const location = useLocation();
@@ -62,6 +63,33 @@ function App() {
     localStorage.setItem('themeMode', mode);
   }, [mode]);
 
+  useEffect(() => {
+    if (sheetId && googleReady) {
+      getMetadataValue(sheetId, 'schema_created').then(val => {
+         if (!val) {
+             setSchemaVersionMismatch('old');
+             return;
+         }
+         const sheetDate = new Date(val);
+         const codeDate = new Date(SHEET_STRUCTURE_VERSION_DATE);
+         
+         if (isNaN(sheetDate.getTime())) {
+             setSchemaVersionMismatch('old');
+             return;
+         }
+
+         sheetDate.setHours(0,0,0,0);
+         codeDate.setHours(0,0,0,0);
+
+         if (sheetDate < codeDate) {
+             setSchemaVersionMismatch('old');
+         } else if (sheetDate > codeDate) {
+             setSchemaVersionMismatch('new');
+         }
+      }).catch(e => console.warn("Failed to check schema version", e));
+    }
+  }, [sheetId, googleReady]);
+
   const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
     navigate(reverseTabMap[newValue]);
   };
@@ -77,7 +105,7 @@ function App() {
 
   const handleSetupSheet = async () => {
     if (!sheetId) return;
-    if (!confirm("This will reset sheet headers and rebuild all live data formulas. This can fix issues but is a heavy operation. Are you sure?")) return;
+    if (!schemaVersionMismatch && !confirm("This will reset sheet headers and rebuild all live data formulas. This can fix issues but is a heavy operation. Are you sure?")) return;
     
     setRebuilding(true);
     try {
@@ -85,10 +113,15 @@ function App() {
       await fetchTransactions(sheetId);
       await rebuildHoldingsSheet(sheetId);
       setRefreshKey(k => k + 1); // Refresh dashboard
-      alert("Sheet setup complete. Headers and live data have been rebuilt.");
+      setSchemaVersionMismatch(null); // Clear warning
+      setSnackbarMessage("Sheet setup complete. Headers and live data have been rebuilt.");
+      setSnackbarSeverity('success');
+      setSnackbarOpen(true);
     } catch (e) {
       console.error(e);
-      alert("Error during sheet setup: " + (e instanceof Error ? e.message : String(e)));
+      setSnackbarMessage("Error during sheet setup: " + (e instanceof Error ? e.message : String(e)));
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
     } finally {
       setRebuilding(false);
     }
@@ -100,6 +133,7 @@ function App() {
     try {
       await populateTestData(sheetId);
       setRefreshKey(k => k + 1);
+      setSchemaVersionMismatch(null);
       alert('Test data populated (if not already present).');
     } catch (e) {
       console.error(e);
@@ -443,6 +477,36 @@ function App() {
             <Button onClick={handleReconnect} variant="contained" sx={{ mt: 2 }}>Sign In</Button>
           </Box>
         </Modal>
+
+        {/* Schema Version Dialog */}
+        <Dialog open={!!schemaVersionMismatch} onClose={() => {}}>
+          <DialogTitle>Sheet Structure Update Required</DialogTitle>
+          <DialogContent>
+            {rebuilding ? (
+              <Box display="flex" flexDirection="column" alignItems="center" py={2}>
+                <CircularProgress size={40} sx={{ mb: 2 }} />
+                <DialogContentText align="center">
+                  Updating spreadsheet structure and formulas...<br/>
+                  Please wait, this may take a few moments.
+                </DialogContentText>
+              </Box>
+            ) : (
+              <DialogContentText>
+                {schemaVersionMismatch === 'old' 
+                  ? "Your Google Sheet structure is outdated. A new version of the application requires schema updates to function correctly."
+                  : "Your Google Sheet structure appears to be newer than this application version. This might cause issues."}
+                <br /><br />
+                {schemaVersionMismatch === 'old' && "Please perform a 'Setup Sheet' to upgrade the columns and formulas. This will rewrite headers and rebuild live data, but your transaction history is safe (unless columns were removed)."}
+              </DialogContentText>
+            )}
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setSchemaVersionMismatch(null)} color="primary" disabled={rebuilding}>Ignore (Risky)</Button>
+            <Button onClick={handleSetupSheet} variant="contained" color="primary" autoFocus disabled={rebuilding}>
+              {rebuilding ? "Updating..." : "Setup Sheet (Upgrade)"}
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Box>
     </ThemeProvider>
   );

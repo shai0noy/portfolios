@@ -134,6 +134,10 @@ export const METADATA_RANGE = METADATA_SHEET + '!A:B';
 export const HOLDINGS_SHEET = 'Holdings';
 export const HOLDINGS_RANGE = `${HOLDINGS_SHEET}!A2:${String.fromCharCode(65 + holdingsHeaders.length - 1)}`;
 
+// Manually update this date (YYYY-MM-DD) whenever the schema (columns, formulas) changes.
+// The app will verify if the sheet's last setup date is older than this.
+export const SHEET_STRUCTURE_VERSION_DATE = '2025-01-12';
+
 // --- Mappings from Sheet Headers to Typescript Object Keys ---
 
 export const portfolioMapping: Record<keyof Omit<Portfolio, 'holdings'>, typeof portfolioHeaders[number]> = {
