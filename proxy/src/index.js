@@ -6,16 +6,17 @@ const API_MAP = {
   "globes_get_exchanges": "https://www.globes.co.il/data/webservices/financial.asmx/getExchange",
   "globes_get_exchanges_details": "https://www.globes.co.il/data/webservices/financial.asmx/GetExchangesDetails",
   "cbs_price_index": "https://api.cbs.gov.il/index/data/price?id={id}&format=json&download=false&startPeriod={start}&endPeriod={end}",
-  "tase_list_stocks": "https://datawise.tase.co.il/v1/basic-securities/trade-securities-list/{yestarday_slash_format}",
+  "tase_list_stocks": "https://datawise.tase.co.il/v1/basic-securities/trade-securities-list/{raw:yestarday_slash_format}",
 };
 
 // Regex: English (a-z), Hebrew (א-ת), Numbers (0-9) and symbols: , . : - ^ and space
 function replacePlaceholder(urlString, key, value) {
-  const placeholder = `{${key}}`;
-  if (urlString.includes(placeholder)) {
-    return urlString.split(placeholder).join(encodeURIComponent(value));
-  }
-  return urlString;
+  // Use replaceAll for clarity and performance. It's supported in CF Workers.
+  // We can chain them because we assume `{key}` and `{raw:key}` won't overlap in a problematic way.
+  // We process raw placeholders first, then the encoded ones.
+  return urlString
+    .replaceAll(`{raw:${key}}`, value)
+    .replaceAll(`{${key}}`, encodeURIComponent(value));
 }
 
 const VALID_VALUE_REGEX = /^[a-zA-Z0-9\u05D0-\u05EA,.:\-^ ]+$/;
@@ -29,9 +30,16 @@ const corsHeaders = {
 export default {
   async fetch(request, env, ctx) {
     const defaults = {
-      // Yestarday date in YYYY/MM/DD format
-      yestarday_slash_format: new Date(new Date().getTime() - 24 * 60 * 60 * 1000)
-        .toISOString().split('T')[0].replace(/-/g, '/'),
+      // Provides the last active TASE trading day in YYYY/MM/DD format.
+      // TASE is closed on Saturday. 
+      yestarday_slash_format: (() => {
+        const today = new Date();
+        const dayOfWeek = today.getDay(); // Sunday = 0, ..., Saturday = 6
+        const daysToSubtract =  dayOfWeek === 0 ?2 : 1;
+        const targetDate = new Date();
+        targetDate.setDate(today.getDate() - daysToSubtract);
+        return targetDate.toISOString().split('T')[0].replace(/-/g, '/');
+      })(),
     };
 
     // Handle CORS preflight requests
