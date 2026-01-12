@@ -150,8 +150,22 @@ export const calculateHoldingDisplayValues = (h: DashboardHolding, displayCurren
     proceeds = convert(h.proceedsPortfolioCurrency, h.portfolioCurrency);
     dividends = convert(h.dividendsPortfolioCurrency, h.portfolioCurrency);
 
-    // Override for native views if available (better precision/alignment)
-    if (normDisplay === normStock && (h.costBasisStockCurrency > 0 || h.qtyVested + h.qtyUnvested > 0)) {
+    // Override for native views (USD/ILS) if available (better precision/alignment AND HISTORICAL ACCURACY)
+    if (normDisplay === Currency.USD) {
+        if (h.portfolioCurrency === Currency.USD || h.costBasisUSD !== 0 || h.proceedsUSD !== 0 || h.dividendsUSD !== 0) {
+            costBasis = h.costBasisUSD;
+            costOfSold = h.costOfSoldUSD;
+            proceeds = h.proceedsUSD;
+            dividends = h.dividendsUSD;
+        }
+    } else if (normDisplay === Currency.ILS) {
+        if (h.portfolioCurrency === Currency.ILS || h.costBasisILS !== 0 || h.proceedsILS !== 0 || h.dividendsILS !== 0) {
+            costBasis = h.costBasisILS;
+            costOfSold = h.costOfSoldILS;
+            proceeds = h.proceedsILS;
+            dividends = h.dividendsILS;
+        }
+    } else if (normDisplay === normStock && (h.costBasisStockCurrency > 0 || h.qtyVested + h.qtyUnvested > 0)) {
         costBasis = h.costBasisStockCurrency;
         costOfSold = h.costOfSoldStockCurrency;
         proceeds = h.proceedsStockCurrency;
@@ -174,6 +188,8 @@ export const calculateHoldingDisplayValues = (h: DashboardHolding, displayCurren
 
     return {
         costBasis,
+        costOfSold,
+        proceeds,
         marketValue,
         unrealizedGain, unrealizedGainPct,
         realizedGain, realizedGainPct, realizedGainAfterTax,

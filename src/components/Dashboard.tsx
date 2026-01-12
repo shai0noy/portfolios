@@ -167,7 +167,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         acc.aum += vals.marketValue;
         acc.totalUnrealizedDisplay += vals.unrealizedGain;
         acc.totalRealizedDisplay += vals.realizedGain;
-        acc.totalCostOfSoldDisplay += convertCurrency(h.costOfSoldPortfolioCurrency, h.portfolioCurrency, displayCurrency, exchangeRates); // Fallback for raw cost
+        acc.totalCostOfSoldDisplay += vals.costOfSold;
         acc.totalDividendsDisplay += vals.dividends;
         acc.totalReturnDisplay += vals.totalGain;
 
@@ -346,6 +346,11 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
             costOfSoldStockCurrency: 0,
             proceedsStockCurrency: 0,
             dividendsStockCurrency: 0,
+            
+            // Historical Accumulators
+            costBasisUSD: 0, costOfSoldUSD: 0, proceedsUSD: 0, dividendsUSD: 0, realizedGainUSD: 0,
+            costBasisILS: 0, costOfSoldILS: 0, proceedsILS: 0, dividendsILS: 0, realizedGainILS: 0,
+
             // Initialize display fields
             avgCost: 0, mvVested: 0, mvUnvested: 0, totalMV: 0, realizedGain: 0, realizedGainPct: 0, realizedGainAfterTax: 0, dividends: 0, unrealizedGain: 0, unrealizedGainPct: 0, totalGain: 0, totalGainPct: 0, valueAfterTax: 0, dayChangeVal: 0,
             sector: live?.sector || '',
@@ -360,23 +365,33 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         // Determine Original Price in Portfolio Currency (Major Unit)
         let originalPricePortfolioCurrency = 0;
         
+        const priceInUSD = (t as any).Original_Price_USD || 0;
+        const priceInAgorot = (t as any).Original_Price_ILAG || 0;
+        const priceInILS = fromAgorot(priceInAgorot);
+
         if (portfolioCurrency === Currency.ILS) {
              // If Portfolio is ILS, use Original_Price_ILAG (in Agorot) and convert to ILS Major Unit
-             const priceInAgorot = logIfFalsy((t as any).Original_Price_ILAG, `Original_Price_ILAG missing for ${t.ticker}`, t) || 0;
-             originalPricePortfolioCurrency = fromAgorot(priceInAgorot);
+             logIfFalsy((t as any).Original_Price_ILAG, `Original_Price_ILAG missing for ${t.ticker}`, t);
+             originalPricePortfolioCurrency = priceInILS;
         } else {
              // Otherwise use USD value and convert to Portfolio Currency if needed
-             const priceInUSD = logIfFalsy((t as any).Original_Price_USD, `Original_Price_USD missing for ${t.ticker}`, t) || 0;
+             logIfFalsy((t as any).Original_Price_USD, `Original_Price_USD missing for ${t.ticker}`, t);
              originalPricePortfolioCurrency = convertCurrency(priceInUSD, Currency.USD, portfolioCurrency, exchangeRates);
         }
 
         const txnValuePortfolioCurrency = t.qty * originalPricePortfolioCurrency;
         const txnValueStockCurrency = t.qty * (t.price || 0);
+        const txnValueUSD = t.qty * priceInUSD;
+        const txnValueILS = t.qty * priceInILS;
 
         if (t.type === 'BUY') {
             if (isVested) h.qtyVested += t.qty; else h.qtyUnvested += t.qty;
             h.costBasisPortfolioCurrency += txnValuePortfolioCurrency; // NO commission included in basis? User didn't specify. Assuming raw price.
             h.costBasisStockCurrency += txnValueStockCurrency;
+            
+            h.costBasisUSD += txnValueUSD;
+            h.costBasisILS += txnValueILS;
+
         } else if (t.type === 'SELL') {
             const totalQtyPreSell = h.qtyVested + h.qtyUnvested;
             // Calculate avg cost PER SHARE in Portfolio Currency BEFORE this sale
@@ -386,6 +401,12 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
             const avgCostSC = totalQtyPreSell > 1e-9 ? h.costBasisStockCurrency / totalQtyPreSell : 0;
             const costOfSoldSC = avgCostSC * t.qty;
 
+            const avgCostUSD = totalQtyPreSell > 1e-9 ? h.costBasisUSD / totalQtyPreSell : 0;
+            const costOfSoldUSD = avgCostUSD * t.qty;
+
+            const avgCostILS = totalQtyPreSell > 1e-9 ? h.costBasisILS / totalQtyPreSell : 0;
+            const costOfSoldILS = avgCostILS * t.qty;
+
             h.costOfSoldPortfolioCurrency += costOfSoldPC;
             h.proceedsPortfolioCurrency += txnValuePortfolioCurrency; 
             h.costBasisPortfolioCurrency -= costOfSoldPC;
@@ -394,8 +415,18 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
             h.proceedsStockCurrency += txnValueStockCurrency;
             h.costBasisStockCurrency -= costOfSoldSC;
             
+            h.costOfSoldUSD += costOfSoldUSD;
+            h.proceedsUSD += txnValueUSD;
+            h.costBasisUSD -= costOfSoldUSD;
+
+            h.costOfSoldILS += costOfSoldILS;
+            h.proceedsILS += txnValueILS;
+            h.costBasisILS -= costOfSoldILS;
+
             if (Math.abs(h.costBasisPortfolioCurrency) < 1e-6) h.costBasisPortfolioCurrency = 0;
             if (Math.abs(h.costBasisStockCurrency) < 1e-6) h.costBasisStockCurrency = 0;
+            if (Math.abs(h.costBasisUSD) < 1e-6) h.costBasisUSD = 0;
+            if (Math.abs(h.costBasisILS) < 1e-6) h.costBasisILS = 0;
 
             // Reduce quantity
             let qtyToSell = t.qty;
@@ -414,6 +445,12 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
             
             const taxAmountSC = txnValueStockCurrency * (t.tax || 0);
             h.dividendsStockCurrency += txnValueStockCurrency - taxAmountSC;
+
+            const taxAmountUSD = txnValueUSD * (t.tax || 0);
+            h.dividendsUSD += txnValueUSD - taxAmountUSD;
+
+            const taxAmountILS = txnValueILS * (t.tax || 0);
+            h.dividendsILS += txnValueILS - taxAmountILS;
         }
       });
         
@@ -430,6 +467,10 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         h.marketValuePortfolioCurrency = h.totalQty * currentPricePC;
                 h.unrealizedGainPortfolioCurrency = h.marketValuePortfolioCurrency - h.costBasisPortfolioCurrency;
                 h.realizedGainPortfolioCurrency = h.proceedsPortfolioCurrency - h.costOfSoldPortfolioCurrency;
+                
+                h.realizedGainUSD = h.proceedsUSD - h.costOfSoldUSD;
+                h.realizedGainILS = h.proceedsILS - h.costOfSoldILS;
+
                 h.totalGainPortfolioCurrency = h.unrealizedGainPortfolioCurrency + h.realizedGainPortfolioCurrency + h.dividendsPortfolioCurrency;
                         h.dayChangeValuePortfolioCurrency = h.marketValuePortfolioCurrency * h.dayChangePct;
                 

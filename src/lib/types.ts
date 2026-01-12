@@ -46,6 +46,19 @@ export interface DashboardHolding {
   proceedsStockCurrency: number;
   dividendsStockCurrency: number;
 
+  // Historical Accumulators (USD & ILS)
+  costBasisUSD: number;
+  costOfSoldUSD: number;
+  proceedsUSD: number;
+  dividendsUSD: number;
+  realizedGainUSD: number;
+
+  costBasisILS: number;
+  costOfSoldILS: number;
+  proceedsILS: number;
+  dividendsILS: number;
+  realizedGainILS: number;
+
   // Display fields
   avgCost: number; 
   mvVested: number; 

@@ -24,7 +24,7 @@ DONE: All yahoo calls shold use https://portfolios.noy-shai.workers.dev/?apiId=y
 In import CSV, if the date format in the file is unclear, allow the user to choose it (clear ones are dd-mm-yyyy, yyyy-mm-dd, yyyymmdd, unclear onces are e.g. 2024/1/1/ and 1/1/2024) All types should be supported 
 When changing fields in "Add portfolio", it is very slow and laggy. Need a way to verify faster/with less laf (but on edit, not on focus loss)
 Refine set of defaults columns shown
-All currency code should be strongly typed, minimize code that uses string as currency in favor of an enum
+DONE: All currency code should be strongly typed, minimize code that uses string as currency in favor of an enum
 HOLD: Handle Reit taxing
 
 DONE:
