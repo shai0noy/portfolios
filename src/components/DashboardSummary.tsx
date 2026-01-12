@@ -1,5 +1,5 @@
-import { Box, Paper, Typography, Grid, Tooltip, IconButton, Select, MenuItem, FormControl, InputLabel } from '@mui/material';
-import { convertCurrency, formatCurrency } from '../lib/currency';
+import { Box, Paper, Typography, Grid, Tooltip, Button, Select, MenuItem } from '@mui/material';
+import { formatCurrency } from '../lib/currency';
 import { logIfFalsy } from '../lib/utils';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
@@ -8,7 +8,9 @@ interface SummaryProps {
   summary: {
     aum: number;
     totalUnrealized: number;
+    totalUnrealizedGainPct: number;
     totalRealized: number;
+    totalRealizedGainPct: number;
     totalCostOfSold: number;
     totalDividends: number;
     totalReturn: number;
@@ -40,60 +42,80 @@ interface SummaryProps {
   onCurrencyChange: (currency: string) => void;
 }
 
-export function DashboardSummary({ summary, displayCurrency, exchangeRates, onBack, onCurrencyChange, selectedPortfolio }: SummaryProps) {
-  logIfFalsy(exchangeRates, "DashboardSummary: exchangeRates missing");
+const formatPct = (n: number) => (n * 100).toFixed(2) + '%';
+
+interface StatProps {
+  label: string;
+  value: number;
+  pct?: number;
+  color?: string;
+  tooltip?: string;
+  isMain?: boolean;
+  size?: 'normal' | 'small';
+  displayCurrency: string;
+}
+
+const Stat = ({ label, value, pct, color, tooltip, isMain = false, size = 'normal', displayCurrency }: StatProps) => {
+  const isSmall = size === 'small';
   
-  const formatMoney = (n: number, currency: string, decimals = 0) => {
-    const val = n.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
-    if (currency === 'USD') return `$${val}`;
-    if (currency === 'ILS') return `₪${val}`;
-    if (currency === 'EUR') return `€${val}`;
-    return `${val} ${currency}`;
-  };
+  return (
+      <Box textAlign="left" minWidth={isSmall ? 'auto' : 120}>
+          <Box display="flex" alignItems="center">
+              <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', fontSize: isSmall ? '0.7rem' : '0.75rem' }}>{label}</Typography>
+              {tooltip && (
+                  <Tooltip title={tooltip}>
+                      <InfoOutlinedIcon sx={{ fontSize: '0.9rem', ml: 0.5, color: 'text.secondary' }} />
+                  </Tooltip>
+              )}
+          </Box>
+          <Typography 
+              variant={isMain ? "h4" : (isSmall ? "body2" : "h6")} 
+              fontWeight={isMain ? "bold" : "medium"} 
+              color={color || 'text.primary'}
+              lineHeight={isSmall ? 1.2 : undefined}
+          >
+              {formatCurrency(value, displayCurrency, isMain ? 0 : 2)}
+          </Typography>
+          {(pct !== undefined && !isNaN(pct)) && (
+              <Typography 
+                  variant="caption" 
+                  color={color || 'text.secondary'} 
+                  sx={{ opacity: color ? 1 : 0.7, fontSize: isSmall ? '0.7rem' : '0.75rem' }}
+              >
+                  {pct > 0 ? '+' : ''}{formatPct(pct)}
+              </Typography>
+          )}
+      </Box>
+  );
+};
 
-  const formatPct = (n: number) => (n * 100).toFixed(2) + '%';
+interface PerfStatProps {
+  label: string;
+  percentage: number;
+  isIncomplete: boolean;
+  aum: number;
+  displayCurrency: string;
+  size?: 'normal' | 'small';
+}
 
-  const Stat = ({ label, value, pct, color, tooltip, isMain = false }: { label: string, value: number, pct?: number, color?: string, tooltip?: string, isMain?: boolean }) => {
-    return (
-        <Box textAlign="left" minWidth={120}>
-            <Box display="flex" alignItems="center">
-                <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase' }}>{label}</Typography>
-                {tooltip && (
-                    <Tooltip title={tooltip}>
-                        <InfoOutlinedIcon sx={{ fontSize: '1rem', ml: 0.5, color: 'text.secondary' }} />
-                    </Tooltip>
-                )}
-            </Box>
-            <Typography variant={isMain ? "h4" : "h6"} fontWeight={isMain ? "bold" : "medium"} color={color || 'text.primary'}>
-                {formatCurrency(value, displayCurrency)}
-            </Typography>
-            {(pct !== undefined && !isNaN(pct)) && (
-                <Typography variant="caption" color={color || 'text.secondary'} sx={{ opacity: color ? 1 : 0.7 }}>
-                    ({formatPct(pct)})
-                </Typography>
-            )}
-        </Box>
-    );
-  };
-
-  const PerfStat = ({ label, percentage, isIncomplete }: { label: string, percentage: number, isIncomplete: boolean }) => {
-    if (percentage === 0 || isNaN(percentage)) {
-        return <Stat label={label} value={0} pct={0} />;
-    }
-
-    const currentAUM = summary.aum;
-    // Calculate the previous value in the display currency
-    const previousAUM = currentAUM / (1 + percentage);
-    const absoluteChange = currentAUM - previousAUM;
-    const color = percentage >= 0 ? 'success.main' : 'error.main';
-    
-    return <Stat label={label} value={absoluteChange} pct={percentage} color={color} tooltip={isIncomplete ? "Calculation is based on partial data." : undefined} />;
+const PerfStat = ({ label, percentage, isIncomplete, aum, displayCurrency, size = 'normal' }: PerfStatProps) => {
+  if (percentage === 0 || isNaN(percentage)) {
+      return <Stat label={label} value={0} pct={0} displayCurrency={displayCurrency} size={size} />;
   }
 
+  const previousAUM = aum / (1 + percentage);
+  const absoluteChange = aum - previousAUM;
+  const color = percentage >= 0 ? 'success.main' : 'error.main';
+  
+  return <Stat label={label} value={absoluteChange} pct={percentage} color={color} tooltip={isIncomplete ? "Calculation is based on partial data." : undefined} displayCurrency={displayCurrency} size={size} />;
+}
+
+export function DashboardSummary({ summary, displayCurrency, exchangeRates, onBack, onCurrencyChange, selectedPortfolio }: SummaryProps) {
+  logIfFalsy(exchangeRates, "DashboardSummary: exchangeRates missing");
 
   return (
     <Paper variant="outlined" sx={{ p: 3, mb: 4 }}>
-      <Grid container spacing={4} alignItems="center">
+      <Grid container spacing={2} alignItems="center">
         <Grid item xs={12} md={3}>
           {selectedPortfolio ? (
             <>
@@ -111,49 +133,61 @@ export function DashboardSummary({ summary, displayCurrency, exchangeRates, onBa
           ) : (
             <Typography variant="subtitle2" color="text.secondary">TOTAL AUM</Typography>
           )}
-          <Typography variant="h4" fontWeight="bold" color="primary">{formatMoney(summary.aum, displayCurrency)}</Typography>
+          <Typography variant="h4" fontWeight="bold" color="primary">{formatCurrency(summary.aum, displayCurrency, 0)}</Typography>
         </Grid>
         <Grid item xs={12} md={9}>
-          <Box display="flex" gap={4} justifyContent="flex-end" alignItems="center" flexWrap="wrap">
-            <Stat 
-                label="Value After Tax"
-                value={summary.valueAfterTax}
-                pct={summary.aum > 0 ? summary.valueAfterTax / summary.aum : undefined}
-            />
-            <Stat 
-                label="Unrealized Gain"
-                value={summary.totalUnrealized}
-                pct={summary.totalUnrealizedGainPct}
-                color={summary.totalUnrealized >= 0 ? 'success.main' : 'error.main'}
-            />
-            <Stat 
-                label="Realized Gain"
-                value={summary.totalRealized}
-                pct={summary.totalRealizedGainPct}
-                color={summary.totalRealized >= 0 ? 'success.main' : 'error.main'}
-            />
-            <Stat
-                label="Day Change"
-                value={summary.totalDayChange}
-                pct={summary.totalDayChangePct}
-                color={summary.totalDayChange >= 0 ? 'success.main' : 'error.main'}
-                tooltip={summary.totalDayChangeIsIncomplete ? "Calculation is based on partial data." : undefined}
-            />
-            
-            <PerfStat label="1W" percentage={summary.perf1w} isIncomplete={summary.perf1w_incomplete} />
-            <PerfStat label="1M" percentage={summary.perf1m} isIncomplete={summary.perf1m_incomplete} />
-            <PerfStat label="3M" percentage={summary.perf3m} isIncomplete={summary.perf3m_incomplete} />
-            <PerfStat label="YTD" percentage={summary.perfYtd} isIncomplete={summary.perfYtd_incomplete} />
-            <PerfStat label="1Y" percentage={summary.perf1y} isIncomplete={summary.perf1y_incomplete} />
+          <Box display="flex" flexDirection="column" gap={2} alignItems="flex-end">
+              {/* Main Stats Row */}
+              <Box display="flex" gap={4} justifyContent="flex-end" alignItems="center" flexWrap="wrap">
+                <Stat 
+                    label="Value After Tax"
+                    value={summary.valueAfterTax}
+                    pct={summary.aum > 0 ? summary.valueAfterTax / summary.aum : undefined}
+                    displayCurrency={displayCurrency}
+                />
+                <Stat 
+                    label="Unrealized Gain"
+                    value={summary.totalUnrealized}
+                    pct={summary.totalUnrealizedGainPct}
+                    color={summary.totalUnrealized >= 0 ? 'success.main' : 'error.main'}
+                    displayCurrency={displayCurrency}
+                />
+                <Stat 
+                    label="Realized Gain"
+                    value={summary.totalRealized}
+                    pct={summary.totalRealizedGainPct}
+                    color={summary.totalRealized >= 0 ? 'success.main' : 'error.main'}
+                    displayCurrency={displayCurrency}
+                />
+                 <Select 
+                  value={displayCurrency} 
+                  onChange={(e) => onCurrencyChange(e.target.value)} 
+                  size="small" 
+                  sx={{ ml: 2 }}
+                >
+                  <MenuItem value="USD">🇺🇸 USD</MenuItem>
+                  <MenuItem value="ILS">🇮🇱 ILS</MenuItem>
+                </Select>
+              </Box>
 
-            <Select 
-              value={displayCurrency} 
-              onChange={(e) => onCurrencyChange(e.target.value)} 
-              size="small" 
-            >
-              <MenuItem value="USD">🇺🇸 USD</MenuItem>
-              <MenuItem value="ILS">🇮🇱 ILS</MenuItem>
-            </Select>
+              {/* Performance / Detail Row */}
+              <Box display="flex" gap={2} justifyContent="flex-end" alignItems="center" flexWrap="wrap">
+                 <Stat
+                    label="1D"
+                    value={summary.totalDayChange}
+                    pct={summary.totalDayChangePct}
+                    color={summary.totalDayChange >= 0 ? 'success.main' : 'error.main'}
+                    tooltip={summary.totalDayChangeIsIncomplete ? "Calculation is based on partial data." : undefined}
+                    displayCurrency={displayCurrency}
+                    size="small"
+                />
+                
+                <PerfStat label="1W" percentage={summary.perf1w} isIncomplete={summary.perf1w_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
+                <PerfStat label="1M" percentage={summary.perf1m} isIncomplete={summary.perf1m_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
+                <PerfStat label="3M" percentage={summary.perf3m} isIncomplete={summary.perf3m_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
+                <PerfStat label="YTD" percentage={summary.perfYtd} isIncomplete={summary.perfYtd_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
+                <PerfStat label="1Y" percentage={summary.perf1y} isIncomplete={summary.perf1y_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
+              </Box>
           </Box>
         </Grid>
       </Grid>

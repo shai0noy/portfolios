@@ -136,7 +136,7 @@ export const HOLDINGS_RANGE = `${HOLDINGS_SHEET}!A2:${String.fromCharCode(65 + h
 
 // Manually update this date (YYYY-MM-DD) whenever the schema (columns, formulas) changes.
 // The app will verify if the sheet's last setup date is older than this.
-export const SHEET_STRUCTURE_VERSION_DATE = '2025-01-12';
+export const SHEET_STRUCTURE_VERSION_DATE = '2026-01-12';
 
 // --- Mappings from Sheet Headers to Typescript Object Keys ---
 

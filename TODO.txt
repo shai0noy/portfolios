@@ -4,28 +4,20 @@ ON HOLD: Keep track of dividands since purchase! Add to sheet
 ON HOLD: Handle splits, etc, name changes
 ON HOLD: Support mobile screen sizes
 ON HOLD: Better ticker search - free text, multy options to select from
-Ticker view should show real divedand gains (%) for same ranges (currently UI Placeholders Added)
-Impl actual gain % values in header
 Pass forceRefresh to getTickerData to bypass cache
-There is web fetch logic in many fiels and components - should move them all to a single file handling fetching data.
 In the dashboard rows, IL stock prices show price in NIS annotated with "ag." price should be shown in agorot too
 In single ticker view mode, the base price is shown in NIS while the market proce is in agorot. Both should be in agorot
-The state/metadata/config sheet should have an entry for the last "live data" rebuild time
-Dashboard header - fields should have both percent and absolute change - e.g. value after tax should metnion the percentage left, period change fields should have both value and percent
 in the dashboard summary, all chahnges other than day chnage should have smaller font and be placed on a line below
 ON HOLD: Use Finhub or marketstack over yahoo if possible or in addition (will reuqire to guide use rto create API key and add it to spreadsheet as part of setup)
 ON HOLD: Dashbaord header - portfolio pct grow should take into account the the amount of stock and buy date etc
 ON HOLD: Dashbaord header - Add portfolio gain (value&pct) since date (1m,1y,3y,5y,all) taking into account revenue and add transactions since date
 TODO: Fix GOOGLEFINANCE formula for Split_Adj_Open_Price to fetch historical price on the transaction date, not current price.
-DONE: Portfolio list - should show a tax policy name not key
-DONE: New portfolio UI - auto populate ID based on name - verify name chars are valid Uppercase a-z and - only
 In add transaction - For tase sticks, the "total price" should be ILS,  but currently computed as agorot
-DONE: All yahoo calls shold use https://portfolios.noy-shai.workers.dev/?apiId=yahoo_hist&ticker=GOOG (replace GOOG, return val is the same) - without proxies
 In import CSV, if the date format in the file is unclear, allow the user to choose it (clear ones are dd-mm-yyyy, yyyy-mm-dd, yyyymmdd, unclear onces are e.g. 2024/1/1/ and 1/1/2024) All types should be supported 
 When changing fields in "Add portfolio", it is very slow and laggy. Need a way to verify faster/with less laf (but on edit, not on focus loss)
 Refine set of defaults columns shown
-DONE: All currency code should be strongly typed, minimize code that uses string as currency in favor of an enum
 HOLD: Handle Reit taxing
+Move currency selector to the line below to the right of the 1d/1w etc gain fields 
 
 DONE:
     Add column to Trasnactions "Source" - fill it only for imports with "Import_yyyymmdd_hhmm" 
@@ -40,13 +32,11 @@ DONE:
 
 Low priority:
 - Support switching display lang to Hebrew - should also affect stock names when avilable (with cookie to persist)
-- DONE: Allow drag and drop CSV in wizard
 - Smart layer based tax calc (FIFO selling and per layer taxing)
 - Allow fetching Israeli price indecies (eg CPI) - https://api.cbs.gov.il/index/data/price?id=120010&format=json&download=false&startPeriod=01-2000&endPeriod=12-2019
 - ON HOLD: Add chart to ticker view - it should allow day range, week, month 1,3,5 years, YTD, max
 - ON HOLD: Add portfolio usm chart for dashboard view
 - ON HOLD: Allow comparing portfolios to common indecies, eg CPI, SP500, TLV-125
-- DONE: Allow exporting CSV, sheet, holding sheet (flattaned)
 - ON HOLD: Use Gemini for anlysis and insight
 - ON HOLD: Forcast mode, where future txns, vesting are taken into account, and growth of holding is predicted based on custom uesr input or recent trends. Should also include taxes
 
@@ -81,3 +71,9 @@ DONE: Make google account login last longer or auto renew!
 DONE: Populate sectors
 DONE: New Transaction UI - make comission field smaller, improve "ticker not found" location
 DONE: Improve code comments where truly helpful
+DONE: Portfolio list - should show a tax policy name not key
+DONE: New portfolio UI - auto populate ID based on name - verify name chars are valid Uppercase a-z and - only
+DONE: All yahoo calls shold use https://portfolios.noy-shai.workers.dev/?apiId=yahoo_hist&ticker=GOOG (replace GOOG, return val is the same) - without proxies
+DONE: All currency code should be strongly typed, minimize code that uses string as currency in favor of an enum
+DONE: Allow exporting CSV, sheet, holding sheet (flattaned)
+DONE: Allow drag and drop CSV in wizard
