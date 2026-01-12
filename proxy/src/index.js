@@ -136,7 +136,7 @@ async function invokeApi(apiId, params, env) {
 
     // Check for blocking or other errors before caching
     if (!response.ok || response.status === 403 || response.status === 429) {
-      console.warn(`Origin fetch not OK for ${apiId} - ${targetUrl.toString()}: ${response.status}`);
+      console.log(`Origin fetch not OK for ${apiId} - ${targetUrl.toString()}: ${response.status}`);
       // Return without Cloudflare caching headers
       const newResponse = new Response(response.body, response);
       Object.keys(corsHeaders).forEach(key => {
@@ -148,8 +148,9 @@ async function invokeApi(apiId, params, env) {
     if (apiId === 'tase_list_stocks') {
       const clonedResponse = response.clone();
       const data = await clonedResponse.json();
-      if (data && !data.tradeSecuritiesList?.result) {
-        console.warn(`TASE API no results on date ${taseFetchDate.toISOString().slice(0,10)}, retrying with previous date`);
+      const resultsCount = data?.tradeSecuritiesList?.result?.length || 0;
+      if (data && resultsCount === 0) {
+        console.log(`TASE API no results on date ${taseFetchDate.toISOString().slice(0,10)}, retrying with previous date`);
         params.set('taseFetchDate', formatDate(new Date(taseFetchDate.getTime() - 2 * 24 * 60 * 60 * 1000))); // Go back 2 days
         return await invokeApi(apiId, params, env);
       }
