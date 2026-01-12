@@ -1,12 +1,14 @@
 export type PriceUnit = 'base' | 'agorot' | 'cents';
 
-export enum Currency {
-  USD = 'USD',
-  ILS = 'ILS',
-  EUR = 'EUR',
-  GBP = 'GBP',
-  ILAG = 'ILAG'
-}
+export const Currency = {
+  USD: 'USD',
+  ILS: 'ILS',
+  EUR: 'EUR',
+  GBP: 'GBP',
+  ILAG: 'ILAG'
+} as const;
+
+export type Currency = typeof Currency[keyof typeof Currency];
 
 export interface ExchangeRates {
   current: Record<string, number>;
@@ -110,6 +112,7 @@ export interface Holding {
   portfolioId: string;
   ticker: string;
   exchange?: string;
+  numeric_id?: number;
   qty: number;
   price?: number;
   currency?: Currency;

@@ -8,7 +8,7 @@ import type { Portfolio } from '../lib/types';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
 
 interface TickerSearchProps {
-  onTickerSelect: (ticker: TickerData & { symbol: string }) => void;
+  onTickerSelect: (ticker: TickerData & { symbol: string; numeric_id?: number }) => void;
   prefilledTicker?: string;
   prefilledExchange?: string;
   portfolios: Portfolio[];
@@ -169,13 +169,13 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
 
   const handleOptionSelect = async (result: SearchResult) => {
     if (result.rawTicker && 'price' in result.rawTicker) {
-      onTickerSelect({ ...result.rawTicker, symbol: result.symbol, exchange: result.exchange });
+      onTickerSelect({ ...result.rawTicker, symbol: result.symbol, exchange: result.exchange, numeric_id: result.numericSecurityId });
     } else {
       setIsLoading(true);
-      const data = await getTickerData(result.symbol, result.exchange);
+      const data = await getTickerData(result.symbol, result.exchange, undefined, false, result.numericSecurityId);
       setIsLoading(false);
       if (data) {
-        onTickerSelect({ ...data, symbol: result.symbol, exchange: result.exchange });
+        onTickerSelect({ ...data, symbol: result.symbol, exchange: result.exchange, numeric_id: result.numericSecurityId });
       }
     }
     setSearchResults([]);

@@ -13,7 +13,7 @@ import {
 } from './config';
 import { getHistoricalPriceFormula, getUsdIlsFormula } from './formulas';
 import { logIfFalsy } from '../utils';
-import { createRowMapper, fetchSheetData, objectToRow, createHeaderUpdateRequest, getSheetId }from './utils';
+import { createRowMapper, fetchSheetData, objectToRow, createHeaderUpdateRequest, getSheetId } from './utils';
 
 // --- Mappers for each data type ---
 const mapRowToPortfolio = createRowMapper(portfolioHeaders);
@@ -105,7 +105,7 @@ export const fetchHolding = async (spreadsheetId: string, ticker: string, exchan
         const holdingRow = rows.find((row: any) => row[tickerIndex] === ticker.toUpperCase() && row[exchangeIndex] === exchange.toUpperCase());
 
         if (holdingRow) {
-            return mapRowToHolding<Holding>(holdingRow, holdingMapping, holdingNumericKeys);
+            return mapRowToHolding<Omit<Holding, 'priceUnit'>>(holdingRow, holdingMapping, holdingNumericKeys);
         }
         return null;
     } catch (error) {
@@ -122,7 +122,7 @@ export const fetchPortfolios = async (spreadsheetId: string): Promise<Portfolio[
     let holdings: Holding[] = [];
     try {
         holdings = await fetchSheetData(spreadsheetId, HOLDINGS_RANGE, (row) =>
-            mapRowToHolding<Holding>(row, holdingMapping, holdingNumericKeys)
+            mapRowToHolding<Omit<Holding, 'priceUnit'>>(row, holdingMapping, holdingNumericKeys)
         );
     } catch (e) { console.warn("Holdings sheet not found or error fetching:", e); }
 
@@ -213,7 +213,7 @@ export const batchAddTransactions = async (spreadsheetId: string, transactions: 
             const key = colDef.key;
             switch (key) {
                 case 'date': rowData[key] = t.date ? toGoogleSheetDateFormat(new Date(t.date)) : ''; break;
-                case 'ticker': rowData[key] = logIfFalsy(t.ticker, `Transaction ticker missing`, t).toUpperCase(); break;
+                case 'ticker': rowData[key] = String(logIfFalsy(t.ticker, `Transaction ticker missing`, t)).toUpperCase(); break;
                 case 'exchange': rowData[key] = (t.exchange || '').toUpperCase(); break;
                 case 'vestDate': rowData[key] = t.vestDate ? toGoogleSheetDateFormat(new Date(t.vestDate)) : ''; break;
                 case 'comment': case 'Source': rowData[key] = (t as any)[key] || ''; break;
@@ -224,13 +224,13 @@ export const batchAddTransactions = async (spreadsheetId: string, transactions: 
                     rowData[key] = isILAG ? comm * 100 : comm;
                     break;
                 }
-                            case 'tax': rowData[key] = (t as any)[key] || 0; break;
-                            case 'Creation_Date': {
-                                const cDate = (t as any).Creation_Date ? new Date((t as any).Creation_Date) : new Date();
-                                rowData[key] = toGoogleSheetDateFormat(cDate);
-                                break;
-                            }
-                            case 'Orig_Open_Price_At_Creation_Date': rowData[key] = (t as any)[key]; break;                default: if (key in t) rowData[key] = (t as any)[key];
+                case 'tax': rowData[key] = (t as any)[key] || 0; break;
+                case 'Creation_Date': {
+                    const cDate = (t as any).Creation_Date ? new Date((t as any).Creation_Date) : new Date();
+                    rowData[key] = toGoogleSheetDateFormat(cDate);
+                    break;
+                }
+                case 'Orig_Open_Price_At_Creation_Date': rowData[key] = (t as any)[key]; break; default: if (key in t) rowData[key] = (t as any)[key];
             }
         });
         const rowValues = Object.values(TXN_COLS).map(colDef => colDef.formula ? null : rowData[colDef.key] ?? null);
@@ -246,7 +246,8 @@ export const batchAddTransactions = async (spreadsheetId: string, transactions: 
 
     const updatedRange = appendResult.result.updates.updatedRange;
     if (!updatedRange) throw new Error("Could not determine range of appended rows.");
-    
+
+
     // Parse range (e.g. "Transaction_Log!A10:V12") to find start row
     const match = updatedRange.match(/!A(\d+):/);
     if (!match) throw new Error("Could not parse start row number from range: " + updatedRange);
@@ -260,10 +261,12 @@ export const batchAddTransactions = async (spreadsheetId: string, transactions: 
 
     // Optimization: Generate one request per column for the entire range, or one request per cell?
     // Using updateCells with a grid range is better.
-    
+
+
     // Actually, we can't easily do one request per column because formula depends on row number.
     // But we can generate the formulas and send them in one big batchUpdate.
-    
+
+
     for (let i = 0; i < transactions.length; i++) {
         const rowNum = startRow + i;
         formulaColDefs.forEach((colDef) => {
@@ -284,7 +287,8 @@ export const batchAddTransactions = async (spreadsheetId: string, transactions: 
         // For test data (few rows), one batch is fine.
         await gapi.client.sheets.spreadsheets.batchUpdate({ spreadsheetId, resource: { requests } });
     }
-    
+
+
     // Only rebuild holdings once after batch insert
     await rebuildHoldingsSheet(spreadsheetId);
 };
@@ -296,9 +300,11 @@ function createHoldingRow(h: Omit<Holding, 'totalValue' | 'price' | 'currency' |
     const qtyCell = `D${rowNum}`; const priceCell = `E${rowNum}`;
     const tickerAndExchange = `${exchangeCell}&":"&${tickerCell}`;
     const row = new Array(holdingsHeaders.length).fill('');
-    
+
+
     const isTASE = (h.exchange || '').toUpperCase() === 'TASE';
-    
+
+
     row[0] = h.portfolioId;
     row[1] = String(h.ticker).toUpperCase();
     row[2] = (h.exchange || '').toUpperCase(); row[3] = h.qty;
@@ -308,7 +314,8 @@ function createHoldingRow(h: Omit<Holding, 'totalValue' | 'price' | 'currency' |
     row[6] = `=${qtyCell}*${priceCell}`;
     row[7] = meta?.name || `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "name"), "")`;
     row[8] = meta?.name_he || ""; row[9] = meta?.sector || `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "sector"), "Other")`;
-    
+
+
     // Index 10 is now Day_Change (Price_Unit removed)
     row[10] = meta?.changePct || `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "changepct")/100, 0)`;
 
@@ -321,6 +328,7 @@ function createHoldingRow(h: Omit<Holding, 'totalValue' | 'price' | 'currency' |
     row[16] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-36)")})-1, "")`; // Change_3Y
     row[17] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-60)")})-1, "")`; // Change_5Y
     row[18] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-120)")})-1, "")`; // Change_10Y
+    row[19] = h.numeric_id || '';
     return row;
 }
 
@@ -336,6 +344,9 @@ export const rebuildHoldingsSheet = async (spreadsheetId: string) => {
             if (!holdings[key]) {
                 holdings[key] = { portfolioId: txn.portfolioId, ticker: txn.ticker, exchange: txn.exchange || '', qty: 0 };
             }
+            if (txn.numeric_id) {
+                holdings[key].numeric_id = txn.numeric_id;
+            }
             const multiplier = txn.type === 'BUY' ? 1 : -1;
             const qty = parseFloat(txn.Split_Adjusted_Qty || txn.Original_Qty.toString());
             holdings[key].qty += qty * multiplier;
@@ -348,15 +359,20 @@ export const rebuildHoldingsSheet = async (spreadsheetId: string) => {
         if ((h.exchange || '').toUpperCase() === 'TASE') {
             try { meta = await getTickerData(h.ticker, h.exchange); } catch (e) { console.warn("Failed to fetch TASE metadata for " + h.ticker, e); }
         }
-        
+
+
         return { h, meta };
-        
+
+
     }));
-        
+
+
     const data = enrichedData.map(({ h, meta }, i) => createHoldingRow(h, meta, i + 2));
-        
+
+
     await gapi.client.sheets.spreadsheets.values.clear({ spreadsheetId, range: `${HOLDINGS_SHEET}!A2:${String.fromCharCode(65 + holdingsHeaders.length - 1)}` });
-        
+
+
     if (data.length > 0) {
         await gapi.client.sheets.spreadsheets.values.update({
             spreadsheetId, range: HOLDINGS_SHEET + '!A2', valueInputOption: 'USER_ENTERED',
@@ -477,18 +493,17 @@ export const fetchSheetExchangeRates = async (spreadsheetId: string): Promise<an
 
             if (!isNaN(val)) {
                 const rates = allRates[period];
-                if (pair === 'USDILS') {
-                    rates['ILS'] = val;
-                } else if (pair === 'USDEUR') {
-                    rates['EUR'] = val;
-                } else if (pair === 'USDGBP') {
-                    rates['GBP'] = val;
-                } else if (pair.startsWith('USD')) {
-                    const target = pair.substring(3);
-                    rates[target] = val;
+                // The goal is to store all rates in a "XXX per USD" format.
+                // e.g., rates['EUR'] will hold the number of Euros per 1 US Dollar.
+                if (pair.startsWith('USD') && pair.length === 6) {
+                    // Handles pairs like 'USDEUR'. The rate value from the sheet is already in "target currency per USD".
+                    const targetCurrency = pair.substring(3);
+                    rates[targetCurrency] = val;
                 } else if (pair.endsWith('USD') && pair.length === 6) {
-                    const source = pair.substring(0, 3);
-                    // rates[source] = 1 / val; // This is USDEUR, so 1 / val is EURUSD
+                    // Handles pairs like 'EURUSD'. The rate value is in "USD per source currency".
+                    // We convert it to "source currency per USD" by taking the reciprocal.
+                    const sourceCurrency = pair.substring(0, 3);
+                    rates[sourceCurrency] = 1 / val;
                 }
             }
         }

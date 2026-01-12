@@ -94,6 +94,12 @@ export const TXN_COLS: TransactionColumns = {
         numeric: true,
         formula: (rowNum, cols) => `=IFERROR(${cols.Original_Qty.colId}${rowNum} * ${cols.Split_Ratio.colId}${rowNum}, ${cols.Original_Qty.colId}${rowNum})`
     },
+    numeric_id: {
+        key: 'numeric_id',
+        colName: 'Numeric_ID',
+        colId: 'V',
+        numeric: true
+    },
 };
 
 export const transactionHeaders = Object.values(TXN_COLS).map(c => c.colName) as unknown as readonly string[];
@@ -116,7 +122,7 @@ export const portfolioHeaders = ['Portfolio_ID', 'Display_Name', 'Cap_Gains_Tax_
 export const holdingsHeaders = [
     'PortfolioId', 'Ticker', 'Exchange', 'Quantity', 'Live_Price', 'Currency', 'Total Holding Value',
     'Name_En', 'Name_He', 'Sector', 'Day_Change',
-    'Change_1W', 'Change_1M', 'Change_3M', 'Change_YTD', 'Change_1Y', 'Change_3Y', 'Change_5Y', 'Change_10Y'
+    'Change_1W', 'Change_1M', 'Change_3M', 'Change_YTD', 'Change_1Y', 'Change_3Y', 'Change_5Y', 'Change_10Y', 'Numeric_ID'
 ] as const;
 export const configHeaders = ['Key', 'Value', '1D Ago', '1W Ago', '1M Ago', '3M Ago', '6M Ago', 'YTD', '1Y Ago', '3Y Ago', '5Y Ago'] as const;
 
@@ -148,14 +154,15 @@ export const portfolioMapping: Record<keyof Omit<Portfolio, 'holdings'>, typeof 
 };
 export const portfolioNumericKeys: (keyof Omit<Portfolio, 'holdings'>)[] = ['cgt', 'incTax', 'mgmtVal', 'commRate', 'commMin', 'commMax', 'divCommRate'];
 
-export const holdingMapping: Record<keyof Holding, typeof holdingsHeaders[number]> = {
+export const holdingMapping: Record<keyof Omit<Holding, 'priceUnit'>, typeof holdingsHeaders[number]> = {
     portfolioId: 'PortfolioId', ticker: 'Ticker', exchange: 'Exchange', qty: 'Quantity',
     price: 'Live_Price', currency: 'Currency', totalValue: 'Total Holding Value',
     name: 'Name_En', name_he: 'Name_He', sector: 'Sector', 
     changePct: 'Day_Change', changePct1w: 'Change_1W', changePct1m: 'Change_1M', changePct3m: 'Change_3M',
     changePctYtd: 'Change_YTD', changePct1y: 'Change_1Y', changePct3y: 'Change_3Y', changePct5y: 'Change_5Y', changePct10y: 'Change_10Y',
+    numeric_id: 'Numeric_ID',
 };
-export const holdingNumericKeys: (keyof Holding)[] = [
+export const holdingNumericKeys: (keyof Omit<Holding, 'priceUnit'>)[] = [
     'qty', 'price', 'totalValue', 'changePct', 'changePct1w', 'changePct1m', 'changePct3m',
     'changePctYtd', 'changePct1y', 'changePct3y', 'changePct5y', 'changePct10y'
 ];
