@@ -115,6 +115,7 @@ taseTypeIds.securitiesTypes.result.forEach(type => {
 async function fetchTaseSecurities(signal?: AbortSignal): Promise<TaseSecurity[]> {
     const url = `https://portfolios.noy-shai.workers.dev/?apiId=tase_list_stocks`;
     try {
+        console.log(`Fetching TASE securities...`);
         const response = await fetch(url, { signal });
         if (!response.ok) {
             console.error(`Failed to fetch TASE securities: ${response.statusText}`);
@@ -122,7 +123,9 @@ async function fetchTaseSecurities(signal?: AbortSignal): Promise<TaseSecurity[]
         }
         const data = await response.json();
         // The API nests the results in `tradeSecuritiesList.result`
-        return data?.tradeSecuritiesList?.result || [];
+        const result = data?.tradeSecuritiesList?.result || [];
+        console.log(`Fetched ${result.length} TASE securities.`);
+        return result;
     } catch(e) {
         console.error('Error fetching or parsing TASE securities', e);
         return [];
@@ -198,7 +201,9 @@ export async function fetchAllTaseTickers(
     if (config[type]?.enabled) {
       try {
         console.log(`Fetching Globes tickers for type: ${type}`);
-        return await fetchGlobesTickersByType(type, signal);
+        const res = await fetchGlobesTickersByType(type, signal);
+        console.log(`Fetched ${res.length} Globes tickers for type: ${type}`);
+        return res;
       } catch (e) {
         console.warn(`Failed to fetch Globes tickers for type ${type}:`, e);
       }
@@ -212,6 +217,8 @@ export async function fetchAllTaseTickers(
   for (const ticker of allGlobesTickers) {
       globesTickerMap.set(ticker.numericSecurityId, ticker);
   }
+
+  console.log(`Total Globes tickers fetched: ${allGlobesTickers.length}. Unique IDs: ${globesTickerMap.size}`);
 
   const allTickers: TaseTicker[] = [];
   const matchedGlobesIds = new Set<string>();
@@ -244,6 +251,8 @@ export async function fetchAllTaseTickers(
       });
   }
 
+  console.log(`Merged TASE data. Matched ${matchedGlobesIds.size} securities with Globes data out of ${taseSecurities.length} TASE securities.`);
+
   // 5. Complete the outer join: Add Globes tickers that didn't have a match in the TASE list
   for (const globesTicker of allGlobesTickers) {
       if (!matchedGlobesIds.has(globesTicker.numericSecurityId)) {
@@ -266,7 +275,7 @@ export async function fetchAllTaseTickers(
   }
   
   // 6. Group all resulting tickers by type for the final output
-  return allTickers.reduce((acc, ticker) => {
+  const grouped = allTickers.reduce((acc, ticker) => {
     const type = ticker.type || 'unknown';
     if (!acc[type]) {
       acc[type] = [];
@@ -274,4 +283,7 @@ export async function fetchAllTaseTickers(
     acc[type].push(ticker);
     return acc;
   }, {} as Record<string, TaseTicker[]>);
+
+  console.log('Final TASE tickers distribution:', Object.keys(grouped).map(k => `${k}: ${grouped[k].length}`));
+  return grouped;
 }
