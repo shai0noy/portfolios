@@ -342,12 +342,12 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                     <Grid item xs={12}>
                       <TextField fullWidth size="small" label="Display Name" value={p.name} onChange={e => handleNameChange(e.target.value)} />
                     </Grid>
-                    <Grid item xs={6}>
+                    <Grid item xs={12} sm={6}>
                       <Tooltip title="Unique System ID (auto-generated). No spaces.">
                         <TextField fullWidth size="small" label="ID" value={p.id} onChange={(e) => handleIdChange(e.target.value)} disabled={editMode} />
                       </Tooltip>
                     </Grid>
-                    <Grid item xs={6}>
+                    <Grid item xs={12} sm={6}>
                       <FormControl fullWidth size="small">
                         <InputLabel>Currency</InputLabel>
                         <Select value={p.currency} label="Currency" onChange={e => set('currency', e.target.value)}>
@@ -381,13 +381,13 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                         </Select>
                       </FormControl>
                     </Grid>
-                    <Grid item xs={6}>
+                    <Grid item xs={12} sm={6}>
                       <PercentageField label="Gains Tax" field="cgt" tooltip="Capital Gains Tax" disabled={p.taxPolicy === 'TAX_FREE' || p.taxPolicy === 'PENSION'} />
                     </Grid>
-                    <Grid item xs={6}>
+                    <Grid item xs={12} sm={6}>
                        <PercentageField label="Tax on Base Price" field="incTax" tooltip="Income Tax (for RSUs)" disabled={p.taxPolicy === 'TAX_FREE'} />
                     </Grid>
-                    <Grid item xs={6}>
+                    <Grid item xs={12} sm={6}>
                       <FormControl fullWidth size="small">
                         <InputLabel>Dividend Policy</InputLabel>
                         <Select value={p.divPolicy} label="Dividend Policy" onChange={e => set('divPolicy', e.target.value)}>
@@ -397,7 +397,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                         </Select>
                       </FormControl>
                     </Grid>
-                    <Grid item xs={6}>
+                    <Grid item xs={12} sm={6}>
                       <PercentageField 
                         label="Div Tax/Fee Rate" 
                         field="divCommRate" 
@@ -416,13 +416,13 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                 <CardContent>
                   <Typography variant="subtitle2" color="text.secondary" gutterBottom>TRADING COSTS</Typography>
                   <Grid container spacing={3} mt={2}>
-                    <Grid item xs={4}>
+                    <Grid item xs={12} sm={4}>
                       <PercentageField label="Rate" field="commRate" tooltip="Commission rate per trade" />
                     </Grid>
-                    <Grid item xs={4}>
+                    <Grid item xs={12} sm={4}>
                       <NumericField label="Min Fee" field="commMin" showCurrency />
                     </Grid>
-                    <Grid item xs={4}>
+                    <Grid item xs={12} sm={4}>
                       <NumericField label="Max Fee" field="commMax" showCurrency />
                     </Grid>
                   </Grid>
@@ -441,14 +441,14 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                      </Tooltip>
                   </Box>
                   <Grid container spacing={3} mt={2}>
-                    <Grid item xs={4}>
+                    <Grid item xs={12} sm={4}>
                        {p.mgmtType === 'percentage' ? (
                          <PercentageField label="Value" field="mgmtVal" />
                        ) : (
                          <NumericField label="Value" field="mgmtVal" showCurrency />
                        )}
                     </Grid>
-                    <Grid item xs={4}>
+                    <Grid item xs={12} sm={4}>
                       <FormControl fullWidth size="small">
                         <InputLabel>Type</InputLabel>
                         <Select value={p.mgmtType} label="Type" onChange={e => set('mgmtType', e.target.value)}>
@@ -457,7 +457,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                         </Select>
                       </FormControl>
                     </Grid>
-                    <Grid item xs={4}>
+                    <Grid item xs={12} sm={4}>
                       <FormControl fullWidth size="small">
                         <InputLabel>Freq</InputLabel>
                         <Select value={p.mgmtFreq} label="Frequency" onChange={e => set('mgmtFreq', e.target.value)}>
