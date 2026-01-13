@@ -51,7 +51,8 @@ function App() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const currentTab = tabMap[location.pathname] || 0;
+  const currentBasePath = '/' + location.pathname.split('/')[1];
+  const currentTab = tabMap[currentBasePath] ?? 0;
 
   useEffect(() => {
     if (!location.pathname || location.pathname === '/') {
@@ -489,7 +490,7 @@ function App() {
 
         {/* Schema Version Dialog */}
         <Dialog open={!!schemaVersionMismatch} onClose={() => {}}>
-          <DialogTitle>Sheet Structure Update Required</DialogTitle>
+          <DialogTitle>{schemaVersionMismatch === 'old' ? 'Sheet Structure Update Required' : 'Sheet Structure Mismatch'}</DialogTitle>
           <DialogContent>
             {rebuilding ? (
               <Box display="flex" flexDirection="column" alignItems="center" py={2}>
@@ -503,17 +504,21 @@ function App() {
               <DialogContentText>
                 {schemaVersionMismatch === 'old' 
                   ? "Your Google Sheet structure is outdated. A new version of the application requires schema updates to function correctly."
-                  : "Your Google Sheet structure appears to be newer than this application version. This might cause issues."}
+                  : "Warning: Your Google Sheet's structure version is newer than this application's version. This is an unexpected situation and may cause parts of the app to not function as expected. Please consider updating the application."}
                 <br /><br />
                 {schemaVersionMismatch === 'old' && "Please perform a 'Setup Sheet' to upgrade the columns and formulas. This will rewrite headers and rebuild live data, but your transaction history is safe (unless columns were removed)."}
               </DialogContentText>
             )}
           </DialogContent>
           <DialogActions>
-            <Button onClick={() => setSchemaVersionMismatch(null)} color="primary" disabled={rebuilding}>Ignore (Risky)</Button>
-            <Button onClick={handleSetupSheet} variant="contained" color="primary" autoFocus disabled={rebuilding}>
-              {rebuilding ? "Updating..." : "Setup Sheet (Upgrade)"}
+            <Button onClick={() => setSchemaVersionMismatch(null)} color="primary" disabled={rebuilding}>
+              {schemaVersionMismatch === 'old' ? 'Ignore (Risky)' : 'Acknowledge'}
             </Button>
+            {schemaVersionMismatch === 'old' && (
+              <Button onClick={handleSetupSheet} variant="contained" color="primary" autoFocus disabled={rebuilding}>
+                {rebuilding ? "Updating..." : "Setup Sheet (Upgrade)"}
+              </Button>
+            )}
           </DialogActions>
         </Dialog>
       </Box>

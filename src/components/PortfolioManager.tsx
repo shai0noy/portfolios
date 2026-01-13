@@ -103,12 +103,13 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
   };
 
   const handleNameChange = (val: string) => {
-    const sanitizedVal = val.toUpperCase().replace(/[^A-Z-]/g, '');
     setP(prev => {
-      const updates: any = { name: sanitizedVal };
+      const updates: any = { name: val };
       if (!idDirty) {
-        // Auto-generate ID from sanitized name
-        updates.id = sanitizedVal;
+        // Auto-generate ID from name slug
+        updates.id = val.trim().toLowerCase()
+          .replace(/\s+/g, '-') // Replace spaces with -
+          .replace(/[^a-z0-9-]/g, ''); // Remove all non-alphanumeric except dash
       }
       return { ...prev, ...updates };
     });
@@ -116,7 +117,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
 
   const handleIdChange = (val: string) => {
     setIdDirty(true);
-    const sanitizedId = val.toUpperCase().replace(/[^A-Z-]/g, '');
+    const sanitizedId = val.replace(/\s+/g, '-');
     setP(prev => ({ ...prev, id: sanitizedId }));
   };
 
@@ -199,7 +200,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
   }, [p.taxPolicy, p.incTax, p.cgt, p.divPolicy, p.divCommRate]);
 
   // Helper for debounced numeric fields
-  const NumericField = ({ label, field, tooltip, disabled }: { label: string, field: keyof Portfolio, tooltip?: string, disabled?: boolean }) => {
+  const NumericField = ({ label, field, tooltip, disabled, showCurrency }: { label: string, field: keyof Portfolio, tooltip?: string, disabled?: boolean, showCurrency?: boolean }) => {
     // This state is to allow for typing trailing decimals, e.g. "25."
     const [localDisplay, setLocalDisplay] = useState<string | null>(null);
 
@@ -236,6 +237,9 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
           disabled={disabled}
           onChange={handleChange}
           onBlur={() => setLocalDisplay(null)}
+          InputProps={{ 
+            endAdornment: showCurrency ? <InputAdornment position="end">{p.currency}</InputAdornment> : null 
+          }}
         />
     );
 
@@ -357,68 +361,6 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
               </Card>
             </Grid>
 
-            {/* FEES */}
-            <Grid item xs={12} md={6}>
-              <Card variant="outlined" sx={{ height: '100%' }}>
-                <CardContent>
-                  <Box display="flex" alignItems="center" gap={1} mb={1}>
-                     <Typography variant="subtitle2" color="text.secondary">HOLDING COSTS & FEES</Typography>
-                     <Tooltip title="Recurring fees charged by the broker/manager (e.g. 0.7% Accumulation, or 15 ILS/month).">
-                       <InfoOutlinedIcon fontSize="inherit" color="action" />
-                     </Tooltip>
-                  </Box>
-                  <Grid container spacing={3} mt={2}>
-                    <Grid item xs={4}>
-                       {p.mgmtType === 'percentage' ? (
-                         <PercentageField label="Value" field="mgmtVal" />
-                       ) : (
-                         <NumericField label="Value" field="mgmtVal" />
-                       )}
-                    </Grid>
-                    <Grid item xs={4}>
-                      <FormControl fullWidth size="small">
-                        <InputLabel>Type</InputLabel>
-                        <Select value={p.mgmtType} label="Type" onChange={e => set('mgmtType', e.target.value)}>
-                          <MenuItem value="percentage">Percentage</MenuItem>
-                          <MenuItem value="fixed">Fixed</MenuItem>
-                        </Select>
-                      </FormControl>
-                    </Grid>
-                    <Grid item xs={4}>
-                      <FormControl fullWidth size="small">
-                        <InputLabel>Freq</InputLabel>
-                        <Select value={p.mgmtFreq} label="Frequency" onChange={e => set('mgmtFreq', e.target.value)}>
-                          <MenuItem value="monthly">Monthly</MenuItem>
-                          <MenuItem value="quarterly">Quarterly</MenuItem>
-                          <MenuItem value="yearly">Yearly</MenuItem>
-                        </Select>
-                      </FormControl>
-                    </Grid>
-                  </Grid>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            {/* COMMISSION */}
-            <Grid item xs={12} md={6}>
-              <Card variant="outlined" sx={{ height: '100%' }}>
-                <CardContent>
-                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>TRADING COSTS</Typography>
-                  <Grid container spacing={3} mt={2}>
-                    <Grid item xs={4}>
-                      <PercentageField label="Rate" field="commRate" tooltip="Commission rate per trade" />
-                    </Grid>
-                    <Grid item xs={4}>
-                      <NumericField label="Min Fee" field="commMin" />
-                    </Grid>
-                    <Grid item xs={4}>
-                      <NumericField label="Max Fee" field="commMax" />
-                    </Grid>
-                  </Grid>
-                </CardContent>
-              </Card>
-            </Grid>
-
             {/* TAX & DIV */}
             <Grid item xs={12} md={6}>
               <Card variant="outlined" sx={{ height: '100%' }}>
@@ -462,6 +404,68 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                         tooltip="Tax or fee rate on cash dividends" 
                         disabled={p.taxPolicy === 'TAX_FREE' || p.divPolicy !== 'cash_taxed'}
                       />
+                    </Grid>
+                  </Grid>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            {/* COMMISSION */}
+            <Grid item xs={12} md={6}>
+              <Card variant="outlined" sx={{ height: '100%' }}>
+                <CardContent>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>TRADING COSTS</Typography>
+                  <Grid container spacing={3} mt={2}>
+                    <Grid item xs={4}>
+                      <PercentageField label="Rate" field="commRate" tooltip="Commission rate per trade" />
+                    </Grid>
+                    <Grid item xs={4}>
+                      <NumericField label="Min Fee" field="commMin" showCurrency />
+                    </Grid>
+                    <Grid item xs={4}>
+                      <NumericField label="Max Fee" field="commMax" showCurrency />
+                    </Grid>
+                  </Grid>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            {/* FEES */}
+            <Grid item xs={12} md={6}>
+              <Card variant="outlined" sx={{ height: '100%' }}>
+                <CardContent>
+                  <Box display="flex" alignItems="center" gap={1} mb={1}>
+                     <Typography variant="subtitle2" color="text.secondary">HOLDING COSTS & FEES</Typography>
+                     <Tooltip title="Recurring fees charged by the broker/manager (e.g. 0.7% Accumulation, or 15 ILS/month).">
+                       <InfoOutlinedIcon fontSize="inherit" color="action" />
+                     </Tooltip>
+                  </Box>
+                  <Grid container spacing={3} mt={2}>
+                    <Grid item xs={4}>
+                       {p.mgmtType === 'percentage' ? (
+                         <PercentageField label="Value" field="mgmtVal" />
+                       ) : (
+                         <NumericField label="Value" field="mgmtVal" showCurrency />
+                       )}
+                    </Grid>
+                    <Grid item xs={4}>
+                      <FormControl fullWidth size="small">
+                        <InputLabel>Type</InputLabel>
+                        <Select value={p.mgmtType} label="Type" onChange={e => set('mgmtType', e.target.value)}>
+                          <MenuItem value="percentage">Percentage</MenuItem>
+                          <MenuItem value="fixed">Fixed</MenuItem>
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                    <Grid item xs={4}>
+                      <FormControl fullWidth size="small">
+                        <InputLabel>Freq</InputLabel>
+                        <Select value={p.mgmtFreq} label="Frequency" onChange={e => set('mgmtFreq', e.target.value)}>
+                          <MenuItem value="monthly">Monthly</MenuItem>
+                          <MenuItem value="quarterly">Quarterly</MenuItem>
+                          <MenuItem value="yearly">Yearly</MenuItem>
+                        </Select>
+                      </FormControl>
                     </Grid>
                   </Grid>
                 </CardContent>

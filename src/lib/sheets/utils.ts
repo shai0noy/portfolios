@@ -34,16 +34,18 @@ export function createRowMapper<T extends readonly string[]>(headers: T) {
  * @param headers The header row.
  * @param colDefs The column definitions.
  */
-export function objectToRow<T extends object, C extends { [key: string]: { colName: string } }>(obj: T, headers: readonly string[], colDefs: C): any[] {
+export function objectToRow<T extends object>(obj: T, headers: readonly string[], colDefs: Record<string, string>): any[] {
     const row = new Array(headers.length).fill(null);
     const headerMap = new Map(headers.map((h, i) => [h, i]));
 
     for (const key in obj) {
-        if (colDefs[key]) {
-            const colName = colDefs[key].colName;
-            const colIndex = headerMap.get(colName);
-            if (colIndex !== undefined) {
-                row[colIndex] = (obj as any)[key];
+        if (Object.prototype.hasOwnProperty.call(obj, key)) {
+            const colName = colDefs[key];
+            if (colName) {
+                const colIndex = headerMap.get(colName);
+                if (colIndex !== undefined) {
+                    row[colIndex] = (obj as any)[key];
+                }
             }
         }
     }
