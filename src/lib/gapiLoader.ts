@@ -1,9 +1,8 @@
 // src/lib/gapiLoader.ts
 
 let gapiScriptLoaded: Promise<void> | null = null;
-let gapiClientLoaded: Promise<any> | null = null;
+let gapiClientLoaded: Promise<typeof gapi> | null = null;
 let gisLoaded: Promise<void> | null = null;
-let pickerLoaded: Promise<void> | null = null;
 
 function loadScript(src: string): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -35,7 +34,7 @@ async function loadGapiScript(): Promise<void> {
   return gapiScriptLoaded;
 }
 
-async function loadGapiClient(): Promise<any> {
+async function loadGapiClient(): Promise<typeof gapi> {
   if (!gapiClientLoaded) {
     await loadGapiScript();
     const gapi = (window as any).gapi;
@@ -51,7 +50,7 @@ async function loadGapiClient(): Promise<any> {
       });
     });
   }
-  return gapiClientLoaded;
+  return gapiClientLoaded!;
 }
 
 export async function loadGis(): Promise<void> {
@@ -61,7 +60,7 @@ export async function loadGis(): Promise<void> {
   return gisLoaded;
 }
 
-export async function ensureGoogleApis(): Promise<any> {
+export async function ensureGoogleApis(): Promise<typeof gapi> {
   await loadGis(); // Load GIS first, as it's independent
   const gapi = await loadGapiClient();
   return gapi;

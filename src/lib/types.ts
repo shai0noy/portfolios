@@ -155,6 +155,8 @@ export interface Transaction {
   Split_Adjusted_Qty?: number;
   Original_Price_USD?: number;
   Original_Price_ILAG?: number;
+  qty?: number;
+  price?: number;
 }
 
 // Templates for quick setup

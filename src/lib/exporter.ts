@@ -46,7 +46,6 @@ export async function exportDashboardData(opts: {
 
   let data: any[] = [];
   let filename = '';
-  let headers: string[] = [];
 
   const effectiveSheetId = sheetId || await getSpreadsheet() || undefined;
 
@@ -150,11 +149,9 @@ export async function exportDashboardData(opts: {
     if (type === 'holdings') {
       data = holdingsData || [];
       filename = 'holdings.csv';
-      headers = holdingsHeaders;
     } else if (type === 'transactions') {
       data = transactionsData || [];
       filename = 'transactions.csv';
-      headers = transactionsHeaders;
     } else {
       // both & csv not supported as a single CSV; fallback to exporting holdings then transactions separately
       if ((holdingsData || []).length > 0) downloadCSV(holdingsData!, `holdings_${stamp}.csv`);

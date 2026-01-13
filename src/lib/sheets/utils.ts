@@ -14,11 +14,11 @@ export function createRowMapper<T extends readonly string[]>(headers: T) {
             const headerName = mapping[key];
             const index = headerMap.get(headerName);
             if (index !== undefined && row[index] !== undefined && row[index] !== null) {
-                let value: any = row[index];
+                const value: any = row[index];
                 if (numericKeys.includes(key)) {
                     const numVal = parseFloat(String(value).replace(/,/g, '').replace(/%/, ''));
-                    obj[key] = isNaN(numVal) ? 0 : numVal;
-                    if (mapping[key].includes('%')) obj[key] = (obj[key] as number) / 100;
+                    (obj as any)[key] = isNaN(numVal) ? 0 : numVal;
+                    if (mapping[key].includes('%')) (obj as any)[key] = ((obj as any)[key] as number) / 100;
                 } else {
                     obj[key] = value;
                 }
@@ -60,7 +60,7 @@ export async function getSheetId(spreadsheetId: string, sheetName: string, creat
     await ensureGapi();
     const gapi = (window as any).gapi;
     const res = await gapi.client.sheets.spreadsheets.get({ spreadsheetId });
-    let sheet = res.result.sheets?.find((s: any) => s.properties.title === sheetName);
+    const sheet = res.result.sheets?.find((s: any) => s.properties.title === sheetName);
     if (!sheet && create) {
         const addSheetRequest = {
             spreadsheetId,

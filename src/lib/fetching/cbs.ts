@@ -53,7 +53,7 @@ export async function fetchCpi(
   const cached = tickerDataCache.get(cacheKey);
   if (cached && now - cached.timestamp < CACHE_TTL) {
     // The cache is generic, so we need to assert the type on retrieval.
-    return cached.data as CpiDataPoint[];
+    return cached.data as unknown as CpiDataPoint[];
   }
 
   let allData: CpiDataPoint[] = [];

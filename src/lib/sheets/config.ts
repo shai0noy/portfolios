@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { Portfolio, Transaction, Holding } from '../types';
 import type { TransactionColumns } from './types'; // Import from a new local types file
-import { getUsdIlsFormula, getHistoricalPriceFormula } from './formulas';
+import { getUsdIlsFormula } from './formulas';
 
 // --- Column Definitions ---
 

@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { ensureGapi, findSpreadsheetByName } from '../google';
-import { SessionExpiredError } from '../errors';
 import { getTickerData } from '../fetching';
 import { toGoogleSheetDateFormat } from '../date';
 import type { Portfolio, Transaction, Holding } from '../types';
@@ -21,7 +20,7 @@ const mapRowToTransaction = createRowMapper(transactionHeaders);
 const mapRowToHolding = createRowMapper(holdingsHeaders);
 
 export const ensureSchema = async (spreadsheetId: string) => {
-    let gapi = await ensureGapi();
+    const gapi = await ensureGapi();
     const sheetIds = {
         portfolio: await getSheetId(spreadsheetId, 'Portfolio_Options', true),
         log: await getSheetId(spreadsheetId, TX_SHEET_NAME, true),
@@ -92,7 +91,7 @@ export const ensureSchema = async (spreadsheetId: string) => {
 };
 
 export const fetchHolding = async (spreadsheetId: string, ticker: string, exchange: string): Promise<Holding | null> => {
-    let gapi = await ensureGapi();
+    const gapi = await ensureGapi();
     try {
         const res = await gapi.client.sheets.spreadsheets.values.get({
             spreadsheetId,
@@ -177,22 +176,22 @@ export const getSpreadsheet = async (): Promise<string | null> => {
 export const createPortfolioSpreadsheet = async (title: string = DEFAULT_SHEET_NAME): Promise<string | null> => {
     const gapi = await ensureGapi();
     try {
-        const spreadsheet = await gapi.client.sheets.spreadsheets.create({ properties: { title: title } });
+        const spreadsheet = await gapi.client.sheets.spreadsheets.create({ resource: { properties: { title: title } } });
         const spreadsheetId = spreadsheet.result.spreadsheetId;
         if (spreadsheetId) {
             await ensureSchema(spreadsheetId);
             localStorage.setItem('g_sheet_id', spreadsheetId);
         }
-        return spreadsheetId;
+        return spreadsheetId || null; 
     } catch (error) { console.error("Error creating spreadsheet:", error); return null; }
 };
 
 export const createEmptySpreadsheet = async (title: string): Promise<string | null> => {
     const gapi = await ensureGapi();
     try {
-        const spreadsheet = await gapi.client.sheets.spreadsheets.create({ properties: { title } });
+        const spreadsheet = await gapi.client.sheets.spreadsheets.create({ resource: { properties: { title } } });
         const newSpreadsheetId = spreadsheet.result.spreadsheetId;
-        return newSpreadsheetId;
+        return newSpreadsheetId || null;
     } catch (error) {
         console.error('Error creating empty spreadsheet:', error);
         return null;
@@ -204,7 +203,7 @@ export const addTransaction = async (spreadsheetId: string, t: Transaction) => {
 };
 
 export const batchAddTransactions = async (spreadsheetId: string, transactions: Transaction[]) => {
-    let gapi = await ensureGapi();
+    const gapi = await ensureGapi();
     const allValuesToAppend: any[][] = [];
 
     transactions.forEach(t => {
@@ -244,7 +243,7 @@ export const batchAddTransactions = async (spreadsheetId: string, transactions: 
         insertDataOption: 'INSERT_ROWS', resource: { values: allValuesToAppend }
     });
 
-    const updatedRange = appendResult.result.updates.updatedRange;
+    const updatedRange = appendResult.result?.updates?.updatedRange;
     if (!updatedRange) throw new Error("Could not determine range of appended rows.");
 
 
@@ -252,42 +251,38 @@ export const batchAddTransactions = async (spreadsheetId: string, transactions: 
     const match = updatedRange.match(/!A(\d+):/);
     if (!match) throw new Error("Could not parse start row number from range: " + updatedRange);
     const startRow = parseInt(match[1]);
-    const endRow = startRow + allValuesToAppend.length; // Exclusive end index for loop? No, row numbers are inclusive in sheets logic but batchUpdate uses indices.
 
     // Apply Formulas
     const formulaColDefs = Object.values(TXN_COLS).filter(colDef => !!colDef.formula);
     const txSheetId = await getSheetId(spreadsheetId, TX_SHEET_NAME);
-    const requests = [];
 
     // Optimization: Generate one request per column for the entire range, or one request per cell?
-    // Using updateCells with a grid range is better.
-
-
-    // Actually, we can't easily do one request per column because formula depends on row number.
-    // But we can generate the formulas and send them in one big batchUpdate.
-
-
-    for (let i = 0; i < transactions.length; i++) {
-        const rowNum = startRow + i;
-        formulaColDefs.forEach((colDef) => {
-            const formula = colDef.formula!(rowNum, TXN_COLS);
-            const colIndex = Object.values(TXN_COLS).indexOf(colDef);
-            requests.push({
-                updateCells: {
-                    range: { sheetId: txSheetId, startRowIndex: rowNum - 1, endRowIndex: rowNum, startColumnIndex: colIndex, endColumnIndex: colIndex + 1 },
-                    rows: [{ values: [{ userEnteredValue: { formulaValue: formula } }] }],
-                    fields: 'userEnteredValue.formulaValue'
-                }
-            });
-        });
-    }
-
-    if (requests.length > 0) {
-        // Batch requests in chunks if too large (Google limit is around 100k requests but payload size matters)
-        // For test data (few rows), one batch is fine.
-        await gapi.client.sheets.spreadsheets.batchUpdate({ spreadsheetId, resource: { requests } });
-    }
-
+        // Using updateCells with a grid range is better.
+        
+        // Actually, we can't easily do one request per column because formula depends on row number.
+            // But we can generate the formulas and send them in one big batchUpdate.
+            const formulaRequests: any[] = [];
+            
+            for (let i = 0; i < transactions.length; i++) {
+                const rowNum = startRow + i;
+                formulaColDefs.forEach((colDef) => {
+                    const formula = colDef.formula!(rowNum, TXN_COLS);
+                    const colIndex = Object.values(TXN_COLS).indexOf(colDef);
+                    formulaRequests.push({
+                        updateCells: {
+                            range: { sheetId: txSheetId, startRowIndex: rowNum - 1, endRowIndex: rowNum, startColumnIndex: colIndex, endColumnIndex: colIndex + 1 },
+                            rows: [{ values: [{ userEnteredValue: { formulaValue: formula } }] }],
+                            fields: 'userEnteredValue.formulaValue'
+                        }
+                    });
+                });
+            }
+        
+            if (formulaRequests.length > 0) {
+                // Batch requests in chunks if too large (Google limit is around 100k requests but payload size matters)
+                // For test data (few rows), one batch is fine.
+                await gapi.client.sheets.spreadsheets.batchUpdate({ spreadsheetId, resource: { requests: formulaRequests } });
+            }
 
     // Only rebuild holdings once after batch insert
     await rebuildHoldingsSheet(spreadsheetId);
@@ -333,7 +328,7 @@ function createHoldingRow(h: Omit<Holding, 'totalValue' | 'price' | 'currency' |
 }
 
 export const rebuildHoldingsSheet = async (spreadsheetId: string) => {
-    let gapi = await ensureGapi();
+    const gapi = await ensureGapi();
     const transactions = await fetchTransactions(spreadsheetId);
     // Removed priceUnit from Omit type
     const holdings: Record<string, Omit<Holding, 'totalValue' | 'price' | 'currency' | 'name' | 'name_he' | 'sector' | 'priceUnit' | 'changePct' | 'changePct1w' | 'changePct1m' | 'changePct3m' | 'changePctYtd' | 'changePct1y' | 'changePct3y' | 'changePct5y' | 'changePct10y'> & { portfolioId: string }> = {};
@@ -344,33 +339,33 @@ export const rebuildHoldingsSheet = async (spreadsheetId: string) => {
             if (!holdings[key]) {
                 holdings[key] = { portfolioId: txn.portfolioId, ticker: txn.ticker, exchange: txn.exchange || '', qty: 0 };
             }
-            if (txn.numeric_id) {
-                holdings[key].numeric_id = txn.numeric_id;
-            }
+        // Initialize optional property if it doesn't exist.
+        // We use (txn as any) to access numeric_id which might be added dynamically or is missing from type definition.
+        if ((txn as any).numeric_id) {
+            holdings[key].numeric_id = (txn as any).numeric_id;
+        }
             const multiplier = txn.type === 'BUY' ? 1 : -1;
-            const qty = parseFloat(txn.Split_Adjusted_Qty || txn.Original_Qty.toString());
+            const qty = parseFloat(String(txn.Split_Adjusted_Qty || txn.Original_Qty));
             holdings[key].qty += qty * multiplier;
         }
     });
 
     const uniqueHoldings = Object.values(holdings).filter(h => h.qty > 1e-6);
-    const enrichedData = await Promise.all(uniqueHoldings.map(async (h) => {
-        let meta = null;
-        if ((h.exchange || '').toUpperCase() === 'TASE') {
-            try { meta = await getTickerData(h.ticker, h.exchange); } catch (e) { console.warn("Failed to fetch TASE metadata for " + h.ticker, e); }
-        }
-
-
-        return { h, meta };
-
+            const enrichedData = await Promise.all(uniqueHoldings.map(async (h) => {
+                let meta: any = null;
+                if ((h.exchange || '').toUpperCase() === 'TASE') {
+                    try { meta = await getTickerData(h.ticker, h.exchange as any); } catch (e) { console.warn("Failed to fetch TASE metadata for " + h.ticker, e); }
+                }
+                
+                return { h, meta };
 
     }));
 
 
-    const data = enrichedData.map(({ h, meta }, i) => createHoldingRow(h, meta, i + 2));
+    const data = enrichedData.map(({ h, meta }, i) => createHoldingRow(h, meta, i + 2)).filter((row): row is any[] => row !== null);
 
-
-    await gapi.client.sheets.spreadsheets.values.clear({ spreadsheetId, range: `${HOLDINGS_SHEET}!A2:${String.fromCharCode(65 + holdingsHeaders.length - 1)}` });
+    const range = `${HOLDINGS_SHEET}!A2:${String.fromCharCode(65 + holdingsHeaders.length - 1)}`;
+    await gapi.client.sheets.spreadsheets.values.clear({ spreadsheetId, range, resource: {range: range} });
 
 
     if (data.length > 0) {
@@ -383,8 +378,8 @@ export const rebuildHoldingsSheet = async (spreadsheetId: string) => {
 };
 
 export const addPortfolio = async (spreadsheetId: string, p: Portfolio) => {
-    let gapi = await ensureGapi();
-    const row = objectToRow(p, portfolioHeaders, portfolioMapping);
+    const gapi = await ensureGapi();
+    const row = objectToRow(p, portfolioHeaders, portfolioMapping as any);
     await gapi.client.sheets.spreadsheets.values.append({
         spreadsheetId, range: 'Portfolio_Options!A:A', valueInputOption: 'USER_ENTERED',
         resource: { values: [row] }
@@ -392,7 +387,7 @@ export const addPortfolio = async (spreadsheetId: string, p: Portfolio) => {
 };
 
 export const updatePortfolio = async (spreadsheetId: string, p: Portfolio) => {
-    let gapi = await ensureGapi();
+    const gapi = await ensureGapi();
     const { result } = await gapi.client.sheets.spreadsheets.values.get({
         spreadsheetId, range: `Portfolio_Options!A1:${String.fromCharCode(65 + portfolioHeaders.length - 1)}`
     });
@@ -408,14 +403,14 @@ export const updatePortfolio = async (spreadsheetId: string, p: Portfolio) => {
     const rowNum = rowIndex + 2;
     const endColumn = String.fromCharCode(65 + portfolioHeaders.length - 1);
     const range = `Portfolio_Options!A${rowNum}:${endColumn}${rowNum}`;
-    const rowData = objectToRow(p, portfolioHeaders, portfolioMapping);
+    const rowData = objectToRow(p, portfolioHeaders, portfolioMapping as any);
     await gapi.client.sheets.spreadsheets.values.update({
         spreadsheetId, range: range, valueInputOption: 'USER_ENTERED', resource: { values: [rowData] }
     });
 };
 
 export async function getMetadataValue(spreadsheetId: string, key: string): Promise<string | null> {
-    let gapi = await ensureGapi();
+    const gapi = await ensureGapi();
     try {
         const res = await gapi.client.sheets.spreadsheets.values.get({ spreadsheetId, range: METADATA_RANGE });
         const rows: string[][] = res.result.values || [];
@@ -427,7 +422,7 @@ export async function getMetadataValue(spreadsheetId: string, key: string): Prom
 }
 
 export async function setMetadataValue(spreadsheetId: string, key: string, value: string): Promise<void> {
-    let gapi = await ensureGapi();
+    const gapi = await ensureGapi();
     try {
         const res = await gapi.client.sheets.spreadsheets.values.get({ spreadsheetId, range: METADATA_RANGE });
         const rows = res.result.values || [];
@@ -447,9 +442,9 @@ export async function setMetadataValue(spreadsheetId: string, key: string, value
 }
 
 export async function exportToSheet(spreadsheetId: string, sheetName: string, headers: string[], data: any[][]): Promise<number> {
-    let gapi = await ensureGapi();
+    const gapi = await ensureGapi();
     const sheetId = await getSheetId(spreadsheetId, sheetName, true);
-    await gapi.client.sheets.spreadsheets.values.clear({ spreadsheetId, range: sheetName });
+    await gapi.client.sheets.spreadsheets.values.clear({ spreadsheetId, range: sheetName, resource: {} });
     const values = [headers, ...data];
     await gapi.client.sheets.spreadsheets.values.update({
         spreadsheetId, range: `${sheetName}!A1`, valueInputOption: 'USER_ENTERED', resource: { values }
@@ -458,7 +453,7 @@ export async function exportToSheet(spreadsheetId: string, sheetName: string, he
 }
 
 export const fetchSheetExchangeRates = async (spreadsheetId: string): Promise<any> => {
-    let gapi = await ensureGapi();
+    const gapi = await ensureGapi();
     const res = await gapi.client.sheets.spreadsheets.values.get({
         spreadsheetId, range: CONFIG_RANGE, valueRenderOption: 'FORMATTED_VALUE'
     });

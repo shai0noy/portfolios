@@ -22,7 +22,7 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
   let text;
   try {
     text = await fetchXml(globesApiUrl, signal);
-  } catch (e: unknown) {
+  } catch {
     return null;
   }
 

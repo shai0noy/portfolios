@@ -5,12 +5,14 @@ import { SessionExpiredError } from './errors';
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const SCOPES = 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file';
 
-let gapiInstance: any = null;
+
+let gapiInstance: typeof gapi | null = null;
 let tokenClient: google.accounts.oauth2.TokenClient | null = null;
 let signInPromise: Promise<void> | null = null;
+let refreshPromise: Promise<void> | null = null;
 
-export async function initializeGapi(): Promise<void> {
-    if (gapiInstance) return;
+export async function initializeGapi(): Promise<typeof gapi> {
+    if (gapiInstance) return gapiInstance;
     gapiInstance = await ensureGoogleApis();
     await gapiInstance.client.init({
         discoveryDocs: [
@@ -18,16 +20,17 @@ export async function initializeGapi(): Promise<void> {
             'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest',
         ],
     });
+    return gapiInstance;
 }
 
 function storeToken(response: google.accounts.oauth2.TokenResponse) {
     localStorage.setItem('g_access_token', response.access_token!);
-    localStorage.setItem('g_expires', (Date.now() + (response.expires_in! - 60) * 1000).toString());
-    gapiInstance.client.setToken({ access_token: response.access_token });
+    localStorage.setItem('g_expires', (Date.now() + (Number(response.expires_in!) - 60) * 1000).toString());
+    gapiInstance!.client.setToken({ access_token: response.access_token });
     console.log("Token stored and set in gapi client.");
 }
 
-function hasValidToken(): boolean {
+export function hasValidToken(): boolean {
     const storedToken = localStorage.getItem('g_access_token');
     const storedExpiry = localStorage.getItem('g_expires');
     return !!(storedToken && storedExpiry && Date.now() < parseInt(storedExpiry));
@@ -84,21 +87,32 @@ export function signOut() {
     window.location.reload();
 }
 
-export const ensureGapi = async (): Promise<any> => {
+export const ensureGapi = async (): Promise<typeof gapi> => {
     await initializeGapi();
 
     if (hasValidToken()) {
         // Set token if not already set (e.g., after page load)
-        if (!gapiInstance.client.getToken()) {
+        if (!gapiInstance!.client.getToken()) {
             const storedToken = localStorage.getItem('g_access_token');
-            gapiInstance.client.setToken({ access_token: storedToken });
+            gapiInstance!.client.setToken({ access_token: storedToken! });
         }
-        return gapiInstance;
+        return gapiInstance!;
     }
 
     console.log('Token missing or expired, attempting silent refresh...');
-    try {
-        await new Promise((resolve, reject) => {
+
+    if (refreshPromise) {
+        console.log('Silent refresh already in progress, waiting...');
+        try {
+            await refreshPromise;
+            return gapiInstance!;
+        } catch (error) {
+            throw error;
+        }
+    }
+
+    refreshPromise = new Promise((resolve, reject) => {
+        try {
             tokenClient = google.accounts.oauth2.initTokenClient({
                 client_id: CLIENT_ID,
                 scope: SCOPES,
@@ -107,31 +121,37 @@ export const ensureGapi = async (): Promise<any> => {
                     if (response.error) {
                         console.warn("Silent refresh failed callback:", response);
                         // Pass the whole response to the reject
-                        return reject(new SessionExpiredError(response.error_description || response.error)); // Wrap in SessionExpiredError
+                        return reject(new SessionExpiredError(response.error_description || response.error));
                     }
                     storeToken(response);
                     console.log("Silent refresh successful.");
-                    resolve(gapiInstance);
+                    resolve();
                 },
                 error_callback: (error: any) => {
                     console.warn("Silent refresh error callback:", error);
-                     // Pass the error object
-                    reject(new SessionExpiredError(error.message || 'Session Expired')); // Wrap in SessionExpiredError
+                    reject(new SessionExpiredError(error.message || 'Session Expired'));
                 },
             });
             tokenClient.requestAccessToken({ prompt: 'none' });
-        });
-        return gapiInstance;
+        } catch (e) {
+            reject(e);
+        }
+    });
+
+    try {
+        await refreshPromise;
+        return gapiInstance!;
     } catch (error: any) {
         console.log("Caught error from silent refresh promise:", error);
         if (error instanceof SessionExpiredError) {
-             console.warn("SessionExpiredError caught, propagating to caller...");
-             throw error;
+            console.warn("SessionExpiredError caught, propagating to caller...");
+            throw error;
         } else {
-            // This case should be less likely now
             console.error("Unhandled error during token refresh:", error);
             throw error;
         }
+    } finally {
+        refreshPromise = null;
     }
 };
 
@@ -165,6 +185,10 @@ export async function findSpreadsheetByName(fileName: string): Promise<string | 
         const files = response.result.files;
         if (files && files.length > 0) {
             console.log(`Found ${files.length} files with name ${fileName}. Taking the first one.`);
+            if (!files[0].id) {
+                console.error("File ID missing for the found spreadsheet.");
+                return null;
+            }
             return files[0].id;
         } else {
             console.log(`No file named '${fileName}' found.`);
@@ -176,4 +200,3 @@ export async function findSpreadsheetByName(fileName: string): Promise<string | 
         return null;
     }
 }
-    

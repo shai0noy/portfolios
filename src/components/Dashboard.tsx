@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Box, CircularProgress, FormControlLabel, Switch, IconButton, Tooltip, Typography
@@ -173,7 +173,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
 
         if (h.dayChangePct !== 0) {
             const { changeVal } = calculatePerformanceInDisplayCurrency(
-                h.currentPrice, h.stockCurrency, h.priceUnit,
+                h.currentPrice, h.stockCurrency,
                 h.dayChangePct, 'ago1d', displayCurrency, exchangeRates
             );
             acc.totalDayChange += changeVal * h.totalQty;
@@ -195,7 +195,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
             const perf = h[holdingKey as keyof DashboardHolding] as number;
             if (perf && !isNaN(perf)) {
                 const { changeVal } = calculatePerformanceInDisplayCurrency(
-                    h.currentPrice, h.stockCurrency, h.priceUnit,
+                    h.currentPrice, h.stockCurrency,
                     perf, periodMap[key], displayCurrency, exchangeRates
                 );
                 
@@ -272,7 +272,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
     fetchData();
   };
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const [ports, txns] = await Promise.all([
@@ -368,6 +368,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         const priceInUSD = (t as any).Original_Price_USD || 0;
         const priceInAgorot = (t as any).Original_Price_ILAG || 0;
         const priceInILS = fromAgorot(priceInAgorot);
+        const tQty = t.qty || 0;
 
         if (portfolioCurrency === Currency.ILS) {
              // If Portfolio is ILS, use Original_Price_ILAG (in Agorot) and convert to ILS Major Unit
@@ -379,13 +380,13 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
              originalPricePortfolioCurrency = convertCurrency(priceInUSD, Currency.USD, portfolioCurrency, exchangeRates);
         }
 
-        const txnValuePortfolioCurrency = t.qty * originalPricePortfolioCurrency;
-        const txnValueStockCurrency = t.qty * (t.price || 0);
-        const txnValueUSD = t.qty * priceInUSD;
-        const txnValueILS = t.qty * priceInILS;
+        const txnValuePortfolioCurrency = tQty * originalPricePortfolioCurrency;
+        const txnValueStockCurrency = tQty * (t.price || 0);
+        const txnValueUSD = tQty * priceInUSD;
+        const txnValueILS = tQty * priceInILS;
 
         if (t.type === 'BUY') {
-            if (isVested) h.qtyVested += t.qty; else h.qtyUnvested += t.qty;
+            if (isVested) h.qtyVested += tQty; else h.qtyUnvested += tQty;
             h.costBasisPortfolioCurrency += txnValuePortfolioCurrency; // NO commission included in basis? User didn't specify. Assuming raw price.
             h.costBasisStockCurrency += txnValueStockCurrency;
             
@@ -396,16 +397,16 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
             const totalQtyPreSell = h.qtyVested + h.qtyUnvested;
             // Calculate avg cost PER SHARE in Portfolio Currency BEFORE this sale
             const avgCostPC = totalQtyPreSell > 1e-9 ? h.costBasisPortfolioCurrency / totalQtyPreSell : 0;
-            const costOfSoldPC = avgCostPC * t.qty;
+            const costOfSoldPC = avgCostPC * tQty;
             
             const avgCostSC = totalQtyPreSell > 1e-9 ? h.costBasisStockCurrency / totalQtyPreSell : 0;
-            const costOfSoldSC = avgCostSC * t.qty;
+            const costOfSoldSC = avgCostSC * tQty;
 
             const avgCostUSD = totalQtyPreSell > 1e-9 ? h.costBasisUSD / totalQtyPreSell : 0;
-            const costOfSoldUSD = avgCostUSD * t.qty;
+            const costOfSoldUSD = avgCostUSD * tQty;
 
             const avgCostILS = totalQtyPreSell > 1e-9 ? h.costBasisILS / totalQtyPreSell : 0;
-            const costOfSoldILS = avgCostILS * t.qty;
+            const costOfSoldILS = avgCostILS * tQty;
 
             h.costOfSoldPortfolioCurrency += costOfSoldPC;
             h.proceedsPortfolioCurrency += txnValuePortfolioCurrency; 
@@ -429,7 +430,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
             if (Math.abs(h.costBasisILS) < 1e-6) h.costBasisILS = 0;
 
             // Reduce quantity
-            let qtyToSell = t.qty;
+            let qtyToSell = tQty;
             if (isVested) {
                 const canSellVested = Math.min(qtyToSell, h.qtyVested);
                 h.qtyVested -= canSellVested;
@@ -494,7 +495,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [sheetId, includeUnvested, exchangeRates]);
 
 
   // Default Columns

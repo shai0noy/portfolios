@@ -3,6 +3,7 @@ import { formatCurrency } from '../lib/currency';
 import { logIfFalsy } from '../lib/utils';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import type { ExchangeRates } from '../lib/types';
 
 interface SummaryProps {
   summary: {
@@ -36,7 +37,7 @@ interface SummaryProps {
     perfYtd_incomplete: boolean;
   };
   displayCurrency: string;
-  exchangeRates: Record<string, number>;
+  exchangeRates: ExchangeRates;
   selectedPortfolio: string | null;
   onBack: () => void;
   onCurrencyChange: (currency: string) => void;

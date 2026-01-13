@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Box, Button, Typography, CircularProgress, Paper, Container, TextField, Stack } from '@mui/material';
 import GoogleIcon from '@mui/icons-material/Google';
-import { initializeGapi, signIn, checkSheetExists } from '../lib/google';
+import { initializeGapi, signIn, checkSheetExists, hasValidToken } from '../lib/google';
 import { createPortfolioSpreadsheet } from '../lib/sheets/index';
 
 function extractSheetIdFromUrl(url: string): string | null {
@@ -17,11 +17,12 @@ export function Login({ onLogin }: { onLogin: (sheetId: string) => void }) {
 
   const checkInitialSession = useCallback(async () => {
     try {
-      const sessionRestored = await initializeGapi();
-      setIsSignedIn(sessionRestored);
+      await initializeGapi();
+      setIsSignedIn(hasValidToken());
+      
       const savedSheetId = localStorage.getItem('g_sheet_id');
       
-      if (sessionRestored && savedSheetId && savedSheetId !== 'null') {
+      if ( savedSheetId && savedSheetId !== 'null') {
         setLoading(true);
         const exists = await checkSheetExists(savedSheetId);
         if (exists) {
@@ -87,7 +88,7 @@ export function Login({ onLogin }: { onLogin: (sheetId: string) => void }) {
       } else {
         setError('Failed to create new spreadsheet.');
       }
-    } catch (e) {
+    } catch {
       setError('Error creating spreadsheet.');
     } finally {
       setLoading(false);

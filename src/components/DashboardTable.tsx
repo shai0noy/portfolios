@@ -78,9 +78,9 @@ export function DashboardTable(props: TableProps) {
       case 'qty': return h.totalQty;
       case 'avgCost': return toDisplay(h.avgCost, normStock);
       case 'currentPrice': return toDisplay(h.currentPrice, normStock);
-      case 'dayChangePct': return calculatePerformanceInDisplayCurrency(h.currentPrice, normStock, h.priceUnit, h.dayChangePct, 'ago1d', displayCurrency, exchangeRates).changePct;
-      case 'dayChangeVal': return calculatePerformanceInDisplayCurrency(h.currentPrice, normStock, h.priceUnit, h.dayChangePct, 'ago1d', displayCurrency, exchangeRates).changeVal * h.totalQty;
-      case 'marketValue': return calculateHoldingDisplayValues(h, displayCurrency, exchangeRates).marketValue;
+      case 'dayChangePct': return calculatePerformanceInDisplayCurrency(h.currentPrice, normStock, h.dayChangePct, 'ago1d', displayCurrency, exchangeRates).changePct;
+      case 'dayChangeVal': return calculatePerformanceInDisplayCurrency(h.currentPrice, normStock, h.dayChangePct, 'ago1d', displayCurrency, exchangeRates).changeVal * h.totalQty;
+      case 'mv': return calculateHoldingDisplayValues(h, displayCurrency, exchangeRates).marketValue;
       case 'unrealized': return calculateHoldingDisplayValues(h, displayCurrency, exchangeRates).unrealizedGain;
       case 'realizedGain': return calculateHoldingDisplayValues(h, displayCurrency, exchangeRates).realizedGain;
       case 'totalGain': return calculateHoldingDisplayValues(h, displayCurrency, exchangeRates).totalGain;
@@ -97,7 +97,7 @@ export function DashboardTable(props: TableProps) {
       const displayVals = calculateHoldingDisplayValues(h, displayCurrency, exchangeRates);
       // Ensure we use normalized currency for calculations
       const normStock = normalizeCurrency(h.stockCurrency);
-      const { changeVal } = calculatePerformanceInDisplayCurrency(h.currentPrice, normStock, h.priceUnit, h.dayChangePct, 'ago1d', displayCurrency, exchangeRates);
+      const { changeVal } = calculatePerformanceInDisplayCurrency(h.currentPrice, normStock, h.dayChangePct, 'ago1d', displayCurrency, exchangeRates);
       const dayChange = changeVal * h.totalQty;
       
       acc.totalMV += displayVals.marketValue;
@@ -178,7 +178,7 @@ export function DashboardTable(props: TableProps) {
                 const displayVals = calculateHoldingDisplayValues(h, displayCurrency, exchangeRates);
 
                 // Calculate Day Change in Display Currency
-                const { changeVal: dayChangeValDisplay, changePct: dayChangePctDisplay } = calculatePerformanceInDisplayCurrency(h.currentPrice, h.stockCurrency, h.priceUnit, h.dayChangePct, 'ago1d', displayCurrency, exchangeRates);
+                const { changeVal: dayChangeValDisplay, changePct: dayChangePctDisplay } = calculatePerformanceInDisplayCurrency(h.currentPrice, h.stockCurrency, h.dayChangePct, 'ago1d', displayCurrency, exchangeRates);
                 
                 return (
                   <TableRow key={h.key} hover onClick={() => navigate(`/ticker/${h.exchange.toUpperCase()}/${h.ticker}`, { state: { holding: h } })} sx={{ cursor: 'pointer' }}>
@@ -186,8 +186,8 @@ export function DashboardTable(props: TableProps) {
                     {columnVisibility.ticker ? <TableCell>{h.ticker}</TableCell> : null}
                     {columnVisibility.sector ? <TableCell>{h.sector}</TableCell> : null}
                     {columnVisibility.qty ? <TableCell align="right">{h.totalQty.toLocaleString()}</TableCell> : null}
-                    {columnVisibility.avgCost ? <TableCell align="right">{formatPrice(h.avgCost, h.stockCurrency, 2, h.priceUnit)}</TableCell> : null}
-                    {columnVisibility.currentPrice ? <TableCell align="right">{formatPrice(h.currentPrice, h.stockCurrency, 2, h.priceUnit)}</TableCell> : null}
+                    {columnVisibility.avgCost ? <TableCell align="right">{formatPrice(h.avgCost, h.stockCurrency, 2)}</TableCell> : null}
+                    {columnVisibility.currentPrice ? <TableCell align="right">{formatPrice(h.currentPrice, h.stockCurrency, 2)}</TableCell> : null}
                     {columnVisibility.dayChangeVal ? <TableCell align="right" sx={{ color: dayChangePctDisplay >= 0 ? theme.palette.success.main : theme.palette.error.main }}>{formatCurrency(dayChangeValDisplay * h.totalQty, displayCurrency, 2)}</TableCell> : null}
                     {columnVisibility.dayChangePct ? <TableCell align="right" sx={{ color: dayChangePctDisplay >= 0 ? theme.palette.success.main : theme.palette.error.main }}>{formatPct(dayChangePctDisplay)}</TableCell> : null}
                     {columnVisibility.mv ? <TableCell align="right">{formatCurrency(displayVals.marketValue, displayCurrency)}</TableCell> : null}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   TextField, Grid, Typography, CircularProgress, MenuItem, Select, FormControl, InputLabel,
   List, ListItemButton, ListItemText, Paper, Box, Divider, Chip, Tooltip
@@ -125,36 +125,53 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const searchTickers = useCallback(async (term: string, exchange: string) => {
+      try {
+          const results = await performSearch(term, exchange, taseDataset, portfolios);
+          setSearchResults(results);
+      } catch (err) {
+          console.error("Search failed", err);
+          setError("Search failed");
+      }
+  }, [taseDataset, portfolios]);
+
   const debouncedInput = useDebounce(inputValue, 300);
 
-  useEffect(() => {
-    if (isFocused && Object.keys(taseDataset).length === 0) {
-      setIsTaseDatasetLoading(true);
-      getTaseTickersDataset().then(data => {
-        setTaseDataset(data);
-        setIsTaseDatasetLoading(false);
-      });
-    }
-  }, [isFocused, taseDataset]);
-
+    useEffect(() => {
+      let active = true;
+      if (isFocused && Object.keys(taseDataset).length === 0) {
+          // Only trigger load if not already loading or loaded
+          const load = async () => {
+              setIsTaseDatasetLoading(true);
+              try {
+                  const data = await getTaseTickersDataset();
+                  if (active) setTaseDataset(data);
+              } finally {
+                  if (active) setIsTaseDatasetLoading(false);
+              }
+          };
+          load();
+      }
+      return () => { active = false; };
+    }, [isFocused, taseDataset]); // Removed setIsTaseDatasetLoading from dep array to avoid loop if unstable reference
   useEffect(() => {
     if (isFocused && !isPortfoliosLoading && !isTaseDatasetLoading) {
       if (!debouncedInput) {
         setSearchResults([]);
         return;
       }
-      setIsLoading(true);
-      setError(null);
-      performSearch(debouncedInput, selectedExchange, taseDataset, portfolios)
-        .then(setSearchResults)
-        .catch(err => {
-          console.error('Error searching tickers:', err);
-          setError('Failed to search tickers.');
-          setSearchResults([]);
-        })
-        .finally(() => setIsLoading(false));
+      
+      const doSearch = async () => {
+          setIsLoading(true);
+          try {
+            await searchTickers(debouncedInput, selectedExchange);
+          } finally {
+            setIsLoading(false);
+          }
+      };
+      doSearch();
     }
-  }, [debouncedInput, selectedExchange, isPortfoliosLoading, isTaseDatasetLoading, isFocused, taseDataset, portfolios]);
+  }, [debouncedInput, selectedExchange, isPortfoliosLoading, isTaseDatasetLoading, isFocused, searchTickers]);
 
   const filteredResults = useMemo(() => {
     const filtered = selectedType === 'ALL' ? searchResults : searchResults.filter(opt => opt.type === selectedType);

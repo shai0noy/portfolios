@@ -1,6 +1,6 @@
 import { fetchSheetExchangeRates } from './sheets/index';
 import { Currency } from './types';
-import type { ExchangeRates, DashboardHolding, PriceUnit } from './types';
+import type { ExchangeRates, DashboardHolding } from './types';
 
 const CACHE_KEY = 'exchangeRates';
 const CACHE_DURATION = 60 * 60 * 1000; // 1 hour
@@ -103,7 +103,6 @@ export function convertCurrency(amount: number, from: Currency | string, to: Cur
 export const calculatePerformanceInDisplayCurrency = (
   currentPrice: number,
   stockCurrency: Currency | string,
-  priceUnit: PriceUnit | undefined,
   perfPct: number,
   period: string,
   displayCurrency: string,
@@ -143,7 +142,6 @@ export const calculateHoldingDisplayValues = (h: DashboardHolding, displayCurren
     let dividends = 0;
 
     const normStock = h.stockCurrency; 
-    const normPort = h.portfolioCurrency; 
 
     // Simplification: Always use convert() helper which handles equality checks and ILAG
     costBasis = convert(h.costBasisPortfolioCurrency, h.portfolioCurrency);
@@ -222,7 +220,7 @@ export function formatCurrency(n: number, currency: string | Currency, decimals 
 
 // Strictly used for displaying Ticker Costs/Prices. 
 // Enforces rule: ILS prices always shown in Agorot.
-export function formatPrice(n: number, currency: string | Currency, decimals = 2, priceUnit?: PriceUnit): string {
+export function formatPrice(n: number, currency: string | Currency, decimals = 2): string {
     if (n === undefined || n === null || isNaN(n)) return '-';
     
     const norm = normalizeCurrency(currency as string);

@@ -163,9 +163,9 @@ export function TickerDetails({ sheetId }: { sheetId: string }) {
             <Box display="flex" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
               <Box display="flex" alignItems="baseline" sx={{ gap: 1, flex: 1, minWidth: 0 }}>
                 <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>PRICE</Typography>
-                <Typography variant="h6" component="div" fontWeight={600} sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{formatPrice(displayData.price, displayData.currency, 2, displayData.priceUnit)}</Typography>
+                <Typography variant="h6" component="div" fontWeight={600} sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{formatPrice(displayData.price, displayData.currency, 2)}</Typography>
                 {displayData.openPrice && (
-                  <Typography variant="caption" color="text.secondary" sx={{ ml: 1, whiteSpace: 'nowrap' }}>Open: {formatPrice(displayData.openPrice, displayData.currency, 2, displayData.priceUnit)}</Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ ml: 1, whiteSpace: 'nowrap' }}>Open: {formatPrice(displayData.openPrice, displayData.currency, 2)}</Typography>
                 )}
               </Box>
 
