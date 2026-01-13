@@ -97,6 +97,21 @@ function getGlobesTypeFromTaseType(taseType: string): string | undefined {
     return undefined;
 }
 
+function getEffectiveTicker(ticker: string | undefined, exchange: string | undefined) {
+  if (!ticker || !exchange) return ticker;
+  const upperExchange = exchange.toUpperCase();
+  if (upperExchange === 'TASE') {
+    let t = ticker;
+    if (t.endsWith('-M')) {
+      t = t.slice(0, -2);
+    }
+    if (t.includes('-')) {
+      console.warn(`TASE ticker ${t} contains a hyphen.`);
+    }
+    return t;
+  }
+  return ticker;
+}
 
 // Create a mapping from TASE security type code to a broad category description.
 const taseSecurityTypeMap = new Map<string, { type: string, subType: string }>();
@@ -237,7 +252,7 @@ export async function fetchAllTaseTickers(
           // Data from TASE API
           securityId: security.securityId,
           name_en: security.securityName,
-          symbol: security.symbol,
+          symbol: getEffectiveTicker(security.symbol, 'TASE') || security.symbol,
           companyName: security.companyName,
           companySuperSector: security.companySuperSector,
           companySector: security.companySector,
@@ -258,7 +273,7 @@ export async function fetchAllTaseTickers(
         // For globes-only tickers, we can't reliably determine the TASE type.
         allTickers.push({
             securityId: Number(globesTicker.numericSecurityId),
-            symbol: globesTicker.symbol,
+            symbol: getEffectiveTicker(globesTicker.symbol, 'TASE') || globesTicker.symbol,
             companyName: globesTicker.name_en, // Fallback to globes name
             companySuperSector: '',
             companySector: '',
