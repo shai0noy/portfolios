@@ -12,6 +12,7 @@ import {
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import type { Portfolio, Transaction } from '../lib/types';
 import { addTransaction, fetchPortfolios } from '../lib/sheets/index';
+import { formatCurrency } from '../lib/currency';
 import { ImportHelp } from './ImportHelp';
 
 interface Props {
@@ -486,17 +487,21 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {parsedTxns.map((t, i) => (
-                    <TableRow key={i} hover>
-                      <TableCell>{t.date}</TableCell>
-                      <TableCell>{t.ticker}</TableCell>
-                      <TableCell>{t.exchange}</TableCell>
-                      <TableCell>{t.type}</TableCell>
-                      <TableCell align="right">{t.Original_Qty}</TableCell>
-                      <TableCell align="right">{t.Original_Price.toFixed(2)}</TableCell>
-                      <TableCell align="right">{t.grossValue?.toFixed(2)}</TableCell>
-                    </TableRow>
-                  ))}
+                  {(() => {
+                    const selectedPortfolio = portfolios.find(p => p.id === portfolioId);
+                    const currency = selectedPortfolio ? selectedPortfolio.currency : 'USD';
+                    return parsedTxns.map((t, i) => (
+                      <TableRow key={i} hover>
+                        <TableCell>{t.date}</TableCell>
+                        <TableCell>{t.ticker}</TableCell>
+                        <TableCell>{t.exchange}</TableCell>
+                        <TableCell>{t.type}</TableCell>
+                        <TableCell align="right">{t.Original_Qty}</TableCell>
+                        <TableCell align="right">{formatCurrency(t.Original_Price, currency)}</TableCell>
+                        <TableCell align="right">{formatCurrency(t.grossValue || 0, currency)}</TableCell>
+                      </TableRow>
+                    ));
+                  })()}
                 </TableBody>
               </Table>
             </Box>

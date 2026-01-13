@@ -7,7 +7,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { getTickerData } from '../lib/fetching';
 import { fetchHolding, getMetadataValue } from '../lib/sheets/index';
 import type { Holding } from '../lib/types';
-import { formatPrice } from '../lib/currency';
+import { formatPrice, formatPercent } from '../lib/currency';
 
 interface TickerDetailsRouteParams extends Record<string, string | undefined> {
   exchange: string;
@@ -87,11 +87,6 @@ export function TickerDetails({ sheetId }: { sheetId: string }) {
       }
     });
   };
-
-  const formatPct = (n?: number) => {
-    if (n === undefined || n === null || isNaN(n)) return '--%';
-    return (n * 100).toFixed(2) + '%';
-  }
 
   const getExternalLinks = () => {
     if (!ticker) return [];
@@ -196,7 +191,7 @@ export function TickerDetails({ sheetId }: { sheetId: string }) {
 
                     <Tooltip title="Day change" placement="top">
                       <Box sx={{ textAlign: 'right', ml: 2, minWidth: 96 }}>
-                        <Typography variant="h6" sx={{ fontWeight: 700, color: (perfData['1D'] || 0) >= 0 ? 'success.main' : 'error.main' }}>{formatPct(perfData['1D'])}</Typography>
+                        <Typography variant="h6" sx={{ fontWeight: 700, color: (perfData['1D'] || 0) >= 0 ? 'success.main' : 'error.main' }}>{formatPercent(perfData['1D'])}</Typography>
                       </Box>
                     </Tooltip>
                   </Box>
@@ -228,7 +223,7 @@ export function TickerDetails({ sheetId }: { sheetId: string }) {
                       label={
                         <>
                           <Typography variant="caption" color="text.secondary">{range}</Typography>
-                          <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatPct(value)}</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatPercent(value)}</Typography>
                         </>
                       }
                     />

@@ -1,5 +1,5 @@
 import { Box, Paper, Typography, Grid, Tooltip, Button, Select, MenuItem } from '@mui/material';
-import { formatCurrency } from '../lib/currency';
+import { formatCurrency, formatPercent } from '../lib/currency';
 import { logIfFalsy } from '../lib/utils';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
@@ -43,8 +43,6 @@ interface SummaryProps {
   onCurrencyChange: (currency: string) => void;
 }
 
-const formatPct = (n: number) => (n * 100).toFixed(2) + '%';
-
 interface StatProps {
   label: string;
   value: number;
@@ -83,7 +81,7 @@ const Stat = ({ label, value, pct, color, tooltip, isMain = false, size = 'norma
                   color={color || 'text.secondary'} 
                   sx={{ opacity: color ? 1 : 0.7, fontSize: isSmall ? '0.7rem' : '0.75rem' }}
               >
-                  {pct > 0 ? '+' : ''}{formatPct(pct)}
+                  {pct > 0 ? '+' : ''}{formatPercent(pct)}
               </Typography>
           )}
       </Box>

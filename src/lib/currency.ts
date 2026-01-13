@@ -209,13 +209,31 @@ export function formatNumber(n: number | undefined | null): string {
 export function formatCurrency(n: number, currency: string | Currency, decimals = 2): string {
   if (n === undefined || n === null || isNaN(n)) return '-';
   const norm = normalizeCurrency(currency as string);
-  const val = n.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
-  if (norm === Currency.USD) return `$${val}`;
-  if (norm === Currency.ILS) return `₪${val}`;
-  if (norm === Currency.EUR) return `€${val}`;
-  if (norm === Currency.GBP) return `£${val}`;
-  if (norm === Currency.ILAG) return `${val} ag.`;
-  return `${val} ${norm}`;
+
+  if (norm === Currency.ILAG) {
+    const val = n.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+    return `${val} ag.`;
+  }
+  
+  // Use Intl.NumberFormat for proper currency formatting
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency: norm,
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals
+    }).format(n);
+  } catch (e) {
+    // Fallback for unknown currency codes
+    console.warn(`Could not format currency for code: ${norm}. Using default format.`);
+    const val = n.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+    return `${val} ${norm}`;
+  }
+}
+
+export function formatPercent(n: number): string {
+  if (n === undefined || n === null || isNaN(n)) return '-';
+  return `${(n * 100).toFixed(2)}%`;
 }
 
 // Strictly used for displaying Ticker Costs/Prices. 
