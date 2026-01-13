@@ -88,6 +88,8 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
       changePct3y,
       changePct5y: 0,
       changePct10y: 0,
+      ticker: symbol.toUpperCase(),
+      numericId: securityId || null
     };
 
     tickerDataCache.set(cacheKey, { data: tickerData, timestamp: now });

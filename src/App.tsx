@@ -426,7 +426,16 @@ function App() {
                 <Dashboard sheetId={sheetId} key={refreshKey} />
               </Box>
               <Box sx={{ display: currentTab === 1 ? 'block' : 'none' }}>
-                <TransactionForm sheetId={sheetId} key={refreshKey} />
+                <TransactionForm 
+                  sheetId={sheetId} 
+                  key={refreshKey} 
+                  onSaveSuccess={() => {
+                    setRefreshKey(k => k + 1);
+                    setSnackbarMessage('Transaction saved! Dashboard is refreshing...');
+                    setSnackbarSeverity('success');
+                    setSnackbarOpen(true);
+                  }} 
+                />
               </Box>
       
               {/* Routes for components that should not be hidden, but mounted on navigation */}

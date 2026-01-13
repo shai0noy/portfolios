@@ -6,8 +6,8 @@ import type { Portfolio, Transaction, Holding } from '../types';
 import {
     TXN_COLS, transactionHeaders, transactionMapping, transactionNumericKeys,
     portfolioHeaders, holdingsHeaders, configHeaders, portfolioMapping, portfolioNumericKeys,
-    holdingMapping, holdingNumericKeys, type Headers, DEFAULT_SHEET_NAME, PORT_OPT_RANGE,
-    TX_SHEET_NAME, TX_FETCH_RANGE, CONFIG_SHEET_NAME, CONFIG_RANGE, METADATA_SHEET,
+    holdingMapping, holdingNumericKeys, holdingsUserOptionsHeaders, type Headers, DEFAULT_SHEET_NAME, PORT_OPT_RANGE,
+    TX_SHEET_NAME, TX_FETCH_RANGE, CONFIG_SHEET_NAME, CONFIG_RANGE, METADATA_SHEET, HOLDINGS_USER_OPTIONS_SHEET_NAME, HOLDINGS_USER_OPTIONS_RANGE,
     metadataHeaders, METADATA_RANGE, HOLDINGS_SHEET, HOLDINGS_RANGE
 } from './config';
 import { getHistoricalPriceFormula, getUsdIlsFormula } from './formulas';
@@ -19,7 +19,59 @@ const mapRowToPortfolio = createRowMapper(portfolioHeaders);
 const mapRowToTransaction = createRowMapper(transactionHeaders);
 const mapRowToHolding = createRowMapper(holdingsHeaders);
 
-export const ensureSchema = async (spreadsheetId: string) => {
+const isAuthError = (error: any): boolean => {
+    if (!error) return false;
+    // Google API client error for expired/invalid token
+    if (error.result?.error?.status === 'UNAUTHENTICATED' || error.result?.error?.code === 401) {
+        return true;
+    }
+    // Google Identity Services token client error
+    if (error.type === 'error' || (error.error && ['popup_closed_by_user', 'access_denied', 'invalid_grant'].includes(error.error))) {
+        return true;
+    }
+    return false;
+};
+
+const withAuthHandling = <A extends any[], R>(fn: (...args: A) => Promise<R>): ((...args: A) => Promise<R>) => {
+    return async (...args: A): Promise<R> => {
+        try {
+            return await fn(...args);
+        } catch (error) {
+            if (isAuthError(error)) {
+                console.warn('Authentication error detected. Clearing session and reloading.', error);
+                localStorage.removeItem('g_sheet_id');
+                // Reload the page. The application's entry point should handle
+                // redirecting to a login page if the user is not authenticated.
+                window.location.reload();
+                // Return a promise that never resolves to prevent further execution.
+                return new Promise(() => {});
+            }
+            throw error;
+        }
+    };
+};
+
+const toExchangeId = (str: string): string => {
+    if (!str) return '';
+    // convert input to uppercase, replace TLV and TA with TASE
+    const upperStr = str.toUpperCase();
+    if (upperStr === 'TLV' || upperStr === 'TA') {
+        return 'TASE';
+    }
+    return upperStr;
+};
+
+const toSheetsExchange = (str: string): string => {
+    if (!str) return '';
+    // converts to uppercase; replaces TA, TASE to TLV
+    const upperStr = str.toUpperCase();
+    if (upperStr === 'TASE' || upperStr === 'TA') {
+        return 'TLV';
+    }
+    return upperStr;
+};
+
+export const ensureSchema = withAuthHandling(async (spreadsheetId: string) => {
     const gapi = await ensureGapi();
     const sheetIds = {
         portfolio: await getSheetId(spreadsheetId, 'Portfolio_Options', true),
@@ -27,6 +79,7 @@ export const ensureSchema = async (spreadsheetId: string) => {
         holdings: await getSheetId(spreadsheetId, HOLDINGS_SHEET, true),
         config: await getSheetId(spreadsheetId, CONFIG_SHEET_NAME, true),
         metadata: await getSheetId(spreadsheetId, METADATA_SHEET, true),
+        holdingsUserOptions: await getSheetId(spreadsheetId, HOLDINGS_USER_OPTIONS_SHEET_NAME, true),
     };
 
     const batchUpdate = {
@@ -41,6 +94,7 @@ export const ensureSchema = async (spreadsheetId: string) => {
                 createHeaderUpdateRequest(sheetIds.holdings, holdingsHeaders as unknown as Headers),
                 createHeaderUpdateRequest(sheetIds.config, configHeaders as unknown as Headers),
                 createHeaderUpdateRequest(sheetIds.metadata, metadataHeaders as unknown as Headers),
+                createHeaderUpdateRequest(sheetIds.holdingsUserOptions, holdingsUserOptionsHeaders as unknown as Headers),
                 // Format Date columns (A=date, K=vestDate, P=Creation_Date) to YYYY-MM-DD
                 {
                     repeatCell: {
@@ -88,9 +142,9 @@ export const ensureSchema = async (spreadsheetId: string) => {
         resource: { values: initialConfig }
     });
     await setMetadataValue(spreadsheetId, 'schema_created', toGoogleSheetDateFormat(new Date()));
-};
+});
 
-export const fetchHolding = async (spreadsheetId: string, ticker: string, exchange: string): Promise<Holding | null> => {
+export const fetchHolding = withAuthHandling(async (spreadsheetId: string, ticker: string, exchange: string): Promise<Holding | null> => {
     const gapi = await ensureGapi();
     try {
         const res = await gapi.client.sheets.spreadsheets.values.get({
@@ -100,44 +154,95 @@ export const fetchHolding = async (spreadsheetId: string, ticker: string, exchan
         const rows = res.result.values || [];
         const tickerIndex = holdingsHeaders.indexOf('Ticker');
         const exchangeIndex = holdingsHeaders.indexOf('Exchange');
+        const sheetsExchange = toSheetsExchange(exchange);
 
-        const holdingRow = rows.find((row: any) => row[tickerIndex] === ticker.toUpperCase() && row[exchangeIndex] === exchange.toUpperCase());
+        const holdingRow = rows.find((row: any) => row[tickerIndex] === ticker.toUpperCase() && row[exchangeIndex] === sheetsExchange);
 
         if (holdingRow) {
-            return mapRowToHolding<Omit<Holding, 'priceUnit'>>(holdingRow, holdingMapping, holdingNumericKeys);
+            // mapRowToHolding correctly maps all fields present in holdingsHeaders, including numericId.
+            // portfolioId is not in holdingsHeaders, and is now optional in the Holding type.
+            const holding = mapRowToHolding<Omit<Holding, 'priceUnit' | 'portfolioId'>>(holdingRow, holdingMapping, holdingNumericKeys);
+            if (holding.exchange) holding.exchange = toExchangeId(holding.exchange);
+
+            // Return the holding directly. portfolioId will be undefined, which is allowed by the type.
+            return holding as Holding;
         }
         return null;
     } catch (error) {
         console.error(`Error fetching holding for ${ticker}:${exchange}:`, error);
         throw error;
     }
-};
+});
 
-export const fetchPortfolios = async (spreadsheetId: string): Promise<Portfolio[]> => {
+export const fetchPortfolios = withAuthHandling(async (spreadsheetId: string): Promise<Portfolio[]> => {
     await ensureGapi();
     const portfolios = await fetchSheetData(spreadsheetId, PORT_OPT_RANGE, (row) =>
         mapRowToPortfolio<Omit<Portfolio, 'holdings'>>(row, portfolioMapping, portfolioNumericKeys)
     );
-    let holdings: Holding[] = [];
+
+    // 1. Fetch all transactions to calculate holdings from scratch
+    const transactions = await fetchTransactions(spreadsheetId);
+    
+    // 2. Calculate holdings quantities from transactions
+    const holdingsByPortfolio: Record<string, Record<string, Holding>> = {};
+    transactions.forEach(txn => {
+        if (txn.type === 'BUY' || txn.type === 'SELL') {
+            if (!holdingsByPortfolio[txn.portfolioId]) {
+                holdingsByPortfolio[txn.portfolioId] = {};
+            }
+            const key = `${txn.ticker}-${txn.exchange}`;
+            if (!holdingsByPortfolio[txn.portfolioId][key]) {
+                holdingsByPortfolio[txn.portfolioId][key] = { 
+                    portfolioId: txn.portfolioId, 
+                    ticker: txn.ticker, 
+                    exchange: txn.exchange || '', 
+                    qty: 0 
+                };
+            }
+            const multiplier = txn.type === 'BUY' ? 1 : -1;
+            const qty = parseFloat(String(txn.Split_Adjusted_Qty || txn.Original_Qty));
+            holdingsByPortfolio[txn.portfolioId][key].qty += qty * multiplier;
+        }
+    });
+
+    // 3. Fetch the aggregated holdings sheet to use as a price map
+    let priceMap: Record<string, Omit<Holding, 'portfolioId' | 'qty'>> = {};
     try {
-        holdings = await fetchSheetData(spreadsheetId, HOLDINGS_RANGE, (row) =>
-            mapRowToHolding<Omit<Holding, 'priceUnit'>>(row, holdingMapping, holdingNumericKeys)
+        const priceData = await fetchSheetData(spreadsheetId, HOLDINGS_RANGE, (row: any[]) =>
+            mapRowToHolding<Omit<Holding, 'portfolioId' | 'qty' | 'priceUnit'>>(
+                row,
+                holdingMapping,
+                holdingNumericKeys.filter(k => k !== 'qty') as any
+            )
         );
-    } catch (e) { console.warn("Holdings sheet not found or error fetching:", e); }
-
-    if (holdings.length > 0) {
-        const holdingsByPortId = holdings.reduce((acc, holding) => {
-            const portId = holding.portfolioId;
-            if (!acc[portId]) acc[portId] = [];
-            acc[portId].push(holding);
-            return acc;
-        }, {} as Record<string, Holding[]>);
-        return portfolios.map(p => ({ ...p, holdings: holdingsByPortId[p.id] || [] }));
+        priceData.forEach(item => {
+            if (item.exchange) item.exchange = toExchangeId(item.exchange);
+            const key = `${item.ticker}-${item.exchange}`;
+            priceMap[key] = item;
+        });
+    } catch (e) {
+        console.warn("Holdings sheet (for price data) not found or error fetching:", e);
     }
-    return portfolios;
-};
+    
+    // 4. Attach calculated holdings, enriched with price data, to portfolios
+    return portfolios.map(p => {
+        const portfolioHoldingsRaw = holdingsByPortfolio[p.id] ? Object.values(holdingsByPortfolio[p.id]) : [];
+        const enrichedHoldings = portfolioHoldingsRaw
+            .filter(h => h.qty > 1e-6) // Filter out zero-quantity holdings
+            .map(h => {
+                const key = `${h.ticker}-${h.exchange}`;
+                const priceInfo = priceMap[key];
+                return {
+                    ...h,
+                    ...priceInfo, // Add price, currency, name etc. from the price map
+                    totalValue: h.qty * (priceInfo?.price || 0)
+                };
+            });
+        return { ...p, holdings: enrichedHoldings };
+    });
+});
 
-export const fetchTransactions = async (spreadsheetId: string): Promise<Transaction[]> => {
+export const fetchTransactions = withAuthHandling(async (spreadsheetId: string): Promise<Transaction[]> => {
     await ensureGapi();
     const transactions = await fetchSheetData(
         spreadsheetId, TX_FETCH_RANGE,
@@ -150,6 +255,9 @@ export const fetchTransactions = async (spreadsheetId: string): Promise<Transact
             if (!val) return 0;
             return parseFloat(String(val).replace(/[^0-9.-]+/g, ""));
         };
+        if (t.exchange) {
+            t.exchange = toExchangeId(t.exchange);
+        }
         return {
             ...t,
             qty: cleanNumber(t.Split_Adjusted_Qty || t.Original_Qty),
@@ -157,9 +265,9 @@ export const fetchTransactions = async (spreadsheetId: string): Promise<Transact
             grossValue: cleanNumber(t.Original_Qty) * cleanNumber(t.Original_Price)
         };
     });
-};
+});
 
-export const getSpreadsheet = async (): Promise<string | null> => {
+export const getSpreadsheet = withAuthHandling(async (): Promise<string | null> => {
     await ensureGapi();
     const storedId = localStorage.getItem('g_sheet_id');
     if (storedId) return storedId;
@@ -171,9 +279,9 @@ export const getSpreadsheet = async (): Promise<string | null> => {
         return foundId;
     }
     return null;
-};
+});
 
-export const createPortfolioSpreadsheet = async (title: string = DEFAULT_SHEET_NAME): Promise<string | null> => {
+export const createPortfolioSpreadsheet = withAuthHandling(async (title: string = DEFAULT_SHEET_NAME): Promise<string | null> => {
     const gapi = await ensureGapi();
     try {
         const spreadsheet = await gapi.client.sheets.spreadsheets.create({ resource: { properties: { title: title } } });
@@ -184,9 +292,9 @@ export const createPortfolioSpreadsheet = async (title: string = DEFAULT_SHEET_N
         }
         return spreadsheetId || null; 
     } catch (error) { console.error("Error creating spreadsheet:", error); return null; }
-};
+});
 
-export const createEmptySpreadsheet = async (title: string): Promise<string | null> => {
+export const createEmptySpreadsheet = withAuthHandling(async (title: string): Promise<string | null> => {
     const gapi = await ensureGapi();
     try {
         const spreadsheet = await gapi.client.sheets.spreadsheets.create({ resource: { properties: { title } } });
@@ -196,16 +304,66 @@ export const createEmptySpreadsheet = async (title: string): Promise<string | nu
         console.error('Error creating empty spreadsheet:', error);
         return null;
     }
-};
+});
 
-export const addTransaction = async (spreadsheetId: string, t: Transaction) => {
+export const addTransaction = withAuthHandling(async (spreadsheetId: string, t: Transaction) => {
     await batchAddTransactions(spreadsheetId, [t]);
-};
+});
 
-export const batchAddTransactions = async (spreadsheetId: string, transactions: Transaction[]) => {
+export const updateHoldingsUserOptions = withAuthHandling(async (spreadsheetId: string, optionsToUpdate: { ticker: string, exchange: string, name: string }[]) => {
+    if (!optionsToUpdate || optionsToUpdate.length === 0) {
+        return;
+    }
+
     const gapi = await ensureGapi();
-    const allValuesToAppend: any[][] = [];
 
+    const existingOptions: { ticker: string, exchange: string, name: string }[] = [];
+    try {
+        const res = await gapi.client.sheets.spreadsheets.values.get({
+            spreadsheetId,
+            range: HOLDINGS_USER_OPTIONS_RANGE,
+        });
+        (res.result.values || []).forEach((row: any[]) => {
+            if (row[0] && row[1]) { // Must have ticker and exchange
+                existingOptions.push({ ticker: row[0], exchange: row[1], name: row[2] || '' });
+            }
+        });
+    } catch (e: any) {
+        if (e.result?.error?.code === 400 && e.result?.error?.message.includes('Unable to parse range')) {
+            console.log('HoldingsUserOptions sheet not found, will create.');
+        } else {
+            console.error('Error fetching HoldingsUserOptions:', e);
+            throw e;
+        }
+    }
+
+    const finalOptions = new Map<string, { ticker: string, exchange: string, name: string }>();
+    existingOptions.forEach(opt => finalOptions.set(`${opt.ticker}-${opt.exchange}`, opt));
+    optionsToUpdate.forEach(opt => {
+        if (opt.name) {
+            finalOptions.set(`${opt.ticker}-${toSheetsExchange(opt.exchange)}`, { ticker: opt.ticker, exchange: toSheetsExchange(opt.exchange), name: opt.name });
+        }
+    });
+
+    const dataToWrite = Array.from(finalOptions.values()).map(opt => [opt.ticker, opt.exchange, opt.name]);
+    if (dataToWrite.length === 0) return;
+
+    const range = `${HOLDINGS_USER_OPTIONS_SHEET_NAME}!A2:${String.fromCharCode(65 + holdingsUserOptionsHeaders.length - 1)}`;
+    await gapi.client.sheets.spreadsheets.values.clear({ spreadsheetId, range, resource: {} });
+    await gapi.client.sheets.spreadsheets.values.update({
+        spreadsheetId, range: `${HOLDINGS_USER_OPTIONS_SHEET_NAME}!A2`, valueInputOption: 'USER_ENTERED', resource: { values: dataToWrite }
+    });
+});
+
+export const batchAddTransactions = withAuthHandling(async (spreadsheetId: string, transactions: Transaction[]) => {
+    const gapi = await ensureGapi();
+
+    const isNumericTicker = (ticker: string) => /^\d+$/.test(ticker) || /:\d+$/.test(ticker);
+    const nameHints = new Map<string, string>();
+    const optionsToUpdate: { ticker: string, exchange: string, name: string }[] = [];
+    const numericTickersToFetch = new Map<string, { ticker: string, exchange: string }>();
+
+    const allValuesToAppend: any[][] = [];
     transactions.forEach(t => {
         const rowData: { [key: string]: any } = {};
         Object.values(TXN_COLS).forEach(colDef => {
@@ -213,7 +371,7 @@ export const batchAddTransactions = async (spreadsheetId: string, transactions: 
             switch (key) {
                 case 'date': rowData[key] = t.date ? toGoogleSheetDateFormat(new Date(t.date)) : ''; break;
                 case 'ticker': rowData[key] = String(logIfFalsy(t.ticker, `Transaction ticker missing`, t)).toUpperCase(); break;
-                case 'exchange': rowData[key] = (t.exchange || '').toUpperCase(); break;
+                case 'exchange': rowData[key] = toSheetsExchange(t.exchange || ''); break;
                 case 'vestDate': rowData[key] = t.vestDate ? toGoogleSheetDateFormat(new Date(t.vestDate)) : ''; break;
                 case 'comment': case 'Source': rowData[key] = (t as any)[key] || ''; break;
                 case 'commission': {
@@ -229,10 +387,58 @@ export const batchAddTransactions = async (spreadsheetId: string, transactions: 
                     rowData[key] = toGoogleSheetDateFormat(cDate);
                     break;
                 }
-                case 'Orig_Open_Price_At_Creation_Date': rowData[key] = (t as any)[key]; break; default: if (key in t) rowData[key] = (t as any)[key];
+                case 'Name_Hint': {
+                    if (isNumericTicker(t.ticker)) {
+                        const mapKey = `${t.ticker}-${(t.exchange || '').toUpperCase()}`;
+                        if (!numericTickersToFetch.has(mapKey)) {
+                            numericTickersToFetch.set(mapKey, { ticker: t.ticker, exchange: t.exchange || '' });
+                        }
+                    }
+                    break;
+                }
+                case 'Orig_Open_Price_At_Creation_Date': rowData[key] = (t as any)[key]; break;
+                default: if (key in t) rowData[key] = (t as any)[key];
             }
         });
-        const rowValues = Object.values(TXN_COLS).map(colDef => colDef.formula ? null : rowData[colDef.key] ?? null);
+    });
+
+    if (numericTickersToFetch.size > 0) {
+        const fetchPromises = Array.from(numericTickersToFetch.values()).map(async ({ ticker, exchange }) => {
+            try {
+                const data = await getTickerData(ticker, exchange);
+                if (data?.name) {
+                    const key = `${ticker}-${(exchange || '').toUpperCase()}`;
+                    nameHints.set(key, data.name);
+                    optionsToUpdate.push({ ticker, exchange, name: data.name });
+                }
+            } catch (e) {
+                console.warn(`Failed to fetch name hint for numeric ticker ${ticker}:`, e);
+            }
+        });
+        await Promise.all(fetchPromises);
+    }
+
+    if (optionsToUpdate.length > 0) await updateHoldingsUserOptions(spreadsheetId, optionsToUpdate);
+
+    transactions.forEach(t => {
+        const rowData: { [key: string]: any } = { ...t };
+        // The Transaction object from the UI uses 'numericId', but the sheet schema expects 'numeric_id'.
+        // This ensures the value is correctly picked up when building the row for the sheet.
+        rowData.numeric_id = t.numericId;
+
+        if (isNumericTicker(t.ticker)) {
+            const mapKey = `${t.ticker}-${(t.exchange || '').toUpperCase()}`;
+            rowData.Name_Hint = nameHints.get(mapKey) || '';
+        }
+        const rowValues = Object.values(TXN_COLS).map(colDef => {
+            if (colDef.formula) return null;
+            const key = colDef.key;
+            if (key === 'date' || key === 'vestDate' || key === 'Creation_Date') {
+                return rowData[key] ? toGoogleSheetDateFormat(new Date(rowData[key])) : '';
+            }
+            if (key === 'exchange') return toSheetsExchange(rowData[key] || '');
+            return rowData[key] ?? null;
+        });
         allValuesToAppend.push(rowValues);
     });
 
@@ -286,64 +492,57 @@ export const batchAddTransactions = async (spreadsheetId: string, transactions: 
 
     // Only rebuild holdings once after batch insert
     await rebuildHoldingsSheet(spreadsheetId);
-};
+});
 
 
-function createHoldingRow(h: Omit<Holding, 'totalValue' | 'price' | 'currency' | 'name' | 'name_he' | 'sector' | 'priceUnit' | 'changePct' | 'changePct1w' | 'changePct1m' | 'changePct3m' | 'changePctYtd' | 'changePct1y' | 'changePct3y' | 'changePct5y' | 'changePct10y'>, meta: any, rowNum: number): any[] | null {
-    const tickerCell = `B${rowNum}`;
-    const exchangeCell = `C${rowNum}`;
-    const qtyCell = `D${rowNum}`; const priceCell = `E${rowNum}`;
+function createHoldingRow(h: Omit<Holding, 'portfolioId' | 'totalValue' | 'price' | 'currency' | 'name' | 'name_he' | 'sector' | 'priceUnit' | 'changePct' | 'changePct1w' | 'changePct1m' | 'changePct3m' | 'changePctYtd' | 'changePct1y' | 'changePct3y' | 'changePct5y' | 'changePct10y'>, meta: any, rowNum: number): any[] | null {
+    const tickerCell = `A${rowNum}`;
+    const exchangeCell = `B${rowNum}`;
+    const qtyCell = `C${rowNum}`;
+    const priceCell = `D${rowNum}`;
     const tickerAndExchange = `${exchangeCell}&":"&${tickerCell}`;
     const row = new Array(holdingsHeaders.length).fill('');
 
-
     const isTASE = (h.exchange || '').toUpperCase() === 'TASE';
 
-
-    row[0] = h.portfolioId;
-    row[1] = String(h.ticker).toUpperCase();
-    row[2] = (h.exchange || '').toUpperCase(); row[3] = h.qty;
-    row[4] = meta?.price || `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "price"))`;
-    // Explicitly use 'ILAG' for TASE stocks as they are quoted in Agorot
-    row[5] = isTASE ? 'ILAG' : (meta?.currency || `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "currency"))`);
-    row[6] = `=${qtyCell}*${priceCell}`;
-    row[7] = meta?.name || `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "name"), "")`;
-    row[8] = meta?.name_he || ""; row[9] = meta?.sector || `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "sector"), "Other")`;
-
-
-    // Index 10 is now Day_Change (Price_Unit removed)
-    row[10] = meta?.changePct || `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "changepct")/100, 0)`;
+    row[0] = String(h.ticker).toUpperCase();
+    row[1] = toSheetsExchange(h.exchange || '');
+    row[2] = h.qty;
+    row[3] = meta?.price || `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "price"))`;
+    row[4] = isTASE ? 'ILAG' : (meta?.currency || `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "currency"))`);
+    row[5] = `=${qtyCell}*${priceCell}`;
+    row[6] = meta?.name || `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "name"), "")`;
+    row[7] = meta?.name_he || "";
+    row[8] = meta?.sector || `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "sector"), "Other")`;
+    row[9] = meta?.changePct || `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "changepct")/100, 0)`;
 
     const priceFormula = (dateExpr: string) => getHistoricalPriceFormula(tickerAndExchange, dateExpr).substring(1);
-    row[11] = `=IFERROR((${priceCell}/${priceFormula("TODAY()-7")})-1, "")`; // Change_1W
-    row[12] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-1)")})-1, "")`; // Change_1M
-    row[13] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-3)")})-1, "")`; // Change_3M
-    row[14] = `=IFERROR(${priceCell} / ${priceFormula("DATE(YEAR(TODAY())-1, 12, 31)")} - 1, "")`; // Change_YTD
-    row[15] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-12)")})-1, "")`; // Change_1Y
-    row[16] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-36)")})-1, "")`; // Change_3Y
-    row[17] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-60)")})-1, "")`; // Change_5Y
-    row[18] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-120)")})-1, "")`; // Change_10Y
-    row[19] = h.numeric_id || '';
+    row[10] = `=IFERROR((${priceCell}/${priceFormula("TODAY()-7")})-1, "")`; // Change_1W
+    row[11] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-1)")})-1, "")`; // Change_1M
+    row[12] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-3)")})-1, "")`; // Change_3M
+    row[13] = `=IFERROR(${priceCell} / ${priceFormula("DATE(YEAR(TODAY())-1, 12, 31)")} - 1, "")`; // Change_YTD
+    row[14] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-12)")})-1, "")`; // Change_1Y
+    row[15] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-36)")})-1, "")`; // Change_3Y
+    row[16] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-60)")})-1, "")`; // Change_5Y
+    row[17] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-120)")})-1, "")`; // Change_10Y
+    row[18] = h.numericId || '';
     return row;
 }
 
-export const rebuildHoldingsSheet = async (spreadsheetId: string) => {
+export const rebuildHoldingsSheet = withAuthHandling(async (spreadsheetId: string) => {
     const gapi = await ensureGapi();
     const transactions = await fetchTransactions(spreadsheetId);
-    // Removed priceUnit from Omit type
-    const holdings: Record<string, Omit<Holding, 'totalValue' | 'price' | 'currency' | 'name' | 'name_he' | 'sector' | 'priceUnit' | 'changePct' | 'changePct1w' | 'changePct1m' | 'changePct3m' | 'changePctYtd' | 'changePct1y' | 'changePct3y' | 'changePct5y' | 'changePct10y'> & { portfolioId: string }> = {};
+    const holdings: Record<string, Omit<Holding, 'portfolioId' | 'totalValue' | 'price' | 'currency' | 'name' | 'name_he' | 'sector' | 'priceUnit' | 'changePct' | 'changePct1w' | 'changePct1m' | 'changePct3m' | 'changePctYtd' | 'changePct1y' | 'changePct3y' | 'changePct5y' | 'changePct10y'>> = {};
 
     transactions.forEach(txn => {
         if (txn.type === 'BUY' || txn.type === 'SELL') {
-            const key = `${txn.portfolioId}-${txn.ticker}-${txn.exchange}`;
+            const key = `${txn.ticker}-${txn.exchange}`;
             if (!holdings[key]) {
-                holdings[key] = { portfolioId: txn.portfolioId, ticker: txn.ticker, exchange: txn.exchange || '', qty: 0 };
+                holdings[key] = { ticker: txn.ticker, exchange: txn.exchange || '', qty: 0 };
             }
-        // Initialize optional property if it doesn't exist.
-        // We use (txn as any) to access numeric_id which might be added dynamically or is missing from type definition.
-        if ((txn as any).numeric_id) {
-            holdings[key].numeric_id = (txn as any).numeric_id;
-        }
+            if (txn.numericId) {
+                holdings[key].numericId = txn.numericId;
+            }
             const multiplier = txn.type === 'BUY' ? 1 : -1;
             const qty = parseFloat(String(txn.Split_Adjusted_Qty || txn.Original_Qty));
             holdings[key].qty += qty * multiplier;
@@ -351,22 +550,18 @@ export const rebuildHoldingsSheet = async (spreadsheetId: string) => {
     });
 
     const uniqueHoldings = Object.values(holdings).filter(h => h.qty > 1e-6);
-            const enrichedData = await Promise.all(uniqueHoldings.map(async (h) => {
-                let meta: any = null;
-                if ((h.exchange || '').toUpperCase() === 'TASE') {
-                    try { meta = await getTickerData(h.ticker, h.exchange as any); } catch (e) { console.warn("Failed to fetch TASE metadata for " + h.ticker, e); }
-                }
-                
-                return { h, meta };
-
+    const enrichedData = await Promise.all(uniqueHoldings.map(async (h) => {
+        let meta: any = null;
+        if ((h.exchange || '').toUpperCase() === 'TASE') {
+            try { meta = await getTickerData(h.ticker, h.exchange as any); } catch (e) { console.warn("Failed to fetch TASE metadata for " + h.ticker, e); }
+        }
+        return { h, meta };
     }));
-
 
     const data = enrichedData.map(({ h, meta }, i) => createHoldingRow(h, meta, i + 2)).filter((row): row is any[] => row !== null);
 
     const range = `${HOLDINGS_SHEET}!A2:${String.fromCharCode(65 + holdingsHeaders.length - 1)}`;
-    await gapi.client.sheets.spreadsheets.values.clear({ spreadsheetId, range, resource: {range: range} });
-
+    await gapi.client.sheets.spreadsheets.values.clear({ spreadsheetId, range, resource: {} });
 
     if (data.length > 0) {
         await gapi.client.sheets.spreadsheets.values.update({
@@ -375,18 +570,18 @@ export const rebuildHoldingsSheet = async (spreadsheetId: string) => {
         });
     }
     await setMetadataValue(spreadsheetId, 'holdings_rebuild', toGoogleSheetDateFormat(new Date()));
-};
+});
 
-export const addPortfolio = async (spreadsheetId: string, p: Portfolio) => {
+export const addPortfolio = withAuthHandling(async (spreadsheetId: string, p: Portfolio) => {
     const gapi = await ensureGapi();
     const row = objectToRow(p, portfolioHeaders, portfolioMapping as any);
     await gapi.client.sheets.spreadsheets.values.append({
         spreadsheetId, range: 'Portfolio_Options!A:A', valueInputOption: 'USER_ENTERED',
         resource: { values: [row] }
     });
-};
+});
 
-export const updatePortfolio = async (spreadsheetId: string, p: Portfolio) => {
+export const updatePortfolio = withAuthHandling(async (spreadsheetId: string, p: Portfolio) => {
     const gapi = await ensureGapi();
     const { result } = await gapi.client.sheets.spreadsheets.values.get({
         spreadsheetId, range: `Portfolio_Options!A1:${String.fromCharCode(65 + portfolioHeaders.length - 1)}`
@@ -407,9 +602,9 @@ export const updatePortfolio = async (spreadsheetId: string, p: Portfolio) => {
     await gapi.client.sheets.spreadsheets.values.update({
         spreadsheetId, range: range, valueInputOption: 'USER_ENTERED', resource: { values: [rowData] }
     });
-};
+});
 
-export async function getMetadataValue(spreadsheetId: string, key: string): Promise<string | null> {
+export const getMetadataValue = withAuthHandling(async function (spreadsheetId: string, key: string): Promise<string | null> {
     const gapi = await ensureGapi();
     try {
         const res = await gapi.client.sheets.spreadsheets.values.get({ spreadsheetId, range: METADATA_RANGE });
@@ -420,8 +615,9 @@ export async function getMetadataValue(spreadsheetId: string, key: string): Prom
         return row ? row[valueIndex] : null;
     } catch (error) { console.error("Error fetching metadata for key " + key + ":", error); throw error; }
 }
+);
 
-export async function setMetadataValue(spreadsheetId: string, key: string, value: string): Promise<void> {
+export const setMetadataValue = withAuthHandling(async function (spreadsheetId: string, key: string, value: string): Promise<void> {
     const gapi = await ensureGapi();
     try {
         const res = await gapi.client.sheets.spreadsheets.values.get({ spreadsheetId, range: METADATA_RANGE });
@@ -440,8 +636,9 @@ export async function setMetadataValue(spreadsheetId: string, key: string, value
         }
     } catch (error) { console.error("Error setting metadata for key " + key + ":", error); throw error; }
 }
+);
 
-export async function exportToSheet(spreadsheetId: string, sheetName: string, headers: string[], data: any[][]): Promise<number> {
+export const exportToSheet = withAuthHandling(async function (spreadsheetId: string, sheetName: string, headers: string[], data: any[][]): Promise<number> {
     const gapi = await ensureGapi();
     const sheetId = await getSheetId(spreadsheetId, sheetName, true);
     await gapi.client.sheets.spreadsheets.values.clear({ spreadsheetId, range: sheetName, resource: {} });
@@ -451,8 +648,9 @@ export async function exportToSheet(spreadsheetId: string, sheetName: string, he
     });
     return sheetId;
 }
+);
 
-export const fetchSheetExchangeRates = async (spreadsheetId: string): Promise<any> => {
+export const fetchSheetExchangeRates = withAuthHandling(async (spreadsheetId: string): Promise<any> => {
     const gapi = await ensureGapi();
     const res = await gapi.client.sheets.spreadsheets.values.get({
         spreadsheetId, range: CONFIG_RANGE, valueRenderOption: 'FORMATTED_VALUE'
@@ -510,7 +708,7 @@ export const fetchSheetExchangeRates = async (spreadsheetId: string): Promise<an
     }
 
     return allRates;
-};
+});
 
 // Add this missing function
 export { getUsdIlsFormula } from './formulas';

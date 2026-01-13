@@ -21,7 +21,7 @@ interface Props {
 export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const locationState = location.state as { prefilledTicker?: string, prefilledExchange?: string, initialPrice?: string, initialCurrency?: string } | null;
+  const locationState = location.state as { prefilledTicker?: string, prefilledExchange?: string, initialPrice?: string, initialCurrency?: string, numericId?: number } | null;
 
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [isPortfoliosLoading, setIsPortfoliosLoading] = useState(true);
@@ -49,15 +49,17 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
   const [displayName, setDisplayName] = useState('');
   const [tickerCurrency, setTickerCurrency] = useState(locationState?.initialCurrency || '');
   const [priceUnit, setPriceUnit] = useState<'base' | 'agorot' | 'cents'>('base');
+  const [validationErrors, setValidationErrors] = useState<{ [key: string]: boolean }>({});
+  const [commissionPct, setCommissionPct] = useState<string>('');
 
   useEffect(() => {
     if (locationState?.prefilledTicker) {
       const fetchData = async () => {
         setLoading(true);
-        const data = await getTickerData(locationState.prefilledTicker!, locationState.prefilledExchange || '');
+        const data = await getTickerData(locationState.prefilledTicker!, locationState.prefilledExchange || '', undefined, false, locationState.numericId);
         if (data) {
-          const combinedData = { ...data, symbol: locationState.prefilledTicker!, exchange: data.exchange || locationState.prefilledExchange || '' };
-          setSelectedTicker(combinedData);
+          const combinedData = { ...data, symbol: locationState.prefilledTicker!, exchange: data.exchange || locationState.prefilledExchange || '', numericId: locationState.numericId || data.numericId };
+          setSelectedTicker(combinedData as any);
           setDisplayName(data.name || '');
           setPrice(data.price?.toString() || '');
           setPriceUnit((data.priceUnit || 'base') as PriceUnit);
@@ -88,7 +90,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
     }).catch(() => {
       setIsPortfoliosLoading(false);
     });
-  }, [sheetId, portId]);
+  }, [sheetId]);
 
   const handleTickerSelect = (selected: TickerData & { symbol: string }) => {
     setSelectedTicker(selected);
@@ -114,6 +116,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
     setTotal('');
     setComment('');
     setCommission('');
+    setCommissionPct('');
     setTax('');
     setVestDate('');
     setType('BUY');
@@ -128,6 +131,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
     const t = parseFloat(total);
     if (!Number.isFinite(t) || t === 0) {
       setCommission('');
+      setCommissionPct('');
       return;
     }
 
@@ -139,21 +143,27 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
       const clampedMin = Math.max(rawFee, min);
       const finalFee = max > 0 ? Math.min(clampedMin, max) : clampedMin;
       setCommission(finalFee.toFixed(2));
+      setCommissionPct(((finalFee / t) * 100).toFixed(4));
     } else if (type === 'DIVIDEND') {
       const rate = selectedPort.divCommRate;
       setCommission((t * rate).toFixed(2));
+      setCommissionPct((rate * 100).toFixed(4));
     }
   }, [portId, type, total, portfolios]);
 
 
   const EPS = 1e-12;
+  const isAgorot = tickerCurrency === 'ILAG';
+  const majorCurrency = isAgorot ? 'ILS' : tickerCurrency;
 
   const handleQtyChange = (val: string) => {
     setQty(val);
     const q = parseFloat(val);
     const p = parseFloat(price);
     if (Number.isFinite(q) && Number.isFinite(p)) {
-      setTotal((q * p).toFixed(2));
+      const rawTotal = q * p;
+      const displayTotal = isAgorot ? rawTotal / 100 : rawTotal;
+      setTotal(displayTotal.toFixed(2));
     }
   };
 
@@ -162,7 +172,9 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
     const q = parseFloat(qty);
     const p = parseFloat(val);
     if (Number.isFinite(q) && Number.isFinite(p)) {
-      setTotal((q * p).toFixed(2));
+      const rawTotal = q * p;
+      const displayTotal = isAgorot ? rawTotal / 100 : rawTotal;
+      setTotal(displayTotal.toFixed(2));
     }
   };
 
@@ -170,18 +182,53 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
     setTotal(val);
     const q = parseFloat(qty);
     const p = parseFloat(price);
-    const t = parseFloat(val);
-    if (Number.isFinite(t)) {
+    const tDisplay = parseFloat(val);
+    
+    if (Number.isFinite(tDisplay)) {
+      const tRaw = isAgorot ? tDisplay * 100 : tDisplay;
+      
       if (Number.isFinite(p) && Math.abs(p) > EPS) {
-        setQty((t / p).toFixed(4));
+        setQty((tRaw / p).toFixed(4));
       } else if (Number.isFinite(q) && Math.abs(q) > EPS) {
-        setPrice((t / q).toFixed(4));
+        setPrice((tRaw / q).toFixed(4));
       }
+    }
+  };
+
+  const handleCommissionChange = (val: string) => {
+    setCommission(val);
+    const comm = parseFloat(val);
+    const t = parseFloat(total); // total is now in major currency
+    if (Number.isFinite(comm) && Number.isFinite(t) && Math.abs(t) > EPS) {
+      setCommissionPct(((comm / t) * 100).toFixed(4));
+    } else {
+      setCommissionPct('');
+    }
+  };
+
+  const handleCommissionPctChange = (val: string) => {
+    setCommissionPct(val);
+    const pct = parseFloat(val);
+    const t = parseFloat(total); // total is now in major currency
+    if (Number.isFinite(pct) && Number.isFinite(t)) {
+      setCommission((t * (pct / 100)).toFixed(2));
+    } else {
+      setCommission('');
     }
   };
   
   const handleSubmit = async () => {
-    if (!portId || !ticker || !price || !qty) return;
+    const errors: { [key: string]: boolean } = {};
+    if (!portId) errors.portId = true;
+    if (!ticker) errors.ticker = true;
+    if (!qty || parseFloat(qty) === 0) errors.qty = true;
+    if (!price || parseFloat(price) === 0) errors.price = true;
+    if (!total || parseFloat(total) === 0) errors.total = true;
+
+    setValidationErrors(errors);
+
+    if (Object.keys(errors).length > 0) return;
+
     setLoading(true);
     setSaveSuccess(false);
  
@@ -199,6 +246,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
         Original_Price: p,
         Orig_Open_Price_At_Creation_Date: selectedTicker?.openPrice || 0,
         currency: normalizeCurrency(tickerCurrency),
+        numericId: (selectedTicker as any)?.numericId,
         vestDate,
         comment,
         commission: parseFloat(commission) || 0,
@@ -214,12 +262,14 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
       setQty(''); 
       setTotal(''); 
       setCommission(''); 
+      setCommissionPct('');
       setTax(''); 
       setComment('');
       setVestDate('');
       setType('BUY');
       setDate(new Date().toISOString().split('T')[0]);
       setShowForm(false); // Hide form, show summary card again
+      setValidationErrors({});
     } catch (e) {
       console.error(e);
       alert('Error saving transaction');
@@ -243,8 +293,12 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
     setTickerCurrency('');
     setShowForm(false);
     setSaveSuccess(false);
+    setValidationErrors({});
     navigate('/transaction', { replace: true, state: {} }); // Clear location state
   };
+
+  const selectedPortfolio = portfolios.find(p => p.id === portId);
+  const portfolioCurrency = selectedPortfolio?.currency || '';
 
   return (
     <Box sx={{ maxWidth: 800, mx: 'auto' }}>
@@ -313,13 +367,19 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
                 <CardContent>
                   <Grid container spacing={2}>
                     <Grid item xs={12} sm={4}>
-                      <FormControl fullWidth size="small">
+                      <FormControl fullWidth size="small" error={!!validationErrors.portId} required>
                         <InputLabel>Portfolio</InputLabel>
-                        <Select value={portId} label="Portfolio" onChange={(e) => setPortId(e.target.value)} disabled={isPortfoliosLoading}>
+                        <Select 
+                          value={portId} label="Portfolio" 
+                          onChange={(e) => setPortId(e.target.value)} 
+                          disabled={isPortfoliosLoading}
+                          sx={{ bgcolor: !portId ? 'action.hover' : 'inherit' }}
+                        >
                           {isPortfoliosLoading ? <MenuItem value="">Loading...</MenuItem> : portfolios.map(p => (
                             <MenuItem key={p.id} value={p.id}>{p.name} ({p.currency})</MenuItem>
                           ))}
                         </Select>
+                        {!portId && <Typography variant="caption" color="text.secondary" sx={{ ml: 1.5, mt: 0.5 }}>Required</Typography>}
                       </FormControl>
                     </Grid>
                     <Grid item xs={12} sm={4}>
@@ -342,7 +402,14 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
                     <Grid item xs={12}><Divider sx={{ my: 1 }}>Trade Details</Divider></Grid>
                     <Grid item xs={6} sm={4}>
                       <Tooltip title="Number of shares/units bought or sold.">
-                        <TextField label="Quantity" type="number" size="small" fullWidth value={qty} onChange={e => handleQtyChange(e.target.value)} />
+                        <TextField 
+                          label="Quantity" type="number" size="small" fullWidth 
+                          value={qty} onChange={e => handleQtyChange(e.target.value)}
+                          error={!!validationErrors.qty}
+                          required
+                          helperText={!qty ? "Required" : ""}
+                          sx={{ bgcolor: !qty ? 'action.hover' : 'inherit' }}
+                        />
                       </Tooltip>
                     </Grid>
                     <Grid item xs={6} sm={4}>
@@ -352,6 +419,10 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
                            value={price} 
                            onChange={e => handlePriceChange(e.target.value)} 
                            InputProps={{ startAdornment: <InputAdornment position="start">{priceUnit === 'agorot' ? 'ag.' : tickerCurrency}</InputAdornment> }}
+                           error={!!validationErrors.price}
+                           required
+                           helperText={!price ? "Required" : ""}
+                           sx={{ bgcolor: !price ? 'action.hover' : 'inherit' }}
                          />
                        </Tooltip>
                     </Grid>
@@ -360,12 +431,27 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
                         <TextField 
                           label="Total Cost" type="number" size="small" fullWidth
                           value={total} onChange={e => handleTotalChange(e.target.value)} 
-                          InputProps={{ startAdornment: <InputAdornment position="start">{tickerCurrency}</InputAdornment> }}
+                          InputProps={{ startAdornment: <InputAdornment position="start">{majorCurrency}</InputAdornment> }}
+                          error={!!validationErrors.total}
+                          required
+                          helperText={!total ? "Required" : ""}
+                          sx={{ bgcolor: !total ? 'action.hover' : 'inherit' }}
                         />
                       </Tooltip>
                     </Grid>
                     <Grid item xs={4} sm={3}>
-                        <TextField label="Commission" type="number" size="small" fullWidth value={commission} onChange={e => setCommission(e.target.value)} />
+                        <TextField 
+                          label="Commission" type="number" size="small" fullWidth 
+                          value={commission} onChange={e => handleCommissionChange(e.target.value)}
+                          InputProps={{ startAdornment: <InputAdornment position="start">{portfolioCurrency}</InputAdornment> }}
+                        />
+                    </Grid>
+                    <Grid item xs={4} sm={3}>
+                        <TextField 
+                          label="Comm %" type="number" size="small" fullWidth 
+                          value={commissionPct} onChange={e => handleCommissionPctChange(e.target.value)}
+                          InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
+                        />
                     </Grid>
                     {(type === 'SELL' || type === 'DIVIDEND') && (
                       <Grid item xs={4} sm={3}>

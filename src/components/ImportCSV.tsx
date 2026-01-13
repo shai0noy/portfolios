@@ -23,6 +23,79 @@ interface Props {
 
 const STEPS = ['Input Data', 'Map Columns', 'Review & Import'];
 
+const parseDateValue = (raw: string, format: string): Date | null => {
+  if (!raw) return null;
+  const clean = raw.trim();
+
+  if (format === 'auto') {
+    // Strict Auto: Only allow unambiguous formats
+    // YYYYMMDD
+    if (/^\d{8}$/.test(clean)) {
+      const y = parseInt(clean.substring(0, 4), 10);
+      const m = parseInt(clean.substring(4, 6), 10) - 1;
+      const d = parseInt(clean.substring(6, 8), 10);
+      return new Date(y, m, d);
+    }
+    // YYYY-MM-DD or YYYY/MM/DD
+    const isoMatch = clean.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+    if (isoMatch) {
+        const y = parseInt(isoMatch[1], 10);
+        const m = parseInt(isoMatch[2], 10) - 1;
+        const d = parseInt(isoMatch[3], 10);
+        return new Date(y, m, d);
+    }
+    
+    // Everything else (e.g. 12/12/2025, 01/05/2024) is considered "uncertain"
+    return null;
+  }
+
+  // Handle YYYYMMDD explicit
+  if (format === 'YYYYMMDD') {
+    if (/^\d{8}$/.test(clean)) {
+      const y = parseInt(clean.substring(0, 4), 10);
+      const m = parseInt(clean.substring(4, 6), 10) - 1;
+      const d = parseInt(clean.substring(6, 8), 10);
+      return new Date(y, m, d);
+    }
+    return null;
+  }
+
+  // Split by non-digit characters
+  const parts = clean.split(/\D+/).filter(Boolean);
+  if (parts.length !== 3) return null;
+
+  const p = parts.map(x => parseInt(x, 10));
+  let y = 0, m = 0, d = 0;
+
+  switch (format) {
+    case 'YYYY-MM-DD': // YMD
+    case 'YYYY/MM/DD':
+      [y, m, d] = p;
+      break;
+    case 'DD-MM-YYYY': // DMY
+    case 'DD/MM/YYYY':
+      [d, m, y] = p;
+      break;
+    case 'MM-DD-YYYY': // MDY
+    case 'MM/DD/YYYY':
+      [m, d, y] = p;
+      break;
+    default:
+      return null;
+  }
+
+  // Adjust month (0-indexed)
+  m -= 1;
+
+  // Basic validation
+  if (m < 0 || m > 11 || d < 1 || d > 31) return null;
+  
+  // Handle 2-digit years (assume 20xx)
+  if (y < 100) y += 2000;
+
+  return new Date(y, m, d);
+};
+
 export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [activeStep, setActiveStep] = useState(0);
@@ -41,6 +114,7 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
   const [mapping, setMapping] = useState<Record<string, string>>({
     ticker: '', date: '', type: '', qty: '', price: '', exchange: ''
   });
+  const [dateFormat, setDateFormat] = useState('auto');
   const [manualExchange, setManualExchange] = useState('');
   const [exchangeMode, setExchangeMode] = useState<'map' | 'manual' | 'deduce'>('deduce');
   const [parsedTxns, setParsedTxns] = useState<Transaction[]>([]);
@@ -111,6 +185,80 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
     }
   };
 
+  const validateAndParse = (): { success: boolean, txns: Transaction[], error?: string } => {
+    const txns: Transaction[] = [];
+    
+    for (let i = 0; i < rows.length; i++) {
+        const r = rows[i];
+        const getVal = (field: string) => {
+            const idx = headers.indexOf(mapping[field]);
+            return idx >= 0 ? r[idx] : '';
+        };
+
+        // Date Parsing
+        const rawDate = getVal('date');
+        const d = parseDateValue(rawDate, dateFormat);
+
+        if (!d || isNaN(d.getTime())) {
+            // Check if user has explicit format
+            if (dateFormat === 'auto') {
+                return { success: false, txns: [], error: `Row ${i + 1}: Date '${rawDate}' is ambiguous or invalid. Please select an explicit Date Format.` };
+            }
+            return { success: false, txns: [], error: `Row ${i + 1}: Date '${rawDate}' does not match format ${dateFormat}.` };
+        }
+
+        let isoDate = '';
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        isoDate = `${year}-${month}-${day}`;
+
+        // Type Parsing
+        const rawType = getVal('type').toUpperCase();
+        let type: 'BUY' | 'SELL' | 'DIVIDEND' | 'FEE' = 'BUY'; // Default
+        if (rawType.includes('SELL') || rawType.includes('SOLD')) type = 'SELL';
+        if (rawType.includes('DIV')) type = 'DIVIDEND';
+        if (rawType.includes('FEE')) type = 'FEE';
+
+        const qty = parseFloat(getVal('qty'));
+        const price = parseFloat(getVal('price'));
+
+        let exchange: string;
+        if (exchangeMode === 'map') {
+            exchange = getVal('exchange').toUpperCase();
+        } else if (exchangeMode === 'manual') {
+            exchange = manualExchange;
+        } else { // deduce
+            const tickerVal = getVal('ticker');
+            exchange = /^\d+$/.test(tickerVal) ? 'TASE' : 'NASDAQ';
+        }
+
+        const now = new Date();
+        const sourceId = `CSV_Import_${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}_${now.getHours().toString().padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}`;
+
+        if (getVal('ticker') && !isNaN(qty)) {
+             txns.push({
+                date: isoDate,
+                portfolioId,
+                ticker: getVal('ticker').toUpperCase(),
+                exchange,
+                type,
+                Original_Qty: Math.abs(qty),
+                Original_Price: isNaN(price) ? 0 : price,
+                grossValue: Math.abs(qty) * (isNaN(price) ? 0 : price),
+                comment: 'Imported via CSV',
+                Source: sourceId,
+            });
+        }
+    }
+
+    if (txns.length === 0) {
+        return { success: false, txns: [], error: "No valid transactions found." };
+    }
+
+    return { success: true, txns };
+  };
+
   const handleNext = () => {
     if (activeStep === 0) {
       if (!csvText || !portfolioId) {
@@ -133,74 +281,17 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
           alert("Please enter a manual exchange or choose a different mode.");
           return;
       }
-      generatePreview();
+      
+      const result = validateAndParse();
+      if (!result.success) {
+          alert(result.error);
+          return;
+      }
+      setParsedTxns(result.txns);
       setActiveStep(2);
     } else {
       handleImport();
     }
-  };
-
-  const generatePreview = () => {
-    const txns: Transaction[] = rows.map(r => {
-      const getVal = (field: string) => {
-        const idx = headers.indexOf(mapping[field]);
-        return idx >= 0 ? r[idx] : '';
-      };
-
-      // Date Parsing (handle 20241025 or 2025/12/30)
-      const rawDate = getVal('date');
-      let isoDate = '';
-      
-      let d: Date;
-      // Try to parse YYYYMMDD
-      if (rawDate.match(/^\d{8}$/)) {
-        d = new Date(`${rawDate.substring(0,4)}-${rawDate.substring(4,6)}-${rawDate.substring(6,8)}`);
-      } else {
-        d = new Date(rawDate);
-      }
-
-      if (d && !isNaN(d.getTime())) {
-        isoDate = d.toISOString().split('T')[0];
-      }
-
-      // Type Parsing
-      const rawType = getVal('type').toUpperCase();
-      let type: 'BUY' | 'SELL' | 'DIVIDEND' | 'FEE' = 'BUY'; // Default
-      if (rawType.includes('SELL') || rawType.includes('SOLD')) type = 'SELL';
-      if (rawType.includes('DIV')) type = 'DIVIDEND';
-      if (rawType.includes('FEE')) type = 'FEE';
-
-      const qty = parseFloat(getVal('qty'));
-      const price = parseFloat(getVal('price'));
-
-      let exchange: string;
-      if (exchangeMode === 'map') {
-          exchange = getVal('exchange').toUpperCase();
-      } else if (exchangeMode === 'manual') {
-          exchange = manualExchange;
-      } else { // deduce
-          const tickerVal = getVal('ticker');
-          exchange = /\d/.test(tickerVal) ? 'TASE' : 'NASDAQ';
-      }
-
-      const now = new Date();
-      const sourceId = `CSV_Import_${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}_${now.getHours().toString().padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}`;
-
-      return {
-        date: isoDate,
-        portfolioId,
-        ticker: getVal('ticker').toUpperCase(),
-        exchange, // Add exchange
-        type,
-        Original_Qty: isNaN(qty) ? 0 : Math.abs(qty), // Store absolute qty, logic handles sign
-        Original_Price: isNaN(price) ? 0 : price,
-        grossValue: (isNaN(qty) ? 0 : Math.abs(qty)) * (isNaN(price) ? 0 : price),
-        comment: 'Imported via CSV',
-        Source: sourceId,
-      };
-    }).filter(t => t.ticker && t.Original_Qty > 0); // Filter invalid rows
-
-    setParsedTxns(txns);
   };
 
   const handleImport = async () => {
@@ -303,6 +394,21 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
                             </FormControl>
                         </Grid>
                     ))}
+                    <Grid item xs={12} sm={6} md={4}>
+                         <FormControl fullWidth size="small">
+                             <InputLabel>Date Format</InputLabel>
+                             <Select value={dateFormat} label="Date Format" onChange={e => setDateFormat(e.target.value)}>
+                                 <MenuItem value="auto">Auto-detect</MenuItem>
+                                 <MenuItem value="YYYY-MM-DD">YYYY-MM-DD</MenuItem>
+                                 <MenuItem value="DD-MM-YYYY">DD-MM-YYYY</MenuItem>
+                                 <MenuItem value="MM-DD-YYYY">MM-DD-YYYY</MenuItem>
+                                 <MenuItem value="YYYY/MM/DD">YYYY/MM/DD</MenuItem>
+                                 <MenuItem value="DD/MM/YYYY">DD/MM/YYYY</MenuItem>
+                                 <MenuItem value="MM/DD/YYYY">MM/DD/YYYY</MenuItem>
+                                 <MenuItem value="YYYYMMDD">YYYYMMDD</MenuItem>
+                             </Select>
+                         </FormControl>
+                    </Grid>
                 </Grid>
 
                 <Typography variant="body2" sx={{ pt: 1, fontWeight: 500 }}>Exchange</Typography>

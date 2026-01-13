@@ -19,6 +19,8 @@ export interface TickerData {
   changePct3y?: number;
   changePct5y?: number;
   changePct10y?: number;
+  ticker: string;
+  numericId : number|null;
 }
 
 export interface HistoricalDataPoint {
@@ -45,7 +47,7 @@ export interface TaseSecurity {
 export interface TaseTicker {
   // Fields from TASE API
   securityId: number;
-  securityName: string;
+  name_en: string;
   symbol: string;
   companyName: string;
   companySuperSector: string;
@@ -56,7 +58,6 @@ export interface TaseTicker {
   globesInstrumentId: string;
   type: string; // 'stock', 'etf', etc.
   name_he: string; // Globes has hebrew and english names
-  name_en: string;
   taseType: string; // TASE type string
 }
 

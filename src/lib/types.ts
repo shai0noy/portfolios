@@ -1,14 +1,13 @@
 export type PriceUnit = 'base' | 'agorot' | 'cents';
 
+export type Currency = 'USD' | 'ILS' | 'EUR' | 'GBP' | 'ILAG';
 export const Currency = {
-  USD: 'USD',
-  ILS: 'ILS',
-  EUR: 'EUR',
-  GBP: 'GBP',
-  ILAG: 'ILAG'
-} as const;
-
-export type Currency = typeof Currency[keyof typeof Currency];
+  USD: 'USD' as Currency,
+  ILS: 'ILS' as Currency,
+  EUR: 'EUR' as Currency,
+  GBP: 'GBP' as Currency,
+  ILAG: 'ILAG' as Currency,
+};
 
 export interface ExchangeRates {
   current: Record<string, number>;
@@ -48,13 +47,12 @@ export interface DashboardHolding {
   proceedsStockCurrency: number;
   dividendsStockCurrency: number;
 
-  // Historical Accumulators (USD & ILS)
+  // Historical Accumulators
   costBasisUSD: number;
   costOfSoldUSD: number;
   proceedsUSD: number;
   dividendsUSD: number;
   realizedGainUSD: number;
-
   costBasisILS: number;
   costOfSoldILS: number;
   proceedsILS: number;
@@ -112,7 +110,6 @@ export interface Holding {
   portfolioId: string;
   ticker: string;
   exchange?: string;
-  numeric_id?: number;
   qty: number;
   price?: number;
   currency?: Currency;
@@ -130,6 +127,7 @@ export interface Holding {
   changePct3y?: number;
   changePct5y?: number;
   changePct10y?: number;
+  numericId?: number;
 }
 
 export interface Transaction {
@@ -140,6 +138,8 @@ export interface Transaction {
   type: 'BUY' | 'SELL' | 'DIVIDEND' | 'FEE';
   Original_Qty: number;
   Original_Price: number;
+  qty?: number;
+  price?: number;
   grossValue?: number;
   currency?: Currency;
   vestDate?: string;
@@ -155,8 +155,8 @@ export interface Transaction {
   Split_Adjusted_Qty?: number;
   Original_Price_USD?: number;
   Original_Price_ILAG?: number;
-  qty?: number;
-  price?: number;
+  numericId?: number;
+  Name_Hint?: string;
 }
 
 // Templates for quick setup

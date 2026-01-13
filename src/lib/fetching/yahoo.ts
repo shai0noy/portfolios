@@ -78,7 +78,9 @@ export async function fetchYahooStockQuote(ticker: string, signal?: AbortSignal)
         exchange: exchangeName,
         changePct,
         priceUnit: currency,
-        timestamp: now
+        timestamp: now,
+        ticker,
+        numericId: null
     };
 
     tickerDataCache.set(cacheKey, { data: tickerData, timestamp: now });

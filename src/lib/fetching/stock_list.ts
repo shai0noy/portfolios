@@ -236,7 +236,7 @@ export async function fetchAllTaseTickers(
       allTickers.push({
           // Data from TASE API
           securityId: security.securityId,
-          securityName: security.securityName,
+          name_en: security.securityName,
           symbol: security.symbol,
           companyName: security.companyName,
           companySuperSector: security.companySuperSector,
@@ -246,7 +246,6 @@ export async function fetchAllTaseTickers(
           globesInstrumentId: globesTicker?.globesInstrumentId || '',
           type: globesType || 'Unknown',
           name_he: globesTicker?.name_he || security.securityName,
-          name_en: globesTicker?.name_en || security.securityName,
           taseType: taseType?.subType || 'Unknown',
       });
   }
@@ -259,7 +258,6 @@ export async function fetchAllTaseTickers(
         // For globes-only tickers, we can't reliably determine the TASE type.
         allTickers.push({
             securityId: Number(globesTicker.numericSecurityId),
-            securityName: globesTicker.name_en, // Fallback to globes name
             symbol: globesTicker.symbol,
             companyName: globesTicker.name_en, // Fallback to globes name
             companySuperSector: '',

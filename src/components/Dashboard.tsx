@@ -13,7 +13,6 @@ import type { Holding, DashboardHolding, ExchangeRates } from '../lib/types';
 import { DashboardSummary } from './DashboardSummary';
 import { DashboardTable } from './DashboardTable';
 import { SessionExpiredError } from '../lib/errors';
-import { Login } from './Login';
 
 interface DashboardProps {
   sheetId: string;
@@ -23,7 +22,6 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [holdings, setHoldings] = useState<DashboardHolding[]>([]);
-  const [loginRequired, setLoginRequired] = useState(false);
   const [groupByPortfolio, setGroupByPortfolio] = useState(true);
   const [includeUnvested, setIncludeUnvested] = useState<boolean>(false);
   const [hasFutureTxns, setHasFutureTxns] = useState(false);  
@@ -121,13 +119,12 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        setLoginRequired(false);
         await loadData();
       } catch (error) {
         console.error('Error caught in fetchData:', error);
         if (error instanceof SessionExpiredError) {
-          console.warn('Session expired, showing login');
-          setLoginRequired(true);
+          console.warn('Session expired, re-throwing to trigger global handler.');
+          throw error;
         } else {
           console.error('Error loading data (not SessionExpiredError):', error);
         }
@@ -252,25 +249,6 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
       calculateSummary(holdings);
     }
   }, [selectedPortfolioId, holdings, exchangeRates, displayCurrency]);
-
-  const handleLoginSuccess = () => {
-    setLoginRequired(false);
-    console.log("Login successful, re-fetching data...");
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        await loadData(); // Await loadData
-      } catch (error) {
-        console.error('Error reloading data after login:', error);
-        if (error instanceof SessionExpiredError) {
-          setLoginRequired(true);
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  };
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -559,10 +537,6 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
     });
     return groups;
   }, [holdings, groupByPortfolio, selectedPortfolioId]);
-
-  if (loginRequired) {
-    return <Login onLogin={handleLoginSuccess} />;
-  }
 
   if (loading) return <Box display="flex" justifyContent="center" p={5}><CircularProgress /></Box>;
 

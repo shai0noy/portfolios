@@ -100,6 +100,11 @@ export const TXN_COLS: TransactionColumns = {
         colId: 'V',
         numeric: true
     },
+    Name_Hint: {
+        key: 'Name_Hint',
+        colName: 'Name_Hint',
+        colId: 'W',
+    },
 };
 
 export const transactionHeaders = Object.values(TXN_COLS).map(c => c.colName) as unknown as readonly string[];
@@ -120,11 +125,12 @@ export const portfolioHeaders = ['Portfolio_ID', 'Display_Name', 'Cap_Gains_Tax_
 
 // Merged Price_Unit into Currency logic, removed explicit Price_Unit column
 export const holdingsHeaders = [
-    'PortfolioId', 'Ticker', 'Exchange', 'Quantity', 'Live_Price', 'Currency', 'Total Holding Value',
+    'Ticker', 'Exchange', 'Quantity', 'Live_Price', 'Currency', 'Total Holding Value',
     'Name_En', 'Name_He', 'Sector', 'Day_Change',
     'Change_1W', 'Change_1M', 'Change_3M', 'Change_YTD', 'Change_1Y', 'Change_3Y', 'Change_5Y', 'Change_10Y', 'Numeric_ID'
 ] as const;
 export const configHeaders = ['Key', 'Value', '1D Ago', '1W Ago', '1M Ago', '3M Ago', '6M Ago', 'YTD', '1Y Ago', '3Y Ago', '5Y Ago'] as const;
+export const holdingsUserOptionsHeaders = ['Ticker', 'Exchange', 'Fallback_Name'] as const;
 
 export type Headers = readonly string[];
 
@@ -139,10 +145,12 @@ export const metadataHeaders = ['Key', 'Value'] as const;
 export const METADATA_RANGE = METADATA_SHEET + '!A:B';
 export const HOLDINGS_SHEET = 'Holdings';
 export const HOLDINGS_RANGE = `${HOLDINGS_SHEET}!A2:${String.fromCharCode(65 + holdingsHeaders.length - 1)}`;
+export const HOLDINGS_USER_OPTIONS_SHEET_NAME = 'HoldingsUserOptions';
+export const HOLDINGS_USER_OPTIONS_RANGE = `${HOLDINGS_USER_OPTIONS_SHEET_NAME}!A2:C`;
 
 // Manually update this date (YYYY-MM-DD) whenever the schema (columns, formulas) changes.
 // The app will verify if the sheet's last setup date is older than this.
-export const SHEET_STRUCTURE_VERSION_DATE = '2026-01-12';
+export const SHEET_STRUCTURE_VERSION_DATE = '2026-01-13';
 
 // --- Mappings from Sheet Headers to Typescript Object Keys ---
 
@@ -154,15 +162,15 @@ export const portfolioMapping: Record<keyof Omit<Portfolio, 'holdings'>, typeof 
 };
 export const portfolioNumericKeys: (keyof Omit<Portfolio, 'holdings'>)[] = ['cgt', 'incTax', 'mgmtVal', 'commRate', 'commMin', 'commMax', 'divCommRate'];
 
-export const holdingMapping: Record<keyof Omit<Holding, 'priceUnit'>, typeof holdingsHeaders[number]> = {
-    portfolioId: 'PortfolioId', ticker: 'Ticker', exchange: 'Exchange', qty: 'Quantity',
+export const holdingMapping: Record<keyof Omit<Holding, 'priceUnit' | 'portfolioId'>, typeof holdingsHeaders[number]> = {
+    ticker: 'Ticker', exchange: 'Exchange', qty: 'Quantity',
     price: 'Live_Price', currency: 'Currency', totalValue: 'Total Holding Value',
     name: 'Name_En', name_he: 'Name_He', sector: 'Sector', 
     changePct: 'Day_Change', changePct1w: 'Change_1W', changePct1m: 'Change_1M', changePct3m: 'Change_3M',
     changePctYtd: 'Change_YTD', changePct1y: 'Change_1Y', changePct3y: 'Change_3Y', changePct5y: 'Change_5Y', changePct10y: 'Change_10Y',
-    numeric_id: 'Numeric_ID',
+    numericId: 'Numeric_ID',
 };
-export const holdingNumericKeys: (keyof Omit<Holding, 'priceUnit'>)[] = [
+export const holdingNumericKeys: (keyof Omit<Holding, 'priceUnit' | 'portfolioId'>)[] = [
     'qty', 'price', 'totalValue', 'changePct', 'changePct1w', 'changePct1m', 'changePct3m',
-    'changePctYtd', 'changePct1y', 'changePct3y', 'changePct5y', 'changePct10y'
+    'changePctYtd', 'changePct1y', 'changePct3y', 'changePct5y', 'changePct10y', 'numericId'
 ];

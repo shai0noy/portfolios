@@ -267,7 +267,7 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
                         <Chip
                           label={`${option.exchange}:${option.symbol}${option.numericSecurityId ? ` (${option.numericSecurityId})` : ''}`} size="small" variant="outlined" />
                         {option.type && DEFAULT_TASE_TYPE_CONFIG[option.type] && <Chip label={DEFAULT_TASE_TYPE_CONFIG[option.type]?.displayName || option.type} size="small" color="primary" variant="outlined" />}
-                        {option.ownedInPortfolios && (
+                        {option.ownedInPortfolios && option.ownedInPortfolios.length > 0 && (
                           <Tooltip title={`Owned in: ${option.ownedInPortfolios.join(', ')}`}>
                             <BusinessCenterIcon color="success" sx={{ fontSize: 16, ml: 1 }} />
                           </Tooltip>

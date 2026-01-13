@@ -13,11 +13,11 @@ ON HOLD: Dashbaord header - portfolio pct grow should take into account the the 
 ON HOLD: Dashbaord header - Add portfolio gain (value&pct) since date (1m,1y,3y,5y,all) taking into account revenue and add transactions since date
 TODO: Fix GOOGLEFINANCE formula for Split_Adj_Open_Price to fetch historical price on the transaction date, not current price.
 In add transaction - For tase sticks, the "total price" should be ILS,  but currently computed as agorot
-In import CSV, if the date format in the file is unclear, allow the user to choose it (clear ones are dd-mm-yyyy, yyyy-mm-dd, yyyymmdd, unclear onces are e.g. 2024/1/1/ and 1/1/2024) All types should be supported 
 When changing fields in "Add portfolio", it is very slow and laggy. Need a way to verify faster/with less laf (but on edit, not on focus loss)
 Refine set of defaults columns shown
 HOLD: Handle Reit taxing
 Move currency selector to the line below to the right of the 1d/1w etc gain fields 
+Add enum/type for exchanges inlcuding logic of parsing IDs from sheets.ts
 
 DONE:
     Add column to Trasnactions "Source" - fill it only for imports with "Import_yyyymmdd_hhmm" 
