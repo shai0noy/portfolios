@@ -94,8 +94,8 @@ export const TXN_COLS: TransactionColumns = {
         numeric: true,
         formula: (rowNum, cols) => `=IFERROR(${cols.Original_Qty.colId}${rowNum} * ${cols.Split_Ratio.colId}${rowNum}, ${cols.Original_Qty.colId}${rowNum})`
     },
-    numeric_id: {
-        key: 'numeric_id',
+    numericId: {
+        key: 'numericId',
         colName: 'Numeric_ID',
         colId: 'V',
         numeric: true

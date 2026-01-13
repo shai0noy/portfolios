@@ -534,12 +534,16 @@ export const rebuildHoldingsSheet = withAuthHandling(async (spreadsheetId: strin
     const transactions = await fetchTransactions(spreadsheetId);
     const holdings: Record<string, Omit<Holding, 'portfolioId' | 'totalValue' | 'price' | 'currency' | 'name' | 'name_he' | 'sector' | 'priceUnit' | 'changePct' | 'changePct1w' | 'changePct1m' | 'changePct3m' | 'changePctYtd' | 'changePct1y' | 'changePct3y' | 'changePct5y' | 'changePct10y'>> = {};
 
+    // Sort transactions by date to ensure we get the latest numericId for a holding
+    transactions.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
     transactions.forEach(txn => {
         if (txn.type === 'BUY' || txn.type === 'SELL') {
             const key = `${txn.ticker}-${txn.exchange}`;
             if (!holdings[key]) {
                 holdings[key] = { ticker: txn.ticker, exchange: txn.exchange || '', qty: 0 };
             }
+            // Since transactions are sorted, this will overwrite with the latest numericId for each holding
             if (txn.numericId) {
                 holdings[key].numericId = txn.numericId;
             }

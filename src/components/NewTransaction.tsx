@@ -48,7 +48,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
   const [tax, setTax] = useState<string>('');
   const [displayName, setDisplayName] = useState('');
   const [tickerCurrency, setTickerCurrency] = useState(locationState?.initialCurrency || '');
-  const [priceUnit, setPriceUnit] = useState<'base' | 'agorot' | 'cents'>('base');
+  const [priceUnit, setPriceUnit] = useState<'base' | 'agorot'>('base');
   const [validationErrors, setValidationErrors] = useState<{ [key: string]: boolean }>({});
   const [commissionPct, setCommissionPct] = useState<string>('');
 

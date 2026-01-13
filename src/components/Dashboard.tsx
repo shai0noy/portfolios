@@ -292,8 +292,6 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
           // We normalize all prices to the major currency unit (ILS) for consistent storage and calculations.
           if (stockCurrency === Currency.ILAG) {
               currentPrice = fromAgorot(currentPrice);
-          } else if (live?.priceUnit === 'cents') {
-              currentPrice = currentPrice / 100;
           }
 
           holdingMap.set(key, {
@@ -359,7 +357,11 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         }
 
         const txnValuePortfolioCurrency = tQty * originalPricePortfolioCurrency;
-        const txnValueStockCurrency = tQty * (t.price || 0);
+        let txnPrice = t.price || 0;
+        if (h.stockCurrency === Currency.ILAG) {
+            txnPrice = fromAgorot(txnPrice);
+        }
+        const txnValueStockCurrency = tQty * txnPrice;
         const txnValueUSD = tQty * priceInUSD;
         const txnValueILS = tQty * priceInILS;
 

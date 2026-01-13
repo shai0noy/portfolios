@@ -1,4 +1,4 @@
-export type PriceUnit = 'base' | 'agorot' | 'cents';
+export type PriceUnit = 'base' | 'agorot';
 
 export type Currency = 'USD' | 'ILS' | 'EUR' | 'GBP' | 'ILAG';
 export const Currency = {
@@ -28,7 +28,6 @@ export interface DashboardHolding {
   totalQty: number;
   currentPrice: number; // ALWAYS in Major Unit (e.g. ILS, USD)
   stockCurrency: Currency;
-  priceUnit?: PriceUnit;
 
   // Values in Portfolio Base Currency
   costBasisPortfolioCurrency: number;
