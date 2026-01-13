@@ -21,12 +21,12 @@ export const populateTestData = async (spreadsheetId: string) => {
     }
 
     const transactions: Transaction[] = [
-        // P-IL-GROWTH Portfolio - TASE stocks now use ILAG currency and Agorot prices (1.80 ILS = 180 ILAG)
+        // P-IL-GROWTH Portfolio - TASE stocks now use ILA currency and Agorot prices (1.80 ILS = 180 ILA)
         // Commission is entered in ILS (5) but will be converted to Agorot (500) by batchAddTransactions logic
-        { date: '2025-02-01', portfolioId: 'P-IL-GROWTH', ticker: '604611', exchange: 'TASE', type: 'BUY', Original_Qty: 100, Original_Price: 18000, currency: Currency.ILAG, comment: 'Initial buy Leumi (180 ILS)', commission: 5, tax: 0, Source: 'MANUAL', Creation_Date: '2025-02-01', Orig_Open_Price_At_Creation_Date: 17950, vestDate: '' },
-        { date: '2025-02-15', portfolioId: 'P-IL-GROWTH', ticker: '604611', exchange: 'TASE', type: 'DIVIDEND', Original_Qty: 1, Original_Price: 1000, currency: Currency.ILAG, comment: 'Dividend payout (10 ILS)', commission: 0, tax: 0.25, Source: 'MANUAL', Creation_Date: '2025-02-15', Orig_Open_Price_At_Creation_Date: 0, vestDate: '' },
-        { date: '2025-06-10', portfolioId: 'P-IL-GROWTH', ticker: '604611', exchange: 'TASE', type: 'BUY', Original_Qty: 50, Original_Price: 19000, currency: Currency.ILAG, comment: 'Add to Leumi (190 ILS)', commission: 10, tax: 0, Source: 'BROKER_CSV', Creation_Date: '2025-06-10', Orig_Open_Price_At_Creation_Date: 18900, vestDate: '' },
-        { date: '2025-07-15', portfolioId: 'P-IL-GROWTH', ticker: '604611', exchange: 'TASE', type: 'SELL', Original_Qty: 30, Original_Price: 20000, currency: Currency.ILAG, comment: 'Sell some Leumi (200 ILS)', commission: 8, tax: 0.25, Source: 'MANUAL', Creation_Date: '2025-07-15', Orig_Open_Price_At_Creation_Date: 20000, vestDate: '' },
+        { date: '2025-02-01', portfolioId: 'P-IL-GROWTH', ticker: '604611', exchange: 'TASE', type: 'BUY', Original_Qty: 100, Original_Price: 18000, currency: Currency.ILA, comment: 'Initial buy Leumi (180 ILS)', commission: 5, tax: 0, Source: 'MANUAL', Creation_Date: '2025-02-01', Orig_Open_Price_At_Creation_Date: 17950, vestDate: '' },
+        { date: '2025-02-15', portfolioId: 'P-IL-GROWTH', ticker: '604611', exchange: 'TASE', type: 'DIVIDEND', Original_Qty: 1, Original_Price: 1000, currency: Currency.ILA, comment: 'Dividend payout (10 ILS)', commission: 0, tax: 0.25, Source: 'MANUAL', Creation_Date: '2025-02-15', Orig_Open_Price_At_Creation_Date: 0, vestDate: '' },
+        { date: '2025-06-10', portfolioId: 'P-IL-GROWTH', ticker: '604611', exchange: 'TASE', type: 'BUY', Original_Qty: 50, Original_Price: 19000, currency: Currency.ILA, comment: 'Add to Leumi (190 ILS)', commission: 10, tax: 0, Source: 'BROKER_CSV', Creation_Date: '2025-06-10', Orig_Open_Price_At_Creation_Date: 18900, vestDate: '' },
+        { date: '2025-07-15', portfolioId: 'P-IL-GROWTH', ticker: '604611', exchange: 'TASE', type: 'SELL', Original_Qty: 30, Original_Price: 20000, currency: Currency.ILA, comment: 'Sell some Leumi (200 ILS)', commission: 8, tax: 0.25, Source: 'MANUAL', Creation_Date: '2025-07-15', Orig_Open_Price_At_Creation_Date: 20000, vestDate: '' },
 
         // P-USD-CORE Portfolio
         { date: '2025-03-01', portfolioId: 'P-USD-CORE', ticker: 'AAPL', exchange: 'NASDAQ', type: 'BUY', Original_Qty: 10, Original_Price: 150, currency: Currency.USD, comment: 'Core buy', commission: 1, tax: 0, Source: 'MANUAL', Creation_Date: '2025-03-01', Orig_Open_Price_At_Creation_Date: 149, vestDate: '' },

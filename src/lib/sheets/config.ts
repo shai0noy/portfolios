@@ -15,13 +15,13 @@ export const TXN_COLS: TransactionColumns = {
     Original_Price: { key: 'Original_Price', colName: 'Original_Price', colId: 'G', numeric: true },
     currency: { key: 'currency', colName: 'Currency', colId: 'H' },
     
-    // Original_Price_ILAG: Converts the original price to ILAG (Agorot).
+    // Original_Price_ILA: Converts the original price to ILA (Agorot).
     // If currency is ILS, price is in ILS, so * 100.
     // If currency is USD, price is USD, so * USDILS * 100.
     // If other, convert to ILS then * 100.
-    Original_Price_ILAG: {
-        key: 'Original_Price_ILAG',
-        colName: 'Original_Price_ILAG',
+    Original_Price_ILA: {
+        key: 'Original_Price_ILA',
+        colName: 'Original_Price_ILA',
         colId: 'I',
         numeric: true,
         formula: (rowNum, cols) => {
@@ -29,9 +29,9 @@ export const TXN_COLS: TransactionColumns = {
             const origPrice = `${cols.Original_Price.colId}${rowNum}`;
             const txnDate = `${cols.date.colId}${rowNum}`;
             const usdToIlsFormula = getUsdIlsFormula(txnDate);
-            // ILAG is 1/100 of ILS.
-            // If txn in ILS, value is already in ILS major units (e.g. 1.50). In ILAG it is 150.
-            return `=IF(${txnCurr}="ILAG", ${origPrice}, IF(${txnCurr}="ILS", ${origPrice}*100, IF(${txnCurr}="USD", ${origPrice} * ${usdToIlsFormula} * 100, ${origPrice} * INDEX(GOOGLEFINANCE("CURRENCY:" & ${txnCurr} & "ILS", "price", ${txnDate}), 2, 2) * 100)))`;
+            // ILA is 1/100 of ILS.
+            // If txn in ILS, value is already in ILS major units (e.g. 1.50). In ILA it is 150.
+            return `=IF(${txnCurr}="ILA", ${origPrice}, IF(${txnCurr}="ILS", ${origPrice}*100, IF(${txnCurr}="USD", ${origPrice} * ${usdToIlsFormula} * 100, ${origPrice} * INDEX(GOOGLEFINANCE("CURRENCY:" & ${txnCurr} & "ILS", "price", ${txnDate}), 2, 2) * 100)))`;
         }
     },
     
@@ -52,7 +52,7 @@ export const TXN_COLS: TransactionColumns = {
             // If ILS, divide by USDILS rate.
             // Else, look up CROSS to USD.
             return `=IF(${txnCurr}="USD", ${origPrice}, ` +
-                   `IF(${txnCurr}="ILAG", ${origPrice} / 100 / ${usdIlsFormula}, ` +
+                   `IF(${txnCurr}="ILA", ${origPrice} / 100 / ${usdIlsFormula}, ` +
                    `IF(${txnCurr}="ILS", ${origPrice} / ${usdIlsFormula}, ` +
                    `${origPrice} * INDEX(GOOGLEFINANCE("CURRENCY:" & ${txnCurr} & "USD", "price", ${txnDate}), 2, 2)` +
                    `)))`;

@@ -376,9 +376,9 @@ export const batchAddTransactions = withAuthHandling(async (spreadsheetId: strin
                 case 'comment': case 'Source': rowData[key] = (t as any)[key] || ''; break;
                 case 'commission': {
                     const comm = (t as any).commission || 0;
-                    const isILAG = (t.currency || '').toUpperCase() === 'ILAG';
-                    // If currency is ILAG (Agorot), and commission was entered in ILS (standard), store as Agorot.
-                    rowData[key] = isILAG ? comm * 100 : comm;
+                    const isILA = (t.currency || '').toUpperCase() === 'ILA';
+                    // If currency is ILA (Agorot), and commission was entered in ILS (standard), store as Agorot.
+                    rowData[key] = isILA ? comm * 100 : comm;
                     break;
                 }
                 case 'tax': rowData[key] = (t as any)[key] || 0; break;
@@ -508,13 +508,14 @@ function createHoldingRow(h: Omit<Holding, 'portfolioId' | 'totalValue' | 'price
     row[0] = String(h.ticker).toUpperCase();
     row[1] = toSheetsExchange(h.exchange || '');
     row[2] = h.qty;
-    row[3] = meta?.price || `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "price"))`;
-    row[4] = isTASE ? 'ILAG' : (meta?.currency || `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "currency"))`);
+    row[3] = `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "price"))`;
+    const defaultCurrency = meta?.currency || (isTASE ? 'ILA' : '');
+    row[4] = (`=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "currency"), "${defaultCurrency}")` );
     row[5] = `=${qtyCell}*${priceCell}`;
-    row[6] = meta?.name || `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "name"), "")`;
+    row[6] = `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "name"), " ${meta?.name || ""}")`;
     row[7] = meta?.name_he || "";
-    row[8] = meta?.sector || `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "sector"), "Other")`;
-    row[9] = meta?.changePct || `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "changepct")/100, 0)`;
+    row[8] = meta?.sector || "";
+    row[9] = `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "changepct")/100, 0)`;
 
     const priceFormula = (dateExpr: string) => getHistoricalPriceFormula(tickerAndExchange, dateExpr).substring(1);
     row[10] = `=IFERROR((${priceCell}/${priceFormula("TODAY()-7")})-1, "")`; // Change_1W
@@ -556,9 +557,7 @@ export const rebuildHoldingsSheet = withAuthHandling(async (spreadsheetId: strin
     const uniqueHoldings = Object.values(holdings).filter(h => h.qty > 1e-6);
     const enrichedData = await Promise.all(uniqueHoldings.map(async (h) => {
         let meta: any = null;
-        if ((h.exchange || '').toUpperCase() === 'TASE') {
-            try { meta = await getTickerData(h.ticker, h.exchange as any); } catch (e) { console.warn("Failed to fetch TASE metadata for " + h.ticker, e); }
-        }
+        try { meta = await getTickerData(h.ticker, h.exchange as any); } catch (e) { console.warn("Failed to fetch metadata for " + h.ticker, e); }
         return { h, meta };
     }));
 

@@ -290,7 +290,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
           let currentPrice = live?.price || 0;
           // TASE stocks are typically quoted in Agorot (1/100 ILS).
           // We normalize all prices to the major currency unit (ILS) for consistent storage and calculations.
-          if (stockCurrency === Currency.ILAG) {
+          if (stockCurrency === Currency.ILA) {
               currentPrice = fromAgorot(currentPrice);
           }
 
@@ -342,13 +342,13 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         let originalPricePortfolioCurrency = 0;
         
         const priceInUSD = (t as any).Original_Price_USD || 0;
-        const priceInAgorot = (t as any).Original_Price_ILAG || 0;
+        const priceInAgorot = (t as any).Original_Price_ILA || 0;
         const priceInILS = fromAgorot(priceInAgorot);
         const tQty = t.qty || 0;
 
         if (portfolioCurrency === Currency.ILS) {
-             // If Portfolio is ILS, use Original_Price_ILAG (in Agorot) and convert to ILS Major Unit
-             logIfFalsy((t as any).Original_Price_ILAG, `Original_Price_ILAG missing for ${t.ticker}`, t);
+             // If Portfolio is ILS, use Original_Price_ILA (in Agorot) and convert to ILS Major Unit
+             logIfFalsy((t as any).Original_Price_ILA, `Original_Price_ILA missing for ${t.ticker}`, t);
              originalPricePortfolioCurrency = priceInILS;
         } else {
              // Otherwise use USD value and convert to Portfolio Currency if needed
@@ -358,7 +358,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
 
         const txnValuePortfolioCurrency = tQty * originalPricePortfolioCurrency;
         let txnPrice = t.price || 0;
-        if (h.stockCurrency === Currency.ILAG) {
+        if (h.stockCurrency === Currency.ILA) {
             txnPrice = fromAgorot(txnPrice);
         }
         const txnValueStockCurrency = tQty * txnPrice;

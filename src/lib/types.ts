@@ -1,12 +1,12 @@
 export type PriceUnit = 'base' | 'agorot';
 
-export type Currency = 'USD' | 'ILS' | 'EUR' | 'GBP' | 'ILAG';
+export type Currency = 'USD' | 'ILS' | 'EUR' | 'GBP' | 'ILA';
 export const Currency = {
   USD: 'USD' as Currency,
   ILS: 'ILS' as Currency,
   EUR: 'EUR' as Currency,
   GBP: 'GBP' as Currency,
-  ILAG: 'ILAG' as Currency,
+  ILA: 'ILA' as Currency,
 };
 
 export interface ExchangeRates {
@@ -153,7 +153,7 @@ export interface Transaction {
   Split_Adjusted_Price?: number;
   Split_Adjusted_Qty?: number;
   Original_Price_USD?: number;
-  Original_Price_ILAG?: number;
+  Original_Price_ILA?: number;
   numericId?: number;
   Name_Hint?: string;
 }

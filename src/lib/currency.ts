@@ -47,7 +47,7 @@ export async function getExchangeRates(sheetId: string): Promise<ExchangeRates> 
 export function normalizeCurrency(input: string): Currency {
   if (!input) return Currency.USD;
   const upper = input.trim().toUpperCase();
-  if (upper === 'ILAG') return Currency.ILAG;
+  if (upper === 'ILA') return Currency.ILA;
   if (upper === 'NIS' || upper === 'ILS') return Currency.ILS;
   if (upper === 'EUR') return Currency.EUR;
   if (upper === 'GBP') return Currency.GBP;
@@ -83,20 +83,20 @@ export function convertCurrency(amount: number, from: Currency | string, to: Cur
   }
 
   // Rate lookup (assuming base is USD)
-  const fromRate = currentRates[fromNorm === Currency.ILAG ? Currency.ILS : fromNorm]; 
-  const toRate = currentRates[toNorm === Currency.ILAG ? Currency.ILS : toNorm]; 
+  const fromRate = currentRates[fromNorm === Currency.ILA ? Currency.ILS : fromNorm]; 
+  const toRate = currentRates[toNorm === Currency.ILA ? Currency.ILS : toNorm]; 
 
-  // Special handling for ILAG (Agorot) which is 1/100 of ILS
+  // Special handling for ILA (Agorot) which is 1/100 of ILS
   let adjustedAmount = amount;
-  if (fromNorm === Currency.ILAG) adjustedAmount = fromAgorot(amount);
+  if (fromNorm === Currency.ILA) adjustedAmount = fromAgorot(amount);
   
-  if ((fromNorm !== Currency.USD && fromNorm !== Currency.ILAG) && !fromRate) return amount; 
-  if ((toNorm !== Currency.USD && toNorm !== Currency.ILAG) && !toRate) return amount; 
+  if ((fromNorm !== Currency.USD && fromNorm !== Currency.ILA) && !fromRate) return amount; 
+  if ((toNorm !== Currency.USD && toNorm !== Currency.ILA) && !toRate) return amount; 
 
   const amountInUSD = (fromNorm === Currency.USD) ? adjustedAmount : adjustedAmount / fromRate;
   const result = (toNorm === Currency.USD) ? amountInUSD : amountInUSD * toRate;
   
-  if (toNorm === Currency.ILAG) return toAgorot(result);
+  if (toNorm === Currency.ILA) return toAgorot(result);
   return result;
 }
 
@@ -143,7 +143,7 @@ export const calculateHoldingDisplayValues = (h: DashboardHolding, displayCurren
 
     const normStock = h.stockCurrency; 
 
-    // Simplification: Always use convert() helper which handles equality checks and ILAG
+    // Simplification: Always use convert() helper which handles equality checks and ILA
     costBasis = convert(h.costBasisPortfolioCurrency, h.portfolioCurrency);
     costOfSold = convert(h.costOfSoldPortfolioCurrency, h.portfolioCurrency);
     proceeds = convert(h.proceedsPortfolioCurrency, h.portfolioCurrency);
@@ -210,7 +210,7 @@ export function formatCurrency(n: number, currency: string | Currency, decimals 
   if (n === undefined || n === null || isNaN(n)) return '-';
   const norm = normalizeCurrency(currency as string);
 
-  if (norm === Currency.ILAG) {
+  if (norm === Currency.ILA) {
     const val = n.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
     return `${val} ag.`;
   }
@@ -243,9 +243,9 @@ export function formatPrice(n: number, currency: string | Currency, decimals = 2
     
     const norm = normalizeCurrency(currency as string);
 
-    // Rule: Ticker costs in ILS or ILAG are ALWAYS displayed in Agorot
-    if (norm === Currency.ILS || norm === Currency.ILAG) {
-        // If it's already ILAG (Agorot units), don't multiply.
+    // Rule: Ticker costs in ILS or ILA are ALWAYS displayed in Agorot
+    if (norm === Currency.ILS || norm === Currency.ILA) {
+        // If it's already ILA (Agorot units), don't multiply.
         // But Dashboard stores everything in Major Units (ILS).
         // So we likely need to multiply by 100 to display Agorot.
         const agorotVal = toAgorot(n);
