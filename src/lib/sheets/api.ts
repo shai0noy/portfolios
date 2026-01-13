@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { ensureGapi, findSpreadsheetByName } from '../google';
-import { getTickerData } from '../fetching';
+import { getTickerData, type TickerData } from '../fetching';
 import { toGoogleSheetDateFormat } from '../date';
 import type { Portfolio, Transaction, Holding } from '../types';
 import {
@@ -44,7 +44,7 @@ const withAuthHandling = <A extends any[], R>(fn: (...args: A) => Promise<R>): (
                 // redirecting to a login page if the user is not authenticated.
                 window.location.reload();
                 // Return a promise that never resolves to prevent further execution.
-                return new Promise(() => {});
+                return new Promise(() => { });
             }
             throw error;
         }
@@ -161,7 +161,7 @@ export const fetchHolding = withAuthHandling(async (spreadsheetId: string, ticke
         if (holdingRow) {
             // mapRowToHolding correctly maps all fields present in holdingsHeaders, including numericId.
             // portfolioId is not in holdingsHeaders, and is now optional in the Holding type.
-            const holding = mapRowToHolding<Omit<Holding, 'priceUnit' | 'portfolioId'>>(holdingRow, holdingMapping, holdingNumericKeys);
+            const holding = mapRowToHolding<Omit<Holding, 'portfolioId'>>(holdingRow, holdingMapping, holdingNumericKeys);
             if (holding.exchange) holding.exchange = toExchangeId(holding.exchange);
 
             // Return the holding directly. portfolioId will be undefined, which is allowed by the type.
@@ -182,7 +182,7 @@ export const fetchPortfolios = withAuthHandling(async (spreadsheetId: string): P
 
     // 1. Fetch all transactions to calculate holdings from scratch
     const transactions = await fetchTransactions(spreadsheetId);
-    
+
     // 2. Calculate holdings quantities from transactions
     const holdingsByPortfolio: Record<string, Record<string, Holding>> = {};
     transactions.forEach(txn => {
@@ -192,11 +192,12 @@ export const fetchPortfolios = withAuthHandling(async (spreadsheetId: string): P
             }
             const key = `${txn.ticker}-${txn.exchange}`;
             if (!holdingsByPortfolio[txn.portfolioId][key]) {
-                holdingsByPortfolio[txn.portfolioId][key] = { 
-                    portfolioId: txn.portfolioId, 
-                    ticker: txn.ticker, 
-                    exchange: txn.exchange || '', 
-                    qty: 0 
+                holdingsByPortfolio[txn.portfolioId][key] = {
+                    portfolioId: txn.portfolioId,
+                    ticker: txn.ticker,
+                    exchange: txn.exchange || '',
+                    qty: 0,
+                    numericId: txn.numericId || null
                 };
             }
             const multiplier = txn.type === 'BUY' ? 1 : -1;
@@ -209,7 +210,7 @@ export const fetchPortfolios = withAuthHandling(async (spreadsheetId: string): P
     let priceMap: Record<string, Omit<Holding, 'portfolioId' | 'qty'>> = {};
     try {
         const priceData = await fetchSheetData(spreadsheetId, HOLDINGS_RANGE, (row: any[]) =>
-            mapRowToHolding<Omit<Holding, 'portfolioId' | 'qty' | 'priceUnit'>>(
+            mapRowToHolding<Omit<Holding, 'portfolioId' | 'qty'>>(
                 row,
                 holdingMapping,
                 holdingNumericKeys.filter(k => k !== 'qty') as any
@@ -223,7 +224,7 @@ export const fetchPortfolios = withAuthHandling(async (spreadsheetId: string): P
     } catch (e) {
         console.warn("Holdings sheet (for price data) not found or error fetching:", e);
     }
-    
+
     // 4. Attach calculated holdings, enriched with price data, to portfolios
     return portfolios.map(p => {
         const portfolioHoldingsRaw = holdingsByPortfolio[p.id] ? Object.values(holdingsByPortfolio[p.id]) : [];
@@ -290,7 +291,7 @@ export const createPortfolioSpreadsheet = withAuthHandling(async (title: string 
             await ensureSchema(spreadsheetId);
             localStorage.setItem('g_sheet_id', spreadsheetId);
         }
-        return spreadsheetId || null; 
+        return spreadsheetId || null;
     } catch (error) { console.error("Error creating spreadsheet:", error); return null; }
 });
 
@@ -358,10 +359,7 @@ export const updateHoldingsUserOptions = withAuthHandling(async (spreadsheetId: 
 export const batchAddTransactions = withAuthHandling(async (spreadsheetId: string, transactions: Transaction[]) => {
     const gapi = await ensureGapi();
 
-    const isNumericTicker = (ticker: string) => /^\d+$/.test(ticker) || /:\d+$/.test(ticker);
-    const nameHints = new Map<string, string>();
     const optionsToUpdate: { ticker: string, exchange: string, name: string }[] = [];
-    const numericTickersToFetch = new Map<string, { ticker: string, exchange: string }>();
 
     const allValuesToAppend: any[][] = [];
     transactions.forEach(t => {
@@ -387,36 +385,14 @@ export const batchAddTransactions = withAuthHandling(async (spreadsheetId: strin
                     rowData[key] = toGoogleSheetDateFormat(cDate);
                     break;
                 }
-                case 'Name_Hint': {
-                    if (isNumericTicker(t.ticker)) {
-                        const mapKey = `${t.ticker}-${(t.exchange || '').toUpperCase()}`;
-                        if (!numericTickersToFetch.has(mapKey)) {
-                            numericTickersToFetch.set(mapKey, { ticker: t.ticker, exchange: t.exchange || '' });
-                        }
-                    }
-                    break;
-                }
                 case 'Orig_Open_Price_At_Creation_Date': rowData[key] = (t as any)[key]; break;
-                default: if (key in t) rowData[key] = (t as any)[key];
+                default:
+                    if (key in t) {
+                        rowData[key] = (t as any)[key];
+                    }
             }
         });
     });
-
-    if (numericTickersToFetch.size > 0) {
-        const fetchPromises = Array.from(numericTickersToFetch.values()).map(async ({ ticker, exchange }) => {
-            try {
-                const data = await getTickerData(ticker, exchange);
-                if (data?.name) {
-                    const key = `${ticker}-${(exchange || '').toUpperCase()}`;
-                    nameHints.set(key, data.name);
-                    optionsToUpdate.push({ ticker, exchange, name: data.name });
-                }
-            } catch (e) {
-                console.warn(`Failed to fetch name hint for numeric ticker ${ticker}:`, e);
-            }
-        });
-        await Promise.all(fetchPromises);
-    }
 
     if (optionsToUpdate.length > 0) await updateHoldingsUserOptions(spreadsheetId, optionsToUpdate);
 
@@ -426,10 +402,6 @@ export const batchAddTransactions = withAuthHandling(async (spreadsheetId: strin
         // This ensures the value is correctly picked up when building the row for the sheet.
         rowData.numeric_id = t.numericId;
 
-        if (isNumericTicker(t.ticker)) {
-            const mapKey = `${t.ticker}-${(t.exchange || '').toUpperCase()}`;
-            rowData.Name_Hint = nameHints.get(mapKey) || '';
-        }
         const rowValues = Object.values(TXN_COLS).map(colDef => {
             if (colDef.formula) return null;
             const key = colDef.key;
@@ -463,39 +435,39 @@ export const batchAddTransactions = withAuthHandling(async (spreadsheetId: strin
     const txSheetId = await getSheetId(spreadsheetId, TX_SHEET_NAME);
 
     // Optimization: Generate one request per column for the entire range, or one request per cell?
-        // Using updateCells with a grid range is better.
-        
-        // Actually, we can't easily do one request per column because formula depends on row number.
-            // But we can generate the formulas and send them in one big batchUpdate.
-            const formulaRequests: any[] = [];
-            
-            for (let i = 0; i < transactions.length; i++) {
-                const rowNum = startRow + i;
-                formulaColDefs.forEach((colDef) => {
-                    const formula = colDef.formula!(rowNum, TXN_COLS);
-                    const colIndex = Object.values(TXN_COLS).indexOf(colDef);
-                    formulaRequests.push({
-                        updateCells: {
-                            range: { sheetId: txSheetId, startRowIndex: rowNum - 1, endRowIndex: rowNum, startColumnIndex: colIndex, endColumnIndex: colIndex + 1 },
-                            rows: [{ values: [{ userEnteredValue: { formulaValue: formula } }] }],
-                            fields: 'userEnteredValue.formulaValue'
-                        }
-                    });
-                });
-            }
-        
-            if (formulaRequests.length > 0) {
-                // Batch requests in chunks if too large (Google limit is around 100k requests but payload size matters)
-                // For test data (few rows), one batch is fine.
-                await gapi.client.sheets.spreadsheets.batchUpdate({ spreadsheetId, resource: { requests: formulaRequests } });
-            }
+    // Using updateCells with a grid range is better.
+
+    // Actually, we can't easily do one request per column because formula depends on row number.
+    // But we can generate the formulas and send them in one big batchUpdate.
+    const formulaRequests: any[] = [];
+
+    for (let i = 0; i < transactions.length; i++) {
+        const rowNum = startRow + i;
+        formulaColDefs.forEach((colDef) => {
+            const formula = colDef.formula!(rowNum, TXN_COLS);
+            const colIndex = Object.values(TXN_COLS).indexOf(colDef);
+            formulaRequests.push({
+                updateCells: {
+                    range: { sheetId: txSheetId, startRowIndex: rowNum - 1, endRowIndex: rowNum, startColumnIndex: colIndex, endColumnIndex: colIndex + 1 },
+                    rows: [{ values: [{ userEnteredValue: { formulaValue: formula } }] }],
+                    fields: 'userEnteredValue.formulaValue'
+                }
+            });
+        });
+    }
+
+    if (formulaRequests.length > 0) {
+        // Batch requests in chunks if too large (Google limit is around 100k requests but payload size matters)
+        // For test data (few rows), one batch is fine.
+        await gapi.client.sheets.spreadsheets.batchUpdate({ spreadsheetId, resource: { requests: formulaRequests } });
+    }
 
     // Only rebuild holdings once after batch insert
     await rebuildHoldingsSheet(spreadsheetId);
 });
 
-
-function createHoldingRow(h: Omit<Holding, 'portfolioId' | 'totalValue' | 'price' | 'currency' | 'name' | 'name_he' | 'sector' | 'priceUnit' | 'changePct' | 'changePct1w' | 'changePct1m' | 'changePct3m' | 'changePctYtd' | 'changePct1y' | 'changePct3y' | 'changePct5y' | 'changePct10y'>, meta: any, rowNum: number): any[] | null {
+type HoldingNonGeneratedData = Omit<Holding, 'portfolioId' | 'totalValue' | 'price' | 'currency' | 'name' | 'name_he' | 'sector' | 'changePct' | 'changePct1w' | 'changePct1m' | 'changePct3m' | 'changePctYtd' | 'changePct1y' | 'changePct3y' | 'changePct5y' | 'changePct10y'>;
+function createHoldingRow(h: HoldingNonGeneratedData, meta: TickerData | null, rowNum: number): any[] {
     const tickerCell = `A${rowNum}`;
     const exchangeCell = `B${rowNum}`;
     const qtyCell = `C${rowNum}`;
@@ -510,7 +482,7 @@ function createHoldingRow(h: Omit<Holding, 'portfolioId' | 'totalValue' | 'price
     row[2] = h.qty;
     row[3] = `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "price"))`;
     const defaultCurrency = meta?.currency || (isTASE ? 'ILA' : '');
-    row[4] = (`=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "currency"), "${defaultCurrency}")` );
+    row[4] = (`=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "currency"), "${defaultCurrency}")`);
     row[5] = `=${qtyCell}*${priceCell}`;
     row[6] = `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "name"), " ${meta?.name || ""}")`;
     row[7] = meta?.name_he || "";
@@ -533,7 +505,7 @@ function createHoldingRow(h: Omit<Holding, 'portfolioId' | 'totalValue' | 'price
 export const rebuildHoldingsSheet = withAuthHandling(async (spreadsheetId: string) => {
     const gapi = await ensureGapi();
     const transactions = await fetchTransactions(spreadsheetId);
-    const holdings: Record<string, Omit<Holding, 'portfolioId' | 'totalValue' | 'price' | 'currency' | 'name' | 'name_he' | 'sector' | 'priceUnit' | 'changePct' | 'changePct1w' | 'changePct1m' | 'changePct3m' | 'changePctYtd' | 'changePct1y' | 'changePct3y' | 'changePct5y' | 'changePct10y'>> = {};
+    const holdings: Record<string, Omit<Holding, 'portfolioId' | 'totalValue' | 'price' | 'currency' | 'name' | 'name_he' | 'sector' | 'changePct' | 'changePct1w' | 'changePct1m' | 'changePct3m' | 'changePctYtd' | 'changePct1y' | 'changePct3y' | 'changePct5y' | 'changePct10y'>> = {};
 
     // Sort transactions by date to ensure we get the latest numericId for a holding
     transactions.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -542,7 +514,7 @@ export const rebuildHoldingsSheet = withAuthHandling(async (spreadsheetId: strin
         if (txn.type === 'BUY' || txn.type === 'SELL') {
             const key = `${txn.ticker}-${txn.exchange}`;
             if (!holdings[key]) {
-                holdings[key] = { ticker: txn.ticker, exchange: txn.exchange || '', qty: 0 };
+                holdings[key] = { ticker: txn.ticker, exchange: txn.exchange || '', qty: 0, numericId: null };
             }
             // Since transactions are sorted, this will overwrite with the latest numericId for each holding
             if (txn.numericId) {
@@ -554,10 +526,9 @@ export const rebuildHoldingsSheet = withAuthHandling(async (spreadsheetId: strin
         }
     });
 
-    const uniqueHoldings = Object.values(holdings).filter(h => h.qty > 1e-6);
-    const enrichedData = await Promise.all(uniqueHoldings.map(async (h) => {
-        let meta: any = null;
-        try { meta = await getTickerData(h.ticker, h.exchange as any); } catch (e) { console.warn("Failed to fetch metadata for " + h.ticker, e); }
+    const enrichedData = await Promise.all(Object.values(holdings).map(async (h) => {
+        let meta: TickerData | null = null;
+        try { meta = await getTickerData(h.ticker, h.exchange, h.numericId); } catch (e) { console.warn("Failed to fetch metadata for " + h.ticker, e); }
         return { h, meta };
     }));
 

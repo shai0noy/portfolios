@@ -108,7 +108,7 @@ export type TaxPolicy = 'TAX_FREE' | 'REAL_GAIN' | 'NOMINAL_GAIN' | 'PENSION';
 export interface Holding {
   portfolioId: string;
   ticker: string;
-  exchange?: string;
+  exchange: string;
   qty: number;
   price?: number;
   currency?: Currency;
@@ -116,7 +116,6 @@ export interface Holding {
   name?: string;
   name_he?: string;
   sector?: string;
-  priceUnit?: PriceUnit;
   changePct?: number;
   changePct1w?: number;
   changePct1m?: number;
@@ -126,7 +125,7 @@ export interface Holding {
   changePct3y?: number;
   changePct5y?: number;
   changePct10y?: number;
-  numericId?: number;
+  numericId: number | null;
 }
 
 export interface Transaction {
@@ -155,7 +154,6 @@ export interface Transaction {
   Original_Price_USD?: number;
   Original_Price_ILA?: number;
   numericId?: number;
-  Name_Hint?: string;
 }
 
 // Templates for quick setup

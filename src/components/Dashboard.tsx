@@ -308,7 +308,6 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
             totalQty: 0,
             currentPrice: currentPrice,
             stockCurrency,
-            priceUnit: live?.priceUnit,
             costBasisPortfolioCurrency: 0,
             costOfSoldPortfolioCurrency: 0,
             proceedsPortfolioCurrency: 0,

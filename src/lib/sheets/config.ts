@@ -100,11 +100,6 @@ export const TXN_COLS: TransactionColumns = {
         colId: 'V',
         numeric: true
     },
-    Name_Hint: {
-        key: 'Name_Hint',
-        colName: 'Name_Hint',
-        colId: 'W',
-    },
 };
 
 export const transactionHeaders = Object.values(TXN_COLS).map(c => c.colName) as unknown as readonly string[];
@@ -162,7 +157,7 @@ export const portfolioMapping: Record<keyof Omit<Portfolio, 'holdings'>, typeof 
 };
 export const portfolioNumericKeys: (keyof Omit<Portfolio, 'holdings'>)[] = ['cgt', 'incTax', 'mgmtVal', 'commRate', 'commMin', 'commMax', 'divCommRate'];
 
-export const holdingMapping: Record<keyof Omit<Holding, 'priceUnit' | 'portfolioId'>, typeof holdingsHeaders[number]> = {
+export const holdingMapping: Record<keyof Omit<Holding, 'portfolioId'>, typeof holdingsHeaders[number]> = {
     ticker: 'Ticker', exchange: 'Exchange', qty: 'Quantity',
     price: 'Live_Price', currency: 'Currency', totalValue: 'Total Holding Value',
     name: 'Name_En', name_he: 'Name_He', sector: 'Sector', 
@@ -170,7 +165,7 @@ export const holdingMapping: Record<keyof Omit<Holding, 'priceUnit' | 'portfolio
     changePctYtd: 'Change_YTD', changePct1y: 'Change_1Y', changePct3y: 'Change_3Y', changePct5y: 'Change_5Y', changePct10y: 'Change_10Y',
     numericId: 'Numeric_ID',
 };
-export const holdingNumericKeys: (keyof Omit<Holding, 'priceUnit' | 'portfolioId'>)[] = [
+export const holdingNumericKeys: (keyof Omit<Holding, 'portfolioId'>)[] = [
     'qty', 'price', 'totalValue', 'changePct', 'changePct1w', 'changePct1m', 'changePct3m',
     'changePctYtd', 'changePct1y', 'changePct3y', 'changePct5y', 'changePct10y', 'numericId'
 ];

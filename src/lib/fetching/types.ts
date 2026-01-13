@@ -8,7 +8,6 @@ export interface TickerData {
   currency?: string;
   exchange?: string;
   changePct?: number; // Daily change percentage
-  priceUnit?: string;
   timestamp?: number; // Last update time
   sector?: string;
   changePctYtd?: number;

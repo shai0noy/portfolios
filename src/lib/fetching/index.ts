@@ -41,7 +41,7 @@ export function getTaseTickersDataset(signal?: AbortSignal, forceRefresh = false
   return taseTickersDatasetLoading;
 }
 
-export async function getTickerData(ticker: string, exchange: string, signal?: AbortSignal, forceRefresh = false, numericSecurityId?: string | number): Promise<TickerData | null> {
+export async function getTickerData(ticker: string, exchange: string, numericSecurityId: number|null, signal?: AbortSignal, forceRefresh = false): Promise<TickerData | null> {
   const exchangeL = exchange?.toLowerCase();
   const globesTicker = numericSecurityId ? String(numericSecurityId) : ticker;
   const cacheKey = exchangeL === 'tase' ? `globes:tase:${globesTicker}` : `yahoo:${ticker}`;
@@ -58,8 +58,10 @@ export async function getTickerData(ticker: string, exchange: string, signal?: A
 
   const secId = numericSecurityId ? Number(numericSecurityId) : undefined;
   if (exchangeL === 'tase') {
+    console.log(`Fetching TASE ticker data for ${exchangeL}:${ticker} (securityId: ${secId || 'N/A'})`);
     return fetchGlobesStockQuote(ticker, secId, 'tase', signal);
   } else if (exchangeL) {
+    console.log(`Fetching Yahoo ticker data for : ${exchangeL}:${ticker}`);
     return fetchYahooStockQuote(ticker, signal);
   }
 

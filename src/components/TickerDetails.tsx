@@ -12,10 +12,11 @@ import { formatPrice, formatPercent } from '../lib/currency';
 interface TickerDetailsRouteParams extends Record<string, string | undefined> {
   exchange: string;
   ticker: string;
+  numericId?: string;
 }
 
 export function TickerDetails({ sheetId }: { sheetId: string }) {
-  const { exchange, ticker } = useParams<TickerDetailsRouteParams>();
+  const { exchange, ticker, numericId } = useParams<TickerDetailsRouteParams>();
   const navigate = useNavigate();
   const [data, setData] = useState<any>(null);
   const [holdingData, setHoldingData] = useState<Holding | null>(null);
@@ -34,7 +35,8 @@ export function TickerDetails({ sheetId }: { sheetId: string }) {
       try {
         let tickerDataPromise: Promise<any> = Promise.resolve(null);
         if (knownLiveExchanges.includes(upperExchange)) {
-          tickerDataPromise = getTickerData(ticker, exchange, undefined, forceRefresh);
+          const numericIdVal = numericId ? parseInt(numericId, 10) : null;
+          tickerDataPromise = getTickerData(ticker, exchange, numericIdVal, undefined, forceRefresh);
         }
         const holdingDataPromise = fetchHolding(sheetId, ticker, upperExchange);
         const sheetRebuildTimePromise = getMetadataValue(sheetId, 'holdings_rebuild');
@@ -90,7 +92,7 @@ export function TickerDetails({ sheetId }: { sheetId: string }) {
 
   const getExternalLinks = () => {
     if (!ticker) return [];
-  
+
     const links = [];
 
     const yExchange = exchange?.toUpperCase() === 'TASE' ? 'TA' : exchange?.toUpperCase();
@@ -100,7 +102,7 @@ export function TickerDetails({ sheetId }: { sheetId: string }) {
       links.push({ name: 'Yahoo Finance', url: `https://finance.yahoo.com/quote/${ticker}` });
     }
 
-    const gExchange =  exchange?.toUpperCase() === 'TASE' ? 'TLV' : exchange?.toUpperCase();
+    const gExchange = exchange?.toUpperCase() === 'TASE' ? 'TLV' : exchange?.toUpperCase();
     if (gExchange) {
       links.push({ name: 'Google Finance', url: `https://www.google.com/finance/quote/${ticker}:${gExchange}` });
     } else {
@@ -121,139 +123,139 @@ export function TickerDetails({ sheetId }: { sheetId: string }) {
     return links;
   };
 
-    const formatTimestamp = (timestamp?: number | string) => {
-      if (!timestamp) return 'N/A';
-      const date = new Date(timestamp);
-      const today = new Date();
-      const isToday = date.toDateString() === today.toDateString();
-      return isToday ? date.toLocaleTimeString() : date.toLocaleString();
-    };
+  const formatTimestamp = (timestamp?: number | string) => {
+    if (!timestamp) return 'N/A';
+    const date = new Date(timestamp);
+    const today = new Date();
+    const isToday = date.toDateString() === today.toDateString();
+    return isToday ? date.toLocaleTimeString() : date.toLocaleString();
+  };
 
-    const displayData = data || holdingData;
+  const displayData = data || holdingData;
 
-    const perfData: Record<string, number | undefined> = {
-      '1D': data?.changePct || holdingData?.changePct,
-      '1W': data?.changePct1w || holdingData?.changePct1w,
-      '1M': data?.changePct1m || holdingData?.changePct1m,
-      '3M': data?.changePct3m || holdingData?.changePct3m,
-      'YTD': data?.changePctYtd || holdingData?.changePctYtd,
-      '1Y': data?.changePct1y || holdingData?.changePct1y,
-      '3Y': data?.changePct3y || holdingData?.changePct3y,
-      '5Y': data?.changePct5y || holdingData?.changePct5y,
-    };
+  const perfData: Record<string, number | undefined> = {
+    '1D': data?.changePct || holdingData?.changePct,
+    '1W': data?.changePct1w || holdingData?.changePct1w,
+    '1M': data?.changePct1m || holdingData?.changePct1m,
+    '3M': data?.changePct3m || holdingData?.changePct3m,
+    'YTD': data?.changePctYtd || holdingData?.changePctYtd,
+    '1Y': data?.changePct1y || holdingData?.changePct1y,
+    '3Y': data?.changePct3y || holdingData?.changePct3y,
+    '5Y': data?.changePct5y || holdingData?.changePct5y,
+  };
 
-    return (
-      <Dialog open={true} onClose={handleClose} maxWidth={false} fullWidth PaperProps={{ sx: { width: 'min(900px, 96%)' } }}>
-        <DialogTitle>
-          <Box display="flex" justifyContent="space-between" alignItems="center">
-            <Box>
-              <Typography variant="h4" component="div" fontWeight="bold">
-                {data?.name || holdingData?.name || ticker}
-              </Typography>
-              <Typography variant="subtitle1" component="div" color="text.secondary">
-                {(data?.name || holdingData?.name) ? `${exchange?.toUpperCase()}: ${ticker}` : exchange?.toUpperCase()}
-              </Typography>
-            </Box>
-            {displayData?.sector && <Chip label={displayData.sector || 'Unknown Sector'} size="small" variant="outlined" />}
+  return (
+    <Dialog open={true} onClose={handleClose} maxWidth={false} fullWidth PaperProps={{ sx: { width: 'min(900px, 96%)' } }}>
+      <DialogTitle>
+        <Box display="flex" justifyContent="space-between" alignItems="center">
+          <Box>
+            <Typography variant="h4" component="div" fontWeight="bold">
+              {data?.name || holdingData?.name || ticker}
+            </Typography>
+            <Typography variant="subtitle1" component="div" color="text.secondary">
+              {(data?.name || holdingData?.name) ? `${exchange?.toUpperCase()}: ${ticker}` : exchange?.toUpperCase()}
+            </Typography>
           </Box>
-        </DialogTitle>
+          {displayData?.sector && <Chip label={displayData.sector || 'Unknown Sector'} size="small" variant="outlined" />}
+        </Box>
+      </DialogTitle>
 
 
-        <DialogContent dividers>
-          {loading && (
-            <Box display="flex" justifyContent="center" p={5}>
-              <CircularProgress />
-            </Box>
-          )}
-          {error && <Typography color="error">{error}</Typography>}
-          {!loading && !error && !displayData && <Typography>No data available.</Typography>}
-          {displayData && (
-            <>
-              {(() => {
-                const isTase = exchange?.toUpperCase() === 'TASE' || displayData.exchange === 'TASE';
-                const price = isTase && displayData.price != null ? displayData.price / 100 : displayData.price;
-                const openPrice = isTase && displayData.openPrice != null ? displayData.openPrice / 100 : displayData.openPrice;
-                const maxDecimals = (price != null && price % 1 !== 0) || (openPrice != null && openPrice % 1 !== 0) ? 2 : 0;
+      <DialogContent dividers>
+        {loading && (
+          <Box display="flex" justifyContent="center" p={5}>
+            <CircularProgress />
+          </Box>
+        )}
+        {error && <Typography color="error">{error}</Typography>}
+        {!loading && !error && !displayData && <Typography>No data available.</Typography>}
+        {displayData && (
+          <>
+            {(() => {
+              const isTase = exchange?.toUpperCase() === 'TASE' || displayData.exchange === 'TASE';
+              const price = isTase && displayData.price != null ? displayData.price / 100 : displayData.price;
+              const openPrice = isTase && displayData.openPrice != null ? displayData.openPrice / 100 : displayData.openPrice;
+              const maxDecimals = (price != null && price % 1 !== 0) || (openPrice != null && openPrice % 1 !== 0) ? 2 : 0;
 
-                return (
-                  <Box display="flex" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
-                    <Box display="flex" alignItems="baseline" sx={{ gap: 1, flex: 1, minWidth: 0 }}>
-                      <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>PRICE</Typography>
-                      <Typography variant="h6" component="div" fontWeight={600} sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {formatPrice(price, displayData.currency, maxDecimals)}
+              return (
+                <Box display="flex" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+                  <Box display="flex" alignItems="baseline" sx={{ gap: 1, flex: 1, minWidth: 0 }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>PRICE</Typography>
+                    <Typography variant="h6" component="div" fontWeight={600} sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {formatPrice(price, displayData.currency, maxDecimals)}
+                    </Typography>
+                    {openPrice != null && (
+                      <Typography variant="caption" color="text.secondary" sx={{ ml: 1, whiteSpace: 'nowrap' }}>
+                        Open: {formatPrice(openPrice, displayData.currency, maxDecimals)}
                       </Typography>
-                      {openPrice != null && (
-                        <Typography variant="caption" color="text.secondary" sx={{ ml: 1, whiteSpace: 'nowrap' }}>
-                          Open: {formatPrice(openPrice, displayData.currency, maxDecimals)}
-                        </Typography>
-                      )}
-                    </Box>
-
-                    <Tooltip title="Day change" placement="top">
-                      <Box sx={{ textAlign: 'right', ml: 2, minWidth: 96 }}>
-                        <Typography variant="h6" sx={{ fontWeight: 700, color: (perfData['1D'] || 0) >= 0 ? 'success.main' : 'error.main' }}>{formatPercent(perfData['1D'])}</Typography>
-                      </Box>
-                    </Tooltip>
+                    )}
                   </Box>
-                );
-              })()}
-              <Typography variant="subtitle2" gutterBottom>Performance</Typography>
-              <Box display="flex" flexWrap="wrap" gap={1} sx={{ mb: 2 }}>
-                {Object.entries(perfData).map(([range, value]) => {
-                  if (value === undefined || value === null || isNaN(value)) {
-                    return null; // Don't render Chip if value is not available
-                  }
-                  const isPositive = value > 0;
-                  const isNegative = value < 0;
-                  const textColor = isPositive ? 'success.main' : isNegative ? 'error.main' : 'text.primary';
-                  return (
-                    <Chip
-                      key={range}
-                      variant="outlined"
-                      size="small"
-                      sx={{
-                        minWidth: 78,
-                        py: 0.5,
-                        px: 0.75,
-                        height: 'auto',
-                        color: textColor,
-                        '& .MuiChip-label': { display: 'flex', flexDirection: 'column', alignItems: 'center', overflow: 'hidden' },
-                        '& .MuiTypography-caption, & .MuiTypography-body2': { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 72 }
-                      }}
-                      label={
-                        <>
-                          <Typography variant="caption" color="text.secondary">{range}</Typography>
-                          <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatPercent(value)}</Typography>
-                        </>
-                      }
-                    />
-                  );
-                })}
-              </Box>
 
-              <Typography variant="subtitle2" gutterBottom>Dividend Gains</Typography>
-              <Box display="flex" flexWrap="wrap" gap={1} sx={{ mb: 2 }}>
-                {['YTD', '1Y', '3Y', '5Y', 'All Time'].map(range => (
+                  <Tooltip title="Day change" placement="top">
+                    <Box sx={{ textAlign: 'right', ml: 2, minWidth: 96 }}>
+                      <Typography variant="h6" sx={{ fontWeight: 700, color: (perfData['1D'] || 0) >= 0 ? 'success.main' : 'error.main' }}>{formatPercent(perfData['1D'] || 0)}</Typography>
+                    </Box>
+                  </Tooltip>
+                </Box>
+              );
+            })()}
+            <Typography variant="subtitle2" gutterBottom>Performance</Typography>
+            <Box display="flex" flexWrap="wrap" gap={1} sx={{ mb: 2 }}>
+              {Object.entries(perfData).map(([range, value]) => {
+                if (value === undefined || value === null || isNaN(value)) {
+                  return null; // Don't render Chip if value is not available
+                }
+                const isPositive = value > 0;
+                const isNegative = value < 0;
+                const textColor = isPositive ? 'success.main' : isNegative ? 'error.main' : 'text.primary';
+                return (
                   <Chip
                     key={range}
                     variant="outlined"
                     size="small"
-                    sx={{ minWidth: 80, py: 0.5, px: 0.75, height: 'auto', '& .MuiChip-label': { display: 'flex', flexDirection: 'column', alignItems: 'center' }, '& .MuiTypography-caption, & .MuiTypography-body2': { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 72 } }}
+                    sx={{
+                      minWidth: 78,
+                      py: 0.5,
+                      px: 0.75,
+                      height: 'auto',
+                      color: textColor,
+                      '& .MuiChip-label': { display: 'flex', flexDirection: 'column', alignItems: 'center', overflow: 'hidden' },
+                      '& .MuiTypography-caption, & .MuiTypography-body2': { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 72 }
+                    }}
                     label={
                       <>
                         <Typography variant="caption" color="text.secondary">{range}</Typography>
-                        <Typography variant="body2">--%</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatPercent(value)}</Typography>
                       </>
                     }
                   />
-                ))}
-              </Box>
-              {/* TODO: Fetch and display actual dividend gains data */}
+                );
+              })}
+            </Box>
 
-              <Typography variant="subtitle2" gutterBottom>External Links</Typography>
+            <Typography variant="subtitle2" gutterBottom>Dividend Gains</Typography>
+            <Box display="flex" flexWrap="wrap" gap={1} sx={{ mb: 2 }}>
+              {['YTD', '1Y', '3Y', '5Y', 'All Time'].map(range => (
+                <Chip
+                  key={range}
+                  variant="outlined"
+                  size="small"
+                  sx={{ minWidth: 80, py: 0.5, px: 0.75, height: 'auto', '& .MuiChip-label': { display: 'flex', flexDirection: 'column', alignItems: 'center' }, '& .MuiTypography-caption, & .MuiTypography-body2': { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 72 } }}
+                  label={
+                    <>
+                      <Typography variant="caption" color="text.secondary">{range}</Typography>
+                      <Typography variant="body2">--%</Typography>
+                    </>
+                  }
+                />
+              ))}
+            </Box>
+            {/* TODO: Fetch and display actual dividend gains data */}
 
-              <Box display="flex" flexWrap="wrap" gap={1}>
-                {getExternalLinks().map(link => (
+            <Typography variant="subtitle2" gutterBottom>External Links</Typography>
+
+            <Box display="flex" flexWrap="wrap" gap={1}>
+              {getExternalLinks().map(link => (
                 <Button
                   key={link.name}
                   variant="outlined"
@@ -264,28 +266,28 @@ export function TickerDetails({ sheetId }: { sheetId: string }) {
                 >
                   {link.name}
                 </Button>
-                ))}
-              </Box>
+              ))}
+            </Box>
 
-              <Box mt={2} display="flex" justifyContent="flex-end" alignItems="center" gap={1}>
-                <Typography variant="caption" color="text.secondary">
-                  {data?.timestamp ? `Live Fetched: ${formatTimestamp(data.timestamp)}` : (sheetRebuildTime ? `Sheet Rebuilt: ${formatTimestamp(sheetRebuildTime)}` : 'Freshness N/A')}
-                </Typography>
-                <Tooltip title="Refresh Data">
-                  <IconButton onClick={() => fetchData(true)} disabled={refreshing} size="small">
-                    {refreshing ? <CircularProgress size={16} /> : <RefreshIcon fontSize="small" />}
-                  </IconButton>
-                </Tooltip>
-              </Box>
-            </>
-          )}
-        </DialogContent>
+            <Box mt={2} display="flex" justifyContent="flex-end" alignItems="center" gap={1}>
+              <Typography variant="caption" color="text.secondary">
+                {data?.timestamp ? `Live Fetched: ${formatTimestamp(data.timestamp)}` : (sheetRebuildTime ? `Sheet Rebuilt: ${formatTimestamp(sheetRebuildTime)}` : 'Freshness N/A')}
+              </Typography>
+              <Tooltip title="Refresh Data">
+                <IconButton onClick={() => fetchData(true)} disabled={refreshing} size="small">
+                  {refreshing ? <CircularProgress size={16} /> : <RefreshIcon fontSize="small" />}
+                </IconButton>
+              </Tooltip>
+            </Box>
+          </>
+        )}
+      </DialogContent>
 
 
-        <DialogActions>
-          <Button onClick={handleAddTransaction} startIcon={<AddIcon />}>Add Transaction</Button>
-          <Button onClick={handleClose}>Close</Button>
-        </DialogActions>
-      </Dialog>
-    );
-  }
+      <DialogActions>
+        <Button onClick={handleAddTransaction} startIcon={<AddIcon />}>Add Transaction</Button>
+        <Button onClick={handleClose}>Close</Button>
+      </DialogActions>
+    </Dialog>
+  );
+}

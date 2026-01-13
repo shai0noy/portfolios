@@ -77,7 +77,6 @@ export async function fetchYahooStockQuote(ticker: string, signal?: AbortSignal)
         currency,
         exchange: exchangeName,
         changePct,
-        priceUnit: currency,
         timestamp: now,
         ticker,
         numericId: null

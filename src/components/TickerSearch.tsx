@@ -94,7 +94,7 @@ async function performSearch(
   }
   // TODO - impl a cached data set for lookup of non-TASE exchanges, use globes as source
   if (!isNumeric && (exchange === 'NASDAQ' || exchange === 'NYSE' || exchange === 'ALL')) {
-    const data = await getTickerData(termUC, exchange);
+    const data = await getTickerData(termUC, exchange, null);
     if (data) {
       results.push({
         symbol: termUC,
@@ -126,48 +126,48 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
   const [error, setError] = useState<string | null>(null);
 
   const searchTickers = useCallback(async (term: string, exchange: string) => {
-      try {
-          const results = await performSearch(term, exchange, taseDataset, portfolios);
-          setSearchResults(results);
-      } catch (err) {
-          console.error("Search failed", err);
-          setError("Search failed");
-      }
+    try {
+      const results = await performSearch(term, exchange, taseDataset, portfolios);
+      setSearchResults(results);
+    } catch (err) {
+      console.error("Search failed", err);
+      setError("Search failed");
+    }
   }, [taseDataset, portfolios]);
 
   const debouncedInput = useDebounce(inputValue, 300);
 
-    useEffect(() => {
-      let active = true;
-      if (isFocused && Object.keys(taseDataset).length === 0) {
-          // Only trigger load if not already loading or loaded
-          const load = async () => {
-              setIsTaseDatasetLoading(true);
-              try {
-                  const data = await getTaseTickersDataset();
-                  if (active) setTaseDataset(data);
-              } finally {
-                  if (active) setIsTaseDatasetLoading(false);
-              }
-          };
-          load();
-      }
-      return () => { active = false; };
-    }, [isFocused, taseDataset]); // Removed setIsTaseDatasetLoading from dep array to avoid loop if unstable reference
+  useEffect(() => {
+    let active = true;
+    if (isFocused && Object.keys(taseDataset).length === 0) {
+      // Only trigger load if not already loading or loaded
+      const load = async () => {
+        setIsTaseDatasetLoading(true);
+        try {
+          const data = await getTaseTickersDataset();
+          if (active) setTaseDataset(data);
+        } finally {
+          if (active) setIsTaseDatasetLoading(false);
+        }
+      };
+      load();
+    }
+    return () => { active = false; };
+  }, [isFocused, taseDataset]); // Removed setIsTaseDatasetLoading from dep array to avoid loop if unstable reference
   useEffect(() => {
     if (isFocused && !isPortfoliosLoading && !isTaseDatasetLoading) {
       if (!debouncedInput) {
         setSearchResults([]);
         return;
       }
-      
+
       const doSearch = async () => {
-          setIsLoading(true);
-          try {
-            await searchTickers(debouncedInput, selectedExchange);
-          } finally {
-            setIsLoading(false);
-          }
+        setIsLoading(true);
+        try {
+          await searchTickers(debouncedInput, selectedExchange);
+        } finally {
+          setIsLoading(false);
+        }
       };
       doSearch();
     }
@@ -189,7 +189,7 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
       onTickerSelect({ ...result.rawTicker, symbol: result.symbol, exchange: result.exchange, numeric_id: result.numericSecurityId });
     } else {
       setIsLoading(true);
-      const data = await getTickerData(result.symbol, result.exchange, undefined, false, result.numericSecurityId);
+      const data = await getTickerData(result.symbol, result.exchange, result.numericSecurityId || null);
       setIsLoading(false);
       if (data) {
         onTickerSelect({ ...data, symbol: result.symbol, exchange: result.exchange, numeric_id: result.numericSecurityId });

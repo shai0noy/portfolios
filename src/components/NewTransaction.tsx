@@ -7,7 +7,7 @@ import {
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import SearchIcon from '@mui/icons-material/Search';
-import { type Portfolio, type Transaction, type PriceUnit  } from '../lib/types';
+import { type Portfolio, type Transaction  } from '../lib/types';
 import { addTransaction, fetchPortfolios } from '../lib/sheets/index';
 import { getTickerData, type TickerData } from '../lib/fetching';
 import { TickerSearch } from './TickerSearch';
@@ -48,7 +48,6 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
   const [tax, setTax] = useState<string>('');
   const [displayName, setDisplayName] = useState('');
   const [tickerCurrency, setTickerCurrency] = useState(locationState?.initialCurrency || '');
-  const [priceUnit, setPriceUnit] = useState<'base' | 'agorot'>('base');
   const [validationErrors, setValidationErrors] = useState<{ [key: string]: boolean }>({});
   const [commissionPct, setCommissionPct] = useState<string>('');
 
@@ -56,15 +55,14 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
     if (locationState?.prefilledTicker) {
       const fetchData = async () => {
         setLoading(true);
-        const data = await getTickerData(locationState.prefilledTicker!, locationState.prefilledExchange || '', undefined, false, locationState.numericId);
+        const data = await getTickerData(locationState.prefilledTicker!, locationState.prefilledExchange || '', 
+         locationState.numericId || null,  undefined, false);
         if (data) {
           const combinedData = { ...data, symbol: locationState.prefilledTicker!, exchange: data.exchange || locationState.prefilledExchange || '', numericId: locationState.numericId || data.numericId };
           setSelectedTicker(combinedData as any);
           setDisplayName(data.name || '');
           setPrice(data.price?.toString() || '');
-          setPriceUnit((data.priceUnit || 'base') as PriceUnit);
-          if (data.priceUnit === 'agorot') setTickerCurrency('ILA');
-          else setTickerCurrency(data.currency || '');
+          setTickerCurrency(data.currency || '');
           setExchange(data.exchange || locationState.prefilledExchange || '');
           setTicker(locationState.prefilledTicker!)
           setShowForm(true);
@@ -101,16 +99,10 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
     setPriceError('');
     if (selected.price) {
       setPrice(selected.price.toString());
-      setPriceUnit((selected.priceUnit || 'base') as PriceUnit);
-      if (selected.priceUnit === 'agorot') {
-        setTickerCurrency('ILA');
-      } else {
-        setTickerCurrency(selected.currency || '');
-      }
+      setTickerCurrency(selected.currency || '');
     } else {
       setPrice('');
       setTickerCurrency('');
-      setPriceUnit('base');
     }
     setQty(''); // Clear form fields for new entry
     setTotal('');
@@ -342,7 +334,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
                   <Chip label={`${exchange}: ${ticker}`} color="primary" variant="outlined" />
                   {price && (
                     <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
-                      {priceUnit === 'agorot' ? 'ag.' : tickerCurrency} {price}
+                      {tickerCurrency === 'ILA' ? 'ag.' : tickerCurrency} {price}
                     </Typography>
                   )}
                 </Box>
@@ -413,12 +405,12 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
                       </Tooltip>
                     </Grid>
                     <Grid item xs={6} sm={4}>
-                       <Tooltip title={`Price per single share/unit.${priceUnit === 'agorot' ? ' In Agorot.' : ''}`}>
+                       <Tooltip title={`Price per single share/unit.${tickerCurrency === 'ILA' ? ' In Agorot.' : ''}`}>
                          <TextField 
                            label="Price" type="number" size="small" fullWidth
                            value={price} 
                            onChange={e => handlePriceChange(e.target.value)} 
-                           InputProps={{ startAdornment: <InputAdornment position="start">{priceUnit === 'agorot' ? 'ag.' : tickerCurrency}</InputAdornment> }}
+                           InputProps={{ startAdornment: <InputAdornment position="start">{tickerCurrency === 'ILA' ? 'ag.' : tickerCurrency}</InputAdornment> }}
                            error={!!validationErrors.price}
                            required
                            helperText={!price ? "Required" : ""}

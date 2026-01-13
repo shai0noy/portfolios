@@ -40,8 +40,8 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
     const openPrice = parseFloat(getText('openPrice') || '0');
     const name_en = getText('name_en');
     const name_he = getText('name_he');
-    let currency = getText('currency') || 'ILS';
-    if (currency === 'NIS') currency = 'ILS';
+    let currency = getText('currency') || 'ILA';
+    if (currency === 'NIS' || currency === 'ILS') currency = 'ILA';
     const exchangeRes = getText('exchange')?.toUpperCase() || 'TASE';
     const percentageChange = parseFloat(getText('percentageChange') || '0');
     const sector = getText('industry_sector');
@@ -67,8 +67,6 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
     const changePct1y = calculatePctChange(last, lastYearClosePrice);
     const changePct3y = calculatePctChange(last, last3YearsAgoClosePrice);
 
-    const priceUnit = currency === 'ILS' ? 'agorot' : 'base';
-
     const tickerData: TickerData = {
       price: last,
       openPrice,
@@ -77,7 +75,6 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
       currency,
       exchange: exchangeRes,
       changePct,
-      priceUnit,
       timestamp: timestamp ? new Date(timestamp).valueOf() : now,
       sector: sector || undefined,
       changePctYtd,
