@@ -18,8 +18,8 @@ Refine set of defaults columns shown
 HOLD: Handle Reit taxing
 Move currency selector to the line below to the right of the 1d/1w etc gain fields 
 Add enum/type for exchanges inlcuding logic of parsing IDs from sheets.ts
-show holding sum in his_held icon in addTxn view
-open tickerDetails when clicking in addtxn view
+DONE: show holding sum in his_held icon in addTxn view
+DONE: open tickerDetails when clicking in addtxn view
 
 DONE:
     Add column to Trasnactions "Source" - fill it only for imports with "Import_yyyymmdd_hhmm" 

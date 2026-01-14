@@ -8,6 +8,7 @@ import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import SearchIcon from '@mui/icons-material/Search';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
+import DashboardIcon from '@mui/icons-material/Dashboard';
 import { type Portfolio, type Transaction } from '../lib/types';
 import { addTransaction, fetchPortfolios } from '../lib/sheets/index';
 import { getTickerData, type TickerData } from '../lib/fetching';
@@ -96,7 +97,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
     setTicker(selected.symbol);
     setDisplayName(selected.name || '');
     setExchange(selected.exchange || '');
-    setShowForm(false); // Hide form, show summary card
+    setShowForm(true); // Show form immediately
     setPriceError('');
     if (selected.price) {
       setPrice(selected.price.toString());
@@ -293,9 +294,11 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
   const selectedPortfolio = portfolios.find(p => p.id === portId);
   const portfolioCurrency = selectedPortfolio?.currency || '';
 
-  const ownedInPortfolios = selectedTicker ? portfolios.filter(p =>
-    p.holdings && p.holdings.some(h => h.ticker === selectedTicker.symbol)
-  ).map(p => p.name) : [];
+  const ownedDetails = selectedTicker ? portfolios.flatMap(p => {
+    const holding = p.holdings?.find(h => h.ticker === selectedTicker.symbol);
+    return holding ? [{ name: p.name, qty: holding.qty }] : [];
+  }) : [];
+  const totalHeld = ownedDetails.reduce((sum, item) => sum + item.qty, 0);
 
   return (
     <Box sx={{ maxWidth: 800, mx: 'auto' }}>
@@ -336,14 +339,20 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
               <CardContent>
                 <Box display="flex" alignItems="center" gap={1} mb={1}>
                   <Typography variant="h6">{displayName || selectedTicker.name}</Typography>
-                  {ownedInPortfolios.length > 0 && (
-                    <Tooltip title={`Owned in: ${ownedInPortfolios.join(', ')}`}>
+                  {ownedDetails.length > 0 && (
+                    <Tooltip title={`Total Held: ${totalHeld} (${ownedDetails.map(d => `${d.name}: ${d.qty}`).join(', ')})`}>
                       <BusinessCenterIcon color="success" />
                     </Tooltip>
                   )}
                 </Box>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap', mb: 2 }}>
-                  <Chip label={`${exchange}: ${ticker}`} color="primary" variant="outlined" />
+                  <Chip
+                    label={`${exchange}: ${ticker}`}
+                    color="primary"
+                    variant="outlined"
+                    onClick={handleViewTicker}
+                    sx={{ cursor: 'pointer' }}
+                  />
                   {price && (
                     <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
                       {tickerCurrency === 'ILA' ? 'ag.' : tickerCurrency} {price}
@@ -354,9 +363,15 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
                 {priceError && <Alert severity="error" sx={{ mb: 2 }}>{priceError}</Alert>}
 
                 {!showForm && (
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                    <Button variant="contained" startIcon={<AddCircleOutlineIcon />} onClick={() => { setShowForm(true); setSaveSuccess(false); }}>Add Another for {ticker}</Button>
-                    <Button variant="outlined" startIcon={<VisibilityIcon />} onClick={handleViewTicker}>View Ticker</Button>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                      <Button variant="contained" startIcon={<AddCircleOutlineIcon />} onClick={() => { setShowForm(true); setSaveSuccess(false); }}>Add Another for {ticker}</Button>
+                      <Button variant="outlined" startIcon={<VisibilityIcon />} onClick={handleViewTicker}>View Ticker</Button>
+                    </Box>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                      <Button variant="outlined" startIcon={<DashboardIcon />} onClick={() => navigate('/dashboard')}>Back to Dashboard</Button>
+                      <Button variant="outlined" startIcon={<SearchIcon />} onClick={handleSearchAgain}>Back to Search</Button>
+                    </Box>
                   </Box>
                 )}
 
