@@ -91,7 +91,6 @@ export async function fetchYahooStockQuote(ticker: string, signal?: AbortSignal)
                  }
             }
         
-    let changePct1w: number | undefined;
     let changePct1m: number | undefined;
     let changeDate1m: number | undefined;
     let changePct3m: number | undefined;
@@ -118,13 +117,6 @@ export async function fetchYahooStockQuote(ticker: string, signal?: AbortSignal)
                     // Use live price if available, otherwise last close
                     const currentClose = price || lastPoint.close; 
                     
-                    // Helper to find close closest to (and >=) target timestamp (more recent than target)
-                    // Used for "Recent" change to ensure we don't go further back than requested (e.g. max 7 days)
-                    const findPointFutureOrEqual = (targetTs: number) => {
-                        // Since points are sorted ascending, we find the first point >= targetTs
-                        return points.find((p: any) => p.time >= targetTs);
-                    };
-        
                     // Helper to find absolute closest point in time
                     // Used for 1M, 1Y etc where accuracy matters more than strict "not older than" constraint
                     const findClosestPoint = (targetTs: number) => {
@@ -166,8 +158,6 @@ export async function fetchYahooStockQuote(ticker: string, signal?: AbortSignal)
                 targetTime.setDate(0); // Dec 31 prev year
                 return findClosestPoint(targetTime.getTime() / 1000);
             }
-
-            const calcChange = (prev: number | undefined) => prev ? (currentClose - prev) / prev : undefined;
 
             const calcChangeAndDate = (prevPoint: any) => {
                 if (!prevPoint) return { pct: undefined, date: undefined };

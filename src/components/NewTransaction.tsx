@@ -290,7 +290,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     setExchange('');
     setDisplayName('');
     setPrice('');
-    setTickerCurrency('');
+    setTickerCurrency(Currency.ILA);
     setShowForm(false);
     setSaveSuccess(false);
     setValidationErrors({});

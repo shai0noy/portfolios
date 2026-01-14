@@ -157,7 +157,10 @@ export const portfolioMapping: Record<keyof Omit<Portfolio, 'holdings'>, typeof 
 };
 export const portfolioNumericKeys: (keyof Omit<Portfolio, 'holdings'>)[] = ['cgt', 'incTax', 'mgmtVal', 'commRate', 'commMin', 'commMax', 'divCommRate'];
 
-export const holdingMapping: Record<keyof Omit<Holding, 'portfolioId'>, typeof holdingsHeaders[number]> = {
+// Define a type for the part of Holding that is mapped from the sheet
+export type SheetHolding = Omit<Holding, 'portfolioId' | 'changeDate1d' | 'changeDateRecent' | 'changeDate1m' | 'changeDate3m' | 'changeDateYtd' | 'changeDate1y' | 'changeDate3y' | 'changeDate5y' | 'changeDate10y'>;
+
+export const holdingMapping: Record<keyof SheetHolding, typeof holdingsHeaders[number]> = {
     ticker: 'Ticker', exchange: 'Exchange', qty: 'Quantity',
     price: 'Live_Price', currency: 'Currency', totalValue: 'Total Holding Value',
     name: 'Name_En', name_he: 'Name_He', sector: 'Sector', 
@@ -165,7 +168,7 @@ export const holdingMapping: Record<keyof Omit<Holding, 'portfolioId'>, typeof h
     changePctYtd: 'Change_YTD', changePct1y: 'Change_1Y', changePct3y: 'Change_3Y', changePct5y: 'Change_5Y', changePct10y: 'Change_10Y',
     numericId: 'Numeric_ID', recentChangeDays: 'Recent_Change_Days'
 };
-export const holdingNumericKeys: (keyof Omit<Holding, 'portfolioId'>)[] = [
+export const holdingNumericKeys: (keyof SheetHolding)[] = [
     'qty', 'price', 'totalValue', 'changePct', 'changePctRecent', 'changePct1m', 'changePct3m',
     'changePctYtd', 'changePct1y', 'changePct3y', 'changePct5y', 'changePct10y', 'numericId', 'recentChangeDays'
 ];

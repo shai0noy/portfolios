@@ -6,7 +6,7 @@ import type { Portfolio, Transaction, Holding } from '../types';
 import {
     TXN_COLS, transactionHeaders, transactionMapping, transactionNumericKeys,
     portfolioHeaders, holdingsHeaders, configHeaders, portfolioMapping, portfolioNumericKeys,
-    holdingMapping, holdingNumericKeys, holdingsUserOptionsHeaders, type Headers, DEFAULT_SHEET_NAME, PORT_OPT_RANGE,
+    holdingMapping, holdingNumericKeys, holdingsUserOptionsHeaders, type Headers, DEFAULT_SHEET_NAME, PORT_OPT_RANGE, type SheetHolding,
     TX_SHEET_NAME, TX_FETCH_RANGE, CONFIG_SHEET_NAME, CONFIG_RANGE, METADATA_SHEET, HOLDINGS_USER_OPTIONS_SHEET_NAME, HOLDINGS_USER_OPTIONS_RANGE,
     metadataHeaders, METADATA_RANGE, HOLDINGS_SHEET, HOLDINGS_RANGE
 } from './config';
@@ -156,7 +156,7 @@ export const fetchHolding = withAuthHandling(async (spreadsheetId: string, ticke
         
         // Map all rows to objects first for robust searching
         const allHoldings = rows.map(row => 
-            mapRowToHolding<Omit<Holding, 'portfolioId'>>(row, holdingMapping, holdingNumericKeys)
+            mapRowToHolding<SheetHolding>(row, holdingMapping, holdingNumericKeys)
         );
 
         console.log(`fetchHolding: Searching for ${ticker} on ${exchange}.`);
@@ -228,10 +228,10 @@ export const fetchPortfolios = withAuthHandling(async (spreadsheetId: string): P
     });
 
     // 3. Fetch the aggregated holdings sheet to use as a price map
-    let priceMap: Record<string, Omit<Holding, 'portfolioId' | 'qty'>> = {};
+    let priceMap: Record<string, Omit<SheetHolding, 'qty'>> = {};
     try {
         const priceData = await fetchSheetData(spreadsheetId, HOLDINGS_RANGE, (row: any[]) =>
-            mapRowToHolding<Omit<Holding, 'portfolioId' | 'qty'>>(
+            mapRowToHolding<Omit<SheetHolding, 'qty'>>(
                 row,
                 holdingMapping,
                 holdingNumericKeys.filter(k => k !== 'qty') as any

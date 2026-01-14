@@ -85,7 +85,6 @@ async function performSearch(
 ): Promise<SearchResult[]> {
   const termUC = searchTerm.toUpperCase();
   let results: SearchResult[] = [];
-  const isNumeric = /^[0-9]+$/.test(termUC);
 
   // Search in local dataset (which now covers TASE, NASDAQ, NYSE)
   Object.entries(taseDataset).forEach(([type, tickers]) => {

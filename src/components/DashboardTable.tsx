@@ -5,7 +5,7 @@ import {
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import { convertCurrency, formatCurrency, formatPercent, formatPrice, calculatePerformanceInDisplayCurrency, calculateHoldingDisplayValues, normalizeCurrency } from '../lib/currency';
+import { convertCurrency, formatCurrency, formatPrice, calculatePerformanceInDisplayCurrency, calculateHoldingDisplayValues, normalizeCurrency } from '../lib/currency';
 import { logIfFalsy } from '../lib/utils';
 import { useNavigate } from 'react-router-dom';
 import { Currency } from '../lib/types';
