@@ -188,8 +188,8 @@ export function TickerDetails({ sheetId }: { sheetId: string }) {
           <>
             {(() => {
               const isTase = exchange?.toUpperCase() === 'TASE' || displayData.exchange === 'TASE';
-              const price = isTase && displayData.price != null ? displayData.price / 100 : displayData.price;
-              const openPrice = isTase && displayData.openPrice != null ? displayData.openPrice / 100 : displayData.openPrice;
+              const price = displayData.price;
+              const openPrice = displayData.openPrice;
               const maxDecimals = (price != null && price % 1 !== 0) || (openPrice != null && openPrice % 1 !== 0) ? 2 : 0;
               const dayChange = perfData['1D']?.val || 0;
 
@@ -198,11 +198,11 @@ export function TickerDetails({ sheetId }: { sheetId: string }) {
                   <Box display="flex" alignItems="baseline" sx={{ gap: 1, flex: 1, minWidth: 0 }}>
                     <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>PRICE</Typography>
                     <Typography variant="h6" component="div" fontWeight={600} sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {formatPrice(price, displayData.currency, maxDecimals)}
+                      {formatPrice(price, isTase ? 'ILA' : displayData.currency, maxDecimals)}
                     </Typography>
                     {openPrice != null && (
                       <Typography variant="caption" color="text.secondary" sx={{ ml: 1, whiteSpace: 'nowrap' }}>
-                        Open: {formatPrice(openPrice, displayData.currency, maxDecimals)}
+                        Open: {formatPrice(openPrice, isTase ? 'ILA' : displayData.currency, maxDecimals)}
                       </Typography>
                     )}
                   </Box>

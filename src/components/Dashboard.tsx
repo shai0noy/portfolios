@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
-  Box, CircularProgress, FormControlLabel, Switch, IconButton, Tooltip, Typography
+  Box, CircularProgress, IconButton, Tooltip, Typography, ToggleButton, Divider
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import { fetchPortfolios, fetchTransactions } from '../lib/sheets/index';
@@ -328,7 +328,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
             avgCost: 0, mvVested: 0, mvUnvested: 0, totalMV: 0, realizedGain: 0, realizedGainPct: 0, realizedGainAfterTax: 0, dividends: 0, unrealizedGain: 0, unrealizedGainPct: 0, totalGain: 0, totalGainPct: 0, valueAfterTax: 0, dayChangeVal: 0,
             sector: live?.sector || '',
             dayChangePct: live?.changePct || 0,
-            perf1w: live?.recentChangeDays === 7 ? live?.changeDateRecent!  : 0, perf1m: live?.changePct1m || 0, perf3m: live?.changePct3m || 0,
+            perf1w: live?.changePctRecent || 0, perf1m: live?.changePct1m || 0, perf3m: live?.changePct3m || 0,
             perfYtd: live?.changePctYtd || 0, perf1y: live?.changePct1y || 0, perf3y: live?.changePct3y || 0, perf5y: live?.changePct5y || 0,
           });
         }
@@ -582,16 +582,27 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
           />
         </Box>
         <Box display="flex" alignItems="center">
-          <FormControlLabel
-            control={<Switch checked={includeUnvested} onChange={e => setIncludeUnvested(e.target.checked)} />}
-            label='Include Unvested'
-            sx={{ mr: 2 }}
-          />
-          <FormControlLabel
-            control={<Switch checked={groupByPortfolio} onChange={e => setGroupByPortfolio(e.target.checked)} />}
-            label="Group by Portfolio"
-            sx={{ mr: 2 }}
-          />
+          <ToggleButton
+            value="unvested"
+            selected={includeUnvested}
+            onChange={() => setIncludeUnvested(!includeUnvested)}
+            size="small"
+            color="primary"
+            sx={{ borderRadius: 2, textTransform: 'none', px: 2, py: 0.5, mr: 1, border: 1, borderColor: 'divider' }}
+          >
+            Include Unvested
+          </ToggleButton>
+          <ToggleButton
+            value="grouped"
+            selected={groupByPortfolio}
+            onChange={() => setGroupByPortfolio(!groupByPortfolio)}
+            size="small"
+            color="primary"
+            sx={{ borderRadius: 2, textTransform: 'none', px: 2, py: 0.5, mr: 1, border: 1, borderColor: 'divider' }}
+          >
+            Group by Portfolio
+          </ToggleButton>
+          <Divider orientation="vertical" flexItem sx={{ mx: 1, height: 20, alignSelf: 'center' }} />
           <Tooltip title="Refresh Data">
             <IconButton 
               onClick={() => loadData()} 

@@ -1,4 +1,4 @@
-import { Box, Paper, Typography, Grid, Tooltip, Button, Select, MenuItem } from '@mui/material';
+import { Box, Paper, Typography, Grid, Tooltip, Button, ToggleButton, ToggleButtonGroup } from '@mui/material';
 import { formatCurrency, formatPercent } from '../lib/currency';
 import { logIfFalsy } from '../lib/utils';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -113,17 +113,26 @@ export function DashboardSummary({ summary, displayCurrency, exchangeRates, onBa
   logIfFalsy(exchangeRates, "DashboardSummary: exchangeRates missing");
 
   return (
-    <Paper variant="outlined" sx={{ p: 3, mb: 4 }}>
+    <Paper variant="outlined" sx={{ p: 3, mb: 4, position: 'relative' }}>
       <Grid container spacing={2} alignItems="center">
         <Grid item xs={12} md={3}>
           {selectedPortfolio ? (
             <>
               <Button 
-                variant="outlined" 
-                color="inherit" 
+                variant="text" 
                 onClick={onBack} 
-                sx={{ mb: 1 }}
-                startIcon={<ArrowBackIcon />}
+                startIcon={<ArrowBackIcon fontSize="small" />}
+                sx={{ 
+                  mb: 0.5, 
+                  textTransform: 'none', 
+                  color: 'text.secondary', 
+                  minWidth: 'auto', 
+                  p: 0,
+                  ml: -1,
+                  mt: -1,
+                  '&:hover': { bgcolor: 'transparent', color: 'text.primary' } 
+                }}
+                disableRipple
               >
                 Back to All
               </Button>
@@ -158,15 +167,16 @@ export function DashboardSummary({ summary, displayCurrency, exchangeRates, onBa
                     color={summary.totalRealized >= 0 ? 'success.main' : 'error.main'}
                     displayCurrency={displayCurrency}
                 />
-                 <Select 
-                  value={displayCurrency} 
-                  onChange={(e) => onCurrencyChange(e.target.value)} 
-                  size="small" 
-                  sx={{ ml: 2 }}
+                <ToggleButtonGroup
+                  value={displayCurrency}
+                  exclusive
+                  onChange={(_, val) => val && onCurrencyChange(val)}
+                  size="small"
+                  sx={{ ml: 2, height: 32 }}
                 >
-                  <MenuItem value="USD">🇺🇸 USD</MenuItem>
-                  <MenuItem value="ILS">🇮🇱 ILS</MenuItem>
-                </Select>
+                  <ToggleButton value="USD" sx={{ px: 2, fontWeight: 600 }}>USD</ToggleButton>
+                  <ToggleButton value="ILS" sx={{ px: 2, fontWeight: 600 }}>ILS</ToggleButton>
+                </ToggleButtonGroup>
               </Box>
 
               {/* Performance / Detail Row */}
