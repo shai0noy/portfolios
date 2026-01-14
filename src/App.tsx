@@ -429,7 +429,7 @@ function App() {
               <Box sx={{ display: currentTab === 1 ? 'block' : 'none' }}>
                 <TransactionForm 
                   sheetId={sheetId} 
-                  key={refreshKey} 
+                  refreshTrigger={refreshKey}
                   onSaveSuccess={() => {
                     setRefreshKey(k => k + 1);
                     setSnackbarMessage('Transaction saved! Dashboard is refreshing...');

@@ -117,14 +117,24 @@ export interface Holding {
   name_he?: string;
   sector?: string;
   changePct?: number;
-  changePct1w?: number;
+  changeDate1d?: number;
+  changePctRecent?: number;
+  changeDateRecent?: number;
+  recentChangeDays?: number;
   changePct1m?: number;
+  changeDate1m?: number;
   changePct3m?: number;
+  changeDate3m?: number;
   changePctYtd?: number;
+  changeDateYtd?: number;
   changePct1y?: number;
+  changeDate1y?: number;
   changePct3y?: number;
+  changeDate3y?: number;
   changePct5y?: number;
+  changeDate5y?: number;
   changePct10y?: number;
+  changeDate10y?: number;
   numericId: number | null;
 }
 

@@ -54,7 +54,7 @@ const withAuthHandling = <A extends any[], R>(fn: (...args: A) => Promise<R>): (
 const toExchangeId = (str: string): string => {
     if (!str) return '';
     // convert input to uppercase, replace TLV and TA with TASE
-    const upperStr = str.toUpperCase();
+    const upperStr = str.trim().toUpperCase();
     if (upperStr === 'TLV' || upperStr === 'TA') {
         return 'TASE';
     }
@@ -150,24 +150,45 @@ export const fetchHolding = withAuthHandling(async (spreadsheetId: string, ticke
         const res = await gapi.client.sheets.spreadsheets.values.get({
             spreadsheetId,
             range: HOLDINGS_RANGE,
+            valueRenderOption: 'UNFORMATTED_VALUE',
         });
         const rows = res.result.values || [];
-        const tickerIndex = holdingsHeaders.indexOf('Ticker');
-        const exchangeIndex = holdingsHeaders.indexOf('Exchange');
-        const sheetsExchange = toSheetsExchange(exchange);
+        
+        // Map all rows to objects first for robust searching
+        const allHoldings = rows.map(row => 
+            mapRowToHolding<Omit<Holding, 'portfolioId'>>(row, holdingMapping, holdingNumericKeys)
+        );
 
-        const holdingRow = rows.find((row: any) => row[tickerIndex] === ticker.toUpperCase() && row[exchangeIndex] === sheetsExchange);
+        console.log(`fetchHolding: Searching for ${ticker} on ${exchange}.`);
 
-        if (holdingRow) {
-            // mapRowToHolding correctly maps all fields present in holdingsHeaders, including numericId.
-            // portfolioId is not in holdingsHeaders, and is now optional in the Holding type.
-            const holding = mapRowToHolding<Omit<Holding, 'portfolioId'>>(holdingRow, holdingMapping, holdingNumericKeys);
-            if (holding.exchange) holding.exchange = toExchangeId(holding.exchange);
-
-            // Return the holding directly. portfolioId will be undefined, which is allowed by the type.
-            return holding as Holding;
+        const matchingHoldings = allHoldings.filter(h => h.ticker && String(h.ticker).toUpperCase() === ticker.toUpperCase());
+        console.log(`fetchHolding: Found ${matchingHoldings.length} matching holdings for ticker ${ticker}`, matchingHoldings);
+        
+        const targetExchangeId = toExchangeId(exchange);
+        
+        let holding = matchingHoldings.find(h => toExchangeId(h.exchange) === targetExchangeId);
+        
+        if (!holding) {
+             console.log(`fetchHolding: No exact exchange match for ${exchange}. Checking empty exchange...`);
+             // Fallback 1: Match if sheet exchange is empty
+             holding = matchingHoldings.find(h => !toExchangeId(h.exchange));
         }
-        return null;
+        
+        if (!holding && matchingHoldings.length === 1) {
+            console.log(`fetchHolding: Single result fallback used.`);
+            // Fallback 2: If only one holding with this ticker exists, assume it's the one
+            holding = matchingHoldings[0];
+        }
+
+        if (holding) {
+             // Ensure exchange is normalized in the returned object
+             if (holding.exchange) holding.exchange = toExchangeId(holding.exchange);
+             console.log('fetchHolding: Match found:', holding);
+             return holding as Holding;
+        } else {
+             console.log('fetchHolding: No match found.');
+             return null;
+        }
     } catch (error) {
         console.error(`Error fetching holding for ${ticker}:${exchange}:`, error);
         throw error;
@@ -424,7 +445,6 @@ export const batchAddTransactions = withAuthHandling(async (spreadsheetId: strin
     const updatedRange = appendResult.result?.updates?.updatedRange;
     if (!updatedRange) throw new Error("Could not determine range of appended rows.");
 
-
     // Parse range (e.g. "Transaction_Log!A10:V12") to find start row
     const match = updatedRange.match(/!A(\d+):/);
     if (!match) throw new Error("Could not parse start row number from range: " + updatedRange);
@@ -499,6 +519,7 @@ function createHoldingRow(h: HoldingNonGeneratedData, meta: TickerData | null, r
     row[16] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-60)")})-1, "")`; // Change_5Y
     row[17] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-120)")})-1, "")`; // Change_10Y
     row[18] = h.numericId || '';
+    row[19] = meta?.recentChangeDays || 7;
     return row;
 }
 

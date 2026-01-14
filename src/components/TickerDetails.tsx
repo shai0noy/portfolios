@@ -33,25 +33,36 @@ export function TickerDetails({ sheetId }: { sheetId: string }) {
       const knownLiveExchanges = ['TASE', 'NASDAQ', 'NYSE', 'AMEX', 'ARCA', 'BATS']; // Exchanges for live API calls
 
       try {
-        let tickerDataPromise: Promise<any> = Promise.resolve(null);
-        if (knownLiveExchanges.includes(upperExchange)) {
-          const numericIdVal = numericId ? parseInt(numericId, 10) : null;
-          tickerDataPromise = getTickerData(ticker, exchange, numericIdVal, undefined, forceRefresh);
-        }
-        const holdingDataPromise = fetchHolding(sheetId, ticker, upperExchange);
         const sheetRebuildTimePromise = getMetadataValue(sheetId, 'holdings_rebuild');
-
-        const [tickerData, holdingData, sheetRebuild] = await Promise.all([tickerDataPromise, holdingDataPromise, sheetRebuildTimePromise]);
-
-        if (upperExchange === 'TASE' && !tickerData) {
-          setError('Ticker not found on TASE.');
+        
+        // 1. Try fetching from sheets first
+        const holding = await fetchHolding(sheetId, ticker, upperExchange);
+        console.log('TickerDetails: fetchHolding result:', holding);
+        
+        if (holding) {
+            setHoldingData(holding);
+            setData(null); // Clear live data if we are using sheet data
+        } else {
+            // 2. Fallback to live data if not in sheets
+            setHoldingData(null);
+            if (knownLiveExchanges.includes(upperExchange)) {
+              const numericIdVal = numericId ? parseInt(numericId, 10) : null;
+              const tickerData = await getTickerData(ticker, exchange, numericIdVal, undefined, forceRefresh);
+              console.log('TickerDetails: live getTickerData result:', tickerData);
+              if (upperExchange === 'TASE' && !tickerData) {
+                setError('Ticker not found on TASE.');
+              }
+              // Standardize numeric_id from API to numericId for frontend consistency
+              if (tickerData && tickerData.numericId) {
+                tickerData.numericId = tickerData.numericId;
+              }
+              setData(tickerData);
+            } else {
+                setData(null);
+            }
         }
-        // Standardize numeric_id from API to numericId for frontend consistency
-        if (tickerData && tickerData.numeric_id) {
-          tickerData.numericId = tickerData.numeric_id;
-        }
-        setData(tickerData); // Prioritize live data
-        setHoldingData(holdingData);
+        
+        const sheetRebuild = await sheetRebuildTimePromise;
         setSheetRebuildTime(sheetRebuild);
 
       } catch (err) {
@@ -96,14 +107,14 @@ export function TickerDetails({ sheetId }: { sheetId: string }) {
     const links = [];
 
     const yExchange = exchange?.toUpperCase() === 'TASE' ? 'TA' : exchange?.toUpperCase();
-    if (yExchange) {
+    if (yExchange && yExchange != 'NASDAQ' && yExchange != 'NYSE') {
       links.push({ name: 'Yahoo Finance', url: `https://finance.yahoo.com/quote/${ticker}.${yExchange}` });
     } else {
       links.push({ name: 'Yahoo Finance', url: `https://finance.yahoo.com/quote/${ticker}` });
     }
 
     const gExchange = exchange?.toUpperCase() === 'TASE' ? 'TLV' : exchange?.toUpperCase();
-    if (gExchange) {
+    if (gExchange && gExchange != 'NASDAQ' && gExchange != 'NYSE') {
       links.push({ name: 'Google Finance', url: `https://www.google.com/finance/quote/${ticker}:${gExchange}` });
     } else {
       links.push({ name: 'Google Finance', url: `https://www.google.com/finance/quote/${ticker}` });
@@ -132,16 +143,20 @@ export function TickerDetails({ sheetId }: { sheetId: string }) {
   };
 
   const displayData = data || holdingData;
+  const lastUpdated = formatTimestamp(data?.timestamp || sheetRebuildTime);
 
-  const perfData: Record<string, number | undefined> = {
-    '1D': data?.changePct || holdingData?.changePct,
-    '1W': data?.changePct1w || holdingData?.changePct1w,
-    '1M': data?.changePct1m || holdingData?.changePct1m,
-    '3M': data?.changePct3m || holdingData?.changePct3m,
-    'YTD': data?.changePctYtd || holdingData?.changePctYtd,
-    '1Y': data?.changePct1y || holdingData?.changePct1y,
-    '3Y': data?.changePct3y || holdingData?.changePct3y,
-    '5Y': data?.changePct5y || holdingData?.changePct5y,
+  // Helper to construct performance object
+  const getPerf = (val?: number, date?: number) => val !== undefined ? { val, date } : undefined;
+
+  const perfData: Record<string, { val: number, date?: number } | undefined> = {
+    '1D': getPerf(data?.changePct ?? holdingData?.changePct, data?.changeDate1d ?? holdingData?.changeDate1d),
+    [data?.recentChangeDays ? `${data.recentChangeDays}D` : '1W']: getPerf(data?.changePctRecent ?? holdingData?.changePctRecent, data?.changeDateRecent ?? holdingData?.changeDateRecent),
+    '1M': getPerf(data?.changePct1m ?? holdingData?.changePct1m, data?.changeDate1m ?? holdingData?.changeDate1m),
+    '3M': getPerf(data?.changePct3m ?? holdingData?.changePct3m, data?.changeDate3m ?? holdingData?.changeDate3m),
+    'YTD': getPerf(data?.changePctYtd ?? holdingData?.changePctYtd, data?.changeDateYtd ?? holdingData?.changeDateYtd),
+    '1Y': getPerf(data?.changePct1y ?? holdingData?.changePct1y, data?.changeDate1y ?? holdingData?.changeDate1y),
+    '3Y': getPerf(data?.changePct3y ?? holdingData?.changePct3y, data?.changeDate3y ?? holdingData?.changeDate3y),
+    '5Y': getPerf(data?.changePct5y ?? holdingData?.changePct5y, data?.changeDate5y ?? holdingData?.changeDate5y),
   };
 
   return (
@@ -176,6 +191,7 @@ export function TickerDetails({ sheetId }: { sheetId: string }) {
               const price = isTase && displayData.price != null ? displayData.price / 100 : displayData.price;
               const openPrice = isTase && displayData.openPrice != null ? displayData.openPrice / 100 : displayData.openPrice;
               const maxDecimals = (price != null && price % 1 !== 0) || (openPrice != null && openPrice % 1 !== 0) ? 2 : 0;
+              const dayChange = perfData['1D']?.val || 0;
 
               return (
                 <Box display="flex" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
@@ -191,9 +207,9 @@ export function TickerDetails({ sheetId }: { sheetId: string }) {
                     )}
                   </Box>
 
-                  <Tooltip title="Day change" placement="top">
+                  <Tooltip title={`Day change (as of ${lastUpdated})`} placement="top">
                     <Box sx={{ textAlign: 'right', ml: 2, minWidth: 96 }}>
-                      <Typography variant="h6" sx={{ fontWeight: 700, color: (perfData['1D'] || 0) >= 0 ? 'success.main' : 'error.main' }}>{formatPercent(perfData['1D'] || 0)}</Typography>
+                      <Typography variant="h6" sx={{ fontWeight: 700, color: dayChange >= 0 ? 'success.main' : 'error.main' }}>{formatPercent(dayChange)}</Typography>
                     </Box>
                   </Tooltip>
                 </Box>
@@ -201,34 +217,38 @@ export function TickerDetails({ sheetId }: { sheetId: string }) {
             })()}
             <Typography variant="subtitle2" gutterBottom>Performance</Typography>
             <Box display="flex" flexWrap="wrap" gap={1} sx={{ mb: 2 }}>
-              {Object.entries(perfData).map(([range, value]) => {
-                if (value === undefined || value === null || isNaN(value)) {
+              {Object.entries(perfData).map(([range, item]) => {
+                if (!item || item.val === undefined || item.val === null || isNaN(item.val)) {
                   return null; // Don't render Chip if value is not available
                 }
+                const value = item.val;
+                const dateObj = item.date ? new Date(item.date) : null;
+                const dateStr = dateObj ? `${String(dateObj.getDate()).padStart(2, '0')}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${dateObj.getFullYear()}` : '';
                 const isPositive = value > 0;
                 const isNegative = value < 0;
                 const textColor = isPositive ? 'success.main' : isNegative ? 'error.main' : 'text.primary';
                 return (
-                  <Chip
-                    key={range}
-                    variant="outlined"
-                    size="small"
-                    sx={{
-                      minWidth: 78,
-                      py: 0.5,
-                      px: 0.75,
-                      height: 'auto',
-                      color: textColor,
-                      '& .MuiChip-label': { display: 'flex', flexDirection: 'column', alignItems: 'center', overflow: 'hidden' },
-                      '& .MuiTypography-caption, & .MuiTypography-body2': { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 72 }
-                    }}
-                    label={
-                      <>
-                        <Typography variant="caption" color="text.secondary">{range}</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatPercent(value)}</Typography>
-                      </>
-                    }
-                  />
+                  <Tooltip key={range} title={dateStr ? `Since ${dateStr}` : ''} arrow>
+                    <Chip
+                      variant="outlined"
+                      size="small"
+                      sx={{
+                        minWidth: 78,
+                        py: 0.5,
+                        px: 0.75,
+                        height: 'auto',
+                        color: textColor,
+                        '& .MuiChip-label': { display: 'flex', flexDirection: 'column', alignItems: 'center', overflow: 'hidden' },
+                        '& .MuiTypography-caption, & .MuiTypography-body2': { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 72 }
+                      }}
+                      label={
+                        <>
+                          <Typography variant="caption" color="text.secondary">{range}</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatPercent(value)}</Typography>
+                        </>
+                      }
+                    />
+                  </Tooltip>
                 );
               })}
             </Box>

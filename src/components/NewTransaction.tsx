@@ -19,9 +19,10 @@ import { Currency, type ExchangeRates } from '../lib/types';
 interface Props {
   sheetId: string;
   onSaveSuccess?: () => void;
+  refreshTrigger?: number;
 }
 
-export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
+export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Props) => {
   const navigate = useNavigate();
   const location = useLocation();
   const locationState = location.state as { prefilledTicker?: string, prefilledExchange?: string, initialPrice?: string, initialCurrency?: string, numericId?: number } | null;
@@ -96,7 +97,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
     }).catch(() => {
       setIsPortfoliosLoading(false);
     });
-  }, [sheetId]);
+  }, [sheetId, refreshTrigger]);
 
   const handleTickerSelect = (selected: TickerData & { symbol: string }) => {
     setSelectedTicker(selected);

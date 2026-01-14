@@ -8,16 +8,26 @@ export interface TickerData {
   currency?: string;
   exchange?: string;
   changePct?: number; // Daily change percentage
+  changeDate1d?: number;
   timestamp?: number; // Last update time
   sector?: string;
   changePctYtd?: number;
-  changePct1w?: number;
+  changeDateYtd?: number;
+  changePctRecent?: number;
+  changeDateRecent?: number;
+  recentChangeDays?: number;
   changePct1m?: number;
+  changeDate1m?: number;
   changePct3m?: number;
+  changeDate3m?: number;
   changePct1y?: number;
+  changeDate1y?: number;
   changePct3y?: number;
+  changeDate3y?: number;
   changePct5y?: number;
+  changeDate5y?: number;
   changePct10y?: number;
+  changeDate10y?: number;
   ticker: string;
   numericId : number|null;
 }
@@ -58,10 +68,11 @@ export interface TaseTicker {
   type: string; // 'stock', 'etf', etc.
   name_he: string; // Globes has hebrew and english names
   taseType: string; // TASE type string
+  exchange?: string;
 }
 
-// Configuration for TASE ticker types
-export interface TaseTypeConfig {
+// Configuration for ticker types
+export interface SecurityTypeConfig {
   [key: string]: {
     enabled: boolean;
     displayName: string; // Used for UI, e.g., "Stocks", "ETFs"

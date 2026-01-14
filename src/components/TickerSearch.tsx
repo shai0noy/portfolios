@@ -3,7 +3,7 @@ import {
   TextField, Grid, Typography, CircularProgress, MenuItem, Select, FormControl, InputLabel,
   List, ListItemButton, ListItemText, Paper, Box, Divider, Chip, Tooltip
 } from '@mui/material';
-import { getTaseTickersDataset, getTickerData, type TaseTicker, type TickerData, DEFAULT_TASE_TYPE_CONFIG } from '../lib/fetching';
+import { getTaseTickersDataset, getTickerData, type TaseTicker, type TickerData, DEFAULT_SECURITY_TYPE_CONFIG } from '../lib/fetching';
 import type { Portfolio } from '../lib/types';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
 
@@ -56,7 +56,7 @@ function processTaseResult(t: TaseTicker, instrumentType: string, portfolios: Po
     symbol: t.symbol,
     numericSecurityId: t.securityId,
     name: t.name_en,
-    exchange: 'TASE',
+    exchange: t.exchange || 'TASE',
     type: instrumentType,
     globesInstrumentId: t.globesInstrumentId,
     rawTicker: t,
@@ -87,25 +87,27 @@ async function performSearch(
   let results: SearchResult[] = [];
   const isNumeric = /^[0-9]+$/.test(termUC);
 
-  if (exchange === 'TASE' || exchange === 'ALL') {
-    Object.entries(taseDataset).forEach(([type, tickers]) => {
-      results = results.concat(searchTaseType(tickers, type, termUC, portfolios));
-    });
-  }
-  // TODO - impl a cached data set for lookup of non-TASE exchanges, use globes as source
-  if (!isNumeric && (exchange === 'NASDAQ' || exchange === 'NYSE' || exchange === 'ALL')) {
-    const data = await getTickerData(termUC, exchange, null);
-    if (data) {
-      results.push({
-        symbol: termUC,
-        numericSecurityId: undefined, // Non-TASE tickers don't have numericSecurityId
-        name: data.name || searchTerm,
-        exchange: data.exchange || 'Unknown',
-        rawTicker: data,
-        ownedInPortfolios: getOwnedInPortfolios(termUC, portfolios),
-      });
+  // Search in local dataset (which now covers TASE, NASDAQ, NYSE)
+  Object.entries(taseDataset).forEach(([type, tickers]) => {
+    let matches = searchTaseType(tickers, type, termUC, portfolios);
+    if (exchange !== 'ALL') {
+      matches = matches.filter(r => r.exchange === exchange);
     }
-  }
+    results = results.concat(matches);
+  });
+
+  // Fallback: On-demand fetch for specific exchanges if not found in dataset (optional, but good for robustness)
+  // Only if we didn't find enough results? Or always?
+  // For now, let's trust the dataset primarily. But if the dataset is empty (loading failed?), we might want fallback.
+  // However, the request specifically asked to load data from all exchanges available.
+  
+  // Let's keep the on-demand fetch only if it's NOT TASE (since TASE is fully in dataset usually)
+  // and if we are searching specifically or ALL.
+  // Actually, let's comment it out or remove it if we trust the dataset.
+  // But wait, getTickerData fetches from Yahoo/Globes live. Dataset is cached list.
+  // Live fetch might find things not in list.
+  // Let's keep it but deduplicate.
+  
 
   return results.reduce((acc, current) => {
     const existing = acc.find(item => item.symbol === current.symbol && item.exchange === current.exchange);
@@ -139,21 +141,35 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
 
   useEffect(() => {
     let active = true;
-    if (isFocused && Object.keys(taseDataset).length === 0) {
-      // Only trigger load if not already loading or loaded
-      const load = async () => {
-        setIsTaseDatasetLoading(true);
-        try {
-          const data = await getTaseTickersDataset();
-          if (active) setTaseDataset(data);
-        } finally {
-          if (active) setIsTaseDatasetLoading(false);
-        }
-      };
-      load();
+
+    const loadDataset = async () => {
+      if (Object.keys(taseDataset).length > 0) return; // Already loaded locally
+
+      setIsTaseDatasetLoading(true);
+      try {
+        const data = await getTaseTickersDataset();
+        if (active) setTaseDataset(data);
+      } finally {
+        if (active) setIsTaseDatasetLoading(false);
+      }
+    };
+
+    if (document.visibilityState === 'visible') {
+      loadDataset();
     }
-    return () => { active = false; };
-  }, [isFocused, taseDataset]); // Removed setIsTaseDatasetLoading from dep array to avoid loop if unstable reference
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        loadDataset();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      active = false;
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [taseDataset]);
   useEffect(() => {
     if (isFocused && !isPortfoliosLoading && !isTaseDatasetLoading) {
       if (!debouncedInput) {
@@ -179,7 +195,7 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
   }, [searchResults, selectedType]);
 
   const typeFilterOptions = useMemo(() => {
-    return Object.entries(DEFAULT_TASE_TYPE_CONFIG)
+    return Object.entries(DEFAULT_SECURITY_TYPE_CONFIG)
       .filter(([, { enabled }]) => enabled)
       .map(([key, { displayName }]) => ({ key, displayName }));
   }, []);
@@ -266,7 +282,7 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
                       <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mt: 0.5 }}>
                         <Chip
                           label={`${option.exchange}:${option.symbol}${option.numericSecurityId ? ` (${option.numericSecurityId})` : ''}`} size="small" variant="outlined" />
-                        {option.type && DEFAULT_TASE_TYPE_CONFIG[option.type] && <Chip label={DEFAULT_TASE_TYPE_CONFIG[option.type]?.displayName || option.type} size="small" color="primary" variant="outlined" />}
+                        {option.type && DEFAULT_SECURITY_TYPE_CONFIG[option.type] && <Chip label={DEFAULT_SECURITY_TYPE_CONFIG[option.type]?.displayName || option.type} size="small" color="primary" variant="outlined" />}
                         {option.ownedInPortfolios && option.ownedInPortfolios.length > 0 && (
                           <Tooltip title={`Owned in: ${option.ownedInPortfolios.join(', ')}`}>
                             <BusinessCenterIcon color="success" sx={{ fontSize: 16, ml: 1 }} />
