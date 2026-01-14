@@ -6,7 +6,7 @@ import {
 import RefreshIcon from '@mui/icons-material/Refresh';
 import { fetchPortfolios, fetchTransactions } from '../lib/sheets/index';
 import { ColumnSelector } from './ColumnSelector';
-import { getExchangeRates, convertCurrency, calculatePerformanceInDisplayCurrency, calculateHoldingDisplayValues, normalizeCurrency, fromAgorot } from '../lib/currency';
+import { getExchangeRates, convertCurrency, calculatePerformanceInDisplayCurrency, calculateHoldingDisplayValues, normalizeCurrency, toILS } from '../lib/currency';
 import { logIfFalsy } from '../lib/utils';
 import { Currency } from '../lib/types';
 import type { Holding, DashboardHolding, ExchangeRates } from '../lib/types';
@@ -283,16 +283,14 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
 
         if (!holdingMap.has(key)) {
           const live = liveDataMap.get(`${t.ticker}:${t.exchange}`);
-          const defaultExchange = /\d/.test(t.ticker) ? 'TASE' : 'NASDAQ';
-          const defaultCurrency = defaultExchange === 'TASE' ? Currency.ILS : Currency.USD;
-          const stockCurrency = normalizeCurrency(live?.currency || t.currency || defaultCurrency);
+          const exchange = t.exchange || live?.exchange || '';
+          const isTase = exchange === 'TASE' || exchange === 'TLV';
           
-          let currentPrice = live?.price || 0;
-          // TASE stocks are typically quoted in Agorot (1/100 ILS).
-          // We normalize all prices to the major currency unit (ILS) for consistent storage and calculations.
-          if (stockCurrency === Currency.ILA) {
-              currentPrice = fromAgorot(currentPrice);
-          }
+          const stockCurrency = normalizeCurrency(live?.currency || t.currency || (isTase ? Currency.ILA : Currency.USD));
+          
+          // Trust the price and currency from the data/feed. 
+          // If stockCurrency is ILA, currentPrice is expected to be in Agorot.
+          const currentPrice = live?.price || 0; 
 
           holdingMap.set(key, {
             key,
@@ -300,7 +298,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
             portfolioName: p?.name || t.portfolioId,
             portfolioCurrency,
             ticker: t.ticker,
-            exchange: t.exchange || live?.exchange || defaultExchange,
+            exchange: exchange,
             displayName: live?.name || t.ticker,
             name_he: live?.name_he,
             qtyVested: 0,
@@ -342,7 +340,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         
         const priceInUSD = (t as any).Original_Price_USD || 0;
         const priceInAgorot = (t as any).Original_Price_ILA || 0;
-        const priceInILS = fromAgorot(priceInAgorot);
+        const priceInILS = toILS(priceInAgorot, Currency.ILA);
         const tQty = t.qty || 0;
 
         if (portfolioCurrency === Currency.ILS) {
@@ -356,11 +354,22 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         }
 
         const txnValuePortfolioCurrency = tQty * originalPricePortfolioCurrency;
-        let txnPrice = t.price || 0;
+        
+        let effectiveTxnPrice = t.price || 0;
         if (h.stockCurrency === Currency.ILA) {
-            txnPrice = fromAgorot(txnPrice);
+             effectiveTxnPrice = priceInAgorot;
+        } else if (h.stockCurrency === Currency.ILS) {
+            effectiveTxnPrice = priceInILS;
+        } else if (h.stockCurrency === Currency.USD) {
+            effectiveTxnPrice = priceInUSD;
+        } else {
+             const txnCurrency = normalizeCurrency(t.currency || '');
+             if (txnCurrency === Currency.ILA) {
+                 effectiveTxnPrice = toILS(effectiveTxnPrice, Currency.ILA);
+             }
         }
-        const txnValueStockCurrency = tQty * txnPrice;
+        
+        const txnValueStockCurrency = tQty * effectiveTxnPrice;
         const txnValueUSD = tQty * priceInUSD;
         const txnValueILS = tQty * priceInILS;
 

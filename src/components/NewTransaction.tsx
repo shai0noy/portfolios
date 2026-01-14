@@ -13,7 +13,8 @@ import { type Portfolio, type Transaction } from '../lib/types';
 import { addTransaction, fetchPortfolios } from '../lib/sheets/index';
 import { getTickerData, type TickerData } from '../lib/fetching';
 import { TickerSearch } from './TickerSearch';
-import { normalizeCurrency } from '../lib/currency';
+import { normalizeCurrency, convertCurrency, getExchangeRates } from '../lib/currency';
+import { Currency, type ExchangeRates } from '../lib/types';
 
 interface Props {
   sheetId: string;
@@ -30,6 +31,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
   const [loading, setLoading] = useState(false);
   const [priceError, setPriceError] = useState('');
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [exchangeRates, setExchangeRates] = useState<ExchangeRates>({ current: { USD: 1 } });
 
   // Form State
   const [selectedTicker, setSelectedTicker] = useState<(TickerData & { symbol: string }) | null>(null);
@@ -49,9 +51,13 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
   const [commission, setCommission] = useState<string>('');
   const [tax, setTax] = useState<string>('');
   const [displayName, setDisplayName] = useState('');
-  const [tickerCurrency, setTickerCurrency] = useState(locationState?.initialCurrency || '');
+  const [tickerCurrency, setTickerCurrency] = useState<Currency>(normalizeCurrency(locationState?.initialCurrency || ''));
   const [validationErrors, setValidationErrors] = useState<{ [key: string]: boolean }>({});
   const [commissionPct, setCommissionPct] = useState<string>('');
+
+  useEffect(() => {
+    getExchangeRates(sheetId).then(setExchangeRates);
+  }, [sheetId]);
 
   useEffect(() => {
     if (locationState?.prefilledTicker) {
@@ -64,7 +70,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
           setSelectedTicker(combinedData as any);
           setDisplayName(data.name || '');
           setPrice(data.price?.toString() || '');
-          setTickerCurrency(data.currency || '');
+          setTickerCurrency(normalizeCurrency(data.currency || ''));
           setExchange(data.exchange || locationState.prefilledExchange || '');
           setTicker(locationState.prefilledTicker!)
           setShowForm(true);
@@ -101,10 +107,10 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
     setPriceError('');
     if (selected.price) {
       setPrice(selected.price.toString());
-      setTickerCurrency(selected.currency || '');
+      setTickerCurrency(normalizeCurrency(selected.currency || ''));
     } else {
       setPrice('');
-      setTickerCurrency('');
+      setTickerCurrency(Currency.USD);
     }
     setQty(''); // Clear form fields for new entry
     setTotal('');
@@ -147,8 +153,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
 
 
   const EPS = 1e-12;
-  const isAgorot = tickerCurrency === 'ILA';
-  const majorCurrency = isAgorot ? 'ILS' : tickerCurrency;
+  const majorCurrency = tickerCurrency === Currency.ILA ? Currency.ILS : tickerCurrency;
 
   const handleQtyChange = (val: string) => {
     setQty(val);
@@ -156,7 +161,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
     const p = parseFloat(price);
     if (Number.isFinite(q) && Number.isFinite(p)) {
       const rawTotal = q * p;
-      const displayTotal = isAgorot ? rawTotal / 100 : rawTotal;
+      const displayTotal = convertCurrency(rawTotal, tickerCurrency, majorCurrency, exchangeRates);
       setTotal(displayTotal.toFixed(2));
     }
   };
@@ -167,7 +172,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
     const p = parseFloat(val);
     if (Number.isFinite(q) && Number.isFinite(p)) {
       const rawTotal = q * p;
-      const displayTotal = isAgorot ? rawTotal / 100 : rawTotal;
+      const displayTotal = convertCurrency(rawTotal, tickerCurrency, majorCurrency, exchangeRates);
       setTotal(displayTotal.toFixed(2));
     }
   };
@@ -179,7 +184,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess }: Props) => {
     const tDisplay = parseFloat(val);
 
     if (Number.isFinite(tDisplay)) {
-      const tRaw = isAgorot ? tDisplay * 100 : tDisplay;
+      const tRaw = convertCurrency(tDisplay, majorCurrency, tickerCurrency, exchangeRates);
 
       if (Number.isFinite(p) && Math.abs(p) > EPS) {
         setQty((tRaw / p).toFixed(4));

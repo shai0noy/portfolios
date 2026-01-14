@@ -47,56 +47,81 @@ export async function getExchangeRates(sheetId: string): Promise<ExchangeRates> 
 export function normalizeCurrency(input: string): Currency {
   if (!input) return Currency.USD;
   const upper = input.trim().toUpperCase();
-  if (upper === 'ILA') return Currency.ILA;
+  if (upper === 'ILA' || upper === 'ILAG' || upper === 'AGOROT' || upper === 'AG') return Currency.ILA;
   if (upper === 'NIS' || upper === 'ILS') return Currency.ILS;
   if (upper === 'EUR') return Currency.EUR;
   if (upper === 'GBP') return Currency.GBP;
   if (upper === 'USD') return Currency.USD;
-  return Currency.USD; // Default fallback
+  
+  console.warn(`normalizeCurrency: Unknown currency '${input}', defaulting to USD`);
+  throw new Error(`Unknown currency: ${input}`);
 }
 
-export function toAgorot(amount: number): number {
-    return amount * 100;
+// Convert to ILA (Agorot)
+export function toILA(amount: number, srcCurrency: string | Currency, rates?: ExchangeRates): number {
+    return convertCurrency(amount, srcCurrency, Currency.ILA, rates);
 }
 
-export function fromAgorot(amount: number): number {
-    return amount / 100;
+// Convert to ILS (Major Unit)
+export function toILS(amount: number, srcCurrency: string | Currency, rates?: ExchangeRates): number {
+    return convertCurrency(amount, srcCurrency, Currency.ILS, rates);
 }
 
-export function convertCurrency(amount: number, from: Currency | string, to: Currency | string, rates: ExchangeRates | Record<string, number>): number {
-  if (typeof amount !== 'number' || isNaN(amount)) return 0;
+// Convert to USD
+export function toUSD(amount: number, srcCurrency: string | Currency, rates?: ExchangeRates): number {
+    return convertCurrency(amount, srcCurrency, Currency.USD, rates);
+}
+
+export function convertCurrency(amount: number, from: Currency | string, to: Currency | string, rates?: ExchangeRates | Record<string, number>): number {
+  if (typeof amount !== 'number' || isNaN(amount)) {
+      console.error(`convertCurrency: Invalid amount: ${amount}`);
+      return 0;
+  }
   
   const fromNorm = normalizeCurrency(from as string);
   const toNorm = normalizeCurrency(to as string);
   
   if (fromNorm === toNorm) return amount;
 
-  let currentRates: Record<string, number>;
-  if ('current' in rates) {
+  // Handle direct ILS <-> ILA conversion, which doesn't need rates
+  if (fromNorm === Currency.ILA && toNorm === Currency.ILS) return amount / 100;
+  if (fromNorm === Currency.ILS && toNorm === Currency.ILA) return amount * 100;
+
+  let currentRates: Record<string, number> | undefined;
+  if (rates && 'current' in rates) {
       currentRates = (rates as ExchangeRates).current;
-  } else {
+  } else if (rates) {
       currentRates = rates as Record<string, number>;
   }
 
   if (!currentRates) {
-    return amount;
+    console.error(`convertCurrency: Missing exchange rates for conversion from ${fromNorm} to ${toNorm}.`);
+    return 0;
   }
 
   // Rate lookup (assuming base is USD)
   const fromRate = currentRates[fromNorm === Currency.ILA ? Currency.ILS : fromNorm]; 
   const toRate = currentRates[toNorm === Currency.ILA ? Currency.ILS : toNorm]; 
 
-  // Special handling for ILA (Agorot) which is 1/100 of ILS
-  let adjustedAmount = amount;
-  if (fromNorm === Currency.ILA) adjustedAmount = fromAgorot(amount);
-  
-  if ((fromNorm !== Currency.USD && fromNorm !== Currency.ILA) && !fromRate) return amount; 
-  if ((toNorm !== Currency.USD && toNorm !== Currency.ILA) && !toRate) return amount; 
+  if ((fromNorm !== Currency.USD && fromNorm !== Currency.ILA) && !fromRate) {
+      console.error(`convertCurrency: Missing rate for source currency: ${fromNorm}`);
+      return 0;
+  }
+  if ((toNorm !== Currency.USD && toNorm !== Currency.ILA) && !toRate) {
+      console.error(`convertCurrency: Missing rate for target currency: ${toNorm}`);
+      return 0;
+  }
 
+  // Normalize input to Major Unit (ILS if ILA) for calculation
+  const adjustedAmount = (fromNorm === Currency.ILA) ? amount / 100 : amount;
+  
   const amountInUSD = (fromNorm === Currency.USD) ? adjustedAmount : adjustedAmount / fromRate;
   const result = (toNorm === Currency.USD) ? amountInUSD : amountInUSD * toRate;
   
-  if (toNorm === Currency.ILA) return toAgorot(result);
+  // If target is ILA, result (which is in ILS because we used ILS rate) needs to be converted to ILA
+  // Use toILA logic directly to avoid circular dependency or rate check overhead for this specific unit conversion
+  if (toNorm === Currency.ILA) return result * 100;
+  
   return result;
 }
 
@@ -246,9 +271,8 @@ export function formatPrice(n: number, currency: string | Currency, decimals = 2
     // Rule: Ticker costs in ILS or ILA are ALWAYS displayed in Agorot
     if (norm === Currency.ILS || norm === Currency.ILA) {
         // If it's already ILA (Agorot units), don't multiply.
-        // But Dashboard stores everything in Major Units (ILS).
-        // So we likely need to multiply by 100 to display Agorot.
-        const agorotVal = toAgorot(n);
+        // If it's ILS (Major Units), multiply by 100 to display Agorot.
+        const agorotVal = toILA(n, norm);
         const val = agorotVal.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
         return `${val} ag.`;
     }
