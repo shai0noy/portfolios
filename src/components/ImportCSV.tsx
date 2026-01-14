@@ -7,13 +7,14 @@ import {
   Stack,
   RadioGroup,
   Radio,
-  FormControlLabel
+  FormControlLabel,
+  Link
 } from '@mui/material';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import type { Portfolio, Transaction } from '../lib/types';
 import { addTransaction, fetchPortfolios } from '../lib/sheets/index';
-import { formatCurrency } from '../lib/currency';
 import { ImportHelp } from './ImportHelp';
+import { useLanguage } from '../lib/i18n';
 
 interface Props {
   sheetId: string;
@@ -22,85 +23,12 @@ interface Props {
   onSuccess: () => void;
 }
 
-const STEPS = ['Input Data', 'Map Columns', 'Review & Import'];
-
-const parseDateValue = (raw: string, format: string): Date | null => {
-  if (!raw) return null;
-  const clean = raw.trim();
-
-  if (format === 'auto') {
-    // Strict Auto: Only allow unambiguous formats
-    // YYYYMMDD
-    if (/^\d{8}$/.test(clean)) {
-      const y = parseInt(clean.substring(0, 4), 10);
-      const m = parseInt(clean.substring(4, 6), 10) - 1;
-      const d = parseInt(clean.substring(6, 8), 10);
-      return new Date(y, m, d);
-    }
-    // YYYY-MM-DD or YYYY/MM/DD
-    const isoMatch = clean.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
-    if (isoMatch) {
-        const y = parseInt(isoMatch[1], 10);
-        const m = parseInt(isoMatch[2], 10) - 1;
-        const d = parseInt(isoMatch[3], 10);
-        return new Date(y, m, d);
-    }
-    
-    // Everything else (e.g. 12/12/2025, 01/05/2024) is considered "uncertain"
-    return null;
-  }
-
-  // Handle YYYYMMDD explicit
-  if (format === 'YYYYMMDD') {
-    if (/^\d{8}$/.test(clean)) {
-      const y = parseInt(clean.substring(0, 4), 10);
-      const m = parseInt(clean.substring(4, 6), 10) - 1;
-      const d = parseInt(clean.substring(6, 8), 10);
-      return new Date(y, m, d);
-    }
-    return null;
-  }
-
-  // Split by non-digit characters
-  const parts = clean.split(/\D+/).filter(Boolean);
-  if (parts.length !== 3) return null;
-
-  const p = parts.map(x => parseInt(x, 10));
-  let y = 0, m = 0, d = 0;
-
-  switch (format) {
-    case 'YYYY-MM-DD': // YMD
-    case 'YYYY/MM/DD':
-      [y, m, d] = p;
-      break;
-    case 'DD-MM-YYYY': // DMY
-    case 'DD/MM/YYYY':
-      [d, m, y] = p;
-      break;
-    case 'MM-DD-YYYY': // MDY
-    case 'MM/DD/YYYY':
-      [m, d, y] = p;
-      break;
-    default:
-      return null;
-  }
-
-  // Adjust month (0-indexed)
-  m -= 1;
-
-  // Basic validation
-  if (m < 0 || m > 11 || d < 1 || d > 31) return null;
-  
-  // Handle 2-digit years (assume 20xx)
-  if (y < 100) y += 2000;
-
-  return new Date(y, m, d);
-};
-
 export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [activeStep, setActiveStep] = useState(0);
   const [helpOpen, setHelpOpen] = useState(false);
+  const { t, isRtl } = useLanguage();
+  const STEPS = [t('Input Data', 'הזנת נתונים'), t('Map Columns', 'מיפוי עמודות'), t('Review & Import', 'בדיקה וייבוא')];
   
   useEffect(() => {
     if (open) {
@@ -115,7 +43,6 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
   const [mapping, setMapping] = useState<Record<string, string>>({
     ticker: '', date: '', type: '', qty: '', price: '', exchange: ''
   });
-  const [dateFormat, setDateFormat] = useState('auto');
   const [manualExchange, setManualExchange] = useState('');
   const [exchangeMode, setExchangeMode] = useState<'map' | 'manual' | 'deduce'>('deduce');
   const [parsedTxns, setParsedTxns] = useState<Transaction[]>([]);
@@ -186,84 +113,10 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
     }
   };
 
-  const validateAndParse = (): { success: boolean, txns: Transaction[], error?: string } => {
-    const txns: Transaction[] = [];
-    
-    for (let i = 0; i < rows.length; i++) {
-        const r = rows[i];
-        const getVal = (field: string) => {
-            const idx = headers.indexOf(mapping[field]);
-            return idx >= 0 ? r[idx] : '';
-        };
-
-        // Date Parsing
-        const rawDate = getVal('date');
-        const d = parseDateValue(rawDate, dateFormat);
-
-        if (!d || isNaN(d.getTime())) {
-            // Check if user has explicit format
-            if (dateFormat === 'auto') {
-                return { success: false, txns: [], error: `Row ${i + 1}: Date '${rawDate}' is ambiguous or invalid. Please select an explicit Date Format.` };
-            }
-            return { success: false, txns: [], error: `Row ${i + 1}: Date '${rawDate}' does not match format ${dateFormat}.` };
-        }
-
-        let isoDate = '';
-        const year = d.getFullYear();
-        const month = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        isoDate = `${year}-${month}-${day}`;
-
-        // Type Parsing
-        const rawType = getVal('type').toUpperCase();
-        let type: 'BUY' | 'SELL' | 'DIVIDEND' | 'FEE' = 'BUY'; // Default
-        if (rawType.includes('SELL') || rawType.includes('SOLD')) type = 'SELL';
-        if (rawType.includes('DIV')) type = 'DIVIDEND';
-        if (rawType.includes('FEE')) type = 'FEE';
-
-        const qty = parseFloat(getVal('qty'));
-        const price = parseFloat(getVal('price'));
-
-        let exchange: string;
-        if (exchangeMode === 'map') {
-            exchange = getVal('exchange').toUpperCase();
-        } else if (exchangeMode === 'manual') {
-            exchange = manualExchange;
-        } else { // deduce
-            const tickerVal = getVal('ticker');
-            exchange = /^\d+$/.test(tickerVal) ? 'TASE' : 'NASDAQ';
-        }
-
-        const now = new Date();
-        const sourceId = `CSV_Import_${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}_${now.getHours().toString().padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}`;
-
-        if (getVal('ticker') && !isNaN(qty)) {
-             txns.push({
-                date: isoDate,
-                portfolioId,
-                ticker: getVal('ticker').toUpperCase(),
-                exchange,
-                type,
-                Original_Qty: Math.abs(qty),
-                Original_Price: isNaN(price) ? 0 : price,
-                grossValue: Math.abs(qty) * (isNaN(price) ? 0 : price),
-                comment: 'Imported via CSV',
-                Source: sourceId,
-            });
-        }
-    }
-
-    if (txns.length === 0) {
-        return { success: false, txns: [], error: "No valid transactions found." };
-    }
-
-    return { success: true, txns };
-  };
-
   const handleNext = () => {
     if (activeStep === 0) {
       if (!csvText || !portfolioId) {
-        alert("Please select a portfolio and provide CSV data.");
+        alert(t("Please select a portfolio and provide CSV data.", "יש לבחור תיק ולספק נתוני CSV."));
         return;
       }
       parseCSV(csvText);
@@ -271,28 +124,85 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
     } else if (activeStep === 1) {
       // Validate Mapping
       if (!mapping.ticker || !mapping.date || !mapping.qty || !mapping.price) {
-        alert("Please map all required fields (Ticker, Date, Qty, Price).");
+        alert(t("Please map all required fields (Ticker, Date, Qty, Price).", "יש למפות את כל שדות החובה (סימול, תאריך, כמות, מחיר)."));
         return;
       }
       if (exchangeMode === 'map' && !mapping.exchange) {
-        alert("Please select a column for Exchange or choose a different mode.");
+        alert(t("Please select a column for Exchange or choose a different mode.", "יש לבחור עמודה עבור בורסה או לבחור מצב אחר."));
         return;
       }
       if (exchangeMode === 'manual' && !manualExchange) {
-          alert("Please enter a manual exchange or choose a different mode.");
+          alert(t("Please enter a manual exchange or choose a different mode.", "יש להזין בורסה ידנית או לבחור מצב אחר."));
           return;
       }
-      
-      const result = validateAndParse();
-      if (!result.success) {
-          alert(result.error);
-          return;
-      }
-      setParsedTxns(result.txns);
+      generatePreview();
       setActiveStep(2);
     } else {
       handleImport();
     }
+  };
+
+  const generatePreview = () => {
+    const txns: Transaction[] = rows.map(r => {
+      const getVal = (field: string) => {
+        const idx = headers.indexOf(mapping[field]);
+        return idx >= 0 ? r[idx] : '';
+      };
+
+      // Date Parsing (handle 20241025 or 2025/12/30)
+      const rawDate = getVal('date');
+      let isoDate = '';
+      
+      let d: Date;
+      // Try to parse YYYYMMDD
+      if (rawDate.match(/^\d{8}$/)) {
+        d = new Date(`${rawDate.substring(0,4)}-${rawDate.substring(4,6)}-${rawDate.substring(6,8)}`);
+      } else {
+        d = new Date(rawDate);
+      }
+
+      if (d && !isNaN(d.getTime())) {
+        isoDate = d.toISOString().split('T')[0];
+      }
+
+      // Type Parsing
+      const rawType = getVal('type').toUpperCase();
+      let type: 'BUY' | 'SELL' | 'DIVIDEND' | 'FEE' = 'BUY'; // Default
+      if (rawType.includes('SELL') || rawType.includes('SOLD')) type = 'SELL';
+      if (rawType.includes('DIV')) type = 'DIVIDEND';
+      if (rawType.includes('FEE')) type = 'FEE';
+
+      const qty = parseFloat(getVal('qty'));
+      const price = parseFloat(getVal('price'));
+
+      let exchange: string;
+      if (exchangeMode === 'map') {
+          exchange = getVal('exchange').toUpperCase();
+      } else if (exchangeMode === 'manual') {
+          exchange = manualExchange;
+      } else { // deduce
+          const tickerVal = getVal('ticker');
+          exchange = /\d/.test(tickerVal) ? 'TASE' : 'NASDAQ';
+      }
+
+      const now = new Date();
+      const sourceId = `CSV_Import_${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}_${now.getHours().toString().padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}`;
+
+      return {
+        date: isoDate,
+        portfolioId,
+        ticker: getVal('ticker').toUpperCase(),
+        exchange, // Add exchange
+        type,
+        Original_Qty: isNaN(qty) ? 0 : Math.abs(qty), // Store absolute qty, logic handles sign
+        Original_Price: isNaN(price) ? 0 : price,
+        grossValue: (isNaN(qty) ? 0 : Math.abs(qty)) * (isNaN(price) ? 0 : price),
+        comment: 'Imported via CSV',
+        Source: sourceId,
+      };
+    }).filter(t => t.ticker && t.Original_Qty > 0); // Filter invalid rows
+
+    setParsedTxns(txns);
   };
 
   const handleImport = async () => {
@@ -306,14 +216,14 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
       onClose();
     } catch (e) {
       console.error(e);
-      alert("Error importing transactions. Check console.");
+      alert(t("Error importing transactions. Check console.", "שגיאה בייבוא עסקאות. בדוק את הקונסול."));
       setImporting(false);
     }
   };
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>Import Transactions from CSV</DialogTitle>
+      <DialogTitle>{t('Import Transactions from CSV', 'ייבוא עסקאות מקובץ CSV')}</DialogTitle>
       <DialogContent>
         <Stepper activeStep={activeStep} sx={{ mb: 3, mt: 1 }}>
           {STEPS.map(label => <Step key={label}><StepLabel>{label}</StepLabel></Step>)}
@@ -322,8 +232,8 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
         {activeStep === 0 && (
           <Stack spacing={3} sx={{ pt: 1 }}>
             <FormControl fullWidth size="small">
-              <InputLabel>Target Portfolio</InputLabel>
-              <Select value={portfolioId} label="Target Portfolio" onChange={e => setPortfolioId(e.target.value)}>
+              <InputLabel>{t('Target Portfolio', 'תיק יעד')}</InputLabel>
+              <Select value={portfolioId} label={t('Target Portfolio', 'תיק יעד')} onChange={e => setPortfolioId(e.target.value)}>
                 {portfolios.map(p => (
                   <MenuItem key={p.id} value={p.id}>{p.name} ({p.currency})</MenuItem>
                 ))}
@@ -333,11 +243,11 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
             <Stack spacing={1}>
                 <Alert severity="info" sx={{ mb: 1 }} action={
                   <Button color="inherit" size="small" onClick={() => setHelpOpen(true)}>
-                    Help
+                    {t('Help', 'עזרה')}
                   </Button>
                 }>
                   <Typography variant="body2" component="div">
-                    <strong>Tip:</strong> Ensure your CSV includes these columns: <em>Symbol, Date, Type, Qty, Price</em>.
+                    <strong>{t('Tip:', 'טיפ:')}</strong> {t('Ensure your CSV includes these columns: Symbol, Date, Type, Qty, Price.', 'ודא שהקובץ מכיל את העמודות: סימול, תאריך, סוג, כמות, מחיר.')}
                   </Typography>
                 </Alert>
 
@@ -356,15 +266,15 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
                     }}
                 >
                     <Button component="label" variant="outlined" startIcon={<CloudUploadIcon />}>
-                        Upload CSV File
+                        {t('Upload CSV File', 'העלאת קובץ CSV')}
                         <input type="file" hidden accept=".csv" onChange={handleFileChange} />
                     </Button>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                        or drag and drop here
+                        {t('or drag and drop here', 'או גרירה לכאן')}
                     </Typography>
                 </Box>
                 <Typography variant="caption" color="text.secondary">
-                    Or paste CSV content below:
+                    {t('Or paste CSV content below:', 'או הדבקת תוכן כאן:')}
                 </Typography>
                 <TextField
                     multiline rows={8} fullWidth 
@@ -378,41 +288,26 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
 
         {activeStep === 1 && (
             <Stack spacing={2} sx={{ pt: 1 }}>
-                <Typography gutterBottom>Map CSV Columns to Transaction Fields:</Typography>
+                <Typography gutterBottom>{t('Map CSV Columns to Transaction Fields:', 'התאמת עמודות לשדות:')}</Typography>
                 <Grid container spacing={2}>
                     {['ticker', 'date', 'type', 'qty', 'price'].map(field => (
                         <Grid item key={field} xs={12} sm={6} md={4}>
                             <FormControl fullWidth size="small">
-                                <InputLabel>{field.charAt(0).toUpperCase() + field.slice(1)}</InputLabel>
+                                <InputLabel>{t(field.charAt(0).toUpperCase() + field.slice(1), field === 'ticker' ? 'סימול' : field === 'date' ? 'תאריך' : field === 'type' ? 'סוג' : field === 'qty' ? 'כמות' : 'מחיר')}</InputLabel>
                                 <Select
                                     value={mapping[field]}
-                                    label={field.charAt(0).toUpperCase() + field.slice(1)}
+                                    label={t(field.charAt(0).toUpperCase() + field.slice(1), field === 'ticker' ? 'סימול' : field === 'date' ? 'תאריך' : field === 'type' ? 'סוג' : field === 'qty' ? 'כמות' : 'מחיר')}
                                     onChange={e => setMapping(prev => ({ ...prev, [field]: e.target.value }))}
                                 >
-                                    <MenuItem value="">-- Ignore --</MenuItem>
+                                    <MenuItem value="">-- {t('Ignore', 'התעלם')} --</MenuItem>
                                     {headers.map(h => <MenuItem key={h} value={h}>{h}</MenuItem>)}
                                 </Select>
                             </FormControl>
                         </Grid>
                     ))}
-                    <Grid item xs={12} sm={6} md={4}>
-                         <FormControl fullWidth size="small">
-                             <InputLabel>Date Format</InputLabel>
-                             <Select value={dateFormat} label="Date Format" onChange={e => setDateFormat(e.target.value)}>
-                                 <MenuItem value="auto">Auto-detect</MenuItem>
-                                 <MenuItem value="YYYY-MM-DD">YYYY-MM-DD</MenuItem>
-                                 <MenuItem value="DD-MM-YYYY">DD-MM-YYYY</MenuItem>
-                                 <MenuItem value="MM-DD-YYYY">MM-DD-YYYY</MenuItem>
-                                 <MenuItem value="YYYY/MM/DD">YYYY/MM/DD</MenuItem>
-                                 <MenuItem value="DD/MM/YYYY">DD/MM/YYYY</MenuItem>
-                                 <MenuItem value="MM/DD/YYYY">MM/DD/YYYY</MenuItem>
-                                 <MenuItem value="YYYYMMDD">YYYYMMDD</MenuItem>
-                             </Select>
-                         </FormControl>
-                    </Grid>
                 </Grid>
 
-                <Typography variant="body2" sx={{ pt: 1, fontWeight: 500 }}>Exchange</Typography>
+                <Typography variant="body2" sx={{ pt: 1, fontWeight: 500 }}>{t('Exchange', 'בורסה')}</Typography>
                 <FormControl component="fieldset">
                     <RadioGroup
                         row
@@ -424,21 +319,21 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
                             if (newMode !== 'manual') setManualExchange('');
                         }}
                     >
-                        <FormControlLabel value="map" control={<Radio size="small" />} label="Map from CSV" />
-                        <FormControlLabel value="manual" control={<Radio size="small" />} label="Manual Input" />
-                        <FormControlLabel value="deduce" control={<Radio size="small" />} label="Auto-Deduce" />
+                        <FormControlLabel value="map" control={<Radio size="small" />} label={t("Map from CSV", "לפי הקובץ")} />
+                        <FormControlLabel value="manual" control={<Radio size="small" />} label={t("Manual Input", "הזנה ידנית")} />
+                        <FormControlLabel value="deduce" control={<Radio size="small" />} label={t("Auto-Deduce", "זיהוי אוטומטי")} />
                     </RadioGroup>
                 </FormControl>
 
                 {exchangeMode === 'map' && (
                     <FormControl fullWidth size="small" sx={{ mt: 1 }}>
-                        <InputLabel>CSV Column for Exchange</InputLabel>
+                        <InputLabel>{t('CSV Column for Exchange', 'עמודת בורסה בקובץ')}</InputLabel>
                         <Select
                             value={mapping.exchange}
-                            label="CSV Column for Exchange"
+                            label={t('CSV Column for Exchange', 'עמודת בורסה בקובץ')}
                             onChange={e => setMapping(prev => ({ ...prev, exchange: e.target.value }))}
                         >
-                            <MenuItem value="">-- Select Column --</MenuItem>
+                            <MenuItem value="">-- {t('Select Column', 'בחר עמודה')} --</MenuItem>
                             {headers.map(h => <MenuItem key={h} value={h}>{h}</MenuItem>)}
                         </Select>
                     </FormControl>
@@ -446,7 +341,7 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
 
                 {exchangeMode === 'manual' && (
                     <TextField
-                        label="Manual Exchange for all transactions"
+                        label={t("Manual Exchange for all transactions", "בורסה עבור כל העסקאות")}
                         size="small"
                         fullWidth
                         sx={{ mt: 1 }}
@@ -458,12 +353,12 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
 
                 {exchangeMode === 'deduce' && (
                     <Alert severity="info" sx={{ mt: 1 }}>
-                        Exchange will be auto-detected based on ticker format ('TASE' for tickers with numbers, 'NASDAQ' otherwise).
+                        {t("Exchange will be auto-detected based on ticker format ('TASE' for tickers with numbers, 'NASDAQ' otherwise).", "הבורסה תזוהה אוטומטית לפי פורמט הסימול (מספרים ל-TASE, אחרת NASDAQ).")}
                     </Alert>
                 )}
                 
                 <Alert severity="info" sx={{ mt: 2 }}>
-                    Required: Ticker, Date, Qty, Price.
+                    {t('Required: Ticker, Date, Qty, Price.', 'חובה: סימול, תאריך, כמות, מחיר.')}
                 </Alert>
             </Stack>
         )}
@@ -471,37 +366,33 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
         {activeStep === 2 && (
           <Stack spacing={1.5} sx={{ pt: 1 }}>
             <Typography variant="subtitle2">
-              Ready to import {parsedTxns.length} transactions:
+              {t('Ready to import', 'מוכן לייבוא')} {parsedTxns.length} {t('transactions:', 'עסקאות:')}
             </Typography>
             <Box sx={{ maxHeight: 400, overflow: 'auto', border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
               <Table size="small" stickyHeader>
                 <TableHead>
                   <TableRow>
-                    <TableCell>Date</TableCell>
-                    <TableCell>Ticker</TableCell>
-                    <TableCell>Exchange</TableCell>
-                    <TableCell>Type</TableCell>
-                    <TableCell align="right">Orig. Qty</TableCell>
-                    <TableCell align="right">Orig. Price</TableCell>
-                    <TableCell align="right">Total</TableCell>
+                    <TableCell>{t('Date', 'תאריך')}</TableCell>
+                    <TableCell>{t('Ticker', 'סימול')}</TableCell>
+                    <TableCell>{t('Exchange', 'בורסה')}</TableCell>
+                    <TableCell>{t('Type', 'סוג')}</TableCell>
+                    <TableCell align="right">{t('Orig. Qty', 'כמות מקורית')}</TableCell>
+                    <TableCell align="right">{t('Orig. Price', 'מחיר מקורי')}</TableCell>
+                    <TableCell align="right">{t('Total', 'סה"כ')}</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {(() => {
-                    const selectedPortfolio = portfolios.find(p => p.id === portfolioId);
-                    const currency = selectedPortfolio ? selectedPortfolio.currency : 'USD';
-                    return parsedTxns.map((t, i) => (
-                      <TableRow key={i} hover>
-                        <TableCell>{t.date}</TableCell>
-                        <TableCell>{t.ticker}</TableCell>
-                        <TableCell>{t.exchange}</TableCell>
-                        <TableCell>{t.type}</TableCell>
-                        <TableCell align="right">{t.Original_Qty}</TableCell>
-                        <TableCell align="right">{formatCurrency(t.Original_Price, currency)}</TableCell>
-                        <TableCell align="right">{formatCurrency(t.grossValue || 0, currency)}</TableCell>
-                      </TableRow>
-                    ));
-                  })()}
+                  {parsedTxns.map((t, i) => (
+                    <TableRow key={i} hover>
+                      <TableCell>{t.date}</TableCell>
+                      <TableCell>{t.ticker}</TableCell>
+                      <TableCell>{t.exchange}</TableCell>
+                      <TableCell>{t.type}</TableCell>
+                      <TableCell align="right">{t.Original_Qty}</TableCell>
+                      <TableCell align="right">{t.Original_Price.toFixed(2)}</TableCell>
+                      <TableCell align="right">{t.grossValue?.toFixed(2)}</TableCell>
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
             </Box>
@@ -510,10 +401,10 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
 
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose} color="inherit">Cancel</Button>
-        <Button onClick={() => setActiveStep(p => p - 1)} disabled={activeStep === 0}>Back</Button>
+        <Button onClick={onClose} color="inherit">{t('Cancel', 'ביטול')}</Button>
+        <Button onClick={() => setActiveStep(p => p - 1)} disabled={activeStep === 0} sx={{ [isRtl ? 'ml' : 'mr']: 1 }}>{t('Back', 'חזרה')}</Button>
         <Button onClick={handleNext} variant="contained" disabled={importing}>
-          {activeStep === 2 ? (importing ? 'Importing...' : 'Import') : 'Next'}
+          {activeStep === 2 ? (importing ? t('Importing...', 'מייבא...') : t('Import', 'ייבוא')) : t('Next', 'הבא')}
         </Button>
       </DialogActions>
       <ImportHelp open={helpOpen} onClose={() => setHelpOpen(false)} />

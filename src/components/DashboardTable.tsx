@@ -5,11 +5,11 @@ import {
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import { convertCurrency, formatCurrency, formatPrice, calculatePerformanceInDisplayCurrency, calculateHoldingDisplayValues, normalizeCurrency } from '../lib/currency';
+import { convertCurrency, formatCurrency, formatPrice, calculatePerformanceInDisplayCurrency, calculateHoldingDisplayValues } from '../lib/currency';
 import { logIfFalsy } from '../lib/utils';
 import { useNavigate } from 'react-router-dom';
-import { Currency } from '../lib/types';
 import type { DashboardHolding, ExchangeRates } from '../lib/types';
+import { useLanguage } from '../lib/i18n';
 
 interface TableProps {
   holdings: DashboardHolding[];
@@ -29,6 +29,7 @@ export function DashboardTable(props: TableProps) {
   } = props;
   const theme = useTheme();
   const navigate = useNavigate();
+  const { t, tTry, isRtl } = useLanguage();
   
   const [sortBy, setSortBy] = useState<string>('totalMV');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
@@ -58,29 +59,26 @@ export function DashboardTable(props: TableProps) {
     handleCloseContextMenu();
   };
 
-  const formatConverted = (n: number, fromCurrency: string | Currency, decimals = 0) => {
-    // fromCurrency might be "NIS" or "usd" string, normalize it
-    const normFrom = normalizeCurrency(fromCurrency as string);
-    const normDisplay = normalizeCurrency(displayCurrency);
-    const converted = convertCurrency(n, normFrom, normDisplay, exchangeRates);
-    return formatCurrency(converted, normDisplay, decimals);
+  // Converts a value from a base currency to the display currency, handling sub-units only if explicitly needed for display
+  // For standard monetary values (MV, Gains), we expect inputs in standard units (e.g. ILS, not Agorot)
+  const formatConverted = (n: number, fromCurrency: string, decimals = 0) => {
+    const safeFrom = (fromCurrency === '#N/A' || !fromCurrency) ? 'ILS' : fromCurrency;
+    const converted = convertCurrency(n, safeFrom, displayCurrency, exchangeRates);
+    return formatCurrency(converted, displayCurrency, decimals);
   };
 
-  const formatPercent = (n: number) => (n * 100).toFixed(2) + '%';
+  const formatPct = (n: number) => (n * 100).toFixed(2) + '%';
 
   const getSortValue = (h: DashboardHolding, key: string) => {
-    const normStock = normalizeCurrency(h.stockCurrency);
-    const normDisplay = normalizeCurrency(displayCurrency);
-    const toDisplay = (val: number, curr: Currency) => convertCurrency(val, curr, normDisplay, exchangeRates);
-    
+    const toDisplay = (val: number, curr: string) => convertCurrency(val, curr, displayCurrency, exchangeRates);
     switch (key) {
       case 'ticker': return h.ticker || '';
       case 'qty': return h.totalQty;
-      case 'avgCost': return toDisplay(h.avgCost, normStock);
-      case 'currentPrice': return toDisplay(h.currentPrice, normStock);
-      case 'dayChangePct': return calculatePerformanceInDisplayCurrency(h.currentPrice, normStock, h.dayChangePct, 'ago1d', displayCurrency, exchangeRates).changePct;
-      case 'dayChangeVal': return calculatePerformanceInDisplayCurrency(h.currentPrice, normStock, h.dayChangePct, 'ago1d', displayCurrency, exchangeRates).changeVal * h.totalQty;
-      case 'mv': return calculateHoldingDisplayValues(h, displayCurrency, exchangeRates).marketValue;
+      case 'avgCost': return toDisplay(h.avgCost, h.stockCurrency);
+      case 'currentPrice': return toDisplay(h.currentPrice, h.stockCurrency);
+      case 'dayChangePct': return calculatePerformanceInDisplayCurrency(h.currentPrice, h.stockCurrency, h.dayChangePct, 'ago1d', displayCurrency, exchangeRates).changePct;
+      case 'dayChangeVal': return calculatePerformanceInDisplayCurrency(h.currentPrice, h.stockCurrency, h.dayChangePct, 'ago1d', displayCurrency, exchangeRates).changeVal * h.totalQty;
+      case 'marketValue': return calculateHoldingDisplayValues(h, displayCurrency, exchangeRates).marketValue;
       case 'unrealized': return calculateHoldingDisplayValues(h, displayCurrency, exchangeRates).unrealizedGain;
       case 'realizedGain': return calculateHoldingDisplayValues(h, displayCurrency, exchangeRates).realizedGain;
       case 'totalGain': return calculateHoldingDisplayValues(h, displayCurrency, exchangeRates).totalGain;
@@ -95,9 +93,7 @@ export function DashboardTable(props: TableProps) {
 
     const groupSummary = groupHoldings.reduce((acc, h) => {
       const displayVals = calculateHoldingDisplayValues(h, displayCurrency, exchangeRates);
-      // Ensure we use normalized currency for calculations
-      const normStock = normalizeCurrency(h.stockCurrency);
-      const { changeVal } = calculatePerformanceInDisplayCurrency(h.currentPrice, normStock, h.dayChangePct, 'ago1d', displayCurrency, exchangeRates);
+      const { changeVal } = calculatePerformanceInDisplayCurrency(h.currentPrice, h.stockCurrency, h.dayChangePct, 'ago1d', displayCurrency, exchangeRates);
       const dayChange = changeVal * h.totalQty;
       
       acc.totalMV += displayVals.marketValue;
@@ -128,15 +124,15 @@ export function DashboardTable(props: TableProps) {
               </IconButton>
               <Typography variant="subtitle1" color="primary" sx={{ fontWeight: 600 }}>{groupName}</Typography>
             </Box>
-            <Box display="flex" alignItems="center" gap={2} flexWrap="wrap" pr={1}>
+            <Box display="flex" alignItems="center" gap={2} flexWrap="wrap" sx={{ [isRtl ? 'pl' : 'pr']: 1 }}>
               <Typography variant="body2">
-                Total: {formatCurrency(groupSummary.totalMV, displayCurrency, 0)}
+                {t('Total:', 'סה"כ:')} {formatCurrency(groupSummary.totalMV, displayCurrency, 0)}
               </Typography>
               <Typography variant="body2" color={groupSummary.totalDayChange >= 0 ? 'success.main' : 'error.main'}>
-                Day: {formatCurrency(groupSummary.totalDayChange, displayCurrency, 0)} ({formatPercent(groupDayChangePct)})
+                {t('Day:', 'יומי:')} {formatCurrency(groupSummary.totalDayChange, displayCurrency, 0)} ({formatPct(groupDayChangePct)})
               </Typography>
               <Typography variant="body2" color={groupSummary.totalUnrealizedGain >= 0 ? 'success.main' : 'error.main'}>
-                Unrealized: {formatCurrency(groupSummary.totalUnrealizedGain, displayCurrency, 0)}
+                {t('Unrealized:', 'לא ממומש:')} {formatCurrency(groupSummary.totalUnrealizedGain, displayCurrency, 0)}
               </Typography>
             </Box>
           </Box>
@@ -145,33 +141,33 @@ export function DashboardTable(props: TableProps) {
           <Table size="small">
             <TableHead>
               <TableRow sx={{ bgcolor: theme.palette.background.paper }}>
-                {columnVisibility.displayName ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'displayName')}><TableSortLabel active={sortBy === 'ticker'} direction={sortDir} onClick={() => handleSort('ticker')}>Display Name</TableSortLabel></TableCell> : null}
-                {columnVisibility.ticker ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'ticker')}><TableSortLabel active={sortBy === 'ticker'} direction={sortDir} onClick={() => handleSort('ticker')}>Ticker</TableSortLabel></TableCell> : null}
-                {columnVisibility.sector ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'sector')}><TableSortLabel active={sortBy === 'sector'} direction={sortDir} onClick={() => handleSort('sector')}>Sector</TableSortLabel></TableCell> : null}
-                {columnVisibility.qty ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'qty')} align="right"><TableSortLabel active={sortBy === 'qty'} direction={sortDir} onClick={() => handleSort('qty')}>Quantity</TableSortLabel></TableCell> : null}
-                {columnVisibility.avgCost ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'avgCost')} align="right"><TableSortLabel active={sortBy === 'avgCost'} direction={sortDir} onClick={() => handleSort('avgCost')}>Avg Cost</TableSortLabel></TableCell> : null}
-                {columnVisibility.currentPrice ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'currentPrice')} align="right"><TableSortLabel active={sortBy === 'currentPrice'} direction={sortDir} onClick={() => handleSort('currentPrice')}>Current Price</TableSortLabel></TableCell> : null}
+                {columnVisibility.displayName ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'displayName')}><TableSortLabel active={sortBy === 'ticker'} direction={sortDir} onClick={() => handleSort('ticker')}>{t('Display Name', 'שם תצוגה')}</TableSortLabel></TableCell> : null}
+                {columnVisibility.ticker ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'ticker')}><TableSortLabel active={sortBy === 'ticker'} direction={sortDir} onClick={() => handleSort('ticker')}>{t('Ticker', 'סימול')}</TableSortLabel></TableCell> : null}
+                {columnVisibility.sector ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'sector')}><TableSortLabel active={sortBy === 'sector'} direction={sortDir} onClick={() => handleSort('sector')}>{t('Sector', 'סקטור')}</TableSortLabel></TableCell> : null}
+                {columnVisibility.qty ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'qty')} align="right"><TableSortLabel active={sortBy === 'qty'} direction={sortDir} onClick={() => handleSort('qty')}>{t('Quantity', 'כמות')}</TableSortLabel></TableCell> : null}
+                {columnVisibility.avgCost ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'avgCost')} align="right"><TableSortLabel active={sortBy === 'avgCost'} direction={sortDir} onClick={() => handleSort('avgCost')}>{t('Avg Cost', 'עלות ממוצעת')}</TableSortLabel></TableCell> : null}
+                {columnVisibility.currentPrice ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'currentPrice')} align="right"><TableSortLabel active={sortBy === 'currentPrice'} direction={sortDir} onClick={() => handleSort('currentPrice')}>{t('Current Price', 'מחיר נוכחי')}</TableSortLabel></TableCell> : null}
                 
                 {/* Split Day Change Columns */}
-                {columnVisibility.dayChangeVal ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'dayChangeVal')} align="right"><TableSortLabel active={sortBy === 'dayChangeVal'} direction={sortDir} onClick={() => handleSort('dayChangeVal')}>Day Change $</TableSortLabel></TableCell> : null}
-                {columnVisibility.dayChangePct ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'dayChangePct')} align="right"><TableSortLabel active={sortBy === 'dayChangePct'} direction={sortDir} onClick={() => handleSort('dayChangePct')}>Day Change %</TableSortLabel></TableCell> : null}
+                {columnVisibility.dayChangeVal ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'dayChangeVal')} align="right"><TableSortLabel active={sortBy === 'dayChangeVal'} direction={sortDir} onClick={() => handleSort('dayChangeVal')}>{t('Day Change $', 'שינוי יומי')}</TableSortLabel></TableCell> : null}
+                {columnVisibility.dayChangePct ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'dayChangePct')} align="right"><TableSortLabel active={sortBy === 'dayChangePct'} direction={sortDir} onClick={() => handleSort('dayChangePct')}>{t('Day Change %', '% שינוי יומי')}</TableSortLabel></TableCell> : null}
 
-                {columnVisibility.mv ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'mv')} align="right"><TableSortLabel active={sortBy === 'marketValue'} direction={sortDir} onClick={() => handleSort('marketValue')}>Market Value</TableSortLabel></TableCell> : null}
-                {includeUnvested ? <TableCell align="right"><TableSortLabel active={sortBy === 'mvVested'} direction={sortDir} onClick={() => handleSort('mvVested')}>Vested Value</TableSortLabel></TableCell> : null}
-                {hasUnvested ? <TableCell align="right"><TableSortLabel active={sortBy === 'mvUnvested'} direction={sortDir} onClick={() => handleSort('mvUnvested')}>Unvested Value</TableSortLabel></TableCell> : null}
-                {columnVisibility.unrealizedGain ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'unrealizedGain')} align="right"><TableSortLabel active={sortBy === 'unrealizedGain'} direction={sortDir} onClick={() => handleSort('unrealizedGain')}>Unrealized Gain</TableSortLabel></TableCell> : null}
-                {columnVisibility.unrealizedGainPct ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'unrealizedGainPct')} align="right"><TableSortLabel active={sortBy === 'unrealizedGainPct'} direction={sortDir} onClick={() => handleSort('unrealizedGainPct')}>Unrealized Gain %</TableSortLabel></TableCell> : null}
-                {columnVisibility.realizedGain ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'realizedGain')} align="right"><TableSortLabel active={sortBy === 'realizedGain'} direction={sortDir} onClick={() => handleSort('realizedGain')}>Realized Gain</TableSortLabel></TableCell> : null}
-                {columnVisibility.realizedGainPct ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'realizedGainPct')} align="right"><TableSortLabel active={sortBy === 'realizedGainPct'} direction={sortDir} onClick={() => handleSort('realizedGainPct')}>Realized Gain %</TableSortLabel></TableCell> : null}
-                {columnVisibility.realizedGainAfterTax ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'realizedGainAfterTax')} align="right"><TableSortLabel active={sortBy === 'realizedGainAfterTax'} direction={sortDir} onClick={() => handleSort('realizedGainAfterTax')}>Realized Gain After Tax</TableSortLabel></TableCell> : null}
-                {columnVisibility.totalGain ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'totalGain')} align="right"><TableSortLabel active={sortBy === 'totalGain'} direction={sortDir} onClick={() => handleSort('totalGain')}>Total Gain</TableSortLabel></TableCell> : null}
-                {columnVisibility.totalGainPct ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'totalGainPct')} align="right"><TableSortLabel active={sortBy === 'totalGainPct'} direction={sortDir} onClick={() => handleSort('totalGainPct')}>Total Gain %</TableSortLabel></TableCell> : null}
-                {columnVisibility.valueAfterTax ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'valueAfterTax')} align="right"><TableSortLabel active={sortBy === 'valueAfterTax'} direction={sortDir} onClick={() => handleSort('valueAfterTax')}>Value After Tax</TableSortLabel></TableCell> : null}
+                {columnVisibility.mv ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'mv')} align="right"><TableSortLabel active={sortBy === 'marketValue'} direction={sortDir} onClick={() => handleSort('marketValue')}>{t('Market Value', 'שווי שוק')}</TableSortLabel></TableCell> : null}
+                {includeUnvested ? <TableCell align="right"><TableSortLabel active={sortBy === 'mvVested'} direction={sortDir} onClick={() => handleSort('mvVested')}>{t('Vested Value', 'שווי מובשל')}</TableSortLabel></TableCell> : null}
+                {hasUnvested ? <TableCell align="right"><TableSortLabel active={sortBy === 'mvUnvested'} direction={sortDir} onClick={() => handleSort('mvUnvested')}>{t('Unvested Value', 'שווי לא מובשל')}</TableSortLabel></TableCell> : null}
+                {columnVisibility.unrealizedGain ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'unrealizedGain')} align="right"><TableSortLabel active={sortBy === 'unrealizedGain'} direction={sortDir} onClick={() => handleSort('unrealizedGain')}>{t('Unrealized Gain', 'רווח לא ממומש')}</TableSortLabel></TableCell> : null}
+                {columnVisibility.unrealizedGainPct ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'unrealizedGainPct')} align="right"><TableSortLabel active={sortBy === 'unrealizedGainPct'} direction={sortDir} onClick={() => handleSort('unrealizedGainPct')}>{t('Unrealized Gain %', '% רווח לא ממומש')}</TableSortLabel></TableCell> : null}
+                {columnVisibility.realizedGain ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'realizedGain')} align="right"><TableSortLabel active={sortBy === 'realizedGain'} direction={sortDir} onClick={() => handleSort('realizedGain')}>{t('Realized Gain', 'רווח ממומש')}</TableSortLabel></TableCell> : null}
+                {columnVisibility.realizedGainPct ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'realizedGainPct')} align="right"><TableSortLabel active={sortBy === 'realizedGainPct'} direction={sortDir} onClick={() => handleSort('realizedGainPct')}>{t('Realized Gain %', '% רווח ממומש')}</TableSortLabel></TableCell> : null}
+                {columnVisibility.realizedGainAfterTax ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'realizedGainAfterTax')} align="right"><TableSortLabel active={sortBy === 'realizedGainAfterTax'} direction={sortDir} onClick={() => handleSort('realizedGainAfterTax')}>{t('Realized Gain After Tax', 'רווח ממומש נטו')}</TableSortLabel></TableCell> : null}
+                {columnVisibility.totalGain ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'totalGain')} align="right"><TableSortLabel active={sortBy === 'totalGain'} direction={sortDir} onClick={() => handleSort('totalGain')}>{t('Total Gain', 'רווח כולל')}</TableSortLabel></TableCell> : null}
+                {columnVisibility.totalGainPct ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'totalGainPct')} align="right"><TableSortLabel active={sortBy === 'totalGainPct'} direction={sortDir} onClick={() => handleSort('totalGainPct')}>{t('Total Gain %', '% רווח כולל')}</TableSortLabel></TableCell> : null}
+                {columnVisibility.valueAfterTax ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'valueAfterTax')} align="right"><TableSortLabel active={sortBy === 'valueAfterTax'} direction={sortDir} onClick={() => handleSort('valueAfterTax')}>{t('Value After Tax', 'שווי אחרי מס')}</TableSortLabel></TableCell> : null}
               </TableRow>
             </TableHead>
             <TableBody>
               {sortedHoldings.map(h => {
-                const displayedVestedValue = h.mvVested;
+                const displayedVestedValue = h.mvVested; // TODO: Adjust if needed but usually ratio is same
                 const displayedUnvestedValue = h.mvUnvested;
                 
                 // Dynamic Calculation
@@ -182,24 +178,24 @@ export function DashboardTable(props: TableProps) {
                 
                 return (
                   <TableRow key={h.key} hover onClick={() => navigate(`/ticker/${h.exchange.toUpperCase()}/${h.ticker}`, { state: { holding: h } })} sx={{ cursor: 'pointer' }}>
-                    {columnVisibility.displayName ? <TableCell sx={{ fontWeight: 'bold' }}>{h.displayName}</TableCell> : null}
+                    {columnVisibility.displayName ? <TableCell sx={{ fontWeight: 'bold' }}>{tTry(h.displayName, h.name_he)}</TableCell> : null}
                     {columnVisibility.ticker ? <TableCell>{h.ticker}</TableCell> : null}
                     {columnVisibility.sector ? <TableCell>{h.sector}</TableCell> : null}
                     {columnVisibility.qty ? <TableCell align="right">{h.totalQty.toLocaleString()}</TableCell> : null}
-                    {columnVisibility.avgCost ? <TableCell align="right">{formatPrice(h.avgCost, h.stockCurrency, 2)}</TableCell> : null}
-                    {columnVisibility.currentPrice ? <TableCell align="right">{formatPrice(h.currentPrice, h.stockCurrency, 2)}</TableCell> : null}
+                    {columnVisibility.avgCost ? <TableCell align="right">{formatPrice(h.avgCost, h.stockCurrency, 2).replace('ag.', t('ag.', "א'"))}</TableCell> : null}
+                    {columnVisibility.currentPrice ? <TableCell align="right">{formatPrice(h.currentPrice, h.stockCurrency, 2).replace('ag.', t('ag.', "א'"))}</TableCell> : null}
                     {columnVisibility.dayChangeVal ? <TableCell align="right" sx={{ color: dayChangePctDisplay >= 0 ? theme.palette.success.main : theme.palette.error.main }}>{formatCurrency(dayChangeValDisplay * h.totalQty, displayCurrency, 2)}</TableCell> : null}
-                    {columnVisibility.dayChangePct ? <TableCell align="right" sx={{ color: dayChangePctDisplay >= 0 ? theme.palette.success.main : theme.palette.error.main }}>{formatPercent(dayChangePctDisplay)}</TableCell> : null}
+                    {columnVisibility.dayChangePct ? <TableCell align="right" sx={{ color: dayChangePctDisplay >= 0 ? theme.palette.success.main : theme.palette.error.main }}>{formatPct(dayChangePctDisplay)}</TableCell> : null}
                     {columnVisibility.mv ? <TableCell align="right">{formatCurrency(displayVals.marketValue, displayCurrency)}</TableCell> : null}
                     {includeUnvested ? <TableCell align="right">{formatConverted(displayedVestedValue, h.portfolioCurrency)}</TableCell> : null}
                     {hasUnvested && displayedUnvestedValue > 0 ? <TableCell align="right" sx={{ color: 'text.secondary' }}>{formatConverted(displayedUnvestedValue, h.portfolioCurrency)}</TableCell> : hasUnvested ? <TableCell align="right" sx={{ color: 'text.secondary' }}>-</TableCell> : null}
                     {columnVisibility.unrealizedGain ? <TableCell align="right"><Typography variant="body2" color={displayVals.unrealizedGain >= 0 ? theme.palette.success.main : theme.palette.error.main}>{formatCurrency(displayVals.unrealizedGain, displayCurrency)}</Typography></TableCell> : null}
-                    {columnVisibility.unrealizedGainPct ? <TableCell align="right" sx={{ color: 'text.secondary' }}>{formatPercent(displayVals.unrealizedGainPct)}</TableCell> : null}
+                    {columnVisibility.unrealizedGainPct ? <TableCell align="right" sx={{ color: 'text.secondary' }}>{formatPct(displayVals.unrealizedGainPct)}</TableCell> : null}
                     {columnVisibility.realizedGain ? <TableCell align="right">{formatCurrency(displayVals.realizedGain, displayCurrency)}</TableCell> : null}
-                    {columnVisibility.realizedGainPct ? <TableCell align="right" sx={{ color: 'text.secondary' }}>{formatPercent(displayVals.realizedGainPct)}</TableCell> : null}
+                    {columnVisibility.realizedGainPct ? <TableCell align="right" sx={{ color: 'text.secondary' }}>{formatPct(displayVals.realizedGainPct)}</TableCell> : null}
                     {columnVisibility.realizedGainAfterTax ? <TableCell align="right">{formatCurrency(displayVals.realizedGainAfterTax, displayCurrency)}</TableCell> : null}
                     {columnVisibility.totalGain ? <TableCell align="right" sx={{ fontWeight: 'bold', color: displayVals.totalGain >= 0 ? theme.palette.success.dark : theme.palette.error.dark }}>{formatCurrency(displayVals.totalGain, displayCurrency)}</TableCell> : null}
-                    {columnVisibility.totalGainPct ? <TableCell align="right" sx={{ color: 'text.secondary' }}>{formatPercent(displayVals.totalGainPct)}</TableCell> : null}
+                    {columnVisibility.totalGainPct ? <TableCell align="right" sx={{ color: 'text.secondary' }}>{formatPct(displayVals.totalGainPct)}</TableCell> : null}
                     {columnVisibility.valueAfterTax ? <TableCell align="right">{formatCurrency(displayVals.valueAfterTax, displayCurrency)}</TableCell> : null}
                   </TableRow>
                 );
@@ -220,7 +216,7 @@ export function DashboardTable(props: TableProps) {
         anchorReference="anchorPosition"
         anchorPosition={contextMenu ? { top: contextMenu.mouseY, left: contextMenu.mouseX } : undefined}
       >
-        <MenuItem onClick={handleHideColumn}>Hide Column</MenuItem>
+        <MenuItem onClick={handleHideColumn}>{t('Hide Column', 'הסתר עמודה')}</MenuItem>
       </Menu>
     </>
   );

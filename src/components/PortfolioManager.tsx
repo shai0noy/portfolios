@@ -12,6 +12,7 @@ import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { type Portfolio, PORTFOLIO_TEMPLATES, Currency } from '../lib/types';
 import { addPortfolio, fetchPortfolios, updatePortfolio } from '../lib/sheets/index';
+import { useLanguage } from '../lib/i18n';
 
 const taxPolicyNames: { [key: string]: string } = {
   REAL_GAIN: "Israel (Real Gain - Inflation Adjusted)",
@@ -35,6 +36,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
   const [editMode, setEditMode] = useState<boolean>(!!portfolioId);
   const [editingPortfolio, setEditingPortfolio] = useState<Partial<Portfolio> | null>(null);
   const [showNewPortfolioForm, setShowNewPortfolioForm] = useState(!!portfolioId);
+  const { t, isRtl } = useLanguage();
 
   // Form State
   const [template, setTemplate] = useState('');
@@ -62,7 +64,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
         setTemplate('');
         setShowNewPortfolioForm(true); // Show the form section
       } else {
-        alert(`Portfolio with ID "${portfolioId}" not found.`);
+        alert(t(`Portfolio with ID "${portfolioId}" not found.`, `תיק עם מזהה "${portfolioId}" לא נמצא.`));
         navigate('/portfolios');
       }
     } else if (!portfolioId) { // Reset form only if not in edit mode from URL
@@ -88,7 +90,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
       setPortfolios(ports);
     } catch (e) {
       console.error("Error loading portfolios", e);
-      alert("Could not load existing portfolios.");
+      alert(t("Could not load existing portfolios.", "לא ניתן לטעון תיקים קיימים."));
     } finally {
       setLoading(false);
     }
@@ -141,19 +143,19 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
 
   const handleSubmit = async () => {
     if (!p.id || !p.name) {
-      alert("ID and Name are required");
+      alert(t("ID and Name are required", "מזהה ושם הם שדות חובה"));
       return;
     }
     setLoading(true);
     try {
       if (editMode) {
         await updatePortfolio(sheetId, p as Portfolio);
-        setMsg('Portfolio Updated!');
+        setMsg(t('Portfolio Updated!', 'התיק עודכן!'));
         setEditMode(false);
         setEditingPortfolio(null);
       } else {
         await addPortfolio(sheetId, p as Portfolio);
-        setMsg('Portfolio Created!');
+        setMsg(t('Portfolio Created!', 'התיק נוצר!'));
         setShowNewPortfolioForm(false); // Hide form after creation
       }
       setP({ id: '', name: '' }); // Reset form only after creation
@@ -162,7 +164,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
       onSuccess();
     } catch (e) {
       console.error(e);
-      alert(`Error ${editMode ? 'updating' : 'creating'} portfolio`);
+      alert(t(`Error ${editMode ? 'updating' : 'creating'} portfolio`, `שגיאה ב${editMode ? 'עדכון' : 'יצירת'} התיק`));
     } finally {
       setLoading(false);
     }
@@ -312,19 +314,19 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
         <Box mb={4}>
           <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
             <Typography variant="h5" fontWeight="600" color="text.primary">
-              {editMode ? `Editing Portfolio: ${editingPortfolio?.name}` : 'Create New Portfolio'}
+              {editMode ? `${t('Editing Portfolio:', 'עריכת תיק:')} ${editingPortfolio?.name}` : t('Create New Portfolio', 'יצירת תיק חדש')}
             </Typography>
             
             {!editMode && (
               <FormControl size="small" sx={{ minWidth: 220 }}>
-                <InputLabel>Load Template</InputLabel>
-                <Select value={template} label="Load Template" onChange={e => handleTemplate(e.target.value)}>
-                  <MenuItem value="">-- Select Template --</MenuItem>
-                  <MenuItem value="std_il">Standard IL (Broker/Bank)</MenuItem>
-                  <MenuItem value="std_us">Standard US (Broker)</MenuItem>
-                  <MenuItem value="pension">Pension</MenuItem>
-                  <MenuItem value="hishtalmut">Hishtalmut / Gemmel</MenuItem>
-                  <MenuItem value="rsu">RSU (Income Taxed)</MenuItem>
+                <InputLabel>{t('Load Template', 'טען תבנית')}</InputLabel>
+                <Select value={template} label={t('Load Template', 'טען תבנית')} onChange={e => handleTemplate(e.target.value)}>
+                  <MenuItem value="">-- {t('Select Template', 'בחר תבנית')} --</MenuItem>
+                  <MenuItem value="std_il">{t('Standard IL (Broker/Bank)', 'רגיל ישראל (ברוקר/בנק)')}</MenuItem>
+                  <MenuItem value="std_us">{t('Standard US (Broker)', 'רגיל ארה"ב (ברוקר)')}</MenuItem>
+                  <MenuItem value="pension">{t('Pension', 'פנסיה')}</MenuItem>
+                  <MenuItem value="hishtalmut">{t('Hishtalmut / Gemmel', 'השתלמות / גמל')}</MenuItem>
+                  <MenuItem value="rsu">{t('RSU (Income Taxed)', 'RSU (ממוסה כהכנסה)')}</MenuItem>
                 </Select>
               </FormControl>
             )}
@@ -336,21 +338,21 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
               <Card variant="outlined" sx={{ height: '100%' }}>
                 <CardContent>
                   <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                    PORTFOLIO IDENTITY
+                    {t('PORTFOLIO IDENTITY', 'פרטי זיהוי')}
                   </Typography>
                   <Grid container spacing={3} mt={2}>
                     <Grid item xs={12}>
-                      <TextField fullWidth size="small" label="Display Name" value={p.name} onChange={e => handleNameChange(e.target.value)} />
+                      <TextField fullWidth size="small" label={t('Display Name', 'שם תצוגה')} value={p.name} onChange={e => handleNameChange(e.target.value)} />
                     </Grid>
                     <Grid item xs={12} sm={6}>
-                      <Tooltip title="Unique System ID (auto-generated). No spaces.">
-                        <TextField fullWidth size="small" label="ID" value={p.id} onChange={(e) => handleIdChange(e.target.value)} disabled={editMode} />
+                      <Tooltip title={t("Unique System ID (auto-generated). No spaces.", "מזהה ייחודי (נוצר אוטומטית). ללא רווחים.")}>
+                        <TextField fullWidth size="small" label={t('ID', 'מזהה')} value={p.id} onChange={(e) => handleIdChange(e.target.value)} disabled={editMode} />
                       </Tooltip>
                     </Grid>
                     <Grid item xs={12} sm={6}>
                       <FormControl fullWidth size="small">
-                        <InputLabel>Currency</InputLabel>
-                        <Select value={p.currency} label="Currency" onChange={e => set('currency', e.target.value)}>
+                        <InputLabel>{t('Currency', 'מטבע')}</InputLabel>
+                        <Select value={p.currency} label={t('Currency', 'מטבע')} onChange={e => set('currency', e.target.value)}>
                           <MenuItem value="ILS">ILS</MenuItem>
                           <MenuItem value="USD">USD</MenuItem>
                         </Select>
@@ -365,14 +367,14 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
             <Grid item xs={12} md={6}>
               <Card variant="outlined" sx={{ height: '100%' }}>
                 <CardContent>
-                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>TAXATION & DIVIDENDS</Typography>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>{t('TAXATION & DIVIDENDS', 'מיסוי ודיבידנדים')}</Typography>
                   <Grid container spacing={3} mt={2}>
                      <Grid item xs={12}>
                       <FormControl fullWidth size="small">
-                        <InputLabel>Cap. Gain Tax Policy</InputLabel>
+                        <InputLabel>{t('Cap. Gain Tax Policy', 'מדיניות מס רווחי הון')}</InputLabel>
                         <Select 
                           value={p.taxPolicy} 
-                          label="Cap. Gain Tax Policy" 
+                          label={t('Cap. Gain Tax Policy', 'מדיניות מס רווחי הון')}
                           onChange={e => set('taxPolicy', e.target.value)}
                         >
                           {Object.entries(taxPolicyNames).map(([key, name]) => (
@@ -382,15 +384,15 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                       </FormControl>
                     </Grid>
                     <Grid item xs={12} sm={6}>
-                      <PercentageField label="Gains Tax" field="cgt" tooltip="Capital Gains Tax" disabled={p.taxPolicy === 'TAX_FREE' || p.taxPolicy === 'PENSION'} />
+                      <PercentageField label={t('Gains Tax', 'מס רווח הון')} field="cgt" tooltip={t("Capital Gains Tax", "מס רווחי הון")} disabled={p.taxPolicy === 'TAX_FREE' || p.taxPolicy === 'PENSION'} />
                     </Grid>
                     <Grid item xs={12} sm={6}>
-                       <PercentageField label="Tax on Base Price" field="incTax" tooltip="Income Tax (for RSUs)" disabled={p.taxPolicy === 'TAX_FREE'} />
+                       <PercentageField label={t('Tax on Base Price', 'מס הכנסה (בסיס)')} field="incTax" tooltip={t("Income Tax (for RSUs)", "מס הכנסה (עבור RSU)")} disabled={p.taxPolicy === 'TAX_FREE'} />
                     </Grid>
                     <Grid item xs={12} sm={6}>
                       <FormControl fullWidth size="small">
-                        <InputLabel>Dividend Policy</InputLabel>
-                        <Select value={p.divPolicy} label="Dividend Policy" onChange={e => set('divPolicy', e.target.value)}>
+                        <InputLabel>{t('Dividend Policy', 'מדיניות דיבידנד')}</InputLabel>
+                        <Select value={p.divPolicy} label={t('Dividend Policy', 'מדיניות דיבידנד')} onChange={e => set('divPolicy', e.target.value)}>
                           <MenuItem value="cash_taxed">Cash (Taxed)</MenuItem>
                           <MenuItem value="accumulate_tax_free">Accumulate (Tax-Free)</MenuItem>
                           <MenuItem value="hybrid_rsu">Accumulate Unvested / Cash Vested</MenuItem>
@@ -399,9 +401,9 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                     </Grid>
                     <Grid item xs={12} sm={6}>
                       <PercentageField 
-                        label="Div Tax/Fee Rate" 
+                        label={t('Div Tax/Fee Rate', 'מס/עמלת דיבידנד')}
                         field="divCommRate" 
-                        tooltip="Tax or fee rate on cash dividends" 
+                        tooltip={t("Tax or fee rate on cash dividends", "שיעור מס או עמלה על דיבידנד במזומן")}
                         disabled={p.taxPolicy === 'TAX_FREE' || p.divPolicy !== 'cash_taxed'}
                       />
                     </Grid>
@@ -414,16 +416,16 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
             <Grid item xs={12} md={6}>
               <Card variant="outlined" sx={{ height: '100%' }}>
                 <CardContent>
-                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>TRADING COSTS</Typography>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>{t('TRADING COSTS', 'עלויות מסחר')}</Typography>
                   <Grid container spacing={3} mt={2}>
                     <Grid item xs={12} sm={4}>
-                      <PercentageField label="Rate" field="commRate" tooltip="Commission rate per trade" />
+                      <PercentageField label={t('Rate', 'שיעור')} field="commRate" tooltip={t("Commission rate per trade", "שיעור עמלה לכל פעולה")} />
                     </Grid>
                     <Grid item xs={12} sm={4}>
-                      <NumericField label="Min Fee" field="commMin" showCurrency />
+                      <NumericField label={t('Min Fee', 'עמלת מינימום')} field="commMin" showCurrency />
                     </Grid>
                     <Grid item xs={12} sm={4}>
-                      <NumericField label="Max Fee" field="commMax" showCurrency />
+                      <NumericField label={t('Max Fee', 'עמלת מקסימום')} field="commMax" showCurrency />
                     </Grid>
                   </Grid>
                 </CardContent>
@@ -435,23 +437,23 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
               <Card variant="outlined" sx={{ height: '100%' }}>
                 <CardContent>
                   <Box display="flex" alignItems="center" gap={1} mb={1}>
-                     <Typography variant="subtitle2" color="text.secondary">HOLDING COSTS & FEES</Typography>
-                     <Tooltip title="Recurring fees charged by the broker/manager (e.g. 0.7% Accumulation, or 15 ILS/month).">
+                     <Typography variant="subtitle2" color="text.secondary">{t('HOLDING COSTS & FEES', 'דמי ניהול והחזקה')}</Typography>
+                     <Tooltip title={t("Recurring fees charged by the broker/manager (e.g. 0.7% Accumulation, or 15 ILS/month).", "עמלות חוזרות הנגבות על ידי הברוקר/מנהל (למשל 0.7% צבירה, או 15 ש\"ח לחודש).")}>
                        <InfoOutlinedIcon fontSize="inherit" color="action" />
                      </Tooltip>
                   </Box>
                   <Grid container spacing={3} mt={2}>
                     <Grid item xs={12} sm={4}>
                        {p.mgmtType === 'percentage' ? (
-                         <PercentageField label="Value" field="mgmtVal" />
+                         <PercentageField label={t('Value', 'ערך')} field="mgmtVal" />
                        ) : (
-                         <NumericField label="Value" field="mgmtVal" showCurrency />
+                         <NumericField label={t('Value', 'ערך')} field="mgmtVal" showCurrency />
                        )}
                     </Grid>
                     <Grid item xs={12} sm={4}>
                       <FormControl fullWidth size="small">
-                        <InputLabel>Type</InputLabel>
-                        <Select value={p.mgmtType} label="Type" onChange={e => set('mgmtType', e.target.value)}>
+                        <InputLabel>{t('Type', 'סוג')}</InputLabel>
+                        <Select value={p.mgmtType} label={t('Type', 'סוג')} onChange={e => set('mgmtType', e.target.value)}>
                           <MenuItem value="percentage">Percentage</MenuItem>
                           <MenuItem value="fixed">Fixed</MenuItem>
                         </Select>
@@ -459,8 +461,8 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                     </Grid>
                     <Grid item xs={12} sm={4}>
                       <FormControl fullWidth size="small">
-                        <InputLabel>Freq</InputLabel>
-                        <Select value={p.mgmtFreq} label="Frequency" onChange={e => set('mgmtFreq', e.target.value)}>
+                        <InputLabel>{t('Frequency', 'תדירות')}</InputLabel>
+                        <Select value={p.mgmtFreq} label={t('Frequency', 'תדירות')} onChange={e => set('mgmtFreq', e.target.value)}>
                           <MenuItem value="monthly">Monthly</MenuItem>
                           <MenuItem value="quarterly">Quarterly</MenuItem>
                           <MenuItem value="yearly">Yearly</MenuItem>
@@ -478,7 +480,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                 startIcon={<CheckCircleOutlineIcon />} onClick={handleSubmit} disabled={loading}
                 sx={{ py: 1.5, fontSize: '1rem' }}
               >
-                {loading ? (editMode ? 'Updating...' : 'Creating...') : (editMode ? 'Update Portfolio' : 'Create Portfolio')}
+                {loading ? (editMode ? t('Updating...', 'מעדכן...') : t('Creating...', 'יוצר...')) : (editMode ? t('Update Portfolio', 'עדכן תיק') : t('Create Portfolio', 'צור תיק'))}
               </Button>
               {(editMode || showNewPortfolioForm) && (
                 <Button 
@@ -487,7 +489,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                   disabled={loading}
                   sx={{ py: 1.5, fontSize: '1rem', mt: 1 }}
                 >
-                  {editMode ? 'Cancel Edit' : 'Cancel'}
+                  {editMode ? t('Cancel Edit', 'בטל עריכה') : t('Cancel', 'ביטול')}
                 </Button>
               )}
             </Grid>
@@ -503,11 +505,11 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
       <Box mt={5}>
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
           <Typography variant="h5" fontWeight="600" color="text.primary">
-            Existing Portfolios
+            {t('Existing Portfolios', 'תיקים קיימים')}
           </Typography>
           {!showNewPortfolioForm && !editMode && (
             <Button variant="outlined" onClick={() => setShowNewPortfolioForm(true)}>
-              Add New Portfolio
+              {t('Add New Portfolio', 'הוסף תיק חדש')}
             </Button>
           )}
         </Box>
@@ -518,11 +520,11 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  <TableCell>ID</TableCell>
-                  <TableCell>Name</TableCell>
-                  <TableCell>Currency</TableCell>
-                  <TableCell>Tax Policy</TableCell>
-                  <TableCell>Actions</TableCell>
+                  <TableCell>{t('ID', 'מזהה')}</TableCell>
+                  <TableCell>{t('Name', 'שם')}</TableCell>
+                  <TableCell>{t('Currency', 'מטבע')}</TableCell>
+                  <TableCell>{t('Tax Policy', 'מדיניות מס')}</TableCell>
+                  <TableCell>{t('Actions', 'פעולות')}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -533,8 +535,8 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                     <TableCell>{port.currency}</TableCell>
                     <TableCell>{taxPolicyNames[port.taxPolicy] || port.taxPolicy}</TableCell>
                     <TableCell>
-                      <Button size="small" onClick={() => navigate(`/portfolios/${port.id}`)} sx={{ mr: 1 }}>Edit</Button>
-                      <Button size="small" color="error" onClick={() => alert('Delete: ' + port.id)}>Delete</Button>
+                      <Button size="small" onClick={() => navigate(`/portfolios/${port.id}`)} sx={{ [isRtl ? 'ml' : 'mr']: 1 }}>{t('Edit', 'ערוך')}</Button>
+                      <Button size="small" color="error" onClick={() => alert('Delete: ' + port.id)}>{t('Delete', 'מחק')}</Button>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -542,7 +544,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
             </Table>
           </TableContainer>
         ) : (
-          <Typography color="text.secondary">No portfolios found.</Typography>
+          <Typography color="text.secondary">{t('No portfolios found.', 'לא נמצאו תיקים.')}</Typography>
         )}
       </Box>
     </Box>

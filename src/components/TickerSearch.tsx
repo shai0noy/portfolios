@@ -6,6 +6,7 @@ import {
 import { getTaseTickersDataset, getTickerData, type TaseTicker, type TickerData, DEFAULT_SECURITY_TYPE_CONFIG } from '../lib/fetching';
 import type { Portfolio } from '../lib/types';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
+import { useLanguage } from '../lib/i18n';
 
 interface TickerSearchProps {
   onTickerSelect: (ticker: TickerData & { symbol: string; numeric_id?: number }) => void;
@@ -36,6 +37,7 @@ interface SearchResult {
   symbol: string;
   numericSecurityId?: number; // TASE specific
   name: string;
+  name_he?: string;
   exchange: string;
   type?: string;
   globesInstrumentId?: string; // TASE specific
@@ -56,6 +58,7 @@ function processTaseResult(t: TaseTicker, instrumentType: string, portfolios: Po
     symbol: t.symbol,
     numericSecurityId: t.securityId,
     name: t.name_en,
+    name_he: t.name_he,
     exchange: t.exchange || 'TASE',
     type: instrumentType,
     globesInstrumentId: t.globesInstrumentId,
@@ -125,6 +128,7 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
   const [selectedType, setSelectedType] = useState('ALL');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { t, tTry, isRtl } = useLanguage();
 
   const searchTickers = useCallback(async (term: string, exchange: string) => {
     try {
@@ -199,6 +203,15 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
       .map(([key, { displayName }]) => ({ key, displayName }));
   }, []);
 
+  const getTranslatedType = (typeKey: string, defaultName: string) => {
+    const map: Record<string, string> = {
+      'Stock': t('Stock', 'מניה'),
+      'ETF': t('ETF', 'תעודת סל'),
+      'Mutual Fund': t('Mutual Fund', 'קרן נאמנות'),
+    };
+    return map[defaultName] || defaultName;
+  };
+
   const handleOptionSelect = async (result: SearchResult) => {
     if (result.rawTicker && 'price' in result.rawTicker) {
       onTickerSelect({ ...result.rawTicker, symbol: result.symbol, exchange: result.exchange, numeric_id: result.numericSecurityId });
@@ -220,7 +233,7 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
         <Grid item xs={12} sm={6}>
           <TextField
             onFocus={() => setIsFocused(true)}
-            label={`Search Ticker ${selectedExchange === 'ALL' ? '' : `(${selectedExchange})`}`}
+            label={`${t('Search Ticker', 'חפש נייר')} ${selectedExchange === 'ALL' ? '' : `(${selectedExchange})`}`}
             size="small"
             fullWidth
             value={inputValue}
@@ -236,13 +249,13 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
         </Grid>
         <Grid item xs={6} sm={3}>
           <FormControl fullWidth size="small">
-            <InputLabel>Exchange</InputLabel>
+            <InputLabel>{t('Exchange', 'בורסה')}</InputLabel>
             <Select
               value={selectedExchange}
-              label="Exchange"
+              label={t('Exchange', 'בורסה')}
               onChange={(e) => setSelectedExchange(e.target.value as string)}
             >
-              <MenuItem value="ALL">All</MenuItem>
+              <MenuItem value="ALL">{t('All', 'הכל')}</MenuItem>
               <MenuItem value="TASE">TASE</MenuItem>
               <MenuItem value="NASDAQ">NASDAQ</MenuItem>
               <MenuItem value="NYSE">NYSE</MenuItem>
@@ -251,14 +264,14 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
         </Grid>
         <Grid item xs={6} sm={3}>
           <FormControl fullWidth size="small">
-            <InputLabel>Type</InputLabel>
+            <InputLabel>{t('Type', 'סוג')}</InputLabel>
             <Select
               value={selectedType}
-              label="Type"
+              label={t('Type', 'סוג')}
               onChange={(e) => setSelectedType(e.target.value as string)}
               disabled={selectedExchange !== 'ALL' && selectedExchange !== 'TASE'}
             >
-              <MenuItem value="ALL">All Types</MenuItem>
+              <MenuItem value="ALL">{t('All Types', 'כל הסוגים')}</MenuItem>
               {typeFilterOptions.map(({ key, displayName }) => (
                 <MenuItem key={key} value={key}>{displayName}</MenuItem>
               ))}
@@ -275,16 +288,16 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
               <Box key={`${option.exchange}:${option.symbol}`}>
                 <ListItemButton onClick={() => handleOptionSelect(option)}>
                   <ListItemText
-                    primary={<Typography variant="body1">{option.name}</Typography>}
+                    primary={<Typography variant="body1">{tTry(option.name, option.name_he)}</Typography>}
                     secondaryTypographyProps={{ component: 'div' }} // Render secondary as div
                     secondary={
                       <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mt: 0.5 }}>
                         <Chip
                           label={`${option.exchange}:${option.symbol}${option.numericSecurityId ? ` (${option.numericSecurityId})` : ''}`} size="small" variant="outlined" />
-                        {option.type && DEFAULT_SECURITY_TYPE_CONFIG[option.type] && <Chip label={DEFAULT_SECURITY_TYPE_CONFIG[option.type]?.displayName || option.type} size="small" color="primary" variant="outlined" />}
+                        {option.type && DEFAULT_SECURITY_TYPE_CONFIG[option.type] && <Chip label={getTranslatedType(option.type, DEFAULT_SECURITY_TYPE_CONFIG[option.type]?.displayName || option.type)} size="small" color="primary" variant="outlined" />}
                         {option.ownedInPortfolios && option.ownedInPortfolios.length > 0 && (
                           <Tooltip title={`Owned in: ${option.ownedInPortfolios.join(', ')}`}>
-                            <BusinessCenterIcon color="success" sx={{ fontSize: 16, ml: 1 }} />
+                            <BusinessCenterIcon color="success" sx={{ fontSize: 16, [isRtl ? 'mr' : 'ml']: 1 }} />
                           </Tooltip>
                         )}
                       </Box>

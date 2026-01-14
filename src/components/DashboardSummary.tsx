@@ -4,6 +4,7 @@ import { logIfFalsy } from '../lib/utils';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import type { ExchangeRates } from '../lib/types';
+import { useLanguage } from '../lib/i18n';
 
 interface SummaryProps {
   summary: {
@@ -111,6 +112,7 @@ const PerfStat = ({ label, percentage, isIncomplete, aum, displayCurrency, size 
 
 export function DashboardSummary({ summary, displayCurrency, exchangeRates, onBack, onCurrencyChange, selectedPortfolio }: SummaryProps) {
   logIfFalsy(exchangeRates, "DashboardSummary: exchangeRates missing");
+  const { t, isRtl } = useLanguage();
 
   return (
     <Paper variant="outlined" sx={{ p: 3, mb: 4, position: 'relative' }}>
@@ -121,20 +123,20 @@ export function DashboardSummary({ summary, displayCurrency, exchangeRates, onBa
               <Button 
                 variant="text" 
                 onClick={onBack} 
-                startIcon={<ArrowBackIcon fontSize="small" />}
+                startIcon={<ArrowBackIcon fontSize="small" sx={{ transform: isRtl ? 'rotate(180deg)' : 'none' }} />}
                 sx={{ 
                   mb: 0.5, 
                   textTransform: 'none', 
                   color: 'text.secondary', 
                   minWidth: 'auto', 
                   p: 0,
-                  ml: -1,
+                  [isRtl ? 'mr' : 'ml']: -1,
                   mt: -1,
                   '&:hover': { bgcolor: 'transparent', color: 'text.primary' } 
                 }}
                 disableRipple
               >
-                Back to All
+                {t('Back to All', 'חזרה לרשימה')}
               </Button>
               <Typography variant="h5" fontWeight="bold" color="primary">{selectedPortfolio}</Typography>
             </>
@@ -148,20 +150,20 @@ export function DashboardSummary({ summary, displayCurrency, exchangeRates, onBa
               {/* Main Stats Row */}
               <Box display="flex" gap={4} justifyContent="flex-end" alignItems="center" flexWrap="wrap">
                 <Stat 
-                    label="Value After Tax"
+                    label={t("Value After Tax", "שווי אחרי מס")}
                     value={summary.valueAfterTax}
                     pct={summary.aum > 0 ? summary.valueAfterTax / summary.aum : undefined}
                     displayCurrency={displayCurrency}
                 />
                 <Stat 
-                    label="Unrealized Gain"
+                    label={t("Unrealized Gain", "רווח לא ממומש")}
                     value={summary.totalUnrealized}
                     pct={summary.totalUnrealizedGainPct}
                     color={summary.totalUnrealized >= 0 ? 'success.main' : 'error.main'}
                     displayCurrency={displayCurrency}
                 />
                 <Stat 
-                    label="Realized Gain"
+                    label={t("Realized Gain", "רווח ממומש")}
                     value={summary.totalRealized}
                     pct={summary.totalRealizedGainPct}
                     color={summary.totalRealized >= 0 ? 'success.main' : 'error.main'}
@@ -172,7 +174,7 @@ export function DashboardSummary({ summary, displayCurrency, exchangeRates, onBa
                   exclusive
                   onChange={(_, val) => val && onCurrencyChange(val)}
                   size="small"
-                  sx={{ ml: 2, height: 32 }}
+                  sx={{ [isRtl ? 'mr' : 'ml']: 2, height: 32, direction: 'ltr' }}
                 >
                   <ToggleButton value="USD" sx={{ px: 2, fontWeight: 600 }}>USD</ToggleButton>
                   <ToggleButton value="ILS" sx={{ px: 2, fontWeight: 600 }}>ILS</ToggleButton>
@@ -186,16 +188,16 @@ export function DashboardSummary({ summary, displayCurrency, exchangeRates, onBa
                     value={summary.totalDayChange}
                     pct={summary.totalDayChangePct}
                     color={summary.totalDayChange >= 0 ? 'success.main' : 'error.main'}
-                    tooltip={summary.totalDayChangeIsIncomplete ? "Calculation is based on partial data." : undefined}
+                    tooltip={summary.totalDayChangeIsIncomplete ? t("Calculation is based on partial data.", "החישוב מבוסס על נתונים חלקיים.") : undefined}
                     displayCurrency={displayCurrency}
                     size="small"
                 />
                 
-                <PerfStat label="1W" percentage={summary.perf1w} isIncomplete={summary.perf1w_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
-                <PerfStat label="1M" percentage={summary.perf1m} isIncomplete={summary.perf1m_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
-                <PerfStat label="3M" percentage={summary.perf3m} isIncomplete={summary.perf3m_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
-                <PerfStat label="YTD" percentage={summary.perfYtd} isIncomplete={summary.perfYtd_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
-                <PerfStat label="1Y" percentage={summary.perf1y} isIncomplete={summary.perf1y_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
+                <PerfStat label={t("1W", "שבוע")} percentage={summary.perf1w} isIncomplete={summary.perf1w_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
+                <PerfStat label={t("1M", "חודש")} percentage={summary.perf1m} isIncomplete={summary.perf1m_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
+                <PerfStat label={t("3M", "3 חודשים")} percentage={summary.perf3m} isIncomplete={summary.perf3m_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
+                <PerfStat label={t("YTD", "מתחילת שנה")} percentage={summary.perfYtd} isIncomplete={summary.perfYtd_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
+                <PerfStat label={t("1Y", "שנה")} percentage={summary.perf1y} isIncomplete={summary.perf1y_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
               </Box>
           </Box>
         </Grid>

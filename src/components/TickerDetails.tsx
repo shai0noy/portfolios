@@ -8,6 +8,7 @@ import { getTickerData } from '../lib/fetching';
 import { fetchHolding, getMetadataValue } from '../lib/sheets/index';
 import type { Holding } from '../lib/types';
 import { formatPrice, formatPercent } from '../lib/currency';
+import { useLanguage } from '../lib/i18n';
 
 interface TickerDetailsRouteParams extends Record<string, string | undefined> {
   exchange: string;
@@ -24,6 +25,7 @@ export function TickerDetails({ sheetId }: { sheetId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [sheetRebuildTime, setSheetRebuildTime] = useState<string | null>(null);
+  const { t, tTry, isRtl } = useLanguage();
   const fetchData = useCallback(async (forceRefresh = false) => {
     if (ticker && exchange) {
       if (!forceRefresh) setLoading(true);
@@ -50,7 +52,7 @@ export function TickerDetails({ sheetId }: { sheetId: string }) {
               const tickerData = await getTickerData(ticker, exchange, numericIdVal, undefined, forceRefresh);
               console.log('TickerDetails: live getTickerData result:', tickerData);
               if (upperExchange === 'TASE' && !tickerData) {
-                setError('Ticker not found on TASE.');
+                setError(t('Ticker not found on TASE.', 'הנייר לא נמצא ב-TASE.'));
               }
               // Standardize numeric_id from API to numericId for frontend consistency
               if (tickerData && tickerData.numericId) {
@@ -66,7 +68,7 @@ export function TickerDetails({ sheetId }: { sheetId: string }) {
         setSheetRebuildTime(sheetRebuild);
 
       } catch (err) {
-        setError('Error fetching ticker data.');
+        setError(t('Error fetching ticker data.', 'שגיאה בטעינת נתוני הנייר.'));
         setData(null);
         setHoldingData(null);
         console.error(err);
@@ -75,7 +77,7 @@ export function TickerDetails({ sheetId }: { sheetId: string }) {
         else setRefreshing(false);
       }
     } else {
-      setError('Missing ticker or exchange information.');
+      setError(t('Missing ticker or exchange information.', 'חסר מידע על סימול או בורסה.'));
       setLoading(false);
       setData(null);
     }
@@ -159,13 +161,32 @@ export function TickerDetails({ sheetId }: { sheetId: string }) {
     '5Y': getPerf(data?.changePct5y ?? holdingData?.changePct5y, data?.changeDate5y ?? holdingData?.changeDate5y),
   };
 
+  const translateRange = (range: string) => {
+    const map: Record<string, string> = {
+      '1D': t('1D', 'יומי'),
+      '1W': t('1W', 'שבוע'),
+      '1M': t('1M', 'חודש'),
+      '3M': t('3M', '3 חודשים'),
+      'YTD': t('YTD', 'מתחילת שנה'),
+      '1Y': t('1Y', 'שנה'),
+      '3Y': t('3Y', '3 שנים'),
+      '5Y': t('5Y', '5 שנים'),
+      'All Time': t('All Time', 'כל הזמן'),
+    };
+    // Handle dynamic days like "5D"
+    if (range.endsWith('D') && range !== '1D' && range !== 'YTD') {
+        return range.replace('D', t('D', ' ימים'));
+    }
+    return map[range] || range;
+  };
+
   return (
     <Dialog open={true} onClose={handleClose} maxWidth={false} fullWidth PaperProps={{ sx: { width: 'min(900px, 96%)' } }}>
       <DialogTitle>
         <Box display="flex" justifyContent="space-between" alignItems="center">
           <Box>
             <Typography variant="h4" component="div" fontWeight="bold">
-              {data?.name || holdingData?.name || ticker}
+              {tTry(data?.name || holdingData?.name || ticker, data?.name_he || holdingData?.name_he)}
             </Typography>
             <Typography variant="subtitle1" component="div" color="text.secondary">
               {(data?.name || holdingData?.name) ? `${exchange?.toUpperCase()}: ${ticker}` : exchange?.toUpperCase()}
@@ -183,7 +204,7 @@ export function TickerDetails({ sheetId }: { sheetId: string }) {
           </Box>
         )}
         {error && <Typography color="error">{error}</Typography>}
-        {!loading && !error && !displayData && <Typography>No data available.</Typography>}
+        {!loading && !error && !displayData && <Typography>{t('No data available.', 'אין נתונים זמינים.')}</Typography>}
         {displayData && (
           <>
             {(() => {
@@ -196,26 +217,27 @@ export function TickerDetails({ sheetId }: { sheetId: string }) {
               return (
                 <Box display="flex" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
                   <Box display="flex" alignItems="baseline" sx={{ gap: 1, flex: 1, minWidth: 0 }}>
-                    <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>PRICE</Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>{t('PRICE', 'מחיר')}</Typography>
                     <Typography variant="h6" component="div" fontWeight={600} sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {formatPrice(price, isTase ? 'ILA' : displayData.currency, maxDecimals)}
+                      {formatPrice(price, isTase ? 'ILA' : displayData.currency, maxDecimals).replace('ag.', t('ag.', "א'"))}
                     </Typography>
                     {openPrice != null && (
                       <Typography variant="caption" color="text.secondary" sx={{ ml: 1, whiteSpace: 'nowrap' }}>
-                        Open: {formatPrice(openPrice, isTase ? 'ILA' : displayData.currency, maxDecimals)}
+                        <Typography component="span" variant="caption" sx={{ [isRtl ? 'ml' : 'mr']: 0.5 }}>{t('Open:', 'פתיחה:')}</Typography>
+                        {formatPrice(openPrice, isTase ? 'ILA' : displayData.currency, maxDecimals).replace('ag.', t('ag.', "א'"))}
                       </Typography>
                     )}
                   </Box>
 
-                  <Tooltip title={`Day change (as of ${lastUpdated})`} placement="top">
-                    <Box sx={{ textAlign: 'right', ml: 2, minWidth: 96 }}>
+                  <Tooltip title={`${t('Day change', 'שינוי יומי')} (${lastUpdated})`} placement="top">
+                    <Box sx={{ textAlign: 'right', [isRtl ? 'mr' : 'ml']: 2, minWidth: 96 }}>
                       <Typography variant="h6" sx={{ fontWeight: 700, color: dayChange >= 0 ? 'success.main' : 'error.main' }}>{formatPercent(dayChange)}</Typography>
                     </Box>
                   </Tooltip>
                 </Box>
               );
             })()}
-            <Typography variant="subtitle2" gutterBottom>Performance</Typography>
+            <Typography variant="subtitle2" gutterBottom>{t('Performance', 'ביצועים')}</Typography>
             <Box display="flex" flexWrap="wrap" gap={1} sx={{ mb: 2 }}>
               {Object.entries(perfData).map(([range, item]) => {
                 if (!item || item.val === undefined || item.val === null || isNaN(item.val)) {
@@ -243,7 +265,7 @@ export function TickerDetails({ sheetId }: { sheetId: string }) {
                       }}
                       label={
                         <>
-                          <Typography variant="caption" color="text.secondary">{range}</Typography>
+                          <Typography variant="caption" color="text.secondary">{translateRange(range)}</Typography>
                           <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatPercent(value)}</Typography>
                         </>
                       }
@@ -253,7 +275,7 @@ export function TickerDetails({ sheetId }: { sheetId: string }) {
               })}
             </Box>
 
-            <Typography variant="subtitle2" gutterBottom>Dividend Gains</Typography>
+            <Typography variant="subtitle2" gutterBottom>{t('Dividend Gains', 'דיבידנדים')}</Typography>
             <Box display="flex" flexWrap="wrap" gap={1} sx={{ mb: 2 }}>
               {['YTD', '1Y', '3Y', '5Y', 'All Time'].map(range => (
                 <Chip
@@ -263,7 +285,7 @@ export function TickerDetails({ sheetId }: { sheetId: string }) {
                   sx={{ minWidth: 80, py: 0.5, px: 0.75, height: 'auto', '& .MuiChip-label': { display: 'flex', flexDirection: 'column', alignItems: 'center' }, '& .MuiTypography-caption, & .MuiTypography-body2': { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 72 } }}
                   label={
                     <>
-                      <Typography variant="caption" color="text.secondary">{range}</Typography>
+                      <Typography variant="caption" color="text.secondary">{translateRange(range)}</Typography>
                       <Typography variant="body2">--%</Typography>
                     </>
                   }
@@ -272,7 +294,7 @@ export function TickerDetails({ sheetId }: { sheetId: string }) {
             </Box>
             {/* TODO: Fetch and display actual dividend gains data */}
 
-            <Typography variant="subtitle2" gutterBottom>External Links</Typography>
+            <Typography variant="subtitle2" gutterBottom>{t('External Links', 'קישורים חיצוניים')}</Typography>
 
             <Box display="flex" flexWrap="wrap" gap={1}>
               {getExternalLinks().map(link => (
@@ -291,9 +313,9 @@ export function TickerDetails({ sheetId }: { sheetId: string }) {
 
             <Box mt={2} display="flex" justifyContent="flex-end" alignItems="center" gap={1}>
               <Typography variant="caption" color="text.secondary">
-                {data?.timestamp ? `Live Fetched: ${formatTimestamp(data.timestamp)}` : (sheetRebuildTime ? `Sheet Rebuilt: ${formatTimestamp(sheetRebuildTime)}` : 'Freshness N/A')}
+                {data?.timestamp ? `${t('Live Fetched:', 'עדכון אחרון:')} ${formatTimestamp(data.timestamp)}` : (sheetRebuildTime ? `${t('Sheet Rebuilt:', 'עדכון גיליון:')} ${formatTimestamp(sheetRebuildTime)}` : t('Freshness N/A', 'אין מידע על עדכון'))}
               </Typography>
-              <Tooltip title="Refresh Data">
+              <Tooltip title={t("Refresh Data", "רענן נתונים")}>
                 <IconButton onClick={() => fetchData(true)} disabled={refreshing} size="small">
                   {refreshing ? <CircularProgress size={16} /> : <RefreshIcon fontSize="small" />}
                 </IconButton>
@@ -305,8 +327,8 @@ export function TickerDetails({ sheetId }: { sheetId: string }) {
 
 
       <DialogActions>
-        <Button onClick={handleAddTransaction} startIcon={<AddIcon />}>Add Transaction</Button>
-        <Button onClick={handleClose}>Close</Button>
+        <Button onClick={handleAddTransaction} startIcon={<AddIcon />}>{t('Add Transaction', 'הוסף עסקה')}</Button>
+        <Button onClick={handleClose}>{t('Close', 'סגור')}</Button>
       </DialogActions>
     </Dialog>
   );

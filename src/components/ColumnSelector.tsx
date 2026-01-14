@@ -14,6 +14,7 @@ interface ColumnSelectorProps {
   open: boolean;
   onClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onClose: () => void;
+  label: string;
 }
 
 export function ColumnSelector({
@@ -24,6 +25,7 @@ export function ColumnSelector({
   open,
   onClick,
   onClose,
+  label,
 }: ColumnSelectorProps) {
   return (
     <div>
@@ -34,7 +36,7 @@ export function ColumnSelector({
         aria-expanded={open ? "true" : undefined}
         onClick={onClick}
       >
-        Select Columns
+        {label}
       </Button>
       <Menu
         id="basic-menu"

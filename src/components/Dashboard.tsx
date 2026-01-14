@@ -13,6 +13,7 @@ import type { Holding, DashboardHolding, ExchangeRates } from '../lib/types';
 import { DashboardSummary } from './DashboardSummary';
 import { DashboardTable } from './DashboardTable';
 import { SessionExpiredError } from '../lib/errors';
+import { useLanguage } from '../lib/i18n';
 
 interface DashboardProps {
   sheetId: string;
@@ -34,6 +35,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
   const [portMap, setPortMap] = useState<Map<string, any>>(new Map());
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const openColSelector = Boolean(anchorEl);
+  const { t, isRtl } = useLanguage();
 
   const handleClickColSelector = (event: React.MouseEvent<HTMLButtonElement>) => {
     setAnchorEl(event.currentTarget);
@@ -517,23 +519,23 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
   }, [columnVisibility]);
 
   const columnDisplayNames: Record<string, string> = {
-    displayName: 'Display Name',
-    ticker: 'Ticker',
-    sector: 'Sector',
-    qty: 'Quantity',
-    avgCost: 'Avg Cost',
-    currentPrice: 'Current Price',
-    dayChangePct: 'Day Change %',
-    dayChangeVal: 'Day Change $',
-    mv: 'Market Value',
-    unrealizedGain: 'Unrealized Gain',
-    unrealizedGainPct: 'Unrealized Gain %',
-    realizedGain: 'Realized Gain',
-    realizedGainPct: 'Realized Gain %',
-    realizedGainAfterTax: 'Realized Gain After Tax',
-    totalGain: 'Total Gain',
-    totalGainPct: 'Total Gain %',
-    valueAfterTax: 'Value After Tax',
+    displayName: t('Display Name', 'שם תצוגה'),
+    ticker: t('Ticker', 'סימול'),
+    sector: t('Sector', 'סקטור'),
+    qty: t('Quantity', 'כמות'),
+    avgCost: t('Avg Cost', 'עלות ממוצעת'),
+    currentPrice: t('Current Price', 'מחיר נוכחי'),
+    dayChangePct: t('Day Change %', '% שינוי יומי'),
+    dayChangeVal: t('Day Change $', 'שינוי יומי'),
+    mv: t('Market Value', 'שווי שוק'),
+    unrealizedGain: t('Unrealized Gain', 'רווח לא ממומש'),
+    unrealizedGainPct: t('Unrealized Gain %', '% רווח לא ממומש'),
+    realizedGain: t('Realized Gain', 'רווח ממומש'),
+    realizedGainPct: t('Realized Gain %', '% רווח ממומש'),
+    realizedGainAfterTax: t('Realized Gain After Tax', 'רווח ממומש נטו'),
+    totalGain: t('Total Gain', 'רווח כולל'),
+    totalGainPct: t('Total Gain %', '% רווח כולל'),
+    valueAfterTax: t('Value After Tax', 'שווי אחרי מס'),
   };
 
   // Grouping Logic
@@ -562,7 +564,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
       />
       {hasFutureTxns && (
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'right', mt: 0.5, mb: 1, fontSize: '0.7rem' }}>
-          Note: Some transactions with future dates exist and are not included in the calculations.
+          {t('Note: Some transactions with future dates exist and are not included in the calculations.', 'הערה: קיימות עסקאות עם תאריך עתידי שאינן נכללות בחישובים.')}
         </Typography>
       )}
 
@@ -575,6 +577,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
             onColumnChange={(key, value) =>
               setColumnVisibility((prev: any) => ({ ...prev, [key]: value }))
             }
+            label={t("Select Columns", "בחר עמודות")}
             anchorEl={anchorEl}
             open={openColSelector}
             onClick={handleClickColSelector}
@@ -588,9 +591,9 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
             onChange={() => setIncludeUnvested(!includeUnvested)}
             size="small"
             color="primary"
-            sx={{ borderRadius: 2, textTransform: 'none', px: 2, py: 0.5, mr: 1, border: 1, borderColor: 'divider' }}
+            sx={{ borderRadius: 2, textTransform: 'none', px: 2, py: 0.5, [isRtl ? 'ml' : 'mr']: 1, border: 1, borderColor: 'divider' }}
           >
-            Include Unvested
+            {t('Include Unvested', 'כלול לא מובשל')}
           </ToggleButton>
           <ToggleButton
             value="grouped"
@@ -598,12 +601,12 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
             onChange={() => setGroupByPortfolio(!groupByPortfolio)}
             size="small"
             color="primary"
-            sx={{ borderRadius: 2, textTransform: 'none', px: 2, py: 0.5, mr: 1, border: 1, borderColor: 'divider' }}
+            sx={{ borderRadius: 2, textTransform: 'none', px: 2, py: 0.5, [isRtl ? 'ml' : 'mr']: 1, border: 1, borderColor: 'divider' }}
           >
-            Group by Portfolio
+            {t('Group by Portfolio', 'קבץ לפי תיק')}
           </ToggleButton>
           <Divider orientation="vertical" flexItem sx={{ mx: 1, height: 20, alignSelf: 'center' }} />
-          <Tooltip title="Refresh Data">
+          <Tooltip title={t("Refresh Data", "רענן נתונים")}>
             <IconButton 
               onClick={() => loadData()} 
               disabled={loading}

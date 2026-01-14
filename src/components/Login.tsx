@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Box, Button, Typography, CircularProgress, Paper, Container, TextField, Stack } from '@mui/material';
 import GoogleIcon from '@mui/icons-material/Google';
-import { initializeGapi, signIn, checkSheetExists, hasValidToken } from '../lib/google';
+import { initializeGapi, signIn, checkSheetExists } from '../lib/google';
 import { createPortfolioSpreadsheet } from '../lib/sheets/index';
+import { useLanguage } from '../lib/i18n';
 
 function extractSheetIdFromUrl(url: string): string | null {
   const match = url.match(/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
@@ -14,15 +15,15 @@ export function Login({ onLogin }: { onLogin: (sheetId: string) => void }) {
   const [error, setError] = useState('');
   const [isSignedIn, setIsSignedIn] = useState(false);
   const [manualSheetId, setManualSheetId] = useState('');
+  const { t } = useLanguage();
 
   const checkInitialSession = useCallback(async () => {
     try {
-      await initializeGapi();
-      setIsSignedIn(hasValidToken());
-      
+      const sessionRestored = await initializeGapi();
+      setIsSignedIn(sessionRestored);
       const savedSheetId = localStorage.getItem('g_sheet_id');
       
-      if ( savedSheetId && savedSheetId !== 'null') {
+      if (sessionRestored && savedSheetId && savedSheetId !== 'null') {
         setLoading(true);
         const exists = await checkSheetExists(savedSheetId);
         if (exists) {
@@ -88,7 +89,7 @@ export function Login({ onLogin }: { onLogin: (sheetId: string) => void }) {
       } else {
         setError('Failed to create new spreadsheet.');
       }
-    } catch {
+    } catch (e) {
       setError('Error creating spreadsheet.');
     } finally {
       setLoading(false);
@@ -134,32 +135,32 @@ export function Login({ onLogin }: { onLogin: (sheetId: string) => void }) {
           {!isSignedIn ? (
             <>
               <Typography variant="body1" color="text.secondary" paragraph>
-                Sign in with Google to link your spreadsheet.
+                {t('Sign in with Google to link your spreadsheet.', 'התחבר עם Google כדי לחבר את הגיליון שלך.')}
               </Typography>
               {error && <Typography color="error" sx={{ mb: 2 }}>{error}</Typography>}
               <Button variant="contained" startIcon={<GoogleIcon />} onClick={performLogin} disabled={loading} fullWidth size="large" sx={{ mt: 2, py: 1.5 }}>
-                Sign in with Google
+                {t('Sign in with Google', 'התחברות באמצעות Google')}
               </Button>
             </>
           ) : (
             <Stack spacing={2} sx={{ width: '100%' }}>
-              <Typography variant="h6" gutterBottom>Link Your Spreadsheet</Typography>
+              <Typography variant="h6" gutterBottom>{t('Link Your Spreadsheet', 'חיבור גיליון נתונים')}</Typography>
               {error && <Typography color="error" variant="body2" sx={{ mb: 2 }}>{error}</Typography>}
               
               <Typography variant="body2" color="text.secondary" align="left" paragraph>
-                If this is your first time, create a new spreadsheet. This app will store all data in this private Google Sheet.
+                {t('If this is your first time, create a new spreadsheet. This app will store all data in this private Google Sheet.', 'אם זו הפעם הראשונה שלך, צור גיליון חדש. האפליקציה תשמור את כל הנתונים בגיליון Google פרטי זה.')}
               </Typography>
               <Button variant="outlined" onClick={handleCreateNew} disabled={loading} fullWidth>
-                Create New Sheet ("Portfolios_App_Data")
+                {t('Create New Sheet ("Portfolios_App_Data")', 'יצירת גיליון חדש ("Portfolios_App_Data")')}
               </Button>
               
-              <Typography variant="body2" color="text.secondary" sx={{ my: 2 }}>OR</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ my: 2 }}>{t('OR', 'או')}</Typography>
               
               <Typography variant="body2" color="text.secondary" align="left" paragraph>
-                If you have an existing spreadsheet from this app, paste its ID or URL below:
+                {t('If you have an existing spreadsheet from this app, paste its ID or URL below:', 'אם יש לך גיליון קיים מהאפליקציה, הדבק את המזהה או הקישור שלו למטה:')}
               </Typography>
               <TextField
-                label="Spreadsheet ID or URL"
+                label={t('Spreadsheet ID or URL', 'מזהה גיליון או קישור')}
                 variant="outlined"
                 size="small"
                 fullWidth
@@ -168,7 +169,7 @@ export function Login({ onLogin }: { onLogin: (sheetId: string) => void }) {
                 placeholder="e.g., 1aBcDeFgH... or https://docs.google.com/..."
               />
               <Button variant="contained" onClick={() => handleSelectSheet(manualSheetId)} disabled={loading || !manualSheetId.trim()} fullWidth>
-                Use This Sheet
+                {t('Use This Sheet', 'בחירה בגיליון זה')}
               </Button>
             </Stack>
           )}

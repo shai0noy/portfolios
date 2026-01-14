@@ -1,7 +1,8 @@
 import { createTheme, responsiveFontSizes } from '@mui/material/styles';
 
-export const getTheme = (mode: 'light' | 'dark') => {
+export const getTheme = (mode: 'light' | 'dark', direction: 'ltr' | 'rtl' = 'ltr') => {
   let theme = createTheme({
+    direction,
     palette: {
       mode,
       ...(mode === 'light'
@@ -26,13 +27,13 @@ export const getTheme = (mode: 'light' | 'dark') => {
           }),
     },
     typography: {
-      fontFamily: '"Inter", "Helvetica", "Arial", sans-serif',
-      h1: { fontFamily: '"Merriweather", "Georgia", serif', fontWeight: 700 },
-      h2: { fontFamily: '"Merriweather", "Georgia", serif', fontWeight: 600 },
-      h3: { fontFamily: '"Merriweather", "Georgia", serif', fontWeight: 600 },
-      h4: { fontFamily: '"Merriweather", "Georgia", serif', fontWeight: 600 },
-      h5: { fontFamily: '"Merriweather", "Georgia", serif', fontWeight: 600 },
-      h6: { fontFamily: '"Merriweather", "Georgia", serif', fontWeight: 600 },
+      fontFamily: '"Inter", "Rubik", "Helvetica", "Arial", sans-serif',
+      h1: { fontFamily: '"Merriweather", "Noto Serif", "Noto Serif Hebrew", "David", serif', fontWeight: 700 },
+      h2: { fontFamily: '"Merriweather", "Noto Serif", "Noto Serif Hebrew", "David", serif', fontWeight: 600 },
+      h3: { fontFamily: '"Merriweather", "Noto Serif", "Noto Serif Hebrew", "David", serif', fontWeight: 600 },
+      h4: { fontFamily: '"Merriweather", "Noto Serif", "Noto Serif Hebrew", "David", serif', fontWeight: 600 },
+      h5: { fontFamily: '"Merriweather", "Noto Serif", "Noto Serif Hebrew", "David", serif', fontWeight: 600 },
+      h6: { fontFamily: '"Merriweather", "Noto Serif", "Noto Serif Hebrew", "David", serif', fontWeight: 600 },
       subtitle1: { fontWeight: 500 },
       subtitle2: { fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' },
     },

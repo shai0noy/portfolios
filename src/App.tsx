@@ -18,9 +18,11 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
+import TranslateIcon from '@mui/icons-material/Translate';
 import MenuIcon from '@mui/icons-material/Menu';
 import { getTheme } from './theme';
 import { exportDashboardData } from './lib/exporter';
+import { useLanguage } from './lib/i18n';
 
 const tabMap: Record<string, number> = {
   '/dashboard': 0,
@@ -47,7 +49,8 @@ function App() {
   const [sessionExpired, setSessionExpired] = useState(false);
   const [schemaVersionMismatch, setSchemaVersionMismatch] = useState<'old' | 'new' | null>(null);
 
-  const theme = useMemo(() => getTheme(mode), [mode]);
+  const { t, toggleLanguage, language, isRtl } = useLanguage();
+  const theme = useMemo(() => getTheme(mode, isRtl ? 'rtl' : 'ltr'), [mode, isRtl]);
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -59,6 +62,14 @@ function App() {
       navigate('/dashboard');
     }
   }, [location.pathname, navigate]);
+
+  // Load Rubik font for better Hebrew readability
+  useEffect(() => {
+    const link = document.createElement('link');
+    link.href = "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Merriweather:wght@300;400;700;900&family=Noto+Serif:wght@300;400;500;700&family=Noto+Serif+Hebrew:wght@300;400;700&family=Rubik:wght@300;400;500;700&display=swap";
+    link.rel = "stylesheet";
+    document.head.appendChild(link);
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('themeMode', mode);
@@ -106,7 +117,7 @@ function App() {
 
   const handleSetupSheet = async () => {
     if (!sheetId) return;
-    if (!schemaVersionMismatch && !confirm("This will reset sheet headers and rebuild all live data formulas. This can fix issues but is a heavy operation. Are you sure?")) return;
+    if (!schemaVersionMismatch && !confirm(t("This will reset sheet headers and rebuild all live data formulas. This can fix issues but is a heavy operation. Are you sure?", "פעולה זו תאפס את כותרות הגיליון ותבנה מחדש את כל הנוסחאות. זוהי פעולה כבדה. האם אתה בטוח?"))) return;
     
     setRebuilding(true);
     try {
@@ -115,12 +126,12 @@ function App() {
       await rebuildHoldingsSheet(sheetId);
       setRefreshKey(k => k + 1); // Refresh dashboard
       setSchemaVersionMismatch(null); // Clear warning
-      setSnackbarMessage("Sheet setup complete. Headers and live data have been rebuilt.");
+      setSnackbarMessage(t("Sheet setup complete. Headers and live data have been rebuilt.", "הגדרת הגיליון הושלמה. הכותרות והנתונים החיים נבנו מחדש."));
       setSnackbarSeverity('success');
       setSnackbarOpen(true);
     } catch (e) {
       console.error(e);
-      setSnackbarMessage("Error during sheet setup: " + (e instanceof Error ? e.message : String(e)));
+      setSnackbarMessage(t("Error during sheet setup: ", "שגיאה בהגדרת הגיליון: ") + (e instanceof Error ? e.message : String(e)));
       setSnackbarSeverity('error');
       setSnackbarOpen(true);
     } finally {
@@ -130,15 +141,15 @@ function App() {
 
   const handlePopulateTestData = async () => {
     if (!sheetId) return;
-    if (!confirm('Populate sheet with test portfolios and sample transactions?')) return;
+    if (!confirm(t('Populate sheet with test portfolios and sample transactions?', 'האם למלא את הגיליון בתיקי בדיקה ועסקאות לדוגמה?'))) return;
     try {
       await populateTestData(sheetId);
       setRefreshKey(k => k + 1);
       setSchemaVersionMismatch(null);
-      alert('Test data populated (if not already present).');
+      alert(t('Test data populated (if not already present).', 'נתוני בדיקה מולאו (אם לא היו קיימים).'));
     } catch (e) {
       console.error(e);
-      alert('Failed to populate test data: ' + (e instanceof Error ? e.message : String(e)));
+      alert(t('Failed to populate test data: ', 'נכשל מילוי נתוני בדיקה: ') + (e instanceof Error ? e.message : String(e)));
     }
   };
 
@@ -209,7 +220,7 @@ function App() {
       setRefreshKey(k => k + 1); // Refresh data
     } catch (e) {
       console.error("Failed to reconnect", e);
-      setSnackbarMessage('Failed to sign in. Please try again.');
+      setSnackbarMessage(t('Failed to sign in. Please try again.', 'ההתחברות נכשלה. אנא נסה שנית.'));
       setSnackbarSeverity('error');
       setSnackbarOpen(true);
     }
@@ -236,37 +247,43 @@ function App() {
         <ListItemIcon>
           {mode === 'dark' ? <Brightness7Icon fontSize="small" /> : <Brightness4Icon fontSize="small" />}
         </ListItemIcon>
-        <ListItemText>Switch Theme</ListItemText>
+        <ListItemText>{t('Switch Theme', 'מצב בהיר/כהה')}</ListItemText>
+      </MenuItem>
+      <MenuItem onClick={toggleLanguage}>
+        <ListItemIcon>
+          <TranslateIcon fontSize="small" />
+        </ListItemIcon>
+        <ListItemText>{t('Switch to Hebrew', 'שפה: אנגלית')}</ListItemText>
       </MenuItem>
       <MenuItem onClick={() => { setImportOpen(true); handleMobileMenuClose(); }}>
         <ListItemIcon>
           <CloudUploadIcon fontSize="small" />
         </ListItemIcon>
-        <ListItemText>Import Transactions</ListItemText>
+        <ListItemText>{t('Import Transactions', 'ייבוא עסקאות')}</ListItemText>
       </MenuItem>
       <MenuItem onClick={(e) => { setExportMenuAnchorElApp(e.currentTarget); handleMobileMenuClose(); }}>
         <ListItemIcon>
           <FileDownloadIcon fontSize="small" />
         </ListItemIcon>
-        <ListItemText>Export Data</ListItemText>
+        <ListItemText>{t('Export Data', 'ייצוא נתונים')}</ListItemText>
       </MenuItem>
       <MenuItem onClick={() => { openSheet(); handleMobileMenuClose(); }}>
         <ListItemIcon>
           <OpenInNewIcon fontSize="small" />
         </ListItemIcon>
-        <ListItemText>Open Google Sheet</ListItemText>
+        <ListItemText>{t('Open Google Sheet', 'פתח גיליון Google')}</ListItemText>
       </MenuItem>
       <MenuItem onClick={() => { handleSetupSheet(); handleMobileMenuClose(); }} disabled={rebuilding}>
         <ListItemIcon>
           {rebuilding ? <CircularProgress size={20} /> : <BuildIcon fontSize="small" />}
         </ListItemIcon>
-        <ListItemText>Setup Sheet</ListItemText>
+        <ListItemText>{t('Setup Sheet', 'הגדרות גיליון')}</ListItemText>
       </MenuItem>
       <MenuItem onClick={() => { handleLogout(); handleMobileMenuClose(); }}>
         <ListItemIcon>
           <LogoutIcon fontSize="small" />
         </ListItemIcon>
-        <ListItemText>Logout</ListItemText>
+        <ListItemText>{t('Logout', 'יציאה')}</ListItemText>
       </MenuItem>
     </Menu>
   );
@@ -285,15 +302,15 @@ function App() {
       <Box sx={{ flexGrow: 1, minHeight: '100vh', bgcolor: 'background.default' }}>
         <AppBar position="static" color="inherit" elevation={0} sx={{ borderBottom: 1, borderColor: 'divider' }}>
           <Toolbar sx={{ flexWrap: { xs: 'wrap', sm: 'nowrap' }, gap: { xs: 1, sm: 0 } }}>
-            <AccountBalanceWalletIcon sx={{ color: 'primary.main', mr: 1.5 }} />
-            <Typography variant="h5" component="div" sx={{ flexGrow: 0, flexShrink: 1, minWidth: 0, color: 'text.primary', fontWeight: 700, letterSpacing: '-0.5px', mr: { xs: 1, sm: 4 }, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: { xs: 140, sm: 'none' } }}>
-              My Portfolios
+            <AccountBalanceWalletIcon sx={{ color: 'primary.main', [isRtl ? 'ml' : 'mr']: 1.5 }} />
+            <Typography variant="h5" component="div" sx={{ flexGrow: 0, flexShrink: 1, minWidth: 0, color: 'text.primary', fontWeight: 700, letterSpacing: '-0.5px', [isRtl ? 'ml' : 'mr']: { xs: 1, sm: 4 }, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: { xs: 140, sm: 'none' } }}>
+              {t('My Portfolios', 'My Portfolios')}
             </Typography>
             
             <Tabs value={currentTab} onChange={handleTabChange} textColor="primary" indicatorColor="primary" variant="scrollable" scrollButtons="auto" allowScrollButtonsMobile sx={{ flexGrow: 1, minWidth: 0 }}>
-              <Tab label="Dashboard" sx={{ textTransform: 'none', fontSize: { xs: '0.9rem', sm: '1rem' }, minHeight: 64, minWidth: 64 }} component={RouterLink} to="/dashboard" />
-              <Tab label="Add Trade" sx={{ textTransform: 'none', fontSize: { xs: '0.9rem', sm: '1rem' }, minHeight: 64, minWidth: 64 }} component={RouterLink} to="/transaction" />
-              <Tab label="Manage Portfolios" sx={{ textTransform: 'none', fontSize: { xs: '0.9rem', sm: '1rem' }, minHeight: 64, minWidth: 80 }} component={RouterLink} to="/portfolios" />
+              <Tab label={t("Dashboard", "לוח בקרה")} sx={{ textTransform: 'none', fontSize: { xs: '0.9rem', sm: '1rem' }, minHeight: 64, minWidth: 64 }} component={RouterLink} to="/dashboard" />
+              <Tab label={t("Add Trade", "הוסף עסקה")} sx={{ textTransform: 'none', fontSize: { xs: '0.9rem', sm: '1rem' }, minHeight: 64, minWidth: 64 }} component={RouterLink} to="/transaction" />
+              <Tab label={t("Manage Portfolios", "ניהול תיקים")} sx={{ textTransform: 'none', fontSize: { xs: '0.9rem', sm: '1rem' }, minHeight: 64, minWidth: 80 }} component={RouterLink} to="/portfolios" />
             </Tabs>
 
             <Box sx={{ display: { xs: 'flex', md: 'none' } }}>
@@ -310,44 +327,52 @@ function App() {
             </Box>
 
             <Box display="flex" gap={1} sx={{ display: { xs: 'none', md: 'flex' }, flexShrink: 0, alignItems: 'center' }}>
-               <Tooltip title="Switch Theme">
+               <Tooltip title={t("Switch Theme", "מצב בהיר/כהה")}>
                 <IconButton onClick={toggleColorMode} size="small" sx={{ color: 'text.secondary' }}>
                   {mode === 'dark' ? <Brightness7Icon fontSize="small" /> : <Brightness4Icon fontSize="small" />}
                 </IconButton>
               </Tooltip>
 
-               <Tooltip title="Import Transactions via CSV">
+              <Tooltip title={t("Switch Language", "שינוי שפה")}>
+                <IconButton onClick={toggleLanguage} size="small" sx={{ color: 'text.secondary', width: 34, height: 34 }}>
+                  <Typography variant="button" sx={{ fontWeight: 700, fontSize: '0.8rem' }}>
+                    {language === 'en' ? 'He' : 'En'}
+                  </Typography>
+                </IconButton>
+              </Tooltip>
+
+               <Tooltip title={t("Import Transactions via CSV", "ייבוא עסקאות מ-CSV")}>
                 <IconButton onClick={() => setImportOpen(true)} size="small" sx={{ color: 'text.secondary' }}>
                   <CloudUploadIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
 
-              <Tooltip title="Export data (CSV / Google Sheet)">
+              <Tooltip title={t("Export data (CSV / Google Sheet)", "ייצוא נתונים (CSV / Google Sheet)")}>
                 <IconButton onClick={(e) => setExportMenuAnchorElApp(e.currentTarget)} size="small" sx={{ color: 'text.secondary' }}>
                   {exportInProgress ? <CircularProgress size={18} /> : <FileDownloadIcon fontSize="small" />}
                 </IconButton>
               </Tooltip>
 
               {typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && (
-                <Tooltip title="Populate test data (localhost only)">
+                <Tooltip title={t("Populate test data (localhost only)", "מלא נתוני בדיקה (localhost בלבד)")}>
                   <IconButton onClick={handlePopulateTestData} size="small" sx={{ color: 'text.disabled', opacity: 0.15 }}>
                     <BuildIcon fontSize="small" />
                   </IconButton>
                 </Tooltip>
               )}
-               <Tooltip title="Open Google Sheet">
+               <Tooltip title={t("Open Google Sheet", "פתח גיליון Google")}>
                 <IconButton onClick={openSheet} size="small" sx={{ color: 'text.secondary' }}>
                   <OpenInNewIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
 
-              <Tooltip title="Setup Sheet (Reset Schema & Rebuild Live Data)">
+              <Tooltip title={t("Setup Sheet (Reset Schema & Rebuild Live Data)", "הגדרות גיליון (איפוס מבנה ורענון נתונים)")}>
                 <IconButton onClick={handleSetupSheet} size="small" sx={{ color: 'text.secondary' }} disabled={rebuilding}>
                    {rebuilding ? <CircularProgress size={20} /> : <BuildIcon fontSize="small" />}
                 </IconButton>
               </Tooltip>
               
-               <Tooltip title="Logout">
+               <Tooltip title={t("Logout", "יציאה")}>
                 <IconButton onClick={handleLogout} size="small" sx={{ color: 'text.secondary' }}>
                   <LogoutIcon fontSize="small" />
                 </IconButton>
@@ -367,7 +392,7 @@ function App() {
             setExportMenuAnchorElApp(null);
             setExportInProgress(true);
             exportDashboardData({ type: 'holdings', format: 'csv', sheetId, setLoading: setExportInProgress, onSuccess: (msg) => { setSnackbarMessage(msg); setSnackbarSeverity('success'); setSnackbarOpen(true); setExportInProgress(false); }, onError: (msg) => { setSnackbarMessage(msg); setSnackbarSeverity('error'); setSnackbarOpen(true); setExportInProgress(false); } });
-          }}>Holdings (CSV)</MenuItem>
+          }}>{t('Holdings (CSV)', 'החזקות (CSV)')}</MenuItem>
           <MenuItem disabled={exportInProgress} onClick={() => {
             setExportMenuAnchorElApp(null);
             setExportInProgress(true);
@@ -382,12 +407,12 @@ function App() {
               },
               onError: (msg) => { setSnackbarMessage(msg); setSnackbarSeverity('error'); setSnackbarAction(null); setSnackbarOpen(true); setExportInProgress(false); }
             });
-          }}>Holdings (Google Sheet)</MenuItem>
+          }}>{t('Holdings (Google Sheet)', 'החזקות (Google Sheet)')}</MenuItem>
           <MenuItem disabled={exportInProgress} onClick={() => {
             setExportMenuAnchorElApp(null);
             setExportInProgress(true);
             exportDashboardData({ type: 'transactions', format: 'csv', sheetId, setLoading: setExportInProgress, onSuccess: (msg) => { setSnackbarMessage(msg); setSnackbarSeverity('success'); setSnackbarOpen(true); setExportInProgress(false); }, onError: (msg) => { setSnackbarMessage(msg); setSnackbarSeverity('error'); setSnackbarOpen(true); setExportInProgress(false); } });
-          }}>Transactions (CSV)</MenuItem>
+          }}>{t('Transactions (CSV)', 'עסקאות (CSV)')}</MenuItem>
           <MenuItem disabled={exportInProgress} onClick={() => {
             setExportMenuAnchorElApp(null);
             setExportInProgress(true);
@@ -402,7 +427,7 @@ function App() {
               },
               onError: (msg) => { setSnackbarMessage(msg); setSnackbarSeverity('error'); setSnackbarAction(null); setSnackbarOpen(true); setExportInProgress(false); }
             });
-          }}>Transactions (Google Sheet)</MenuItem>
+          }}>{t('Transactions (Google Sheet)', 'עסקאות (Google Sheet)')}</MenuItem>
           <MenuItem disabled={exportInProgress} onClick={() => {
             setExportMenuAnchorElApp(null);
             setExportInProgress(true);
@@ -417,7 +442,7 @@ function App() {
               },
               onError: (msg) => { setSnackbarMessage(msg); setSnackbarSeverity('error'); setSnackbarAction(null); setSnackbarOpen(true); setExportInProgress(false); }
             });
-          }}>Export transactions & holdings (to Sheet)</MenuItem>
+          }}>{t('Export transactions & holdings (to Sheet)', 'ייצוא הכל (לגיליון)')}</MenuItem>
         </Menu>
         
         <Container maxWidth="xl" sx={{ mt: 5, pb: 8 }}>
@@ -479,44 +504,44 @@ function App() {
             p: 4,
           }}>
             <Typography variant="h6" component="h2">
-              Session Expired
+              {t('Session Expired', 'הפעלתך פגה')}
             </Typography>
             <Typography sx={{ mt: 2 }}>
-              Your session has expired. Please sign in again to continue.
+              {t('Your session has expired. Please sign in again to continue.', 'הפעלתך פגה. אנא התחבר מחדש כדי להמשיך.')}
             </Typography>
-            <Button onClick={handleReconnect} variant="contained" sx={{ mt: 2 }}>Sign In</Button>
+            <Button onClick={handleReconnect} variant="contained" sx={{ mt: 2 }}>{t('Sign In', 'התחבר')}</Button>
           </Box>
         </Modal>
 
         {/* Schema Version Dialog */}
         <Dialog open={!!schemaVersionMismatch} onClose={() => {}}>
-          <DialogTitle>{schemaVersionMismatch === 'old' ? 'Sheet Structure Update Required' : 'Sheet Structure Mismatch'}</DialogTitle>
+          <DialogTitle>{schemaVersionMismatch === 'old' ? t('Sheet Structure Update Required', 'נדרש עדכון מבנה גיליון') : t('Sheet Structure Mismatch', 'אי-התאמה במבנה הגיליון')}</DialogTitle>
           <DialogContent>
             {rebuilding ? (
               <Box display="flex" flexDirection="column" alignItems="center" py={2}>
                 <CircularProgress size={40} sx={{ mb: 2 }} />
                 <DialogContentText align="center">
-                  Updating spreadsheet structure and formulas...<br/>
-                  Please wait, this may take a few moments.
+                  {t('Updating spreadsheet structure and formulas...', 'מעדכן מבנה גיליון ונוסחאות...')}<br/>
+                  {t('Please wait, this may take a few moments.', 'אנא המתן, זה עשוי לקחת מספר רגעים.')}
                 </DialogContentText>
               </Box>
             ) : (
               <DialogContentText>
                 {schemaVersionMismatch === 'old' 
-                  ? "Your Google Sheet structure is outdated. A new version of the application requires schema updates to function correctly."
-                  : "Warning: Your Google Sheet's structure version is newer than this application's version. This is an unexpected situation and may cause parts of the app to not function as expected. Please consider updating the application."}
+                  ? t("Your Google Sheet structure is outdated. A new version of the application requires schema updates to function correctly.", "מבנה הגיליון שלך מיושן. גרסה חדשה של האפליקציה דורשת עדכוני סכמה כדי לפעול כראוי.")
+                  : t("Warning: Your Google Sheet's structure version is newer than this application's version. This is an unexpected situation and may cause parts of the app to not function as expected. Please consider updating the application.", "אזהרה: גרסת מבנה הגיליון שלך חדשה יותר מגרסת האפליקציה. זהו מצב לא צפוי ועשוי לגרום לחלקים מהאפליקציה לא לפעול כצפוי.")}
                 <br /><br />
-                {schemaVersionMismatch === 'old' && "Please perform a 'Setup Sheet' to upgrade the columns and formulas. This will rewrite headers and rebuild live data, but your transaction history is safe (unless columns were removed)."}
+                {schemaVersionMismatch === 'old' && t("Please perform a 'Setup Sheet' to upgrade the columns and formulas. This will rewrite headers and rebuild live data, but your transaction history is safe (unless columns were removed).", "אנא בצע 'הגדרת גיליון' כדי לשדרג את העמודות והנוסחאות. פעולה זו תכתוב מחדש כותרות ותבנה מחדש נתונים חיים, אך היסטוריית העסקאות שלך בטוחה.")}
               </DialogContentText>
             )}
           </DialogContent>
           <DialogActions>
             <Button onClick={() => setSchemaVersionMismatch(null)} color="primary" disabled={rebuilding}>
-              {schemaVersionMismatch === 'old' ? 'Ignore (Risky)' : 'Acknowledge'}
+              {schemaVersionMismatch === 'old' ? t('Ignore (Risky)', 'התעלם (מסוכן)') : t('Acknowledge', 'אישור')}
             </Button>
             {schemaVersionMismatch === 'old' && (
               <Button onClick={handleSetupSheet} variant="contained" color="primary" autoFocus disabled={rebuilding}>
-                {rebuilding ? "Updating..." : "Setup Sheet (Upgrade)"}
+                {rebuilding ? t("Updating...", "מעדכן...") : t("Setup Sheet (Upgrade)", "הגדרת גיליון (שדרוג)")}
               </Button>
             )}
           </DialogActions>

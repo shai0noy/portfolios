@@ -15,6 +15,7 @@ import { getTickerData, type TickerData } from '../lib/fetching';
 import { TickerSearch } from './TickerSearch';
 import { normalizeCurrency, convertCurrency, getExchangeRates } from '../lib/currency';
 import { Currency, type ExchangeRates } from '../lib/types';
+import { useLanguage } from '../lib/i18n';
 
 interface Props {
   sheetId: string;
@@ -33,6 +34,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   const [priceError, setPriceError] = useState('');
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [exchangeRates, setExchangeRates] = useState<ExchangeRates>({ current: { USD: 1 } });
+  const { t, tTry, isRtl } = useLanguage();
 
   // Form State
   const [selectedTicker, setSelectedTicker] = useState<(TickerData & { symbol: string }) | null>(null);
@@ -76,7 +78,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
           setTicker(locationState.prefilledTicker!)
           setShowForm(true);
         } else {
-          setPriceError(`Ticker not found on ${locationState.prefilledExchange}`);
+          setPriceError(`${t('Ticker not found on', 'הנייר לא נמצא ב-')}${locationState.prefilledExchange}`);
           setSelectedTicker(null);
           setShowForm(false);
         }
@@ -272,7 +274,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
       setValidationErrors({});
     } catch (e) {
       console.error(e);
-      alert('Error saving transaction');
+      alert(t('Error saving transaction', 'שגיאה בשמירת העסקה'));
     } finally {
       setLoading(false);
     }
@@ -309,22 +311,22 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   return (
     <Box sx={{ maxWidth: 800, mx: 'auto' }}>
       <Typography variant="h5" gutterBottom sx={{ fontWeight: 600, color: 'text.primary', mb: 2 }}>
-        New Transaction
+        {t('New Transaction', 'הוסף עסקה חדשה')}
       </Typography>
 
       {selectedTicker && (
-        <Button variant="text" startIcon={<SearchIcon />} onClick={handleSearchAgain} sx={{ mb: 2 }}>
-          Back to Search
+        <Button variant="text" startIcon={<SearchIcon sx={{ transform: isRtl ? 'scaleX(-1)' : 'none' }} />} onClick={handleSearchAgain} sx={{ mb: 2 }}>
+          {t('Back to Search', 'חזרה לחיפוש')}
         </Button>
       )}
 
       {saveSuccess && (
         <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSaveSuccess(false)} action={
           <Button color="inherit" size="small" onClick={() => navigate('/dashboard')}>
-            Dashboard
+            {t('Dashboard', 'לוח בקרה')}
           </Button>
         }>
-          Transaction for {ticker} saved!
+          {t('Transaction for', 'עסקה עבור')} {ticker} {t('saved!', 'נשמרה!')}
         </Alert>
       )}
 
@@ -344,7 +346,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
             <Card variant="outlined">
               <CardContent>
                 <Box display="flex" alignItems="center" gap={1} mb={1}>
-                  <Typography variant="h6">{displayName || selectedTicker.name}</Typography>
+                  <Typography variant="h6">{tTry(displayName || selectedTicker.name, (selectedTicker as any).name_he)}</Typography>
                   {ownedDetails.length > 0 && (
                     <Tooltip title={`Total Held: ${totalHeld} (${ownedDetails.map(d => `${d.name}: ${d.qty}`).join(', ')})`}>
                       <BusinessCenterIcon color="success" />
@@ -361,7 +363,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                   />
                   {price && (
                     <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
-                      {tickerCurrency === 'ILA' ? 'ag.' : tickerCurrency} {price}
+                      {tickerCurrency === 'ILA' ? t('ag.', "א'") : tickerCurrency} {price}
                     </Typography>
                   )}
                 </Box>
@@ -400,7 +402,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                               <MenuItem key={p.id} value={p.id}>{p.name} ({p.currency})</MenuItem>
                             ))}
                           </Select>
-                          {!portId && <Typography variant="caption" color="text.secondary" sx={{ ml: 1.5, mt: 0.5 }}>Required</Typography>}
+                          {!portId && <Typography variant="caption" color="text.secondary" sx={{ [isRtl ? 'mr' : 'ml']: 1.5, mt: 0.5 }}>Required</Typography>}
                         </FormControl>
                       </Grid>
                       <Grid item xs={12} sm={4}>
@@ -439,7 +441,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                             label="Price" type="number" size="small" fullWidth
                             value={price}
                             onChange={e => handlePriceChange(e.target.value)}
-                            InputProps={{ startAdornment: <InputAdornment position="start">{tickerCurrency === 'ILA' ? 'ag.' : tickerCurrency}</InputAdornment> }}
+                            InputProps={{ startAdornment: <InputAdornment position="start">{tickerCurrency === 'ILA' ? t('ag.', "א'") : tickerCurrency}</InputAdornment> }}
                             error={!!validationErrors.price}
                             required
                             helperText={!price ? "Required" : ""}
