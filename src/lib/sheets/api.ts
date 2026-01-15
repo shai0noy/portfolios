@@ -2,7 +2,7 @@
 import { ensureGapi, findSpreadsheetByName } from '../google';
 import { getTickerData, type TickerData } from '../fetching';
 import { toGoogleSheetDateFormat } from '../date';
-import type { Portfolio, Transaction, Holding } from '../types';
+import { type Portfolio, type Transaction, type Holding, Exchange, parseExchange, toGoogleFinanceExchangeCode } from '../types';
 import {
     TXN_COLS, transactionHeaders, transactionMapping, transactionNumericKeys,
     portfolioHeaders, holdingsHeaders, configHeaders, portfolioMapping, portfolioNumericKeys,
@@ -49,26 +49,6 @@ const withAuthHandling = <A extends any[], R>(fn: (...args: A) => Promise<R>): (
             throw error;
         }
     };
-};
-
-const toExchangeId = (str: string): string => {
-    if (!str) return '';
-    // convert input to uppercase, replace TLV and TA with TASE
-    const upperStr = str.trim().toUpperCase();
-    if (upperStr === 'TLV' || upperStr === 'TA') {
-        return 'TASE';
-    }
-    return upperStr;
-};
-
-const toSheetsExchange = (str: string): string => {
-    if (!str) return '';
-    // converts to uppercase; replaces TA, TASE to TLV
-    const upperStr = str.toUpperCase();
-    if (upperStr === 'TASE' || upperStr === 'TA') {
-        return 'TLV';
-    }
-    return upperStr;
 };
 
 export const ensureSchema = withAuthHandling(async (spreadsheetId: string) => {
@@ -153,25 +133,27 @@ export const fetchHolding = withAuthHandling(async (spreadsheetId: string, ticke
             valueRenderOption: 'UNFORMATTED_VALUE',
         });
         const rows = res.result.values || [];
-        
-        // Map all rows to objects first for robust searching
-        const allHoldings = rows.map(row => 
-            mapRowToHolding<SheetHolding>(row, holdingMapping, holdingNumericKeys)
-        );
+
+        // Map all rows to objects, parsing the exchange string into our enum
+        const allHoldings = rows.map(row => {
+            const holdingRaw = mapRowToHolding<SheetHolding>(row, holdingMapping, holdingNumericKeys);
+            (holdingRaw as any).exchange = parseExchange((holdingRaw as any).exchange);
+            return holdingRaw as Holding;
+        });
 
         console.log(`fetchHolding: Searching for ${ticker} on ${exchange}.`);
 
         const matchingHoldings = allHoldings.filter(h => h.ticker && String(h.ticker).toUpperCase() === ticker.toUpperCase());
         console.log(`fetchHolding: Found ${matchingHoldings.length} matching holdings for ticker ${ticker}`, matchingHoldings);
         
-        const targetExchangeId = toExchangeId(exchange);
+        const targetExchange = parseExchange(exchange);
         
-        let holding = matchingHoldings.find(h => toExchangeId(h.exchange) === targetExchangeId);
+        let holding = matchingHoldings.find(h => h.exchange === targetExchange);
         
         if (!holding) {
              console.log(`fetchHolding: No exact exchange match for ${exchange}. Checking empty exchange...`);
              // Fallback 1: Match if sheet exchange is empty
-             holding = matchingHoldings.find(h => !toExchangeId(h.exchange));
+             holding = matchingHoldings.find(h => h.exchange === Exchange.OTHER);
         }
         
         if (!holding && matchingHoldings.length === 1) {
@@ -181,8 +163,6 @@ export const fetchHolding = withAuthHandling(async (spreadsheetId: string, ticke
         }
 
         if (holding) {
-             // Ensure exchange is normalized in the returned object
-             if (holding.exchange) holding.exchange = toExchangeId(holding.exchange);
              console.log('fetchHolding: Match found:', holding);
              return holding as Holding;
         } else {
@@ -216,7 +196,7 @@ export const fetchPortfolios = withAuthHandling(async (spreadsheetId: string): P
                 holdingsByPortfolio[txn.portfolioId][key] = {
                     portfolioId: txn.portfolioId,
                     ticker: txn.ticker,
-                    exchange: txn.exchange || '',
+                    exchange: txn.exchange || Exchange.OTHER,
                     qty: 0,
                     numericId: txn.numericId || null
                 };
@@ -238,7 +218,7 @@ export const fetchPortfolios = withAuthHandling(async (spreadsheetId: string): P
             )
         );
         priceData.forEach(item => {
-            if (item.exchange) item.exchange = toExchangeId(item.exchange);
+            (item as any).exchange = parseExchange((item as any).exchange);
             const key = `${item.ticker}-${item.exchange}`;
             priceMap[key] = item;
         });
@@ -266,20 +246,21 @@ export const fetchPortfolios = withAuthHandling(async (spreadsheetId: string): P
 
 export const fetchTransactions = withAuthHandling(async (spreadsheetId: string): Promise<Transaction[]> => {
     await ensureGapi();
-    const transactions = await fetchSheetData(
+    const transactionsRaw = await fetchSheetData(
         spreadsheetId, TX_FETCH_RANGE,
         (row) => mapRowToTransaction<Omit<Transaction, 'grossValue'>>(row, transactionMapping, transactionNumericKeys),
         'FORMATTED_VALUE' // Fetch formulas to get the raw formulas for calculation
     );
-    return transactions.map(t => {
+    return transactionsRaw.map(t_raw => {
+        const t = t_raw as any; // Allow modifying exchange
         const cleanNumber = (val: any) => {
             if (typeof val === 'number') return val;
             if (!val) return 0;
             return parseFloat(String(val).replace(/[^0-9.-]+/g, ""));
         };
-        if (t.exchange) {
-            t.exchange = toExchangeId(t.exchange);
-        }
+        
+        t.exchange = parseExchange(t.exchange || '');
+
         return {
             ...t,
             qty: cleanNumber(t.Split_Adjusted_Qty || t.Original_Qty),
@@ -363,7 +344,7 @@ export const updateHoldingsUserOptions = withAuthHandling(async (spreadsheetId: 
     existingOptions.forEach(opt => finalOptions.set(`${opt.ticker}-${opt.exchange}`, opt));
     optionsToUpdate.forEach(opt => {
         if (opt.name) {
-            finalOptions.set(`${opt.ticker}-${toSheetsExchange(opt.exchange)}`, { ticker: opt.ticker, exchange: toSheetsExchange(opt.exchange), name: opt.name });
+            finalOptions.set(`${opt.ticker}-${toGoogleFinanceExchangeCode(parseExchange(opt.exchange))}`, { ticker: opt.ticker, exchange: toGoogleFinanceExchangeCode(parseExchange(opt.exchange)), name: opt.name });
         }
     });
 
@@ -390,7 +371,7 @@ export const batchAddTransactions = withAuthHandling(async (spreadsheetId: strin
             switch (key) {
                 case 'date': rowData[key] = t.date ? toGoogleSheetDateFormat(new Date(t.date)) : ''; break;
                 case 'ticker': rowData[key] = String(logIfFalsy(t.ticker, `Transaction ticker missing`, t)).toUpperCase(); break;
-                case 'exchange': rowData[key] = toSheetsExchange(t.exchange || ''); break;
+                case 'exchange': rowData[key] = toGoogleFinanceExchangeCode(t.exchange || Exchange.OTHER); break;
                 case 'vestDate': rowData[key] = t.vestDate ? toGoogleSheetDateFormat(new Date(t.vestDate)) : ''; break;
                 case 'comment': case 'Source': rowData[key] = (t as any)[key] || ''; break;
                 case 'commission': {
@@ -429,7 +410,7 @@ export const batchAddTransactions = withAuthHandling(async (spreadsheetId: strin
             if (key === 'date' || key === 'vestDate' || key === 'Creation_Date') {
                 return rowData[key] ? toGoogleSheetDateFormat(new Date(rowData[key])) : '';
             }
-            if (key === 'exchange') return toSheetsExchange(rowData[key] || '');
+            if (key === 'exchange') return toGoogleFinanceExchangeCode(rowData[key] || Exchange.OTHER);
             return rowData[key] ?? null;
         });
         allValuesToAppend.push(rowValues);
@@ -495,10 +476,10 @@ function createHoldingRow(h: HoldingNonGeneratedData, meta: TickerData | null, r
     const tickerAndExchange = `${exchangeCell}&":"&${tickerCell}`;
     const row = new Array(holdingsHeaders.length).fill('');
 
-    const isTASE = (h.exchange || '').toUpperCase() === 'TASE';
+    const isTASE = h.exchange === Exchange.TASE;
 
     row[0] = String(h.ticker).toUpperCase();
-    row[1] = toSheetsExchange(h.exchange || '');
+    row[1] = toGoogleFinanceExchangeCode(h.exchange || Exchange.OTHER);
     row[2] = h.qty;
     row[3] = `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "price"))`;
     const defaultCurrency = meta?.currency || (isTASE ? 'ILA' : '');
@@ -535,7 +516,7 @@ export const rebuildHoldingsSheet = withAuthHandling(async (spreadsheetId: strin
         if (txn.type === 'BUY' || txn.type === 'SELL') {
             const key = `${txn.ticker}-${txn.exchange}`;
             if (!holdings[key]) {
-                holdings[key] = { ticker: txn.ticker, exchange: txn.exchange || '', qty: 0, numericId: null };
+                holdings[key] = { ticker: txn.ticker, exchange: txn.exchange || Exchange.OTHER, qty: 0, numericId: null };
             }
             // Since transactions are sorted, this will overwrite with the latest numericId for each holding
             if (txn.numericId) {

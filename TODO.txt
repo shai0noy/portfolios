@@ -4,19 +4,19 @@ ON HOLD: Keep track of dividands since purchase! Add to sheet
 ON HOLD: Handle splits, etc, name changes
 ON HOLD: Support mobile screen sizes
 ON HOLD: Better ticker search - free text, multy options to select from
-Pass forceRefresh to getTickerData to bypass cache
-In the dashboard rows, IL stock prices show price in NIS annotated with "ag." price should be shown in agorot too
-In single ticker view mode, the base price is shown in NIS while the market proce is in agorot. Both should be in agorot
-in the dashboard summary, all chahnges other than day chnage should have smaller font and be placed on a line below
+Pass forceRefresh to getTickerData to bypass cache?
+DONE: In the dashboard rows, IL stock prices show price in NIS annotated with "ag." price should be shown in agorot too
+DONE: In single ticker view mode, the base price is shown in NIS while the market proce is in agorot. Both should be in agorot
+DONE: in the dashboard summary, all chahnges other than day chnage should have smaller font and be placed on a line below
 ON HOLD: Use Finhub or marketstack over yahoo if possible or in addition (will reuqire to guide use rto create API key and add it to spreadsheet as part of setup)
 ON HOLD: Dashbaord header - portfolio pct grow should take into account the the amount of stock and buy date etc
 ON HOLD: Dashbaord header - Add portfolio gain (value&pct) since date (1m,1y,3y,5y,all) taking into account revenue and add transactions since date
-TODO: Fix GOOGLEFINANCE formula for Split_Adj_Open_Price to fetch historical price on the transaction date, not current price.
-In add transaction - For tase sticks, the "total price" should be ILS,  but currently computed as agorot
+DONE??: TODO: Fix GOOGLEFINANCE formula for Split_Adj_Open_Price to fetch historical price on the transaction date, not current price.
+DONE: In add transaction - For tase sticks, the "total price" should be ILS,  but currently computed as agorot
 When changing fields in "Add portfolio", it is very slow and laggy. Need a way to verify faster/with less laf (but on edit, not on focus loss)
 Refine set of defaults columns shown
 HOLD: Handle Reit taxing
-Move currency selector to the line below to the right of the 1d/1w etc gain fields 
+DONE: Move currency selector to the line below to the right of the 1d/1w etc gain fields 
 Add enum/type for exchanges inlcuding logic of parsing IDs from sheets.ts
 DONE: show holding sum in his_held icon in addTxn view
 DONE: open tickerDetails when clicking in addtxn view

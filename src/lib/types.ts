@@ -9,6 +9,134 @@ export const Currency = {
   ILA: 'ILA' as Currency,
 };
 
+const EXCHANGES = [
+  'NASDAQ', 'NYSE', 'TASE', 'LSE', 'FWB',
+  'EURONEXT', 'JPX', 'HKEX', 'TSX', 'ASX', 'OTHER'
+] as const;
+
+export type Exchange = typeof EXCHANGES[number];
+
+export const Exchange = EXCHANGES.reduce((acc, ex) => {
+  acc[ex] = ex;
+  return acc;
+}, {} as Record<Exchange, Exchange>);
+
+const EXCHANGE_MAP: Record<string, Exchange> = {
+  // NASDAQ
+  'NASDAQ': Exchange.NASDAQ,
+  'XNAS': Exchange.NASDAQ,
+  'NMS': Exchange.NASDAQ, // NASDAQ/NMS (GLOBAL MARKET)
+  'NGS': Exchange.NASDAQ, // NASDAQ/NGS (GLOBAL SELECT MARKET)
+  'NCM': Exchange.NASDAQ, // NASDAQ CAPITAL MARKET
+
+  // NYSE
+  'NYSE': Exchange.NYSE,
+  'XNYS': Exchange.NYSE,
+  'NEW YORK STOCK EXCHANGE': Exchange.NYSE,
+
+  // TASE
+  'TASE': Exchange.TASE,
+  'XTAE': Exchange.TASE,
+  'TLV': Exchange.TASE,
+  'TEL AVIV': Exchange.TASE,
+
+  // LSE
+  'LSE': Exchange.LSE,
+  'XLON': Exchange.LSE,
+  'LONDON': Exchange.LSE,
+
+  // Frankfurt (FWB)
+  'FWB': Exchange.FWB,
+  'XFRA': Exchange.FWB,
+  'FRANKFURT': Exchange.FWB,
+  'XETRA': Exchange.FWB,
+
+  // Euronext
+  'EURONEXT': Exchange.EURONEXT,
+  'XPAR': Exchange.EURONEXT, // Paris
+  'XAMS': Exchange.EURONEXT, // Amsterdam
+  'XBRU': Exchange.EURONEXT, // Brussels
+  'XLIS': Exchange.EURONEXT, // Lisbon
+  'XDUB': Exchange.EURONEXT, // Dublin
+
+  // Japan
+  'JPX': Exchange.JPX,
+  'XTKS': Exchange.JPX, // Tokyo
+
+  // Hong Kong
+  'HKEX': Exchange.HKEX,
+  'XHKG': Exchange.HKEX,
+
+  // Toronto
+  'TSX': Exchange.TSX,
+  'XTSE': Exchange.TSX,
+
+  // Australia
+  'ASX': Exchange.ASX,
+  'XASX': Exchange.ASX,
+
+  // Other
+  'OTHER': Exchange.OTHER,
+};
+
+/**
+ * Parses an exchange identifier string into a known Exchange type.
+ * The matching is case-insensitive.
+ * @param exchangeId The exchange identifier to parse (e.g., 'XNAS', 'NASDAQ').
+ * @returns A canonical Exchange value or OTHER if no match is found.
+ */
+export function parseExchange(exchangeId: string): Exchange {
+  if (!exchangeId) return Exchange.OTHER;
+  const parsed = EXCHANGE_MAP[exchangeId.trim().toUpperCase()];
+  return parsed || Exchange.OTHER;
+}
+
+const GOOGLE_FINANCE_EXCHANGE_MAP: Partial<Record<Exchange, string>> = {
+  [Exchange.TASE]: 'TLV',
+  [Exchange.LSE]: 'LON',
+  [Exchange.FWB]: 'FRA',
+  [Exchange.EURONEXT]: 'EPA', // Defaulting to Paris, might need refinement
+  [Exchange.JPX]: 'TYO',
+  [Exchange.HKEX]: 'HKG',
+  [Exchange.TSX]: 'TSE',
+  [Exchange.ASX]: 'ASX',
+};
+
+/**
+ * Converts a canonical Exchange type to its Google Finance exchange code.
+ * @param exchange The canonical exchange.
+ * @returns The Google Finance exchange code (e.g., 'TLV' for TASE) or the original if no mapping exists.
+ */
+export function toGoogleFinanceExchangeCode(exchange: Exchange): string {
+  return GOOGLE_FINANCE_EXCHANGE_MAP[exchange] || exchange;
+}
+
+const YAHOO_FINANCE_SUFFIX_MAP: Partial<Record<Exchange, string>> = {
+  [Exchange.TASE]: '.TA',
+  [Exchange.LSE]: '.L',
+  [Exchange.FWB]: '.F', // Frankfurt
+  [Exchange.EURONEXT]: '.PA', // Paris, needs refinement for other Euronext locations
+  [Exchange.JPX]: '.T', // Tokyo
+  [Exchange.HKEX]: '.HK',
+  [Exchange.TSX]: '.TO',
+  [Exchange.ASX]: '.AX',
+};
+
+/**
+ * Converts a ticker and a canonical Exchange type to a ticker string suitable for Yahoo Finance.
+ * For non-US exchanges, this typically involves adding a suffix.
+ * @param ticker The stock ticker.
+ * @param exchange The canonical exchange.
+ * @returns The ticker formatted for Yahoo Finance (e.g., 'BARC.L').
+ */
+export function toYahooFinanceTicker(ticker: string, exchange: Exchange): string {
+  const suffix = YAHOO_FINANCE_SUFFIX_MAP[exchange];
+  if (suffix) {
+    return `${ticker}${suffix}`;
+  }
+  return ticker; // For US exchanges like NASDAQ, NYSE, no suffix is needed.
+}
+
 export interface ExchangeRates {
   current: Record<string, number>;
   [key: string]: Record<string, number> | number; 
@@ -20,7 +148,7 @@ export interface DashboardHolding {
   portfolioName: string;
   portfolioCurrency: Currency;
   ticker: string;
-  exchange: string;
+  exchange: Exchange;
   displayName: string;
   name_he?: string;
   qtyVested: number;
@@ -108,7 +236,7 @@ export type TaxPolicy = 'TAX_FREE' | 'REAL_GAIN' | 'NOMINAL_GAIN' | 'PENSION';
 export interface Holding {
   portfolioId: string;
   ticker: string;
-  exchange: string;
+  exchange: Exchange;
   qty: number;
   price?: number;
   currency?: Currency;
@@ -142,7 +270,7 @@ export interface Transaction {
   date: string;
   portfolioId: string;
   ticker: string;
-  exchange?: string;
+  exchange?: Exchange;
   type: 'BUY' | 'SELL' | 'DIVIDEND' | 'FEE';
   Original_Qty: number;
   Original_Price: number;
