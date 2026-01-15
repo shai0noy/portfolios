@@ -130,8 +130,8 @@ export function DashboardSummary({ summary, displayCurrency, exchangeRates, onBa
                   color: 'text.secondary', 
                   minWidth: 'auto', 
                   p: 0,
-                  [isRtl ? 'mr' : 'ml']: -1,
-                  mt: -1,
+                  ml: -1,
+                  mt: -3.5,
                   '&:hover': { bgcolor: 'transparent', color: 'text.primary' } 
                 }}
                 disableRipple
@@ -174,7 +174,7 @@ export function DashboardSummary({ summary, displayCurrency, exchangeRates, onBa
                   exclusive
                   onChange={(_, val) => val && onCurrencyChange(val)}
                   size="small"
-                  sx={{ [isRtl ? 'mr' : 'ml']: 2, height: 32, direction: 'ltr' }}
+                  sx={{ ml: 2, height: 32, direction: 'ltr' }}
                 >
                   <ToggleButton value="USD" sx={{ px: 2, fontWeight: 600 }}>USD</ToggleButton>
                   <ToggleButton value="ILS" sx={{ px: 2, fontWeight: 600 }}>ILS</ToggleButton>
@@ -184,7 +184,7 @@ export function DashboardSummary({ summary, displayCurrency, exchangeRates, onBa
               {/* Performance / Detail Row */}
               <Box display="flex" gap={2} justifyContent="flex-end" alignItems="center" flexWrap="wrap">
                  <Stat
-                    label="1D"
+                    label={t("1D", "יומי")}
                     value={summary.totalDayChange}
                     pct={summary.totalDayChangePct}
                     color={summary.totalDayChange >= 0 ? 'success.main' : 'error.main'}

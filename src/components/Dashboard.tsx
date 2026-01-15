@@ -591,7 +591,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
             onChange={() => setIncludeUnvested(!includeUnvested)}
             size="small"
             color="primary"
-            sx={{ borderRadius: 2, textTransform: 'none', px: 2, py: 0.5, [isRtl ? 'ml' : 'mr']: 1, border: 1, borderColor: 'divider' }}
+            sx={{ borderRadius: 2, textTransform: 'none', px: 2, py: 0.5, mr: 1, border: 1, borderColor: 'divider' }}
           >
             {t('Include Unvested', 'כלול לא מובשל')}
           </ToggleButton>
@@ -601,7 +601,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
             onChange={() => setGroupByPortfolio(!groupByPortfolio)}
             size="small"
             color="primary"
-            sx={{ borderRadius: 2, textTransform: 'none', px: 2, py: 0.5, [isRtl ? 'ml' : 'mr']: 1, border: 1, borderColor: 'divider' }}
+            sx={{ borderRadius: 2, textTransform: 'none', px: 2, py: 0.5, mr: 1, border: 1, borderColor: 'divider' }}
           >
             {t('Group by Portfolio', 'קבץ לפי תיק')}
           </ToggleButton>

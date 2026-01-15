@@ -23,6 +23,10 @@ import MenuIcon from '@mui/icons-material/Menu';
 import { getTheme } from './theme';
 import { exportDashboardData } from './lib/exporter';
 import { useLanguage } from './lib/i18n';
+import { CacheProvider } from '@emotion/react';
+import createCache from '@emotion/cache';
+import rtlPlugin from 'stylis-plugin-rtl';
+import { prefixer } from 'stylis';
 
 const tabMap: Record<string, number> = {
   '/dashboard': 0,
@@ -35,6 +39,16 @@ const reverseTabMap: Record<number, string> = {
   1: '/transaction',
   2: '/portfolios',
 };
+
+// Create rtl cache
+const cacheRtl = createCache({
+  key: 'muirtl',
+  stylisPlugins: [prefixer, rtlPlugin],
+});
+
+const cacheLtr = createCache({
+  key: 'muiltr',
+});
 
 function App() {
   const [sheetId, setSheetId] = useState<string | null>(() => {
@@ -297,13 +311,14 @@ function App() {
   }
 
   return (
+    <CacheProvider value={isRtl ? cacheRtl : cacheLtr}>
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <Box sx={{ flexGrow: 1, minHeight: '100vh', bgcolor: 'background.default' }}>
         <AppBar position="static" color="inherit" elevation={0} sx={{ borderBottom: 1, borderColor: 'divider' }}>
           <Toolbar sx={{ flexWrap: { xs: 'wrap', sm: 'nowrap' }, gap: { xs: 1, sm: 0 } }}>
-            <AccountBalanceWalletIcon sx={{ color: 'primary.main', [isRtl ? 'ml' : 'mr']: 1.5 }} />
-            <Typography variant="h5" component="div" sx={{ flexGrow: 0, flexShrink: 1, minWidth: 0, color: 'text.primary', fontWeight: 700, letterSpacing: '-0.5px', [isRtl ? 'ml' : 'mr']: { xs: 1, sm: 4 }, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: { xs: 140, sm: 'none' } }}>
+            <AccountBalanceWalletIcon sx={{ color: 'primary.main', mr: 1.5 }} />
+            <Typography variant="h5" component="div" sx={{ flexGrow: 0, flexShrink: 1, minWidth: 0, color: 'text.primary', fontWeight: 700, letterSpacing: '-0.5px', mr: { xs: 1, sm: 4 }, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: { xs: 140, sm: 'none' } }}>
               {t('My Portfolios', 'My Portfolios')}
             </Typography>
             
@@ -548,6 +563,7 @@ function App() {
         </Dialog>
       </Box>
     </ThemeProvider>
+    </CacheProvider>
   );
 }
 

@@ -297,7 +297,7 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
                         {option.type && DEFAULT_SECURITY_TYPE_CONFIG[option.type] && <Chip label={getTranslatedType(option.type, DEFAULT_SECURITY_TYPE_CONFIG[option.type]?.displayName || option.type)} size="small" color="primary" variant="outlined" />}
                         {option.ownedInPortfolios && option.ownedInPortfolios.length > 0 && (
                           <Tooltip title={`Owned in: ${option.ownedInPortfolios.join(', ')}`}>
-                            <BusinessCenterIcon color="success" sx={{ fontSize: 16, [isRtl ? 'mr' : 'ml']: 1 }} />
+                            <BusinessCenterIcon color="success" sx={{ fontSize: 16, ml: 1 }} />
                           </Tooltip>
                         )}
                       </Box>

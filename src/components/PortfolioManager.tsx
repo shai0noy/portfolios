@@ -535,7 +535,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                     <TableCell>{port.currency}</TableCell>
                     <TableCell>{taxPolicyNames[port.taxPolicy] || port.taxPolicy}</TableCell>
                     <TableCell>
-                      <Button size="small" onClick={() => navigate(`/portfolios/${port.id}`)} sx={{ [isRtl ? 'ml' : 'mr']: 1 }}>{t('Edit', 'ערוך')}</Button>
+                      <Button size="small" onClick={() => navigate(`/portfolios/${port.id}`)} sx={{ mr: 1 }}>{t('Edit', 'ערוך')}</Button>
                       <Button size="small" color="error" onClick={() => alert('Delete: ' + port.id)}>{t('Delete', 'מחק')}</Button>
                     </TableCell>
                   </TableRow>

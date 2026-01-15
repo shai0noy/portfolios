@@ -124,7 +124,7 @@ export function DashboardTable(props: TableProps) {
               </IconButton>
               <Typography variant="subtitle1" color="primary" sx={{ fontWeight: 600 }}>{groupName}</Typography>
             </Box>
-            <Box display="flex" alignItems="center" gap={2} flexWrap="wrap" sx={{ [isRtl ? 'pl' : 'pr']: 1 }}>
+            <Box display="flex" alignItems="center" gap={2} flexWrap="wrap" pr={1}>
               <Typography variant="body2">
                 {t('Total:', 'סה"כ:')} {formatCurrency(groupSummary.totalMV, displayCurrency, 0)}
               </Typography>

@@ -315,7 +315,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
       </Typography>
 
       {selectedTicker && (
-        <Button variant="text" startIcon={<SearchIcon sx={{ transform: isRtl ? 'scaleX(-1)' : 'none' }} />} onClick={handleSearchAgain} sx={{ mb: 2 }}>
+        <Button variant="text" startIcon={<SearchIcon />} onClick={handleSearchAgain} sx={{ mb: 2 }}>
           {t('Back to Search', 'חזרה לחיפוש')}
         </Button>
       )}
@@ -402,7 +402,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                               <MenuItem key={p.id} value={p.id}>{p.name} ({p.currency})</MenuItem>
                             ))}
                           </Select>
-                          {!portId && <Typography variant="caption" color="text.secondary" sx={{ [isRtl ? 'mr' : 'ml']: 1.5, mt: 0.5 }}>Required</Typography>}
+                          {!portId && <Typography variant="caption" color="text.secondary" sx={{ ml: 1.5, mt: 0.5 }}>Required</Typography>}
                         </FormControl>
                       </Grid>
                       <Grid item xs={12} sm={4}>

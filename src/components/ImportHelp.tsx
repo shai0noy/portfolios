@@ -19,7 +19,7 @@ export function ImportHelp({ open, onClose }: Props) {
         </Typography>
 
         <Typography variant="h6" gutterBottom>{t('Exporting from Yahoo', 'ייצוא מ-Yahoo')}</Typography>
-        <List dense sx={{ listStyleType: 'disc', [isRtl ? 'pr' : 'pl']: 4 }}>
+        <List dense sx={{ listStyleType: 'disc', pl: 4 }}>
           <ListItem sx={{ display: 'list-item' }}>
             <ListItemText primary={t("On Yahoo Finance, open the Portfolio or Activity page containing the transactions or holdings you want to export.", "ב-Yahoo Finance, פתח את עמוד התיק או הפעילות המכיל את העסקאות או ההחזקות שברצונך לייצא.")} />
           </ListItem>
@@ -32,7 +32,7 @@ export function ImportHelp({ open, onClose }: Props) {
         <Typography variant="body2" paragraph>
           {t("The importer expects the following fields in the CSV (column names can vary; you'll map them in the wizard):", "הייבוא מצפה לשדות הבאים בקובץ ה-CSV (שמות העמודות יכולים להשתנות; תמפה אותם באשף):")}
         </Typography>
-        <List dense sx={{ listStyleType: 'disc', [isRtl ? 'pr' : 'pl']: 4 }}>
+        <List dense sx={{ listStyleType: 'disc', pl: 4 }}>
           <ListItem sx={{ display: 'list-item' }}>
             <ListItemText primary={t("Symbol or Ticker (e.g. AAPL, 1175819)", "סימול או טיקר (למשל AAPL, 1175819)")} />
           </ListItem>
@@ -51,14 +51,14 @@ export function ImportHelp({ open, onClose }: Props) {
         </List>
 
         <Typography variant="body2" sx={{ mt: 1, fontWeight: 'medium' }}>{t('Optional but useful:', 'אופציונלי אך שימושי:')}</Typography>
-        <List dense sx={{ listStyleType: 'disc', [isRtl ? 'pr' : 'pl']: 4 }}>
+        <List dense sx={{ listStyleType: 'disc', pl: 4 }}>
           <ListItem sx={{ display: 'list-item' }}>
             <ListItemText primary={t("Exchange (e.g., NASDAQ, TASE) — if missing, the importer can auto-deduce or you can set a manual exchange.", "בורסה (למשל NASDAQ, TASE) — אם חסר, הייבוא ינסה לזהות או שתוכל להגדיר ידנית.")} />
           </ListItem>
         </List>
 
         <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>{t('How to use the Import Wizard', 'כיצד להשתמש באשף הייבוא')}</Typography>
-        <List dense sx={{ listStyleType: 'decimal', [isRtl ? 'pr' : 'pl']: 4 }}>
+        <List dense sx={{ listStyleType: 'decimal', pl: 4 }}>
           <ListItem sx={{ display: 'list-item' }}>
             <ListItemText primary={t("Upload the CSV file or paste the CSV text into the wizard.", "העלה את קובץ ה-CSV או הדבק את הטקסט באשף.")} />
           </ListItem>
@@ -89,7 +89,7 @@ export function ImportHelp({ open, onClose }: Props) {
         </List>
 
         <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>{t('Common tips', 'טיפים נפוצים')}</Typography>
-        <List dense sx={{ listStyleType: 'disc', [isRtl ? 'pr' : 'pl']: 4 }}>
+        <List dense sx={{ listStyleType: 'disc', pl: 4 }}>
           <ListItem sx={{ display: 'list-item' }}>
             <ListItemText primary={t("If dates appear as integers like 20241025, the importer will parse them as YYYY-MM-DD automatically.", "אם תאריכים מופיעים כמספרים כמו 20241025, הייבוא ימיר אותם אוטומטית.")} />
           </ListItem>

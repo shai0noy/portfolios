@@ -223,14 +223,14 @@ export function TickerDetails({ sheetId }: { sheetId: string }) {
                     </Typography>
                     {openPrice != null && (
                       <Typography variant="caption" color="text.secondary" sx={{ ml: 1, whiteSpace: 'nowrap' }}>
-                        <Typography component="span" variant="caption" sx={{ [isRtl ? 'ml' : 'mr']: 0.5 }}>{t('Open:', 'פתיחה:')}</Typography>
+                        <Typography component="span" variant="caption" sx={{ mr: 0.5 }}>{t('Open:', 'פתיחה:')}</Typography>
                         {formatPrice(openPrice, isTase ? 'ILA' : displayData.currency, maxDecimals).replace('ag.', t('ag.', "א'"))}
                       </Typography>
                     )}
                   </Box>
 
                   <Tooltip title={`${t('Day change', 'שינוי יומי')} (${lastUpdated})`} placement="top">
-                    <Box sx={{ textAlign: 'right', [isRtl ? 'mr' : 'ml']: 2, minWidth: 96 }}>
+                    <Box sx={{ textAlign: 'right', ml: 2, minWidth: 96 }}>
                       <Typography variant="h6" sx={{ fontWeight: 700, color: dayChange >= 0 ? 'success.main' : 'error.main' }}>{formatPercent(dayChange)}</Typography>
                     </Box>
                   </Tooltip>
