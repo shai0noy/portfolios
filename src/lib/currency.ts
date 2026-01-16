@@ -236,7 +236,7 @@ export function formatCurrency(n: number, currency: string | Currency, decimals 
   const norm = normalizeCurrency(currency as string);
 
   if (norm === Currency.ILA) {
-    const val = n.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+    const val = n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: decimals });
     return `${val} ag.`;
   }
   
@@ -245,13 +245,13 @@ export function formatCurrency(n: number, currency: string | Currency, decimals 
     return new Intl.NumberFormat(undefined, {
       style: 'currency',
       currency: norm,
-      minimumFractionDigits: decimals,
+      minimumFractionDigits: 0,
       maximumFractionDigits: decimals
     }).format(n);
   } catch (e) {
     // Fallback for unknown currency codes
     console.warn(`Could not format currency for code: ${norm}. Using default format.`);
-    const val = n.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+    const val = n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: decimals });
     return `${val} ${norm}`;
   }
 }
@@ -273,7 +273,7 @@ export function formatPrice(n: number, currency: string | Currency, decimals = 2
         // If it's already ILA (Agorot units), don't multiply.
         // If it's ILS (Major Units), multiply by 100 to display Agorot.
         const agorotVal = toILA(n, norm);
-        const val = agorotVal.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+        const val = agorotVal.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: decimals });
         return `${val} ag.`;
     }
     

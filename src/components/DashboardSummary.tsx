@@ -1,5 +1,5 @@
 import { Box, Paper, Typography, Grid, Tooltip, Button, ToggleButton, ToggleButtonGroup } from '@mui/material';
-import { formatCurrency, formatPercent } from '../lib/currency';
+import { formatPercent, formatCurrency } from '../lib/currency';
 import { logIfFalsy } from '../lib/utils';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
