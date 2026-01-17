@@ -38,8 +38,8 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
 
     const last = parseFloat(getText('last') || '0');
     const openPrice = parseFloat(getText('openPrice') || '0');
-    const name_en = getText('name_en');
-    const name_he = getText('name_he');
+    const nameEn = getText('nameEn');
+    const nameHe = getText('nameHe');
     let currency = getText('currency') || 'ILA';
     if (currency === 'NIS' || currency === 'ILS') currency = 'ILA';
     const exchangeRes = getText('exchange')?.toUpperCase() || 'TASE';
@@ -70,8 +70,8 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
     const tickerData: TickerData = {
       price: last,
       openPrice,
-      name: name_en || undefined,
-      name_he: name_he || undefined,
+      name: nameEn || undefined,
+      nameHe: nameHe || undefined,
       currency,
       exchange: exchangeRes,
       changePct,

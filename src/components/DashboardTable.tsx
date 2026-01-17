@@ -178,7 +178,7 @@ export function DashboardTable(props: TableProps) {
                 
                 return (
                   <TableRow key={h.key} hover onClick={() => navigate(`/ticker/${h.exchange.toUpperCase()}/${h.ticker}`, { state: { holding: h } })} sx={{ cursor: 'pointer' }}>
-                    {columnVisibility.displayName ? <TableCell sx={{ fontWeight: 'bold' }}>{tTry(h.displayName, h.name_he)}</TableCell> : null}
+                    {columnVisibility.displayName ? <TableCell sx={{ fontWeight: 'bold' }}>{tTry(h.displayName, h.nameHe)}</TableCell> : null}
                     {columnVisibility.ticker ? <TableCell>{h.ticker}</TableCell> : null}
                     {columnVisibility.sector ? <TableCell>{h.sector}</TableCell> : null}
                     {columnVisibility.qty ? <TableCell align="right">{h.totalQty.toLocaleString()}</TableCell> : null}

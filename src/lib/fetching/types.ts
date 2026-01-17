@@ -8,28 +8,28 @@ export interface TickerData {
   currency?: string;
   exchange?: string;
   changePct?: number; // Daily change percentage
-  changeDate1d?: number;
+  changeDate1d?: number; // Timestamp of the previous close used for daily change
   timestamp?: number; // Last update time
   sector?: string;
   changePctYtd?: number;
-  changeDateYtd?: number;
+  changeDateYtd?: number; // Timestamp of the start of the year price
   changePctRecent?: number;
-  changeDateRecent?: number;
-  recentChangeDays?: number;
+  changeDateRecent?: number; // Timestamp of the start of the recent period
+  recentChangeDays?: number; // Number of days in the recent period (e.g. 7)
   changePct1m?: number;
-  changeDate1m?: number;
+  changeDate1m?: number; // Timestamp of the price 1 month ago
   changePct3m?: number;
-  changeDate3m?: number;
+  changeDate3m?: number; // Timestamp of the price 3 months ago
   changePct1y?: number;
-  changeDate1y?: number;
+  changeDate1y?: number; // Timestamp of the price 1 year ago
   changePct3y?: number;
-  changeDate3y?: number;
+  changeDate3y?: number; // Timestamp of the price 3 years ago
   changePct5y?: number;
-  changeDate5y?: number;
+  changeDate5y?: number; // Timestamp of the price 5 years ago
   changePct10y?: number;
-  changeDate10y?: number;
+  changeDate10y?: number; // Timestamp of the price 10 years ago
   ticker: string;
-  numericId : number|null;
+  numericId : number|null; // Numeric ID for TASE
 }
 
 export interface HistoricalDataPoint {
@@ -39,9 +39,9 @@ export interface HistoricalDataPoint {
 
 export interface TaseSecurity {
   tradeDate: string;
-  securityId: number;
+  securityId: number; // TASE security ID
   securityFullTypeCode: string;
-  isin: string;
+  isin: string; // Israel ISIN code
   corporateId: string;
   issuerId: number;
   securityIsIncludedInContinuousIndices: number[];
@@ -56,7 +56,7 @@ export interface TaseSecurity {
 export interface TaseTicker {
   // Fields from TASE API
   securityId: number;
-  name_en: string;
+  nameEn: string;
   symbol: string;
   companyName: string;
   companySuperSector: string;
@@ -64,10 +64,10 @@ export interface TaseTicker {
   companySubSector: string;
 
   // Fields from Globes
-  globesInstrumentId: string;
+  globesInstrumentId: string; // Globes internal instrument ID
   type: string; // 'stock', 'etf', etc.
-  name_he: string; // Globes has hebrew and english names
-  taseType: string; // TASE type string
+  nameHe: string;
+  taseType: string; // TASE type ID string
   exchange?: string;
 }
 

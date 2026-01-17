@@ -186,7 +186,7 @@ export function TickerDetails({ sheetId }: { sheetId: string }) {
         <Box display="flex" justifyContent="space-between" alignItems="center">
           <Box>
             <Typography variant="h4" component="div" fontWeight="bold">
-              {tTry(data?.name || holdingData?.name || ticker, data?.name_he || holdingData?.name_he)}
+              {tTry(data?.name || holdingData?.name || ticker, data?.nameHe || holdingData?.nameHe)}
             </Typography>
             <Typography variant="subtitle1" component="div" color="text.secondary">
               {(data?.name || holdingData?.name) ? `${exchange?.toUpperCase()}: ${ticker}` : exchange?.toUpperCase()}

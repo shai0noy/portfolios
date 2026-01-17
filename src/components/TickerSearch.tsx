@@ -37,7 +37,7 @@ interface SearchResult {
   symbol: string;
   numericSecurityId?: number; // TASE specific
   name: string;
-  name_he?: string;
+  nameHe?: string;
   exchange: string;
   type?: string;
   globesInstrumentId?: string; // TASE specific
@@ -57,8 +57,8 @@ function processTaseResult(t: TaseTicker, instrumentType: string, portfolios: Po
   return {
     symbol: t.symbol,
     numericSecurityId: t.securityId,
-    name: t.name_en,
-    name_he: t.name_he,
+    name: t.nameEn,
+    nameHe: t.nameHe,
     exchange: t.exchange || 'TASE',
     type: instrumentType,
     globesInstrumentId: t.globesInstrumentId,
@@ -75,8 +75,8 @@ function searchTaseType(
 ): SearchResult[] {
   return tickers.filter(item =>
   (item.symbol.toUpperCase().includes(termUC) || item.securityId.toString() === termUC ||
-    item.name_en.toUpperCase().includes(termUC) ||
-    item.name_he.toUpperCase().includes(termUC))
+    item.nameEn.toUpperCase().includes(termUC) ||
+    item.nameHe.toUpperCase().includes(termUC))
   ).map(t => processTaseResult(t, instrumentType, portfolios));
 }
 
@@ -288,7 +288,7 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
               <Box key={`${option.exchange}:${option.symbol}`}>
                 <ListItemButton onClick={() => handleOptionSelect(option)}>
                   <ListItemText
-                    primary={<Typography variant="body1">{tTry(option.name, option.name_he)}</Typography>}
+                    primary={<Typography variant="body1">{tTry(option.name, option.nameHe)}</Typography>}
                     secondaryTypographyProps={{ component: 'div' }} // Render secondary as div
                     secondary={
                       <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mt: 0.5 }}>

@@ -302,7 +302,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
             ticker: t.ticker,
             exchange: exchange,
             displayName: live?.name || t.ticker,
-            name_he: live?.name_he,
+            nameHe: live?.nameHe,
             qtyVested: 0,
             qtyUnvested: 0,
             totalQty: 0,

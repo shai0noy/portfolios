@@ -346,7 +346,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
             <Card variant="outlined">
               <CardContent>
                 <Box display="flex" alignItems="center" gap={1} mb={1}>
-                  <Typography variant="h6">{tTry(displayName || selectedTicker.name, (selectedTicker as any).name_he)}</Typography>
+                  <Typography variant="h6">{tTry(displayName || selectedTicker.name, (selectedTicker as any).nameHe)}</Typography>
                   {ownedDetails.length > 0 && (
                     <Tooltip title={`Total Held: ${totalHeld} (${ownedDetails.map(d => `${d.name}: ${d.qty}`).join(', ')})`}>
                       <BusinessCenterIcon color="success" />

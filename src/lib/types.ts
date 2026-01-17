@@ -151,7 +151,7 @@ export interface DashboardHolding {
   ticker: string;
   exchange: Exchange;
   displayName: string;
-  name_he?: string;
+  nameHe?: string;
   qtyVested: number;
   qtyUnvested: number;
   totalQty: number;
@@ -243,7 +243,7 @@ export interface Holding {
   currency?: Currency;
   totalValue?: number;
   name?: string;
-  name_he?: string;
+  nameHe?: string;
   sector?: string;
   changePct?: number;
   changeDate1d?: number;

@@ -13,8 +13,8 @@ import taseTypeIds from './tase_type_ids.json';
 interface GlobesTicker {
     numericSecurityId: string;
     symbol: string;
-    name_he: string;
-    name_en: string;
+    nameHe: string;
+    nameEn: string;
     globesInstrumentId: string;
     type: string;
 }
@@ -170,8 +170,8 @@ async function fetchGlobesTickersByType(type: string, exchange: string, signal?:
 
       // The 'symbol' tag from the Globes API XML is used as the numeric security ID for joining with TASE data.
       const numericSecurityId = getElementText('symbol');
-      const name_he = getElementText('name_he');
-      const name_en = getElementText('name_en');
+      const nameHe = getElementText('nameHe');
+      const nameEn = getElementText('nameEn');
       const globesInstrumentId = getElementText('instrumentId');
 
       if (!numericSecurityId || !globesInstrumentId) {
@@ -182,8 +182,8 @@ async function fetchGlobesTickersByType(type: string, exchange: string, signal?:
         numericSecurityId,
         // The symbol from Globes is the security ID, which we also use as the symbol itself here.
         symbol: numericSecurityId,
-        name_he,
-        name_en,
+        nameHe,
+        nameEn,
         globesInstrumentId,
         type: type,
       };
@@ -243,14 +243,14 @@ export async function fetchAllTickers(
       securityId: Number(globesTicker.numericSecurityId) || 0, // Fallback if not numeric
       symbol: getEffectiveTicker(globesTicker.symbol, exchange) || globesTicker.symbol,
       exchange: exchange,
-      companyName: globesTicker.name_en,
+      companyName: globesTicker.nameEn,
       companySuperSector: '',
       companySector: '',
       companySubSector: '',
       globesInstrumentId: globesTicker.globesInstrumentId,
       type: globesTicker.type,
-      name_he: globesTicker.name_he,
-      name_en: globesTicker.name_en,
+      nameHe: globesTicker.nameHe,
+      nameEn: globesTicker.nameEn,
       taseType: config[globesTicker.type]?.displayName || 'Unknown',
    }));
 
@@ -308,7 +308,7 @@ async function fetchTaseTickers(
           // Data from TASE API
           securityId: security.securityId,
           exchange: 'TASE',
-          name_en: security.securityName,
+          nameEn: security.securityName,
           symbol: getEffectiveTicker(security.symbol, 'TASE') || security.symbol,
           companyName: security.companyName,
           companySuperSector: security.companySuperSector,
@@ -317,7 +317,7 @@ async function fetchTaseTickers(
           // Enriched/fallback data from Globes
           globesInstrumentId: globesTicker?.globesInstrumentId || '',
           type: globesType || 'Unknown',
-          name_he: globesTicker?.name_he || security.securityName,
+          nameHe: globesTicker?.nameHe || security.securityName,
           taseType: taseType?.subType || 'Unknown',
       });
   }
@@ -332,14 +332,14 @@ async function fetchTaseTickers(
             securityId: Number(globesTicker.numericSecurityId),
             exchange: 'TASE',
             symbol: getEffectiveTicker(globesTicker.symbol, 'TASE') || globesTicker.symbol,
-            companyName: globesTicker.name_en, // Fallback to globes name
+            companyName: globesTicker.nameEn, // Fallback to globes name
             companySuperSector: '',
             companySector: '',
             companySubSector: '',
             globesInstrumentId: globesTicker.globesInstrumentId,
             type: globesTicker.type,
-            name_he: globesTicker.name_he,
-            name_en: globesTicker.name_en,
+            nameHe: globesTicker.nameHe,
+            nameEn: globesTicker.nameEn,
             taseType: DEFAULT_SECURITY_TYPE_CONFIG[globesTicker.type]?.displayName || 'Unknown', // Use globes type as a fallback
         });
       }
