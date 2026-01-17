@@ -13,7 +13,7 @@ export const populateTestData = async (spreadsheetId: string) => {
         { id: 'P-IL-GROWTH', name: 'Growth ILS', cgt: 0.25, incTax: 0, mgmtVal: 0, mgmtType: 'percentage', mgmtFreq: 'yearly', commRate: 0.001, commMin: 5, commMax: 0, currency: Currency.ILS, divPolicy: 'cash_taxed', divCommRate: 0, taxPolicy: 'REAL_GAIN' },
         { id: 'P-USD-CORE', name: 'Core USD', cgt: 0.25, incTax: 0, mgmtVal: 0, mgmtType: 'percentage', mgmtFreq: 'yearly', commRate: 0, commMin: 0, commMax: 0, currency: Currency.USD, divPolicy: 'cash_taxed', divCommRate: 0, taxPolicy: 'NOMINAL_GAIN' },
         { id: 'P-RSU', name: 'RSU Account', cgt: 0.25, incTax: 0.5, mgmtVal: 0, mgmtType: 'percentage', mgmtFreq: 'yearly', commRate: 0, commMin: 0, commMax: 0, currency: Currency.USD, divPolicy: 'hybrid_rsu', divCommRate: 0, taxPolicy: 'NOMINAL_GAIN' },
-        { id: 'P-GEMMEL', name: 'Gemmel', cgt: 0, incTax: 0, mgmtVal: 0, mgmtType: 'percentage', mgmtFreq: 'yearly', commRate: 0, commMin: 0, commMax: 0, currency: Currency.ILS, divPolicy: 'accumulate_tax_free', divCommRate: 0, taxPolicy: 'TAX_FREE' }
+        { id: 'P-GEMEL', name: 'Gemel', cgt: 0, incTax: 0, mgmtVal: 0, mgmtType: 'percentage', mgmtFreq: 'yearly', commRate: 0, commMin: 0, commMax: 0, currency: Currency.ILS, divPolicy: 'accumulate_tax_free', divCommRate: 0, taxPolicy: 'TAX_FREE' }
     ];
 
     for (const p of portfolios) {
@@ -39,9 +39,9 @@ export const populateTestData = async (spreadsheetId: string) => {
         { date: '2025-07-10', portfolioId: 'P-RSU', ticker: 'GOOG', exchange: 'NASDAQ', type: 'DIVIDEND', originalQty: 1, originalPrice: 2, currency: Currency.USD, comment: 'RSU dividend', commission: 0, tax: 0.5, source: 'BROKER_CSV', creationDate: '2025-07-10', origOpenPriceAtCreationDate: 0, vestDate: '' },
         { date: '2025-12-01', portfolioId: 'P-RSU', ticker: 'GOOG', exchange: 'NASDAQ', type: 'SELL', originalQty: 2, originalPrice: 155, currency: Currency.USD, comment: 'Sell vested RSUs for tax', commission: 1, tax: 0.25, source: 'BROKER_CSV', creationDate: '2025-12-01', origOpenPriceAtCreationDate: 155, vestDate: '' },
 
-        // P-GEMMEL Portfolio
-        { date: '2025-04-01', portfolioId: 'P-GEMMEL', ticker: '123456', exchange: 'IL_FUND', type: 'BUY', originalQty: 100, originalPrice: 100, currency: Currency.ILS, comment: 'Gemmel buy 1', commission: 0, tax: 0, source: 'MANUAL', creationDate: '2025-04-01', origOpenPriceAtCreationDate: 100, vestDate: '' },
-        { date: '2025-05-01', portfolioId: 'P-GEMMEL', ticker: '123456', exchange: 'IL_FUND', type: 'BUY', originalQty: 50, originalPrice: 105, currency: Currency.ILS, comment: 'Gemmel buy 2', commission: 0, tax: 0, source: 'MANUAL', creationDate: '2025-05-01', origOpenPriceAtCreationDate: 105, vestDate: '' },
+        // P-GEMEL Portfolio
+        { date: '2025-04-01', portfolioId: 'P-GEMEL', ticker: '123456', exchange: 'IL_FUND', type: 'BUY', originalQty: 100, originalPrice: 100, currency: Currency.ILS, comment: 'Gemel buy 1', commission: 0, tax: 0, source: 'MANUAL', creationDate: '2025-04-01', origOpenPriceAtCreationDate: 100, vestDate: '' },
+        { date: '2025-05-01', portfolioId: 'P-GEMEL', ticker: '123456', exchange: 'IL_FUND', type: 'BUY', originalQty: 50, originalPrice: 105, currency: Currency.ILS, comment: 'Gemel buy 2', commission: 0, tax: 0, source: 'MANUAL', creationDate: '2025-05-01', origOpenPriceAtCreationDate: 105, vestDate: '' },
     ];
 
     try { 

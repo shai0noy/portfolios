@@ -325,7 +325,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                   <MenuItem value="std_il">{t('Standard IL (Broker/Bank)', 'רגיל ישראל (ברוקר/בנק)')}</MenuItem>
                   <MenuItem value="std_us">{t('Standard US (Broker)', 'רגיל ארה"ב (ברוקר)')}</MenuItem>
                   <MenuItem value="pension">{t('Pension', 'פנסיה')}</MenuItem>
-                  <MenuItem value="hishtalmut">{t('Hishtalmut / Gemmel', 'השתלמות / גמל')}</MenuItem>
+                  <MenuItem value="hishtalmut">{t('Hishtalmut / Gemel', 'השתלמות / גמל')}</MenuItem>
                   <MenuItem value="rsu">{t('RSU (Income Taxed)', 'RSU (ממוסה כהכנסה)')}</MenuItem>
                 </Select>
               </FormControl>
