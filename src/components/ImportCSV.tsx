@@ -194,13 +194,13 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
         ticker: getVal('ticker').toUpperCase(),
         exchange, // Add exchange
         type,
-        Original_Qty: isNaN(qty) ? 0 : Math.abs(qty), // Store absolute qty, logic handles sign
-        Original_Price: isNaN(price) ? 0 : price,
+        originalQty: isNaN(qty) ? 0 : Math.abs(qty), // Store absolute qty, logic handles sign
+        originalPrice: isNaN(price) ? 0 : price,
         grossValue: (isNaN(qty) ? 0 : Math.abs(qty)) * (isNaN(price) ? 0 : price),
         comment: 'Imported via CSV',
         Source: sourceId,
       };
-    }).filter(t => t.ticker && t.Original_Qty > 0); // Filter invalid rows
+    }).filter(t => t.ticker && t.originalQty > 0); // Filter invalid rows
 
     setParsedTxns(txns);
   };
@@ -388,8 +388,8 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
                       <TableCell>{t.ticker}</TableCell>
                       <TableCell>{t.exchange}</TableCell>
                       <TableCell>{t.type}</TableCell>
-                      <TableCell align="right">{t.Original_Qty}</TableCell>
-                      <TableCell align="right">{t.Original_Price.toFixed(2)}</TableCell>
+                      <TableCell align="right">{t.originalQty}</TableCell>
+                      <TableCell align="right">{t.originalPrice.toFixed(2)}</TableCell>
                       <TableCell align="right">{t.grossValue?.toFixed(2)}</TableCell>
                     </TableRow>
                   ))}

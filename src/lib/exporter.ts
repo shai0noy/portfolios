@@ -129,14 +129,14 @@ export async function exportDashboardData(opts: {
       }
 
       const filteredTxns = selectedPortfolioId ? txns.filter(t => t.portfolioId === selectedPortfolioId) : txns;
-      transactionsData = filteredTxns.map((t: any) => ({
+      transactionsData = filteredTxns.map((t) => ({
         Date: t.date,
         Portfolio: resolvedPortMap.get(t.portfolioId)?.name || t.portfolioId,
         Ticker: t.ticker,
         Exchange: t.exchange,
         Type: t.type,
-        Qty: t.qty,
-        Price: t.price,
+        Qty: t.qty || t.originalQty,
+        Price: t.price || t.originalPrice,
         Currency: t.currency,
         Comment: t.comment
       }));

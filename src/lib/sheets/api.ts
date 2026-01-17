@@ -202,7 +202,7 @@ export const fetchPortfolios = withAuthHandling(async (spreadsheetId: string): P
                 };
             }
             const multiplier = txn.type === 'BUY' ? 1 : -1;
-            const qty = parseFloat(String(txn.Split_Adjusted_Qty || txn.Original_Qty));
+            const qty = parseFloat(String(txn.splitAdjustedQty || txn.originalQty));
             holdingsByPortfolio[txn.portfolioId][key].qty += qty * multiplier;
         }
     });
@@ -263,9 +263,9 @@ export const fetchTransactions = withAuthHandling(async (spreadsheetId: string):
 
         return {
             ...t,
-            qty: cleanNumber(t.Split_Adjusted_Qty || t.Original_Qty),
-            price: cleanNumber(t.Split_Adjusted_Price || t.Original_Price),
-            grossValue: cleanNumber(t.Original_Qty) * cleanNumber(t.Original_Price)
+            qty: cleanNumber(t.splitAdjustedQty || t.originalQty),
+            price: cleanNumber(t.splitAdjustedPrice || t.originalPrice),
+            grossValue: cleanNumber(t.originalQty) * cleanNumber(t.originalPrice)
         };
     });
 });
@@ -373,7 +373,7 @@ export const batchAddTransactions = withAuthHandling(async (spreadsheetId: strin
                 case 'ticker': rowData[key] = String(logIfFalsy(t.ticker, `Transaction ticker missing`, t)).toUpperCase(); break;
                 case 'exchange': rowData[key] = toGoogleFinanceExchangeCode(t.exchange || Exchange.OTHER); break;
                 case 'vestDate': rowData[key] = t.vestDate ? toGoogleSheetDateFormat(new Date(t.vestDate)) : ''; break;
-                case 'comment': case 'Source': rowData[key] = (t as any)[key] || ''; break;
+                case 'comment': case 'source': rowData[key] = (t as any)[key] || ''; break;
                 case 'commission': {
                     const comm = (t as any).commission || 0;
                     const isILA = (t.currency || '').toUpperCase() === 'ILA';
@@ -382,12 +382,12 @@ export const batchAddTransactions = withAuthHandling(async (spreadsheetId: strin
                     break;
                 }
                 case 'tax': rowData[key] = (t as any)[key] || 0; break;
-                case 'Creation_Date': {
-                    const cDate = (t as any).Creation_Date ? new Date((t as any).Creation_Date) : new Date();
+                case 'creationDate': {
+                    const cDate = (t as any).creationDate ? new Date((t as any).creationDate) : new Date();
                     rowData[key] = toGoogleSheetDateFormat(cDate);
                     break;
                 }
-                case 'Orig_Open_Price_At_Creation_Date': rowData[key] = (t as any)[key]; break;
+                case 'origOpenPriceAtCreationDate': rowData[key] = (t as any)[key]; break;
                 default:
                     if (key in t) {
                         rowData[key] = (t as any)[key];
@@ -407,7 +407,7 @@ export const batchAddTransactions = withAuthHandling(async (spreadsheetId: strin
         const rowValues = Object.values(TXN_COLS).map(colDef => {
             if (colDef.formula) return null;
             const key = colDef.key;
-            if (key === 'date' || key === 'vestDate' || key === 'Creation_Date') {
+            if (key === 'date' || key === 'vestDate' || key === 'creationDate') {
                 return rowData[key] ? toGoogleSheetDateFormat(new Date(rowData[key])) : '';
             }
             if (key === 'exchange') return toGoogleFinanceExchangeCode(rowData[key] || Exchange.OTHER);
@@ -523,7 +523,7 @@ export const rebuildHoldingsSheet = withAuthHandling(async (spreadsheetId: strin
                 holdings[key].numericId = txn.numericId;
             }
             const multiplier = txn.type === 'BUY' ? 1 : -1;
-            const qty = parseFloat(String(txn.Split_Adjusted_Qty || txn.Original_Qty));
+            const qty = parseFloat(String(txn.splitAdjustedQty || txn.originalQty));
             holdings[key].qty += qty * multiplier;
         }
     });

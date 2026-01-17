@@ -272,8 +272,8 @@ export interface Transaction {
   ticker: string;
   exchange?: Exchange;
   type: 'BUY' | 'SELL' | 'DIVIDEND' | 'FEE';
-  Original_Qty: number;
-  Original_Price: number;
+  originalQty: number;
+  originalPrice: number;
   qty?: number;
   price?: number;
   grossValue?: number;
@@ -282,15 +282,15 @@ export interface Transaction {
   comment?: string;
   commission?: number;
   tax?: number;
-  Source?: string;
-  Creation_Date?: string;
-  Orig_Open_Price_At_Creation_Date?: number;
-  Split_Adj_Open_Price?: number;
-  Split_Ratio?: number;
-  Split_Adjusted_Price?: number;
-  Split_Adjusted_Qty?: number;
-  Original_Price_USD?: number;
-  Original_Price_ILA?: number;
+  source?: string;
+  creationDate?: string;
+  origOpenPriceAtCreationDate?: number;
+  splitAdjOpenPrice?: number;
+  splitRatio?: number;
+  splitAdjustedPrice?: number;
+  splitAdjustedQty?: number;
+  originalPriceUSD?: number;
+  originalPriceILA?: number;
   numericId?: number;
 }
 

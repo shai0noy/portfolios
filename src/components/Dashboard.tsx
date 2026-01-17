@@ -339,19 +339,19 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         const isVested = !t.vestDate || new Date(t.vestDate) <= new Date();
         // Determine Original Price in Portfolio Currency (Major Unit)
         let originalPricePortfolioCurrency = 0;
-        
-        const priceInUSD = (t as any).Original_Price_USD || 0;
-        const priceInAgorot = (t as any).Original_Price_ILA || 0;
+
+        const priceInUSD = (t as any).originalPriceUSD || 0;
+        const priceInAgorot = (t as any).originalPriceILA || 0;
         const priceInILS = toILS(priceInAgorot, Currency.ILA);
         const tQty = t.qty || 0;
 
         if (portfolioCurrency === Currency.ILS) {
              // If Portfolio is ILS, use Original_Price_ILA (in Agorot) and convert to ILS Major Unit
-             logIfFalsy((t as any).Original_Price_ILA, `Original_Price_ILA missing for ${t.ticker}`, t);
+             logIfFalsy((t as any).originalPriceILA, `originalPriceILA missing for ${t.ticker}`, t);
              originalPricePortfolioCurrency = priceInILS;
         } else {
              // Otherwise use USD value and convert to Portfolio Currency if needed
-             logIfFalsy((t as any).Original_Price_USD, `Original_Price_USD missing for ${t.ticker}`, t);
+             logIfFalsy((t as any).originalPriceUSD, `originalPriceUSD missing for ${t.ticker}`, t);
              originalPricePortfolioCurrency = convertCurrency(priceInUSD, Currency.USD, portfolioCurrency, exchangeRates);
         }
 
