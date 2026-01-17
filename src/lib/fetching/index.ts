@@ -26,7 +26,7 @@ export function getTaseTickersDataset(signal?: AbortSignal, forceRefresh = false
   taseTickersDatasetLoading = (async () => {
     try {
       console.log('Loading tickers dataset...');
-      const exchanges = ['TASE', 'NASDAQ', 'NYSE'];
+      const exchanges = ['TASE', 'NASDAQ', 'NYSE', 'IL_FUND'];
       const results = await Promise.all(exchanges.map(ex => fetchAllTickers(ex, undefined, signal)));
       
       const combined: Record<string, TaseTicker[]> = {};

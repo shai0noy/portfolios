@@ -6,6 +6,7 @@
 import { fetchXml, parseXmlString, extractDataFromXmlNS } from './utils/xml_parser';
 import { withTaseCache } from './utils/cache';
 import type { TaseTicker, SecurityTypeConfig, TaseSecurity } from './types';
+import { fetchGemelnetTickers } from './gemelnet';
 import taseTypeIds from './tase_type_ids.json';
 
 // Internal type for data fetched from Globes. Not exported.
@@ -228,6 +229,11 @@ export async function fetchAllTickers(
 ): Promise<Record<string, TaseTicker[]>> {
   if (exchange.toUpperCase() === 'TASE') {
     return fetchTaseTickers(signal, config);
+  }
+  
+  if (exchange.toUpperCase() === 'IL_FUND') {
+    const tickers = await fetchGemelnetTickers(signal);
+    return { 'fund': tickers };
   }
 
   // Fetch from Globes alone for other exchanges

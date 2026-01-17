@@ -11,7 +11,7 @@ export const Currency = {
 
 const EXCHANGES = [
   'NASDAQ', 'NYSE', 'TASE', 'LSE', 'FWB',
-  'EURONEXT', 'JPX', 'HKEX', 'TSX', 'ASX', 'OTHER'
+  'EURONEXT', 'JPX', 'HKEX', 'TSX', 'ASX', 'IL_FUND', 'OTHER'
 ] as const;
 
 export type Exchange = typeof EXCHANGES[number];
@@ -76,6 +76,7 @@ const EXCHANGE_MAP: Record<string, Exchange> = {
   'XASX': Exchange.ASX,
 
   // Other
+  'IL_FUND': Exchange.IL_FUND,
   'OTHER': Exchange.OTHER,
 };
 
@@ -292,6 +293,8 @@ export interface Transaction {
   originalPriceUSD?: number;
   originalPriceILA?: number;
   numericId?: number;
+  valueAfterTax?: number;
+  nominalValue?: number;
 }
 
 // Templates for quick setup
