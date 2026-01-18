@@ -76,6 +76,7 @@ export interface GemelInfo {
   depositFee?: number;
 }
 
+// Merge this with TickerData, TaseSecurity
 export interface TickerListItem {
   symbol: string;
   exchange: Exchange;

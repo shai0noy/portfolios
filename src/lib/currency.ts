@@ -5,6 +5,11 @@ import type { ExchangeRates, DashboardHolding } from './types';
 const CACHE_KEY = 'exchangeRates_v2';
 const CACHE_DURATION = 60 * 60 * 1000; // 1 hour
 
+// Unicode Left-to-Right Mark (LRM).
+// Used to ensure that numbers and their signs/currencies are displayed correctly
+// in RTL (Hebrew) interfaces, preventing the sign from jumping to the wrong side.
+const LTR_MARK = '\u200E';
+
 interface RateCache {
   timestamp: number;
   data: ExchangeRates;
@@ -236,7 +241,7 @@ export function formatNumber(n: number | undefined | null): string {
       ? { minimumFractionDigits: 0, maximumFractionDigits: 0 }
       : { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   };
-  return n.toLocaleString(undefined, options);
+  return LTR_MARK + n.toLocaleString(undefined, options);
 }
 
 /**
@@ -253,12 +258,12 @@ export function formatValue(n: number, currency: string | Currency, decimals = 2
   if (norm === Currency.ILA) {
     const val = n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: decimals, useGrouping: true });
     const agorotText = t ? t('ag.', "א'") : 'ag.';
-    return `${val} ${agorotText}`;
+    return `${LTR_MARK}${val} ${agorotText}`;
   }
   
   // Use Intl.NumberFormat for proper currency formatting
   try {
-    return new Intl.NumberFormat(undefined, {
+    return LTR_MARK + new Intl.NumberFormat(undefined, {
       style: 'currency',
       currency: norm,
       minimumFractionDigits: 0,
@@ -269,7 +274,7 @@ export function formatValue(n: number, currency: string | Currency, decimals = 2
     // Fallback for unknown currency codes
     console.warn(`Could not format currency for code: ${norm}. Using default format.`);
     const val = n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: decimals, useGrouping: true });
-    return `${val} ${norm}`;
+    return `${LTR_MARK}${val} ${norm}`;
   }
 }
 
@@ -286,7 +291,7 @@ export function formatPercent(n: number): string {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   });
-  return formatter.format(n);
+  return LTR_MARK + formatter.format(n);
 }
 
 /**
@@ -305,12 +310,12 @@ export function formatPrice(n: number, currency: string | Currency, decimals = 2
         const agorotVal = toILA(n, norm);
         const val = agorotVal.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: decimals, useGrouping: false });
         const agorotText = t ? t('ag.', "א'") : 'ag.';
-        return `${val} ${agorotText}`;
+        return `${LTR_MARK}${val} ${agorotText}`;
     }
     
     // Fallback for other currencies (e.g., USD, EUR prices), ensuring no commas.
     try {
-        return new Intl.NumberFormat(undefined, {
+        return LTR_MARK + new Intl.NumberFormat(undefined, {
             style: 'currency',
             currency: norm,
             minimumFractionDigits: decimals,
@@ -321,6 +326,6 @@ export function formatPrice(n: number, currency: string | Currency, decimals = 2
         // Fallback for unknown currency codes
         console.warn(`Could not format price for currency code: ${norm}. Using default format.`);
         const val = n.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals, useGrouping: false });
-        return `${val} ${norm}`;
+        return `${LTR_MARK}${val} ${norm}`;
     }
 }
