@@ -234,34 +234,81 @@ export async function fetchGemelnetQuote(
   _signal?: AbortSignal,
   forceRefresh = false
 ): Promise<TickerData | null> {
-  // Fetch last 12 months to ensure we get recent data
+  // Fetch history from 2000
   const endDate = new Date();
-  const startDate = new Date();
-  startDate.setMonth(startDate.getMonth() - 12);
+  const startDate = new Date('2000-01-01');
 
   const fundData = await fetchGemelnetFund(fundId, startDate, endDate, forceRefresh);
-
   if (!fundData || fundData.data.length === 0) {
     console.log(`[Gemelnet] fetchGemelnetQuote: No data found for ${fundId}`, fundData);
     return null;
   }
 
-  // Sort by date descending
-  const sortedData = [...fundData.data].sort((a, b) => b.date - a.date);
-  const latest = sortedData[0];
+  // Sort by date ascending for index calculation
+  const sortedData = [...fundData.data].sort((a, b) => a.date - b.date);
+  
+  // Build Price Index (Map: YYYY-MM -> { price, date })
+  const priceMap = new Map<string, { price: number, date: number }>();
+  let currentPrice = 100;
+  const getKey = (ts: number) => {
+      const d = new Date(ts);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  };
+
+  for (const point of sortedData) {
+      currentPrice *= (1 + point.nominalReturn / 100);
+      priceMap.set(getKey(point.date), { price: currentPrice, date: point.date });
+  }
+
+  const latestPoint = sortedData[sortedData.length - 1];
+  const latestPrice = currentPrice;
+  
+  const getChange = (months: number) => {
+      const d = new Date(latestPoint.date);
+      d.setMonth(d.getMonth() - months);
+      const base = priceMap.get(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+      return base ? { pct: latestPrice / base.price - 1, date: base.date } : undefined;
+  };
+
+  const [chg1m, chg3m, chg1y, chg3y, chg5y, chg10y] = [1, 3, 12, 36, 60, 120].map(getChange);
+
+  // YTD
+  const lastYear = new Date(latestPoint.date).getFullYear();
+  const currYear = new Date().getFullYear();
+  let chgYtd: { pct: number, date: number } | undefined;
+  
+  if (lastYear < currYear) {
+      chgYtd = { pct: 0, date: new Date(currYear, 0, 1).getTime() };
+  } else {
+      const base = priceMap.get(`${lastYear - 1}-12`) || (() => {
+          const first = sortedData.find(d => new Date(d.date).getFullYear() === lastYear);
+          if (!first) return undefined;
+          const startPrice = priceMap.get(getKey(first.date))!.price / (1 + first.nominalReturn / 100);
+          return { price: startPrice, date: first.date };
+      })();
+      if (base) chgYtd = { pct: latestPrice / base.price - 1, date: base.date };
+  }
+
+  // Max
+  const first = sortedData[0];
+  const startPrice = priceMap.get(getKey(first.date))!.price / (1 + first.nominalReturn / 100);
+  const chgMax = { pct: latestPrice / startPrice - 1, date: first.date };
 
   return {
     ticker: String(fundId),
     numericId: fundId,
     exchange: Exchange.GEMEL,
-    // Gemel funds don't have a daily price like stocks. 
-    // We'll use 100 as a base index price, or we could use the 'assets' if that made sense (but it doesn't for price).
-    // Let's use 1 and rely on performance fields.
-    price: 1, 
-    changePct1d: latest.nominalReturn,
-    changeDate1d: latest.date,
-    timestamp: latest.date,
-    currency: 'ILS', // Usually ILS
+    price: latestPrice,
+    changePct1m: chg1m?.pct, changeDate1m: chg1m?.date,
+    changePct3m: chg3m?.pct, changeDate3m: chg3m?.date,
+    changePctYtd: chgYtd?.pct, changeDateYtd: chgYtd?.date,
+    changePct1y: chg1y?.pct, changeDate1y: chg1y?.date,
+    changePct3y: chg3y?.pct, changeDate3y: chg3y?.date,
+    changePct5y: chg5y?.pct, changeDate5y: chg5y?.date,
+    changePct10y: chg10y?.pct, changeDate10y: chg10y?.date,
+    changePctMax: chgMax.pct, changeDateMax: chgMax.date,
+    timestamp: latestPoint.date,
+    currency: 'ILS', // Could also be 'ILA', doesn't matter due to lack of real price
     name: fundData.fundName || String(fundId),
     nameHe: fundData.fundName,
     source: 'Gemelnet',

@@ -29,6 +29,8 @@ export interface TickerData {
   changeDate5y?: number; // Timestamp of the price 5 years ago
   changePct10y?: number;
   changeDate10y?: number; // Timestamp of the price 10 years ago
+  changePctMax?: number;
+  changeDateMax?: number;
   ticker: string;
   numericId : number|null; // Numeric ID for TASE
   source?: string;
