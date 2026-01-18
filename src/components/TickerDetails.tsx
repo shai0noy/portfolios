@@ -6,7 +6,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { getTickerData } from '../lib/fetching';
 import { fetchHolding, getMetadataValue } from '../lib/sheets/index';
-import type { Holding } from '../lib/types';
+import { Exchange, parseExchange, toGoogleFinanceExchangeCode, toYahooFinanceTicker, type Holding } from '../lib/types';
 import { formatPrice, formatPercent } from '../lib/currency';
 import { useLanguage } from '../lib/i18n';
 
@@ -31,9 +31,10 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   const navigate = useNavigate();
   const location = useLocation();
   const state = location.state as { from?: string, numericId?: string, initialName?: string, initialNameHe?: string, returnState?: any } | null;
-  
+
   const ticker = propTicker || params.ticker;
-  const exchange = propExchange || params.exchange;
+  // Add better handling for invalid/empty exchange param
+  const exchange = parseExchange(propExchange || params.exchange || '');
   const numericId = propNumericId || params.numericId || state?.numericId;
   const initialName = propInitialName || state?.initialName;
   const initialNameHe = propInitialNameHe || state?.initialNameHe;
@@ -127,25 +128,20 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
     if (!ticker) return [];
 
     const links = [];
-    const upperExchange = exchange?.toUpperCase();
 
-    if (upperExchange === 'GEMEL') {
+    if (exchange === Exchange.GEMEL) {
       const nid = numericId || data?.numericId || holdingData?.numericId;
-      if (nid) {
-         links.push({ name: 'GemelNet', url: `https://gemelnet.cma.gov.il/views/perutHodshi.aspx?idGuf=${nid}&OCHLUSIYA=1` });
-      }
+      const clenaedHeName = resolvedNameHe?.replace(' ', '-').replace(/[^a-zA-Z0-9א-ת-]/g, '');
+      if (nid)
+        links.push({ name: 'GemelNet', url: `https://gemelnet.cma.gov.il/views/perutHodshi.aspx?idGuf=${nid}&OCHLUSIYA=1` });
+      links.push({ name: 'MyGemel', url: `https://www.mygemel.net/קופות גמל/${clenaedHeName}` });
       return links;
     }
 
-    const yExchange = upperExchange === 'TASE' ? 'TA' : upperExchange;
-    if (yExchange && yExchange != 'NASDAQ' && yExchange != 'NYSE') {
-      links.push({ name: 'Yahoo Finance', url: `https://finance.yahoo.com/quote/${ticker}.${yExchange}` });
-    } else {
-      links.push({ name: 'Yahoo Finance', url: `https://finance.yahoo.com/quote/${ticker}` });
-    }
-
-    const gExchange = upperExchange === 'TASE' ? 'TLV' : upperExchange;
-    if (gExchange && gExchange != 'NASDAQ' && gExchange != 'NYSE') {
+    links.push({ name: 'Yahoo Finance', url: `https://finance.yahoo.com/quote/${toYahooFinanceTicker(ticker, exchange)}` });
+    
+    const gExchange = toGoogleFinanceExchangeCode(exchange);
+    if (gExchange) {
       links.push({ name: 'Google Finance', url: `https://www.google.com/finance/quote/${ticker}:${gExchange}` });
     } else {
       links.push({ name: 'Google Finance', url: `https://www.google.com/finance/quote/${ticker}` });
@@ -170,12 +166,22 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
     const date = new Date(timestamp);
     const today = new Date();
     const isToday = date.toDateString() === today.toDateString();
-    return isToday ? date.toLocaleTimeString() : date.toLocaleString();
+    const dateStr = `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
+    return isToday ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : `${dateStr} ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  };
+
+  const formatDate = (timestamp?: number | string) => {
+    if (!timestamp) return 'N/A';
+    const date = new Date(timestamp);
+    return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
   };
 
   const displayData = data || holdingData;
   console.log('TickerDetails displayData:', displayData);
   const lastUpdated = formatTimestamp(data?.timestamp || sheetRebuildTime);
+
+  const resolvedName = data?.name || holdingData?.name || initialName;
+  const resolvedNameHe = data?.nameHe || holdingData?.nameHe || initialNameHe;
 
   // Helper to construct performance object
   const getPerf = (val?: number, date?: number) => val !== undefined ? { val, date } : undefined;
@@ -189,6 +195,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
     '1Y': getPerf(data?.changePct1y ?? (holdingData as any)?.changePct1y, data?.changeDate1y ?? (holdingData as any)?.changeDate1y),
     '3Y': getPerf(data?.changePct3y ?? (holdingData as any)?.changePct3y, data?.changeDate3y ?? (holdingData as any)?.changeDate3y),
     '5Y': getPerf(data?.changePct5y ?? (holdingData as any)?.changePct5y, data?.changeDate5y ?? (holdingData as any)?.changeDate5y),
+    'Max': getPerf(data?.changePctMax ?? (holdingData as any)?.changePctMax, data?.changeDateMax ?? (holdingData as any)?.changeDateMax),
   };
 
   const translateRange = (range: string) => {
@@ -201,14 +208,18 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
       '1Y': t('1Y', 'שנה'),
       '3Y': t('3Y', '3 שנים'),
       '5Y': t('5Y', '5 שנים'),
+      'Max': t('Max', 'מקסימום'),
       'All Time': t('All Time', 'כל הזמן'),
     };
     // Handle dynamic days like "5D"
     if (range.endsWith('D') && range !== '1D' && range !== 'YTD') {
-        return range.replace('D', t('D', ' ימים'));
+      return range.replace('D', t('D', ' ימים'));
     }
     return map[range] || range;
   };
+
+  const dataTimestamp = data?.timestamp || (sheetRebuildTime ? new Date(sheetRebuildTime).getTime() : 0);
+  const isStale = dataTimestamp > 0 && (Date.now() - dataTimestamp) > 1000 * 60 * 60 * 24 * 3; // > 3 days
 
   return (
     <Dialog open={true} onClose={handleClose} maxWidth={false} fullWidth PaperProps={{ sx: { width: 'min(900px, 96%)' } }}>
@@ -216,10 +227,10 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
         <Box display="flex" justifyContent="space-between" alignItems="center">
           <Box>
             <Typography variant="h4" component="div" fontWeight="bold">
-              {tTry(data?.name || holdingData?.name || initialName || ticker, data?.nameHe || holdingData?.nameHe || initialNameHe)}
+              {tTry(resolvedName || ticker, resolvedNameHe)}
             </Typography>
             <Typography variant="subtitle1" component="div" color="text.secondary">
-              {(data?.name || holdingData?.name || initialName) ? `${exchange?.toUpperCase()}: ${ticker}` : exchange?.toUpperCase()}
+              {resolvedName ? `${exchange?.toUpperCase()}: ${ticker}` : exchange?.toUpperCase()}
             </Typography>
           </Box>
           {displayData?.sector && <Chip label={displayData.sector || 'Unknown Sector'} size="small" variant="outlined" />}
@@ -234,15 +245,15 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
           </Box>
         )}
         {error && <Typography color="error">{error}</Typography>}
-        
+
         {/* If no data and no basic info, show empty message */}
-        {!loading && !error && !displayData && !initialName && <Typography>{t('No data available.', 'אין נתונים זמינים.')}</Typography>}
-        
+        {!loading && !error && !displayData && !resolvedName && <Typography>{t('No data available.', 'אין נתונים זמינים.')}</Typography>}
+
         {displayData && (
           <>
             {(() => {
-              const isTase = exchange?.toUpperCase() === 'TASE' || displayData.exchange === 'TASE';
-              const isGemel = exchange?.toUpperCase() === 'GEMEL' || displayData.exchange === 'GEMEL';
+              const isTase = exchange == Exchange.TASE || displayData.exchange === Exchange.TASE;
+              const isGemel = exchange?.toUpperCase() === Exchange.GEMEL || displayData.exchange === Exchange.GEMEL;
               const price = displayData.price;
               const openPrice = displayData.openPrice;
               const maxDecimals = (price != null && price % 1 !== 0) || (openPrice != null && openPrice % 1 !== 0) ? 2 : 0;
@@ -273,6 +284,11 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                 </Box>
               );
             })()}
+            {isStale && (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                {t('Data is from', 'הנתונים מתאריך')}: {formatDate(dataTimestamp)}
+              </Typography>
+            )}
             <Typography variant="subtitle2" gutterBottom>{t('Performance', 'ביצועים')}</Typography>
             <Box display="flex" flexWrap="wrap" gap={1} sx={{ mb: 2 }}>
               {Object.entries(perfData).map(([range, item]) => {
@@ -281,7 +297,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                 }
                 const value = item.val;
                 const dateObj = item.date ? new Date(item.date) : null;
-                const dateStr = dateObj ? `${String(dateObj.getDate()).padStart(2, '0')}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${dateObj.getFullYear()}` : '';
+                const dateStr = dateObj ? `${String(dateObj.getDate()).padStart(2, '0')}/${String(dateObj.getMonth() + 1).padStart(2, '0')}/${dateObj.getFullYear()}` : '';
                 const isPositive = value > 0;
                 const isNegative = value < 0;
                 const textColor = isPositive ? 'success.main' : isNegative ? 'error.main' : 'text.primary';
@@ -315,7 +331,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
               // Hide Dividends for Gemel
               const isGemel = exchange?.toUpperCase() === 'GEMEL' || displayData.exchange === 'GEMEL';
               if (isGemel) return null;
-              
+
               return (
                 <>
                   <Typography variant="subtitle2" gutterBottom>{t('Dividend Gains', 'דיביבידנדים')}</Typography>
@@ -366,8 +382,8 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                 {data?.timestamp
                   ? `${t('Live from', 'מידע חי מ-')} ${data.source || 'API'}: ${formatTimestamp(data.timestamp)}`
                   : sheetRebuildTime
-                  ? `${t('From Google Sheets', 'Google Sheets')}: ${formatTimestamp(sheetRebuildTime)}`
-                  : t('Freshness N/A', 'אין מידע על עדכון')}
+                    ? `${t('From Google Sheets', 'Google Sheets')}: ${formatTimestamp(sheetRebuildTime)}`
+                    : t('Freshness N/A', 'אין מידע על עדכון')}
               </Typography>
               <Tooltip title={t("Refresh Data", "רענן נתונים")}>
                 <IconButton onClick={() => fetchData(true)} disabled={refreshing} size="small">
