@@ -9,7 +9,7 @@ interface Props {
 }
 
 export function ImportHelp({ open, onClose }: Props) {
-  const { t, isRtl } = useLanguage();
+  const { t } = useLanguage();
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle>{t('Importing CSV from Yahoo Finance', 'ייבוא CSV מ-Yahoo Finance')}</DialogTitle>

@@ -1,12 +1,13 @@
 // src/lib/fetching/types.ts
+import { Exchange } from '../types';
 
 export interface TickerData {
   price: number;
   openPrice?: number;
   name?: string;
-  name_he?: string; // Hebrew name
+  nameHe?: string; // Hebrew name
   currency?: string;
-  exchange?: string;
+  exchange: Exchange;
   changePct?: number; // Daily change percentage
   changeDate1d?: number; // Timestamp of the previous close used for daily change
   timestamp?: number; // Last update time
@@ -68,7 +69,7 @@ export interface TaseTicker {
   type: string; // 'stock', 'etf', etc.
   nameHe: string;
   taseType: string; // TASE type ID string
-  exchange?: string;
+  exchange: Exchange;
 }
 
 // Configuration for ticker types

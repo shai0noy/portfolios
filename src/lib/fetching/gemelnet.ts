@@ -2,6 +2,7 @@
 
 import { fetchXml, parseXmlString } from './utils/xml_parser';
 import type { TaseTicker } from './types';
+import { Exchange } from '../types';
 
 // URL for listing: https://gemelnet.cma.gov.il/tsuot/ui/tsuotHodXML.aspx?miTkfDivuach=202510&adTkfDivuach=202512&kupot=0000&Dochot=1&sug=1
 // always use current moth as end and year previous as start
@@ -193,7 +194,7 @@ export async function fetchGemelnetTickers(signal?: AbortSignal): Promise<TaseTi
         tickersMap.set(id, {
           securityId: id,
           symbol: idStr,
-          exchange: 'IL_FUND',
+          exchange: Exchange.IL_FUND,
           nameHe: name,
           nameEn: name,
           companyName: getText('SHM_HEVRA_MENAHELET'),

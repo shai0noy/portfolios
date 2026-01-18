@@ -25,7 +25,7 @@ export function TickerDetails({ sheetId }: { sheetId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [sheetRebuildTime, setSheetRebuildTime] = useState<string | null>(null);
-  const { t, tTry, isRtl } = useLanguage();
+  const { t, tTry } = useLanguage();
   const fetchData = useCallback(async (forceRefresh = false) => {
     if (ticker && exchange) {
       if (!forceRefresh) setLoading(true);

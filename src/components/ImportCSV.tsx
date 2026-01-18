@@ -7,8 +7,7 @@ import {
   Stack,
   RadioGroup,
   Radio,
-  FormControlLabel,
-  Link
+  FormControlLabel
 } from '@mui/material';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import type { Portfolio, Transaction } from '../lib/types';

@@ -8,7 +8,7 @@ import { fetchPortfolios, fetchTransactions } from '../lib/sheets/index';
 import { ColumnSelector } from './ColumnSelector';
 import { getExchangeRates, convertCurrency, calculatePerformanceInDisplayCurrency, calculateHoldingDisplayValues, normalizeCurrency, toILS } from '../lib/currency';
 import { logIfFalsy } from '../lib/utils';
-import { Currency } from '../lib/types';
+import { Currency, Exchange } from '../lib/types';
 import type { Holding, DashboardHolding, ExchangeRates } from '../lib/types';
 import { DashboardSummary } from './DashboardSummary';
 import { DashboardTable } from './DashboardTable';
@@ -35,7 +35,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
   const [portMap, setPortMap] = useState<Map<string, any>>(new Map());
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const openColSelector = Boolean(anchorEl);
-  const { t, isRtl } = useLanguage();
+  const { t } = useLanguage();
 
   const handleClickColSelector = (event: React.MouseEvent<HTMLButtonElement>) => {
     setAnchorEl(event.currentTarget);
@@ -285,8 +285,8 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
 
         if (!holdingMap.has(key)) {
           const live = liveDataMap.get(`${t.ticker}:${t.exchange}`);
-          const exchange = t.exchange || live?.exchange || '';
-          const isTase = exchange === 'TASE' || exchange === 'TLV';
+          const exchange = t.exchange || live?.exchange ;
+          const isTase = exchange === Exchange.TASE;
           
           const stockCurrency = normalizeCurrency(live?.currency || t.currency || (isTase ? Currency.ILA : Currency.USD));
           

@@ -128,7 +128,7 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
   const [selectedType, setSelectedType] = useState('ALL');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { t, tTry, isRtl } = useLanguage();
+  const { t, tTry } = useLanguage();
 
   const searchTickers = useCallback(async (term: string, exchange: string) => {
     try {

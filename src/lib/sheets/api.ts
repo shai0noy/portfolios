@@ -152,13 +152,11 @@ export const fetchHolding = withAuthHandling(async (spreadsheetId: string, ticke
         
         if (!holding) {
              console.log(`fetchHolding: No exact exchange match for ${exchange}. Checking empty exchange...`);
-             // Fallback 1: Match if sheet exchange is empty
-             holding = matchingHoldings.find(h => h.exchange === Exchange.OTHER);
         }
         
         if (!holding && matchingHoldings.length === 1) {
             console.log(`fetchHolding: Single result fallback used.`);
-            // Fallback 2: If only one holding with this ticker exists, assume it's the one
+            // Fallback: If only one holding with this ticker exists, assume it's the one
             holding = matchingHoldings[0];
         }
 
@@ -196,7 +194,7 @@ export const fetchPortfolios = withAuthHandling(async (spreadsheetId: string): P
                 holdingsByPortfolio[txn.portfolioId][key] = {
                     portfolioId: txn.portfolioId,
                     ticker: txn.ticker,
-                    exchange: txn.exchange || Exchange.OTHER,
+                    exchange: txn.exchange!,
                     qty: 0,
                     numericId: txn.numericId || null
                 };
@@ -371,7 +369,7 @@ export const batchAddTransactions = withAuthHandling(async (spreadsheetId: strin
             switch (key) {
                 case 'date': rowData[key] = t.date ? toGoogleSheetDateFormat(new Date(t.date)) : ''; break;
                 case 'ticker': rowData[key] = String(logIfFalsy(t.ticker, `Transaction ticker missing`, t)).toUpperCase(); break;
-                case 'exchange': rowData[key] = toGoogleFinanceExchangeCode(t.exchange || Exchange.OTHER); break;
+                case 'exchange': rowData[key] = toGoogleFinanceExchangeCode(t.exchange!); break;
                 case 'vestDate': rowData[key] = t.vestDate ? toGoogleSheetDateFormat(new Date(t.vestDate)) : ''; break;
                 case 'comment': case 'source': rowData[key] = (t as any)[key] || ''; break;
                 case 'commission': {
@@ -410,7 +408,7 @@ export const batchAddTransactions = withAuthHandling(async (spreadsheetId: strin
             if (key === 'date' || key === 'vestDate' || key === 'creationDate') {
                 return rowData[key] ? toGoogleSheetDateFormat(new Date(rowData[key])) : '';
             }
-            if (key === 'exchange') return toGoogleFinanceExchangeCode(rowData[key] || Exchange.OTHER);
+            if (key === 'exchange') return toGoogleFinanceExchangeCode(rowData[key]);
             return rowData[key] ?? null;
         });
         allValuesToAppend.push(rowValues);
@@ -479,7 +477,7 @@ function createHoldingRow(h: HoldingNonGeneratedData, meta: TickerData | null, r
     const isTASE = h.exchange === Exchange.TASE;
 
     row[0] = String(h.ticker).toUpperCase();
-    row[1] = toGoogleFinanceExchangeCode(h.exchange || Exchange.OTHER);
+    row[1] = toGoogleFinanceExchangeCode(h.exchange);
     row[2] = h.qty;
     row[3] = `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "price"))`;
     const defaultCurrency = meta?.currency || (isTASE ? 'ILA' : '');
@@ -516,7 +514,8 @@ export const rebuildHoldingsSheet = withAuthHandling(async (spreadsheetId: strin
         if (txn.type === 'BUY' || txn.type === 'SELL') {
             const key = `${txn.ticker}-${txn.exchange}`;
             if (!holdings[key]) {
-                holdings[key] = { ticker: txn.ticker, exchange: txn.exchange || Exchange.OTHER, qty: 0, numericId: null };
+                if (!txn.exchange) throw new Error(`Transaction missing exchange for ticker: ${txn.ticker}`);
+                holdings[key] = { ticker: txn.ticker, exchange: txn.exchange, qty: 0, numericId: null };
             }
             // Since transactions are sorted, this will overwrite with the latest numericId for each holding
             if (txn.numericId) {

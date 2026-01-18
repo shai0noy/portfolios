@@ -29,7 +29,7 @@ export function DashboardTable(props: TableProps) {
   } = props;
   const theme = useTheme();
   const navigate = useNavigate();
-  const { t, tTry, isRtl } = useLanguage();
+  const { t, tTry } = useLanguage();
   
   const [sortBy, setSortBy] = useState<string>('totalMV');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');

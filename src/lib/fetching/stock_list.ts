@@ -8,6 +8,7 @@ import { withTaseCache } from './utils/cache';
 import type { TaseTicker, SecurityTypeConfig, TaseSecurity } from './types';
 import { fetchGemelnetTickers } from './gemelnet';
 import taseTypeIds from './tase_type_ids.json';
+import { Exchange } from '../types';
 
 // Internal type for data fetched from Globes. Not exported.
 interface GlobesTicker {
@@ -242,7 +243,7 @@ export async function fetchAllTickers(
    const allTickers: TaseTicker[] = allGlobesTickers.map(globesTicker => ({
       securityId: Number(globesTicker.numericSecurityId) || 0, // Fallback if not numeric
       symbol: getEffectiveTicker(globesTicker.symbol, exchange) || globesTicker.symbol,
-      exchange: exchange,
+      exchange: exchange as Exchange,
       companyName: globesTicker.nameEn,
       companySuperSector: '',
       companySector: '',
@@ -307,7 +308,7 @@ async function fetchTaseTickers(
       allTickers.push({
           // Data from TASE API
           securityId: security.securityId,
-          exchange: 'TASE',
+          exchange: Exchange.TASE,
           nameEn: security.securityName,
           symbol: getEffectiveTicker(security.symbol, 'TASE') || security.symbol,
           companyName: security.companyName,
@@ -330,7 +331,7 @@ async function fetchTaseTickers(
         // For globes-only tickers, we can't reliably determine the TASE type.
         allTickers.push({
             securityId: Number(globesTicker.numericSecurityId),
-            exchange: 'TASE',
+            exchange: Exchange.TASE,
             symbol: getEffectiveTicker(globesTicker.symbol, 'TASE') || globesTicker.symbol,
             companyName: globesTicker.nameEn, // Fallback to globes name
             companySuperSector: '',

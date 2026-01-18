@@ -9,7 +9,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import SearchIcon from '@mui/icons-material/Search';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
 import DashboardIcon from '@mui/icons-material/Dashboard';
-import { type Portfolio, type Transaction } from '../lib/types';
+import { parseExchange, type Portfolio, type Transaction } from '../lib/types';
 import { addTransaction, fetchPortfolios } from '../lib/sheets/index';
 import { getTickerData, type TickerData } from '../lib/fetching';
 import { TickerSearch } from './TickerSearch';
@@ -242,7 +242,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
         date,
         portfolioId: portId,
         ticker,
-        exchange,
+        exchange: parseExchange(exchange),
         type,
         originalQty: q,
         originalPrice: p,

@@ -2,6 +2,7 @@
 import { tickerDataCache, CACHE_TTL } from './utils/cache';
 import { fetchXml, parseXmlString } from './utils/xml_parser';
 import type { TickerData } from './types';
+import { Exchange, parseExchange } from '../types';
 
 export async function fetchGlobesStockQuote(symbol: string, securityId: number | undefined, exchange: string, signal?: AbortSignal): Promise<TickerData | null> {
   exchange = exchange.toLowerCase();
@@ -42,7 +43,14 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
     const nameHe = getText('nameHe');
     let currency = getText('currency') || 'ILA';
     if (currency === 'NIS' || currency === 'ILS') currency = 'ILA';
-    const exchangeRes = getText('exchange')?.toUpperCase() || 'TASE';
+    const exchangeStr = getText('exchange')?.toUpperCase() || 'TASE';
+    let exchangeRes: Exchange = Exchange.TASE;
+    try {
+        exchangeRes = parseExchange(exchangeStr);
+    } catch (e) {
+        console.warn(`Globes: Unknown exchange ${exchangeStr}`);
+    }
+
     const percentageChange = parseFloat(getText('percentageChange') || '0');
     const sector = getText('industry_sector');
     const timestamp = getText('timestamp');

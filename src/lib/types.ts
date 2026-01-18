@@ -11,7 +11,7 @@ export const Currency = {
 
 const EXCHANGES = [
   'NASDAQ', 'NYSE', 'TASE', 'LSE', 'FWB',
-  'EURONEXT', 'JPX', 'HKEX', 'TSX', 'ASX', 'IL_FUND', 'OTHER'
+  'EURONEXT', 'JPX', 'HKEX', 'TSX', 'ASX', 'IL_FUND'
 ] as const;
 
 export type Exchange = typeof EXCHANGES[number];
@@ -19,89 +19,96 @@ export type Exchange = typeof EXCHANGES[number];
 export const Exchange = EXCHANGES.reduce((acc, ex) => {
   acc[ex] = ex;
   return acc;
-}, {} as Record<Exchange, Exchange>);
+}, {} as any) as { [K in Exchange]: K };
 
-const EXCHANGE_MAP: Record<string, Exchange> = {
-  // NASDAQ
-  'NASDAQ': Exchange.NASDAQ,
-  'XNAS': Exchange.NASDAQ,
-  'NMS': Exchange.NASDAQ, // NASDAQ/NMS (GLOBAL MARKET)
-  'NGS': Exchange.NASDAQ, // NASDAQ/NGS (GLOBAL SELECT MARKET)
-  'NCM': Exchange.NASDAQ, // NASDAQ CAPITAL MARKET
+interface ExchangeSettings {
+  aliases: string[];
+  googleFinanceCode: string; // e.g., 'TLV' for TASE - This is the code written to Google sheets, even if the exchange is not supported
+  yahooFinanceSuffix: string;
+}
 
-  // NYSE
-  'NYSE': Exchange.NYSE,
-  'XNYS': Exchange.NYSE,
-  'NEW YORK STOCK EXCHANGE': Exchange.NYSE,
-
-  // TASE
-  'TASE': Exchange.TASE,
-  'XTAE': Exchange.TASE,
-  'TLV': Exchange.TASE,
-  'TEL AVIV': Exchange.TASE,
-
-  // LSE
-  'LSE': Exchange.LSE,
-  'XLON': Exchange.LSE,
-  'LONDON': Exchange.LSE,
-
-  // Frankfurt (FWB)
-  'FWB': Exchange.FWB,
-  'XFRA': Exchange.FWB,
-  'FRANKFURT': Exchange.FWB,
-  'XETRA': Exchange.FWB,
-
-  // Euronext
-  'EURONEXT': Exchange.EURONEXT,
-  'XPAR': Exchange.EURONEXT, // Paris
-  'XAMS': Exchange.EURONEXT, // Amsterdam
-  'XBRU': Exchange.EURONEXT, // Brussels
-  'XLIS': Exchange.EURONEXT, // Lisbon
-  'XDUB': Exchange.EURONEXT, // Dublin
-
-  // Japan
-  'JPX': Exchange.JPX,
-  'XTKS': Exchange.JPX, // Tokyo
-
-  // Hong Kong
-  'HKEX': Exchange.HKEX,
-  'XHKG': Exchange.HKEX,
-
-  // Toronto
-  'TSX': Exchange.TSX,
-  'XTSE': Exchange.TSX,
-
-  // Australia
-  'ASX': Exchange.ASX,
-  'XASX': Exchange.ASX,
-
-  // Other
-  'IL_FUND': Exchange.IL_FUND,
-  'OTHER': Exchange.OTHER,
+const EXCHANGE_SETTINGS: Record<Exchange, ExchangeSettings> = {
+  [Exchange.NASDAQ]: { 
+    aliases: ['XNAS', 'NMS', 'NGS', 'NCM'], 
+    googleFinanceCode: 'NASDAQ',
+    yahooFinanceSuffix: ''
+  },
+  [Exchange.NYSE]: { 
+    aliases: ['XNYS'], 
+    googleFinanceCode: 'NYSE', 
+    yahooFinanceSuffix: ''
+  },
+  [Exchange.TASE]: { 
+    aliases: ['XTAE', 'TLV', 'TA'], 
+    googleFinanceCode: 'TLV', 
+    yahooFinanceSuffix: '.TA' 
+  },
+  [Exchange.LSE]: { 
+    aliases: ['XLON', 'LONDON'], 
+    googleFinanceCode: 'LON', 
+    yahooFinanceSuffix: '.L' 
+  },
+  [Exchange.FWB]: { 
+    aliases: ['XFRA', 'FRANKFURT', 'XETRA'], 
+    googleFinanceCode: 'FRA', 
+    yahooFinanceSuffix: '.F' 
+  },
+  [Exchange.EURONEXT]: { 
+    aliases: ['XPAR', 'XAMS', 'XBRU', 'XLIS', 'XDUB'], 
+    googleFinanceCode: 'EPA', 
+    yahooFinanceSuffix: '.PA' 
+  },
+  [Exchange.JPX]: { 
+    aliases: ['XTKS'], 
+    googleFinanceCode: 'TYO', 
+    yahooFinanceSuffix: '.T' 
+  },
+  [Exchange.HKEX]: { 
+    aliases: ['XHKG'], 
+    googleFinanceCode: 'HKG', 
+    yahooFinanceSuffix: '.HK' 
+  },
+  [Exchange.TSX]: { 
+    aliases: ['XTSE'], 
+    googleFinanceCode: 'TSE', 
+    yahooFinanceSuffix: '.TO' 
+  },
+  [Exchange.ASX]: { 
+    aliases: ['XASX'], 
+    googleFinanceCode: 'ASX', 
+    yahooFinanceSuffix: '.AX' 
+  },
+  [Exchange.IL_FUND]: { 
+    aliases: [], 
+    googleFinanceCode: 'IL_FUND',
+    yahooFinanceSuffix: ''
+  },
 };
 
 /**
  * Parses an exchange identifier string into a known Exchange type.
  * The matching is case-insensitive.
  * @param exchangeId The exchange identifier to parse (e.g., 'XNAS', 'NASDAQ').
- * @returns A canonical Exchange value or OTHER if no match is found.
+ * @returns A canonical Exchange value
  */
 export function parseExchange(exchangeId: string): Exchange {
-  if (!exchangeId) return Exchange.OTHER;
-  const parsed = EXCHANGE_MAP[exchangeId.trim().toUpperCase()];
-  return parsed || Exchange.OTHER;
-}
+  if (!exchangeId) throw new Error('parseExchange: exchangeId is empty');
+  const normalized = exchangeId.trim().toUpperCase();
 
-const GOOGLE_FINANCE_EXCHANGE_MAP: Partial<Record<Exchange, string>> = {
-  [Exchange.TASE]: 'TLV',
-  [Exchange.LSE]: 'LON',
-  [Exchange.FWB]: 'FRA',
-  [Exchange.EURONEXT]: 'EPA', // Defaulting to Paris, might need refinement
-  [Exchange.JPX]: 'TYO',
-  [Exchange.HKEX]: 'HKG',
-  [Exchange.TSX]: 'TSE',
-  [Exchange.ASX]: 'ASX',
-};
+  // Direct match
+  if (normalized in Exchange) {
+    return normalized as Exchange;
+  }
+
+  // Alias lookup
+  for (const [ex, config] of Object.entries(EXCHANGE_SETTINGS)) {
+    if (config.aliases.includes(normalized)) {
+      return ex as Exchange;
+    }
+  }
+
+  throw new Error(`parseExchange: Unknown exchangeId '${exchangeId}'`);
+}
 
 /**
  * Converts a canonical Exchange type to its Google Finance exchange code.
@@ -109,19 +116,8 @@ const GOOGLE_FINANCE_EXCHANGE_MAP: Partial<Record<Exchange, string>> = {
  * @returns The Google Finance exchange code (e.g., 'TLV' for TASE) or the original if no mapping exists.
  */
 export function toGoogleFinanceExchangeCode(exchange: Exchange): string {
-  return GOOGLE_FINANCE_EXCHANGE_MAP[exchange] || exchange;
+  return EXCHANGE_SETTINGS[exchange]?.googleFinanceCode || exchange;
 }
-
-const YAHOO_FINANCE_SUFFIX_MAP: Partial<Record<Exchange, string>> = {
-  [Exchange.TASE]: '.TA',
-  [Exchange.LSE]: '.L',
-  [Exchange.FWB]: '.F', // Frankfurt
-  [Exchange.EURONEXT]: '.PA', // Paris, needs refinement for other Euronext locations
-  [Exchange.JPX]: '.T', // Tokyo
-  [Exchange.HKEX]: '.HK',
-  [Exchange.TSX]: '.TO',
-  [Exchange.ASX]: '.AX',
-};
 
 /**
  * Converts a ticker and a canonical Exchange type to a ticker string suitable for Yahoo Finance.
@@ -131,11 +127,8 @@ const YAHOO_FINANCE_SUFFIX_MAP: Partial<Record<Exchange, string>> = {
  * @returns The ticker formatted for Yahoo Finance (e.g., 'BARC.L').
  */
 export function toYahooFinanceTicker(ticker: string, exchange: Exchange): string {
-  const suffix = YAHOO_FINANCE_SUFFIX_MAP[exchange];
-  if (suffix) {
-    return `${ticker}${suffix}`;
-  }
-  return ticker; // For US exchanges like NASDAQ, NYSE, no suffix is needed.
+  const suffix = EXCHANGE_SETTINGS[exchange]?.yahooFinanceSuffix || '';
+  return `${ticker}${suffix}`;
 }
 
 export interface ExchangeRates {

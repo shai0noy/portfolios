@@ -36,7 +36,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
   const [editMode, setEditMode] = useState<boolean>(!!portfolioId);
   const [editingPortfolio, setEditingPortfolio] = useState<Partial<Portfolio> | null>(null);
   const [showNewPortfolioForm, setShowNewPortfolioForm] = useState(!!portfolioId);
-  const { t, isRtl } = useLanguage();
+  const { t } = useLanguage();
 
   // Form State
   const [template, setTemplate] = useState('');
