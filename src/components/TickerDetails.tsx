@@ -4,7 +4,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import AddIcon from '@mui/icons-material/Add';
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { getTickerData } from '../lib/fetching';
+import { getTickerData, getTickersDataset, type TickerListItem } from '../lib/fetching';
 import { fetchHolding, getMetadataValue } from '../lib/sheets/index';
 import { Exchange, parseExchange, toGoogleFinanceExchangeCode, toYahooFinanceTicker, type Holding } from '../lib/types';
 import { formatPrice, formatPercent } from '../lib/currency';
@@ -35,7 +35,14 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   const ticker = propTicker || params.ticker;
   // Add better handling for invalid/empty exchange param
   const exchange = parseExchange(propExchange || params.exchange || '');
-  const numericId = propNumericId || params.numericId || state?.numericId;
+  
+  // Combine explicit numericId from various sources
+  const explicitNumericId = propNumericId || params.numericId || state?.numericId;
+  // State to hold a numericId that we might have to look up
+  const [derivedNumericId, setDerivedNumericId] = useState<string | undefined>(undefined);
+  // The effective numericId is the one we have explicitly, or the one we looked up
+  const numericId = explicitNumericId || derivedNumericId;
+
   const initialName = propInitialName || state?.initialName;
   const initialNameHe = propInitialNameHe || state?.initialNameHe;
 
@@ -61,6 +68,30 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
     const knownLiveExchanges = ['TASE', 'NASDAQ', 'NYSE', 'AMEX', 'ARCA', 'BATS', 'GEMEL'];
 
     try {
+      let currentNumericId = numericId;
+      // If numericId is missing for TASE/GEMEL, find it from the tickers dataset.
+      if (!currentNumericId && (exchange === Exchange.TASE || exchange === Exchange.GEMEL)) {
+        console.log(`Numeric ID missing for ${ticker} on ${exchange}. Fetching dataset to find it.`);
+        const dataset = await getTickersDataset();
+        let foundItem: TickerListItem | undefined;
+        for (const key in dataset) {
+          foundItem = dataset[key].find(item => item.symbol === ticker && item.exchange === exchange);
+          if (foundItem) break;
+        }
+        if (foundItem) {
+          const foundId = foundItem.taseInfo?.securityId || foundItem.gemelInfo?.fundId;
+          if (foundId) {
+            console.log(`Found numeric ID: ${foundId}`);
+            currentNumericId = String(foundId);
+            setDerivedNumericId(currentNumericId); // Save for future renders
+          }
+        }
+      }
+      
+      if (!currentNumericId && (exchange === Exchange.TASE || exchange === Exchange.GEMEL)) {
+        console.warn(`Could not find numeric ID for ${ticker}. Data fetching may be incomplete.`);
+      }
+
       const holdingPromise = fetchHolding(sheetId, ticker, upperExchange);
       const sheetRebuildTimePromise = getMetadataValue(sheetId, 'holdings_rebuild');
 
@@ -70,7 +101,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
       const shouldFetchLive = forceRefresh || !holding;
 
       if (shouldFetchLive && knownLiveExchanges.includes(upperExchange)) {
-        const numericIdVal = numericId ? parseInt(numericId, 10) : null;
+        const numericIdVal = currentNumericId ? parseInt(currentNumericId, 10) : null;
         let tickerData = await getTickerData(ticker, exchange, numericIdVal, undefined, forceRefresh);
 
         setData(tickerData);

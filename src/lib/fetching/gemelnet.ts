@@ -2,45 +2,20 @@ import { fetchXml, parseXmlString } from './utils/xml_parser';
 import type { TickerListItem, TickerData } from './types';
 import { Exchange } from '../types';
 
-// URL for listing: https://gemelnet.cma.gov.il/tsuot/ui/tsuotHodXML.aspx?miTkfDivuach=202510&adTkfDivuach=202512&kupot=0000&Dochot=1&sug=1
-// always use current moth as end and year previous as start
-// Example response:
-/*
-<ROWSET>
-<DESCRIPTION1>₪ כל הסכומים במיליוני</DESCRIPTION1>
-<DESCRIPTION2>כל התשואות הינן נומינליות ברוטו</DESCRIPTION2>
-<Row>
-<ID>103</ID>
-<SHM_KUPA>מיטב גמל לבני 50 עד 60</SHM_KUPA> 
-<SUG_KUPA>תגמולים ואישית לפיצויים</SUG_KUPA>
-<SHM_HEVRA_MENAHELET>מיטב גמל ופנסיה בע"מ</SHM_HEVRA_MENAHELET>
-<HITMAHUT_RASHIT>מדרגות</HITMAHUT_RASHIT>
-<HITMAHUT_MISHNIT>50-60</HITMAHUT_MISHNIT>
-<AD_TKUFAT_DIVUACH>202511</AD_TKUFAT_DIVUACH>
-<HAFKADOT_LLO_HAAVAROT>90.82</HAFKADOT_LLO_HAAVAROT>
-<MSHICHOT_LLO_HAAVAROT>69.43</MSHICHOT_LLO_HAAVAROT>
-<HAAVAROT_BEIN_HAKUPOT>525.06</HAAVAROT_BEIN_HAKUPOT>
-<TZVIRA_NETO>546.45</TZVIRA_NETO>
-<SHIUR_DMEI_NIHUL_AHARON>0.5</SHIUR_DMEI_NIHUL_AHARON>
-<SHIUR_D_NIHUL_AHARON_HAFKADOT>0.1</SHIUR_D_NIHUL_AHARON_HAFKADOT>
-</Row>
-...
-*/
 
 export interface GemelnetDataPoint {
   date: number; // Unix timestamp (start of month)
   nominalReturn: number; // Percentage return (TSUA_NOMINALI_BFOAL)
-  assets: number; // Asset balance (YIT_NCHASIM_BFOAL)
 }
 
 export interface GemelnetFundData {
   fundId: number;
-  fundName?: string;
+  fundName: string;
   data: GemelnetDataPoint[];
   lastUpdated: number;
 }
 
-const CACHE_KEY_PREFIX = 'gemelnet_cache_v2_';
+const CACHE_KEY_PREFIX = 'gemelnet_v1_';
 const CACHE_TTL = 48 * 60 * 60 * 1000; // 48 hours
 
 // Helper to get date parts
@@ -63,13 +38,13 @@ function parseDateStr(dateStr: string): number {
  * Uses a local storage cache with a 48-hour TTL.
  * 
  * @param fundId The ID of the fund.
- * @param startMonth Start date for the range (default: Jan 1990).
+ * @param startMonth Start date for the range.
  * @param endMonth End date for the range (default: Today).
  * @param forceRefresh If true, bypasses the cache.
  */
 export async function fetchGemelnetFund(
   fundId: number,
-  startMonth: Date = new Date('1990-01-01'),
+  startMonth: Date,
   endMonth: Date = new Date(),
   forceRefresh = false
 ): Promise<GemelnetFundData | null> {
@@ -102,30 +77,31 @@ export async function fetchGemelnetFund(
   console.log(`[Gemelnet] Fetching data for fund ${fundId}...`);
   
   try {
-    const xmlText = await fetchXml(url);
+    const [xmlText, tickersList] = await Promise.all([
+      fetchXml(url),
+      fetchGemelnetTickers() // This uses its own cache, so it's efficient
+    ]);
     const xmlDoc = parseXmlString(xmlText);
     
     const rows = Array.from(xmlDoc.querySelectorAll('Row'));
     const points: GemelnetDataPoint[] = [];
-    let fundName = '';
+    const fundInfo = tickersList.find(t => t.gemelInfo?.fundId === fundId);
+    const fundName = fundInfo?.nameEn || '';
 
-    rows.forEach((row, index) => {
+    rows.forEach(row => {
       const getText = (tag: string) => row.querySelector(tag)?.textContent || '';
       
-      if (index === 0) {
-          fundName = getText('SHM_KUPA');
-          console.log(`[Gemelnet] Parsed fund name for ${fundId}: ${fundName}`);
+      const idKupaStr = getText('ID_KUPA');
+      if (!idKupaStr || parseInt(idKupaStr, 10) !== fundId) {
+        return;
       }
 
       const dateStr = getText('TKF_DIVUACH');
-      const returnStr = getText('TSUA_NOMINALI_BFOAL');
-      const assetsStr = getText('YIT_NCHASIM_BFOAL');
-
       if (dateStr) {
+        const returnStr = getText('TSUA_NOMINALI_BFOAL');
         points.push({
           date: parseDateStr(dateStr),
-          nominalReturn: returnStr ? parseFloat(returnStr) : 0,
-          assets: assetsStr ? parseFloat(assetsStr) : 0,
+          nominalReturn: returnStr ? parseFloat(returnStr) : 0
         });
       }
     });
@@ -294,23 +270,24 @@ export async function fetchGemelnetQuote(
   const startPrice = priceMap.get(getKey(first.date))!.price / (1 + first.nominalReturn / 100);
   const chgMax = { pct: latestPrice / startPrice - 1, date: first.date };
 
-  return {
+  const tickerData: TickerData = {
     ticker: String(fundId),
     numericId: fundId,
     exchange: Exchange.GEMEL,
     price: latestPrice,
-    changePct1m: chg1m?.pct, changeDate1m: chg1m?.date,
-    changePct3m: chg3m?.pct, changeDate3m: chg3m?.date,
-    changePctYtd: chgYtd?.pct, changeDateYtd: chgYtd?.date,
-    changePct1y: chg1y?.pct, changeDate1y: chg1y?.date,
-    changePct3y: chg3y?.pct, changeDate3y: chg3y?.date,
-    changePct5y: chg5y?.pct, changeDate5y: chg5y?.date,
-    changePct10y: chg10y?.pct, changeDate10y: chg10y?.date,
-    changePctMax: chgMax.pct, changeDateMax: chgMax.date,
+    ...(chg1m && { changePct1m: chg1m.pct, changeDate1m: chg1m.date }),
+    ...(chg3m && { changePct3m: chg3m.pct, changeDate3m: chg3m.date }),
+    ...(chgYtd && { changePctYtd: chgYtd.pct, changeDateYtd: chgYtd.date }),
+    ...(chg1y && { changePct1y: chg1y.pct, changeDate1y: chg1y.date }),
+    ...(chg3y && { changePct3y: chg3y.pct, changeDate3y: chg3y.date }),
+    ...(chg5y && { changePct5y: chg5y.pct, changeDate5y: chg5y.date }),
+    ...(chg10y && { changePct10y: chg10y.pct, changeDate10y: chg10y.date }),
+    ...(chgMax && { changePctMax: chgMax.pct, changeDateMax: chgMax.date }),
     timestamp: latestPoint.date,
     currency: 'ILS', // Could also be 'ILA', doesn't matter due to lack of real price
-    name: fundData.fundName || String(fundId),
+    name: fundData.fundName,
     nameHe: fundData.fundName,
     source: 'Gemelnet',
   };
+  return tickerData;
 }
