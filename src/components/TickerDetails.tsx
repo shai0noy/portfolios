@@ -131,10 +131,10 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
 
     if (exchange === Exchange.GEMEL) {
       const nid = numericId || data?.numericId || holdingData?.numericId;
-      const clenaedHeName = resolvedNameHe?.replace(' ', '-').replace(/[^a-zA-Z0-9א-ת-]/g, '');
+      const clenaedHeName = resolvedNameHe?.replace(/[^a-zA-Z0-9א-ת ]/g, '').replace(/ /g, '-');
       if (nid)
         links.push({ name: 'GemelNet', url: `https://gemelnet.cma.gov.il/views/perutHodshi.aspx?idGuf=${nid}&OCHLUSIYA=1` });
-      links.push({ name: 'MyGemel', url: `https://www.mygemel.net/קופות גמל/${clenaedHeName}` });
+      links.push({ name: 'MyGemel', url: `https://www.mygemel.net/קופות-גמל/${clenaedHeName}` });
       return links;
     }
 
