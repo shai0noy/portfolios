@@ -15,7 +15,6 @@ import { getTickerData, type TickerData } from '../lib/fetching';
 import { TickerSearch } from './TickerSearch'; 
 import { convertCurrency, formatPrice, getExchangeRates, normalizeCurrency } from '../lib/currency';
 import { Currency, type ExchangeRates } from '../lib/types';
-import { TickerDetails } from './TickerDetails';
 import { useLanguage } from '../lib/i18n';
 
 interface Props {
@@ -40,7 +39,6 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   // Form State
   const [selectedTicker, setSelectedTicker] = useState<(TickerData & { symbol: string }) | null>(null);
   const [showForm, setShowForm] = useState(!!locationState?.prefilledTicker);
-  const [showTickerDetails, setShowTickerDetails] = useState(false);
   // The date state is stored in 'yyyy-MM-dd' format, which is required by the <input type="date"> element.
   // The conversion to Google Sheets format ('dd/MM/yyyy') happens in `addTransaction` on submission.
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -281,7 +279,15 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
 
   const handleViewTicker = () => {
     if (selectedTicker) {
-      setShowTickerDetails(true);
+      navigate(`/ticker/${selectedTicker.exchange}/${selectedTicker.symbol}`, {
+        state: {
+          from: '/transaction',
+          background: location,
+          numericId: (selectedTicker as any).numericId?.toString(),
+          initialName: selectedTicker.name,
+          initialNameHe: (selectedTicker as any).nameHe
+        }
+      });
     }
   };
 
@@ -516,17 +522,6 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
           </Grid>
         )}
       </Grid >
-      {showTickerDetails && selectedTicker && (
-        <TickerDetails 
-          sheetId={sheetId}
-          ticker={ticker}
-          exchange={exchange}
-          numericId={(selectedTicker as any).numericId?.toString()}
-          initialName={selectedTicker.name}
-          initialNameHe={selectedTicker.nameHe}
-          onClose={() => setShowTickerDetails(false)}
-        />
-      )}
     </Box >
   );
 };

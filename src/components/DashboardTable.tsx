@@ -191,7 +191,7 @@ export function DashboardTable(props: TableProps) {
                 const { changeVal: dayChangeValDisplay, changePct: dayChangePctDisplay } = calculatePerformanceInDisplayCurrency(h.currentPrice, h.stockCurrency, h.dayChangePct, 'ago1d', displayCurrency, exchangeRates);
                 
                 return (
-                  <TableRow key={h.key} hover onClick={() => navigate(`/ticker/${h.exchange.toUpperCase()}/${h.ticker}`, { state: { holding: h } })} sx={{ cursor: 'pointer' }}>
+                  <TableRow key={h.key} hover onClick={() => navigate(`/ticker/${h.exchange.toUpperCase()}/${h.ticker}`, { state: { holding: h, from: '/dashboard' } })} sx={{ cursor: 'pointer' }}>
                     {columnVisibility.displayName ? <TableCell sx={{ fontWeight: 'bold' }}>{tTry(h.displayName, h.nameHe)}</TableCell> : null}
                     {columnVisibility.ticker ? <TableCell>{h.ticker}</TableCell> : null}
                     {columnVisibility.sector ? <TableCell>{h.sector}</TableCell> : null}

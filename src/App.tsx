@@ -68,7 +68,9 @@ function App() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const currentBasePath = '/' + location.pathname.split('/')[1];
+  const locationState = location.state as { background?: { pathname: string } } | null;
+  const effectivePathname = locationState?.background?.pathname || location.pathname;
+  const currentBasePath = '/' + effectivePathname.split('/')[1];
   const currentTab = tabMap[currentBasePath] ?? 0;
 
   useEffect(() => {

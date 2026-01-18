@@ -3,7 +3,7 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AddIcon from '@mui/icons-material/Add';
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { getTickerData } from '../lib/fetching';
 import { fetchHolding, getMetadataValue } from '../lib/sheets/index';
 import type { Holding } from '../lib/types';
@@ -26,13 +26,17 @@ interface TickerDetailsRouteParams extends Record<string, string | undefined> {
   numericId?: string;
 }
 
-export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExchange, numericId: propNumericId, initialName, initialNameHe, onClose }: TickerDetailsProps) {
+export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExchange, numericId: propNumericId, initialName: propInitialName, initialNameHe: propInitialNameHe, onClose }: TickerDetailsProps) {
   const params = useParams<TickerDetailsRouteParams>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const state = location.state as { from?: string, numericId?: string, initialName?: string, initialNameHe?: string, returnState?: any } | null;
   
   const ticker = propTicker || params.ticker;
   const exchange = propExchange || params.exchange;
-  const numericId = propNumericId || params.numericId;
+  const numericId = propNumericId || params.numericId || state?.numericId;
+  const initialName = propInitialName || state?.initialName;
+  const initialNameHe = propInitialNameHe || state?.initialNameHe;
 
   const [data, setData] = useState<any>(null);
   const [holdingData, setHoldingData] = useState<Holding | null>(null);
@@ -99,7 +103,11 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
     if (onClose) {
       onClose();
     } else {
-      navigate('/dashboard'); // Go back to dashboard on close
+      if (state?.from) {
+        navigate(state.from, { state: state.returnState });
+      } else {
+        navigate('/dashboard'); // Go back to dashboard on close
+      }
     }
   };
 
