@@ -70,7 +70,7 @@ export async function exportDashboardData(opts: {
                 avgCost: h.price || 0,
                 currentPrice: h.price || 0,
                 totalMV: h.totalValue || (h.qty && h.price ? h.qty * h.price : 0),
-                dayChangePct: h.changePct || 0,
+                dayChangePct: h.changePct1d || 0,
                 unrealizedGain: 0,
                 realizedGain: 0,
                 dividends: 0,

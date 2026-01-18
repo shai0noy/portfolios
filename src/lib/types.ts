@@ -238,7 +238,7 @@ export interface Holding {
   name?: string;
   nameHe?: string;
   sector?: string;
-  changePct?: number;
+  changePct1d?: number;
   changeDate1d?: number;
   changePctRecent?: number;
   changeDateRecent?: number;

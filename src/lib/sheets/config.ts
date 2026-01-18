@@ -192,11 +192,11 @@ export const holdingMapping: Record<keyof SheetHolding, typeof holdingsHeaders[n
     ticker: 'Ticker', exchange: 'Exchange', qty: 'Quantity',
     price: 'Live_Price', currency: 'Currency', totalValue: 'Total Holding Value',
     name: 'Name_En', nameHe: 'Name_He', sector: 'Sector',
-    changePct: 'Day_Change', changePctRecent: 'Change_1W', changePct1m: 'Change_1M', changePct3m: 'Change_3M',
+    changePct1d: 'Day_Change', changePctRecent: 'Change_1W', changePct1m: 'Change_1M', changePct3m: 'Change_3M',
     changePctYtd: 'Change_YTD', changePct1y: 'Change_1Y', changePct3y: 'Change_3Y', changePct5y: 'Change_5Y', changePct10y: 'Change_10Y',
     numericId: 'Numeric_ID', recentChangeDays: 'Recent_Change_Days'
 };
 export const holdingNumericKeys: (keyof SheetHolding)[] = [
-    'qty', 'price', 'totalValue', 'changePct', 'changePctRecent', 'changePct1m', 'changePct3m',
+    'qty', 'price', 'totalValue', 'changePct1d', 'changePctRecent', 'changePct1m', 'changePct3m',
     'changePctYtd', 'changePct1y', 'changePct3y', 'changePct5y', 'changePct10y', 'numericId', 'recentChangeDays'
 ];

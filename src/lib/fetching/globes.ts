@@ -72,7 +72,7 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
       return (current - previous) / previous;
     };
 
-    const changePct = percentageChange / 100;
+    const changePct1d = percentageChange / 100;
     const changePctYtd = percentageChangeYear;
     const changePctRecent = calculatePctChange(last, lastWeekClosePrice);
     const changePct1m = calculatePctChange(last, lastMonthClosePrice);
@@ -87,7 +87,7 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
       nameHe: nameHe || undefined,
       currency,
       exchange: exchangeRes,
-      changePct,
+      changePct1d,
       changeDate1d: timestamp ? new Date(timestamp).valueOf() : now,
       timestamp: timestamp ? new Date(timestamp).valueOf() : now,
       sector: sector || undefined,

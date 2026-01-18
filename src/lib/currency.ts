@@ -138,7 +138,7 @@ export const calculatePerformanceInDisplayCurrency = (
   displayCurrency: string,
   exchangeRates: ExchangeRates
 ) => {
-  if (!perfPct) return { changeVal: 0, changePct: 0 };
+  if (!perfPct) return { changeVal: 0, changePct1d: 0 };
   
   // NOTE: currentPrice is expected to be in MAJOR units (ILS, USD) as per new rule.
   
@@ -157,9 +157,9 @@ export const calculatePerformanceInDisplayCurrency = (
   const prevPriceDisplay = convertCurrency(prevPriceStock, normStockCurrency, normDisplayCurrency, historicalRates);
 
   const changeVal = priceDisplayNow - prevPriceDisplay;
-  const changePct = prevPriceDisplay !== 0 ? changeVal / prevPriceDisplay : 0;
+  const changePct1d = prevPriceDisplay !== 0 ? changeVal / prevPriceDisplay : 0;
 
-  return { changeVal, changePct };
+  return { changeVal, changePct1d };
 };
 
 export const calculateHoldingDisplayValues = (h: DashboardHolding, displayCurrency: string, exchangeRates: ExchangeRates) => {

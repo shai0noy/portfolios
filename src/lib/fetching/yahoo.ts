@@ -68,18 +68,18 @@ export async function fetchYahooStockQuote(ticker: string, exchange: Exchange, s
     const granularity = meta.dataGranularity; // e.g. "1mo"
     const range = meta.range; // e.g. "max"
 
-    let changePct: number | undefined = undefined;
+    let changePct1d: number | undefined = undefined;
     let changePctRecent: number | undefined = undefined;
     let changeDateRecent: number | undefined = undefined;
     let recentChangeDays: number | undefined = undefined;
 
     // Only calculate 1D change if we have appropriate data granularity
     if (price && meta.previousClose) {
-      changePct = (price - meta.previousClose) / meta.previousClose;
+      changePct1d = (price - meta.previousClose) / meta.previousClose;
     }
     // 2. Fallback: If granularity is daily, use chartPreviousClose
     else if (price && prevClose && (range === '1d' || range === '5d' || granularity === '1d')) {
-      changePct = (price - prevClose) / prevClose;
+      changePct1d = (price - prevClose) / prevClose;
     }
     // 3. Fallback: Use the last two data points if available
     else if (result.indicators?.quote?.[0]?.close) {
@@ -90,7 +90,7 @@ export async function fetchYahooStockQuote(ticker: string, exchange: Exchange, s
         const prev = validCloses[validCloses.length - 2];
         // Use regularMarketPrice as current if available, else last bar close
         const current = price || last;
-        changePct = (current - prev) / prev;
+        changePct1d = (current - prev) / prev;
       }
     }
 
@@ -236,7 +236,7 @@ export async function fetchYahooStockQuote(ticker: string, exchange: Exchange, s
       name: longName,
       currency,
       exchange,
-      changePct,
+      changePct1d,
       changePctRecent,
       changeDateRecent,
       recentChangeDays,

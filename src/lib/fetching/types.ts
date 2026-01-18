@@ -8,7 +8,7 @@ export interface TickerData {
   nameHe?: string; // Hebrew name
   currency?: string;
   exchange: Exchange;
-  changePct?: number; // Daily change percentage
+  changePct1d?: number; // Daily change percentage
   changeDate1d?: number; // Timestamp of the previous close used for daily change
   timestamp?: number; // Last update time
   sector?: string;

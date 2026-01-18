@@ -90,7 +90,7 @@ export function DashboardTable(props: TableProps) {
       case 'qty': return h.totalQty;
       case 'avgCost': return toDisplay(h.avgCost, h.stockCurrency);
       case 'currentPrice': return toDisplay(h.currentPrice, h.stockCurrency);
-      case 'dayChangePct': return calculatePerformanceInDisplayCurrency(h.currentPrice, h.stockCurrency, h.dayChangePct, 'ago1d', displayCurrency, exchangeRates).changePct;
+      case 'dayChangePct': return calculatePerformanceInDisplayCurrency(h.currentPrice, h.stockCurrency, h.dayChangePct, 'ago1d', displayCurrency, exchangeRates).changePct1d;
       case 'dayChangeVal': return calculatePerformanceInDisplayCurrency(h.currentPrice, h.stockCurrency, h.dayChangePct, 'ago1d', displayCurrency, exchangeRates).changeVal * h.totalQty;
       case 'marketValue': return calculateHoldingDisplayValues(h, displayCurrency, exchangeRates).marketValue;
       case 'unrealized': return calculateHoldingDisplayValues(h, displayCurrency, exchangeRates).unrealizedGain;
@@ -188,7 +188,7 @@ export function DashboardTable(props: TableProps) {
                 const displayVals = calculateHoldingDisplayValues(h, displayCurrency, exchangeRates);
 
                 // Calculate Day Change in Display Currency
-                const { changeVal: dayChangeValDisplay, changePct: dayChangePctDisplay } = calculatePerformanceInDisplayCurrency(h.currentPrice, h.stockCurrency, h.dayChangePct, 'ago1d', displayCurrency, exchangeRates);
+                const { changeVal: dayChangeValDisplay, changePct1d: dayChangePctDisplay } = calculatePerformanceInDisplayCurrency(h.currentPrice, h.stockCurrency, h.dayChangePct, 'ago1d', displayCurrency, exchangeRates);
                 
                 return (
                   <TableRow key={h.key} hover onClick={() => navigate(`/ticker/${h.exchange.toUpperCase()}/${h.ticker}`, { state: { holding: h, from: '/dashboard' } })} sx={{ cursor: 'pointer' }}>

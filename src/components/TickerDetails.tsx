@@ -181,7 +181,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   const getPerf = (val?: number, date?: number) => val !== undefined ? { val, date } : undefined;
 
   const perfData: Record<string, { val: number, date?: number } | undefined> = {
-    '1D': getPerf(data?.changePct ?? (holdingData as any)?.changePct, data?.changeDate1d ?? (holdingData as any)?.changeDate1d),
+    '1D': getPerf(data?.changePct1d ?? (holdingData as any)?.changePct1d, data?.changeDate1d ?? (holdingData as any)?.changeDate1d),
     [data?.recentChangeDays ? `${data.recentChangeDays}D` : '1W']: getPerf(data?.changePctRecent ?? (holdingData as any)?.perf1w ?? (holdingData as any)?.changePctRecent, data?.changeDateRecent ?? (holdingData as any)?.changeDateRecent),
     '1M': getPerf(data?.changePct1m ?? (holdingData as any)?.changePct1m, data?.changeDate1m ?? (holdingData as any)?.changeDate1m),
     '3M': getPerf(data?.changePct3m ?? (holdingData as any)?.changePct3m, data?.changeDate3m ?? (holdingData as any)?.changeDate3m),

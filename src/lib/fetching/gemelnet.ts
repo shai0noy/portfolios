@@ -258,7 +258,7 @@ export async function fetchGemelnetQuote(
     // We'll use 100 as a base index price, or we could use the 'assets' if that made sense (but it doesn't for price).
     // Let's use 1 and rely on performance fields.
     price: 1, 
-    changePct: latest.nominalReturn,
+    changePct1d: latest.nominalReturn,
     changeDate1d: latest.date,
     timestamp: latest.date,
     currency: 'ILS', // Usually ILS

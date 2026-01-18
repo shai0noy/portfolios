@@ -473,7 +473,7 @@ export const batchAddTransactions = withAuthHandling(async (spreadsheetId: strin
     await rebuildHoldingsSheet(spreadsheetId);
 });
 
-type HoldingNonGeneratedData = Omit<Holding, 'portfolioId' | 'totalValue' | 'price' | 'currency' | 'name' | 'nameHe' | 'sector' | 'changePct' | 'changePct1w' | 'changePct1m' | 'changePct3m' | 'changePctYtd' | 'changePct1y' | 'changePct3y' | 'changePct5y' | 'changePct10y'>;
+type HoldingNonGeneratedData = Omit<Holding, 'portfolioId' | 'totalValue' | 'price' | 'currency' | 'name' | 'nameHe' | 'sector' | 'changePct1d' | 'changePct1w' | 'changePct1m' | 'changePct3m' | 'changePctYtd' | 'changePct1y' | 'changePct3y' | 'changePct5y' | 'changePct10y'>;
 function createHoldingRow(h: HoldingNonGeneratedData, meta: TickerData | null, rowNum: number): any[] {
     const tickerCell = `A${rowNum}`;
     const exchangeCell = `B${rowNum}`;
@@ -513,7 +513,7 @@ function createHoldingRow(h: HoldingNonGeneratedData, meta: TickerData | null, r
 export const rebuildHoldingsSheet = withAuthHandling(async (spreadsheetId: string) => {
     const gapi = await ensureGapi();
     const transactions = await fetchTransactions(spreadsheetId);
-    const holdings: Record<string, Omit<Holding, 'portfolioId' | 'totalValue' | 'price' | 'currency' | 'name' | 'nameHe' | 'sector' | 'changePct' | 'changePct1w' | 'changePct1m' | 'changePct3m' | 'changePctYtd' | 'changePct1y' | 'changePct3y' | 'changePct5y' | 'changePct10y'>> = {};
+    const holdings: Record<string, Omit<Holding, 'portfolioId' | 'totalValue' | 'price' | 'currency' | 'name' | 'nameHe' | 'sector' | 'changePct1d' | 'changePct1w' | 'changePct1m' | 'changePct3m' | 'changePctYtd' | 'changePct1y' | 'changePct3y' | 'changePct5y' | 'changePct10y'>> = {};
 
     // Sort transactions by date to ensure we get the latest numericId for a holding
     transactions.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
