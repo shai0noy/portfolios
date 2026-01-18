@@ -1,5 +1,5 @@
 import { Box, Paper, Typography, Grid, Tooltip, Button, ToggleButton, ToggleButtonGroup } from '@mui/material';
-import { formatPercent, formatCurrency } from '../lib/currency';
+import { formatPercent, formatValue } from '../lib/currency';
 import { logIfFalsy } from '../lib/utils';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
@@ -74,7 +74,7 @@ const Stat = ({ label, value, pct, color, tooltip, isMain = false, size = 'norma
               color={color || 'text.primary'}
               lineHeight={isSmall ? 1.2 : undefined}
           >
-              {formatCurrency(value, displayCurrency, isMain ? 0 : 2)}
+              {formatValue(value, displayCurrency, isMain ? 0 : 2)}
           </Typography>
           {(pct !== undefined && !isNaN(pct)) && (
               <Typography 
@@ -143,7 +143,7 @@ export function DashboardSummary({ summary, displayCurrency, exchangeRates, onBa
           ) : (
             <Typography variant="subtitle2" color="text.secondary">TOTAL AUM</Typography>
           )}
-          <Typography variant="h4" fontWeight="bold" color="primary">{formatCurrency(summary.aum, displayCurrency, 0)}</Typography>
+          <Typography variant="h4" fontWeight="bold" color="primary">{formatValue(summary.aum, displayCurrency, 0)}</Typography>
         </Grid>
         <Grid item xs={12} md={9}>
           <Box display="flex" flexDirection="column" gap={2} alignItems="flex-end">

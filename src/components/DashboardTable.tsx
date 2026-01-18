@@ -4,8 +4,8 @@ import {
   Collapse, IconButton, TableSortLabel, Typography, Menu, MenuItem 
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import { convertCurrency, formatPrice, formatCurrency, calculatePerformanceInDisplayCurrency, calculateHoldingDisplayValues } from '../lib/currency';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore'; 
+import { convertCurrency, formatPrice, formatValue, calculatePerformanceInDisplayCurrency, calculateHoldingDisplayValues, formatNumber } from '../lib/currency';
 import { logIfFalsy } from '../lib/utils';
 import { useNavigate } from 'react-router-dom';
 import type { DashboardHolding, ExchangeRates } from '../lib/types';
@@ -64,7 +64,7 @@ export function DashboardTable(props: TableProps) {
   const formatConverted = (n: number, fromCurrency: string, decimals = 0) => {
     const safeFrom = (fromCurrency === '#N/A' || !fromCurrency) ? 'ILS' : fromCurrency;
     const converted = convertCurrency(n, safeFrom, displayCurrency, exchangeRates);
-    return formatCurrency(converted, displayCurrency, decimals);
+    return formatValue(converted, displayCurrency, decimals, t);
   };
 
   const formatPct = (n: number) => (n * 100).toFixed(2) + '%';
@@ -126,13 +126,13 @@ export function DashboardTable(props: TableProps) {
             </Box>
             <Box display="flex" alignItems="center" gap={2} flexWrap="wrap" pr={1}>
               <Typography variant="body2">
-                {t('Total:', 'סה"כ:')} {formatCurrency(groupSummary.totalMV, displayCurrency, 0)}
+                {t('Total:', 'סה"כ:')} {formatValue(groupSummary.totalMV, displayCurrency, 0, t)}
               </Typography>
               <Typography variant="body2" color={groupSummary.totalDayChange >= 0 ? 'success.main' : 'error.main'}>
-                {t('Day:', 'יומי:')} {formatCurrency(groupSummary.totalDayChange, displayCurrency, 0)} ({formatPct(groupDayChangePct)})
+                {t('Day:', 'יומי:')} {formatValue(groupSummary.totalDayChange, displayCurrency, 0, t)} ({formatPct(groupDayChangePct)})
               </Typography>
               <Typography variant="body2" color={groupSummary.totalUnrealizedGain >= 0 ? 'success.main' : 'error.main'}>
-                {t('Unrealized:', 'לא ממומש:')} {formatCurrency(groupSummary.totalUnrealizedGain, displayCurrency, 0)}
+                {t('Unrealized:', 'לא ממומש:')} {formatValue(groupSummary.totalUnrealizedGain, displayCurrency, 0, t)}
               </Typography>
             </Box>
           </Box>
@@ -181,22 +181,22 @@ export function DashboardTable(props: TableProps) {
                     {columnVisibility.displayName ? <TableCell sx={{ fontWeight: 'bold' }}>{tTry(h.displayName, h.nameHe)}</TableCell> : null}
                     {columnVisibility.ticker ? <TableCell>{h.ticker}</TableCell> : null}
                     {columnVisibility.sector ? <TableCell>{h.sector}</TableCell> : null}
-                    {columnVisibility.qty ? <TableCell align="right">{h.totalQty.toLocaleString()}</TableCell> : null}
-                    {columnVisibility.avgCost ? <TableCell align="right">{formatPrice(h.avgCost, h.stockCurrency, 2).replace('ag.', t('ag.', "א'"))}</TableCell> : null}
-                    {columnVisibility.currentPrice ? <TableCell align="right">{formatPrice(h.currentPrice, h.stockCurrency, 2).replace('ag.', t('ag.', "א'"))}</TableCell> : null}
-                    {columnVisibility.dayChangeVal ? <TableCell align="right" sx={{ color: dayChangePctDisplay >= 0 ? theme.palette.success.main : theme.palette.error.main }}>{formatCurrency(dayChangeValDisplay * h.totalQty, displayCurrency, 2)}</TableCell> : null}
+                    {columnVisibility.qty ? <TableCell align="right">{formatNumber(h.totalQty)}</TableCell> : null}
+                    {columnVisibility.avgCost ? <TableCell align="right">{formatPrice(h.avgCost, h.stockCurrency, 2, t)}</TableCell> : null}
+                    {columnVisibility.currentPrice ? <TableCell align="right">{formatPrice(h.currentPrice, h.stockCurrency, 2, t)}</TableCell> : null}
+                    {columnVisibility.dayChangeVal ? <TableCell align="right" sx={{ color: dayChangePctDisplay >= 0 ? theme.palette.success.main : theme.palette.error.main }}>{formatValue(dayChangeValDisplay * h.totalQty, displayCurrency, 2, t)}</TableCell> : null}
                     {columnVisibility.dayChangePct ? <TableCell align="right" sx={{ color: dayChangePctDisplay >= 0 ? theme.palette.success.main : theme.palette.error.main }}>{formatPct(dayChangePctDisplay)}</TableCell> : null}
-                    {columnVisibility.mv ? <TableCell align="right">{formatCurrency(displayVals.marketValue, displayCurrency)}</TableCell> : null}
+                    {columnVisibility.mv ? <TableCell align="right">{formatValue(displayVals.marketValue, displayCurrency, 2, t)}</TableCell> : null}
                     {includeUnvested ? <TableCell align="right">{formatConverted(displayedVestedValue, h.portfolioCurrency)}</TableCell> : null}
                     {hasUnvested && displayedUnvestedValue > 0 ? <TableCell align="right" sx={{ color: 'text.secondary' }}>{formatConverted(displayedUnvestedValue, h.portfolioCurrency)}</TableCell> : hasUnvested ? <TableCell align="right" sx={{ color: 'text.secondary' }}>-</TableCell> : null}
-                    {columnVisibility.unrealizedGain ? <TableCell align="right"><Typography variant="body2" color={displayVals.unrealizedGain >= 0 ? theme.palette.success.main : theme.palette.error.main}>{formatCurrency(displayVals.unrealizedGain, displayCurrency)}</Typography></TableCell> : null}
+                    {columnVisibility.unrealizedGain ? <TableCell align="right"><Typography variant="body2" color={displayVals.unrealizedGain >= 0 ? theme.palette.success.main : theme.palette.error.main}>{formatValue(displayVals.unrealizedGain, displayCurrency, 2, t)}</Typography></TableCell> : null}
                     {columnVisibility.unrealizedGainPct ? <TableCell align="right" sx={{ color: 'text.secondary' }}>{formatPct(displayVals.unrealizedGainPct)}</TableCell> : null}
-                    {columnVisibility.realizedGain ? <TableCell align="right">{formatCurrency(displayVals.realizedGain, displayCurrency)}</TableCell> : null}
+                    {columnVisibility.realizedGain ? <TableCell align="right">{formatValue(displayVals.realizedGain, displayCurrency, 2, t)}</TableCell> : null}
                     {columnVisibility.realizedGainPct ? <TableCell align="right" sx={{ color: 'text.secondary' }}>{formatPct(displayVals.realizedGainPct)}</TableCell> : null}
-                    {columnVisibility.realizedGainAfterTax ? <TableCell align="right">{formatCurrency(displayVals.realizedGainAfterTax, displayCurrency)}</TableCell> : null}
-                    {columnVisibility.totalGain ? <TableCell align="right" sx={{ fontWeight: 'bold', color: displayVals.totalGain >= 0 ? theme.palette.success.dark : theme.palette.error.dark }}>{formatCurrency(displayVals.totalGain, displayCurrency)}</TableCell> : null}
+                    {columnVisibility.realizedGainAfterTax ? <TableCell align="right">{formatValue(displayVals.realizedGainAfterTax, displayCurrency, 2, t)}</TableCell> : null}
+                    {columnVisibility.totalGain ? <TableCell align="right" sx={{ fontWeight: 'bold', color: displayVals.totalGain >= 0 ? theme.palette.success.dark : theme.palette.error.dark }}>{formatValue(displayVals.totalGain, displayCurrency, 2, t)}</TableCell> : null}
                     {columnVisibility.totalGainPct ? <TableCell align="right" sx={{ color: 'text.secondary' }}>{formatPct(displayVals.totalGainPct)}</TableCell> : null}
-                    {columnVisibility.valueAfterTax ? <TableCell align="right">{formatCurrency(displayVals.valueAfterTax, displayCurrency)}</TableCell> : null}
+                    {columnVisibility.valueAfterTax ? <TableCell align="right">{formatValue(displayVals.valueAfterTax, displayCurrency, 2, t)}</TableCell> : null}
                   </TableRow>
                 );
               })}

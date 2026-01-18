@@ -1,7 +1,5 @@
-
-
 import { fetchXml, parseXmlString } from './utils/xml_parser';
-import type { TickerListItem } from './types';
+import type { TickerListItem, TickerData } from './types';
 import { Exchange } from '../types';
 
 // URL for listing: https://gemelnet.cma.gov.il/tsuot/ui/tsuotHodXML.aspx?miTkfDivuach=202510&adTkfDivuach=202512&kupot=0000&Dochot=1&sug=1
@@ -37,6 +35,7 @@ export interface GemelnetDataPoint {
 
 export interface GemelnetFundData {
   fundId: number;
+  fundName?: string;
   data: GemelnetDataPoint[];
   lastUpdated: number;
 }
@@ -108,10 +107,15 @@ export async function fetchGemelnetFund(
     
     const rows = Array.from(xmlDoc.querySelectorAll('Row'));
     const points: GemelnetDataPoint[] = [];
+    let fundName = '';
 
-    rows.forEach(row => {
+    rows.forEach((row, index) => {
       const getText = (tag: string) => row.querySelector(tag)?.textContent || '';
       
+      if (index === 0) {
+          fundName = getText('SHM_KUPA');
+      }
+
       const dateStr = getText('TKF_DIVUACH');
       const returnStr = getText('TSUA_NOMINALI_BFOAL');
       const assetsStr = getText('YIT_NCHASIM_BFOAL');
@@ -130,6 +134,7 @@ export async function fetchGemelnetFund(
 
     const result: GemelnetFundData = {
       fundId: fundId,
+      fundName,
       data: points,
       lastUpdated: now
     };
@@ -196,7 +201,16 @@ export async function fetchGemelnetTickers(signal?: AbortSignal): Promise<Ticker
           exchange: Exchange.GEMEL,
           nameHe: name,
           nameEn: name,
-          type: 'gemel_fund'
+          type: 'gemel_fund',
+          gemelInfo: {
+            fundId: id,
+            managingCompany: getText('SHM_HEVRA_MENAHELET'),
+            fundSubType: getText('SUG_KUPA'),
+            specialization: getText('HITMAHUT_RASHIT'),
+            subSpecialization: getText('HITMAHUT_MISHNIT'),
+            managementFee: parseFloat(getText('SHIUR_DMEI_NIHUL_AHARON')) || 0,
+            depositFee: parseFloat(getText('SHIUR_D_NIHUL_AHARON_HAFKADOT')) || 0,
+          }
         });
       }
     });
@@ -212,4 +226,42 @@ export async function fetchGemelnetTickers(signal?: AbortSignal): Promise<Ticker
     console.error('[Gemelnet] Error fetching tickers', e);
     return [];
   }
+}
+
+export async function fetchGemelnetQuote(
+  fundId: number,
+  _signal?: AbortSignal,
+  forceRefresh = false
+): Promise<TickerData | null> {
+  // Fetch last 12 months to ensure we get recent data
+  const endDate = new Date();
+  const startDate = new Date();
+  startDate.setMonth(startDate.getMonth() - 12);
+
+  const fundData = await fetchGemelnetFund(fundId, startDate, endDate, forceRefresh);
+
+  if (!fundData || fundData.data.length === 0) {
+    return null;
+  }
+
+  // Sort by date descending
+  const sortedData = [...fundData.data].sort((a, b) => b.date - a.date);
+  const latest = sortedData[0];
+
+  return {
+    ticker: String(fundId),
+    numericId: fundId,
+    exchange: Exchange.GEMEL,
+    // Gemel funds don't have a daily price like stocks. 
+    // We'll use 100 as a base index price, or we could use the 'assets' if that made sense (but it doesn't for price).
+    // Let's use 1 and rely on performance fields.
+    price: 1, 
+    changePct: latest.nominalReturn,
+    changeDate1d: latest.date,
+    timestamp: latest.date,
+    currency: 'ILS', // Usually ILS
+    name: fundData.fundName || String(fundId),
+    nameHe: fundData.fundName,
+    source: 'Gemelnet',
+  };
 }

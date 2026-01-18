@@ -267,7 +267,7 @@ function App() {
         <ListItemIcon>
           <TranslateIcon fontSize="small" />
         </ListItemIcon>
-        <ListItemText>{t('Switch to Hebrew', 'שפה: אנגלית')}</ListItemText>
+        <ListItemText>{t("הצג בעברית", "Switch to English")}</ListItemText>
       </MenuItem>
       <MenuItem onClick={() => { setImportOpen(true); handleMobileMenuClose(); }}>
         <ListItemIcon>
@@ -348,7 +348,7 @@ function App() {
                 </IconButton>
               </Tooltip>
 
-              <Tooltip title={t("Switch Language", "שינוי שפה")}>
+              <Tooltip title={t("הצג בעברית", "Switch to English")}>
                 <IconButton onClick={toggleLanguage} size="small" sx={{ color: 'text.secondary', width: 34, height: 34 }}>
                   <Typography variant="button" sx={{ fontWeight: 700, fontSize: '0.8rem' }}>
                     {language === 'en' ? 'He' : 'En'}

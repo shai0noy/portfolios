@@ -228,7 +228,14 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
       const data = await getTickerData(result.symbol, result.exchange, result.numericSecurityId || null);
       setIsLoading(false);
       if (data) {
-        onTickerSelect({ ...data, symbol: result.symbol, exchange: parseExchange(result.exchange), numeric_id: result.numericSecurityId });
+        onTickerSelect({ 
+          ...data, 
+          name: data.name || result.name, 
+          nameHe: data.nameHe || result.nameHe, 
+          symbol: result.symbol, 
+          exchange: parseExchange(result.exchange), 
+          numeric_id: result.numericSecurityId 
+        });
       }
     }
     setSearchResults([]);

@@ -12,9 +12,10 @@ import DashboardIcon from '@mui/icons-material/Dashboard';
 import { parseExchange, type Portfolio, type Transaction } from '../lib/types';
 import { addTransaction, fetchPortfolios } from '../lib/sheets/index';
 import { getTickerData, type TickerData } from '../lib/fetching';
-import { TickerSearch } from './TickerSearch';
-import { normalizeCurrency, convertCurrency, getExchangeRates } from '../lib/currency';
+import { TickerSearch } from './TickerSearch'; 
+import { convertCurrency, formatPrice, getExchangeRates, normalizeCurrency } from '../lib/currency';
 import { Currency, type ExchangeRates } from '../lib/types';
+import { TickerDetails } from './TickerDetails';
 import { useLanguage } from '../lib/i18n';
 
 interface Props {
@@ -39,6 +40,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   // Form State
   const [selectedTicker, setSelectedTicker] = useState<(TickerData & { symbol: string }) | null>(null);
   const [showForm, setShowForm] = useState(!!locationState?.prefilledTicker);
+  const [showTickerDetails, setShowTickerDetails] = useState(false);
   // The date state is stored in 'yyyy-MM-dd' format, which is required by the <input type="date"> element.
   // The conversion to Google Sheets format ('dd/MM/yyyy') happens in `addTransaction` on submission.
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -53,7 +55,6 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   const [comment, setComment] = useState('');
   const [commission, setCommission] = useState<string>('');
   const [tax, setTax] = useState<string>('');
-  const [displayName, setDisplayName] = useState('');
   const [tickerCurrency, setTickerCurrency] = useState<Currency>(normalizeCurrency(locationState?.initialCurrency || ''));
   const [validationErrors, setValidationErrors] = useState<{ [key: string]: boolean }>({});
   const [commissionPct, setCommissionPct] = useState<string>('');
@@ -71,7 +72,6 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
         if (data) {
           const combinedData = { ...data, symbol: locationState.prefilledTicker!, exchange: data.exchange || locationState.prefilledExchange || '', numericId: locationState.numericId || data.numericId };
           setSelectedTicker(combinedData as any);
-          setDisplayName(data.name || '');
           setPrice(data.price?.toString() || '');
           setTickerCurrency(normalizeCurrency(data.currency || ''));
           setExchange(data.exchange || locationState.prefilledExchange || '');
@@ -104,7 +104,6 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   const handleTickerSelect = (selected: TickerData & { symbol: string }) => {
     setSelectedTicker(selected);
     setTicker(selected.symbol);
-    setDisplayName(selected.name || '');
     setExchange(selected.exchange || '');
     setShowForm(true); // Show form immediately
     setPriceError('');
@@ -282,7 +281,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
 
   const handleViewTicker = () => {
     if (selectedTicker) {
-      navigate(`/ticker/${exchange}/${ticker}`);
+      setShowTickerDetails(true);
     }
   };
 
@@ -290,7 +289,6 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     setSelectedTicker(null);
     setTicker('');
     setExchange('');
-    setDisplayName('');
     setPrice('');
     setTickerCurrency(Currency.ILA);
     setShowForm(false);
@@ -345,13 +343,18 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
           <Grid item xs={12} sx={{ p: 2 }}>
             <Card variant="outlined">
               <CardContent>
-                <Box display="flex" alignItems="center" gap={1} mb={1}>
-                  <Typography variant="h6">{tTry(displayName || selectedTicker.name, (selectedTicker as any).nameHe)}</Typography>
-                  {ownedDetails.length > 0 && (
-                    <Tooltip title={`Total Held: ${totalHeld} (${ownedDetails.map(d => `${d.name}: ${d.qty}`).join(', ')})`}>
-                      <BusinessCenterIcon color="success" />
-                    </Tooltip>
-                  )}
+                <Box display="flex" alignItems="center" justifyContent="space-between" mb={1}>
+                  <Box display="flex" alignItems="center" gap={1}>
+                    <Typography variant="h6">{tTry(selectedTicker.name, (selectedTicker as any).nameHe)}</Typography>
+                    {ownedDetails.length > 0 && (
+                      <Tooltip title={`Total Held: ${totalHeld} (${ownedDetails.map(d => `${d.name}: ${d.qty}`).join(', ')})`}>
+                        <BusinessCenterIcon color="success" />
+                      </Tooltip>
+                    )}
+                  </Box>
+                  <Button variant="outlined" size="small" startIcon={<VisibilityIcon />} onClick={handleViewTicker}>
+                    {t('View Ticker', 'פרטי נייר')}
+                  </Button>
                 </Box>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap', mb: 2 }}>
                   <Chip
@@ -361,9 +364,14 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                     onClick={handleViewTicker}
                     sx={{ cursor: 'pointer' }}
                   />
-                  {price && (
+                  {price && !isNaN(parseFloat(price)) && (
                     <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
-                      {tickerCurrency === 'ILA' ? t('ag.', "א'") : tickerCurrency} {price}
+                      {formatPrice(parseFloat(price), tickerCurrency, 2, t)}
+                    </Typography>
+                  )}
+                  {selectedTicker?.source && (
+                    <Typography variant="caption" color="text.secondary">
+                      ({selectedTicker.source})
                     </Typography>
                   )}
                 </Box>
@@ -374,7 +382,6 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                       <Button variant="contained" startIcon={<AddCircleOutlineIcon />} onClick={() => { setShowForm(true); setSaveSuccess(false); }}>Add Another for {ticker}</Button>
-                      <Button variant="outlined" startIcon={<VisibilityIcon />} onClick={handleViewTicker}>View Ticker</Button>
                     </Box>
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                       <Button variant="outlined" startIcon={<DashboardIcon />} onClick={() => navigate('/dashboard')}>Back to Dashboard</Button>
@@ -441,7 +448,10 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                             label="Price" type="number" size="small" fullWidth
                             value={price}
                             onChange={e => handlePriceChange(e.target.value)}
-                            InputProps={{ startAdornment: <InputAdornment position="start">{tickerCurrency === 'ILA' ? t('ag.', "א'") : tickerCurrency}</InputAdornment> }}
+                            InputProps={tickerCurrency === 'ILA' 
+                              ? { endAdornment: <InputAdornment position="end">{t('ag.', "א'")}</InputAdornment> }
+                              : { startAdornment: <InputAdornment position="start">{tickerCurrency}</InputAdornment> }
+                            }
                             error={!!validationErrors.price}
                             required
                             helperText={!price ? "Required" : ""}
@@ -506,6 +516,15 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
           </Grid>
         )}
       </Grid >
+      {showTickerDetails && selectedTicker && (
+        <TickerDetails 
+          sheetId={sheetId}
+          ticker={ticker}
+          exchange={exchange}
+          numericId={(selectedTicker as any).numericId?.toString()}
+          onClose={() => setShowTickerDetails(false)}
+        />
+      )}
     </Box >
   );
 };

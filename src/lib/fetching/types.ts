@@ -31,6 +31,7 @@ export interface TickerData {
   changeDate10y?: number; // Timestamp of the price 10 years ago
   ticker: string;
   numericId : number|null; // Numeric ID for TASE
+  source?: string;
 }
 
 export interface HistoricalDataPoint {
@@ -47,6 +48,7 @@ export interface TaseSecurity {
   issuerId: number;
   securityIsIncludedInContinuousIndices: number[];
   securityName: string;
+  securityNameHe?: string;
   symbol: string;
   companySuperSector: string;
   companySector: string;
@@ -64,6 +66,16 @@ export interface TaseInfo {
   taseType: string;
 }
 
+export interface GemelInfo {
+  fundId: number;
+  managingCompany: string;
+  fundSubType: string;
+  specialization: string;
+  subSpecialization: string;
+  managementFee?: number;
+  depositFee?: number;
+}
+
 export interface TickerListItem {
   symbol: string;
   exchange: Exchange;
@@ -72,6 +84,7 @@ export interface TickerListItem {
   type: string; // 'stock', 'etf', 'gemel_fund' etc.
   
   taseInfo?: TaseInfo;
+  gemelInfo?: GemelInfo;
 }
 
 // Configuration for ticker types

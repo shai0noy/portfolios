@@ -223,21 +223,37 @@ export const calculateHoldingDisplayValues = (h: DashboardHolding, displayCurren
     };
 };
 
+/**
+ * Formats a generic number. Includes thousand separators and 2 decimal places for non-integers.
+ * e.g., 12345.67 -> "12,345.67"
+ * e.g., 12345 -> "12,345"
+ */
 export function formatNumber(n: number | undefined | null): string {
   if (n === undefined || n === null || isNaN(n)) return '-';
-  const options: Intl.NumberFormatOptions = Number.isInteger(n)
-    ? { minimumFractionDigits: 0, maximumFractionDigits: 0 }
-    : { minimumFractionDigits: 2, maximumFractionDigits: 2 };
+  const options: Intl.NumberFormatOptions = {
+    useGrouping: true,
+    ...(Number.isInteger(n)
+      ? { minimumFractionDigits: 0, maximumFractionDigits: 0 }
+      : { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  };
   return n.toLocaleString(undefined, options);
 }
 
-export function formatCurrency(n: number, currency: string | Currency, decimals = 2): string {
+/**
+ * Formats a monetary value (like total market value). Includes thousand separators.
+ * This is distinct from `formatPrice`, which is for individual unit prices.
+ * For 'ILA' currency, it formats as Agorot.
+ * e.g., (12345, 'ILA') -> "12,345 ag."
+ * e.g., (12345.67, 'USD') -> "$12,345.67"
+ */
+export function formatValue(n: number, currency: string | Currency, decimals = 2, t?: (key: string, fallback: string) => string): string {
   if (n === undefined || n === null || isNaN(n)) return '-';
   const norm = normalizeCurrency(currency as string);
 
   if (norm === Currency.ILA) {
-    const val = n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: decimals });
-    return `${val} ag.`;
+    const val = n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: decimals, useGrouping: true });
+    const agorotText = t ? t('ag.', "א'") : 'ag.';
+    return `${val} ${agorotText}`;
   }
   
   // Use Intl.NumberFormat for proper currency formatting
@@ -247,36 +263,64 @@ export function formatCurrency(n: number, currency: string | Currency, decimals 
       currency: norm,
       minimumFractionDigits: 0,
       maximumFractionDigits: decimals
+      // useGrouping: true is the default for style: 'currency'
     }).format(n);
   } catch (e) {
     // Fallback for unknown currency codes
     console.warn(`Could not format currency for code: ${norm}. Using default format.`);
-    const val = n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: decimals });
+    const val = n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: decimals, useGrouping: true });
     return `${val} ${norm}`;
   }
 }
 
+/**
+ * Formats a number as a percentage.
+ * e.g., 0.57 -> "57%"
+ * e.g., 0.5712 -> "57.12%"
+ * e.g., 0.005 -> "0.5%"
+ */
 export function formatPercent(n: number): string {
   if (n === undefined || n === null || isNaN(n)) return '-';
-  return `${(n * 100).toFixed(2)}%`;
+  const formatter = new Intl.NumberFormat(undefined, {
+    style: 'percent',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
+  return formatter.format(n);
 }
 
-// Strictly used for displaying Ticker Costs/Prices. 
-// Enforces rule: ILS prices always shown in Agorot.
-export function formatPrice(n: number, currency: string | Currency, decimals = 2): string {
+/**
+ * Formats a price for a single share/unit. Does NOT use thousand separators for clarity.
+ * Enforces the rule that ILS-based prices are always shown in Agorot.
+ * e.g., (12345.67, 'ILA') -> "12345.67 ag."
+ * e.g., (123.45, 'USD') -> "$123.45"
+ */
+export function formatPrice(n: number, currency: string | Currency, decimals = 2, t?: (key: string, fallback: string) => string): string {
     if (n === undefined || n === null || isNaN(n)) return '-';
     
     const norm = normalizeCurrency(currency as string);
 
     // Rule: Ticker costs in ILS or ILA are ALWAYS displayed in Agorot
     if (norm === Currency.ILS || norm === Currency.ILA) {
-        // If it's already ILA (Agorot units), don't multiply.
-        // If it's ILS (Major Units), multiply by 100 to display Agorot.
         const agorotVal = toILA(n, norm);
-        const val = agorotVal.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: decimals });
-        return `${val} ag.`;
+        const val = agorotVal.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: decimals, useGrouping: false });
+        const agorotText = t ? t('ag.', "א'") : 'ag.';
+        return `${val} ${agorotText}`;
     }
     
-    // Fallback for others
-    return formatCurrency(n, currency, decimals);
+    // Fallback for other currencies (e.g., USD, EUR prices), ensuring no commas.
+    try {
+        return new Intl.NumberFormat(undefined, {
+            style: 'currency',
+            currency: norm,
+            minimumFractionDigits: decimals,
+            maximumFractionDigits: decimals,
+            useGrouping: false,
+        }).format(n);
+    } catch (e) {
+        // Fallback for unknown currency codes
+        console.warn(`Could not format price for currency code: ${norm}. Using default format.`);
+        const val = n.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals, useGrouping: false });
+        return `${val} ${norm}`;
+    }
 }

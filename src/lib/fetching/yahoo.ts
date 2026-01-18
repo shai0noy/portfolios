@@ -1,7 +1,7 @@
 // src/lib/fetching/yahoo.ts
 import { tickerDataCache, CACHE_TTL } from './utils/cache';
 import type { TickerData } from './types';
-import { Exchange, parseExchange } from '../types';
+import { Exchange, parseExchange, toYahooFinanceTicker } from '../types';
 
 const YAHOO_EXCHANGE_MAP: Record<string, string> = {
   'NMS': 'NASDAQ',
@@ -12,16 +12,17 @@ const YAHOO_EXCHANGE_MAP: Record<string, string> = {
   // Add other mappings as needed
 };
 
-export async function fetchYahooStockQuote(ticker: string, signal?: AbortSignal): Promise<TickerData | null> {
+export async function fetchYahooStockQuote(ticker: string, exchange: Exchange, signal?: AbortSignal): Promise<TickerData | null> {
   const now = Date.now();
-  const cacheKey = `yahoo:${ticker}`;
+  const yahooTicker = toYahooFinanceTicker(ticker, exchange);
+  const cacheKey = `yahoo:${yahooTicker}`;
 
   const cached = tickerDataCache.get(cacheKey);
   if (cached && now - cached.timestamp < CACHE_TTL) {
     return cached.data;
   }
 
-  const url = `https://portfolios.noy-shai.workers.dev/?apiId=yahoo_hist&ticker=${ticker}`;
+  const url = `https://portfolios.noy-shai.workers.dev/?apiId=yahoo_hist&ticker=${yahooTicker}`;
 
   let data;
   try {
@@ -254,7 +255,8 @@ export async function fetchYahooStockQuote(ticker: string, signal?: AbortSignal)
       changePct10y: undefined,
       timestamp: now,
       ticker,
-      numericId: null
+      numericId: null,
+      source: 'Yahoo Finance',
     };
 
     tickerDataCache.set(cacheKey, { data: tickerData, timestamp: now });

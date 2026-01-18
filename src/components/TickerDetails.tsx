@@ -10,15 +10,28 @@ import type { Holding } from '../lib/types';
 import { formatPrice, formatPercent } from '../lib/currency';
 import { useLanguage } from '../lib/i18n';
 
+interface TickerDetailsProps {
+  sheetId: string;
+  ticker?: string;
+  exchange?: string;
+  numericId?: string;
+  onClose?: () => void;
+}
+
 interface TickerDetailsRouteParams extends Record<string, string | undefined> {
   exchange: string;
   ticker: string;
   numericId?: string;
 }
 
-export function TickerDetails({ sheetId }: { sheetId: string }) {
-  const { exchange, ticker, numericId } = useParams<TickerDetailsRouteParams>();
+export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExchange, numericId: propNumericId, onClose }: TickerDetailsProps) {
+  const params = useParams<TickerDetailsRouteParams>();
   const navigate = useNavigate();
+  
+  const ticker = propTicker || params.ticker;
+  const exchange = propExchange || params.exchange;
+  const numericId = propNumericId || params.numericId;
+
   const [data, setData] = useState<any>(null);
   const [holdingData, setHoldingData] = useState<Holding | null>(null);
   const [loading, setLoading] = useState(true);
@@ -81,14 +94,18 @@ export function TickerDetails({ sheetId }: { sheetId: string }) {
       setLoading(false);
       setData(null);
     }
-  }, [ticker, exchange, sheetId]);
+  }, [ticker, exchange, numericId, sheetId]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
   const handleClose = () => {
-    navigate('/dashboard'); // Go back to dashboard on close
+    if (onClose) {
+      onClose();
+    } else {
+      navigate('/dashboard'); // Go back to dashboard on close
+    }
   };
 
   const handleAddTransaction = () => {
@@ -151,14 +168,14 @@ export function TickerDetails({ sheetId }: { sheetId: string }) {
   const getPerf = (val?: number, date?: number) => val !== undefined ? { val, date } : undefined;
 
   const perfData: Record<string, { val: number, date?: number } | undefined> = {
-    '1D': getPerf(data?.changePct ?? holdingData?.changePct, data?.changeDate1d ?? holdingData?.changeDate1d),
-    [data?.recentChangeDays ? `${data.recentChangeDays}D` : '1W']: getPerf(data?.changePctRecent ?? holdingData?.changePctRecent, data?.changeDateRecent ?? holdingData?.changeDateRecent),
-    '1M': getPerf(data?.changePct1m ?? holdingData?.changePct1m, data?.changeDate1m ?? holdingData?.changeDate1m),
-    '3M': getPerf(data?.changePct3m ?? holdingData?.changePct3m, data?.changeDate3m ?? holdingData?.changeDate3m),
-    'YTD': getPerf(data?.changePctYtd ?? holdingData?.changePctYtd, data?.changeDateYtd ?? holdingData?.changeDateYtd),
-    '1Y': getPerf(data?.changePct1y ?? holdingData?.changePct1y, data?.changeDate1y ?? holdingData?.changeDate1y),
-    '3Y': getPerf(data?.changePct3y ?? holdingData?.changePct3y, data?.changeDate3y ?? holdingData?.changeDate3y),
-    '5Y': getPerf(data?.changePct5y ?? holdingData?.changePct5y, data?.changeDate5y ?? holdingData?.changeDate5y),
+    '1D': getPerf(data?.changePct ?? (holdingData as any)?.changePct, data?.changeDate1d ?? (holdingData as any)?.changeDate1d),
+    [data?.recentChangeDays ? `${data.recentChangeDays}D` : '1W']: getPerf(data?.changePctRecent ?? (holdingData as any)?.perf1w ?? (holdingData as any)?.changePctRecent, data?.changeDateRecent ?? (holdingData as any)?.changeDateRecent),
+    '1M': getPerf(data?.changePct1m ?? (holdingData as any)?.changePct1m, data?.changeDate1m ?? (holdingData as any)?.changeDate1m),
+    '3M': getPerf(data?.changePct3m ?? (holdingData as any)?.changePct3m, data?.changeDate3m ?? (holdingData as any)?.changeDate3m),
+    'YTD': getPerf(data?.changePctYtd ?? (holdingData as any)?.changePctYtd, data?.changeDateYtd ?? (holdingData as any)?.changeDateYtd),
+    '1Y': getPerf(data?.changePct1y ?? (holdingData as any)?.changePct1y, data?.changeDate1y ?? (holdingData as any)?.changeDate1y),
+    '3Y': getPerf(data?.changePct3y ?? (holdingData as any)?.changePct3y, data?.changeDate3y ?? (holdingData as any)?.changeDate3y),
+    '5Y': getPerf(data?.changePct5y ?? (holdingData as any)?.changePct5y, data?.changeDate5y ?? (holdingData as any)?.changeDate5y),
   };
 
   const translateRange = (range: string) => {
@@ -219,12 +236,12 @@ export function TickerDetails({ sheetId }: { sheetId: string }) {
                   <Box display="flex" alignItems="baseline" sx={{ gap: 1, flex: 1, minWidth: 0 }}>
                     <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>{t('PRICE', 'מחיר')}</Typography>
                     <Typography variant="h6" component="div" fontWeight={600} sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {formatPrice(price, isTase ? 'ILA' : displayData.currency, maxDecimals).replace('ag.', t('ag.', "א'"))}
+                      {formatPrice(price, isTase ? 'ILA' : displayData.currency, maxDecimals, t)}
                     </Typography>
                     {openPrice != null && (
                       <Typography variant="caption" color="text.secondary" sx={{ ml: 1, whiteSpace: 'nowrap' }}>
                         <Typography component="span" variant="caption" sx={{ mr: 0.5 }}>{t('Open:', 'פתיחה:')}</Typography>
-                        {formatPrice(openPrice, isTase ? 'ILA' : displayData.currency, maxDecimals).replace('ag.', t('ag.', "א'"))}
+                        {formatPrice(openPrice, isTase ? 'ILA' : displayData.currency, maxDecimals, t)}
                       </Typography>
                     )}
                   </Box>
@@ -313,7 +330,11 @@ export function TickerDetails({ sheetId }: { sheetId: string }) {
 
             <Box mt={2} display="flex" justifyContent="flex-end" alignItems="center" gap={1}>
               <Typography variant="caption" color="text.secondary">
-                {data?.timestamp ? `${t('Live Fetched:', 'עדכון אחרון:')} ${formatTimestamp(data.timestamp)}` : (sheetRebuildTime ? `${t('Sheet Rebuilt:', 'עדכון גיליון:')} ${formatTimestamp(sheetRebuildTime)}` : t('Freshness N/A', 'אין מידע על עדכון'))}
+                {data?.timestamp
+                  ? `${t('Live from', 'מידע חי מ-')} ${data.source || 'API'}: ${formatTimestamp(data.timestamp)}`
+                  : sheetRebuildTime
+                  ? `${t('From Sheet', 'מהגיליון')}: ${formatTimestamp(sheetRebuildTime)}`
+                  : t('Freshness N/A', 'אין מידע על עדכון')}
               </Typography>
               <Tooltip title={t("Refresh Data", "רענן נתונים")}>
                 <IconButton onClick={() => fetchData(true)} disabled={refreshing} size="small">

@@ -4,22 +4,26 @@ import { fetchXml, parseXmlString } from './utils/xml_parser';
 import type { TickerData } from './types';
 import { Exchange, parseExchange } from '../types';
 
-export async function fetchGlobesStockQuote(symbol: string, securityId: number | undefined, exchange: string, signal?: AbortSignal): Promise<TickerData | null> {
-  exchange = exchange.toLowerCase();
-  if (exchange === 'tase' && !securityId) {
+function toGlobesExchangeCode(exchange: Exchange): string {
+  return exchange.toLowerCase();
+}
+
+export async function fetchGlobesStockQuote(symbol: string, securityId: number | undefined, exchange: Exchange, signal?: AbortSignal): Promise<TickerData | null> {
+  const exchangeStr = toGlobesExchangeCode(exchange);
+  if (exchange === Exchange.TASE && !securityId) {
     console.warn(`fetchGlobesStockQuote: TASE requires a numeric security ID.`);
   }
 
   const now = Date.now();
-  const identifier = (exchange === 'tase' && securityId) ? securityId.toString() : symbol.toUpperCase();
-  const cacheKey = `globes:${exchange}:${identifier}`;
+  const identifier = (exchange === Exchange.TASE && securityId) ? securityId.toString() : symbol.toUpperCase();
+  const cacheKey = `globes:${exchangeStr}:${identifier}`;
 
   const cached = tickerDataCache.get(cacheKey);
   if (cached && now - cached.timestamp < CACHE_TTL) {
     return cached.data;
   }
 
-  const globesApiUrl = `https://portfolios.noy-shai.workers.dev/?apiId=globes_data&exchange=${exchange}&ticker=${identifier}`;
+  const globesApiUrl = `https://portfolios.noy-shai.workers.dev/?apiId=globes_data&exchange=${exchangeStr}&ticker=${identifier}`;
   let text;
   try {
     text = await fetchXml(globesApiUrl, signal);
@@ -40,7 +44,8 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
     const last = parseFloat(getText('last') || '0');
     const openPrice = parseFloat(getText('openPrice') || '0');
     const nameEn = getText('nameEn');
-    const nameHe = getText('nameHe');
+    // Per user instruction: use name_he
+    const nameHe = getText('name_he');
     let currency = getText('currency') || 'ILA';
     if (currency === 'NIS' || currency === 'ILS') currency = 'ILA';
     const exchangeStr = getText('exchange')?.toUpperCase() || 'TASE';
@@ -96,7 +101,8 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
       changePct5y: 0,
       changePct10y: 0,
       ticker: symbol.toUpperCase(),
-      numericId: securityId || null
+      numericId: securityId || null,
+      source: 'Globes',
     };
 
     tickerDataCache.set(cacheKey, { data: tickerData, timestamp: now });
