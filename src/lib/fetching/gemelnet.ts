@@ -1,7 +1,7 @@
 
 
 import { fetchXml, parseXmlString } from './utils/xml_parser';
-import type { TaseTicker } from './types';
+import type { TickerListItem } from './types';
 import { Exchange } from '../types';
 
 // URL for listing: https://gemelnet.cma.gov.il/tsuot/ui/tsuotHodXML.aspx?miTkfDivuach=202510&adTkfDivuach=202512&kupot=0000&Dochot=1&sug=1
@@ -44,11 +44,11 @@ export interface GemelnetFundData {
 const CACHE_KEY_PREFIX = 'gemelnet_cache_v1_';
 const CACHE_TTL = 48 * 60 * 60 * 1000; // 48 hours
 
-// Helper to format Date to YYYYMM
-function formatDateParam(date: Date): string {
-  const y = date.getFullYear();
-  const m = date.getMonth() + 1;
-  return `${y}${m.toString().padStart(2, '0')}`;
+// Helper to get date parts
+function getDateParts(date: Date): { year: string, month: string } {
+  const y = date.getFullYear().toString();
+  const m = (date.getMonth() + 1).toString().padStart(2, '0');
+  return { year: y, month: m };
 }
 
 // Helper to parse YYYYMM to timestamp
@@ -74,9 +74,9 @@ export async function fetchGemelnetFund(
   endMonth: Date = new Date(),
   forceRefresh = false
 ): Promise<GemelnetFundData | null> {
-  const sDateStr = formatDateParam(startMonth);
-  const eDateStr = formatDateParam(endMonth);
-  const cacheKey = `${CACHE_KEY_PREFIX}${fundId}_${sDateStr}_${eDateStr}`;
+  const sParts = getDateParts(startMonth);
+  const eParts = getDateParts(endMonth);
+  const cacheKey = `${CACHE_KEY_PREFIX}${fundId}_${sParts.year}${sParts.month}_${eParts.year}${eParts.month}`;
   const now = Date.now();
 
   // 1. Check Cache
@@ -97,8 +97,8 @@ export async function fetchGemelnetFund(
 
   // 2. Fetch Data
   // Note: Direct calls to gemelnet.cma.gov.il may fail in a browser due to CORS.
-  // If this happens, you may need to route this through your worker proxy.
-  const url = `https://gemelnet.cma.gov.il/tsuot/ui/tsuotHodXML.aspx?miTkfDivuach=${sDateStr}&adTkfDivuach=${eDateStr}&kupot=${fundId}&Dochot=1&sug=3`;
+  // We use our worker proxy to bypass this.
+  const url = `https://portfolios.noy-shai.workers.dev/?apiId=gemelnet_fund&startYear=${sParts.year}&startMonth=${sParts.month}&endYear=${eParts.year}&endMonth=${eParts.month}&fundId=${fundId}`;
   
   console.log(`[Gemelnet] Fetching data for fund ${fundId}...`);
   
@@ -152,7 +152,7 @@ export async function fetchGemelnetFund(
 const LIST_CACHE_KEY = 'gemelnet_tickers_list';
 const LIST_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
 
-export async function fetchGemelnetTickers(signal?: AbortSignal): Promise<TaseTicker[]> {
+export async function fetchGemelnetTickers(signal?: AbortSignal): Promise<TickerListItem[]> {
   const now = Date.now();
 
   // 1. Check Cache
@@ -174,16 +174,16 @@ export async function fetchGemelnetTickers(signal?: AbortSignal): Promise<TaseTi
   const startDate = new Date();
   startDate.setFullYear(startDate.getFullYear() - 1);
 
-  const sDateStr = formatDateParam(startDate);
-  const eDateStr = formatDateParam(endDate);
-  const url = `https://gemelnet.cma.gov.il/tsuot/ui/tsuotHodXML.aspx?miTkfDivuach=${sDateStr}&adTkfDivuach=${eDateStr}&kupot=0000&Dochot=1&sug=1`;
+  const sParts = getDateParts(startDate);
+  const eParts = getDateParts(endDate);
+  const url = `https://portfolios.noy-shai.workers.dev/?apiId=gemelnet_list&startYear=${sParts.year}&startMonth=${sParts.month}&endYear=${eParts.year}&endMonth=${eParts.month}`;
 
   console.log('[Gemelnet] Fetching tickers list...');
   try {
     const xmlText = await fetchXml(url, signal);
     const xmlDoc = parseXmlString(xmlText);
     const rows = Array.from(xmlDoc.querySelectorAll('Row'));
-    const tickersMap = new Map<number, TaseTicker>();
+    const tickersMap = new Map<number, TickerListItem>();
 
     rows.forEach(row => {
       const getText = (tag: string) => row.querySelector(tag)?.textContent || '';
@@ -192,18 +192,11 @@ export async function fetchGemelnetTickers(signal?: AbortSignal): Promise<TaseTi
       if (id && !tickersMap.has(id)) {
         const name = getText('SHM_KUPA');
         tickersMap.set(id, {
-          securityId: id,
           symbol: idStr,
-          exchange: Exchange.IL_FUND,
+          exchange: Exchange.GEMEL,
           nameHe: name,
           nameEn: name,
-          companyName: getText('SHM_HEVRA_MENAHELET'),
-          companySuperSector: 'Provident Fund',
-          companySector: getText('SUG_KUPA'),
-          companySubSector: getText('HITMAHUT_RASHIT'),
-          globesInstrumentId: '',
-          type: 'fund',
-          taseType: 'Gemel'
+          type: 'gemel_fund'
         });
       }
     });

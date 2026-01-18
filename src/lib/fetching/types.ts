@@ -54,22 +54,24 @@ export interface TaseSecurity {
   companyName: string;
 }
 
-export interface TaseTicker {
-  // Fields from TASE API
+export interface TaseInfo {
   securityId: number;
-  nameEn: string;
-  symbol: string;
   companyName: string;
   companySuperSector: string;
   companySector: string;
   companySubSector: string;
+  globesInstrumentId: string;
+  taseType: string;
+}
 
-  // Fields from Globes
-  globesInstrumentId: string; // Globes internal instrument ID
-  type: string; // 'stock', 'etf', etc.
-  nameHe: string;
-  taseType: string; // TASE type ID string
+export interface TickerListItem {
+  symbol: string;
   exchange: Exchange;
+  nameEn: string;
+  nameHe?: string;
+  type: string; // 'stock', 'etf', 'gemel_fund' etc.
+  
+  taseInfo?: TaseInfo;
 }
 
 // Configuration for ticker types

@@ -107,7 +107,7 @@ export const TXN_COLS: TransactionColumns = {
         formula: (rowNum, cols) => {
             const exchange = `${cols.exchange.colId}${rowNum}`;
             const ticker = `${cols.ticker.colId}${rowNum}`;
-            return `=IFERROR(INDEX(GOOGLEFINANCE(${exchange}&":"&${ticker}, "price"), 2, 2)*${cols.splitAdjustedQty.colId}${rowNum})`;
+            return `=IFERROR(GOOGLEFINANCE(${exchange}&":"&${ticker}, "price")*${cols.splitAdjustedQty.colId}${rowNum})`;
         }
     },
     valueAfterTax: {

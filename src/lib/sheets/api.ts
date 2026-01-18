@@ -216,9 +216,13 @@ export const fetchPortfolios = withAuthHandling(async (spreadsheetId: string): P
             )
         );
         priceData.forEach(item => {
-            (item as any).exchange = parseExchange((item as any).exchange);
-            const key = `${item.ticker}-${item.exchange}`;
-            priceMap[key] = item;
+            try {
+                (item as any).exchange = parseExchange((item as any).exchange);
+                const key = `${item.ticker}-${item.exchange}`;
+                priceMap[key] = item;
+            } catch (e) {
+                console.warn(`Skipping holding with invalid exchange: ${(item as any).ticker}`, e);
+            }
         });
     } catch (e) {
         console.warn("Holdings sheet (for price data) not found or error fetching:", e);
@@ -257,7 +261,11 @@ export const fetchTransactions = withAuthHandling(async (spreadsheetId: string):
             return parseFloat(String(val).replace(/[^0-9.-]+/g, ""));
         };
         
-        t.exchange = parseExchange(t.exchange || '');
+        if (t.exchange) {
+            t.exchange = parseExchange(t.exchange);
+        } else {
+            t.exchange = undefined;
+        }
 
         return {
             ...t,

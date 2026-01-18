@@ -5,7 +5,7 @@
 
 import { fetchXml, parseXmlString, extractDataFromXmlNS } from './utils/xml_parser';
 import { withTaseCache } from './utils/cache';
-import type { TaseTicker, SecurityTypeConfig, TaseSecurity } from './types';
+import type { TickerListItem, SecurityTypeConfig, TaseSecurity } from './types';
 import { fetchGemelnetTickers } from './gemelnet';
 import taseTypeIds from './tase_type_ids.json';
 import { Exchange } from '../types';
@@ -227,32 +227,34 @@ export async function fetchAllTickers(
   exchange: string,
   config: SecurityTypeConfig = DEFAULT_SECURITY_TYPE_CONFIG,
   signal?: AbortSignal
-): Promise<Record<string, TaseTicker[]>> {
+): Promise<Record<string, TickerListItem[]>> {
   if (exchange.toUpperCase() === 'TASE') {
     return fetchTaseTickers(signal, config);
   }
   
-  if (exchange.toUpperCase() === 'IL_FUND') {
+  if (exchange.toUpperCase() === 'GEMEL') {
     const tickers = await fetchGemelnetTickers(signal);
-    return { 'fund': tickers };
+    return { 'gemel_fund': tickers };
   }
 
   // Fetch from Globes alone for other exchanges
   const allGlobesTickers = await fetchGlobesTickers(exchange, config, signal);
 
-   const allTickers: TaseTicker[] = allGlobesTickers.map(globesTicker => ({
-      securityId: Number(globesTicker.numericSecurityId) || 0, // Fallback if not numeric
+   const allTickers: TickerListItem[] = allGlobesTickers.map(globesTicker => ({
       symbol: getEffectiveTicker(globesTicker.symbol, exchange) || globesTicker.symbol,
       exchange: exchange as Exchange,
-      companyName: globesTicker.nameEn,
-      companySuperSector: '',
-      companySector: '',
-      companySubSector: '',
-      globesInstrumentId: globesTicker.globesInstrumentId,
       type: globesTicker.type,
       nameHe: globesTicker.nameHe,
       nameEn: globesTicker.nameEn,
-      taseType: config[globesTicker.type]?.displayName || 'Unknown',
+      taseInfo: {
+        securityId: Number(globesTicker.numericSecurityId) || 0, // Fallback if not numeric
+        companyName: globesTicker.nameEn,
+        companySuperSector: '',
+        companySector: '',
+        companySubSector: '',
+        globesInstrumentId: globesTicker.globesInstrumentId,
+        taseType: config[globesTicker.type]?.displayName || 'Unknown',
+      }
    }));
 
    // Group by type
@@ -263,7 +265,7 @@ export async function fetchAllTickers(
     }
     acc[type].push(ticker);
     return acc;
-  }, {} as Record<string, TaseTicker[]>);
+  }, {} as Record<string, TickerListItem[]>);
 
   console.log(`Final ${exchange} tickers distribution:`, Object.keys(grouped).map(k => `${k}: ${grouped[k].length}`));
   return grouped;
@@ -276,7 +278,7 @@ export async function fetchAllTickers(
 async function fetchTaseTickers(
   signal?: AbortSignal,
   config: SecurityTypeConfig = DEFAULT_SECURITY_TYPE_CONFIG
-): Promise<Record<string, TaseTicker[]>> {
+): Promise<Record<string, TickerListItem[]>> {
 
   // 1. Fetch base data from TASE
   const taseSecurities = await fetchTaseSecurities(signal);
@@ -292,7 +294,7 @@ async function fetchTaseTickers(
 
   console.log(`Total Globes tickers fetched: ${allGlobesTickers.length}. Unique IDs: ${globesTickerMap.size}`);
 
-  const allTickers: TaseTicker[] = [];
+  const allTickers: TickerListItem[] = [];
   const matchedGlobesIds = new Set<string>();
 
   // 4. Left join: Iterate TASE securities and enrich with Globes data
@@ -306,20 +308,23 @@ async function fetchTaseTickers(
       const globesType = globesTicker?.type  || (globesTicker ? getGlobesTypeFromTaseType(globesTicker.type) : undefined);
  
       allTickers.push({
-          // Data from TASE API
-          securityId: security.securityId,
+          // Base Data
+          symbol: getEffectiveTicker(security.symbol, 'TASE') || security.symbol,
           exchange: Exchange.TASE,
           nameEn: security.securityName,
-          symbol: getEffectiveTicker(security.symbol, 'TASE') || security.symbol,
-          companyName: security.companyName,
-          companySuperSector: security.companySuperSector,
-          companySector: security.companySector,
-          companySubSector: security.companySubSector,
-          // Enriched/fallback data from Globes
-          globesInstrumentId: globesTicker?.globesInstrumentId || '',
-          type: globesType || 'Unknown',
           nameHe: globesTicker?.nameHe || security.securityName,
-          taseType: taseType?.subType || 'Unknown',
+          type: globesType || 'Unknown',
+          
+          // TASE Specific Info
+          taseInfo: {
+            securityId: security.securityId,
+            companyName: security.companyName,
+            companySuperSector: security.companySuperSector,
+            companySector: security.companySector,
+            companySubSector: security.companySubSector,
+            globesInstrumentId: globesTicker?.globesInstrumentId || '',
+            taseType: taseType?.subType || 'Unknown',
+          }
       });
   }
 
@@ -330,18 +335,21 @@ async function fetchTaseTickers(
       if (!matchedGlobesIds.has(globesTicker.numericSecurityId)) {
         // For globes-only tickers, we can't reliably determine the TASE type.
         allTickers.push({
-            securityId: Number(globesTicker.numericSecurityId),
-            exchange: Exchange.TASE,
             symbol: getEffectiveTicker(globesTicker.symbol, 'TASE') || globesTicker.symbol,
-            companyName: globesTicker.nameEn, // Fallback to globes name
-            companySuperSector: '',
-            companySector: '',
-            companySubSector: '',
-            globesInstrumentId: globesTicker.globesInstrumentId,
-            type: globesTicker.type,
-            nameHe: globesTicker.nameHe,
+            exchange: Exchange.TASE,
             nameEn: globesTicker.nameEn,
-            taseType: DEFAULT_SECURITY_TYPE_CONFIG[globesTicker.type]?.displayName || 'Unknown', // Use globes type as a fallback
+            nameHe: globesTicker.nameHe,
+            type: globesTicker.type,
+            
+            taseInfo: {
+                securityId: Number(globesTicker.numericSecurityId),
+                companyName: globesTicker.nameEn, // Fallback to globes name
+                companySuperSector: '',
+                companySector: '',
+                companySubSector: '',
+                globesInstrumentId: globesTicker.globesInstrumentId,
+                taseType: DEFAULT_SECURITY_TYPE_CONFIG[globesTicker.type]?.displayName || 'Unknown', // Use globes type as a fallback
+            }
         });
       }
   }
@@ -354,7 +362,7 @@ async function fetchTaseTickers(
     }
     acc[type].push(ticker);
     return acc;
-  }, {} as Record<string, TaseTicker[]>);
+  }, {} as Record<string, TickerListItem[]>);
 
   console.log('Final TASE tickers distribution:', Object.keys(grouped).map(k => `${k}: ${grouped[k].length}`));
   return grouped;

@@ -3,7 +3,7 @@ import {
   TextField, Grid, Typography, CircularProgress, MenuItem, Select, FormControl, InputLabel,
   List, ListItemButton, ListItemText, Paper, Box, Divider, Chip, Tooltip
 } from '@mui/material';
-import { getTaseTickersDataset, getTickerData, type TaseTicker, type TickerData, DEFAULT_SECURITY_TYPE_CONFIG } from '../lib/fetching';
+import { getTickersDataset, getTickerData, type TickerListItem, type TickerData, DEFAULT_SECURITY_TYPE_CONFIG } from '../lib/fetching';
 import { parseExchange, type Portfolio } from '../lib/types';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
 import { useLanguage } from '../lib/i18n';
@@ -41,7 +41,7 @@ interface SearchResult {
   exchange: string;
   type?: string;
   globesInstrumentId?: string; // TASE specific
-  rawTicker?: TaseTicker | TickerData;
+  rawTicker?: TickerListItem | TickerData;
   ownedInPortfolios?: string[];
 }
 
@@ -53,37 +53,37 @@ function getOwnedInPortfolios(symbol: string, portfolios: Portfolio[]) {
   return owningPortfolios.length > 0 ? owningPortfolios.map(p => p.name) : undefined;
 }
 
-function processTaseResult(t: TaseTicker, instrumentType: string, portfolios: Portfolio[]): SearchResult {
+function processTaseResult(t: TickerListItem, instrumentType: string, portfolios: Portfolio[]): SearchResult {
   return {
     symbol: t.symbol,
-    numericSecurityId: t.securityId,
+    numericSecurityId: t.taseInfo?.securityId,
     name: t.nameEn,
     nameHe: t.nameHe,
     exchange: t.exchange || 'TASE',
     type: instrumentType,
-    globesInstrumentId: t.globesInstrumentId,
+    globesInstrumentId: t.taseInfo?.globesInstrumentId,
     rawTicker: t,
     ownedInPortfolios: getOwnedInPortfolios(t.symbol, portfolios),
   };
 }
 
 function searchTaseType(
-  tickers: TaseTicker[],
+  tickers: TickerListItem[],
   instrumentType: string,
   termUC: string,
   portfolios: Portfolio[]
 ): SearchResult[] {
   return tickers.filter(item =>
-  (item.symbol.toUpperCase().includes(termUC) || item.securityId.toString() === termUC ||
-    item.nameEn.toUpperCase().includes(termUC) ||
-    item.nameHe.toUpperCase().includes(termUC))
+    ((item.symbol || '').toUpperCase().includes(termUC) || item.taseInfo?.securityId?.toString() === termUC ||
+    (item.nameEn || '').toUpperCase().includes(termUC) ||
+    (item.nameHe || '').toUpperCase().includes(termUC))
   ).map(t => processTaseResult(t, instrumentType, portfolios));
 }
 
 async function performSearch(
   searchTerm: string,
   exchange: string,
-  taseDataset: Record<string, TaseTicker[]>,
+  taseDataset: Record<string, TickerListItem[]>,
   portfolios: Portfolio[]
 ): Promise<SearchResult[]> {
   const termUC = searchTerm.toUpperCase();
@@ -119,7 +119,7 @@ async function performSearch(
 }
 
 export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchange, portfolios, isPortfoliosLoading }: TickerSearchProps) {
-  const [taseDataset, setTaseDataset] = useState<Record<string, TaseTicker[]>>({});
+  const [taseDataset, setTaseDataset] = useState<Record<string, TickerListItem[]>>({});
   const [isTaseDatasetLoading, setIsTaseDatasetLoading] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
   const [inputValue, setInputValue] = useState(prefilledTicker || '');
@@ -150,7 +150,7 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
 
       setIsTaseDatasetLoading(true);
       try {
-        const data = await getTaseTickersDataset();
+        const data = await getTickersDataset();
         if (active) setTaseDataset(data);
       } finally {
         if (active) setIsTaseDatasetLoading(false);
@@ -203,13 +203,21 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
       .map(([key, { displayName }]) => ({ key, displayName }));
   }, []);
 
-  const getTranslatedType = (_: string, defaultName: string) => {
+  const getTranslatedType = (typeKey: string, defaultName: string) => {
     const map: Record<string, string> = {
-      'Stock': t('Stock', 'מניה'),
-      'ETF': t('ETF', 'תעודת סל'),
-      'Mutual Fund': t('Mutual Fund', 'קרן נאמנות'),
+      'stock': t('Stocks', 'מניות'),
+      'etf': t('ETFs', 'תעודות סל'),
+      'fund': t('Mutual Funds', 'קרנות נאמנות'),
+      'gemel_fund': t('Provident Funds', 'קופות גמל'),
+      'index': t('Indices', 'מדדים'),
+      'makam': t('Makam', 'מק"מ'),
+      'gov_generic': t('Gov Bonds', 'אג"ח מדינה'),
+      'bond_conversion': t('Convertible Bonds', 'אג"ח להמרה'),
+      'bond_ta': t('Corp Bonds', 'אג"ח חברות'),
+      'option_ta': t('Options (TA)', 'אופציות (ת"א)'),
+      'option_maof': t('Options (Maof)', 'אופציות (מעו"ף)'),
     };
-    return map[defaultName] || defaultName;
+    return map[typeKey] || defaultName;
   };
 
   const handleOptionSelect = async (result: SearchResult) => {

@@ -11,7 +11,7 @@ export const Currency = {
 
 const EXCHANGES = [
   'NASDAQ', 'NYSE', 'TASE', 'LSE', 'FWB',
-  'EURONEXT', 'JPX', 'HKEX', 'TSX', 'ASX', 'IL_FUND'
+  'EURONEXT', 'JPX', 'HKEX', 'TSX', 'ASX', 'GEMEL'
 ] as const;
 
 export type Exchange = typeof EXCHANGES[number];
@@ -78,9 +78,9 @@ const EXCHANGE_SETTINGS: Record<Exchange, ExchangeSettings> = {
     googleFinanceCode: 'ASX', 
     yahooFinanceSuffix: '.AX' 
   },
-  [Exchange.IL_FUND]: { 
+  [Exchange.GEMEL]: { 
     aliases: [], 
-    googleFinanceCode: 'IL_FUND',
+    googleFinanceCode: 'GEMEL',
     yahooFinanceSuffix: ''
   },
 };

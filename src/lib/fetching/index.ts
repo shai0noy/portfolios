@@ -3,7 +3,7 @@ import { fetchGlobesStockQuote } from './globes';
 import { fetchYahooStockQuote } from './yahoo';
 import { fetchAllTickers } from './stock_list';
 import { tickerDataCache, CACHE_TTL } from './utils/cache';
-import type { TickerData, TaseTicker } from './types';
+import type { TickerData, TickerListItem } from './types';
 
 export * from './types';
 export * from './stock_list';
@@ -12,24 +12,24 @@ export * from './yahoo';
 export * from './globes';
 
 
-let taseTickersDataset: Record<string, TaseTicker[]> | null = null;
-let taseTickersDatasetLoading: Promise<Record<string, TaseTicker[]>> | null = null;
+let tickersDataset: Record<string, TickerListItem[]> | null = null;
+let tickersDatasetLoading: Promise<Record<string, TickerListItem[]>> | null = null;
 
-export function getTaseTickersDataset(signal?: AbortSignal, forceRefresh = false): Promise<Record<string, TaseTicker[]>> {
-  if (taseTickersDataset && !forceRefresh) {
-    return Promise.resolve(taseTickersDataset);
+export function getTickersDataset(signal?: AbortSignal, forceRefresh = false): Promise<Record<string, TickerListItem[]>> {
+  if (tickersDataset && !forceRefresh) {
+    return Promise.resolve(tickersDataset);
   }
-  if (taseTickersDatasetLoading) {
-    return taseTickersDatasetLoading;
+  if (tickersDatasetLoading) {
+    return tickersDatasetLoading;
   }
 
-  taseTickersDatasetLoading = (async () => {
+  tickersDatasetLoading = (async () => {
     try {
       console.log('Loading tickers dataset...');
-      const exchanges = ['TASE', 'NASDAQ', 'NYSE', 'IL_FUND'];
+      const exchanges = ['TASE', 'NASDAQ', 'NYSE', 'GEMEL'];
       const results = await Promise.all(exchanges.map(ex => fetchAllTickers(ex, undefined, signal)));
       
-      const combined: Record<string, TaseTicker[]> = {};
+      const combined: Record<string, TickerListItem[]> = {};
       results.forEach(res => {
         Object.entries(res).forEach(([type, items]) => {
             if (!combined[type]) combined[type] = [];
@@ -37,7 +37,7 @@ export function getTaseTickersDataset(signal?: AbortSignal, forceRefresh = false
         });
       });
 
-      taseTickersDataset = combined;
+      tickersDataset = combined;
       const totalCount = Object.values(combined).reduce((acc, curr) => acc + (Array.isArray(curr) ? curr.length : 0), 0);
       console.log(`Loaded ${totalCount} tickers across ${Object.keys(combined).length} types and ${exchanges.length} exchanges.`);
       return combined;
@@ -45,10 +45,10 @@ export function getTaseTickersDataset(signal?: AbortSignal, forceRefresh = false
       console.error('Failed to load tickers dataset:', e);
       return {};
     } finally {
-      taseTickersDatasetLoading = null;
+      tickersDatasetLoading = null;
     }
   })();
-  return taseTickersDatasetLoading;
+  return tickersDatasetLoading;
 }
 
 export async function getTickerData(ticker: string, exchange: string, numericSecurityId: number|null, signal?: AbortSignal, forceRefresh = false): Promise<TickerData | null> {
