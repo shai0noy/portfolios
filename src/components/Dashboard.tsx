@@ -285,7 +285,11 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
 
         if (!holdingMap.has(key)) {
           const live = liveDataMap.get(`${t.ticker}:${t.exchange}`);
-          const exchange = t.exchange || live?.exchange ;
+          const exchange = t.exchange || live?.exchange;
+          
+          if (!exchange) {
+              throw new Error(`Exchange missing for ticker: ${t.ticker}`);
+          }
           const isTase = exchange === Exchange.TASE;
           
           const stockCurrency = normalizeCurrency(live?.currency || t.currency || (isTase ? Currency.ILA : Currency.USD));

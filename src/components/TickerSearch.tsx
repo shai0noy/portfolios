@@ -4,7 +4,7 @@ import {
   List, ListItemButton, ListItemText, Paper, Box, Divider, Chip, Tooltip
 } from '@mui/material';
 import { getTaseTickersDataset, getTickerData, type TaseTicker, type TickerData, DEFAULT_SECURITY_TYPE_CONFIG } from '../lib/fetching';
-import type { Portfolio } from '../lib/types';
+import { parseExchange, type Portfolio } from '../lib/types';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
 import { useLanguage } from '../lib/i18n';
 
@@ -203,7 +203,7 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
       .map(([key, { displayName }]) => ({ key, displayName }));
   }, []);
 
-  const getTranslatedType = (typeKey: string, defaultName: string) => {
+  const getTranslatedType = (_: string, defaultName: string) => {
     const map: Record<string, string> = {
       'Stock': t('Stock', 'מניה'),
       'ETF': t('ETF', 'תעודת סל'),
@@ -214,13 +214,13 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
 
   const handleOptionSelect = async (result: SearchResult) => {
     if (result.rawTicker && 'price' in result.rawTicker) {
-      onTickerSelect({ ...result.rawTicker, symbol: result.symbol, exchange: result.exchange, numeric_id: result.numericSecurityId });
+      onTickerSelect({ ...result.rawTicker, symbol: result.symbol, exchange: parseExchange(result.exchange), numeric_id: result.numericSecurityId });
     } else {
       setIsLoading(true);
       const data = await getTickerData(result.symbol, result.exchange, result.numericSecurityId || null);
       setIsLoading(false);
       if (data) {
-        onTickerSelect({ ...data, symbol: result.symbol, exchange: result.exchange, numeric_id: result.numericSecurityId });
+        onTickerSelect({ ...data, symbol: result.symbol, exchange: parseExchange(result.exchange), numeric_id: result.numericSecurityId });
       }
     }
     setSearchResults([]);

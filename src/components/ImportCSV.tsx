@@ -11,6 +11,7 @@ import {
 } from '@mui/material';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import type { Portfolio, Transaction } from '../lib/types';
+import { parseExchange } from '../lib/types';
 import { addTransaction, fetchPortfolios } from '../lib/sheets/index';
 import { ImportHelp } from './ImportHelp';
 import { useLanguage } from '../lib/i18n';
@@ -191,7 +192,7 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
         date: isoDate,
         portfolioId,
         ticker: getVal('ticker').toUpperCase(),
-        exchange, // Add exchange
+        exchange: parseExchange(exchange),
         type,
         originalQty: isNaN(qty) ? 0 : Math.abs(qty), // Store absolute qty, logic handles sign
         originalPrice: isNaN(price) ? 0 : price,

@@ -34,7 +34,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   const [priceError, setPriceError] = useState('');
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [exchangeRates, setExchangeRates] = useState<ExchangeRates>({ current: { USD: 1 } });
-  const { t, tTry, isRtl } = useLanguage();
+  const { t, tTry } = useLanguage();
 
   // Form State
   const [selectedTicker, setSelectedTicker] = useState<(TickerData & { symbol: string }) | null>(null);

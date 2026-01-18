@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Box, Button, Typography, CircularProgress, Paper, Container, TextField, Stack } from '@mui/material';
 import GoogleIcon from '@mui/icons-material/Google';
-import { initializeGapi, signIn, checkSheetExists } from '../lib/google';
+import { initializeGapi, signIn, checkSheetExists, hasValidToken } from '../lib/google';
 import { createPortfolioSpreadsheet } from '../lib/sheets/index';
 import { useLanguage } from '../lib/i18n';
 
@@ -19,11 +19,12 @@ export function Login({ onLogin }: { onLogin: (sheetId: string) => void }) {
 
   const checkInitialSession = useCallback(async () => {
     try {
-      const sessionRestored = await initializeGapi();
-      setIsSignedIn(sessionRestored);
+      await initializeGapi();
+      const valid = hasValidToken();
+      setIsSignedIn(valid);
       const savedSheetId = localStorage.getItem('g_sheet_id');
       
-      if (sessionRestored && savedSheetId && savedSheetId !== 'null') {
+      if (valid && savedSheetId && savedSheetId !== 'null') {
         setLoading(true);
         const exists = await checkSheetExists(savedSheetId);
         if (exists) {
