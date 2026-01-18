@@ -15,6 +15,8 @@ interface TickerDetailsProps {
   ticker?: string;
   exchange?: string;
   numericId?: string;
+  initialName?: string;
+  initialNameHe?: string;
   onClose?: () => void;
 }
 
@@ -24,7 +26,7 @@ interface TickerDetailsRouteParams extends Record<string, string | undefined> {
   numericId?: string;
 }
 
-export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExchange, numericId: propNumericId, onClose }: TickerDetailsProps) {
+export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExchange, numericId: propNumericId, initialName, initialNameHe, onClose }: TickerDetailsProps) {
   const params = useParams<TickerDetailsRouteParams>();
   const navigate = useNavigate();
   
@@ -40,61 +42,54 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   const [sheetRebuildTime, setSheetRebuildTime] = useState<string | null>(null);
   const { t, tTry } = useLanguage();
   const fetchData = useCallback(async (forceRefresh = false) => {
-    if (ticker && exchange) {
-      if (!forceRefresh) setLoading(true);
-      else setRefreshing(true);
-      setError(null);
-      const upperExchange = exchange.toUpperCase();
-      const knownLiveExchanges = ['TASE', 'NASDAQ', 'NYSE', 'AMEX', 'ARCA', 'BATS']; // Exchanges for live API calls
-
-      try {
-        const sheetRebuildTimePromise = getMetadataValue(sheetId, 'holdings_rebuild');
-        
-        // 1. Try fetching from sheets first
-        const holding = await fetchHolding(sheetId, ticker, upperExchange);
-        console.log('TickerDetails: fetchHolding result:', holding);
-        
-        if (holding) {
-            setHoldingData(holding);
-            setData(null); // Clear live data if we are using sheet data
-        } else {
-            // 2. Fallback to live data if not in sheets
-            setHoldingData(null);
-            if (knownLiveExchanges.includes(upperExchange)) {
-              const numericIdVal = numericId ? parseInt(numericId, 10) : null;
-              const tickerData = await getTickerData(ticker, exchange, numericIdVal, undefined, forceRefresh);
-              console.log('TickerDetails: live getTickerData result:', tickerData);
-              if (upperExchange === 'TASE' && !tickerData) {
-                setError(t('Ticker not found on TASE.', 'הנייר לא נמצא ב-TASE.'));
-              }
-              // Standardize numeric_id from API to numericId for frontend consistency
-              if (tickerData && tickerData.numericId) {
-                tickerData.numericId = tickerData.numericId;
-              }
-              setData(tickerData);
-            } else {
-                setData(null);
-            }
-        }
-        
-        const sheetRebuild = await sheetRebuildTimePromise;
-        setSheetRebuildTime(sheetRebuild);
-
-      } catch (err) {
-        setError(t('Error fetching ticker data.', 'שגיאה בטעינת נתוני הנייר.'));
-        setData(null);
-        setHoldingData(null);
-        console.error(err);
-      } finally {
-        if (!forceRefresh) setLoading(false);
-        else setRefreshing(false);
-      }
-    } else {
+    if (!ticker || !exchange) {
       setError(t('Missing ticker or exchange information.', 'חסר מידע על סימול או בורסה.'));
       setLoading(false);
-      setData(null);
+      return;
     }
-  }, [ticker, exchange, numericId, sheetId]);
+
+    if (!forceRefresh) setLoading(true);
+    else setRefreshing(true);
+    setError(null);
+
+    const upperExchange = exchange.toUpperCase();
+    const knownLiveExchanges = ['TASE', 'NASDAQ', 'NYSE', 'AMEX', 'ARCA', 'BATS', 'GEMEL'];
+
+    try {
+      const holdingPromise = fetchHolding(sheetId, ticker, upperExchange);
+      const sheetRebuildTimePromise = getMetadataValue(sheetId, 'holdings_rebuild');
+
+      const holding = await holdingPromise;
+      setHoldingData(holding);
+
+      const shouldFetchLive = forceRefresh || !holding;
+
+      if (shouldFetchLive && knownLiveExchanges.includes(upperExchange)) {
+        const numericIdVal = numericId ? parseInt(numericId, 10) : null;
+        let tickerData = await getTickerData(ticker, exchange, numericIdVal, undefined, forceRefresh);
+
+        setData(tickerData);
+
+        if (!tickerData && !holding) {
+          setError(t('Ticker not found.', 'הנייר לא נמצא.'));
+        }
+      } else {
+        setData(null);
+      }
+
+      const sheetRebuild = await sheetRebuildTimePromise;
+      setSheetRebuildTime(sheetRebuild);
+
+    } catch (err) {
+      setError(t('Error fetching ticker data.', 'שגיאה בטעינת נתוני הנייר.'));
+      setData(null);
+      setHoldingData(null);
+      console.error(err);
+    } finally {
+      if (!forceRefresh) setLoading(false);
+      else setRefreshing(false);
+    }
+  }, [ticker, exchange, numericId, sheetId, t]);
 
   useEffect(() => {
     fetchData();
@@ -124,29 +119,38 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
     if (!ticker) return [];
 
     const links = [];
+    const upperExchange = exchange?.toUpperCase();
 
-    const yExchange = exchange?.toUpperCase() === 'TASE' ? 'TA' : exchange?.toUpperCase();
+    if (upperExchange === 'GEMEL') {
+      const nid = numericId || data?.numericId || holdingData?.numericId;
+      if (nid) {
+         links.push({ name: 'GemelNet', url: `https://gemelnet.cma.gov.il/views/perutHodshi.aspx?idGuf=${nid}&OCHLUSIYA=1` });
+      }
+      return links;
+    }
+
+    const yExchange = upperExchange === 'TASE' ? 'TA' : upperExchange;
     if (yExchange && yExchange != 'NASDAQ' && yExchange != 'NYSE') {
       links.push({ name: 'Yahoo Finance', url: `https://finance.yahoo.com/quote/${ticker}.${yExchange}` });
     } else {
       links.push({ name: 'Yahoo Finance', url: `https://finance.yahoo.com/quote/${ticker}` });
     }
 
-    const gExchange = exchange?.toUpperCase() === 'TASE' ? 'TLV' : exchange?.toUpperCase();
+    const gExchange = upperExchange === 'TASE' ? 'TLV' : upperExchange;
     if (gExchange && gExchange != 'NASDAQ' && gExchange != 'NYSE') {
       links.push({ name: 'Google Finance', url: `https://www.google.com/finance/quote/${ticker}:${gExchange}` });
     } else {
       links.push({ name: 'Google Finance', url: `https://www.google.com/finance/quote/${ticker}` });
     }
 
-    const numericId = data?.numericId || holdingData?.numericId;
-    if (numericId) {
-      links.push({ name: 'Bizportal', url: `https://www.bizportal.co.il/realestates/quote/generalview/${numericId}` });
+    const numId = data?.numericId || holdingData?.numericId;
+    if (numId) {
+      links.push({ name: 'Bizportal', url: `https://www.bizportal.co.il/realestates/quote/generalview/${numId}` });
       const isSecurity = true; // Currently assume true; TODO: Determine actual type
       if (isSecurity) {
-        links.push({ name: 'Maya (TASE)', url: `https://market.tase.co.il/he/market_data/security/${numericId}` });
+        links.push({ name: 'Maya (TASE)', url: `https://market.tase.co.il/he/market_data/security/${numId}` });
       } else {
-        links.push({ name: 'Maya (TASE)', url: `https://market.tase.co.il/he/market_data/mutual-funds/${numericId}` });
+        links.push({ name: 'Maya (TASE)', url: `https://market.tase.co.il/he/market_data/mutual-funds/${numId}` });
       } // TODO: Etc. for other types
     }
 
@@ -162,6 +166,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   };
 
   const displayData = data || holdingData;
+  console.log('TickerDetails displayData:', displayData);
   const lastUpdated = formatTimestamp(data?.timestamp || sheetRebuildTime);
 
   // Helper to construct performance object
@@ -203,10 +208,10 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
         <Box display="flex" justifyContent="space-between" alignItems="center">
           <Box>
             <Typography variant="h4" component="div" fontWeight="bold">
-              {tTry(data?.name || holdingData?.name || ticker, data?.nameHe || holdingData?.nameHe)}
+              {tTry(data?.name || holdingData?.name || initialName || ticker, data?.nameHe || holdingData?.nameHe || initialNameHe)}
             </Typography>
             <Typography variant="subtitle1" component="div" color="text.secondary">
-              {(data?.name || holdingData?.name) ? `${exchange?.toUpperCase()}: ${ticker}` : exchange?.toUpperCase()}
+              {(data?.name || holdingData?.name || initialName) ? `${exchange?.toUpperCase()}: ${ticker}` : exchange?.toUpperCase()}
             </Typography>
           </Box>
           {displayData?.sector && <Chip label={displayData.sector || 'Unknown Sector'} size="small" variant="outlined" />}
@@ -221,15 +226,21 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
           </Box>
         )}
         {error && <Typography color="error">{error}</Typography>}
-        {!loading && !error && !displayData && <Typography>{t('No data available.', 'אין נתונים זמינים.')}</Typography>}
+        
+        {/* If no data and no basic info, show empty message */}
+        {!loading && !error && !displayData && !initialName && <Typography>{t('No data available.', 'אין נתונים זמינים.')}</Typography>}
+        
         {displayData && (
           <>
             {(() => {
               const isTase = exchange?.toUpperCase() === 'TASE' || displayData.exchange === 'TASE';
+              const isGemel = exchange?.toUpperCase() === 'GEMEL' || displayData.exchange === 'GEMEL';
               const price = displayData.price;
               const openPrice = displayData.openPrice;
               const maxDecimals = (price != null && price % 1 !== 0) || (openPrice != null && openPrice % 1 !== 0) ? 2 : 0;
               const dayChange = perfData['1D']?.val || 0;
+
+              if (isGemel) return null;
 
               return (
                 <Box display="flex" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
@@ -292,25 +303,39 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
               })}
             </Box>
 
-            <Typography variant="subtitle2" gutterBottom>{t('Dividend Gains', 'דיבידנדים')}</Typography>
-            <Box display="flex" flexWrap="wrap" gap={1} sx={{ mb: 2 }}>
-              {['YTD', '1Y', '3Y', '5Y', 'All Time'].map(range => (
-                <Chip
-                  key={range}
-                  variant="outlined"
-                  size="small"
-                  sx={{ minWidth: 80, py: 0.5, px: 0.75, height: 'auto', '& .MuiChip-label': { display: 'flex', flexDirection: 'column', alignItems: 'center' }, '& .MuiTypography-caption, & .MuiTypography-body2': { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 72 } }}
-                  label={
-                    <>
-                      <Typography variant="caption" color="text.secondary">{translateRange(range)}</Typography>
-                      <Typography variant="body2">--%</Typography>
-                    </>
-                  }
-                />
-              ))}
-            </Box>
-            {/* TODO: Fetch and display actual dividend gains data */}
+            {(() => {
+              // Hide Dividends for Gemel
+              const isGemel = exchange?.toUpperCase() === 'GEMEL' || displayData.exchange === 'GEMEL';
+              if (isGemel) return null;
+              
+              return (
+                <>
+                  <Typography variant="subtitle2" gutterBottom>{t('Dividend Gains', 'דיביבידנדים')}</Typography>
+                  <Box display="flex" flexWrap="wrap" gap={1} sx={{ mb: 2 }}>
+                    {['YTD', '1Y', '3Y', '5Y', 'All Time'].map(range => (
+                      <Chip
+                        key={range}
+                        variant="outlined"
+                        size="small"
+                        sx={{ minWidth: 80, py: 0.5, px: 0.75, height: 'auto', '& .MuiChip-label': { display: 'flex', flexDirection: 'column', alignItems: 'center' }, '& .MuiTypography-caption, & .MuiTypography-body2': { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 72 } }}
+                        label={
+                          <>
+                            <Typography variant="caption" color="text.secondary">{translateRange(range)}</Typography>
+                            <Typography variant="body2">--%</Typography>
+                          </>
+                        }
+                      />
+                    ))}
+                  </Box>
+                  {/* TODO: Fetch and display actual dividend gains data */}
+                </>
+              );
+            })()}
+          </>
+        )}
 
+        {(ticker || displayData) && (
+          <>
             <Typography variant="subtitle2" gutterBottom>{t('External Links', 'קישורים חיצוניים')}</Typography>
 
             <Box display="flex" flexWrap="wrap" gap={1}>
@@ -333,7 +358,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                 {data?.timestamp
                   ? `${t('Live from', 'מידע חי מ-')} ${data.source || 'API'}: ${formatTimestamp(data.timestamp)}`
                   : sheetRebuildTime
-                  ? `${t('From Sheet', 'מהגיליון')}: ${formatTimestamp(sheetRebuildTime)}`
+                  ? `${t('From Google Sheets', 'Google Sheets')}: ${formatTimestamp(sheetRebuildTime)}`
                   : t('Freshness N/A', 'אין מידע על עדכון')}
               </Typography>
               <Tooltip title={t("Refresh Data", "רענן נתונים")}>

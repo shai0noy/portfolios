@@ -40,7 +40,7 @@ export interface GemelnetFundData {
   lastUpdated: number;
 }
 
-const CACHE_KEY_PREFIX = 'gemelnet_cache_v1_';
+const CACHE_KEY_PREFIX = 'gemelnet_cache_v2_';
 const CACHE_TTL = 48 * 60 * 60 * 1000; // 48 hours
 
 // Helper to get date parts
@@ -114,6 +114,7 @@ export async function fetchGemelnetFund(
       
       if (index === 0) {
           fundName = getText('SHM_KUPA');
+          console.log(`[Gemelnet] Parsed fund name for ${fundId}: ${fundName}`);
       }
 
       const dateStr = getText('TKF_DIVUACH');
@@ -241,6 +242,7 @@ export async function fetchGemelnetQuote(
   const fundData = await fetchGemelnetFund(fundId, startDate, endDate, forceRefresh);
 
   if (!fundData || fundData.data.length === 0) {
+    console.log(`[Gemelnet] fetchGemelnetQuote: No data found for ${fundId}`, fundData);
     return null;
   }
 

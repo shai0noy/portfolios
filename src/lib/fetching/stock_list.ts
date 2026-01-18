@@ -237,7 +237,7 @@ export async function fetchAllTickers(
   
   if (exchange.toUpperCase() === 'GEMEL') {
     const tickers = await fetchGemelnetTickers(signal);
-    return { 'gemel_fund': tickers };
+    return { 'gemel_fund': tickers.map(t => ({...t, exchange: Exchange.GEMEL})) };
   }
 
   // Fetch from Globes alone for other exchanges

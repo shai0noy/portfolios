@@ -522,6 +522,8 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
           ticker={ticker}
           exchange={exchange}
           numericId={(selectedTicker as any).numericId?.toString()}
+          initialName={selectedTicker.name}
+          initialNameHe={selectedTicker.nameHe}
           onClose={() => setShowTickerDetails(false)}
         />
       )}

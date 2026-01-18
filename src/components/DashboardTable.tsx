@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Box, Paper, Table, TableBody, TableCell, TableHead, TableRow, 
-  Collapse, IconButton, TableSortLabel, Typography, Menu, MenuItem 
+  Collapse, IconButton, TableSortLabel, Typography, Menu, MenuItem, Alert 
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'; 
@@ -35,6 +35,20 @@ export function DashboardTable(props: TableProps) {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [contextMenu, setContextMenu] = useState<{ mouseX: number; mouseY: number; column: string; } | null>(null);
+  const [rateError, setRateError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (exchangeRates && exchangeRates.current) {
+        const missing = [];
+        if (!exchangeRates.current.ILS) missing.push('ILS');
+        if (!exchangeRates.current.EUR) missing.push('EUR');
+        if (missing.length > 0) {
+            setRateError(t(`Missing exchange rates for: ${missing.join(', ')}. Values may be 0. Check 'Currency_Conversions' sheet.`, `חסרים שערי המרה עבור: ${missing.join(', ')}. הערכים עשויים להיות 0. בדוק את גיליון Currency_Conversions.`));
+        } else {
+            setRateError(null);
+        }
+    }
+  }, [exchangeRates, t]);
 
   logIfFalsy(exchangeRates, "DashboardTable: exchangeRates missing");
 
@@ -209,6 +223,7 @@ export function DashboardTable(props: TableProps) {
 
   return (
     <>
+      {rateError && <Alert severity="error" sx={{ mb: 2 }}>{rateError}</Alert>}
       {Object.entries(groupedData).map(renderGroup)}
       <Menu
         open={contextMenu !== null}

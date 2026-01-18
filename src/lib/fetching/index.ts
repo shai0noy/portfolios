@@ -62,6 +62,9 @@ export async function getTickerData(ticker: string, exchange: string, numericSec
     return fetchYahooStockQuote(ticker, Exchange.NASDAQ, signal);
   }
 
+  // Debug log to verify exchange parsing
+  console.log(`getTickerData: ticker=${ticker}, exchange=${exchange}, parsedExchange=${parsedExchange}`);
+
   const globesTicker = numericSecurityId ? String(numericSecurityId) : ticker;
   const cacheKey = parsedExchange === Exchange.TASE ? `globes:tase:${globesTicker}` : `yahoo:${ticker}`;
 
@@ -83,7 +86,8 @@ export async function getTickerData(ticker: string, exchange: string, numericSec
     return fetchGemelnetQuote(Number(ticker), signal, forceRefresh);
   }
 
-  if ([Exchange.TASE, Exchange.NYSE, Exchange.NASDAQ].includes(parsedExchange)) {
+  const globesFirstExchanges: Exchange[] = [Exchange.TASE, Exchange.NYSE, Exchange.NASDAQ];
+  if (globesFirstExchanges.includes(parsedExchange)) {
     console.log(`Fetching Globes ticker data for ${parsedExchange}:${ticker} (securityId: ${secId || 'N/A'})`);
     // @ts-ignore
     const globesData = await fetchGlobesStockQuote(ticker, secId, parsedExchange, signal);

@@ -636,7 +636,7 @@ export const exportToSheet = withAuthHandling(async function (spreadsheetId: str
 export const fetchSheetExchangeRates = withAuthHandling(async (spreadsheetId: string): Promise<any> => {
     const gapi = await ensureGapi();
     const res = await gapi.client.sheets.spreadsheets.values.get({
-        spreadsheetId, range: CONFIG_RANGE, valueRenderOption: 'FORMATTED_VALUE'
+        spreadsheetId, range: CONFIG_RANGE, valueRenderOption: 'UNFORMATTED_VALUE'
     });
     const rows = res.result.values || [];
     const keyIndex = configHeaders.indexOf('Key');
@@ -654,40 +654,94 @@ export const fetchSheetExchangeRates = withAuthHandling(async (spreadsheetId: st
     };
 
     const allRates: any = {};
+    const rawPairs: Record<string, Record<string, number>> = {};
+
+    // Initialize period objects
     for (const period in periodIndices) {
         allRates[period] = { USD: 1 };
+        rawPairs[period] = {};
     }
 
-    rows.forEach((r: string[]) => {
-        const pair = r[keyIndex];
-        if (!pair) return;
+    // Pass 1: Collect all raw pairs
+    if (rows.length > 0) {
+        console.log('fetchSheetExchangeRates: First row raw:', rows[0]);
+    } else {
+        console.warn('fetchSheetExchangeRates: No rows returned from sheet.');
+    }
+
+    rows.forEach((r: any[]) => {
+        const rawKey = r[keyIndex];
+        const pair = typeof rawKey === 'string' ? rawKey.trim().toUpperCase() : '';
+        
+        // Debug specific pairs
+        if (pair.includes('ILS')) {
+             console.log(`fetchSheetExchangeRates: Found pair ${pair}. Raw row:`, r);
+        }
+
+        if (!pair || pair.length !== 6) return;
 
         for (const period in periodIndices) {
             const index = periodIndices[period];
-            const valueStr = r[index];
-            const val = parseFloat(valueStr);
+            const val = Number(r[index]);
 
-            if (!isNaN(val)) {
-                const rates = allRates[period];
-                // The goal is to store all rates in a "XXX per USD" format.
-                // e.g., rates['EUR'] will hold the number of Euros per 1 US Dollar.
-                if (pair.startsWith('USD') && pair.length === 6) {
-                    // Handles pairs like 'USDEUR'. The rate value from the sheet is already in "target currency per USD".
-                    const targetCurrency = pair.substring(3);
-                    rates[targetCurrency] = val;
-                } else if (pair.endsWith('USD') && pair.length === 6) {
-                    // Handles pairs like 'EURUSD'. The rate value is in "USD per source currency".
-                    // We convert it to "source currency per USD" by taking the reciprocal.
-                    const sourceCurrency = pair.substring(0, 3);
-                    rates[sourceCurrency] = 1 / val;
-                }
+            if (!isNaN(val) && val !== 0) {
+                rawPairs[period][pair] = val;
+            } else if (pair === 'USDILS' && period === 'current') {
+                 console.warn(`fetchSheetExchangeRates: USDILS current value invalid: ${r[index]} (parsed: ${val})`);
             }
         }
     });
 
+    // Pass 2: Derive rates
     for (const period in periodIndices) {
-        logIfFalsy(allRates[period]['ILS'], `USDILS rate missing for ${period}`);
-        logIfFalsy(allRates[period]['EUR'], `USDEUR rate missing for ${period}`);
+        const periodRaw = rawPairs[period];
+        const rates = allRates[period];
+
+        // 2a. Direct USD pairs (USDXXX or XXXUSD)
+        Object.keys(periodRaw).forEach(pair => {
+            const val = periodRaw[pair];
+            if (pair.startsWith('USD')) {
+                const target = pair.substring(3);
+                rates[target] = val;
+            } else if (pair.endsWith('USD')) {
+                const source = pair.substring(0, 3);
+                rates[source] = 1 / val;
+            }
+        });
+
+        // 2b. Cross rates via ILS (e.g. GBPILS)
+        // Only if we have a valid ILS rate (ILS per USD)
+        if (rates['ILS']) {
+            Object.keys(periodRaw).forEach(pair => {
+                const val = periodRaw[pair];
+                if (pair.endsWith('ILS') && !pair.startsWith('USD')) {
+                    const source = pair.substring(0, 3);
+                    // pair is SourceILS (ILS per Source). val = ILS / Source.
+                    // rates['ILS'] is ILS / USD.
+                    // We want Source / USD.
+                    // Source / USD = (Source / ILS) * (ILS / USD)
+                    //              = (1 / val) * rates['ILS']
+                    if (!rates[source]) { // Don't overwrite if we had a direct USD quote
+                        rates[source] = rates['ILS'] / val;
+                    }
+                }
+            });
+        }
+    }
+
+    for (const period in periodIndices) {
+        if (!allRates[period]['ILS'] || isNaN(allRates[period]['ILS'])) { 
+            console.error(`Missing or Invalid USDILS rate for ${period} (val: ${allRates[period]['ILS']}). Defaulting to 0.`); 
+            allRates[period]['ILS'] = 0; 
+        }
+        if (!allRates[period]['EUR'] || isNaN(allRates[period]['EUR'])) { 
+            console.error(`Missing or Invalid USDEUR rate for ${period} (val: ${allRates[period]['EUR']}). Defaulting to 0.`); 
+            allRates[period]['EUR'] = 0; 
+        }
+        if (!allRates[period]['GBP'] || isNaN(allRates[period]['GBP'])) { 
+            console.error(`Missing or Invalid USDGBP rate for ${period} (val: ${allRates[period]['GBP']}). Defaulting to 0.`); 
+            allRates[period]['GBP'] = 0; 
+        }
     }
 
     return allRates;

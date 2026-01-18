@@ -2,7 +2,7 @@ import { fetchSheetExchangeRates } from './sheets/index';
 import { Currency } from './types';
 import type { ExchangeRates, DashboardHolding } from './types';
 
-const CACHE_KEY = 'exchangeRates';
+const CACHE_KEY = 'exchangeRates_v2';
 const CACHE_DURATION = 60 * 60 * 1000; // 1 hour
 
 interface RateCache {
@@ -104,11 +104,11 @@ export function convertCurrency(amount: number, from: Currency | string, to: Cur
   const toRate = currentRates[toNorm === Currency.ILA ? Currency.ILS : toNorm]; 
 
   if ((fromNorm !== Currency.USD && fromNorm !== Currency.ILA) && !fromRate) {
-      console.error(`convertCurrency: Missing rate for source currency: ${fromNorm}`);
+      console.error(`convertCurrency: Missing or zero rate for source currency: ${fromNorm} (rate: ${fromRate}). returning 0.`);
       return 0;
   }
   if ((toNorm !== Currency.USD && toNorm !== Currency.ILA) && !toRate) {
-      console.error(`convertCurrency: Missing rate for target currency: ${toNorm}`);
+      console.error(`convertCurrency: Missing or zero rate for target currency: ${toNorm} (rate: ${toRate}). returning 0.`);
       return 0;
   }
 
