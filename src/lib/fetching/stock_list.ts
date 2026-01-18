@@ -300,13 +300,6 @@ async function fetchTaseTickers(
       const globesTicker = globesTickerMap.get(security.securityId);
       if (globesTicker) {
         matchedGlobesIds.add(security.securityId);
-        // Debug log for Hebrew name enrichment
-        if (globesTicker.nameHe) {
-           console.log(`Enriching ${security.securityName} (${security.securityId}) with Hebrew name: ${globesTicker.nameHe}`);
-        }
-      } else {
-         // Log missing matches occasionally to avoid spam
-         if (Math.random() < 0.01) console.log(`No Globes match for TASE security: ${security.securityName} (${security.securityId})`);
       }
 
       const taseType = taseSecurityTypeMap.get(security.securityFullTypeCode);
