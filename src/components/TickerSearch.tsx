@@ -89,7 +89,7 @@ async function performSearch(
   const termUC = searchTerm.toUpperCase();
   let results: SearchResult[] = [];
 
-  // Search in local dataset (which now covers TASE, NASDAQ, NYSE)
+  // Search in local dataset (which for now covers TASE, NASDAQ, NYSE, FOREX)
   Object.entries(taseDataset).forEach(([type, tickers]) => {
     let matches = searchTaseType(tickers, type, termUC, portfolios);
     if (exchange !== 'ALL') {
@@ -98,24 +98,32 @@ async function performSearch(
     results = results.concat(matches);
   });
 
-  // Fallback: On-demand fetch for specific exchanges if not found in dataset (optional, but good for robustness)
-  // Only if we didn't find enough results? Or always?
-  // For now, let's trust the dataset primarily. But if the dataset is empty (loading failed?), we might want fallback.
-  // However, the request specifically asked to load data from all exchanges available.
-  
-  // Let's keep the on-demand fetch only if it's NOT TASE (since TASE is fully in dataset usually)
-  // and if we are searching specifically or ALL.
-  // Actually, let's comment it out or remove it if we trust the dataset.
-  // But wait, getTickerData fetches from Yahoo/Globes live. Dataset is cached list.
-  // Live fetch might find things not in list.
-  // Let's keep it but deduplicate.
-  
-
-  return results.reduce((acc, current) => {
+  const uniqueResults = results.reduce((acc, current) => {
     const existing = acc.find(item => item.symbol === current.symbol && item.exchange === current.exchange);
     if (!existing) acc.push(current);
     return acc;
   }, [] as SearchResult[]);
+
+  // Improved Sorting Logic
+  return uniqueResults.sort((a, b) => {
+    const aSymbol = a.symbol.toUpperCase();
+    const bSymbol = b.symbol.toUpperCase();
+    
+    // 1. Exact Ticker Match
+    const aExact = aSymbol === termUC;
+    const bExact = bSymbol === termUC;
+    if (aExact && !bExact) return -1;
+    if (!aExact && bExact) return 1;
+
+    // 2. Ticker Starts With Search Term
+    const aPrefix = aSymbol.startsWith(termUC);
+    const bPrefix = bSymbol.startsWith(termUC);
+    if (aPrefix && !bPrefix) return -1;
+    if (!aPrefix && bPrefix) return 1;
+
+    // 3. Alphabetical Ticker
+    return aSymbol.localeCompare(bSymbol);
+  });
 }
 
 export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchange, portfolios, isPortfoliosLoading }: TickerSearchProps) {
@@ -216,6 +224,7 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
       'bond_ta': t('Corp Bonds', 'אג"ח חברות'),
       'option_ta': t('Options (TA)', 'אופציות (ת"א)'),
       'option_maof': t('Options (Maof)', 'אופציות (מעו"ף)'),
+      'currency': t('Currencies & Crypto', 'מט"ח וקריפטו'),
     };
     return map[typeKey] || defaultName;
   };
@@ -274,6 +283,7 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
               <MenuItem value="TASE">TASE</MenuItem>
               <MenuItem value="NASDAQ">NASDAQ</MenuItem>
               <MenuItem value="NYSE">NYSE</MenuItem>
+              <MenuItem value="FOREX">FOREX</MenuItem>
             </Select>
           </FormControl>
         </Grid>
@@ -284,7 +294,7 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
               value={selectedType}
               label={t('Type', 'סוג')}
               onChange={(e) => setSelectedType(e.target.value as string)}
-              disabled={selectedExchange !== 'ALL' && selectedExchange !== 'TASE'}
+              disabled={selectedExchange !== 'ALL' && selectedExchange !== 'TASE' && selectedExchange !== 'FOREX'}
             >
               <MenuItem value="ALL">{t('All Types', 'כל הסוגים')}</MenuItem>
               {typeFilterOptions.map(({ key, displayName }) => (

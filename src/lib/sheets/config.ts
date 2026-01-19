@@ -133,14 +133,14 @@ export const TXN_COLS: TransactionColumns = {
 export const transactionHeaders = Object.values(TXN_COLS).map(c => c.colName) as unknown as readonly string[];
 export const transactionMapping: Record<keyof Omit<Transaction, 'grossValue'>, string> =
     Object.keys(TXN_COLS).reduce((acc, key) => {
-        const k = key as keyof Omit<Transaction, 'grossValue'>;
+        const k = key as import('./types').TxnKey;
         if (TXN_COLS[k]) {
-            acc[k] = TXN_COLS[k].colName;
+            (acc as any)[k] = TXN_COLS[k].colName;
         }
         return acc;
     }, {} as Record<keyof Omit<Transaction, 'grossValue'>, string>);
 
-export const transactionNumericKeys = Object.keys(TXN_COLS).filter(key => TXN_COLS[key as keyof TransactionColumns].numeric).map(key => key) as unknown as (keyof Omit<Transaction, 'grossValue'>)[];
+export const transactionNumericKeys = Object.keys(TXN_COLS).filter(key => TXN_COLS[key as import('./types').TxnKey].numeric).map(key => key) as unknown as (keyof Omit<Transaction, 'grossValue'>)[];
 
 // --- Canonical Headers & Ranges ---
 

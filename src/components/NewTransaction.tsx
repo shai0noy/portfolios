@@ -67,6 +67,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
         setLoading(true);
         const data = await getTickerData(locationState.prefilledTicker!, locationState.prefilledExchange || '',
           locationState.numericId || null, undefined, false);
+        
         if (data) {
           const combinedData = { ...data, symbol: locationState.prefilledTicker!, exchange: data.exchange || locationState.prefilledExchange || '', numericId: locationState.numericId || data.numericId };
           setSelectedTicker(combinedData as any);

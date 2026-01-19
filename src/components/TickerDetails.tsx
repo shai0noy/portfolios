@@ -65,8 +65,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
     setError(null);
 
     const upperExchange = exchange.toUpperCase();
-    const knownLiveExchanges = ['TASE', 'NASDAQ', 'NYSE', 'AMEX', 'ARCA', 'BATS', 'GEMEL'];
-
+    
     try {
       let currentNumericId = numericId;
       // If numericId is missing for TASE/GEMEL, find it from the tickers dataset.
@@ -98,9 +97,10 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
       const holding = await holdingPromise;
       setHoldingData(holding);
 
-      const shouldFetchLive = forceRefresh || !holding;
+      // Always try to fetch live data to get the most up-to-date info
+      const shouldFetchLive = true; 
 
-      if (shouldFetchLive && knownLiveExchanges.includes(upperExchange)) {
+      if (shouldFetchLive) {
         const numericIdVal = currentNumericId ? parseInt(currentNumericId, 10) : null;
         let tickerData = await getTickerData(ticker, exchange, numericIdVal, undefined, forceRefresh);
 
@@ -169,13 +169,20 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
       return links;
     }
 
-    links.push({ name: 'Yahoo Finance', url: `https://finance.yahoo.com/quote/${toYahooFinanceTicker(ticker, exchange)}` });
-    
-    const gExchange = toGoogleFinanceExchangeCode(exchange);
-    if (gExchange) {
-      links.push({ name: 'Google Finance', url: `https://www.google.com/finance/quote/${ticker}:${gExchange}` });
+    if (exchange === Exchange.FOREX) {
+        // e.g. BTC-USD
+        const formattedTicker = ticker.includes('-') ? ticker : `${ticker}-USD`;
+        links.push({ name: 'Yahoo Finance', url: `https://finance.yahoo.com/quote/${formattedTicker}` });
+        links.push({ name: 'Google Finance', url: `https://www.google.com/finance/quote/${formattedTicker}` });
     } else {
-      links.push({ name: 'Google Finance', url: `https://www.google.com/finance/quote/${ticker}` });
+        links.push({ name: 'Yahoo Finance', url: `https://finance.yahoo.com/quote/${toYahooFinanceTicker(ticker, exchange)}` });
+        
+        const gExchange = toGoogleFinanceExchangeCode(exchange);
+        if (gExchange) {
+          links.push({ name: 'Google Finance', url: `https://www.google.com/finance/quote/${ticker}:${gExchange}` });
+        } else {
+          links.push({ name: 'Google Finance', url: `https://www.google.com/finance/quote/${ticker}` });
+        }
     }
 
     const numId = data?.numericId || holdingData?.numericId;
@@ -359,9 +366,11 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
             </Box>
 
             {(() => {
-              // Hide Dividends for Gemel
+              // Hide Dividends for Gemel or if no dividend data is available (temporary until we fetch it)
               const isGemel = exchange?.toUpperCase() === 'GEMEL' || displayData.exchange === 'GEMEL';
-              if (isGemel) return null;
+              const hasDividendData = false; // TODO: Check displayData.dividendYield or similar when available
+              
+              if (isGemel || !hasDividendData) return null;
 
               return (
                 <>
@@ -410,8 +419,8 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
 
             <Box mt={2} display="flex" justifyContent="flex-end" alignItems="center" gap={1}>
               <Typography variant="caption" color="text.secondary">
-                {data?.timestamp
-                  ? `${t('Data source:', 'מקור המידע:')} ${data.source || 'API'}: ${formatTimestamp(data.timestamp)}`
+                {data
+                  ? `${t('Data source:', 'מקור המידע:')} ${data.source || 'API'}: ${data.timestamp ? formatTimestamp(data.timestamp) : 'N/A'}`
                   : sheetRebuildTime
                     ? `${t('Data from Google Sheets', 'מידע מ- Google Sheets')}: ${formatTimestamp(sheetRebuildTime)}`
                     : t('Freshness N/A', 'אין מידע על עדכון')}

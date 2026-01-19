@@ -11,7 +11,8 @@ export const Currency = {
 
 const EXCHANGES = [
   'NASDAQ', 'NYSE', 'TASE', 'LSE', 'FWB',
-  'EURONEXT', 'JPX', 'HKEX', 'TSX', 'ASX', 'GEMEL'
+  'EURONEXT', 'JPX', 'HKEX', 'TSX', 'ASX', 'GEMEL',
+  'FOREX'
 ] as const;
 
 export type Exchange = typeof EXCHANGES[number];
@@ -24,6 +25,7 @@ export const Exchange = EXCHANGES.reduce((acc, ex) => {
 interface ExchangeSettings {
   aliases: string[];
   googleFinanceCode: string; // e.g., 'TLV' for TASE - This is the code written to Google sheets, even if the exchange is not supported
+  googleSheetsCode: string; // e.g., 'TLV' for TASE, CURRENCY for FOREX
   yahooFinanceSuffix: string;
 }
 
@@ -31,57 +33,74 @@ const EXCHANGE_SETTINGS: Record<Exchange, ExchangeSettings> = {
   [Exchange.NASDAQ]: { 
     aliases: ['XNAS', 'NMS', 'NGS', 'NCM'], 
     googleFinanceCode: 'NASDAQ',
+    googleSheetsCode: 'NASDAQ',
     yahooFinanceSuffix: ''
   },
   [Exchange.NYSE]: { 
     aliases: ['XNYS'], 
     googleFinanceCode: 'NYSE', 
+    googleSheetsCode: 'NYSE',
     yahooFinanceSuffix: ''
   },
   [Exchange.TASE]: { 
     aliases: ['XTAE', 'TLV', 'TA'], 
-    googleFinanceCode: 'TLV', 
+    googleFinanceCode: 'TLV',
+    googleSheetsCode: 'TLV', 
     yahooFinanceSuffix: '.TA' 
   },
   [Exchange.LSE]: { 
     aliases: ['XLON', 'LONDON'], 
-    googleFinanceCode: 'LON', 
+    googleFinanceCode: 'LON',
+    googleSheetsCode: 'LON', 
     yahooFinanceSuffix: '.L' 
   },
   [Exchange.FWB]: { 
     aliases: ['XFRA', 'FRANKFURT', 'XETRA'], 
-    googleFinanceCode: 'FRA', 
+    googleFinanceCode: 'FRA',
+    googleSheetsCode: 'FRA', 
     yahooFinanceSuffix: '.F' 
   },
   [Exchange.EURONEXT]: { 
     aliases: ['XPAR', 'XAMS', 'XBRU', 'XLIS', 'XDUB'], 
     googleFinanceCode: 'EPA', 
+    googleSheetsCode: 'EPA',
     yahooFinanceSuffix: '.PA' 
   },
   [Exchange.JPX]: { 
     aliases: ['XTKS'], 
     googleFinanceCode: 'TYO', 
+    googleSheetsCode: 'TYO',
     yahooFinanceSuffix: '.T' 
   },
   [Exchange.HKEX]: { 
     aliases: ['XHKG'], 
     googleFinanceCode: 'HKG', 
+    googleSheetsCode: 'HKG',  
     yahooFinanceSuffix: '.HK' 
   },
   [Exchange.TSX]: { 
     aliases: ['XTSE'], 
     googleFinanceCode: 'TSE', 
+    googleSheetsCode: 'TSE',
     yahooFinanceSuffix: '.TO' 
   },
   [Exchange.ASX]: { 
     aliases: ['XASX'], 
     googleFinanceCode: 'ASX', 
+    googleSheetsCode: 'ASX',
     yahooFinanceSuffix: '.AX' 
   },
   [Exchange.GEMEL]: { 
     aliases: [], 
-    googleFinanceCode: 'GEMEL',
+    googleFinanceCode: '',
+    googleSheetsCode: 'GEMEL',
     yahooFinanceSuffix: ''
+  },
+  [Exchange.FOREX]: { 
+    aliases: ['FX', 'CURRENCY', 'CRYPTO', 'CC'], 
+    googleFinanceCode: '',
+    googleSheetsCode: 'CURRENCY',
+    yahooFinanceSuffix: '=X'
   },
 };
 
@@ -108,6 +127,15 @@ export function parseExchange(exchangeId: string): Exchange {
   }
 
   throw new Error(`parseExchange: Unknown exchangeId '${exchangeId}'`);
+}
+
+/**
+ * Converts a canonical Exchange type to its Google Sheets finance exchange code.
+ * @param exchange The canonical exchange.
+ * @returns The Google Finance exchange code (e.g., 'TLV' for TASE) or the original if no mapping exists.
+ */
+export function toGoogleSheetsExchangeCode(exchange: Exchange): string {
+  return EXCHANGE_SETTINGS[exchange]?.googleSheetsCode || exchange;
 }
 
 /**

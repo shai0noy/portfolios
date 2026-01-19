@@ -52,11 +52,15 @@ export async function getExchangeRates(sheetId: string): Promise<ExchangeRates> 
 export function normalizeCurrency(input: string): Currency {
   if (!input) return Currency.USD;
   const upper = input.trim().toUpperCase();
-  if (upper === 'ILA' || upper === 'ILAG' || upper === 'AGOROT' || upper === 'AG') return Currency.ILA;
-  if (upper === 'NIS' || upper === 'ILS') return Currency.ILS;
-  if (upper === 'EUR') return Currency.EUR;
-  if (upper === 'GBP') return Currency.GBP;
-  if (upper === 'USD') return Currency.USD;
+  
+  // Hebrew & Symbols
+  if (upper === 'ש"ח' || upper === 'NIS' || upper === 'ILS') return Currency.ILS;
+  if (upper === 'אג' || upper === 'ILA' || upper === 'ILAG' || upper === 'AGOROT' || upper === 'AG') return Currency.ILA;
+  if (upper === 'דולר' || upper === '$' || upper === 'DOLLAR' || upper === 'USD') return Currency.USD;
+  if (upper === 'אירו' || upper === 'EUR' || upper === 'EURO') return Currency.EUR;
+  if (upper === 'ליש"ט' || upper === 'LIRA' || upper === 'GBP') return Currency.GBP;
+  
+  if (upper === 'USD') return Currency.USD; // Redundant but safe fallback check
   
   console.warn(`normalizeCurrency: Unknown currency '${input}', defaulting to USD`);
   throw new Error(`Unknown currency: ${input}`);

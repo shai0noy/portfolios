@@ -3,15 +3,11 @@
  * This file provides functions to get a full list of TASE-traded securities and enrich them with data from Globes.
  */
 
-import { fetchXml, parseXmlString, extractDataFromXmlNS } from './utils/xml_parser';
-import { withTaseCache } from './utils/cache';
 import type { TickerListItem, SecurityTypeConfig, TaseSecurity } from './types';
 import { fetchGemelnetTickers } from './gemelnet';
 import taseTypeIds from './tase_type_ids.json';
-import { Exchange, parseExchange } from '../types';
-
-const GLOBES_API_NAMESPACE = 'http://financial.globes.co.il/';
-const XSI_NAMESPACE = 'http://www.w3.org/2001/XMLSchema-instance';
+import { Exchange } from '../types';
+import { fetchGlobesTickersByType } from './globes';
 
 /**
  * Default configuration for fetching ticker types.
@@ -29,6 +25,7 @@ export const DEFAULT_SECURITY_TYPE_CONFIG: SecurityTypeConfig = {
   option_ta: { enabled: false, displayName: 'Options TA' },
   option_maof: { enabled: false, displayName: 'Options Maof' },
   option_other: { enabled: false, displayName: 'Other Derivatives' },
+  currency: { enabled: true, displayName: 'Currencies & Crypto' },
 };
 
 // Todo: mapping is incomplete and semi arbitrary
@@ -89,10 +86,9 @@ function getGlobesTypeFromTaseType(taseType: string): string | undefined {
     return undefined;
 }
 
-function getEffectiveTicker(ticker: string | undefined, exchange: string | undefined) {
+function getEffectiveTicker(ticker: string | undefined, exchange: Exchange | undefined) {
   if (!ticker || !exchange) return ticker;
-  const upperExchange = exchange.toUpperCase();
-  if (upperExchange === 'TASE') {
+  if (exchange === Exchange.TASE) {
     let t = ticker;
     if (t.endsWith('-M')) {
       t = t.slice(0, -2);
@@ -140,66 +136,10 @@ async function fetchTaseSecurities(signal?: AbortSignal): Promise<TaseSecurity[]
 }
 
 /**
- * Fetches ticker data from Globes for a specific security type.
- * @param type - The type of security to fetch (e.g., 'stock', 'etf').
- * @param exchange - The exchange to fetch from.
- * @param signal - Optional AbortSignal to cancel the request.
- * @returns A promise that resolves to an array of TickerListItem.
- */
-async function fetchGlobesTickersByType(type: string, exchange: string, signal?: AbortSignal): Promise<TickerListItem[]> {
-  const cacheKey = `globes:tickers:v4:${exchange}:${type}`;
-  return withTaseCache(cacheKey, async () => {
-    const globesApiUrl = `https://portfolios.noy-shai.workers.dev/?apiId=globes_list&exchange=${exchange}&type=${type}`;
-    const xmlString = await fetchXml(globesApiUrl, signal);
-    const xmlDoc = parseXmlString(xmlString);
-    return extractDataFromXmlNS(xmlDoc, GLOBES_API_NAMESPACE, 'anyType', (element): TickerListItem | null => {
-      if (element.getAttributeNS(XSI_NAMESPACE, 'type') !== 'Instrument') {
-        return null;
-      }
-      
-      const getElementText = (tagName: string) => element.getElementsByTagNameNS(GLOBES_API_NAMESPACE, tagName)[0]?.textContent || '';
-
-      // The 'symbol' tag from the Globes API XML is used as the numeric security ID for joining with TASE data.
-      const numericSecurityId = getElementText('symbol');
-      // Per user instruction: use name_he from XML
-      const nameHe = getElementText('name_he');
-      const nameEn = getElementText('nameEn');
-      const globesInstrumentId = getElementText('instrumentId');
-
-      if (!numericSecurityId || !globesInstrumentId) {
-        // Essential data is missing, so we can't use this entry.
-        return null;
-      }
-      
-      const parsedExchange = parseExchange(exchange);
-
-      return {
-        // For Globes, the symbol returned in 'symbol' field is often the security ID (numeric) or ticker.
-        // We use it as the symbol here. TASE logic will map this.
-        symbol: numericSecurityId,
-        exchange: parsedExchange,
-        nameEn,
-        nameHe,
-        type: type,
-        taseInfo: {
-          securityId: Number(numericSecurityId),
-          companyName: nameEn, // Fallback
-          companySuperSector: '',
-          companySector: '',
-          companySubSector: '',
-          globesInstrumentId: globesInstrumentId,
-          taseType: type // Provisional
-        }
-      };
-    });
-  });
-}
-
-/**
  * Helper to fetch all enabled Globes tickers for a given exchange.
  */
 async function fetchGlobesTickers(
-  exchange: string,
+  exchange: Exchange,
   config: SecurityTypeConfig,
   signal?: AbortSignal
 ): Promise<TickerListItem[]> {
@@ -227,15 +167,15 @@ async function fetchGlobesTickers(
  * @returns A promise that resolves to a record of tickers grouped by type.
  */
 export async function fetchAllTickers(
-  exchange: string,
+  exchange: Exchange,
   config: SecurityTypeConfig = DEFAULT_SECURITY_TYPE_CONFIG,
   signal?: AbortSignal
 ): Promise<Record<string, TickerListItem[]>> {
-  if (exchange.toUpperCase() === 'TASE') {
+  if (exchange === Exchange.TASE) {
     return fetchTaseTickers(signal, config);
   }
   
-  if (exchange.toUpperCase() === 'GEMEL') {
+  if (exchange === Exchange.GEMEL) {
     const tickers = await fetchGemelnetTickers(signal);
     return { 'gemel_fund': tickers.map(t => ({...t, exchange: Exchange.GEMEL})) };
   }
@@ -246,7 +186,7 @@ export async function fetchAllTickers(
    const allTickers: TickerListItem[] = allGlobesTickers.map(globesTicker => ({
       ...globesTicker,
       symbol: getEffectiveTicker(globesTicker.symbol, exchange) || globesTicker.symbol,
-      exchange: exchange as Exchange, // Re-affirm exchange
+      exchange: exchange,
       taseInfo: {
         ...globesTicker.taseInfo!,
         taseType: config[globesTicker.type]?.displayName || 'Unknown',
@@ -280,7 +220,7 @@ async function fetchTaseTickers(
   const taseSecurities = await fetchTaseSecurities(signal);
 
   // 2. Fetch all enabled types from Globes
-  const allGlobesTickers = await fetchGlobesTickers('tase', config, signal);
+  const allGlobesTickers = await fetchGlobesTickers(Exchange.TASE, config, signal);
 
   // 3. Create a map for efficient lookup of Globes data
   const globesTickerMap = new Map<number, TickerListItem>();
@@ -307,7 +247,7 @@ async function fetchTaseTickers(
  
       allTickers.push({
           // Base Data
-          symbol: getEffectiveTicker(security.symbol, 'TASE') || security.symbol,
+          symbol: getEffectiveTicker(security.symbol, Exchange.TASE) || security.symbol,
           exchange: Exchange.TASE,
           nameEn: security.securityName,
           nameHe: globesTicker?.nameHe || security.securityNameHe || security.securityName,
@@ -334,7 +274,7 @@ async function fetchTaseTickers(
         // For globes-only tickers, we can't reliably determine the TASE type.
         allTickers.push({
             ...globesTicker,
-            symbol: getEffectiveTicker(globesTicker.symbol, 'TASE') || globesTicker.symbol,
+            symbol: getEffectiveTicker(globesTicker.symbol, Exchange.TASE) || globesTicker.symbol,
             exchange: Exchange.TASE,
             
             taseInfo: {

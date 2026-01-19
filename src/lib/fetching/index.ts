@@ -28,7 +28,7 @@ export function getTickersDataset(signal?: AbortSignal, forceRefresh = false): P
   tickersDatasetLoading = (async () => {
     try {
       console.log('Loading tickers dataset...');
-      const exchanges = [Exchange.TASE, Exchange.NASDAQ, Exchange.NYSE, Exchange.GEMEL];
+      const exchanges = [Exchange.TASE, Exchange.NASDAQ, Exchange.NYSE, Exchange.GEMEL, Exchange.FOREX];
       const results = await Promise.all(exchanges.map(ex => fetchAllTickers(ex, undefined, signal)));
       
       const combined: Record<string, TickerListItem[]> = {};
@@ -86,7 +86,7 @@ export async function getTickerData(ticker: string, exchange: string, numericSec
     return fetchGemelnetQuote(Number(ticker), signal, forceRefresh);
   }
 
-  const globesFirstExchanges: Exchange[] = [Exchange.TASE, Exchange.NYSE, Exchange.NASDAQ];
+  const globesFirstExchanges: Exchange[] = [Exchange.TASE, Exchange.NYSE, Exchange.NASDAQ, Exchange.FOREX];
   if (globesFirstExchanges.includes(parsedExchange)) {
     console.log(`Fetching Globes ticker data for ${parsedExchange}:${ticker} (securityId: ${secId || 'N/A'})`);
     // @ts-ignore

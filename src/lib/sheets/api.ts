@@ -2,7 +2,7 @@
 import { ensureGapi, findSpreadsheetByName } from '../google';
 import { getTickerData, type TickerData } from '../fetching';
 import { toGoogleSheetDateFormat } from '../date';
-import { type Portfolio, type Transaction, type Holding, Exchange, parseExchange, toGoogleFinanceExchangeCode } from '../types';
+import { type Portfolio, type Transaction, type Holding, Exchange, parseExchange, toGoogleSheetsExchangeCode } from '../types';
 import {
     TXN_COLS, transactionHeaders, transactionMapping, transactionNumericKeys,
     portfolioHeaders, holdingsHeaders, configHeaders, portfolioMapping, portfolioNumericKeys,
@@ -14,6 +14,7 @@ import { getHistoricalPriceFormula } from './formulas';
 import { logIfFalsy } from '../utils';
 import { createRowMapper, fetchSheetData, objectToRow, createHeaderUpdateRequest, getSheetId, ensureSheets } from './utils';
 import { PORTFOLIO_SHEET_NAME } from './config';
+import { fetchGlobesStockQuote } from '../fetching/globes';
 
 // --- Mappers for each data type ---
 const mapRowToPortfolio = createRowMapper(portfolioHeaders);
@@ -398,7 +399,7 @@ export const updateHoldingsUserOptions = withAuthHandling(async (spreadsheetId: 
     existingOptions.forEach(opt => finalOptions.set(`${opt.ticker}-${opt.exchange}`, opt));
     optionsToUpdate.forEach(opt => {
         if (opt.name) {
-            finalOptions.set(`${opt.ticker}-${toGoogleFinanceExchangeCode(parseExchange(opt.exchange))}`, { ticker: opt.ticker, exchange: toGoogleFinanceExchangeCode(parseExchange(opt.exchange)), name: opt.name });
+            finalOptions.set(`${opt.ticker}-${toGoogleSheetsExchangeCode(parseExchange(opt.exchange))}`, { ticker: opt.ticker, exchange: toGoogleSheetsExchangeCode(parseExchange(opt.exchange)), name: opt.name });
         }
     });
 
@@ -430,7 +431,7 @@ export const batchAddTransactions = withAuthHandling(async (spreadsheetId: strin
         // Normalize specific fields for the sheet
         rowData.date = t.date ? toGoogleSheetDateFormat(new Date(t.date)) : '';
         rowData.ticker = String(logIfFalsy(t.ticker, `Transaction ticker missing`, t)).toUpperCase();
-        rowData.exchange = toGoogleFinanceExchangeCode(t.exchange!);
+        rowData.exchange = toGoogleSheetsExchangeCode(t.exchange!);
         rowData.vestDate = t.vestDate ? toGoogleSheetDateFormat(new Date(t.vestDate)) : '';
         rowData.comment = t.comment || '';
         rowData.source = t.source || '';
@@ -521,7 +522,7 @@ function createHoldingRow(h: HoldingNonGeneratedData, meta: TickerData | null, r
     const isTASE = h.exchange === Exchange.TASE;
 
     row[0] = String(h.ticker).toUpperCase();
-    row[1] = toGoogleFinanceExchangeCode(h.exchange);
+    row[1] = toGoogleSheetsExchangeCode(h.exchange);
     row[2] = h.qty;
     row[3] = `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "price"))`;
     const defaultCurrency = meta?.currency || (isTASE ? 'ILA' : '');
@@ -787,6 +788,35 @@ export const fetchSheetExchangeRates = withAuthHandling(async (spreadsheetId: st
                  }
              });
         }
+    }
+
+    // 4. External Fallback (Globes) for Critical Currencies
+    const currentRates = allRates['current'];
+    const missing = ['ILS', 'EUR', 'GBP'].filter(c => !currentRates[c]);
+
+    if (missing.length > 0) {
+        console.warn(`fetchSheetExchangeRates: Missing rates for ${missing.join(', ')}. Attempting Globes fallback.`);
+        const getRate = async (pair: string) => (await fetchGlobesStockQuote(pair, undefined, Exchange.FOREX))?.price;
+
+        // Recover ILS first (critical pivot)
+        if (!currentRates['ILS']) currentRates['ILS'] = await getRate('USDILS');
+
+        await Promise.all(missing.filter(c => c !== 'ILS').map(async c => {
+            // Try direct: USD -> Target
+            let r = await getRate(`USD${c}`);
+            if (r) { currentRates[c] = r; return; }
+
+            // Try inverted: Target -> USD
+            r = await getRate(`${c}USD`);
+            if (r) { currentRates[c] = 1 / r; return; }
+
+            // Try Cross via ILS: Target -> ILS
+            // Rate[Target] (Target/USD) = Rate[ILS] (ILS/USD) / (ILS/Target)
+            if (currentRates['ILS']) {
+                r = await getRate(`${c}ILS`);
+                if (r) currentRates[c] = currentRates['ILS'] / r;
+            }
+        }));
     }
 
     // Default missing major currencies to 0 to avoid crashes, but log warning
