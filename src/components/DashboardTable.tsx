@@ -212,7 +212,7 @@ export function DashboardTable(props: TableProps) {
                     {columnVisibility.totalGain ? <TableCell align="right" sx={{ fontWeight: 'bold', color: displayVals.totalGain >= 0 ? theme.palette.success.main : theme.palette.error.main }}>{formatValue(displayVals.totalGain, displayCurrency, 2, t)}</TableCell> : null}
                     {columnVisibility.totalGainPct ? <TableCell align="right" sx={{ color: 'text.secondary' }}>{formatPct(displayVals.totalGainPct)}</TableCell> : null}
                     {columnVisibility.valueAfterTax ? <TableCell align="right">{formatValue(displayVals.valueAfterTax, displayCurrency, 2, t)}</TableCell> : null}
-                  </TableRow>>
+                  </TableRow>
                 );
               })}
             </TableBody>
