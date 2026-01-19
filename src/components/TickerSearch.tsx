@@ -7,6 +7,7 @@ import { getTickersDataset, getTickerData, type TickerListItem, type TickerData,
 import { parseExchange, type Portfolio } from '../lib/types';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
 import { useLanguage } from '../lib/i18n';
+import { getOwnedInPortfolios } from '../lib/portfolioUtils';
 
 interface TickerSearchProps {
   onTickerSelect: (ticker: TickerData & { symbol: string; numeric_id?: number }) => void;
@@ -45,14 +46,6 @@ interface SearchResult {
   ownedInPortfolios?: string[];
 }
 
-function getOwnedInPortfolios(symbol: string, portfolios: Portfolio[]) {
-  if (!portfolios || portfolios.length === 0) return undefined;
-  const owningPortfolios = portfolios.filter(p =>
-    p.holdings && p.holdings.some(h => h.ticker === symbol)
-  );
-  return owningPortfolios.length > 0 ? owningPortfolios.map(p => p.name) : undefined;
-}
-
 function processTaseResult(t: TickerListItem, instrumentType: string, portfolios: Portfolio[]): SearchResult {
   return {
     symbol: t.symbol,
@@ -63,7 +56,7 @@ function processTaseResult(t: TickerListItem, instrumentType: string, portfolios
     type: instrumentType,
     globesInstrumentId: t.taseInfo?.globesInstrumentId,
     rawTicker: t,
-    ownedInPortfolios: getOwnedInPortfolios(t.symbol, portfolios),
+    ownedInPortfolios: getOwnedInPortfolios(t.symbol, portfolios, t.exchange),
   };
 }
 

@@ -100,7 +100,7 @@ const EXCHANGE_SETTINGS: Record<Exchange, ExchangeSettings> = {
     aliases: ['FX', 'CURRENCY', 'CRYPTO', 'CC'], 
     googleFinanceCode: '',
     googleSheetsCode: 'CURRENCY',
-    yahooFinanceSuffix: '=X'
+    yahooFinanceSuffix: '' // Yahoo uses =X for currencies, but not for crypto, currently we don't distinguish them, so leave empty to handle crypto properly
   },
 };
 

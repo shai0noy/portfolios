@@ -159,7 +159,15 @@ export const fetchHolding = withAuthHandling(async (spreadsheetId: string, ticke
         // Map all rows to objects, parsing the exchange string into our enum
         const allHoldings = rows.map(row => {
             const holdingRaw = mapRowToHolding<SheetHolding>(row, holdingMapping, holdingNumericKeys);
-            (holdingRaw as any).exchange = parseExchange((holdingRaw as any).exchange);
+            try {
+                if ((holdingRaw as any).exchange) {
+                    (holdingRaw as any).exchange = parseExchange((holdingRaw as any).exchange);
+                }
+            } catch (e) {
+                console.warn(`fetchHolding: invalid exchange for ${holdingRaw.ticker}: ${(holdingRaw as any).exchange}`);
+                // fallback or leave as is, type safety might be compromised if not Exchange enum
+                (holdingRaw as any).exchange = undefined;
+            }
             return holdingRaw as Holding;
         });
 
@@ -246,7 +254,9 @@ export const fetchPortfolios = withAuthHandling(async (spreadsheetId: string): P
     
     priceData.forEach(item => {
         try {
-            (item as any).exchange = parseExchange((item as any).exchange);
+            if ((item as any).exchange) {
+                (item as any).exchange = parseExchange((item as any).exchange);
+            }
             const key = `${item.ticker}-${item.exchange}`;
             priceMap[key] = item;
         } catch (e) {
@@ -524,7 +534,7 @@ function createHoldingRow(h: HoldingNonGeneratedData, meta: TickerData | null, r
     row[0] = String(h.ticker).toUpperCase();
     row[1] = toGoogleSheetsExchangeCode(h.exchange);
     row[2] = h.qty;
-    row[3] = `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "price"))`;
+    row[3] = `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}))`;
     const defaultCurrency = meta?.currency || (isTASE ? 'ILA' : '');
     row[4] = (`=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "currency"), "${defaultCurrency}")`);
     row[5] = `=${qtyCell}*${priceCell}`;

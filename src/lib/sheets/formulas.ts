@@ -17,6 +17,7 @@ export function getGoogleFinanceFormula(query: string, attribute: string, dateEx
  * @param dateExpression The date expression for the historical price.
  * @param isCurrency Whether the query is for a currency.
  */
+// TODO: Improve this to take optional exchange code rather than isCurrency boolean. Use it wherever GOOGLEFINANCE is used with past dates
 export function getHistoricalPriceFormula(tickerOrPair: string, dateExpression: string, isCurrency: boolean = false) {
     const query = isCurrency ? `"CURRENCY:${tickerOrPair}"` : tickerOrPair;
     return getGoogleFinanceFormula(query, "price", dateExpression);

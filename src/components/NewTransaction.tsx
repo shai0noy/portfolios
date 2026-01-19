@@ -328,7 +328,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
       {saveSuccess && (
         <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSaveSuccess(false)} action={
           <Button color="inherit" size="small" onClick={() => navigate('/dashboard')}>
-            {t('Dashboard', 'לוח בקרה')}
+            {t('Dashboard', 'דאשבורד')}
           </Button>
         }>
           {t('Transaction for', 'עסקה עבור')} {ticker} {t('saved!', 'נשמרה!')}

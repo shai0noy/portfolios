@@ -6,9 +6,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { getTickerData, getTickersDataset, type TickerListItem } from '../lib/fetching';
 import { fetchHolding, getMetadataValue } from '../lib/sheets/index';
-import { Exchange, parseExchange, toGoogleFinanceExchangeCode, toYahooFinanceTicker, type Holding } from '../lib/types';
+import { Exchange, parseExchange, toGoogleFinanceExchangeCode, toYahooFinanceTicker, type Holding, type Portfolio } from '../lib/types';
 import { formatPrice, formatPercent } from '../lib/currency';
 import { useLanguage } from '../lib/i18n';
+import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
+import { getOwnedInPortfolios } from '../lib/portfolioUtils';
 
 interface TickerDetailsProps {
   sheetId: string;
@@ -18,6 +20,7 @@ interface TickerDetailsProps {
   initialName?: string;
   initialNameHe?: string;
   onClose?: () => void;
+  portfolios?: Portfolio[]; // Add portfolios to props
 }
 
 interface TickerDetailsRouteParams extends Record<string, string | undefined> {
@@ -26,7 +29,7 @@ interface TickerDetailsRouteParams extends Record<string, string | undefined> {
   numericId?: string;
 }
 
-export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExchange, numericId: propNumericId, initialName: propInitialName, initialNameHe: propInitialNameHe, onClose }: TickerDetailsProps) {
+export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExchange, numericId: propNumericId, initialName: propInitialName, initialNameHe: propInitialNameHe, onClose, portfolios = [] }: TickerDetailsProps) {
   const params = useParams<TickerDetailsRouteParams>();
   const navigate = useNavigate();
   const location = useLocation();
@@ -53,8 +56,10 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   const [refreshing, setRefreshing] = useState(false);
   const [sheetRebuildTime, setSheetRebuildTime] = useState<string | null>(null);
   const { t, tTry } = useLanguage();
-  const fetchData = useCallback(async (forceRefresh = false) => {
-    if (!ticker || !exchange) {
+
+  const ownedInPortfolios = ticker ? getOwnedInPortfolios(ticker, portfolios, exchange) : undefined;
+
+  const fetchData = useCallback(async (forceRefresh = false) => {    if (!ticker || !exchange) {
       setError(t('Missing ticker or exchange information.', 'חסר מידע על סימול או בורסה.'));
       setLoading(false);
       return;
@@ -65,7 +70,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
     setError(null);
 
     const upperExchange = exchange.toUpperCase();
-    
+
     try {
       let currentNumericId = numericId;
       // If numericId is missing for TASE/GEMEL, find it from the tickers dataset.
@@ -86,7 +91,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
           }
         }
       }
-      
+
       if (!currentNumericId && (exchange === Exchange.TASE || exchange === Exchange.GEMEL)) {
         console.warn(`Could not find numeric ID for ${ticker}. Data fetching may be incomplete.`);
       }
@@ -98,7 +103,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
       setHoldingData(holding);
 
       // Always try to fetch live data to get the most up-to-date info
-      const shouldFetchLive = true; 
+      const shouldFetchLive = true;
 
       if (shouldFetchLive) {
         const numericIdVal = currentNumericId ? parseInt(currentNumericId, 10) : null;
@@ -170,19 +175,25 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
     }
 
     if (exchange === Exchange.FOREX) {
-        // e.g. BTC-USD
-        const formattedTicker = ticker.includes('-') ? ticker : `${ticker}-USD`;
-        links.push({ name: 'Yahoo Finance', url: `https://finance.yahoo.com/quote/${formattedTicker}` });
-        links.push({ name: 'Google Finance', url: `https://www.google.com/finance/quote/${formattedTicker}` });
+      // e.g. BTC-USD
+      const formattedTicker = ticker.includes('-') ? ticker : `${ticker}-USD`;
+      links.push({ name: 'Yahoo Finance', url: `https://finance.yahoo.com/quote/${formattedTicker}` });
+      links.push({ name: 'Google Finance', url: `https://www.google.com/finance/quote/${formattedTicker}` });
+
     } else {
-        links.push({ name: 'Yahoo Finance', url: `https://finance.yahoo.com/quote/${toYahooFinanceTicker(ticker, exchange)}` });
-        
-        const gExchange = toGoogleFinanceExchangeCode(exchange);
-        if (gExchange) {
-          links.push({ name: 'Google Finance', url: `https://www.google.com/finance/quote/${ticker}:${gExchange}` });
-        } else {
-          links.push({ name: 'Google Finance', url: `https://www.google.com/finance/quote/${ticker}` });
-        }
+      links.push({ name: 'Yahoo Finance', url: `https://finance.yahoo.com/quote/${toYahooFinanceTicker(ticker, exchange)}` });
+
+      const gExchange = toGoogleFinanceExchangeCode(exchange);
+      if (gExchange) {
+        links.push({ name: 'Google Finance', url: `https://www.google.com/finance/quote/${ticker}:${gExchange}` });
+      } else {
+        links.push({ name: 'Google Finance', url: `https://www.google.com/finance/quote/${ticker}` });
+      }
+    }
+
+    const globesId = data?.globesInstrumentId;
+    if (globesId) {
+      links.push({ name: 'Globes', url: `https://www.globes.co.il/portal/instrument.aspx?instrumentid=${globesId}` });
     }
 
     const numId = data?.numericId || holdingData?.numericId;
@@ -222,10 +233,12 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   const resolvedNameHe = data?.nameHe || holdingData?.nameHe || initialNameHe;
 
   // Helper to construct performance object
-  const getPerf = (val?: number, date?: number) => val !== undefined ? { val, date } : undefined;
-
-  const perfData: Record<string, { val: number, date?: number } | undefined> = {
-    '1D': getPerf(data?.changePct1d ?? (holdingData as any)?.changePct1d, data?.changeDate1d ?? (holdingData as any)?.changeDate1d),
+  const getPerf = (val?: number, date?: number, alwaysShow?: boolean) => {
+     if (val === undefined || (val === 0 && !alwaysShow)) return undefined;
+     return { val, date };
+  };
+    const perfData: Record<string, { val: number, date?: number } | undefined> = {
+    '1D': getPerf(data?.changePct1d ?? (holdingData as any)?.changePct1d, data?.changeDate1d ?? (holdingData as any)?.changeDate1d, /*alwaysShow*/ true),
     [data?.recentChangeDays ? `${data.recentChangeDays}D` : '1W']: getPerf(data?.changePctRecent ?? (holdingData as any)?.perf1w ?? (holdingData as any)?.changePctRecent, data?.changeDateRecent ?? (holdingData as any)?.changeDateRecent),
     '1M': getPerf(data?.changePct1m ?? (holdingData as any)?.changePct1m, data?.changeDate1m ?? (holdingData as any)?.changeDate1m),
     '3M': getPerf(data?.changePct3m ?? (holdingData as any)?.changePct3m, data?.changeDate3m ?? (holdingData as any)?.changeDate3m),
@@ -264,9 +277,16 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
       <DialogTitle>
         <Box display="flex" justifyContent="space-between" alignItems="center">
           <Box>
-            <Typography variant="h4" component="div" fontWeight="bold">
-              {tTry(resolvedName || ticker, resolvedNameHe)}
-            </Typography>
+            <Box display="flex" alignItems="center" gap={1}>
+                <Typography variant="h4" component="div" fontWeight="bold">
+                {tTry(resolvedName || ticker, resolvedNameHe)}
+                </Typography>
+                {ownedInPortfolios && ownedInPortfolios.length > 0 && (
+                    <Tooltip title={`${t('Owned in', 'מוחזק ב')}: ${ownedInPortfolios.join(', ')}`}>
+                        <BusinessCenterIcon color="action" />
+                    </Tooltip>
+                )}
+            </Box>
             <Typography variant="subtitle1" component="div" color="text.secondary">
               {resolvedName ? `${exchange?.toUpperCase()}: ${ticker}` : exchange?.toUpperCase()}
             </Typography>
@@ -369,7 +389,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
               // Hide Dividends for Gemel or if no dividend data is available (temporary until we fetch it)
               const isGemel = exchange?.toUpperCase() === 'GEMEL' || displayData.exchange === 'GEMEL';
               const hasDividendData = false; // TODO: Check displayData.dividendYield or similar when available
-              
+
               if (isGemel || !hasDividendData) return null;
 
               return (

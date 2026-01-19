@@ -21,7 +21,9 @@ import Brightness7Icon from '@mui/icons-material/Brightness7';
 import TranslateIcon from '@mui/icons-material/Translate';
 import MenuIcon from '@mui/icons-material/Menu';
 import { getTheme } from './theme';
+import { usePortfolios } from './lib/hooks'; // Assuming we'll create this hook or reuse existing logic
 import { exportDashboardData } from './lib/exporter';
+
 import { useLanguage } from './lib/i18n';
 import { CacheProvider } from '@emotion/react';
 import createCache from '@emotion/cache';
@@ -67,6 +69,9 @@ function App() {
   const theme = useMemo(() => getTheme(mode, isRtl ? 'rtl' : 'ltr'), [mode, isRtl]);
   const location = useLocation();
   const navigate = useNavigate();
+
+  // Load portfolios globally so TickerDetails can access them
+  const { portfolios } = usePortfolios(sheetId, refreshKey);
 
   const locationState = location.state as { background?: { pathname: string } } | null;
   const effectivePathname = locationState?.background?.pathname || location.pathname;
@@ -325,7 +330,7 @@ function App() {
             </Typography>
             
             <Tabs value={currentTab} onChange={handleTabChange} textColor="primary" indicatorColor="primary" variant="scrollable" scrollButtons="auto" allowScrollButtonsMobile sx={{ flexGrow: 1, minWidth: 0 }}>
-              <Tab label={t("Dashboard", "לוח בקרה")} sx={{ textTransform: 'none', fontSize: { xs: '0.9rem', sm: '1rem' }, minHeight: 64, minWidth: 64 }} component={RouterLink} to="/dashboard" />
+              <Tab label={t("Dashboard", "דאשבורד")} sx={{ textTransform: 'none', fontSize: { xs: '0.9rem', sm: '1rem' }, minHeight: 64, minWidth: 64 }} component={RouterLink} to="/dashboard" />
               <Tab label={t("Add Trade", "הוסף עסקה")} sx={{ textTransform: 'none', fontSize: { xs: '0.9rem', sm: '1rem' }, minHeight: 64, minWidth: 64 }} component={RouterLink} to="/transaction" />
               <Tab label={t("Manage Portfolios", "ניהול תיקים")} sx={{ textTransform: 'none', fontSize: { xs: '0.9rem', sm: '1rem' }, minHeight: 64, minWidth: 80 }} component={RouterLink} to="/portfolios" />
             </Tabs>
@@ -487,7 +492,7 @@ function App() {
                 <Route path="/transaction" element={null} /> {/* Dummy route */}
                 <Route path="/portfolios" element={<PortfolioManager sheetId={sheetId} onSuccess={() => setRefreshKey(k => k + 1)} />} />
                 <Route path="/portfolios/:portfolioId" element={<PortfolioManager sheetId={sheetId} onSuccess={() => setRefreshKey(k => k + 1)} />} />
-                <Route path="/ticker/:exchange/:ticker" element={<TickerDetails sheetId={sheetId} />} />
+                <Route path="/ticker/:exchange/:ticker" element={<TickerDetails sheetId={sheetId} portfolios={portfolios} />} />
               </Routes>
             </>
           )}

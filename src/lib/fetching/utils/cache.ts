@@ -1,5 +1,6 @@
 // src/lib/fetching/utils/cache.ts
 import type { TickerData, HistoricalDataPoint } from '../types';
+import * as db from './idb';
 
 // Simple in-memory cache with a Time-To-Live (TTL)
 export const tickerDataCache = new Map<string, { data: TickerData, timestamp: number }>();
@@ -13,43 +14,44 @@ interface CachedData<T> {
   timestamp: number;
 }
 
-export function withTaseCache<T>(cacheKey: string, fetcher: () => Promise<T>): Promise<T> {
+export async function withTaseCache<T>(cacheKey: string, fetcher: () => Promise<T>): Promise<T> {
   const now = Date.now();
 
   try {
-    const cached = localStorage.getItem(cacheKey);
+    const cached = await db.get<CachedData<T>>(cacheKey);
     if (cached) {
-      const parsed: CachedData<T> = JSON.parse(cached);
-      if (now - parsed.timestamp < TASE_CACHE_TTL) {
-        if (Array.isArray(parsed.data) && parsed.data.length === 0) {
+      if (now - cached.timestamp < TASE_CACHE_TTL) {
+        if (Array.isArray(cached.data) && cached.data.length === 0) {
           console.warn(`Cached data for ${cacheKey} is empty, invalidating.`);
-          localStorage.removeItem(cacheKey);
+          await db.del(cacheKey);
         } else {
           console.log(`Cache hit for ${cacheKey}`);
-          return Promise.resolve(parsed.data);
+          return cached.data;
         }
       } else {
         console.log(`Cache expired for ${cacheKey}`);
-        localStorage.removeItem(cacheKey); // Clear expired cache
+        await db.del(cacheKey); // Clear expired cache
       }
     }
   } catch (e) {
     console.error(`Error reading cache for ${cacheKey}:`, e);
-    localStorage.removeItem(cacheKey); // Clear potentially corrupt cache
+    // Ignore error and proceed to fetch
   }
 
   console.log(`Cache miss for ${cacheKey}, fetching data...`);
-  return fetcher().then(data => {
-    try {
-      if (Array.isArray(data) && data.length === 0) {
-        console.warn(`Fetched data for ${cacheKey} is empty, not caching.`);
-        localStorage.removeItem(cacheKey);
-      } else {
-        localStorage.setItem(cacheKey, JSON.stringify({ data, timestamp: now }));
-      }
-    } catch (e) {
-      console.error(`Error writing cache for ${cacheKey}:`, e);
+  const data = await fetcher();
+  
+  try {
+    if (Array.isArray(data) && data.length === 0) {
+      console.warn(`Fetched data for ${cacheKey} is empty, not caching.`);
+      // Ensure we don't have bad data stored
+      await db.del(cacheKey); 
+    } else {
+      await db.set(cacheKey, { data, timestamp: now });
     }
-    return data;
-  });
+  } catch (e) {
+    console.error(`Error writing cache for ${cacheKey}:`, e);
+  }
+  
+  return data;
 }

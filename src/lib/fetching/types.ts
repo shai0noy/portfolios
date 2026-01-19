@@ -34,6 +34,7 @@ export interface TickerData {
   ticker: string;
   numericId : number|null; // Numeric ID for TASE
   source?: string;
+  globesInstrumentId?: string;
 }
 
 export interface HistoricalDataPoint {
@@ -88,6 +89,7 @@ export interface TickerListItem {
   
   taseInfo?: TaseInfo;
   gemelInfo?: GemelInfo;
+  globesRawSymbol?: string;
 }
 
 // Configuration for ticker types
