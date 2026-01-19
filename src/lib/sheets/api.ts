@@ -265,6 +265,9 @@ export const fetchPortfolios = withAuthHandling(async (spreadsheetId: string): P
     });
 
     // 4. Calculate holdings quantities from transactions
+    // NOTE: This logic for aggregating transactions into holdings MUST be kept in sync with the logic in 
+    // Dashboard.tsx (loadData function) which performs a similar client-side aggregation for the UI.
+    // Any changes to how transactions affect holdings (e.g. splits, new transaction types) must be applied in both places.
     const holdingsByPortfolio: Record<string, Record<string, Holding>> = {};
     transactions.forEach(txn => {
         if (txn.type === 'BUY' || txn.type === 'SELL') {

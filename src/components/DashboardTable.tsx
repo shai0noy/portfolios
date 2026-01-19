@@ -24,14 +24,12 @@ interface TableProps {
 }
 
 export function DashboardTable(props: TableProps) {
-  const { 
-    groupedData, groupByPortfolio, displayCurrency, exchangeRates, includeUnvested, onSelectPortfolio, columnVisibility, onHideColumn 
-  } = props;
-  const theme = useTheme();
-  const navigate = useNavigate();
-  const { t, tTry } = useLanguage();
-  
-  const [sortBy, setSortBy] = useState<string>('totalMV');
+    const { groupedData, groupByPortfolio, displayCurrency, exchangeRates, includeUnvested, onSelectPortfolio, columnVisibility, onHideColumn } = props;
+    const theme = useTheme();
+    const navigate = useNavigate();
+    const { t, tTry, isRtl } = useLanguage();
+    
+    const [sortBy, setSortBy] = useState<string>('totalMV');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [contextMenu, setContextMenu] = useState<{ mouseX: number; mouseY: number; column: string; } | null>(null);
@@ -81,7 +79,10 @@ export function DashboardTable(props: TableProps) {
     return formatValue(converted, displayCurrency, decimals, t);
   };
 
-  const formatPct = (n: number) => (n * 100).toFixed(2) + '%';
+  const formatPct = (n: number) => {
+    const val = (n * 100).toFixed(2);
+    return (isRtl && n < 0 ? '\u200E' : '') + val + '%';
+  };
 
   const getSortValue = (h: DashboardHolding, key: string) => {
     const toDisplay = (val: number, curr: string) => convertCurrency(val, curr, displayCurrency, exchangeRates);
@@ -208,10 +209,10 @@ export function DashboardTable(props: TableProps) {
                     {columnVisibility.realizedGain ? <TableCell align="right">{formatValue(displayVals.realizedGain, displayCurrency, 2, t)}</TableCell> : null}
                     {columnVisibility.realizedGainPct ? <TableCell align="right" sx={{ color: 'text.secondary' }}>{formatPct(displayVals.realizedGainPct)}</TableCell> : null}
                     {columnVisibility.realizedGainAfterTax ? <TableCell align="right">{formatValue(displayVals.realizedGainAfterTax, displayCurrency, 2, t)}</TableCell> : null}
-                    {columnVisibility.totalGain ? <TableCell align="right" sx={{ fontWeight: 'bold', color: displayVals.totalGain >= 0 ? theme.palette.success.dark : theme.palette.error.dark }}>{formatValue(displayVals.totalGain, displayCurrency, 2, t)}</TableCell> : null}
+                    {columnVisibility.totalGain ? <TableCell align="right" sx={{ fontWeight: 'bold', color: displayVals.totalGain >= 0 ? theme.palette.success.main : theme.palette.error.main }}>{formatValue(displayVals.totalGain, displayCurrency, 2, t)}</TableCell> : null}
                     {columnVisibility.totalGainPct ? <TableCell align="right" sx={{ color: 'text.secondary' }}>{formatPct(displayVals.totalGainPct)}</TableCell> : null}
                     {columnVisibility.valueAfterTax ? <TableCell align="right">{formatValue(displayVals.valueAfterTax, displayCurrency, 2, t)}</TableCell> : null}
-                  </TableRow>
+                  </TableRow>>
                 );
               })}
             </TableBody>

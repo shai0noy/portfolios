@@ -8,7 +8,7 @@
  */
 export function getGoogleFinanceFormula(query: string, attribute: string, dateExpression?: string) {
     const dateArg = dateExpression ? `, ${dateExpression}` : "";
-    return `=IFERROR(INDEX(GOOGLEFINANCE(${query}, "${attribute}"${dateArg}), 2, 2), "")`;
+    return `IFERROR(INDEX(GOOGLEFINANCE(${query}, "${attribute}"${dateArg}), 2, 2), "")`;
 }
 
 /**

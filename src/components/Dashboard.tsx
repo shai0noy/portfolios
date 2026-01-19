@@ -14,6 +14,7 @@ import { DashboardSummary } from './DashboardSummary';
 import { DashboardTable } from './DashboardTable';
 import { SessionExpiredError } from '../lib/errors';
 import { useLanguage } from '../lib/i18n';
+import { getTickerData } from '../lib/fetching'; // Import getTickerData
 
 interface DashboardProps {
   sheetId: string;
@@ -450,6 +451,59 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
       });
         
               const processedHoldings: DashboardHolding[] = [];
+              
+              // Hydrate missing data
+              const holdingsList = Array.from(holdingMap.values());
+              const missingDataPromises = holdingsList.map(async (h) => {
+                 // Decision to fetch live data:
+                 // Currently based on missing price or specific exchange (GEMEL) where sheet support is poor.
+                 // TODO: Refine this criteria. We should verify data freshness (timestamp) and completeness beyond just "price > 0".
+                 // Also, relying solely on the existence of a name isn't enough; we need valid market data to compute values.
+                 const needsFetch = !h.currentPrice || h.currentPrice === 0 || h.exchange === Exchange.GEMEL;
+                 
+                 if (needsFetch) {
+                     try {
+                         // Attempt to fetch live data to fill the gaps.
+                         // NOTE: If the numeric ID is missing (not stored in the sheet), getTickerData will attempt to resolve it
+                         // by querying the cached Globes ticker list (via getTickersDataset/fetchGlobesTickers).
+                         // This allows us to recover data for TASE/GEMEL assets even if the sheet lacks the ID.
+                         const live = await getTickerData(h.ticker, h.exchange, null); // We don't have numericId easily handy here unless we add it to map
+                         if (live) {
+                             if (live.price) h.currentPrice = live.price;
+                             if (live.changePct1d) h.dayChangePct = live.changePct1d / 100; // API returns percent as whole number (e.g. 1.5 for 1.5%) usually? No, fetchGlobes returns e.g. 1.23. Wait, check format.
+                             // Actually `getTickerData` normalizes. Let's check `calculateSummary`.
+                             // `calculatePerformanceInDisplayCurrency` expects decimal (0.01 for 1%).
+                             // `getTickerData` -> `fetchGlobesStockQuote` -> returns `changePct1d`.
+                             // If `fetchGlobesStockQuote` returns e.g. "1.23" as 1.23, it means 1.23%. 
+                             // `Dashboard.tsx` previously used `live?.changePct1d || 0`.
+                             // Let's assume consistency.
+                             // `fetchGlobes` returns raw number. `rebuildHoldings` divides by 100 in sheet formula: `IFERROR(GOOGLEFINANCE(..., "changepct")/100`.
+                             // So sheet data is 0.0123.
+                             // `getTickerData` likely returns 1.23.
+                             // We need to divide by 100 if it comes from `getTickerData` directly.
+                             if (live.changePct1d !== undefined) h.dayChangePct = live.changePct1d / 100;
+
+                             if (live.name) h.displayName = live.name;
+                             if (live.nameHe) h.nameHe = live.nameHe;
+                             if (live.sector) h.sector = live.sector;
+                             // Hydrate performance
+                             if (live.changePctRecent) h.perf1w = live.changePctRecent / 100;
+                             if (live.changePct1m) h.perf1m = live.changePct1m / 100;
+                             if (live.changePct3m) h.perf3m = live.changePct3m / 100;
+                             if (live.changePctYtd) h.perfYtd = live.changePctYtd / 100;
+                             if (live.changePct1y) h.perf1y = live.changePct1y / 100;
+                             if (live.changePct3y) h.perf3y = live.changePct3y / 100;
+                             if (live.changePct5y) h.perf5y = live.changePct5y / 100;
+                         }
+                     } catch (e) {
+                         console.warn(`Failed to hydrate missing data for ${h.ticker}`, e);
+                     }
+                 }
+                 return h;
+              });
+
+              await Promise.all(missingDataPromises);
+
               holdingMap.forEach(h => {
                 h.totalQty = h.qtyVested + h.qtyUnvested;
                 // No need to convert from Agorot here anymore, as currentPrice is already normalized.
