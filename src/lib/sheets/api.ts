@@ -8,11 +8,12 @@ import {
     portfolioHeaders, holdingsHeaders, configHeaders, portfolioMapping, portfolioNumericKeys,
     holdingMapping, holdingNumericKeys, holdingsUserOptionsHeaders, type Headers, DEFAULT_SHEET_NAME, PORT_OPT_RANGE, type SheetHolding,
     TX_SHEET_NAME, TX_FETCH_RANGE, CONFIG_SHEET_NAME, CONFIG_RANGE, METADATA_SHEET, HOLDINGS_USER_OPTIONS_SHEET_NAME, HOLDINGS_USER_OPTIONS_RANGE,
-    metadataHeaders, METADATA_RANGE, HOLDINGS_SHEET, HOLDINGS_RANGE
+    metadataHeaders, METADATA_RANGE, HOLDINGS_SHEET, HOLDINGS_RANGE, SHEET_STRUCTURE_VERSION_DATE
 } from './config';
-import { getHistoricalPriceFormula, getUsdIlsFormula } from './formulas';
+import { getHistoricalPriceFormula } from './formulas';
 import { logIfFalsy } from '../utils';
-import { createRowMapper, fetchSheetData, objectToRow, createHeaderUpdateRequest, getSheetId } from './utils';
+import { createRowMapper, fetchSheetData, objectToRow, createHeaderUpdateRequest, getSheetId, ensureSheets } from './utils';
+import { PORTFOLIO_SHEET_NAME } from './config';
 
 // --- Mappers for each data type ---
 const mapRowToPortfolio = createRowMapper(portfolioHeaders);
@@ -53,46 +54,54 @@ const withAuthHandling = <A extends any[], R>(fn: (...args: A) => Promise<R>): (
 
 export const ensureSchema = withAuthHandling(async (spreadsheetId: string) => {
     const gapi = await ensureGapi();
-    const sheetIds = {
-        portfolio: await getSheetId(spreadsheetId, 'Portfolio_Options', true),
-        log: await getSheetId(spreadsheetId, TX_SHEET_NAME, true),
-        holdings: await getSheetId(spreadsheetId, HOLDINGS_SHEET, true),
-        config: await getSheetId(spreadsheetId, CONFIG_SHEET_NAME, true),
-        metadata: await getSheetId(spreadsheetId, METADATA_SHEET, true),
-        holdingsUserOptions: await getSheetId(spreadsheetId, HOLDINGS_USER_OPTIONS_SHEET_NAME, true),
-    };
+    
+    // 1. Batch fetch/create all required sheets
+    // We explicitly list all sheets we expect to exist.
+    const requiredSheets = [
+        PORTFOLIO_SHEET_NAME, 
+        TX_SHEET_NAME, 
+        HOLDINGS_SHEET, 
+        CONFIG_SHEET_NAME, 
+        METADATA_SHEET, 
+        HOLDINGS_USER_OPTIONS_SHEET_NAME
+    ] as const;
+    
+    // ensureSheets returns a map of { SheetName: SheetID }
+    // This optimization replaces N sequential 'getSheetId' calls with 1 batch read + 1 batch write (if needed).
+    const sheetIds = await ensureSheets(spreadsheetId, requiredSheets);
 
+    // 2. Prepare header updates
+    // We update headers every time to ensure the sheet structure matches our code (e.g. if we added a column).
     const batchUpdate = {
         spreadsheetId,
         resource: {
             requests: [
-                // Update headers for all sheets to ensure schema synchronization.
-                // This guarantees the sheet columns match the code's expected structure, 
-                // allowing for safe addition or renaming of columns in the future.
-                createHeaderUpdateRequest(sheetIds.portfolio, portfolioHeaders as unknown as Headers),
-                createHeaderUpdateRequest(sheetIds.log, transactionHeaders as unknown as Headers),
-                createHeaderUpdateRequest(sheetIds.holdings, holdingsHeaders as unknown as Headers),
-                createHeaderUpdateRequest(sheetIds.config, configHeaders as unknown as Headers),
-                createHeaderUpdateRequest(sheetIds.metadata, metadataHeaders as unknown as Headers),
-                createHeaderUpdateRequest(sheetIds.holdingsUserOptions, holdingsUserOptionsHeaders as unknown as Headers),
-                // Format Date columns (A=date, K=vestDate, P=Creation_Date) to YYYY-MM-DD
+                createHeaderUpdateRequest(sheetIds[PORTFOLIO_SHEET_NAME], portfolioHeaders as unknown as Headers),
+                createHeaderUpdateRequest(sheetIds[TX_SHEET_NAME], transactionHeaders as unknown as Headers),
+                createHeaderUpdateRequest(sheetIds[HOLDINGS_SHEET], holdingsHeaders as unknown as Headers),
+                createHeaderUpdateRequest(sheetIds[CONFIG_SHEET_NAME], configHeaders as unknown as Headers),
+                createHeaderUpdateRequest(sheetIds[METADATA_SHEET], metadataHeaders as unknown as Headers),
+                createHeaderUpdateRequest(sheetIds[HOLDINGS_USER_OPTIONS_SHEET_NAME], holdingsUserOptionsHeaders as unknown as Headers),
+                
+                // 3. Format Date columns in Transaction Log (A=date, K=vestDate, P=Creation_Date) to YYYY-MM-DD
+                // This ensures dates entered via code or UI appear correctly in the sheet.
                 {
                     repeatCell: {
-                        range: { sheetId: sheetIds.log, startColumnIndex: 0, endColumnIndex: 1, startRowIndex: 1 },
+                        range: { sheetId: sheetIds[TX_SHEET_NAME], startColumnIndex: 0, endColumnIndex: 1, startRowIndex: 1 },
                         cell: { userEnteredFormat: { numberFormat: { type: 'DATE', pattern: 'yyyy-mm-dd' } } },
                         fields: 'userEnteredFormat.numberFormat'
                     }
                 },
                 {
                     repeatCell: {
-                        range: { sheetId: sheetIds.log, startColumnIndex: 10, endColumnIndex: 11, startRowIndex: 1 },
+                        range: { sheetId: sheetIds[TX_SHEET_NAME], startColumnIndex: 10, endColumnIndex: 11, startRowIndex: 1 },
                         cell: { userEnteredFormat: { numberFormat: { type: 'DATE', pattern: 'yyyy-mm-dd' } } },
                         fields: 'userEnteredFormat.numberFormat'
                     }
                 },
                 {
                     repeatCell: {
-                        range: { sheetId: sheetIds.log, startColumnIndex: 15, endColumnIndex: 16, startRowIndex: 1 },
+                        range: { sheetId: sheetIds[TX_SHEET_NAME], startColumnIndex: 15, endColumnIndex: 16, startRowIndex: 1 },
                         cell: { userEnteredFormat: { numberFormat: { type: 'DATE', pattern: 'yyyy-mm-dd' } } },
                         fields: 'userEnteredFormat.numberFormat'
                     }
@@ -102,12 +111,18 @@ export const ensureSchema = withAuthHandling(async (spreadsheetId: string) => {
     };
     await gapi.client.sheets.spreadsheets.batchUpdate(batchUpdate);
 
-    // Initial Config Data
+    // 4. Initialize Config Data (Currency Conversions) if needed
+    // This populates the 'Currency_Conversions' sheet with default rows and formulas.
+    // Pairs: Direct USD pairs + Major Crosses + Inverses for Robustness
+    // New List: USDILS, ILSUSD, USDEUR, EURUSD, USDGBP, GBPUSD, EURILS, ILSEUR, GBPILS, ILSGBP
     const createCurrencyRow = (currencyPair: string) => {
         const getFormula = (dateExpr: string) => getHistoricalPriceFormula(currencyPair, dateExpr, true);
+        
+        // We use simple GOOGLEFINANCE formulas. Robustness (fallback to inverted/chain) is handled in the app code.
         return [
             currencyPair,
-            currencyPair === 'USDILS' ? "=" + getUsdIlsFormula("TODAY()") : `=GOOGLEFINANCE("CURRENCY:${currencyPair}")`,
+            // Current Value
+            `=GOOGLEFINANCE("CURRENCY:${currencyPair}")`,
             getFormula("TODAY()-1"), getFormula("TODAY()-7"), getFormula("EDATE(TODAY(),-1)"),
             getFormula("EDATE(TODAY(),-3)"), getFormula("EDATE(TODAY(),-6)"), getFormula("DATE(YEAR(TODAY()),1,1)"),
             getFormula("EDATE(TODAY(),-12)"), getFormula("EDATE(TODAY(),-36)"), getFormula("EDATE(TODAY(),-60)"),
@@ -115,13 +130,19 @@ export const ensureSchema = withAuthHandling(async (spreadsheetId: string) => {
     };
 
     const initialConfig = [
-        createCurrencyRow('USDILS'), createCurrencyRow('EURILS'), createCurrencyRow('GBPILS'), createCurrencyRow('USDEUR'),
+        createCurrencyRow('USDILS'), createCurrencyRow('ILSUSD'),
+        createCurrencyRow('USDEUR'), createCurrencyRow('EURUSD'),
+        createCurrencyRow('USDGBP'), createCurrencyRow('GBPUSD'),
+        createCurrencyRow('EURILS'), createCurrencyRow('ILSEUR'),
+        createCurrencyRow('GBPILS'), createCurrencyRow('ILSGBP'),
     ];
     await gapi.client.sheets.spreadsheets.values.update({
         spreadsheetId, range: CONFIG_RANGE, valueInputOption: 'USER_ENTERED',
         resource: { values: initialConfig }
     });
-    await setMetadataValue(spreadsheetId, 'schema_created', toGoogleSheetDateFormat(new Date()));
+    
+    // Mark schema as created/updated
+    await setMetadataValue(spreadsheetId, 'schema_created', SHEET_STRUCTURE_VERSION_DATE);
 });
 
 export const fetchHolding = withAuthHandling(async (spreadsheetId: string, ticker: string, exchange: string): Promise<Holding | null> => {
@@ -141,32 +162,20 @@ export const fetchHolding = withAuthHandling(async (spreadsheetId: string, ticke
             return holdingRaw as Holding;
         });
 
-        console.log(`fetchHolding: Searching for ${ticker} on ${exchange}.`);
-
+        // Search for the holding in the mapped data
         const matchingHoldings = allHoldings.filter(h => h.ticker && String(h.ticker).toUpperCase() === ticker.toUpperCase());
-        console.log(`fetchHolding: Found ${matchingHoldings.length} matching holdings for ticker ${ticker}`, matchingHoldings);
-        
         const targetExchange = parseExchange(exchange);
         
+        // Exact match on exchange
         let holding = matchingHoldings.find(h => h.exchange === targetExchange);
         
-        if (!holding) {
-             console.log(`fetchHolding: No exact exchange match for ${exchange}. Checking empty exchange...`);
-        }
-        
+        // Fallback: If no exact exchange match, but only one result exists for this ticker, use it.
+        // This handles cases where the user/system might have inconsistent exchange codes (e.g. 'US' vs 'NASDAQ').
         if (!holding && matchingHoldings.length === 1) {
-            console.log(`fetchHolding: Single result fallback used.`);
-            // Fallback: If only one holding with this ticker exists, assume it's the one
             holding = matchingHoldings[0];
         }
 
-        if (holding) {
-             console.log('fetchHolding: Match found:', holding);
-             return holding as Holding;
-        } else {
-             console.log('fetchHolding: No match found.');
-             return null;
-        }
+        return holding || null;
     } catch (error) {
         console.error(`Error fetching holding for ${ticker}:${exchange}:`, error);
         throw error;
@@ -174,15 +183,77 @@ export const fetchHolding = withAuthHandling(async (spreadsheetId: string, ticke
 });
 
 export const fetchPortfolios = withAuthHandling(async (spreadsheetId: string): Promise<Portfolio[]> => {
-    await ensureGapi();
-    const portfolios = await fetchSheetData(spreadsheetId, PORT_OPT_RANGE, (row) =>
+    const gapi = await ensureGapi();
+    
+    // Batch fetch: Portfolios, Transactions, and Holdings (for price map)
+    const ranges = [PORT_OPT_RANGE, TX_FETCH_RANGE, HOLDINGS_RANGE];
+    const res = await gapi.client.sheets.spreadsheets.values.batchGet({
+        spreadsheetId,
+        ranges,
+        // Use FORMATTED_VALUE to support formula retrieval and match original behavior. 
+        // Our mappers handle numeric parsing (commas, %, etc) robustly.
+        valueRenderOption: 'FORMATTED_VALUE'
+    });
+
+    const valueRanges = res.result.valueRanges;
+    if (!valueRanges || valueRanges.length !== 3) {
+        throw new Error("Failed to fetch all required ranges for portfolios.");
+    }
+
+    const portfolioRows = valueRanges[0].values || [];
+    const transactionRows = valueRanges[1].values || [];
+    const holdingsRows = valueRanges[2].values || [];
+
+    // 1. Process Portfolios
+    const portfolios = portfolioRows.map((row: any[]) => 
         mapRowToPortfolio<Omit<Portfolio, 'holdings'>>(row, portfolioMapping, portfolioNumericKeys)
+    ).filter(Boolean);
+
+    // 2. Process Transactions (Logic copied from fetchTransactions to avoid re-fetch, but reusing the mapper)
+    const transactions = transactionRows.map((row: any[]) => 
+        mapRowToTransaction<Omit<Transaction, 'grossValue'>>(row, transactionMapping, transactionNumericKeys)
+    ).map((t: any) => {
+        const cleanNumber = (val: any) => {
+            if (typeof val === 'number') return val;
+            if (!val) return 0;
+            return parseFloat(String(val).replace(/[^0-9.-]+/g, ""));
+        };
+        
+        if (t.exchange) {
+            t.exchange = parseExchange(t.exchange);
+        } else {
+            t.exchange = undefined;
+        }
+
+        return {
+            ...t,
+            qty: cleanNumber(t.splitAdjustedQty || t.originalQty),
+            price: cleanNumber(t.splitAdjustedPrice || t.originalPrice),
+            grossValue: cleanNumber(t.originalQty) * cleanNumber(t.originalPrice)
+        } as Transaction;
+    });
+
+    // 3. Process Holdings (for price map)
+    const priceMap: Record<string, Omit<SheetHolding, 'qty'>> = {};
+    const priceData = holdingsRows.map((row: any[]) =>
+        mapRowToHolding<Omit<SheetHolding, 'qty'>>(
+            row,
+            holdingMapping,
+            holdingNumericKeys.filter(k => k !== 'qty') as any
+        )
     );
+    
+    priceData.forEach(item => {
+        try {
+            (item as any).exchange = parseExchange((item as any).exchange);
+            const key = `${item.ticker}-${item.exchange}`;
+            priceMap[key] = item;
+        } catch (e) {
+            console.warn(`Skipping holding with invalid exchange: ${(item as any).ticker}`, e);
+        }
+    });
 
-    // 1. Fetch all transactions to calculate holdings from scratch
-    const transactions = await fetchTransactions(spreadsheetId);
-
-    // 2. Calculate holdings quantities from transactions
+    // 4. Calculate holdings quantities from transactions
     const holdingsByPortfolio: Record<string, Record<string, Holding>> = {};
     transactions.forEach(txn => {
         if (txn.type === 'BUY' || txn.type === 'SELL') {
@@ -205,30 +276,7 @@ export const fetchPortfolios = withAuthHandling(async (spreadsheetId: string): P
         }
     });
 
-    // 3. Fetch the aggregated holdings sheet to use as a price map
-    let priceMap: Record<string, Omit<SheetHolding, 'qty'>> = {};
-    try {
-        const priceData = await fetchSheetData(spreadsheetId, HOLDINGS_RANGE, (row: any[]) =>
-            mapRowToHolding<Omit<SheetHolding, 'qty'>>(
-                row,
-                holdingMapping,
-                holdingNumericKeys.filter(k => k !== 'qty') as any
-            )
-        );
-        priceData.forEach(item => {
-            try {
-                (item as any).exchange = parseExchange((item as any).exchange);
-                const key = `${item.ticker}-${item.exchange}`;
-                priceMap[key] = item;
-            } catch (e) {
-                console.warn(`Skipping holding with invalid exchange: ${(item as any).ticker}`, e);
-            }
-        });
-    } catch (e) {
-        console.warn("Holdings sheet (for price data) not found or error fetching:", e);
-    }
-
-    // 4. Attach calculated holdings, enriched with price data, to portfolios
+    // 5. Attach calculated holdings, enriched with price data, to portfolios
     return portfolios.map(p => {
         const portfolioHoldingsRaw = holdingsByPortfolio[p.id] ? Object.values(holdingsByPortfolio[p.id]) : [];
         const enrichedHoldings = portfolioHoldingsRaw
@@ -367,60 +415,50 @@ export const updateHoldingsUserOptions = withAuthHandling(async (spreadsheetId: 
 export const batchAddTransactions = withAuthHandling(async (spreadsheetId: string, transactions: Transaction[]) => {
     const gapi = await ensureGapi();
 
+    // 1. Update user options for dropdowns (e.g., fallback names for tickers).
+    // This is done BEFORE appending transactions to ensure any new ticker/exchange combos 
+    // are registered in the metadata options list if we decided to implement that logic here.
+    // Currently `optionsToUpdate` is empty but the structure allows for it.
     const optionsToUpdate: { ticker: string, exchange: string, name: string }[] = [];
 
     const allValuesToAppend: any[][] = [];
-    transactions.forEach(t => {
-        const rowData: { [key: string]: any } = {};
-        Object.values(TXN_COLS).forEach(colDef => {
-            const key = colDef.key;
-            switch (key) {
-                case 'date': rowData[key] = t.date ? toGoogleSheetDateFormat(new Date(t.date)) : ''; break;
-                case 'ticker': rowData[key] = String(logIfFalsy(t.ticker, `Transaction ticker missing`, t)).toUpperCase(); break;
-                case 'exchange': rowData[key] = toGoogleFinanceExchangeCode(t.exchange!); break;
-                case 'vestDate': rowData[key] = t.vestDate ? toGoogleSheetDateFormat(new Date(t.vestDate)) : ''; break;
-                case 'comment': case 'source': rowData[key] = (t as any)[key] || ''; break;
-                case 'commission': {
-                    const comm = (t as any).commission || 0;
-                    const isILA = (t.currency || '').toUpperCase() === 'ILA';
-                    // If currency is ILA (Agorot), and commission was entered in ILS (standard), store as Agorot.
-                    rowData[key] = isILA ? comm * 100 : comm;
-                    break;
-                }
-                case 'tax': rowData[key] = (t as any)[key] || 0; break;
-                case 'creationDate': {
-                    const cDate = (t as any).creationDate ? new Date((t as any).creationDate) : new Date();
-                    rowData[key] = toGoogleSheetDateFormat(cDate);
-                    break;
-                }
-                case 'origOpenPriceAtCreationDate': rowData[key] = (t as any)[key]; break;
-                default:
-                    if (key in t) {
-                        rowData[key] = (t as any)[key];
-                    }
-            }
-        });
-    });
-
-    if (optionsToUpdate.length > 0) await updateHoldingsUserOptions(spreadsheetId, optionsToUpdate);
-
+    
+    // 2. Prepare data for appending
     transactions.forEach(t => {
         const rowData: { [key: string]: any } = { ...t };
-        // The Transaction object from the UI uses 'numericId', but the sheet schema expects 'numeric_id'.
-        // This ensures the value is correctly picked up when building the row for the sheet.
+        
+        // Normalize specific fields for the sheet
+        rowData.date = t.date ? toGoogleSheetDateFormat(new Date(t.date)) : '';
+        rowData.ticker = String(logIfFalsy(t.ticker, `Transaction ticker missing`, t)).toUpperCase();
+        rowData.exchange = toGoogleFinanceExchangeCode(t.exchange!);
+        rowData.vestDate = t.vestDate ? toGoogleSheetDateFormat(new Date(t.vestDate)) : '';
+        rowData.comment = t.comment || '';
+        rowData.source = t.source || '';
+        rowData.tax = t.tax || 0;
+        
+        // Commission handling: Convert to Agorot if currency is ILA
+        const comm = t.commission || 0;
+        const isILA = (t.currency || '').toUpperCase() === 'ILA';
+        rowData.commission = isILA ? comm * 100 : comm;
+
+        // Creation Date
+        const cDate = t.creationDate ? new Date(t.creationDate) : new Date();
+        rowData.creationDate = toGoogleSheetDateFormat(cDate);
+        
+        // Numeric ID mapping
         rowData.numeric_id = t.numericId;
 
+        // Map to columns in correct order
         const rowValues = Object.values(TXN_COLS).map(colDef => {
-            if (colDef.formula) return null;
+            if (colDef.formula) return null; // Formulas are added separately in step 3
             const key = colDef.key;
-            if (key === 'date' || key === 'vestDate' || key === 'creationDate') {
-                return rowData[key] ? toGoogleSheetDateFormat(new Date(rowData[key])) : '';
-            }
-            if (key === 'exchange') return toGoogleFinanceExchangeCode(rowData[key]);
+            // Use the normalized values from rowData if available, otherwise fallback to t[key]
             return rowData[key] ?? null;
         });
         allValuesToAppend.push(rowValues);
     });
+
+    if (optionsToUpdate.length > 0) await updateHoldingsUserOptions(spreadsheetId, optionsToUpdate);
 
     if (allValuesToAppend.length === 0) return;
 
@@ -432,22 +470,21 @@ export const batchAddTransactions = withAuthHandling(async (spreadsheetId: strin
     const updatedRange = appendResult.result?.updates?.updatedRange;
     if (!updatedRange) throw new Error("Could not determine range of appended rows.");
 
-    // Parse range (e.g. "Transaction_Log!A10:V12") to find start row
+    // Parse range (e.g. "Transaction_Log!A10:V12") to find start row for formula application
     const match = updatedRange.match(/!A(\d+):/);
     if (!match) throw new Error("Could not parse start row number from range: " + updatedRange);
     const startRow = parseInt(match[1]);
 
-    // Apply Formulas
+    // 3. Apply Formulas
+    // We update the formulas for the newly added rows. 
+    // We batch these updates to reduce API calls, though for now we construct one request per cell/formula.
     const formulaColDefs = Object.values(TXN_COLS).filter(colDef => !!colDef.formula);
     const txSheetId = await getSheetId(spreadsheetId, TX_SHEET_NAME);
 
-    // Optimization: Generate one request per column for the entire range, or one request per cell?
-    // Using updateCells with a grid range is better.
-
-    // Actually, we can't easily do one request per column because formula depends on row number.
-    // But we can generate the formulas and send them in one big batchUpdate.
     const formulaRequests: any[] = [];
 
+    // Note: We could potentially optimize this to one request per column block, 
+    // but formula generation logic currently depends on `rowNum` individually.
     for (let i = 0; i < transactions.length; i++) {
         const rowNum = startRow + i;
         formulaColDefs.forEach((colDef) => {
@@ -464,12 +501,11 @@ export const batchAddTransactions = withAuthHandling(async (spreadsheetId: strin
     }
 
     if (formulaRequests.length > 0) {
-        // Batch requests in chunks if too large (Google limit is around 100k requests but payload size matters)
-        // For test data (few rows), one batch is fine.
         await gapi.client.sheets.spreadsheets.batchUpdate({ spreadsheetId, resource: { requests: formulaRequests } });
     }
 
-    // Only rebuild holdings once after batch insert
+    // 4. Rebuild Holdings
+    // This is a full sync of the holdings sheet based on all transactions.
     await rebuildHoldingsSheet(spreadsheetId);
 });
 
@@ -662,90 +698,108 @@ export const fetchSheetExchangeRates = withAuthHandling(async (spreadsheetId: st
         rawPairs[period] = {};
     }
 
-    // Pass 1: Collect all raw pairs
-    if (rows.length > 0) {
-        console.log('fetchSheetExchangeRates: First row raw:', rows[0]);
-    } else {
+    if (rows.length === 0) {
         console.warn('fetchSheetExchangeRates: No rows returned from sheet.');
+        return allRates;
     }
 
+    // 1. Collect Raw Pairs
     rows.forEach((r: any[]) => {
         const rawKey = r[keyIndex];
         const pair = typeof rawKey === 'string' ? rawKey.trim().toUpperCase() : '';
-        
-        // Debug specific pairs
-        if (pair.includes('ILS')) {
-             console.log(`fetchSheetExchangeRates: Found pair ${pair}. Raw row:`, r);
-        }
-
         if (!pair || pair.length !== 6) return;
 
         for (const period in periodIndices) {
             const index = periodIndices[period];
             const val = Number(r[index]);
-
             if (!isNaN(val) && val !== 0) {
                 rawPairs[period][pair] = val;
-            } else if (pair === 'USDILS' && period === 'current') {
-                 console.warn(`fetchSheetExchangeRates: USDILS current value invalid: ${r[index]} (parsed: ${val})`);
             }
         }
     });
 
-    // Pass 2: Derive rates
-    for (const period in periodIndices) {
+    // 2. Resolve Rates using Graph for each period
+    // We process 'ago1d' and 'current' first to establish baselines
+    const sortedPeriods = ['ago1d', 'current', ...Object.keys(periodIndices).filter(p => p !== 'current' && p !== 'ago1d')];
+
+    for (const period of sortedPeriods) {
         const periodRaw = rawPairs[period];
         const rates = allRates[period];
+        
+        // Build adjacency list for this period
+        const graph: Record<string, Record<string, number>> = {};
+        const nodes = new Set<string>(['USD']);
+        
+        // Helper to add edge
+        const addEdge = (from: string, to: string, rate: number) => {
+            if (!graph[from]) graph[from] = {};
+            graph[from][to] = rate;
+        };
 
-        // 2a. Direct USD pairs (USDXXX or XXXUSD)
         Object.keys(periodRaw).forEach(pair => {
             const val = periodRaw[pair];
-            if (pair.startsWith('USD')) {
-                const target = pair.substring(3);
-                rates[target] = val;
-            } else if (pair.endsWith('USD')) {
-                const source = pair.substring(0, 3);
-                rates[source] = 1 / val;
+            if (val > 0) {
+                const from = pair.substring(0, 3);
+                const to = pair.substring(3, 6);
+                addEdge(from, to, val);
+                addEdge(to, from, 1/val);
+                nodes.add(from);
+                nodes.add(to);
             }
         });
 
-        // 2b. Cross rates via ILS (e.g. GBPILS)
-        // Only if we have a valid ILS rate (ILS per USD)
-        if (rates['ILS']) {
-            Object.keys(periodRaw).forEach(pair => {
-                const val = periodRaw[pair];
-                if (pair.endsWith('ILS') && !pair.startsWith('USD')) {
-                    const source = pair.substring(0, 3);
-                    // pair is SourceILS (ILS per Source). val = ILS / Source.
-                    // rates['ILS'] is ILS / USD.
-                    // We want Source / USD.
-                    // Source / USD = (Source / ILS) * (ILS / USD)
-                    //              = (1 / val) * rates['ILS']
-                    if (!rates[source]) { // Don't overwrite if we had a direct USD quote
-                        rates[source] = rates['ILS'] / val;
+        // BFS/Lookup to find rate from USD to every other node
+        nodes.forEach(target => {
+            if (target === 'USD') return;
+
+            // 1. Direct?
+            if (graph['USD']?.[target]) {
+                rates[target] = graph['USD'][target];
+                return;
+            }
+
+            // 2. Length 2 Chain? (USD -> Inter -> Target)
+            if (graph['USD']) {
+                for (const inter in graph['USD']) {
+                    if (graph[inter]?.[target]) {
+                        const rate1 = graph['USD'][inter];
+                        const rate2 = graph[inter][target];
+                        rates[target] = rate1 * rate2;
+                        return;
                     }
                 }
-            });
+            }
+        });
+
+        // 3. Fallback logic:
+        // If 'current' rate is missing, fallback to 'ago1d'. 
+        // We do NOT fallback for other historical periods (user preference).
+        if (period === 'current') {
+             const fallbackRates = allRates['ago1d'];
+             const knownCurrencies = Object.keys(fallbackRates);
+             knownCurrencies.forEach(curr => {
+                 // If current rate is missing (0 or undefined), but we have a 1-day-old rate, use it.
+                 if (curr !== 'USD' && (!rates[curr] || rates[curr] === 0)) {
+                     const fallback = fallbackRates[curr];
+                     if (fallback && fallback > 0) {
+                         rates[curr] = fallback;
+                     }
+                 }
+             });
         }
     }
 
-    for (const period in periodIndices) {
-        if (!allRates[period]['ILS'] || isNaN(allRates[period]['ILS'])) { 
-            console.error(`Missing or Invalid USDILS rate for ${period} (val: ${allRates[period]['ILS']}). Defaulting to 0.`); 
-            allRates[period]['ILS'] = 0; 
+    // Default missing major currencies to 0 to avoid crashes, but log warning
+    ['ILS', 'EUR', 'GBP'].forEach(curr => {
+        for (const period in periodIndices) {
+            if (!allRates[period][curr] || isNaN(allRates[period][curr])) {
+                allRates[period][curr] = 0;
+            }
         }
-        if (!allRates[period]['EUR'] || isNaN(allRates[period]['EUR'])) { 
-            console.error(`Missing or Invalid USDEUR rate for ${period} (val: ${allRates[period]['EUR']}). Defaulting to 0.`); 
-            allRates[period]['EUR'] = 0; 
-        }
-        if (!allRates[period]['GBP'] || isNaN(allRates[period]['GBP'])) { 
-            console.error(`Missing or Invalid USDGBP rate for ${period} (val: ${allRates[period]['GBP']}). Defaulting to 0.`); 
-            allRates[period]['GBP'] = 0; 
-        }
-    }
+    });
 
     return allRates;
 });
 
-// Add this missing function
-export { getUsdIlsFormula } from './formulas';
+// Remove unused function export
+export {};

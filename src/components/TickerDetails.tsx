@@ -411,9 +411,9 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
             <Box mt={2} display="flex" justifyContent="flex-end" alignItems="center" gap={1}>
               <Typography variant="caption" color="text.secondary">
                 {data?.timestamp
-                  ? `${t('Live from', 'מידע חי מ-')} ${data.source || 'API'}: ${formatTimestamp(data.timestamp)}`
+                  ? `${t('Data source:', 'מקור המידע:')} ${data.source || 'API'}: ${formatTimestamp(data.timestamp)}`
                   : sheetRebuildTime
-                    ? `${t('From Google Sheets', 'Google Sheets')}: ${formatTimestamp(sheetRebuildTime)}`
+                    ? `${t('Data from Google Sheets', 'מידע מ- Google Sheets')}: ${formatTimestamp(sheetRebuildTime)}`
                     : t('Freshness N/A', 'אין מידע על עדכון')}
               </Typography>
               <Tooltip title={t("Refresh Data", "רענן נתונים")}>

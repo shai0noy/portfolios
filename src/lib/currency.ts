@@ -109,11 +109,11 @@ export function convertCurrency(amount: number, from: Currency | string, to: Cur
   const toRate = currentRates[toNorm === Currency.ILA ? Currency.ILS : toNorm]; 
 
   if ((fromNorm !== Currency.USD && fromNorm !== Currency.ILA) && !fromRate) {
-      console.error(`convertCurrency: Missing or zero rate for source currency: ${fromNorm} (rate: ${fromRate}). returning 0.`);
+      console.warn(`convertCurrency: Missing or zero rate for source currency: ${fromNorm} (rate: ${fromRate}). returning 0.`);
       return 0;
   }
   if ((toNorm !== Currency.USD && toNorm !== Currency.ILA) && !toRate) {
-      console.error(`convertCurrency: Missing or zero rate for target currency: ${toNorm} (rate: ${toRate}). returning 0.`);
+      console.warn(`convertCurrency: Missing or zero rate for target currency: ${toNorm} (rate: ${toRate}). returning 0.`);
       return 0;
   }
 

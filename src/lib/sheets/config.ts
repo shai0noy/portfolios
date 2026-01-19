@@ -1,7 +1,6 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { Portfolio, Transaction, Holding } from '../types';
 import type { TransactionColumns } from './types'; // Import from a new local types file
-import { getUsdIlsFormula } from './formulas';
+import { getHistoricalPriceFormula } from './formulas';
 
 // --- Column Definitions ---
 
@@ -28,7 +27,8 @@ export const TXN_COLS: TransactionColumns = {
             const txnCurr = `${cols.currency.colId}${rowNum}`;
             const origPrice = `${cols.originalPrice.colId}${rowNum}`;
             const txnDate = `${cols.date.colId}${rowNum}`;
-            const usdToIlsFormula = getUsdIlsFormula(txnDate);
+            // Use standard formula; robustness handled by having multiple pairs in config or manual overrides if needed for transactions
+            const usdToIlsFormula = getHistoricalPriceFormula('USDILS', txnDate, true);
             // ILA is 1/100 of ILS.
             // If txn in ILS, value is already in ILS major units (e.g. 1.50). In ILA it is 150.
             return `=IF(${txnCurr}="ILA", ${origPrice}, IF(${txnCurr}="ILS", ${origPrice}*100, IF(${txnCurr}="USD", ${origPrice} * ${usdToIlsFormula} * 100, ${origPrice} * INDEX(GOOGLEFINANCE("CURRENCY:" & ${txnCurr} & "ILS", "price", ${txnDate}), 2, 2) * 100)))`;
@@ -45,7 +45,7 @@ export const TXN_COLS: TransactionColumns = {
             const txnCurr = `${cols.currency.colId}${rowNum}`;
             const origPrice = `${cols.originalPrice.colId}${rowNum}`;
             const txnDate = `${cols.date.colId}${rowNum}`;
-            const usdIlsFormula = getUsdIlsFormula(txnDate);
+            const usdIlsFormula = getHistoricalPriceFormula('USDILS', txnDate, true);
 
             // If already USD, return price.
             // If ILS, divide by USDILS rate.
@@ -158,7 +158,8 @@ export const holdingsUserOptionsHeaders = ['Ticker', 'Exchange', 'Fallback_Name'
 export type Headers = readonly string[];
 
 export const DEFAULT_SHEET_NAME = 'Portfolios_App_Data';
-export const PORT_OPT_RANGE = `Portfolio_Options!A2:${String.fromCharCode(65 + portfolioHeaders.length - 1)}`;
+export const PORTFOLIO_SHEET_NAME = 'Portfolio_Options';
+export const PORT_OPT_RANGE = `${PORTFOLIO_SHEET_NAME}!A2:${String.fromCharCode(65 + portfolioHeaders.length - 1)}`;
 export const TX_SHEET_NAME = 'Transaction_Log';
 export const TX_FETCH_RANGE = `${TX_SHEET_NAME}!A2:${String.fromCharCode(65 + transactionHeaders.length - 1)}`;
 export const CONFIG_SHEET_NAME = 'Currency_Conversions';
@@ -173,7 +174,7 @@ export const HOLDINGS_USER_OPTIONS_RANGE = `${HOLDINGS_USER_OPTIONS_SHEET_NAME}!
 
 // Manually update this date (YYYY-MM-DD) whenever the schema (columns, formulas) changes.
 // The app will verify if the sheet's last setup date is older than this.
-export const SHEET_STRUCTURE_VERSION_DATE = '2026-01-13';
+export const SHEET_STRUCTURE_VERSION_DATE = '2026-01-20';
 
 // --- Mappings from Sheet Headers to Typescript Object Keys ---
 

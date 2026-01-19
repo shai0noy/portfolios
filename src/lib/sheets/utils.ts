@@ -78,6 +78,50 @@ export async function getSheetId(spreadsheetId: string, sheetName: string, creat
 }
 
 /**
+ * Ensures that the specified sheets exist in the spreadsheet, creating them if necessary.
+ * Returns a map of sheet names to their IDs.
+ * @param spreadsheetId The ID of the spreadsheet.
+ * @param sheetNames The list of sheet names to ensure exist.
+ */
+export async function ensureSheets(spreadsheetId: string, sheetNames: readonly string[]): Promise<Record<string, number>> {
+    await ensureGapi();
+    const gapi = (window as any).gapi;
+    
+    // 1. Fetch existing sheets
+    const res = await gapi.client.sheets.spreadsheets.get({ spreadsheetId });
+    const existingSheets = res.result.sheets || [];
+    const sheetMap: Record<string, number> = {};
+    const missingSheets: string[] = [];
+
+    sheetNames.forEach(name => {
+        const match = existingSheets.find((s: any) => s.properties.title === name);
+        if (match) {
+            sheetMap[name] = match.properties.sheetId;
+        } else {
+            missingSheets.push(name);
+        }
+    });
+
+    // 2. Create missing sheets in batch
+    if (missingSheets.length > 0) {
+        const requests = missingSheets.map(title => ({ addSheet: { properties: { title } } }));
+        const batchRes = await gapi.client.sheets.spreadsheets.batchUpdate({
+            spreadsheetId,
+            resource: { requests }
+        });
+        
+        batchRes.result.replies?.forEach((reply: any) => {
+             const props = reply.addSheet.properties;
+             // We assume the order matches, but we can also trust the title in the response if available
+             // (The addSheet response contains the properties of the created sheet)
+             sheetMap[props.title] = props.sheetId;
+        });
+    }
+    
+    return sheetMap;
+}
+
+/**
  * Creates a request object to update the header row of a sheet.
  * @param sheetId The ID of the sheet.
  * @param headers The headers to set.
