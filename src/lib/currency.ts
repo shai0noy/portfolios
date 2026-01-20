@@ -138,32 +138,36 @@ export const calculatePerformanceInDisplayCurrency = (
   currentPrice: number,
   stockCurrency: Currency | string,
   perfPct: number,
-  period: string,
   displayCurrency: string,
   exchangeRates: ExchangeRates
 ) => {
-  if (!perfPct) return { changeVal: 0, changePct1d: 0 };
-  
-  // NOTE: currentPrice is expected to be in MAJOR units (ILS, USD) as per new rule.
-  
+  if (!perfPct || isNaN(perfPct)) return { changeVal: 0, changePct1d: 0 };
+
   const normStockCurrency = normalizeCurrency(stockCurrency as string);
   const normDisplayCurrency = normalizeCurrency(displayCurrency);
 
-  // Convert current price to Display Currency
-  const priceDisplayNow = convertCurrency(currentPrice, normStockCurrency, normDisplayCurrency, exchangeRates);
+  // Handle -100% change edge case to prevent division by zero
+  if (Math.abs(1 + perfPct) < 1e-9) {
+    const priceDisplayNow = convertCurrency(currentPrice, normStockCurrency, normDisplayCurrency, exchangeRates);
+    return { changeVal: -priceDisplayNow, changePct1d: -1 };
+  }
 
-  // Infer previous price in Stock Currency
+  // --- REVISED LOGIC ---
+  // Perform all calculations in the stock's native currency first, then convert the final result.
+  // This prevents historical exchange rate fluctuations from distorting the daily change value.
+
+  // 1. Calculate previous price and change in the stock's currency
   const prevPriceStock = currentPrice / (1 + perfPct);
-  
-  // Handle historical rates
-  const historicalRates = (exchangeRates[period] as Record<string, number>) || exchangeRates.current;
-  
-  const prevPriceDisplay = convertCurrency(prevPriceStock, normStockCurrency, normDisplayCurrency, historicalRates);
+  const changeValStock = currentPrice - prevPriceStock;
 
-  const changeVal = priceDisplayNow - prevPriceDisplay;
-  const changePct1d = prevPriceDisplay !== 0 ? changeVal / prevPriceDisplay : 0;
+  // 2. Convert the final change value to the display currency using ONLY current rates for consistency
+  const changeValDisplay = convertCurrency(changeValStock, normStockCurrency, normDisplayCurrency, exchangeRates.current);
 
-  return { changeVal, changePct1d };
+  // 3. Percentage change is independent of currency, but we recalculate for precision
+  const prevPriceDisplay = convertCurrency(prevPriceStock, normStockCurrency, normDisplayCurrency, exchangeRates.current);
+  const changePctDisplay = prevPriceDisplay !== 0 ? changeValDisplay / prevPriceDisplay : 0;
+  
+  return { changeVal: changeValDisplay, changePct1d: changePctDisplay };
 };
 
 export const calculateHoldingDisplayValues = (h: DashboardHolding, displayCurrency: string, exchangeRates: ExchangeRates) => {

@@ -104,32 +104,25 @@ export function calculateDashboardSummary(data: DashboardHolding[], displayCurre
     acc.totalDividendsDisplay += vals.dividends;
     acc.totalReturnDisplay += vals.totalGain;
 
-    if (h.dayChangePct !== 0) {
-        const { changeVal } = calculatePerformanceInDisplayCurrency(
-            h.currentPrice, h.stockCurrency,
-            h.dayChangePct, 'ago1d', displayCurrency, exchangeRates
-        );
-        acc.totalDayChange += changeVal * h.totalQty;
+    if (h.dayChangePct !== 0 && isFinite(h.dayChangePct)) {
+        const marketValueDisplay = vals.marketValue;
+        // Formula: change = final_value * pct_change / (1 + pct_change)
+        // This derives the absolute change from the final value and the percentage.
+        const changeValDisplay = marketValueDisplay * h.dayChangePct / (1 + h.dayChangePct);
+
+        acc.totalDayChange += changeValDisplay;
         acc.aumWithDayChangeData += vals.marketValue;
         acc.holdingsWithDayChange++;
     }
     
-    const periodMap: Record<string, string> = {
-        perf1w: 'ago1w',
-        perf1m: 'ago1m',
-        perf3m: 'ago3m',
-        perfYtd: 'ytd',
-        perf1y: 'ago1y',
-        perf3y: 'ago3y',
-        perf5y: 'ago5y',
-    };
-
+    // Note: The loop below for perfPeriods is for longer-term calculations and uses a different approach.
+    // The daily change is a special case handled above.
     for (const [key, holdingKey] of Object.entries(perfPeriods)) {
         const perf = h[holdingKey as keyof DashboardHolding] as number;
         if (perf && !isNaN(perf)) {
             const { changeVal } = calculatePerformanceInDisplayCurrency(
                 h.currentPrice, h.stockCurrency,
-                perf, periodMap[key], displayCurrency, exchangeRates
+                perf, displayCurrency, exchangeRates
             );
             
             const currentMVDisplay = vals.marketValue;
