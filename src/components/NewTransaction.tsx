@@ -10,11 +10,11 @@ import SearchIcon from '@mui/icons-material/Search';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import { parseExchange, type Portfolio, type Transaction } from '../lib/types';
-import { addTransaction, fetchPortfolios } from '../lib/sheets/index';
+import { addTransaction, fetchPortfolios, addExternalPrice } from '../lib/sheets/index';
 import { getTickerData, type TickerData } from '../lib/fetching';
 import { TickerSearch } from './TickerSearch'; 
 import { convertCurrency, formatPrice, getExchangeRates, normalizeCurrency } from '../lib/currency';
-import { Currency, type ExchangeRates } from '../lib/types';
+import { Currency, type ExchangeRates, Exchange } from '../lib/types';
 import { useLanguage } from '../lib/i18n';
 
 interface Props {
@@ -26,7 +26,7 @@ interface Props {
 export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Props) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const locationState = location.state as { prefilledTicker?: string, prefilledExchange?: string, initialPrice?: string, initialCurrency?: string, numericId?: number } | null;
+  const locationState = location.state as { prefilledTicker?: string, prefilledExchange?: string, initialPrice?: string, initialCurrency?: string, numericId?: number, initialName?: string, initialNameHe?: string } | null;
 
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [isPortfoliosLoading, setIsPortfoliosLoading] = useState(true);
@@ -47,7 +47,12 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   const [exchange, setExchange] = useState(locationState?.prefilledExchange || '');
   const [type, setType] = useState<'BUY' | 'SELL' | 'DIVIDEND' | 'FEE'>('BUY');
   const [qty, setQty] = useState<string>('');
-  const [price, setPrice] = useState<string>(locationState?.initialPrice || '');
+  const [price, setPrice] = useState<string>(() => {
+      const p = locationState?.initialPrice;
+      if (!p) return '';
+      const num = parseFloat(p);
+      return isNaN(num) ? p : parseFloat(num.toFixed(6)).toString();
+  });
   const [total, setTotal] = useState<string>('');
   const [vestDate, setVestDate] = useState('');
   const [comment, setComment] = useState('');
@@ -68,10 +73,20 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
         const data = await getTickerData(locationState.prefilledTicker!, locationState.prefilledExchange || '',
           locationState.numericId || null, undefined, false);
         
+        console.log('NewTransaction data:', data);
+        console.log('NewTransaction locationState:', locationState);
+
         if (data) {
-          const combinedData = { ...data, symbol: locationState.prefilledTicker!, exchange: data.exchange || locationState.prefilledExchange || '', numericId: locationState.numericId || data.numericId };
+          const combinedData = { 
+            ...data, 
+            symbol: locationState.prefilledTicker!, 
+            exchange: data.exchange || locationState.prefilledExchange || '', 
+            numericId: locationState.numericId || data.numericId,
+            name: data.name || locationState.initialName,
+            nameHe: data.nameHe || locationState.initialNameHe
+          };
           setSelectedTicker(combinedData as any);
-          setPrice(data.price?.toString() || '');
+          setPrice(data.price ? parseFloat(data.price.toFixed(6)).toString() : '');
           setTickerCurrency(normalizeCurrency(data.currency || ''));
           setExchange(data.exchange || locationState.prefilledExchange || '');
           setTicker(locationState.prefilledTicker!)
@@ -107,7 +122,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     setShowForm(true); // Show form immediately
     setPriceError('');
     if (selected.price) {
-      setPrice(selected.price.toString());
+      setPrice(parseFloat(selected.price.toFixed(6)).toString());
       setTickerCurrency(normalizeCurrency(selected.currency || ''));
     } else {
       setPrice('');
@@ -163,7 +178,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     if (Number.isFinite(q) && Number.isFinite(p)) {
       const rawTotal = q * p;
       const displayTotal = convertCurrency(rawTotal, tickerCurrency, majorCurrency, exchangeRates);
-      setTotal(displayTotal.toFixed(2));
+      setTotal(parseFloat(displayTotal.toFixed(6)).toString());
     }
   };
 
@@ -174,7 +189,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     if (Number.isFinite(q) && Number.isFinite(p)) {
       const rawTotal = q * p;
       const displayTotal = convertCurrency(rawTotal, tickerCurrency, majorCurrency, exchangeRates);
-      setTotal(displayTotal.toFixed(2));
+      setTotal(parseFloat(displayTotal.toFixed(6)).toString());
     }
   };
 
@@ -188,9 +203,9 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
       const tRaw = convertCurrency(tDisplay, majorCurrency, tickerCurrency, exchangeRates);
 
       if (Number.isFinite(p) && Math.abs(p) > EPS) {
-        setQty((tRaw / p).toFixed(4));
+        setQty(parseFloat((tRaw / p).toFixed(6)).toString());
       } else if (Number.isFinite(q) && Math.abs(q) > EPS) {
-        setPrice((tRaw / q).toFixed(4));
+        setPrice(parseFloat((tRaw / q).toFixed(6)).toString());
       }
     }
   };
@@ -254,6 +269,24 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
       };
 
       await addTransaction(sheetId, txn);
+
+      // If GEMEL, also save the fetched price to external holdings for history
+      if (parseExchange(exchange) === Exchange.GEMEL && selectedTicker?.price && selectedTicker?.timestamp) {
+          try {
+              // Note: We use the fetched price/date, NOT the transaction price/date
+              await addExternalPrice(
+                  sheetId, 
+                  ticker, 
+                  Exchange.GEMEL, 
+                  new Date(selectedTicker.timestamp), 
+                  selectedTicker.price, 
+                  normalizeCurrency(selectedTicker.currency || 'ILS')
+              );
+          } catch (err) {
+              console.warn("Failed to add external price for GEMEL txn:", err);
+          }
+      }
+
       setSaveSuccess(true);
       if (onSaveSuccess) {
         onSaveSuccess();
@@ -371,9 +404,9 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                     onClick={handleViewTicker}
                     sx={{ cursor: 'pointer' }}
                   />
-                  {price && !isNaN(parseFloat(price)) && (
+                  {selectedTicker?.price && (
                     <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
-                      {formatPrice(parseFloat(price), tickerCurrency, 2, t)}
+                      {formatPrice(selectedTicker.price, tickerCurrency, 2, t)}
                     </Typography>
                   )}
                   {selectedTicker?.source && (

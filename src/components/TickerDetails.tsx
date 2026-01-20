@@ -156,6 +156,8 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
         initialPrice: data?.price?.toString(),
         initialCurrency: data?.currency,
         numericId: data?.numericId || holdingData?.numericId,
+        initialName: resolvedName,
+        initialNameHe: resolvedNameHe
       }
     });
   };

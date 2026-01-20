@@ -153,7 +153,6 @@ export const holdingsHeaders = [
     'Change_1W', 'Change_1M', 'Change_3M', 'Change_YTD', 'Change_1Y', 'Change_3Y', 'Change_5Y', 'Change_10Y', 'Numeric_ID', 'Recent_Change_Days'
 ] as const;
 export const configHeaders = ['Key', 'Value', '1D Ago', '1W Ago', '1M Ago', '3M Ago', '6M Ago', 'YTD', '1Y Ago', '3Y Ago', '5Y Ago'] as const;
-export const holdingsUserOptionsHeaders = ['Ticker', 'Exchange', 'Fallback_Name'] as const;
 
 export type Headers = readonly string[];
 
@@ -169,8 +168,10 @@ export const metadataHeaders = ['Key', 'Value'] as const;
 export const METADATA_RANGE = METADATA_SHEET + '!A:B';
 export const HOLDINGS_SHEET = 'Holdings';
 export const HOLDINGS_RANGE = `${HOLDINGS_SHEET}!A2:${String.fromCharCode(65 + holdingsHeaders.length - 1)}`;
-export const HOLDINGS_USER_OPTIONS_SHEET_NAME = 'HoldingsUserOptions';
-export const HOLDINGS_USER_OPTIONS_RANGE = `${HOLDINGS_USER_OPTIONS_SHEET_NAME}!A2:C`;
+
+export const EXTERNAL_DATASETS_SHEET_NAME = 'External_Datasets';
+export const externalDatasetsHeaders = ['Ticker', 'Exchange', 'Date', 'Price', 'Currency'] as const;
+export const EXTERNAL_DATASETS_RANGE = `${EXTERNAL_DATASETS_SHEET_NAME}!A2:E`;
 
 // Manually update this date (YYYY-MM-DD) whenever the schema (columns, formulas) changes.
 // The app will verify if the sheet's last setup date is older than this.

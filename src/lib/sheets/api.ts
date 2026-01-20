@@ -2,13 +2,15 @@
 import { ensureGapi, findSpreadsheetByName } from '../google';
 import { getTickerData, type TickerData } from '../fetching';
 import { toGoogleSheetDateFormat } from '../date';
-import { type Portfolio, type Transaction, type Holding, Exchange, parseExchange, toGoogleSheetsExchangeCode } from '../types';
+import { type Portfolio, type Transaction, type Holding, Exchange, parseExchange, toGoogleSheetsExchangeCode, Currency } from '../types';
+import { normalizeCurrency } from '../currency';
 import {
     TXN_COLS, transactionHeaders, transactionMapping, transactionNumericKeys,
     portfolioHeaders, holdingsHeaders, configHeaders, portfolioMapping, portfolioNumericKeys,
-    holdingMapping, holdingNumericKeys, holdingsUserOptionsHeaders, type Headers, DEFAULT_SHEET_NAME, PORT_OPT_RANGE, type SheetHolding,
-    TX_SHEET_NAME, TX_FETCH_RANGE, CONFIG_SHEET_NAME, CONFIG_RANGE, METADATA_SHEET, HOLDINGS_USER_OPTIONS_SHEET_NAME, HOLDINGS_USER_OPTIONS_RANGE,
-    metadataHeaders, METADATA_RANGE, HOLDINGS_SHEET, HOLDINGS_RANGE, SHEET_STRUCTURE_VERSION_DATE
+    holdingMapping, holdingNumericKeys, type Headers, DEFAULT_SHEET_NAME, PORT_OPT_RANGE, type SheetHolding,
+    TX_SHEET_NAME, TX_FETCH_RANGE, CONFIG_SHEET_NAME, CONFIG_RANGE, METADATA_SHEET, 
+    metadataHeaders, METADATA_RANGE, HOLDINGS_SHEET, HOLDINGS_RANGE, SHEET_STRUCTURE_VERSION_DATE,
+    EXTERNAL_DATASETS_SHEET_NAME, externalDatasetsHeaders, EXTERNAL_DATASETS_RANGE
 } from './config';
 import { getHistoricalPriceFormula } from './formulas';
 import { logIfFalsy } from '../utils';
@@ -64,7 +66,7 @@ export const ensureSchema = withAuthHandling(async (spreadsheetId: string) => {
         HOLDINGS_SHEET, 
         CONFIG_SHEET_NAME, 
         METADATA_SHEET, 
-        HOLDINGS_USER_OPTIONS_SHEET_NAME
+        EXTERNAL_DATASETS_SHEET_NAME
     ] as const;
     
     // ensureSheets returns a map of { SheetName: SheetID }
@@ -82,7 +84,7 @@ export const ensureSchema = withAuthHandling(async (spreadsheetId: string) => {
                 createHeaderUpdateRequest(sheetIds[HOLDINGS_SHEET], holdingsHeaders as unknown as Headers),
                 createHeaderUpdateRequest(sheetIds[CONFIG_SHEET_NAME], configHeaders as unknown as Headers),
                 createHeaderUpdateRequest(sheetIds[METADATA_SHEET], metadataHeaders as unknown as Headers),
-                createHeaderUpdateRequest(sheetIds[HOLDINGS_USER_OPTIONS_SHEET_NAME], holdingsUserOptionsHeaders as unknown as Headers),
+                createHeaderUpdateRequest(sheetIds[EXTERNAL_DATASETS_SHEET_NAME], externalDatasetsHeaders as unknown as Headers),
                 
                 // 3. Format Date columns in Transaction Log (A=date, K=vestDate, P=Creation_Date) to YYYY-MM-DD
                 // This ensures dates entered via code or UI appear correctly in the sheet.
@@ -381,59 +383,8 @@ export const addTransaction = withAuthHandling(async (spreadsheetId: string, t: 
     await batchAddTransactions(spreadsheetId, [t]);
 });
 
-export const updateHoldingsUserOptions = withAuthHandling(async (spreadsheetId: string, optionsToUpdate: { ticker: string, exchange: string, name: string }[]) => {
-    if (!optionsToUpdate || optionsToUpdate.length === 0) {
-        return;
-    }
-
-    const gapi = await ensureGapi();
-
-    const existingOptions: { ticker: string, exchange: string, name: string }[] = [];
-    try {
-        const res = await gapi.client.sheets.spreadsheets.values.get({
-            spreadsheetId,
-            range: HOLDINGS_USER_OPTIONS_RANGE,
-        });
-        (res.result.values || []).forEach((row: any[]) => {
-            if (row[0] && row[1]) { // Must have ticker and exchange
-                existingOptions.push({ ticker: row[0], exchange: row[1], name: row[2] || '' });
-            }
-        });
-    } catch (e: any) {
-        if (e.result?.error?.code === 400 && e.result?.error?.message.includes('Unable to parse range')) {
-            console.log('HoldingsUserOptions sheet not found, will create.');
-        } else {
-            console.error('Error fetching HoldingsUserOptions:', e);
-            throw e;
-        }
-    }
-
-    const finalOptions = new Map<string, { ticker: string, exchange: string, name: string }>();
-    existingOptions.forEach(opt => finalOptions.set(`${opt.ticker}-${opt.exchange}`, opt));
-    optionsToUpdate.forEach(opt => {
-        if (opt.name) {
-            finalOptions.set(`${opt.ticker}-${toGoogleSheetsExchangeCode(parseExchange(opt.exchange))}`, { ticker: opt.ticker, exchange: toGoogleSheetsExchangeCode(parseExchange(opt.exchange)), name: opt.name });
-        }
-    });
-
-    const dataToWrite = Array.from(finalOptions.values()).map(opt => [opt.ticker, opt.exchange, opt.name]);
-    if (dataToWrite.length === 0) return;
-
-    const range = `${HOLDINGS_USER_OPTIONS_SHEET_NAME}!A2:${String.fromCharCode(65 + holdingsUserOptionsHeaders.length - 1)}`;
-    await gapi.client.sheets.spreadsheets.values.clear({ spreadsheetId, range, resource: {} });
-    await gapi.client.sheets.spreadsheets.values.update({
-        spreadsheetId, range: `${HOLDINGS_USER_OPTIONS_SHEET_NAME}!A2`, valueInputOption: 'USER_ENTERED', resource: { values: dataToWrite }
-    });
-});
-
 export const batchAddTransactions = withAuthHandling(async (spreadsheetId: string, transactions: Transaction[]) => {
     const gapi = await ensureGapi();
-
-    // 1. Update user options for dropdowns (e.g., fallback names for tickers).
-    // This is done BEFORE appending transactions to ensure any new ticker/exchange combos 
-    // are registered in the metadata options list if we decided to implement that logic here.
-    // Currently `optionsToUpdate` is empty but the structure allows for it.
-    const optionsToUpdate: { ticker: string, exchange: string, name: string }[] = [];
 
     const allValuesToAppend: any[][] = [];
     
@@ -471,8 +422,6 @@ export const batchAddTransactions = withAuthHandling(async (spreadsheetId: strin
         });
         allValuesToAppend.push(rowValues);
     });
-
-    if (optionsToUpdate.length > 0) await updateHoldingsUserOptions(spreadsheetId, optionsToUpdate);
 
     if (allValuesToAppend.length === 0) return;
 
@@ -842,6 +791,70 @@ export const fetchSheetExchangeRates = withAuthHandling(async (spreadsheetId: st
     });
 
     return allRates;
+});
+
+export const addExternalPrice = withAuthHandling(async (spreadsheetId: string, ticker: string, exchange: Exchange, date: Date, price: number, currency: Currency) => {
+    const gapi = await ensureGapi();
+    const row = [ticker, toGoogleSheetsExchangeCode(exchange), toGoogleSheetDateFormat(date), price, currency];
+    await gapi.client.sheets.spreadsheets.values.append({
+        spreadsheetId, range: EXTERNAL_DATASETS_RANGE, valueInputOption: 'USER_ENTERED',
+        insertDataOption: 'INSERT_ROWS', resource: { values: [row] }
+    });
+});
+
+export const getExternalPrices = withAuthHandling(async (spreadsheetId: string): Promise<Record<string, { date: Date, price: number, currency: Currency }[]>> => {
+    const gapi = await ensureGapi();
+    try {
+        const res = await gapi.client.sheets.spreadsheets.values.get({
+            spreadsheetId, range: EXTERNAL_DATASETS_RANGE, valueRenderOption: 'UNFORMATTED_VALUE'
+        });
+        const rows = res.result.values || [];
+        const prices: Record<string, { date: Date, price: number, currency: Currency }[]> = {};
+
+        rows.forEach((row: any[]) => {
+            if (!row[0] || !row[1] || !row[3]) return; // Ticker, Exchange, Price required
+            
+            let exchange: Exchange;
+            try {
+                 exchange = parseExchange(row[1]);
+            } catch (e) {
+                return;
+            }
+            
+            const key = `${exchange}:${row[0].toString().toUpperCase()}`;
+            if (!prices[key]) prices[key] = [];
+            
+            // Date handling: Sheets might return number (OADate) or string
+            let dateVal: Date;
+            const rawDate = row[2];
+            if (typeof rawDate === 'number') {
+                 // OADate conversion (approximate, Google Sheets base date Dec 30 1899)
+                 dateVal = new Date((rawDate - 25569) * 86400 * 1000);
+            } else {
+                 dateVal = new Date(rawDate);
+            }
+            
+            if (isNaN(dateVal.getTime())) return; // Invalid date
+
+            prices[key].push({
+                date: dateVal,
+                price: Number(row[3]),
+                currency: normalizeCurrency(row[4] || '')
+            });
+        });
+        
+        // Sort by date descending
+        Object.values(prices).forEach(list => list.sort((a, b) => b.date.getTime() - a.date.getTime()));
+        
+        return prices;
+    } catch (e: any) {
+        // If sheet/range not found (e.g. older schema), return empty instead of failing
+        if (e.result?.error?.code === 400 || e.status === 400) {
+            console.warn("External_Datasets sheet not found or invalid range. Returning empty prices.");
+            return {};
+        }
+        throw e;
+    }
 });
 
 // Remove unused function export

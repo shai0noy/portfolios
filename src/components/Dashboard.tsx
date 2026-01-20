@@ -1,20 +1,15 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Box, CircularProgress, IconButton, Tooltip, Typography, ToggleButton, Divider
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import { fetchPortfolios, fetchTransactions } from '../lib/sheets/index';
 import { ColumnSelector } from './ColumnSelector';
-import { getExchangeRates, convertCurrency, calculatePerformanceInDisplayCurrency, calculateHoldingDisplayValues, normalizeCurrency, toILS } from '../lib/currency';
-import { logIfFalsy } from '../lib/utils';
-import { Currency, Exchange } from '../lib/types';
-import type { Holding, DashboardHolding, ExchangeRates } from '../lib/types';
+import { normalizeCurrency } from '../lib/currency';
 import { DashboardSummary } from './DashboardSummary';
 import { DashboardTable } from './DashboardTable';
-import { SessionExpiredError } from '../lib/errors';
 import { useLanguage } from '../lib/i18n';
-import { getTickerData } from '../lib/fetching'; // Import getTickerData
+import { useDashboardData, calculateDashboardSummary, INITIAL_SUMMARY } from '../lib/dashboard';
 
 interface DashboardProps {
   sheetId: string;
@@ -22,21 +17,19 @@ interface DashboardProps {
 
 export const Dashboard = ({ sheetId }: DashboardProps) => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [loading, setLoading] = useState(true);
-  const [holdings, setHoldings] = useState<DashboardHolding[]>([]);
   const [groupByPortfolio, setGroupByPortfolio] = useState(true);
   const [includeUnvested, setIncludeUnvested] = useState<boolean>(false);
-  const [hasFutureTxns, setHasFutureTxns] = useState(false);  
   // Persist Currency - normalize initial value
   const [displayCurrency, setDisplayCurrency] = useState<string>(() => normalizeCurrency(localStorage.getItem('displayCurrency') || 'USD'));
   
-  const [exchangeRates, setExchangeRates] = useState<ExchangeRates>({ current: { USD: 1, ILS: 3.7 } });
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<string | null>(searchParams.get('portfolioId'));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [portMap, setPortMap] = useState<Map<string, any>>(new Map());
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const openColSelector = Boolean(anchorEl);
   const { t } = useLanguage();
+
+  const { holdings, loading, error, portfolios, exchangeRates, hasFutureTxns, refresh } = useDashboardData(sheetId, { includeUnvested });
 
   const handleClickColSelector = (event: React.MouseEvent<HTMLButtonElement>) => {
     setAnchorEl(event.currentTarget);
@@ -51,10 +44,9 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
   }, [displayCurrency]);
 
   useEffect(() => {
-    getExchangeRates(sheetId).then(rates => {
-        setExchangeRates(rates);
-    });
-  }, [sheetId]);
+    const newPortMap = new Map(portfolios.map(p => [p.id, p]));
+    setPortMap(newPortMap);
+  }, [portfolios]);
 
   useEffect(() => {
     const portId = searchParams.get('portfolioId');
@@ -76,475 +68,22 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
     }
   };
 
-  const perfPeriods = {
-    perf1w: 'perf1w',
-    perf1m: 'perf1m',
-    perf3m: 'perf3m',
-    perfYtd: 'perfYtd',
-    perf1y: 'perf1y',
-    perf3y: 'perf3y',
-    perf5y: 'perf5y',
-  } as const;
-
-  const [summary, setSummary] = useState({
-    aum: 0,
-    totalUnrealized: 0,
-    totalUnrealizedGainPct: 0,
-    totalRealized: 0,
-    totalRealizedGainPct: 0,
-    totalCostOfSold: 0,
-    totalDividends: 0,
-    totalReturn: 0,
-    realizedGainAfterTax: 0,
-    valueAfterTax: 0,
-    totalDayChange: 0,
-    totalDayChangePct: 0,
-    totalDayChangeIsIncomplete: false,
-    perf1d: 0,
-    perf1w: 0,
-    perf1w_incomplete: false,
-    perf1m: 0,
-    perf1m_incomplete: false,
-    perf3m: 0,
-    perf3m_incomplete: false,
-    perf1y: 0,
-    perf1y_incomplete: false,
-    perf3y: 0,
-    perf3y_incomplete: false,
-    perf5y: 0,
-    perf5y_incomplete: false,
-    perfYtd: 0,
-    perfYtd_incomplete: false,
-    divYield: 0, // Placeholder
-  });
+  const [summary, setSummary] = useState(INITIAL_SUMMARY);
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        await loadData();
-      } catch (error) {
-        console.error('Error caught in fetchData:', error);
-        if (error instanceof SessionExpiredError) {
-          console.warn('Session expired, re-throwing to trigger global handler.');
-          throw error;
-        } else {
-          console.error('Error loading data (not SessionExpiredError):', error);
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, [sheetId, includeUnvested, exchangeRates]);
+    // If error occurs, we might want to handle it or show error state.
+    if (error) {
+        console.error("Dashboard error state:", error);
+    }
 
-  useEffect(() => {
-    const calculateSummary = (data: DashboardHolding[]) => {
-      
-      const initialAcc = {
-        aum: 0,
-        totalUnrealizedDisplay: 0,
-        totalRealizedDisplay: 0,
-        totalCostOfSoldDisplay: 0,
-        totalDividendsDisplay: 0,
-        totalReturnDisplay: 0,
-        realizedGainAfterTaxDisplay: 0,
-        valueAfterTaxDisplay: 0,
-        totalDayChange: 0,
-        aumWithDayChangeData: 0,
-        holdingsWithDayChange: 0,
-        ...Object.fromEntries(Object.keys(perfPeriods).flatMap(p => [
-            [`totalChange_${p}`, 0],
-            [`aumFor_${p}`, 0],
-            [`holdingsFor_${p}`, 0]
-        ]))
-      };
-
-      const s = data.reduce((acc, h) => {
-        // Use shared helper for display values (Cost Basis, MV, Gains)
-        const vals = calculateHoldingDisplayValues(h, displayCurrency, exchangeRates);
-
-        acc.aum += vals.marketValue;
-        acc.totalUnrealizedDisplay += vals.unrealizedGain;
-        acc.totalRealizedDisplay += vals.realizedGain;
-        acc.totalCostOfSoldDisplay += vals.costOfSold;
-        acc.totalDividendsDisplay += vals.dividends;
-        acc.totalReturnDisplay += vals.totalGain;
-
-        if (h.dayChangePct !== 0) {
-            const { changeVal } = calculatePerformanceInDisplayCurrency(
-                h.currentPrice, h.stockCurrency,
-                h.dayChangePct, 'ago1d', displayCurrency, exchangeRates
-            );
-            acc.totalDayChange += changeVal * h.totalQty;
-            acc.aumWithDayChangeData += vals.marketValue;
-            acc.holdingsWithDayChange++;
-        }
-        
-        const periodMap: Record<string, string> = {
-            perf1w: 'ago1w',
-            perf1m: 'ago1m',
-            perf3m: 'ago3m',
-            perfYtd: 'ytd',
-            perf1y: 'ago1y',
-            perf3y: 'ago3y',
-            perf5y: 'ago5y',
-        };
-
-        for (const [key, holdingKey] of Object.entries(perfPeriods)) {
-            const perf = h[holdingKey as keyof DashboardHolding] as number;
-            if (perf && !isNaN(perf)) {
-                const { changeVal } = calculatePerformanceInDisplayCurrency(
-                    h.currentPrice, h.stockCurrency,
-                    perf, periodMap[key], displayCurrency, exchangeRates
-                );
-                
-                const currentMVDisplay = vals.marketValue;
-                const totalChangeForHolding = changeVal * h.totalQty;
-                
-                (acc as any)[`totalChange_${key}`] += totalChangeForHolding;
-                (acc as any)[`aumFor_${key}`] += currentMVDisplay;
-                (acc as any)[`holdingsFor_${key}`]++;
-            }
-        }
-
-        return acc;
-      }, initialAcc);
-
-      const summaryResult: typeof summary = {
-        ...summary,
-        aum: s.aum,
-        totalUnrealized: s.totalUnrealizedDisplay,
-        totalRealized: s.totalRealizedDisplay,
-        totalDividends: s.totalDividendsDisplay,
-        totalReturn: s.totalReturnDisplay,
-        totalCostOfSold: s.totalCostOfSoldDisplay, // Keep for reference
-        totalUnrealizedGainPct: (s.aum - s.totalUnrealizedDisplay) > 0 ? s.totalUnrealizedDisplay / (s.aum - s.totalUnrealizedDisplay) : 0,
-        totalRealizedGainPct: s.totalCostOfSoldDisplay > 0 ? s.totalRealizedDisplay / s.totalCostOfSoldDisplay : 0,
-        totalDayChange: s.totalDayChange,
-        realizedGainAfterTax: s.totalRealizedDisplay * 0.75, // Approx
-        valueAfterTax: s.aum - (s.totalUnrealizedDisplay > 0 ? s.totalUnrealizedDisplay * 0.25 : 0), // Approx
-        totalDayChangePct: 0, perf1d: 0
-      };
-
-      const totalHoldings = data.length;
-      const prevClose = s.aumWithDayChangeData - s.totalDayChange;
-      summaryResult.totalDayChangePct = prevClose > 0 ? s.totalDayChange / prevClose : 0;
-      summaryResult.perf1d = summaryResult.totalDayChangePct;
-      summaryResult.totalDayChangeIsIncomplete = s.holdingsWithDayChange > 0 && s.holdingsWithDayChange < totalHoldings;
-      
-      for (const key of Object.keys(perfPeriods)) {
-        const totalChange = (s as any)[`totalChange_${key}`];
-        const aumForPeriod = (s as any)[`aumFor_${key}`];
-        const prevValue = aumForPeriod - totalChange;
-        (summaryResult as any)[key] = prevValue > 0 ? totalChange / prevValue : 0;
-
-        const holdingsForPeriod = (s as any)[`holdingsFor_${key}`];
-        (summaryResult as any)[`${key}_incomplete`] = holdingsForPeriod > 0 && holdingsForPeriod < totalHoldings;
-      }
-      
-      setSummary(summaryResult);
-    };
+    if (loading) return;
 
     if (selectedPortfolioId) {
-      calculateSummary(holdings.filter(h => h.portfolioId === selectedPortfolioId));
+      setSummary(calculateDashboardSummary(holdings.filter(h => h.portfolioId === selectedPortfolioId), displayCurrency, exchangeRates));
     } else {
-      calculateSummary(holdings);
+      setSummary(calculateDashboardSummary(holdings, displayCurrency, exchangeRates));
     }
-  }, [selectedPortfolioId, holdings, exchangeRates, displayCurrency]);
-
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [ports, txns] = await Promise.all([
-        fetchPortfolios(sheetId),
-        fetchTransactions(sheetId),
-      ]);
-      
-      const newPortMap = new Map(ports.map(p => [p.id, p]));
-      setPortMap(newPortMap);
-      const holdingMap = new Map<string, DashboardHolding>();
-
-      txns.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-      const today = new Date();
-      const futureTxns = txns.filter(t => new Date(t.date) > today);
-      setHasFutureTxns(futureTxns.length > 0);
-      const pastTxns = txns.filter(t => new Date(t.date) <= today);
-      const filteredTxns = includeUnvested ? pastTxns : pastTxns.filter(t => !t.vestDate || new Date(t.vestDate) <= new Date());
-
-      const liveDataMap = new Map<string, Holding>();
-      ports.forEach(p => {
-        p.holdings?.forEach(h => {
-          liveDataMap.set(`${h.ticker}:${h.exchange}`, h);
-        });
-      });
-
-      filteredTxns.forEach(t => {
-        const key = `${t.portfolioId}_${t.ticker}`;
-        const p = logIfFalsy(newPortMap.get(t.portfolioId), `Portfolio not found for ID ${t.portfolioId}`, t);
-        const portfolioCurrency = normalizeCurrency(p?.currency || 'USD');
-
-        if (!holdingMap.has(key)) {
-          const live = liveDataMap.get(`${t.ticker}:${t.exchange}`);
-          const exchange = t.exchange || live?.exchange;
-          
-          if (!exchange) {
-              throw new Error(`Exchange missing for ticker: ${t.ticker}`);
-          }
-          const isTase = exchange === Exchange.TASE;
-          
-          const stockCurrency = normalizeCurrency(live?.currency || t.currency || (isTase ? Currency.ILA : Currency.USD));
-          
-          // Trust the price and currency from the data/feed. 
-          // If stockCurrency is ILA, currentPrice is expected to be in Agorot.
-          const currentPrice = live?.price || 0; 
-
-          holdingMap.set(key, {
-            key,
-            portfolioId: t.portfolioId,
-            portfolioName: p?.name || t.portfolioId,
-            portfolioCurrency,
-            ticker: t.ticker,
-            exchange: exchange,
-            displayName: live?.name || t.ticker,
-            nameHe: live?.nameHe,
-            qtyVested: 0,
-            qtyUnvested: 0,
-            totalQty: 0,
-            currentPrice: currentPrice,
-            stockCurrency,
-            costBasisPortfolioCurrency: 0,
-            costOfSoldPortfolioCurrency: 0,
-            proceedsPortfolioCurrency: 0,
-            dividendsPortfolioCurrency: 0,
-            unrealizedGainPortfolioCurrency: 0,
-            realizedGainPortfolioCurrency: 0,
-            totalGainPortfolioCurrency: 0,
-            marketValuePortfolioCurrency: 0,
-            dayChangeValuePortfolioCurrency: 0,
-            costBasisStockCurrency: 0,
-            costOfSoldStockCurrency: 0,
-            proceedsStockCurrency: 0,
-            dividendsStockCurrency: 0,
-            
-            // Historical Accumulators
-            costBasisUSD: 0, costOfSoldUSD: 0, proceedsUSD: 0, dividendsUSD: 0, realizedGainUSD: 0,
-            costBasisILS: 0, costOfSoldILS: 0, proceedsILS: 0, dividendsILS: 0, realizedGainILS: 0,
-
-            // Initialize display fields
-            avgCost: 0, mvVested: 0, mvUnvested: 0, totalMV: 0, realizedGain: 0, realizedGainPct: 0, realizedGainAfterTax: 0, dividends: 0, unrealizedGain: 0, unrealizedGainPct: 0, totalGain: 0, totalGainPct: 0, valueAfterTax: 0, dayChangeVal: 0,
-            sector: live?.sector || '',
-            dayChangePct: live?.changePct1d || 0,
-            perf1w: live?.changePctRecent || 0, perf1m: live?.changePct1m || 0, perf3m: live?.changePct3m || 0,
-            perfYtd: live?.changePctYtd || 0, perf1y: live?.changePct1y || 0, perf3y: live?.changePct3y || 0, perf5y: live?.changePct5y || 0,
-          });
-        }
-
-        const h = holdingMap.get(key)!;
-        const isVested = !t.vestDate || new Date(t.vestDate) <= new Date();
-        // Determine Original Price in Portfolio Currency (Major Unit)
-        let originalPricePortfolioCurrency = 0;
-
-        const priceInUSD = (t as any).originalPriceUSD || 0;
-        const priceInAgorot = (t as any).originalPriceILA || 0;
-        const priceInILS = toILS(priceInAgorot, Currency.ILA);
-        const tQty = t.qty || 0;
-
-        if (portfolioCurrency === Currency.ILS) {
-             // If Portfolio is ILS, use Original_Price_ILA (in Agorot) and convert to ILS Major Unit
-             logIfFalsy((t as any).originalPriceILA, `originalPriceILA missing for ${t.ticker}`, t);
-             originalPricePortfolioCurrency = priceInILS;
-        } else {
-             // Otherwise use USD value and convert to Portfolio Currency if needed
-             logIfFalsy((t as any).originalPriceUSD, `originalPriceUSD missing for ${t.ticker}`, t);
-             originalPricePortfolioCurrency = convertCurrency(priceInUSD, Currency.USD, portfolioCurrency, exchangeRates);
-        }
-
-        const txnValuePortfolioCurrency = tQty * originalPricePortfolioCurrency;
-        
-        let effectiveTxnPrice = t.price || 0;
-        if (h.stockCurrency === Currency.ILA) {
-             effectiveTxnPrice = priceInAgorot;
-        } else if (h.stockCurrency === Currency.ILS) {
-            effectiveTxnPrice = priceInILS;
-        } else if (h.stockCurrency === Currency.USD) {
-            effectiveTxnPrice = priceInUSD;
-        } else {
-             const txnCurrency = normalizeCurrency(t.currency || '');
-             if (txnCurrency === Currency.ILA) {
-                 effectiveTxnPrice = toILS(effectiveTxnPrice, Currency.ILA);
-             }
-        }
-        
-        const txnValueStockCurrency = tQty * effectiveTxnPrice;
-        const txnValueUSD = tQty * priceInUSD;
-        const txnValueILS = tQty * priceInILS;
-
-        if (t.type === 'BUY') {
-            if (isVested) h.qtyVested += tQty; else h.qtyUnvested += tQty;
-            h.costBasisPortfolioCurrency += txnValuePortfolioCurrency; // NO commission included in basis? User didn't specify. Assuming raw price.
-            h.costBasisStockCurrency += txnValueStockCurrency;
-            
-            h.costBasisUSD += txnValueUSD;
-            h.costBasisILS += txnValueILS;
-
-        } else if (t.type === 'SELL') {
-            const totalQtyPreSell = h.qtyVested + h.qtyUnvested;
-            // Calculate avg cost PER SHARE in Portfolio Currency BEFORE this sale
-            const avgCostPC = totalQtyPreSell > 1e-9 ? h.costBasisPortfolioCurrency / totalQtyPreSell : 0;
-            const costOfSoldPC = avgCostPC * tQty;
-            
-            const avgCostSC = totalQtyPreSell > 1e-9 ? h.costBasisStockCurrency / totalQtyPreSell : 0;
-            const costOfSoldSC = avgCostSC * tQty;
-
-            const avgCostUSD = totalQtyPreSell > 1e-9 ? h.costBasisUSD / totalQtyPreSell : 0;
-            const costOfSoldUSD = avgCostUSD * tQty;
-
-            const avgCostILS = totalQtyPreSell > 1e-9 ? h.costBasisILS / totalQtyPreSell : 0;
-            const costOfSoldILS = avgCostILS * tQty;
-
-            h.costOfSoldPortfolioCurrency += costOfSoldPC;
-            h.proceedsPortfolioCurrency += txnValuePortfolioCurrency; 
-            h.costBasisPortfolioCurrency -= costOfSoldPC;
-            
-            h.costOfSoldStockCurrency += costOfSoldSC;
-            h.proceedsStockCurrency += txnValueStockCurrency;
-            h.costBasisStockCurrency -= costOfSoldSC;
-            
-            h.costOfSoldUSD += costOfSoldUSD;
-            h.proceedsUSD += txnValueUSD;
-            h.costBasisUSD -= costOfSoldUSD;
-
-            h.costOfSoldILS += costOfSoldILS;
-            h.proceedsILS += txnValueILS;
-            h.costBasisILS -= costOfSoldILS;
-
-            if (Math.abs(h.costBasisPortfolioCurrency) < 1e-6) h.costBasisPortfolioCurrency = 0;
-            if (Math.abs(h.costBasisStockCurrency) < 1e-6) h.costBasisStockCurrency = 0;
-            if (Math.abs(h.costBasisUSD) < 1e-6) h.costBasisUSD = 0;
-            if (Math.abs(h.costBasisILS) < 1e-6) h.costBasisILS = 0;
-
-            // Reduce quantity
-            let qtyToSell = tQty;
-            if (isVested) {
-                const canSellVested = Math.min(qtyToSell, h.qtyVested);
-                h.qtyVested -= canSellVested;
-                qtyToSell -= canSellVested;
-            }
-            if (qtyToSell > 0 && includeUnvested) { // Only reduce unvested if they are included
-                const canSellUnvested = Math.min(qtyToSell, h.qtyUnvested);
-                h.qtyUnvested -= canSellUnvested;
-            }
-        } else if (t.type === 'DIVIDEND') {
-            const taxAmountPC = txnValuePortfolioCurrency * (t.tax || 0);
-            h.dividendsPortfolioCurrency += txnValuePortfolioCurrency - taxAmountPC; // NO commission
-            
-            const taxAmountSC = txnValueStockCurrency * (t.tax || 0);
-            h.dividendsStockCurrency += txnValueStockCurrency - taxAmountSC;
-
-            const taxAmountUSD = txnValueUSD * (t.tax || 0);
-            h.dividendsUSD += txnValueUSD - taxAmountUSD;
-
-            const taxAmountILS = txnValueILS * (t.tax || 0);
-            h.dividendsILS += txnValueILS - taxAmountILS;
-        }
-      });
-        
-              const processedHoldings: DashboardHolding[] = [];
-              
-              // Hydrate missing data
-              const holdingsList = Array.from(holdingMap.values());
-              const missingDataPromises = holdingsList.map(async (h) => {
-                 // Decision to fetch live data:
-                 // Currently based on missing price or specific exchange (GEMEL) where sheet support is poor.
-                 // TODO: Refine this criteria. We should verify data freshness (timestamp) and completeness beyond just "price > 0".
-                 // Also, relying solely on the existence of a name isn't enough; we need valid market data to compute values.
-                 const needsFetch = !h.currentPrice || h.currentPrice === 0 || h.exchange === Exchange.GEMEL;
-                 
-                 if (needsFetch) {
-                     try {
-                         // Attempt to fetch live data to fill the gaps.
-                         // NOTE: If the numeric ID is missing (not stored in the sheet), getTickerData will attempt to resolve it
-                         // by querying the cached Globes ticker list (via getTickersDataset/fetchGlobesTickers).
-                         // This allows us to recover data for TASE/GEMEL assets even if the sheet lacks the ID.
-                         const live = await getTickerData(h.ticker, h.exchange, null); // We don't have numericId easily handy here unless we add it to map
-                         if (live) {
-                             if (live.price) h.currentPrice = live.price;
-                             if (live.changePct1d) h.dayChangePct = live.changePct1d / 100; // API returns percent as whole number (e.g. 1.5 for 1.5%) usually? No, fetchGlobes returns e.g. 1.23. Wait, check format.
-                             // Actually `getTickerData` normalizes. Let's check `calculateSummary`.
-                             // `calculatePerformanceInDisplayCurrency` expects decimal (0.01 for 1%).
-                             // `getTickerData` -> `fetchGlobesStockQuote` -> returns `changePct1d`.
-                             // If `fetchGlobesStockQuote` returns e.g. "1.23" as 1.23, it means 1.23%. 
-                             // `Dashboard.tsx` previously used `live?.changePct1d || 0`.
-                             // Let's assume consistency.
-                             // `fetchGlobes` returns raw number. `rebuildHoldings` divides by 100 in sheet formula: `IFERROR(GOOGLEFINANCE(..., "changepct")/100`.
-                             // So sheet data is 0.0123.
-                             // `getTickerData` likely returns 1.23.
-                             // We need to divide by 100 if it comes from `getTickerData` directly.
-                             if (live.changePct1d !== undefined) h.dayChangePct = live.changePct1d / 100;
-
-                             if (live.name) h.displayName = live.name;
-                             if (live.nameHe) h.nameHe = live.nameHe;
-                             if (live.sector) h.sector = live.sector;
-                             // Hydrate performance
-                             if (live.changePctRecent) h.perf1w = live.changePctRecent / 100;
-                             if (live.changePct1m) h.perf1m = live.changePct1m / 100;
-                             if (live.changePct3m) h.perf3m = live.changePct3m / 100;
-                             if (live.changePctYtd) h.perfYtd = live.changePctYtd / 100;
-                             if (live.changePct1y) h.perf1y = live.changePct1y / 100;
-                             if (live.changePct3y) h.perf3y = live.changePct3y / 100;
-                             if (live.changePct5y) h.perf5y = live.changePct5y / 100;
-                         }
-                     } catch (e) {
-                         console.warn(`Failed to hydrate missing data for ${h.ticker}`, e);
-                     }
-                 }
-                 return h;
-              });
-
-              await Promise.all(missingDataPromises);
-
-              holdingMap.forEach(h => {
-                h.totalQty = h.qtyVested + h.qtyUnvested;
-                // No need to convert from Agorot here anymore, as currentPrice is already normalized.
-                // Just ensure we use the 'currentPrice' (Major Unit) for MV calculation.
-                const priceInStockCurrency = h.currentPrice; 
-                
-                // Use new typed convertCurrency which supports full ExchangeRates object
-                const currentPricePC = convertCurrency(priceInStockCurrency, h.stockCurrency, h.portfolioCurrency, exchangeRates);
-                
-        h.marketValuePortfolioCurrency = h.totalQty * currentPricePC;
-                h.unrealizedGainPortfolioCurrency = h.marketValuePortfolioCurrency - h.costBasisPortfolioCurrency;
-                h.realizedGainPortfolioCurrency = h.proceedsPortfolioCurrency - h.costOfSoldPortfolioCurrency;
-                
-                h.realizedGainUSD = h.proceedsUSD - h.costOfSoldUSD;
-                h.realizedGainILS = h.proceedsILS - h.costOfSoldILS;
-
-                h.totalGainPortfolioCurrency = h.unrealizedGainPortfolioCurrency + h.realizedGainPortfolioCurrency + h.dividendsPortfolioCurrency;
-                        h.dayChangeValuePortfolioCurrency = h.marketValuePortfolioCurrency * h.dayChangePct;
-                
-                        // NEW Avg Cost Calculation for display (In Stock Currency)
-                        h.avgCost = h.totalQty > 1e-9 ? h.costBasisStockCurrency / h.totalQty : 0;
-                
-                        h.mvVested = h.qtyVested * currentPricePC;                h.mvUnvested = h.qtyUnvested * currentPricePC;
-                h.totalMV = h.marketValuePortfolioCurrency;
-        
-                // Calculate percentages based on portfolio currency values
-                h.unrealizedGainPct = h.costBasisPortfolioCurrency > 1e-6 ? h.unrealizedGainPortfolioCurrency / h.costBasisPortfolioCurrency : 0;
-                h.realizedGainPct = h.costOfSoldPortfolioCurrency > 1e-6 ? h.realizedGainPortfolioCurrency / h.costOfSoldPortfolioCurrency : 0;
-                h.totalGainPct = (h.costBasisPortfolioCurrency + h.costOfSoldPortfolioCurrency) > 1e-6 ? h.totalGainPortfolioCurrency / (h.costBasisPortfolioCurrency + h.costOfSoldPortfolioCurrency) : 0;
-        
-                processedHoldings.push(h);
-              });
-      setHoldings(processedHoldings);
-    } catch (e) {
-      console.error('loadData error:', e);
-      throw e;
-    } finally {
-      setLoading(false);
-    }
-  }, [sheetId, includeUnvested, exchangeRates]);
-
+  }, [selectedPortfolioId, holdings, exchangeRates, displayCurrency, loading, error]);
 
   // Default Columns
   const defaultColumns = {
@@ -600,7 +139,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
   const groupedData = useMemo(() => {
     const filteredHoldings = selectedPortfolioId ? holdings.filter(h => h.portfolioId === selectedPortfolioId) : holdings;
     if (!groupByPortfolio || selectedPortfolioId || filteredHoldings.length === 0) return { 'All Holdings': filteredHoldings };
-    const groups: Record<string, DashboardHolding[]> = {};
+    const groups: Record<string, import('../lib/types').DashboardHolding[]> = {};
     filteredHoldings.forEach(h => {
       if (!groups[h.portfolioName]) groups[h.portfolioName] = [];
       groups[h.portfolioName].push(h);
@@ -666,7 +205,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
           <Divider orientation="vertical" flexItem sx={{ mx: 1, height: 20, alignSelf: 'center' }} />
           <Tooltip title={t("Refresh Data", "רענן נתונים")}>
             <IconButton 
-              onClick={() => loadData()} 
+              onClick={() => refresh()} 
               disabled={loading}
               size="small"
               sx={{ border: 'none', borderRadius: 0 }}

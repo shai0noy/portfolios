@@ -309,15 +309,14 @@ export function formatPrice(n: number, currency: string | Currency, decimals = 2
     
     const norm = normalizeCurrency(currency as string);
 
-    // Rule: Ticker costs in ILS or ILA are ALWAYS displayed in Agorot
-    if (norm === Currency.ILS || norm === Currency.ILA) {
-        const agorotVal = toILA(n, norm);
-        const val = agorotVal.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: decimals, useGrouping: false });
+    // If strictly ILA, show in Agorot
+    if (norm === Currency.ILA) {
+        const val = n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: decimals, useGrouping: false });
         const agorotText = t ? t('ag.', "א'") : 'ag.';
         return `${LTR_MARK}${val} ${agorotText}`;
     }
     
-    // Fallback for other currencies (e.g., USD, EUR prices), ensuring no commas.
+    // For ILS and others, use standard currency formatting
     try {
         return LTR_MARK + new Intl.NumberFormat(undefined, {
             style: 'currency',

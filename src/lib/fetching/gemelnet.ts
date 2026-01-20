@@ -25,12 +25,13 @@ function getDateParts(date: Date): { year: string, month: string } {
   return { year: y, month: m };
 }
 
-// Helper to parse YYYYMM to timestamp
+// Helper to parse YYYYMM to timestamp (returns End of Month)
 function parseDateStr(dateStr: string): number {
   if (!dateStr || dateStr.length !== 6) return 0;
   const y = parseInt(dateStr.substring(0, 4), 10);
   const m = parseInt(dateStr.substring(4, 6), 10) - 1; // Month is 0-indexed in JS Date
-  return new Date(y, m, 1).getTime();
+  // Day 0 of next month is the last day of the current month
+  return new Date(y, m + 1, 0).getTime();
 }
 
 /**
@@ -134,21 +135,23 @@ export async function fetchGemelnetFund(
 const LIST_CACHE_KEY = 'gemelnet_tickers_list';
 const LIST_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
 
-export async function fetchGemelnetTickers(signal?: AbortSignal): Promise<TickerListItem[]> {
+export async function fetchGemelnetTickers(signal?: AbortSignal, forceRefresh = false): Promise<TickerListItem[]> {
   const now = Date.now();
 
   // 1. Check Cache
-  try {
-    const cachedRaw = localStorage.getItem(LIST_CACHE_KEY);
-    if (cachedRaw) {
-      const cached = JSON.parse(cachedRaw);
-      if (now - cached.timestamp < LIST_CACHE_TTL) {
-        console.log('[Gemelnet] Using cached tickers list');
-        return cached.data;
+  if (!forceRefresh) {
+    try {
+      const cachedRaw = localStorage.getItem(LIST_CACHE_KEY);
+      if (cachedRaw) {
+        const cached = JSON.parse(cachedRaw);
+        if (now - cached.timestamp < LIST_CACHE_TTL) {
+          console.log('[Gemelnet] Using cached tickers list');
+          return cached.data;
+        }
       }
+    } catch (e) {
+      console.warn('[Gemelnet] Cache read error', e);
     }
-  } catch (e) {
-    console.warn('[Gemelnet] Cache read error', e);
   }
 
   // 2. Fetch Data
@@ -220,6 +223,14 @@ export async function fetchGemelnetQuote(
     return null;
   }
 
+  let fundName = fundData.fundName;
+  if (!fundName) {
+      // Name missing in cache? Try to fetch/lookup again
+      const tickers = await fetchGemelnetTickers();
+      const info = tickers.find(t => t.gemelInfo?.fundId === fundId);
+      if (info) fundName = info.nameEn || info.nameHe || '';
+  }
+
   // Sort by date ascending for index calculation
   const sortedData = [...fundData.data].sort((a, b) => a.date - b.date);
   
@@ -241,6 +252,7 @@ export async function fetchGemelnetQuote(
   
   const getChange = (months: number) => {
       const d = new Date(latestPoint.date);
+      d.setDate(1); // Set to 1st of month to avoid overflow when subtracting months from 31st
       d.setMonth(d.getMonth() - months);
       const base = priceMap.get(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
       return base ? { pct: latestPrice / base.price - 1, date: base.date } : undefined;
@@ -285,8 +297,8 @@ export async function fetchGemelnetQuote(
     ...(chgMax && { changePctMax: chgMax.pct, changeDateMax: chgMax.date }),
     timestamp: latestPoint.date,
     currency: 'ILS', // Could also be 'ILA', doesn't matter due to lack of real price
-    name: fundData.fundName,
-    nameHe: fundData.fundName,
+    name: fundName,
+    nameHe: fundName,
     source: 'Gemelnet',
   };
   return tickerData;
