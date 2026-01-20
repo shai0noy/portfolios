@@ -12,14 +12,14 @@ const YAHOO_EXCHANGE_MAP: Record<string, string> = {
   // Add other mappings as needed
 };
 
-export async function fetchYahooStockQuote(ticker: string, exchange: Exchange, signal?: AbortSignal, forceRefresh = false): Promise<TickerData | null> {
+export async function fetchYahooTickerData(ticker: string, exchange: Exchange, signal?: AbortSignal, forceRefresh = false, range: '1y' | 'max' = 'max'): Promise<TickerData | null> {
   if (exchange === Exchange.GEMEL) {
     console.warn(`Yahoo fetch does not support exchange: ${exchange}`);
     return null;
   }
   const now = Date.now();
   const yahooTicker = toYahooFinanceTicker(ticker, exchange);
-  const cacheKey = `yahoo:${yahooTicker}`;
+  const cacheKey = `yahoo:${yahooTicker}:${range}`;
 
   if (!forceRefresh) {
     const cached = tickerDataCache.get(cacheKey);
@@ -28,7 +28,7 @@ export async function fetchYahooStockQuote(ticker: string, exchange: Exchange, s
     }
   }
 
-  const url = `https://portfolios.noy-shai.workers.dev/?apiId=yahoo_hist&ticker=${yahooTicker}&range=max`;
+  const url = `https://portfolios.noy-shai.workers.dev/?apiId=yahoo_hist&ticker=${yahooTicker}&range=${range}`;
 
   let data;
   try {
@@ -72,7 +72,6 @@ export async function fetchYahooStockQuote(ticker: string, exchange: Exchange, s
     const longName = meta.longName || meta.shortName;
     const prevClose = meta.previousClose || meta.chartPreviousClose;
     const granularity = meta.dataGranularity; // e.g. "1mo"
-    const range = meta.range; // e.g. "max"
 
     let changePct1d: number | undefined = undefined;
     let changePctRecent: number | undefined = undefined;
@@ -84,7 +83,7 @@ export async function fetchYahooStockQuote(ticker: string, exchange: Exchange, s
       changePct1d = (price - meta.previousClose) / meta.previousClose;
     }
     // 2. Fallback: If granularity is daily, use chartPreviousClose
-    else if (price && prevClose && (range === '1d' || range === '5d' || granularity === '1d')) {
+    else if (price && prevClose &&  granularity === '1d') {
       changePct1d = (price - prevClose) / prevClose;
     }
     // 3. Fallback: Use the last two data points if available
