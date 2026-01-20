@@ -93,9 +93,11 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await fetchData(true);
     if (ticker && exchange) {
-      const history = await fetchTickerHistory(ticker, exchange, undefined, true);
+      const [, history] = await Promise.all([
+        fetchData(true),
+        fetchTickerHistory(ticker, exchange, undefined, true)
+      ]);
       setHistoricalData(history || []);
     }
     setRefreshing(false);
