@@ -12,14 +12,20 @@ const YAHOO_EXCHANGE_MAP: Record<string, string> = {
   // Add other mappings as needed
 };
 
-export async function fetchYahooStockQuote(ticker: string, exchange: Exchange, signal?: AbortSignal): Promise<TickerData | null> {
+export async function fetchYahooStockQuote(ticker: string, exchange: Exchange, signal?: AbortSignal, forceRefresh = false): Promise<TickerData | null> {
+  if (exchange === Exchange.GEMEL) {
+    console.warn(`Yahoo fetch does not support exchange: ${exchange}`);
+    return null;
+  }
   const now = Date.now();
   const yahooTicker = toYahooFinanceTicker(ticker, exchange);
   const cacheKey = `yahoo:${yahooTicker}`;
 
-  const cached = tickerDataCache.get(cacheKey);
-  if (cached && now - cached.timestamp < CACHE_TTL) {
-    return cached.data;
+  if (!forceRefresh) {
+    const cached = tickerDataCache.get(cacheKey);
+    if (cached && now - cached.timestamp < CACHE_TTL) {
+      return cached.data;
+    }
   }
 
   const url = `https://portfolios.noy-shai.workers.dev/?apiId=yahoo_hist&ticker=${yahooTicker}`;
@@ -109,11 +115,14 @@ export async function fetchYahooStockQuote(ticker: string, exchange: Exchange, s
 
     const closes = result.indicators?.quote?.[0]?.close || [];
     const timestamps = result.timestamp || [];
+    let historical: { date: number, price: number }[] | undefined = undefined;
 
     if (closes.length > 0 && timestamps.length === closes.length) {
       // Filter out nulls (sometimes Yahoo returns nulls) and map to objects
       const points = timestamps.map((t: number, i: number) => ({ time: t, close: closes[i] }))
         .filter((p: any) => p.close != null && p.time != null);
+      
+      historical = points.map((p: { time: number; close: number }) => ({ date: p.time * 1000, price: p.close }));
 
       if (points.length > 0) {
         const lastPoint = points[points.length - 1];
@@ -257,6 +266,7 @@ export async function fetchYahooStockQuote(ticker: string, exchange: Exchange, s
       ticker,
       numericId: null,
       source: 'Yahoo Finance',
+      historical,
     };
 
     tickerDataCache.set(cacheKey, { data: tickerData, timestamp: now });

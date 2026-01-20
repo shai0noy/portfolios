@@ -3,6 +3,7 @@
 Move SOURCE text in search result - smaller and in bottom corner
 In details of gemel funds, handle gains display/calc - and cost basis!
 
+ADD RG color blind mode
 ON HOLD: Keep track of dividands since purchase! Add to sheet
 ON HOLD: Handle splits, etc, name changes
 ON HOLD: Support mobile screen sizes

@@ -4,13 +4,14 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import AddIcon from '@mui/icons-material/Add';
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { getTickerData, getTickersDataset, type TickerListItem } from '../lib/fetching';
+import { getTickerData, getTickersDataset, type TickerListItem, fetchTickerHistory } from '../lib/fetching';
 import { fetchHolding, getMetadataValue } from '../lib/sheets/index';
 import { Exchange, parseExchange, toGoogleFinanceExchangeCode, toYahooFinanceTicker, type Holding, type Portfolio } from '../lib/types';
 import { formatPrice, formatPercent } from '../lib/currency';
 import { useLanguage } from '../lib/i18n';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
 import { getOwnedInPortfolios } from '../lib/portfolioUtils';
+import { TickerChart } from './TickerChart';
 
 interface TickerDetailsProps {
   sheetId: string;
@@ -51,6 +52,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
 
   const [data, setData] = useState<any>(null);
   const [holdingData, setHoldingData] = useState<Holding | null>(null);
+  const [historicalData, setHistoricalData] = useState<any[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -59,14 +61,24 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
 
   const ownedInPortfolios = ticker ? getOwnedInPortfolios(ticker, portfolios, exchange) : undefined;
 
-  const fetchData = useCallback(async (forceRefresh = false) => {    if (!ticker || !exchange) {
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchData(true);
+    if (ticker && exchange) {
+      const history = await fetchTickerHistory(ticker, exchange, undefined, true);
+      setHistoricalData(history || []);
+    }
+    setRefreshing(false);
+  };
+
+  const fetchData = useCallback(async (forceRefresh = false) => {
+    if (!ticker || !exchange) {
       setError(t('Missing ticker or exchange information.', 'חסר מידע על סימול או בורסה.'));
       setLoading(false);
       return;
     }
 
     if (!forceRefresh) setLoading(true);
-    else setRefreshing(true);
     setError(null);
 
     const upperExchange = exchange.toUpperCase();
@@ -96,31 +108,21 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
         console.warn(`Could not find numeric ID for ${ticker}. Data fetching may be incomplete.`);
       }
 
-      const holdingPromise = fetchHolding(sheetId, ticker, upperExchange);
-      const sheetRebuildTimePromise = getMetadataValue(sheetId, 'holdings_rebuild');
+      const numericIdVal = currentNumericId ? parseInt(currentNumericId, 10) : null;
 
-      const holding = await holdingPromise;
+      const [tickerData, holding, sheetRebuild] = await Promise.all([
+        getTickerData(ticker, exchange, numericIdVal, undefined, forceRefresh),
+        fetchHolding(sheetId, ticker, upperExchange),
+        getMetadataValue(sheetId, 'holdings_rebuild'),
+      ]);
+
       setHoldingData(holding);
-
-      // Always try to fetch live data to get the most up-to-date info
-      const shouldFetchLive = true;
-
-      if (shouldFetchLive) {
-        const numericIdVal = currentNumericId ? parseInt(currentNumericId, 10) : null;
-        let tickerData = await getTickerData(ticker, exchange, numericIdVal, undefined, forceRefresh);
-
-        setData(tickerData);
-
-        if (!tickerData && !holding) {
-          setError(t('Ticker not found.', 'הנייר לא נמצא.'));
-        }
-      } else {
-        setData(null);
-      }
-
-      const sheetRebuild = await sheetRebuildTimePromise;
+      setData(tickerData);
       setSheetRebuildTime(sheetRebuild);
 
+      if (!tickerData && !holding) {
+        setError(t('Ticker not found.', 'הנייר לא נמצא.'));
+      }
     } catch (err) {
       setError(t('Error fetching ticker data.', 'שגיאה בטעינת נתוני הנייר.'));
       setData(null);
@@ -128,13 +130,18 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
       console.error(err);
     } finally {
       if (!forceRefresh) setLoading(false);
-      else setRefreshing(false);
     }
   }, [ticker, exchange, numericId, sheetId, t]);
 
   useEffect(() => {
     fetchData();
-  }, [fetchData]);
+    // Fetch history data separately
+    if (ticker && exchange) {
+      fetchTickerHistory(ticker, exchange).then(history => {
+        setHistoricalData(history || []);
+      });
+    }
+  }, [fetchData, ticker, exchange]);
 
   const handleClose = () => {
     if (onClose) {
@@ -387,6 +394,13 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
               })}
             </Box>
 
+            {historicalData && historicalData.length > 0 && (
+              <>
+                <Typography variant="subtitle2" gutterBottom>{t('Chart', 'גרף')}</Typography>
+                <TickerChart data={historicalData} currency={displayData.currency} />
+              </>
+            )}
+
             {(() => {
               // Hide Dividends for Gemel or if no dividend data is available (temporary until we fetch it)
               const isGemel = exchange?.toUpperCase() === 'GEMEL' || displayData.exchange === 'GEMEL';
@@ -442,13 +456,13 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
             <Box mt={2} display="flex" justifyContent="flex-end" alignItems="center" gap={1}>
               <Typography variant="caption" color="text.secondary">
                 {data
-                  ? `${t('Data source:', 'מקור המידע:')} ${data.source || 'API'}: ${data.timestamp ? formatTimestamp(data.timestamp) : 'N/A'}`
+                  ? `${t('Data source:', 'מקור המידע:')} ${data.source || 'API'}, ${data.timestamp ? formatTimestamp(data.timestamp) : 'N/A'}`
                   : sheetRebuildTime
-                    ? `${t('Data from Google Sheets', 'מידע מ- Google Sheets')}: ${formatTimestamp(sheetRebuildTime)}`
+                    ? `${t('Data from Google Sheets', 'מידע מ- Google Sheets')}, ${formatTimestamp(sheetRebuildTime)}`
                     : t('Freshness N/A', 'אין מידע על עדכון')}
               </Typography>
               <Tooltip title={t("Refresh Data", "רענן נתונים")}>
-                <IconButton onClick={() => fetchData(true)} disabled={refreshing} size="small">
+                <IconButton onClick={handleRefresh} disabled={refreshing} size="small">
                   {refreshing ? <CircularProgress size={16} /> : <RefreshIcon fontSize="small" />}
                 </IconButton>
               </Tooltip>

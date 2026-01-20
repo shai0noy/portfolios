@@ -59,45 +59,38 @@ export async function getTickerData(ticker: string, exchange: string, numericSec
     parsedExchange = parseExchange(exchange);
   } catch (e) {
     console.warn(`getTickerData: Invalid exchange '${exchange}', defaulting to NASDAQ for Yahoo fallback logic.`, e);
-    return fetchYahooStockQuote(ticker, Exchange.NASDAQ, signal);
-  }
-
-  // Debug log to verify exchange parsing
-  console.log(`getTickerData: ticker=${ticker}, exchange=${exchange}, parsedExchange=${parsedExchange}`);
-
-  const globesTicker = numericSecurityId ? String(numericSecurityId) : ticker;
-  const cacheKey = parsedExchange === Exchange.TASE ? `globes:tase:${globesTicker}` : `yahoo:${ticker}`;
-
-  if (!forceRefresh && tickerDataCache.has(cacheKey)) {
-    const cached = tickerDataCache.get(cacheKey)!;
-    if (Date.now() - cached.timestamp < CACHE_TTL) {
-      return cached.data;
-    }
-  }
-  if (forceRefresh) {
-    tickerDataCache.delete(cacheKey);
+    return fetchYahooStockQuote(ticker, Exchange.NASDAQ, signal, forceRefresh);
   }
 
   const secId = numericSecurityId ? Number(numericSecurityId) : undefined;
 
-  // Use Exchange enum for GEMEL check
+  // GEMEL has its own dedicated fetcher
   if (parsedExchange === Exchange.GEMEL) {
-    console.log(`Fetching Gemelnet data for ${ticker}`);
     return fetchGemelnetQuote(Number(ticker), signal, forceRefresh);
   }
 
+  let data: TickerData | null = null;
   const globesFirstExchanges: Exchange[] = [Exchange.TASE, Exchange.NYSE, Exchange.NASDAQ, Exchange.FOREX];
-  if (globesFirstExchanges.includes(parsedExchange)) {
-    console.log(`Fetching Globes ticker data for ${parsedExchange}:${ticker} (securityId: ${secId || 'N/A'})`);
-    // @ts-ignore
-    const globesData = await fetchGlobesStockQuote(ticker, secId, parsedExchange, signal);
-    if (globesData) {
-      return globesData;
-    }
-    console.log(`Globes fetch failed/empty for ${parsedExchange}:${ticker}, falling back to Yahoo.`);
-  } 
   
-  console.log(`Fetching Yahoo ticker data for : ${parsedExchange}:${ticker}`);
-  // @ts-ignore
-  return fetchYahooStockQuote(ticker, parsedExchange, signal);
+  if (globesFirstExchanges.includes(parsedExchange)) {
+    console.log(`Fetching Globes ticker data for ${parsedExchange}:${ticker}`);
+    data = await fetchGlobesStockQuote(ticker, secId, parsedExchange, signal, forceRefresh);
+  }
+  
+  // Fallback to Yahoo if the first source fails or is not applicable
+  if (!data) {
+    if (globesFirstExchanges.includes(parsedExchange)) {
+      console.log(`Primary source failed for ${parsedExchange}:${ticker}, falling back to Yahoo.`);
+    }
+    data = await fetchYahooStockQuote(ticker, parsedExchange, signal, forceRefresh);
+  }
+
+  return data;
 }
+
+export async function fetchTickerHistory(ticker: string, exchange: string, signal?: AbortSignal, forceRefresh = false): Promise<TickerData['historical']> {
+  const yahooData = await fetchYahooStockQuote(ticker, parseExchange(exchange), signal, forceRefresh);
+  return yahooData?.historical;
+}
+
+

@@ -73,7 +73,7 @@ export async function fetchGlobesCurrencies(signal?: AbortSignal): Promise<Ticke
   return tickers.map(t => ({ ...t, exchange: Exchange.FOREX }));
 }
 
-export async function fetchGlobesStockQuote(symbol: string, securityId: number | undefined, exchange: Exchange, signal?: AbortSignal): Promise<TickerData | null> {
+export async function fetchGlobesStockQuote(symbol: string, securityId: number | undefined, exchange: Exchange, signal?: AbortSignal, forceRefresh = false): Promise<TickerData | null> {
   const requestedExchangeCode = toGlobesExchangeCode(exchange);
   if (exchange === Exchange.TASE && !securityId) {
     console.warn(`fetchGlobesStockQuote: TASE requires a numeric security ID.`);
@@ -103,9 +103,11 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
   }
 
   const cacheKey = `globes:${requestedExchangeCode}:${identifier}`;
-  const cached = tickerDataCache.get(cacheKey);
-  if (cached && now - cached.timestamp < CACHE_TTL) {
-    return cached.data;
+  if (!forceRefresh) {
+    const cached = tickerDataCache.get(cacheKey);
+    if (cached && now - cached.timestamp < CACHE_TTL) {
+      return cached.data;
+    }
   }
 
   const globesApiUrl = `https://portfolios.noy-shai.workers.dev/?apiId=globes_data&exchange=${requestedExchangeCode}&ticker=${identifier}`;

@@ -35,6 +35,7 @@ export interface TickerData {
   numericId : number|null; // Numeric ID for TASE
   source?: string;
   globesInstrumentId?: string;
+  historical?: { date: number; price: number }[];
 }
 
 export interface HistoricalDataPoint {
