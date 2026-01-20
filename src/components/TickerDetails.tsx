@@ -1,8 +1,8 @@
-import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, Box, Chip, CircularProgress, Tooltip, IconButton } from '@mui/material';
+import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, Box, Chip, CircularProgress, Tooltip, IconButton, ToggleButtonGroup, ToggleButton } from '@mui/material';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AddIcon from '@mui/icons-material/Add';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { getTickerData, getTickersDataset, type TickerListItem, fetchTickerHistory } from '../lib/fetching';
 import { fetchHolding, getMetadataValue } from '../lib/sheets/index';
@@ -53,11 +53,41 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   const [data, setData] = useState<any>(null);
   const [holdingData, setHoldingData] = useState<Holding | null>(null);
   const [historicalData, setHistoricalData] = useState<any[] | null>(null);
+  const [chartRange, setChartRange] = useState('1Y');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [sheetRebuildTime, setSheetRebuildTime] = useState<string | null>(null);
   const { t, tTry } = useLanguage();
+
+  const displayHistory = useMemo(() => {
+    if (!historicalData) return [];
+    const now = new Date();
+    let startDate = new Date();
+
+    switch (chartRange) {
+      case '1M':
+        startDate.setMonth(now.getMonth() - 1);
+        break;
+      case '6M':
+        startDate.setMonth(now.getMonth() - 6);
+        break;
+      case 'YTD':
+        startDate = new Date(now.getFullYear(), 0, 1);
+        break;
+      case '1Y':
+        startDate.setFullYear(now.getFullYear() - 1);
+        break;
+      case '5Y':
+        startDate.setFullYear(now.getFullYear() - 5);
+        break;
+      case 'ALL':
+      default:
+        return historicalData;
+    }
+    return historicalData.filter(d => d.date >= startDate.getTime());
+  }, [historicalData, chartRange]);
+
 
   const ownedInPortfolios = ticker ? getOwnedInPortfolios(ticker, portfolios, exchange) : undefined;
 
@@ -396,8 +426,24 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
 
             {historicalData && historicalData.length > 0 && (
               <>
-                <Typography variant="subtitle2" gutterBottom>{t('Chart', 'גרף')}</Typography>
-                <TickerChart data={historicalData} currency={displayData.currency} />
+                <Box display="flex" justifyContent="space-between" alignItems="center">
+                  <Typography variant="subtitle2" gutterBottom>{t('Chart', 'גרף')}</Typography>
+                  <ToggleButtonGroup
+                    value={chartRange}
+                    exclusive
+                    onChange={(e, newRange) => { if (newRange) setChartRange(newRange); }}
+                    aria-label="chart range"
+                    size="small"
+                  >
+                    <ToggleButton value="1M" aria-label="1 month">1M</ToggleButton>
+                    <ToggleButton value="6M" aria-label="6 months">6M</ToggleButton>
+                    <ToggleButton value="YTD" aria-label="year to date">YTD</ToggleButton>
+                    <ToggleButton value="1Y" aria-label="1 year">1Y</ToggleButton>
+                    <ToggleButton value="5Y" aria-label="5 years">5Y</ToggleButton>
+                    <ToggleButton value="ALL" aria-label="all time">ALL</ToggleButton>
+                  </ToggleButtonGroup>
+                </Box>
+                <TickerChart data={displayHistory} currency={displayData.currency} />
               </>
             )}
 

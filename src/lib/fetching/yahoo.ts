@@ -28,7 +28,7 @@ export async function fetchYahooStockQuote(ticker: string, exchange: Exchange, s
     }
   }
 
-  const url = `https://portfolios.noy-shai.workers.dev/?apiId=yahoo_hist&ticker=${yahooTicker}`;
+  const url = `https://portfolios.noy-shai.workers.dev/?apiId=yahoo_hist&ticker=${yahooTicker}&range=max`;
 
   let data;
   try {
