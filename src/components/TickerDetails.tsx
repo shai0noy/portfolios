@@ -313,7 +313,6 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
       '3Y': t('3Y', '3 שנים'),
       '5Y': t('5Y', '5 שנים'),
       'Max': t('Max', 'מקסימום'),
-      'All Time': t('All Time', 'כל הזמן'),
     };
     // Handle dynamic days like "5D"
     if (range.endsWith('D') && range !== '1D' && range !== 'YTD') {
@@ -326,6 +325,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
     if (!data?.dividends || data.dividends.length === 0 || !displayData?.currency || !historicalData || historicalData.length === 0) return {};
 
     const findPriceAtDate = (date: Date) => {
+      // Find the historical data point closest to the given date
       let closest = historicalData[0];
       let minDiff = Math.abs(historicalData[0].date.getTime() - date.getTime());
       for (let i = 1; i < historicalData.length; i++) {
@@ -339,44 +339,29 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
     };
 
     const calculateDividendsForRange = (startDate: Date) => {
-      const splits = data?.splits || [];
-      const calculateSplitFactor = (from: Date, to: Date) => {
-        // Factor to multiply shares by when moving from 'from' to 'to'
-        return splits.reduce((factor, split) => {
-          if (split.date.getTime() > from.getTime() && split.date.getTime() <= to.getTime()) {
-            return factor * (split.numerator / split.denominator);
-          }
-          return factor;
-        }, 1);
-      };
-
       const basePrice = findPriceAtDate(startDate);
       if (!basePrice) return { amount: 0, pct: 0 };
-
-      const totalReceived = data.dividends!.reduce((sum, div) => {
-        if (div.date.getTime() >= startDate.getTime()) {
-          // If we bought 1 share at startDate, how many shares do we have at div.date?
-          const sharesAtDivTime = calculateSplitFactor(startDate, div.date);
-          return sum + (div.amount * sharesAtDivTime);
+      let sum = 0;
+      for (let i = data.dividends!.length - 1; i >= 0; i--) {
+        if (data.dividends![i].date < startDate) {
+          break; // Stop if we've passed the start date - the array is sorted
         }
-        return sum;
-      }, 0);
-
-      return { amount: totalReceived, pct: totalReceived / basePrice };
+        sum += data.dividends![i].amount;
+      } 
+      return { amount: sum, pct: sum / basePrice };
     };
 
     const now = new Date();
     const ytdStart = new Date(now.getFullYear(), 0, 1);
     const oneYearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
-    const threeYearsAgo = new Date(now.getFullYear() - 3, now.getMonth(), now.getDate());
     const fiveYearsAgo = new Date(now.getFullYear() - 5, now.getMonth(), now.getDate());
+    const maxStartDate = historicalData.length > 0 ? historicalData[0].date : new Date(0);
 
     return {
       'YTD': calculateDividendsForRange(ytdStart),
       '1Y': calculateDividendsForRange(oneYearAgo),
-      '3Y': calculateDividendsForRange(threeYearsAgo),
       '5Y': calculateDividendsForRange(fiveYearsAgo),
-      'All Time': calculateDividendsForRange(new Date(0)), // Start of Unix epoch
+      'Max': calculateDividendsForRange(maxStartDate),
     };
   }, [data?.dividends, data?.splits, displayData?.currency, historicalData]);
 
@@ -562,7 +547,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                           <>
                             <Typography variant="caption" color="text.secondary">{translateRange(range)}</Typography>
                             <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatPercent(value)}</Typography>
-                            <Typography variant="caption" sx={{ fontSize: '0.7rem', opacity: 0.8 }}>({formatPrice((info as any).amount, displayData.currency, 2, t)})</Typography>
+                            <Typography variant="caption" sx={{ fontSize: '0.7rem', opacity: 0.8 }}>{formatPrice((info as any).amount, displayData.currency, 2, t)}</Typography>
                           </>
                         }
                       />

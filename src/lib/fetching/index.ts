@@ -91,18 +91,21 @@ export async function getTickerData(ticker: string, exchange: string, numericSec
     data = yahooData;
   } else if (yahooData) {
      // Merge data: Globes data is primary, fill in missing fields from Yahoo.
-    data.historical = yahooData.historical ?? data.historical;
-    data.dividends = yahooData.dividends ?? data.dividends;
-    data.splits = yahooData.splits ?? data.splits;
-    data.changePct1d = data.changePct1d ?? yahooData.changePct1d;
-    data.changePct1m = data.changePct1m ?? yahooData.changePct1m;
-    data.changePct3m = data.changePct3m ?? yahooData.changePct3m;
-    data.changePct1y = data.changePct1y ?? yahooData.changePct1y;
-    data.changePct3y = data.changePct3y ?? yahooData.changePct3y;
-    data.changePct5y = data.changePct5y ?? yahooData.changePct5y;
-    data.changePctYtd = data.changePctYtd ?? yahooData.changePctYtd;
-    data.openPrice = data.openPrice ?? yahooData.openPrice;
-    data.source = `${data.source} + Yahoo Finance`;
+    data = {
+      ...data,
+      historical: data.historical ?? yahooData.historical,
+      dividends: data.dividends ?? yahooData.dividends,
+      splits: data.splits ?? yahooData.splits,
+      changePct1d: data.changePct1d ?? yahooData.changePct1d,
+      changePct1m: data.changePct1m ?? yahooData.changePct1m,
+      changePct3m: data.changePct3m ?? yahooData.changePct3m,
+      changePct1y: data.changePct1y ?? yahooData.changePct1y,
+      changePct3y: data.changePct3y ?? yahooData.changePct3y,
+      changePct5y: data.changePct5y ?? yahooData.changePct5y,
+      changePctYtd: data.changePctYtd ?? yahooData.changePctYtd,
+      openPrice: data.openPrice ?? yahooData.openPrice,
+      source: `${data.source} + Yahoo Finance`,
+    };
   }
 
   return data;
