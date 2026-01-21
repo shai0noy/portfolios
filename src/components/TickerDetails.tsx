@@ -365,11 +365,18 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
     };
   }, [data?.dividends, data?.splits, displayData?.currency, historicalData]);
 
+  const isTase = exchange == Exchange.TASE || displayData?.exchange === Exchange.TASE;
+  const isGemel = exchange?.toUpperCase() === Exchange.GEMEL || displayData?.exchange === Exchange.GEMEL;
+  const price = displayData?.price;
+  const openPrice = displayData?.openPrice;
+  const maxDecimals = (price != null && price % 1 !== 0) || (openPrice != null && openPrice % 1 !== 0) ? 2 : 0;
+  const dayChange = perfData['1D']?.val || 0;
+
   return (
     <Dialog open={true} onClose={handleClose} maxWidth={false} fullWidth PaperProps={{ sx: { width: 'min(900px, 96%)' } }}>
       <DialogTitle>
-        <Box display="flex" justifyContent="space-between" alignItems="center">
-          <Box>
+        <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+          <Box sx={{ flex: 1, minWidth: 0, pr: 2 }}>
             <Box display="flex" alignItems="center" gap={1}>
                 <Typography variant="h4" component="div" fontWeight="bold">
                 {tTry(resolvedName || ticker, resolvedNameHe)}
@@ -380,9 +387,12 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                     </Tooltip>
                 )}
             </Box>
-            <Typography variant="subtitle1" component="div" color="text.secondary">
-              {resolvedName ? `${exchange?.toUpperCase()}: ${ticker}` : exchange?.toUpperCase()}
-            </Typography>
+            <Box display="flex" alignItems="center" gap={1}>
+              <Typography variant="subtitle1" component="div" color="text.secondary">
+                {resolvedName ? `${exchange?.toUpperCase()}: ${ticker}` : exchange?.toUpperCase()}
+              </Typography>
+              {displayData?.sector && <Chip label={displayData.sector || 'Unknown Sector'} size="small" variant="outlined" />}
+            </Box>
             {(() => {
               const lastSplit = data?.splits?.[0];
               if (!lastSplit) return null;
@@ -400,7 +410,29 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
               );
             })()}
           </Box>
-          {displayData?.sector && <Chip label={displayData.sector || 'Unknown Sector'} size="small" variant="outlined" />}
+          {displayData && (
+            <Box sx={{ textAlign: 'right', ml: 2, display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+              {!isGemel && (
+                <>
+                  <Box display="flex" alignItems="baseline" justifyContent="flex-end" sx={{ gap: 1 }}>
+                      <Typography variant="h6" component="div" fontWeight={600}>
+                        {formatPrice(price, isTase ? 'ILA' : displayData.currency, maxDecimals, t)}
+                      </Typography>
+                      <Tooltip title={`${t('Day change', 'שינוי יומי')} (${lastUpdated})`} placement="top">
+                        <Typography variant="h6" sx={{ fontWeight: 700, color: dayChange >= 0 ? 'success.main' : 'error.main' }}>
+                            {formatPercent(dayChange)}
+                        </Typography>
+                      </Tooltip>
+                  </Box>
+                  {openPrice != null && (
+                    <Typography variant="caption" color="text.secondary">
+                      {t('Open:', 'פתיחה:')} {formatPrice(openPrice, isTase ? 'ILA' : displayData.currency, maxDecimals, t)}
+                    </Typography>
+                  )}
+                </>
+              )}
+            </Box>
+          )}
         </Box>
       </DialogTitle>
 
@@ -418,39 +450,6 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
 
         {displayData && (
           <>
-            {(() => {
-              const isTase = exchange == Exchange.TASE || displayData.exchange === Exchange.TASE;
-              const isGemel = exchange?.toUpperCase() === Exchange.GEMEL || displayData.exchange === Exchange.GEMEL;
-              const price = displayData.price;
-              const openPrice = displayData.openPrice;
-              const maxDecimals = (price != null && price % 1 !== 0) || (openPrice != null && openPrice % 1 !== 0) ? 2 : 0;
-              const dayChange = perfData['1D']?.val || 0;
-
-              if (isGemel) return null;
-
-              return (
-                <Box display="flex" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
-                  <Box display="flex" alignItems="baseline" sx={{ gap: 1, flex: 1, minWidth: 0 }}>
-                    <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>{t('PRICE', 'מחיר')}</Typography>
-                    <Typography variant="h6" component="div" fontWeight={600} sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {formatPrice(price, isTase ? 'ILA' : displayData.currency, maxDecimals, t)}
-                    </Typography>
-                    {openPrice != null && (
-                      <Typography variant="caption" color="text.secondary" sx={{ ml: 1, whiteSpace: 'nowrap' }}>
-                        <Typography component="span" variant="caption" sx={{ mr: 0.5 }}>{t('Open:', 'פתיחה:')}</Typography>
-                        {formatPrice(openPrice, isTase ? 'ILA' : displayData.currency, maxDecimals, t)}
-                      </Typography>
-                    )}
-                  </Box>
-
-                  <Tooltip title={`${t('Day change', 'שינוי יומי')} (${lastUpdated})`} placement="top">
-                    <Box sx={{ textAlign: 'right', ml: 2, minWidth: 96 }}>
-                      <Typography variant="h6" sx={{ fontWeight: 700, color: dayChange >= 0 ? 'success.main' : 'error.main' }}>{formatPercent(dayChange)}</Typography>
-                    </Box>
-                  </Tooltip>
-                </Box>
-              );
-            })()}
             {isStale && (
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
                 {t('Data is from', 'הנתונים מתאריך')}: {formatDate(dataTimestamp)}
