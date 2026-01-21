@@ -130,6 +130,16 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
     // Use namespaced selector for child elements
     const getText = (tag: string) => instrument.getElementsByTagNameNS(GLOBES_API_NAMESPACE, tag)[0]?.textContent || null;
 
+    const displayTradeTimeEl = instrument.getElementsByTagNameNS(GLOBES_API_NAMESPACE, 'DisplayTradeTime')[0];
+    let tradeTimeStatus: string | undefined = undefined;
+    if (displayTradeTimeEl) {
+      const enText = displayTradeTimeEl.getElementsByTagNameNS(GLOBES_API_NAMESPACE, 'en')[0]?.textContent;
+      if (enText) {
+        // "fix casing for english" -> "End of day"
+        tradeTimeStatus = enText.charAt(0).toUpperCase() + enText.slice(1);
+      }
+    }
+
     // Use specific fields from Globes XML (Currency/Stock)
     const last = parseFloat(getText('last') || '0');
     const openPrice = parseFloat(getText('openPrice') || '0');
@@ -252,6 +262,7 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
       numericId: securityId || null,
       source: 'Globes',
       globesInstrumentId: globesInstrumentId || undefined,
+      tradeTimeStatus,
     };
 
     tickerDataCache.set(cacheKey, { data: tickerData, timestamp: now });

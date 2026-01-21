@@ -39,7 +39,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   const ticker = propTicker || params.ticker;
   // Add better handling for invalid/empty exchange param
   const exchange = parseExchange(propExchange || params.exchange || '');
-  
+
   // Combine explicit numericId from various sources
   const explicitNumericId = propNumericId || params.numericId || state?.numericId;
   // State to hold a numericId that we might have to look up
@@ -99,7 +99,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
         fetchTickerHistory(ticker, exchange, undefined, true)
       ]);
       setHistoricalData(historyResponse?.historical || []);
-      setData(prev => ({...prev, dividends: historyResponse?.dividends, splits: historyResponse?.splits}));
+      setData(prev => ({ ...prev, dividends: historyResponse?.dividends, splits: historyResponse?.splits }));
     }
     setRefreshing(false);
   };
@@ -177,7 +177,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
     if (ticker && exchange) {
       fetchTickerHistory(ticker, exchange).then(historyResponse => {
         setHistoricalData(historyResponse?.historical || []);
-        setData(prev => ({...prev, dividends: historyResponse?.dividends, splits: historyResponse?.splits}));
+        setData(prev => ({ ...prev, dividends: historyResponse?.dividends, splits: historyResponse?.splits }));
       });
     }
   }, [fetchData, ticker, exchange]);
@@ -274,7 +274,6 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   };
 
   const displayData = data || holdingData;
-  console.log('TickerDetails displayData:', displayData);
 
   // Robustly handle timestamp regardless of its source type (Date, string, or number)
   const rawTimestamp = data?.timestamp || sheetRebuildTime;
@@ -287,10 +286,10 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
 
   // Helper to construct performance object
   const getPerf = (val?: number, date?: Date, alwaysShow?: boolean) => {
-     if (val === undefined || (val === 0 && !alwaysShow)) return undefined;
-     return { val, date };
+    if (val === undefined || (val === 0 && !alwaysShow)) return undefined;
+    return { val, date };
   };
-    const perfData: Record<string, { val: number, date?: Date } | undefined> = {
+  const perfData: Record<string, { val: number, date?: Date } | undefined> = {
     '1D': getPerf(data?.changePct1d ?? (holdingData as any)?.changePct1d, data?.changeDate1d ?? (holdingData as any)?.changeDate1d, /*alwaysShow*/ true),
     [data?.recentChangeDays ? `${data.recentChangeDays}D` : '1W']: getPerf(data?.changePctRecent ?? (holdingData as any)?.perf1w ?? (holdingData as any)?.changePctRecent, data?.changeDateRecent ?? (holdingData as any)?.changeDateRecent),
     '1M': getPerf(data?.changePct1m ?? (holdingData as any)?.changePct1m, data?.changeDate1m ?? (holdingData as any)?.changeDate1m),
@@ -347,7 +346,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
           break; // Stop if we've passed the start date - the array is sorted
         }
         sum += data.dividends![i].amount;
-      } 
+      }
       return { amount: sum, pct: sum / basePrice };
     };
 
@@ -378,14 +377,14 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
         <Box display="flex" justifyContent="space-between" alignItems="flex-start">
           <Box sx={{ flex: 1, minWidth: 0, pr: 2 }}>
             <Box display="flex" alignItems="center" gap={1}>
-                <Typography variant="h4" component="div" fontWeight="bold">
+              <Typography variant="h4" component="div" fontWeight="bold">
                 {tTry(resolvedName || ticker, resolvedNameHe)}
-                </Typography>
-                {ownedInPortfolios && ownedInPortfolios.length > 0 && (
-                    <Tooltip title={`${t('Owned in', 'מוחזק ב')}: ${ownedInPortfolios.join(', ')}`}>
-                        <BusinessCenterIcon color="action" />
-                    </Tooltip>
-                )}
+              </Typography>
+              {ownedInPortfolios && ownedInPortfolios.length > 0 && (
+                <Tooltip title={`${t('Owned in', 'מוחזק ב')}: ${ownedInPortfolios.join(', ')}`}>
+                  <BusinessCenterIcon color="action" />
+                </Tooltip>
+              )}
             </Box>
             <Box display="flex" alignItems="center" gap={1}>
               <Typography variant="subtitle1" component="div" color="text.secondary">
@@ -400,7 +399,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
               const oneYearAgo = new Date();
               oneYearAgo.setFullYear(now.getFullYear() - 1);
               if (lastSplit.date < oneYearAgo) return null;
-              
+
               const isReverse = lastSplit.numerator < lastSplit.denominator;
               const label = isReverse ? t('Merge Date:', 'תאריך איחוד:') : t('Split Date:', 'תאריך פיצול:');
               return (
@@ -414,20 +413,26 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
             <Box sx={{ textAlign: 'right', ml: 2, display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
               {!isGemel && (
                 <>
-                  <Box display="flex" alignItems="baseline" justifyContent="flex-end" sx={{ gap: 1 }}>
-                      <Typography variant="h6" component="div" fontWeight={600}>
-                        {formatPrice(price, isTase ? 'ILA' : displayData.currency, maxDecimals, t)}
-                      </Typography>
-                      <Tooltip title={`${t('Day change', 'שינוי יומי')} (${lastUpdated})`} placement="top">
-                        <Typography variant="h6" sx={{ fontWeight: 700, color: dayChange >= 0 ? 'success.main' : 'error.main' }}>
-                            {formatPercent(dayChange)}
-                        </Typography>
-                      </Tooltip>
-                  </Box>
-                  {openPrice != null && (
-                    <Typography variant="caption" color="text.secondary">
-                      {t('Open:', 'פתיחה:')} {formatPrice(openPrice, isTase ? 'ILA' : displayData.currency, maxDecimals, t)}
+                  <Box display="flex" alignItems="baseline" justifyContent="flex-end" sx={{ gap: 1.5 }}>
+                    <Typography variant="h6" component="div" fontWeight={600}>
+                      {formatPrice(price, isTase ? 'ILA' : displayData.currency, maxDecimals, t)}
                     </Typography>
+                    <Tooltip title={`${t('Day change', 'שינוי יומי')} (${lastUpdated})`} placement="top">
+                      <Typography variant="h6" sx={{ fontWeight: 700, color: dayChange >= 0 ? 'success.main' : 'error.main' }}>
+                        {formatPercent(dayChange)}
+                      </Typography>
+                    </Tooltip>
+                  </Box>
+                  {(openPrice != null || data?.tradeTimeStatus) && (
+                    <Box display="flex" alignItems="baseline" justifyContent="flex-end" sx={{ gap: 1, mt: 0.25 }}>
+                      {openPrice != null && (
+                        <Typography variant="caption" color="text.secondary">{t('Open:', 'פתיחה:')} {formatPrice(openPrice, isTase ? 'ILA' : displayData.currency, maxDecimals, t)}</Typography>
+                      )}
+                      {openPrice != null && data?.tradeTimeStatus && (<Typography variant="caption" color="text.secondary">|</Typography>)}
+                      {data?.tradeTimeStatus && (
+                        <Typography variant="caption" color="text.secondary">{data.tradeTimeStatus}</Typography>
+                      )}
+                    </Box>
                   )}
                 </>
               )}

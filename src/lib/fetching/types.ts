@@ -49,6 +49,7 @@ export interface TickerData {
   historical?: { date: Date; price: number }[];
   dividends?: Dividend[];
   splits?: Split[];
+  tradeTimeStatus?: string;
 }
 
 export interface HistoricalDataPoint {
