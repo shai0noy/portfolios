@@ -1,9 +1,12 @@
-import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceDot } from 'recharts';
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceDot, ReferenceLine } from 'recharts';
 import { useLanguage } from '../lib/i18n';
 import { formatPrice, formatPercent } from '../lib/currency';
 import { Paper, Typography, Box } from '@mui/material';
-import { useTheme } from '@mui/material/styles';
-import { useState, Fragment, useEffect, useCallback, useMemo } from 'react';
+import { useTheme } from '@mui/material/styles';import { useState, useEffect, useCallback, useMemo } from 'react';
+
+const yAxisTickFormatter = (tick: number) => {
+    return formatPercent(tick);
+};
 
 interface TickerChartProps {
     data: { date: Date; price: number }[];
@@ -76,112 +79,150 @@ const SelectionSummary = ({ startPoint, endPoint, currency, t }: any) => {
 
 
 export function TickerChart({ data, currency }: TickerChartProps) {
+    const FADE_MS = 170;          // Speed of the opacity transition
+    const TRANSFORM_MS = 360;     // Speed of the line movement (Very fast)
+    const BUFFER_MS = 30;        // Safety window for browser paint
+    
+    // Relation Enforcement: Total delay before fading back in
+    const FADE_IN_DELAY = TRANSFORM_MS + BUFFER_MS;
+
     const { t } = useLanguage();
     const theme = useTheme();
+
+    const [displayData, setDisplayData] = useState(data);
+    const [shadeOpacity, setShadeOpacity] = useState(1);
+    
     const [selection, setSelection] = useState({
         start: null as any | null,
         end: null as any | null,
         isSelecting: false,
     });
 
+    const dateRangeDays = useMemo(() => {
+        if (!displayData || displayData.length < 2) return 0;
+        const range = displayData[displayData.length - 1].date.getTime() - displayData[0].date.getTime();
+        return range / (1000 * 60 * 60 * 24);
+    }, [displayData]);
+
+    const formatXAxis = useCallback((tickItem: number) => {
+        const date = new Date(tickItem);
+        if (dateRangeDays <= 35) { // ~1M and less
+            // For the first of the month, show month to provide context
+            if (date.getDate() === 1) {
+                return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+            }
+            return date.toLocaleDateString(undefined, { day: 'numeric' });
+        }
+        if (dateRangeDays <= 366) { // up to 1Y
+            return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+        }
+        if (dateRangeDays <= 366 * 5) { // up to 5Y
+            return date.toLocaleDateString(undefined, { month: 'short', year: '2-digit' });
+        }
+        // > 5Y
+        return date.toLocaleDateString(undefined, { year: 'numeric' });
+    }, [dateRangeDays]);
+
     useEffect(() => {
+        if (!data || data === displayData) return;
+
+        // 1. Instant fade out
+        setShadeOpacity(0);
         setSelection({ start: null, end: null, isSelecting: false });
-    }, [data]);
 
-    if (!data || data.length < 2) {
-        return <div style={{ width: '100%', height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Typography color="text.secondary">Not enough data.</Typography></div>;
-    }
+        // 2. Wait for fade-out, then swap data (Triggers TRANSFORM_MS line move)
+        const swapTimer = setTimeout(() => {
+            setDisplayData(data);
 
-    const basePrice = data[0].price;
-    const isUp = data[data.length - 1].price >= basePrice;
+            // 3. Re-enable shade ONLY after transform is guaranteed finished
+            const fadeInTimer = setTimeout(() => {
+                setShadeOpacity(1);
+            }, FADE_IN_DELAY); 
+
+            return () => clearTimeout(fadeInTimer);
+        }, FADE_MS);
+
+        return () => clearTimeout(swapTimer);
+    }, [data, displayData, FADE_MS, FADE_IN_DELAY]);
+
+    if (!displayData || displayData.length < 2) return null;
+
+    // Calculations (Likeness & Gradient Offset)
+    const basePrice = displayData[0].price;
+    const isUp = displayData[displayData.length - 1].price >= basePrice;
     const chartColor = isUp ? theme.palette.success.main : theme.palette.error.main;
 
-    const percentData = useMemo(() => data.map(p => ({
+    const percentData = useMemo(() => displayData.map(p => ({
         ...p,
         yValue: basePrice > 0 ? (p.price / basePrice - 1) : 0,
-    })), [data, basePrice]);
+    })), [displayData, basePrice]);
 
-    const formatXAxis = (tickItem: number) => new Date(tickItem).toLocaleDateString(undefined, { month: 'short', year: '2-digit' });
-    const yAxisTickFormatter = (tick: number) => formatPercent(tick, { maximumFractionDigits: 0 });
+    const yMax = Math.max(...percentData.map(p => p.yValue));
+    const yMin = Math.min(...percentData.map(p => p.yValue));
 
-    const findClosestPoint = (date: number) => {
-        return percentData.reduce((prev, curr) => Math.abs(curr.date.getTime() - date) < Math.abs(prev.date.getTime() - date) ? curr : prev);
-    };
-
-    const handleClick = useCallback((e: any) => {
-        if (!e || !e.activeLabel) return;
-        const point = findClosestPoint(e.activeLabel);
-
-        setSelection(prev => {
-            if (prev.isSelecting) {
-                return { ...prev, end: point, isSelecting: false };
-            }
-            return { start: point, end: point, isSelecting: true };
-        });
-    }, [percentData]);
-
-    const handleMouseMove = useCallback((e: any) => {
-        if (selection.isSelecting && e && e.activeLabel) {
-            const point = findClosestPoint(e.activeLabel);
-            if (point.date.getTime() !== selection.end?.date?.getTime()) {
-                setSelection(prev => ({ ...prev, end: point }));
-            }
-        }
-    }, [selection.isSelecting, selection.end, percentData]);
-
-    const selectionPoints = selection.start && selection.end ? [selection.start, selection.end].sort((a,b) => a.date.getTime() - b.date.getTime()) : [];
-    const [startPoint, endPoint] = selectionPoints;
+    let offset;
+    if (yMin >= 0) {
+        // If the entire graph is above the zero line, the "split" is at the bottom.
+        offset = 1;
+    } else if (yMax <= 0) {
+        // If the entire graph is below the zero line, the "split" is at the top.
+        offset = 0;
+    } else {
+        offset = Math.max(0, Math.min(1, yMax / (yMax - yMin)));
+    }
 
     return (
-        <Fragment>
-            <Box sx={{
-                width: '100%',
-                height: 300,
-                position: 'relative',
-                userSelect: 'none',
-                marginBottom: '1rem',
-                '& .recharts-wrapper': {
-                    outline: 'none',
-                },
-                '& .recharts-wrapper:focus-visible': {
-                    outline: 'none',
-                },
-                 '& .recharts-surface:focus-visible': {
-                    outline: 'none',
-                }
-            }}>
-                <SelectionSummary startPoint={startPoint} endPoint={endPoint} currency={currency} t={t} />
-                <ResponsiveContainer>
-                    <AreaChart
-                        data={percentData}
-                        onClick={handleClick}
-                        onMouseMove={handleMouseMove}
-                        margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
-                    >
-                        <defs>
-                            <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor={chartColor} stopOpacity={0.8} />
-                                <stop offset="95%" stopColor={chartColor} stopOpacity={0} />
-                            </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-                        <XAxis dataKey="date" tickFormatter={formatXAxis} minTickGap={60} type="number" domain={['dataMin', 'dataMax']} scale="time" />
-                        <YAxis dataKey="yValue" orientation="right" tickFormatter={yAxisTickFormatter} domain={['auto', 'auto']} />
-                        <Tooltip content={<CustomTooltip currency={currency} t={t} basePrice={basePrice} />} />
-                        <Area type="monotone" dataKey="yValue" stroke={chartColor} strokeWidth={2} fill="url(#chartGradient)" />
-                        
-                        {startPoint && (
-                            <ReferenceDot x={startPoint.date.getTime()} y={startPoint.yValue} r={6} fill={chartColor} stroke="white" strokeWidth={2} isFront={true} />
-                        )}
-                        {endPoint && (
-                            <ReferenceDot x={endPoint.date.getTime()} y={endPoint.yValue} r={6} fill={chartColor} stroke="white" strokeWidth={2} isFront={true} />
-                        )}
-                        {startPoint && endPoint && startPoint.date.getTime() !== endPoint.date.getTime() && (
-                            <path d={`M${startPoint.cx},${startPoint.cy}L${endPoint.cx},${endPoint.cy}`} stroke={chartColor} strokeWidth={2} strokeDasharray="5 5" />
-                        )}
-                    </AreaChart>
-                </ResponsiveContainer>
-            </Box>
-        </Fragment>
+        <Box sx={{ width: '100%', height: 300, position: 'relative' }}>
+            <SelectionSummary startPoint={selection.start} endPoint={selection.end} currency={currency} t={t} />
+            <ResponsiveContainer>
+                <AreaChart data={percentData} margin={{ top: 10, right: 5, left: 0, bottom: 0 }}>
+                    <defs>
+                        <linearGradient id="splitGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0" stopColor={theme.palette.success.main} stopOpacity={0.4} />
+                            <stop offset={offset} stopColor={theme.palette.success.main} stopOpacity={0.02} />
+                            <stop offset={offset} stopColor={theme.palette.error.main} stopOpacity={0.02} />
+                            <stop offset="1" stopColor={theme.palette.error.main} stopOpacity={0.4} />
+                        </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} />
+                    <XAxis
+                        dataKey="date"
+                        type="number"
+                        domain={['dataMin', 'dataMax']}
+                        scale="time"
+                        tickFormatter={formatXAxis}
+                        tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
+                        tickCount={7}
+                        dy={5}
+                    />
+                    <YAxis
+                        orientation="right"
+                        tickFormatter={yAxisTickFormatter}
+                        width={50}
+                        tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
+                        dx={3}
+                    />
+                    <Tooltip content={<CustomTooltip currency={currency} t={t} basePrice={basePrice} />} />
+                    <ReferenceLine y={0} stroke={theme.palette.text.secondary} strokeDasharray="3 3" />
+                    
+                    <Area 
+                        type="monotone" 
+                        dataKey="yValue" 
+                        stroke={chartColor} 
+                        strokeWidth={2} 
+                        fill="url(#splitGradient)"
+                        fillOpacity={shadeOpacity}
+                        isAnimationActive={true}
+                        animationDuration={TRANSFORM_MS}
+                        animationBegin={0}
+                        animationEasing="ease-in-out"
+                        style={{ 
+                            transition: `fill-opacity ${FADE_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`,
+                            pointerEvents: 'none' 
+                        }}
+                    />
+                </AreaChart>
+            </ResponsiveContainer>
+        </Box>
     );
 }

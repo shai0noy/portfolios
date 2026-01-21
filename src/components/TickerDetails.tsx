@@ -497,7 +497,6 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
             {historicalData && historicalData.length > 0 && (
               <>
                 <Box display="flex" justifyContent="space-between" alignItems="center">
-                  <Typography variant="subtitle2" gutterBottom>{t('Chart', 'גרף')}</Typography>
                   <ToggleButtonGroup
                     value={chartRange}
                     exclusive
