@@ -186,6 +186,17 @@ export const fetchHolding = withAuthHandling(async (spreadsheetId: string, ticke
             holding = matchingHoldings[0];
         }
 
+        if (holding) {
+            // Convert date fields from strings/numbers to Date objects
+            const dateKeys: (keyof Holding)[] = ['changeDate1d', 'changeDateRecent', 'changeDate1m', 'changeDate3m', 'changeDateYtd', 'changeDate1y', 'changeDate3y', 'changeDate5y', 'changeDate10y'];
+            dateKeys.forEach(key => {
+                const val = (holding as any)[key];
+                if (val && !(val instanceof Date)) {
+                    (holding as any)[key] = new Date(val);
+                }
+            });
+        }
+
         return holding || null;
     } catch (error) {
         console.error(`Error fetching holding for ${ticker}:${exchange}:`, error);

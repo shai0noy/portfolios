@@ -1,6 +1,17 @@
 // src/lib/fetching/types.ts
 import { Exchange } from '../types';
 
+export interface Dividend {
+  date: Date; // Unix timestamp (in milliseconds) of the dividend payout
+  amount: number; // Dividend amount per share
+}
+
+export interface Split {
+  date: Date; // Unix timestamp (in milliseconds) of the split
+  numerator: number; // The "new" number of shares
+  denominator: number; // The "old" number of shares (e.g., for a 2-for-1 split, numerator is 2, denominator is 1)
+}
+
 export interface TickerData {
   price: number;
   openPrice?: number;
@@ -9,33 +20,35 @@ export interface TickerData {
   currency?: string;
   exchange: Exchange;
   changePct1d?: number; // Daily change percentage
-  changeDate1d?: number; // Timestamp of the previous close used for daily change
-  timestamp?: number; // Last update time
+  changeDate1d?: Date; // Timestamp of the previous close used for daily change
+  timestamp?: Date; // Last update time
   sector?: string;
   changePctYtd?: number;
-  changeDateYtd?: number; // Timestamp of the start of the year price
+  changeDateYtd?: Date; // Timestamp of the start of the year price
   changePctRecent?: number;
-  changeDateRecent?: number; // Timestamp of the start of the recent period
+  changeDateRecent?: Date; // Timestamp of the start of the recent period
   recentChangeDays?: number; // Number of days in the recent period (e.g. 7)
   changePct1m?: number;
-  changeDate1m?: number; // Timestamp of the price 1 month ago
+  changeDate1m?: Date; // Timestamp of the price 1 month ago
   changePct3m?: number;
-  changeDate3m?: number; // Timestamp of the price 3 months ago
+  changeDate3m?: Date; // Timestamp of the price 3 months ago
   changePct1y?: number;
-  changeDate1y?: number; // Timestamp of the price 1 year ago
+  changeDate1y?: Date; // Timestamp of the price 1 year ago
   changePct3y?: number;
-  changeDate3y?: number; // Timestamp of the price 3 years ago
+  changeDate3y?: Date; // Timestamp of the price 3 years ago
   changePct5y?: number;
-  changeDate5y?: number; // Timestamp of the price 5 years ago
+  changeDate5y?: Date; // Timestamp of the price 5 years ago
   changePct10y?: number;
-  changeDate10y?: number; // Timestamp of the price 10 years ago
+  changeDate10y?: Date; // Timestamp of the price 10 years ago
   changePctMax?: number;
-  changeDateMax?: number;
+  changeDateMax?: Date;
   ticker: string;
   numericId : number|null; // Numeric ID for TASE
   source?: string;
   globesInstrumentId?: string;
-  historical?: { date: number; price: number }[];
+  historical?: { date: Date; price: number }[];
+  dividends?: Dividend[];
+  splits?: Split[];
 }
 
 export interface HistoricalDataPoint {

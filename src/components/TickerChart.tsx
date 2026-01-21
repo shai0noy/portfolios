@@ -6,14 +6,14 @@ import { useTheme } from '@mui/material/styles';
 import { useState, Fragment, useEffect, useCallback, useMemo } from 'react';
 
 interface TickerChartProps {
-    data: { date: number; price: number }[];
+    data: { date: Date; price: number }[];
     currency: string;
 }
 
 const CustomTooltip = ({ active, payload, label, currency, t, basePrice }: any) => {
     if (active && payload && payload.length) {
         const point = payload[0].payload;
-        const date = new Date(point.date);
+        const date = point.date; // It's already a Date object
         const dateStr = date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
         const price = point.price;
         const percentChange = basePrice ? (price / basePrice - 1) : 0;
@@ -41,12 +41,12 @@ const SelectionSummary = ({ startPoint, endPoint, currency, t }: any) => {
 
     const priceChange = endPoint.price - startPoint.price;
     const percentChange = (endPoint.price / startPoint.price) - 1;
-    const duration = Math.abs(endPoint.date - startPoint.date) / (1000 * 60 * 60 * 24);
+    const duration = Math.abs(endPoint.date.getTime() - startPoint.date.getTime()) / (1000 * 60 * 60 * 24);
     const isPositive = percentChange >= 0;
     const color = isPositive ? 'success.main' : 'error.main';
 
-    const startDateStr = new Date(Math.min(startPoint.date, endPoint.date)).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-    const endDateStr = new Date(Math.max(startPoint.date, endPoint.date)).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    const startDateStr = new Date(Math.min(startPoint.date.getTime(), endPoint.date.getTime())).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    const endDateStr = new Date(Math.max(startPoint.date.getTime(), endPoint.date.getTime())).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 
     return (
         <Box sx={{
@@ -105,7 +105,7 @@ export function TickerChart({ data, currency }: TickerChartProps) {
     const yAxisTickFormatter = (tick: number) => formatPercent(tick, { maximumFractionDigits: 0 });
 
     const findClosestPoint = (date: number) => {
-        return percentData.reduce((prev, curr) => Math.abs(curr.date - date) < Math.abs(prev.date - date) ? curr : prev);
+        return percentData.reduce((prev, curr) => Math.abs(curr.date.getTime() - date) < Math.abs(prev.date.getTime() - date) ? curr : prev);
     };
 
     const handleClick = useCallback((e: any) => {
@@ -123,22 +123,22 @@ export function TickerChart({ data, currency }: TickerChartProps) {
     const handleMouseMove = useCallback((e: any) => {
         if (selection.isSelecting && e && e.activeLabel) {
             const point = findClosestPoint(e.activeLabel);
-            if (point.date !== selection.end?.date) {
+            if (point.date.getTime() !== selection.end?.date?.getTime()) {
                 setSelection(prev => ({ ...prev, end: point }));
             }
         }
     }, [selection.isSelecting, selection.end, percentData]);
 
-    const selectionPoints = selection.start && selection.end ? [selection.start, selection.end].sort((a,b) => a.date - b.date) : [];
+    const selectionPoints = selection.start && selection.end ? [selection.start, selection.end].sort((a,b) => a.date.getTime() - b.date.getTime()) : [];
     const [startPoint, endPoint] = selectionPoints;
 
     return (
         <Fragment>
-            <Box sx={{ 
-                width: '100%', 
-                height: 300, 
-                position: 'relative', 
-                userSelect: 'none', 
+            <Box sx={{
+                width: '100%',
+                height: 300,
+                position: 'relative',
+                userSelect: 'none',
                 marginBottom: '1rem',
                 '& .recharts-wrapper': {
                     outline: 'none',
@@ -171,12 +171,12 @@ export function TickerChart({ data, currency }: TickerChartProps) {
                         <Area type="monotone" dataKey="yValue" stroke={chartColor} strokeWidth={2} fill="url(#chartGradient)" />
                         
                         {startPoint && (
-                            <ReferenceDot x={startPoint.date} y={startPoint.yValue} r={6} fill={chartColor} stroke="white" strokeWidth={2} isFront={true} />
+                            <ReferenceDot x={startPoint.date.getTime()} y={startPoint.yValue} r={6} fill={chartColor} stroke="white" strokeWidth={2} isFront={true} />
                         )}
                         {endPoint && (
-                            <ReferenceDot x={endPoint.date} y={endPoint.yValue} r={6} fill={chartColor} stroke="white" strokeWidth={2} isFront={true} />
+                            <ReferenceDot x={endPoint.date.getTime()} y={endPoint.yValue} r={6} fill={chartColor} stroke="white" strokeWidth={2} isFront={true} />
                         )}
-                        {startPoint && endPoint && startPoint.date !== endPoint.date && (
+                        {startPoint && endPoint && startPoint.date.getTime() !== endPoint.date.getTime() && (
                             <path d={`M${startPoint.cx},${startPoint.cy}L${endPoint.cx},${endPoint.cy}`} stroke={chartColor} strokeWidth={2} strokeDasharray="5 5" />
                         )}
                     </AreaChart>

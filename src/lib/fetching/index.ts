@@ -92,6 +92,8 @@ export async function getTickerData(ticker: string, exchange: string, numericSec
   } else if (yahooData) {
      // Merge data: Globes data is primary, fill in missing fields from Yahoo.
     data.historical = yahooData.historical ?? data.historical;
+    data.dividends = yahooData.dividends ?? data.dividends;
+    data.splits = yahooData.splits ?? data.splits;
     data.changePct1d = data.changePct1d ?? yahooData.changePct1d;
     data.changePct1m = data.changePct1m ?? yahooData.changePct1m;
     data.changePct3m = data.changePct3m ?? yahooData.changePct3m;
@@ -106,13 +108,13 @@ export async function getTickerData(ticker: string, exchange: string, numericSec
   return data;
 }
 
-export async function fetchTickerHistory(ticker: string, exchange: string, signal?: AbortSignal, forceRefresh = false): Promise<TickerData['historical']> {
+export async function fetchTickerHistory(ticker: string, exchange: string, signal?: AbortSignal, forceRefresh = false): Promise<Pick<TickerData, 'historical' | 'dividends' | 'splits'>> {
   const parsedExchange = parseExchange(exchange);
 
   // Fetch 1-year data, with forceRefresh if requested by the user.
   const yahooData1yPromise = fetchYahooTickerData(ticker, parsedExchange, signal, forceRefresh, '1y');
 
-  // Fetch max data, but don't force refresh (rely on existing cache).
+  // Fetch max data (including events), but don't force refresh (rely on existing cache).
   const yahooDataMaxPromise = fetchYahooTickerData(ticker, parsedExchange, signal, false, 'max');
 
   const [yahooData1y, yahooDataMax] = await Promise.all([yahooData1yPromise, yahooDataMaxPromise]);
@@ -120,39 +122,30 @@ export async function fetchTickerHistory(ticker: string, exchange: string, signa
   const hist1y = yahooData1y?.historical;
   const histMax = yahooDataMax?.historical;
 
-  if (!hist1y && !histMax) {
-    return undefined;
+  let mergedHistorical: TickerData['historical'] = undefined;
+
+  if (hist1y || histMax) {
+    const lastDate = histMax && histMax.length > 0 ? histMax[histMax.length - 1].date : new Date();
+    const oneYearAgoTs = new Date(lastDate).setFullYear(new Date(lastDate).getFullYear() - 1);
+    
+    const olderData = histMax ? histMax.filter(p => p.date.getTime() < oneYearAgoTs) : [];
+    const recentData = hist1y || (histMax ? histMax.filter(p => p.date.getTime() >= oneYearAgoTs) : []);
+    
+    const merged = [...olderData, ...recentData];
+    
+    const uniqueMap = new Map<number, { date: Date; price: number }>();
+    for (const point of merged) {
+      uniqueMap.set(point.date.getTime(), point);
+    }
+    
+    const uniqueMerged = Array.from(uniqueMap.values());
+    uniqueMerged.sort((a, b) => a.date.getTime() - b.date.getTime());
+    mergedHistorical = uniqueMerged;
   }
 
-  if (!histMax) {
-    return hist1y;
-  }
-
-  if (!hist1y) {
-    return histMax;
-  }
-
-  // Find the timestamp for one year ago from the last point in the max history
-  const lastDate = histMax.length > 0 ? histMax[histMax.length - 1].date : Date.now();
-  const oneYearAgoTs = new Date(lastDate).setFullYear(new Date(lastDate).getFullYear() - 1);
-
-  // Take older data from the 'max' dataset
-  const olderData = histMax.filter(p => p.date < oneYearAgoTs);
-  
-  // Combine with the 1-year data. The 1-year data is preferred for the recent period.
-  const merged = [...olderData, ...hist1y];
-
-  // Remove duplicates, preferring items from hist1y (which come later in the merged array)
-  // This is efficient for removing duplicates from a sorted-ish array.
-  const uniqueMap = new Map<number, { date: number; price: number }>();
-  for (const point of merged) {
-    uniqueMap.set(point.date, point);
-  }
-  
-  const uniqueMerged = Array.from(uniqueMap.values());
-
-  // Ensure the final array is sorted by date
-  uniqueMerged.sort((a, b) => a.date - b.date);
-
-  return uniqueMerged;
+  return {
+    historical: mergedHistorical,
+    dividends: yahooDataMax?.dividends,
+    splits: yahooDataMax?.splits,
+  };
 }

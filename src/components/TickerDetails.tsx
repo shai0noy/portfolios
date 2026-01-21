@@ -85,7 +85,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
       default:
         return historicalData;
     }
-    return historicalData.filter(d => d.date >= startDate.getTime());
+    return historicalData.filter(d => d.date.getTime() >= startDate.getTime());
   }, [historicalData, chartRange]);
 
 
@@ -94,11 +94,12 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   const handleRefresh = async () => {
     setRefreshing(true);
     if (ticker && exchange) {
-      const [, history] = await Promise.all([
+      const [, historyResponse] = await Promise.all([
         fetchData(true),
         fetchTickerHistory(ticker, exchange, undefined, true)
       ]);
-      setHistoricalData(history || []);
+      setHistoricalData(historyResponse?.historical || []);
+      setData(prev => ({...prev, dividends: historyResponse?.dividends, splits: historyResponse?.splits}));
     }
     setRefreshing(false);
   };
@@ -149,7 +150,12 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
       ]);
 
       setHoldingData(holding);
-      setData(tickerData);
+      setData(prev => ({
+        ...prev,
+        ...tickerData,
+        dividends: tickerData?.dividends || prev?.dividends,
+        splits: tickerData?.splits || prev?.splits
+      }));
       setSheetRebuildTime(sheetRebuild);
 
       if (!tickerData && !holding) {
@@ -169,8 +175,9 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
     fetchData();
     // Fetch history data separately
     if (ticker && exchange) {
-      fetchTickerHistory(ticker, exchange).then(history => {
-        setHistoricalData(history || []);
+      fetchTickerHistory(ticker, exchange).then(historyResponse => {
+        setHistoricalData(historyResponse?.historical || []);
+        setData(prev => ({...prev, dividends: historyResponse?.dividends, splits: historyResponse?.splits}));
       });
     }
   }, [fetchData, ticker, exchange]);
@@ -251,34 +258,39 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
     return links;
   };
 
-  const formatTimestamp = (timestamp?: number | string) => {
+  const formatTimestamp = (timestamp?: Date | string | number) => {
     if (!timestamp) return 'N/A';
-    const date = new Date(timestamp);
+    const date = (timestamp instanceof Date) ? timestamp : new Date(timestamp);
     const today = new Date();
     const isToday = date.toDateString() === today.toDateString();
     const dateStr = `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
     return isToday ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : `${dateStr} ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
   };
 
-  const formatDate = (timestamp?: number | string) => {
+  const formatDate = (timestamp?: Date | string | number) => {
     if (!timestamp) return 'N/A';
-    const date = new Date(timestamp);
+    const date = (timestamp instanceof Date) ? timestamp : new Date(timestamp);
     return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
   };
 
   const displayData = data || holdingData;
   console.log('TickerDetails displayData:', displayData);
-  const lastUpdated = formatTimestamp(data?.timestamp || sheetRebuildTime);
+
+  // Robustly handle timestamp regardless of its source type (Date, string, or number)
+  const rawTimestamp = data?.timestamp || sheetRebuildTime;
+  const dataTimestamp = rawTimestamp ? new Date(rawTimestamp) : null;
+  const lastUpdated = formatTimestamp(dataTimestamp);
+  const isStale = dataTimestamp ? (Date.now() - dataTimestamp.getTime()) > 1000 * 60 * 60 * 24 * 3 : false; // > 3 days
 
   const resolvedName = data?.name || holdingData?.name || initialName;
   const resolvedNameHe = data?.nameHe || holdingData?.nameHe || initialNameHe;
 
   // Helper to construct performance object
-  const getPerf = (val?: number, date?: number, alwaysShow?: boolean) => {
+  const getPerf = (val?: number, date?: Date, alwaysShow?: boolean) => {
      if (val === undefined || (val === 0 && !alwaysShow)) return undefined;
      return { val, date };
   };
-    const perfData: Record<string, { val: number, date?: number } | undefined> = {
+    const perfData: Record<string, { val: number, date?: Date } | undefined> = {
     '1D': getPerf(data?.changePct1d ?? (holdingData as any)?.changePct1d, data?.changeDate1d ?? (holdingData as any)?.changeDate1d, /*alwaysShow*/ true),
     [data?.recentChangeDays ? `${data.recentChangeDays}D` : '1W']: getPerf(data?.changePctRecent ?? (holdingData as any)?.perf1w ?? (holdingData as any)?.changePctRecent, data?.changeDateRecent ?? (holdingData as any)?.changeDateRecent),
     '1M': getPerf(data?.changePct1m ?? (holdingData as any)?.changePct1m, data?.changeDate1m ?? (holdingData as any)?.changeDate1m),
@@ -310,8 +322,63 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
     return map[range] || range;
   };
 
-  const dataTimestamp = data?.timestamp || (sheetRebuildTime ? new Date(sheetRebuildTime).getTime() : 0);
-  const isStale = dataTimestamp > 0 && (Date.now() - dataTimestamp) > 1000 * 60 * 60 * 24 * 3; // > 3 days
+  const dividendGains = useMemo(() => {
+    if (!data?.dividends || data.dividends.length === 0 || !displayData?.currency || !historicalData || historicalData.length === 0) return {};
+
+    const findPriceAtDate = (date: Date) => {
+      let closest = historicalData[0];
+      let minDiff = Math.abs(historicalData[0].date.getTime() - date.getTime());
+      for (let i = 1; i < historicalData.length; i++) {
+        const diff = Math.abs(historicalData[i].date.getTime() - date.getTime());
+        if (diff < minDiff) {
+          minDiff = diff;
+          closest = historicalData[i];
+        }
+      }
+      return closest.price;
+    };
+
+    const calculateDividendsForRange = (startDate: Date) => {
+      const splits = data?.splits || [];
+      const calculateSplitFactor = (from: Date, to: Date) => {
+        // Factor to multiply shares by when moving from 'from' to 'to'
+        return splits.reduce((factor, split) => {
+          if (split.date.getTime() > from.getTime() && split.date.getTime() <= to.getTime()) {
+            return factor * (split.numerator / split.denominator);
+          }
+          return factor;
+        }, 1);
+      };
+
+      const basePrice = findPriceAtDate(startDate);
+      if (!basePrice) return { amount: 0, pct: 0 };
+
+      const totalReceived = data.dividends!.reduce((sum, div) => {
+        if (div.date.getTime() >= startDate.getTime()) {
+          // If we bought 1 share at startDate, how many shares do we have at div.date?
+          const sharesAtDivTime = calculateSplitFactor(startDate, div.date);
+          return sum + (div.amount * sharesAtDivTime);
+        }
+        return sum;
+      }, 0);
+
+      return { amount: totalReceived, pct: totalReceived / basePrice };
+    };
+
+    const now = new Date();
+    const ytdStart = new Date(now.getFullYear(), 0, 1);
+    const oneYearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+    const threeYearsAgo = new Date(now.getFullYear() - 3, now.getMonth(), now.getDate());
+    const fiveYearsAgo = new Date(now.getFullYear() - 5, now.getMonth(), now.getDate());
+
+    return {
+      'YTD': calculateDividendsForRange(ytdStart),
+      '1Y': calculateDividendsForRange(oneYearAgo),
+      '3Y': calculateDividendsForRange(threeYearsAgo),
+      '5Y': calculateDividendsForRange(fiveYearsAgo),
+      'All Time': calculateDividendsForRange(new Date(0)), // Start of Unix epoch
+    };
+  }, [data?.dividends, data?.splits, displayData?.currency, historicalData]);
 
   return (
     <Dialog open={true} onClose={handleClose} maxWidth={false} fullWidth PaperProps={{ sx: { width: 'min(900px, 96%)' } }}>
@@ -331,6 +398,22 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
             <Typography variant="subtitle1" component="div" color="text.secondary">
               {resolvedName ? `${exchange?.toUpperCase()}: ${ticker}` : exchange?.toUpperCase()}
             </Typography>
+            {(() => {
+              const lastSplit = data?.splits?.[0];
+              if (!lastSplit) return null;
+              const now = new Date();
+              const oneYearAgo = new Date();
+              oneYearAgo.setFullYear(now.getFullYear() - 1);
+              if (lastSplit.date < oneYearAgo) return null;
+              
+              const isReverse = lastSplit.numerator < lastSplit.denominator;
+              const label = isReverse ? t('Merge Date:', 'תאריך איחוד:') : t('Split Date:', 'תאריך פיצול:');
+              return (
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                  {label} {formatDate(lastSplit.date)} ({lastSplit.numerator}:{lastSplit.denominator})
+                </Typography>
+              );
+            })()}
           </Box>
           {displayData?.sector && <Chip label={displayData.sector || 'Unknown Sector'} size="small" variant="outlined" />}
         </Box>
@@ -449,36 +532,45 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
               </>
             )}
 
-            {(() => {
-              // Hide Dividends for Gemel or if no dividend data is available (temporary until we fetch it)
-              const isGemel = exchange?.toUpperCase() === 'GEMEL' || displayData.exchange === 'GEMEL';
-              const hasDividendData = false; // TODO: Check displayData.dividendYield or similar when available
-
-              if (isGemel || !hasDividendData) return null;
-
-              return (
-                <>
-                  <Typography variant="subtitle2" gutterBottom>{t('Dividend Gains', 'דיביבידנדים')}</Typography>
-                  <Box display="flex" flexWrap="wrap" gap={1} sx={{ mb: 2 }}>
-                    {['YTD', '1Y', '3Y', '5Y', 'All Time'].map(range => (
+            {data?.dividends && data.dividends.length > 0 && (
+              <>
+                <Typography variant="subtitle2" gutterBottom sx={{ mt: 2 }}>{t('Dividend Gains', 'רווחי דיבידנד')}</Typography>
+                <Box display="flex" flexWrap="wrap" gap={1} sx={{ mb: 2 }}>
+                  {Object.entries(dividendGains).map(([range, info]) => {
+                    const value = (info as any).pct;
+                    if (value === undefined || value === null || isNaN(value) || value === 0) {
+                      return null;
+                    }
+                    const isPositive = value > 0;
+                    const textColor = isPositive ? 'success.main' : 'error.main';
+                    return (
                       <Chip
                         key={range}
                         variant="outlined"
                         size="small"
-                        sx={{ minWidth: 80, py: 0.5, px: 0.75, height: 'auto', '& .MuiChip-label': { display: 'flex', flexDirection: 'column', alignItems: 'center' }, '& .MuiTypography-caption, & .MuiTypography-body2': { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 72 } }}
+                        sx={{
+                          minWidth: 80,
+                          py: 0.5,
+                          px: 0.75,
+                          height: 'auto',
+                          color: textColor,
+                          borderColor: textColor,
+                          '& .MuiChip-label': { display: 'flex', flexDirection: 'column', alignItems: 'center', overflow: 'hidden' },
+                          '& .MuiTypography-caption, & .MuiTypography-body2': { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 84 }
+                        }}
                         label={
                           <>
                             <Typography variant="caption" color="text.secondary">{translateRange(range)}</Typography>
-                            <Typography variant="body2">--%</Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatPercent(value)}</Typography>
+                            <Typography variant="caption" sx={{ fontSize: '0.7rem', opacity: 0.8 }}>({formatPrice((info as any).amount, displayData.currency, 2, t)})</Typography>
                           </>
                         }
                       />
-                    ))}
-                  </Box>
-                  {/* TODO: Fetch and display actual dividend gains data */}
-                </>
-              );
-            })()}
+                    );
+                  })}
+                </Box>
+              </>
+            )}
           </>
         )}
 

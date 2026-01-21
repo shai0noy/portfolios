@@ -12,7 +12,7 @@ export const Currency = {
 const EXCHANGES = [
   'NASDAQ', 'NYSE', 'TASE', 'LSE', 'FWB',
   'EURONEXT', 'JPX', 'HKEX', 'TSX', 'ASX', 'GEMEL',
-  'FOREX'
+  'FOREX', 'UNKNOWN'
 ] as const;
 
 export type Exchange = typeof EXCHANGES[number];
@@ -37,7 +37,7 @@ const EXCHANGE_SETTINGS: Record<Exchange, ExchangeSettings> = {
     yahooFinanceSuffix: ''
   },
   [Exchange.NYSE]: { 
-    aliases: ['XNYS'], 
+    aliases: ['XNYS', 'ARCA'], 
     googleFinanceCode: 'NYSE', 
     googleSheetsCode: 'NYSE',
     yahooFinanceSuffix: ''
@@ -115,7 +115,7 @@ export function parseExchange(exchangeId: string): Exchange {
   const normalized = exchangeId.trim().toUpperCase();
 
   // Direct match
-  if (normalized in Exchange) {
+  if ((EXCHANGES as readonly string[]).includes(normalized)) {
     return normalized as Exchange;
   }
 
@@ -267,24 +267,24 @@ export interface Holding {
   nameHe?: string;
   sector?: string;
   changePct1d?: number;
-  changeDate1d?: number;
+  changeDate1d?: Date;
   changePctRecent?: number;
-  changeDateRecent?: number;
+  changeDateRecent?: Date;
   recentChangeDays?: number;
   changePct1m?: number;
-  changeDate1m?: number;
+  changeDate1m?: Date;
   changePct3m?: number;
-  changeDate3m?: number;
+  changeDate3m?: Date;
   changePctYtd?: number;
-  changeDateYtd?: number;
+  changeDateYtd?: Date;
   changePct1y?: number;
-  changeDate1y?: number;
+  changeDate1y?: Date;
   changePct3y?: number;
-  changeDate3y?: number;
+  changeDate3y?: Date;
   changePct5y?: number;
-  changeDate5y?: number;
+  changeDate5y?: Date;
   changePct10y?: number;
-  changeDate10y?: number;
+  changeDate10y?: Date;
   numericId: number | null;
 }
 
