@@ -99,6 +99,7 @@ interface PerfStatProps {
 }
 
 const PerfStat = ({ label, percentage, isIncomplete, aum, displayCurrency, size = 'normal' }: PerfStatProps) => {
+  const { t } = useLanguage(); // Hook for translation
   if (percentage === 0 || isNaN(percentage)) {
       return <Stat label={label} value={0} pct={0} displayCurrency={displayCurrency} size={size} />;
   }
@@ -107,7 +108,7 @@ const PerfStat = ({ label, percentage, isIncomplete, aum, displayCurrency, size 
   const absoluteChange = aum - previousAUM;
   const color = percentage >= 0 ? 'success.main' : 'error.main';
   
-  return <Stat label={label} value={absoluteChange} pct={percentage} color={color} tooltip={isIncomplete ? "Calculation is based on partial data." : undefined} displayCurrency={displayCurrency} size={size} />;
+  return <Stat label={label} value={absoluteChange} pct={percentage} color={color} tooltip={isIncomplete ? t("Calculation is based on partial data.", "החישוב מבוסס על נתונים חלקיים.") : undefined} displayCurrency={displayCurrency} size={size} />;
 }
 
 export function DashboardSummary({ summary, displayCurrency, exchangeRates, onBack, onCurrencyChange, selectedPortfolio }: SummaryProps) {
@@ -136,12 +137,12 @@ export function DashboardSummary({ summary, displayCurrency, exchangeRates, onBa
                 }}
                 disableRipple
               >
-                {t('Back to All', 'חזרה לרשימה')}
+                {t('Back to All', 'חזרה לכל התיקים')}
               </Button>
               <Typography variant="h5" fontWeight="bold" color="primary">{selectedPortfolio}</Typography>
             </>
           ) : (
-            <Typography variant="subtitle2" color="text.secondary">TOTAL AUM</Typography>
+            <Typography variant="subtitle2" color="text.secondary">{t('TOTAL AUM', 'שווי כולל')}</Typography>
           )}
           <Typography variant="h4" fontWeight="bold" color="primary">{formatValue(summary.aum, displayCurrency, 0)}</Typography>
         </Grid>

@@ -41,7 +41,7 @@ export function DashboardTable(props: TableProps) {
         if (!exchangeRates.current.ILS) missing.push('ILS');
         if (!exchangeRates.current.EUR) missing.push('EUR');
         if (missing.length > 0) {
-            setRateError(t(`Missing exchange rates for: ${missing.join(', ')}. Values may be 0. Check 'Currency_Conversions' sheet.`, `חסרים שערי המרה עבור: ${missing.join(', ')}. הערכים עשויים להיות 0. בדוק את גיליון Currency_Conversions.`));
+            setRateError(t(`Missing exchange rates for: ${missing.join(', ')}. Values may be 0. Check 'Currency_Conversions' sheet.`, `לא נמצאו שערי המרה עבור: ${missing.join(', ')}. ייתכן שערכים מסוימים יוצגו כ-0. יש לבדוק את גיליון 'Currency_Conversions'.`));
         } else {
             setRateError(null);
         }
