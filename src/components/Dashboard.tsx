@@ -1,9 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link as RouterLink } from 'react-router-dom';
 import {
-  Box, CircularProgress, IconButton, Tooltip, Typography, ToggleButton, Divider
+  Box, CircularProgress, IconButton, Tooltip, Typography, ToggleButton, Divider, Button
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import AddIcon from '@mui/icons-material/Add';
+import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import { ColumnSelector } from './ColumnSelector';
 import { normalizeCurrency } from '../lib/currency';
 import { DashboardSummary } from './DashboardSummary';
@@ -148,6 +151,66 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
   }, [holdings, groupByPortfolio, selectedPortfolioId]);
 
   if (loading) return <Box display="flex" justifyContent="center" p={5}><CircularProgress /></Box>;
+
+  if (portfolios.length === 0) {
+    return (
+      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', textAlign: 'center', p: 3 }}>
+        <AccountBalanceWalletIcon sx={{ fontSize: 80, color: 'text.secondary', mb: 2, opacity: 0.5 }} />
+        <Typography variant="h4" gutterBottom fontWeight="700">
+          {t('Welcome to Your Portfolio Dashboard', 'ברוכים הבאים לדאשבורד התיקים')}
+        </Typography>
+        <Typography variant="body1" color="text.secondary" sx={{ mb: 4, maxWidth: 500 }}>
+          {t("It looks like you haven't created any portfolios yet. Start by creating your first portfolio to track your investments.", "נראה שעדיין לא יצרת תיקי השקעות. התחל ביצירת התיק הראשון שלך כדי לעקוב אחר ההשקעות שלך.")}
+        </Typography>
+        <Button 
+          variant="contained" 
+          size="large" 
+          component={RouterLink} 
+          to="/portfolios"
+          startIcon={<AddIcon />}
+          sx={{ borderRadius: 2, px: 4, py: 1.5, textTransform: 'none', fontSize: '1.1rem' }}
+        >
+          {t('Create Your First Portfolio', 'צור את התיק הראשון שלך')}
+        </Button>
+      </Box>
+    );
+  }
+
+  if (holdings.length === 0) {
+     return (
+      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', textAlign: 'center', p: 3 }}>
+        <CloudUploadIcon sx={{ fontSize: 80, color: 'text.secondary', mb: 2, opacity: 0.5 }} />
+        <Typography variant="h4" gutterBottom fontWeight="700">
+          {t('Your Portfolio is Empty', 'תיק ההשקעות שלך ריק')}
+        </Typography>
+        <Typography variant="body1" color="text.secondary" sx={{ mb: 4, maxWidth: 500 }}>
+          {t('You have portfolios set up, but no transactions recorded yet. Add your first trade or import history from a CSV file.', 'יש לך תיקים מוגדרים, אך עדיין לא תועדו עסקאות. הוסף את העסקה הראשונה שלך או ייבא היסטוריה מקובץ CSV.')}
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', justifyContent: 'center' }}>
+          <Button 
+            variant="contained" 
+            size="large" 
+            component={RouterLink} 
+            to="/transaction"
+            startIcon={<AddIcon />}
+            sx={{ borderRadius: 2, px: 4, py: 1.5, textTransform: 'none', fontSize: '1.1rem' }}
+          >
+            {t('Add a Transaction', 'הוסף עסקה')}
+          </Button>
+          <Button 
+            variant="outlined" 
+            size="large" 
+            component={RouterLink}
+            to="/dashboard?import=true"
+            startIcon={<CloudUploadIcon />}
+            sx={{ borderRadius: 2, px: 4, py: 1.5, textTransform: 'none', fontSize: '1.1rem' }}
+          >
+            {t('Import from CSV', 'ייבוא מ-CSV')}
+          </Button>
+        </Box>
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ maxWidth: 1400, mx: 'auto', mt: 4 }}>

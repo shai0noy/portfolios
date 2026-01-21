@@ -80,6 +80,18 @@ function AppContent() {
   const location = useLocation();
   const navigate = useNavigate();
 
+  // Listen for import=true in query params
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('import') === 'true') {
+      setImportOpen(true);
+      // Clean up the URL
+      params.delete('import');
+      const newSearch = params.toString();
+      navigate({ pathname: location.pathname, search: newSearch ? `?${newSearch}` : '' }, { replace: true });
+    }
+  }, [location.search, location.pathname, navigate]);
+
   // Load portfolios globally so TickerDetails can access them
   const { portfolios } = usePortfolios(sheetId, refreshKey);
 
