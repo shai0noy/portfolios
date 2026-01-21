@@ -20,6 +20,7 @@ import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
 import TranslateIcon from '@mui/icons-material/Translate';
 import MenuIcon from '@mui/icons-material/Menu';
+import ColorBlind from '@mui/icons-material/VisibilityOff';
 import { getTheme } from './theme';
 import { usePortfolios } from './lib/hooks'; // Assuming we'll create this hook or reuse existing logic
 import { exportDashboardData } from './lib/exporter';
@@ -29,6 +30,7 @@ import { CacheProvider } from '@emotion/react';
 import createCache from '@emotion/cache';
 import rtlPlugin from 'stylis-plugin-rtl';
 import { prefixer } from 'stylis';
+import { SessionProvider, useSession } from './lib/SessionContext';
 
 const tabMap: Record<string, number> = {
   '/dashboard': 0,
@@ -53,6 +55,13 @@ const cacheLtr = createCache({
 });
 
 function App() {
+  return (
+    <SessionProvider>
+      <AppContent />
+    </SessionProvider>
+  );
+}
+function AppContent() {
   const [sheetId, setSheetId] = useState<string | null>(() => {
     const saved = localStorage.getItem('g_sheet_id');
     return saved === 'null' ? null : saved;
@@ -62,11 +71,12 @@ function App() {
   const [importOpen, setImportOpen] = useState(false);
   const [mode, setMode] = useState<'light' | 'dark'>(() => (localStorage.getItem('themeMode') as 'light' | 'dark') || 'light');
   const [rebuilding, setRebuilding] = useState(false);
-  const [sessionExpired, setSessionExpired] = useState(false);
+  const { isSessionExpired, hideLoginModal } = useSession();
   const [schemaVersionMismatch, setSchemaVersionMismatch] = useState<'old' | 'new' | null>(null);
+  const [colorblindMode, setColorblindMode] = useState<boolean>(() => localStorage.getItem('colorblindMode') === 'true');
 
   const { t, toggleLanguage, language, isRtl } = useLanguage();
-  const theme = useMemo(() => getTheme(mode, isRtl ? 'rtl' : 'ltr'), [mode, isRtl]);
+  const theme = useMemo(() => getTheme(mode, isRtl ? 'rtl' : 'ltr', colorblindMode), [mode, isRtl, colorblindMode]);
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -95,6 +105,10 @@ function App() {
   useEffect(() => {
     localStorage.setItem('themeMode', mode);
   }, [mode]);
+
+  useEffect(() => {
+    localStorage.setItem('colorblindMode', String(colorblindMode));
+  }, [colorblindMode]);
 
   useEffect(() => {
     if (sheetId && googleReady) {
@@ -222,23 +236,15 @@ function App() {
     setSnackbarAction(null); // Clear action on close
   };
 
-  useEffect(() => {
-    const handleErrors = (event: PromiseRejectionEvent) => {
-      if (event.reason instanceof SessionExpiredError) {
-        setSessionExpired(true);
-      }
-    };
-    window.addEventListener('unhandledrejection', handleErrors);
-    return () => {
-      window.removeEventListener('unhandledrejection', handleErrors);
-    };
-  }, []);
+  const toggleColorblindMode = () => {
+    setColorblindMode(prev => !prev);
+  };
 
   const handleReconnect = async () => {
     try {
       await signIn();
-      setSessionExpired(false);
-      setRefreshKey(k => k + 1); // Refresh data
+      hideLoginModal();
+      window.location.reload(); // Force a full reload to refresh all data and states
     } catch (e) {
       console.error("Failed to reconnect", e);
       setSnackbarMessage(t('Failed to sign in. Please try again.', 'ההתחברות נכשלה. אנא נסה שנית.'));
@@ -269,6 +275,12 @@ function App() {
           {mode === 'dark' ? <Brightness7Icon fontSize="small" /> : <Brightness4Icon fontSize="small" />}
         </ListItemIcon>
         <ListItemText>{t('Switch Theme', 'מצב בהיר/כהה')}</ListItemText>
+      </MenuItem>
+      <MenuItem onClick={toggleColorblindMode}>
+        <ListItemIcon>
+          <ColorBlind fontSize="small" />
+        </ListItemIcon>
+        <ListItemText>{t('Colorblind Mode', 'מצב עיוורון צבעים')}</ListItemText>
       </MenuItem>
       <MenuItem onClick={toggleLanguage}>
         <ListItemIcon>
@@ -335,7 +347,7 @@ function App() {
               <Tab label={t("Manage Portfolios", "ניהול תיקים")} sx={{ textTransform: 'none', fontSize: { xs: '0.9rem', sm: '1rem' }, minHeight: 64, minWidth: 80 }} component={RouterLink} to="/portfolios" />
             </Tabs>
 
-            <Box sx={{ display: { xs: 'flex', md: 'none' } }}>
+            <Box sx={{ display: 'flex' }}>
               <IconButton
                 size="large"
                 aria-label="show more"
@@ -348,7 +360,7 @@ function App() {
               </IconButton>
             </Box>
 
-            <Box display="flex" gap={1} sx={{ display: { xs: 'none', md: 'flex' }, flexShrink: 0, alignItems: 'center' }}>
+            <Box display="flex" gap={1} sx={{ display: 'none', flexShrink: 0, alignItems: 'center' }}>
                <Tooltip title={t("Switch Theme", "מצב בהיר/כהה")}>
                 <IconButton onClick={toggleColorMode} size="small" sx={{ color: 'text.secondary' }}>
                   {mode === 'dark' ? <Brightness7Icon fontSize="small" /> : <Brightness4Icon fontSize="small" />}
@@ -513,7 +525,7 @@ function App() {
           </Alert>
         </Snackbar>
 
-        <Modal open={sessionExpired}>
+        <Modal open={isSessionExpired}>
           <Box sx={{
             position: 'absolute',
             top: '50%',

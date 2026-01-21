@@ -6,6 +6,7 @@ import { logIfFalsy } from './utils';
 import { toGoogleSheetDateFormat } from './date';
 import { Currency, Exchange, type DashboardHolding, type Holding, type Portfolio, type ExchangeRates } from './types';
 import { SessionExpiredError } from './errors';
+import { useSession } from './SessionContext';
 
 export interface DashboardSummaryData {
   aum: number;
@@ -106,8 +107,6 @@ export function calculateDashboardSummary(data: DashboardHolding[], displayCurre
 
     if (h.dayChangePct !== 0 && isFinite(h.dayChangePct)) {
         const marketValueDisplay = vals.marketValue;
-        // Formula: change = final_value * pct_change / (1 + pct_change)
-        // This derives the absolute change from the final value and the percentage.
         const changeValDisplay = marketValueDisplay * h.dayChangePct / (1 + h.dayChangePct);
 
         acc.totalDayChange += changeValDisplay;
@@ -115,8 +114,6 @@ export function calculateDashboardSummary(data: DashboardHolding[], displayCurre
         acc.holdingsWithDayChange++;
     }
     
-    // Note: The loop below for perfPeriods is for longer-term calculations and uses a different approach.
-    // The daily change is a special case handled above.
     for (const [key, holdingKey] of Object.entries(perfPeriods)) {
         const perf = h[holdingKey as keyof DashboardHolding] as number;
         if (perf && !isNaN(perf)) {
@@ -179,10 +176,17 @@ export function useDashboardData(sheetId: string, options: { includeUnvested: bo
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [hasFutureTxns, setHasFutureTxns] = useState(false);
   const [error, setError] = useState<any>(null);
+  const { showLoginModal } = useSession();
 
   useEffect(() => {
-    getExchangeRates(sheetId).then(setExchangeRates);
-  }, [sheetId]);
+    getExchangeRates(sheetId).then(setExchangeRates).catch(e => {
+      if (e instanceof SessionExpiredError) {
+        showLoginModal();
+      } else {
+        setError(e);
+      }
+    });
+  }, [sheetId, showLoginModal]);
 
   const loadData = useCallback(async () => {
     if (!sheetId) return;
@@ -223,7 +227,6 @@ export function useDashboardData(sheetId: string, options: { includeUnvested: bo
           const exchange = t.exchange || live?.exchange;
           
           if (!exchange) {
-              // Skip or throw? Warn best.
               console.warn(`Exchange missing for ticker: ${t.ticker}`);
               return;
           }
@@ -246,23 +249,11 @@ export function useDashboardData(sheetId: string, options: { includeUnvested: bo
             totalQty: 0,
             currentPrice: currentPrice,
             stockCurrency,
-            costBasisPortfolioCurrency: 0,
-            costOfSoldPortfolioCurrency: 0,
-            proceedsPortfolioCurrency: 0,
-            dividendsPortfolioCurrency: 0,
-            unrealizedGainPortfolioCurrency: 0,
-            realizedGainPortfolioCurrency: 0,
-            totalGainPortfolioCurrency: 0,
-            marketValuePortfolioCurrency: 0,
-            dayChangeValuePortfolioCurrency: 0,
-            costBasisStockCurrency: 0,
-            costOfSoldStockCurrency: 0,
-            proceedsStockCurrency: 0,
-            dividendsStockCurrency: 0,
-            
+            costBasisPortfolioCurrency: 0, costOfSoldPortfolioCurrency: 0, proceedsPortfolioCurrency: 0, dividendsPortfolioCurrency: 0,
+            unrealizedGainPortfolioCurrency: 0, realizedGainPortfolioCurrency: 0, totalGainPortfolioCurrency: 0, marketValuePortfolioCurrency: 0,
+            dayChangeValuePortfolioCurrency: 0, costBasisStockCurrency: 0, costOfSoldStockCurrency: 0, proceedsStockCurrency: 0, dividendsStockCurrency: 0,
             costBasisUSD: 0, costOfSoldUSD: 0, proceedsUSD: 0, dividendsUSD: 0, realizedGainUSD: 0,
             costBasisILS: 0, costOfSoldILS: 0, proceedsILS: 0, dividendsILS: 0, realizedGainILS: 0,
-
             avgCost: 0, mvVested: 0, mvUnvested: 0, totalMV: 0, realizedGain: 0, realizedGainPct: 0, realizedGainAfterTax: 0, dividends: 0, unrealizedGain: 0, unrealizedGainPct: 0, totalGain: 0, totalGainPct: 0, valueAfterTax: 0, dayChangeVal: 0,
             sector: live?.sector || '',
             dayChangePct: live?.changePct1d || 0,
@@ -273,7 +264,6 @@ export function useDashboardData(sheetId: string, options: { includeUnvested: bo
 
         const h = holdingMap.get(key)!;
         const isVested = !t.vestDate || new Date(t.vestDate) <= new Date();
-        
         let originalPricePortfolioCurrency = 0;
         const priceInUSD = (t as any).originalPriceUSD || 0;
         const priceInAgorot = (t as any).originalPriceILA || 0;
@@ -287,19 +277,13 @@ export function useDashboardData(sheetId: string, options: { includeUnvested: bo
         }
 
         const txnValuePortfolioCurrency = tQty * originalPricePortfolioCurrency;
-        
         let effectiveTxnPrice = t.price || 0;
-        if (h.stockCurrency === Currency.ILA) {
-             effectiveTxnPrice = priceInAgorot;
-        } else if (h.stockCurrency === Currency.ILS) {
-            effectiveTxnPrice = priceInILS;
-        } else if (h.stockCurrency === Currency.USD) {
-            effectiveTxnPrice = priceInUSD;
-        } else {
+        if (h.stockCurrency === Currency.ILA) effectiveTxnPrice = priceInAgorot;
+        else if (h.stockCurrency === Currency.ILS) effectiveTxnPrice = priceInILS;
+        else if (h.stockCurrency === Currency.USD) effectiveTxnPrice = priceInUSD;
+        else {
              const txnCurrency = normalizeCurrency(t.currency || '');
-             if (txnCurrency === Currency.ILA) {
-                 effectiveTxnPrice = toILS(effectiveTxnPrice, Currency.ILA);
-             }
+             if (txnCurrency === Currency.ILA) effectiveTxnPrice = toILS(effectiveTxnPrice, Currency.ILA);
         }
         
         const txnValueStockCurrency = tQty * effectiveTxnPrice;
@@ -377,32 +361,21 @@ export function useDashboardData(sheetId: string, options: { includeUnvested: bo
                          const storedHistory = extPrices[key];
                          if (storedHistory) {
                              const liveDate = new Date(live.timestamp);
-                             // Normalize to start of day for comparison if stored dates are just dates
                              liveDate.setHours(0,0,0,0);
-                             
                              const match = storedHistory.find(item => {
                                  const itemDate = new Date(item.date);
                                  itemDate.setHours(0,0,0,0);
                                  return itemDate.getTime() === liveDate.getTime();
                              });
-                             
                              if (match) {
                                  const diff = Math.abs(match.price - (live.price || 0));
-                                 if (diff > 0.01) {
-                                     console.warn(`[Data Mismatch] ${key} at ${toGoogleSheetDateFormat(match.date)}: Live=${live.price}, Stored=${match.price}`);
-                                 } else {
-                                     console.log(`[Data Verified] ${key} at ${toGoogleSheetDateFormat(match.date)}: Match (${live.price})`);
-                                 }
+                                 if (diff > 0.01) console.warn(`[Data Mismatch] ${key} at ${toGoogleSheetDateFormat(match.date)}: Live=${live.price}, Stored=${match.price}`);
+                                 else console.log(`[Data Verified] ${key} at ${toGoogleSheetDateFormat(match.date)}: Match (${live.price})`);
                              } else {
-                                 // Case: Historic data is stored for this ticker, but NO entry for the current live date.
-                                 // This implies we haven't captured this specific data point yet, which is expected for new data.
                                  console.log(`[Data Info] ${key}: New live data point for ${toGoogleSheetDateFormat(liveDate)}. Latest stored: ${storedHistory[0]?.date ? toGoogleSheetDateFormat(storedHistory[0].date) : 'None'}`);
                              }
-                         } else {
-                             // No history stored at all for this ticker - valid new ticker
                          }
                      }
-
                      if (live.price) h.currentPrice = live.price;
                      if (live.changePct1d !== undefined) h.dayChangePct = live.changePct1d / 100;
                      if (live.name) h.displayName = live.name;
@@ -427,40 +400,35 @@ export function useDashboardData(sheetId: string, options: { includeUnvested: bo
 
       holdingMap.forEach(h => {
         h.totalQty = h.qtyVested + h.qtyUnvested;
-        
         const priceInStockCurrency = h.currentPrice; 
         const currentPricePC = convertCurrency(priceInStockCurrency, h.stockCurrency, h.portfolioCurrency, exchangeRates);
-        
         h.marketValuePortfolioCurrency = h.totalQty * currentPricePC;
         h.unrealizedGainPortfolioCurrency = h.marketValuePortfolioCurrency - h.costBasisPortfolioCurrency;
         h.realizedGainPortfolioCurrency = h.proceedsPortfolioCurrency - h.costOfSoldPortfolioCurrency;
-        
         h.totalGainPortfolioCurrency = h.unrealizedGainPortfolioCurrency + h.realizedGainPortfolioCurrency + h.dividendsPortfolioCurrency;
         h.dayChangeValuePortfolioCurrency = h.marketValuePortfolioCurrency * h.dayChangePct;
         h.avgCost = h.totalQty > 1e-9 ? h.costBasisStockCurrency / h.totalQty : 0;
-        
         h.mvVested = h.qtyVested * currentPricePC; 
         h.mvUnvested = h.qtyUnvested * currentPricePC;
         h.totalMV = h.marketValuePortfolioCurrency;
-
         h.unrealizedGainPct = h.costBasisPortfolioCurrency > 1e-6 ? h.unrealizedGainPortfolioCurrency / h.costBasisPortfolioCurrency : 0;
         h.realizedGainPct = h.costOfSoldPortfolioCurrency > 1e-6 ? h.realizedGainPortfolioCurrency / h.costOfSoldPortfolioCurrency : 0;
         h.totalGainPct = (h.costBasisPortfolioCurrency + h.costOfSoldPortfolioCurrency) > 1e-6 ? h.totalGainPortfolioCurrency / (h.costBasisPortfolioCurrency + h.costOfSoldPortfolioCurrency) : 0;
-
         processedHoldings.push(h);
       });
       
       setHoldings(processedHoldings);
     } catch (e) {
       console.error('loadData error:', e);
-      setError(e);
       if (e instanceof SessionExpiredError) {
-          throw e;
+        showLoginModal();
+      } else {
+        setError(e);
       }
     } finally {
       setLoading(false);
     }
-  }, [sheetId, options.includeUnvested, exchangeRates]);
+  }, [sheetId, options.includeUnvested, exchangeRates, showLoginModal]);
 
   useEffect(() => {
     loadData();

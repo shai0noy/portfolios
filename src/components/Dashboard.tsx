@@ -138,7 +138,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
   // Grouping Logic
   const groupedData = useMemo(() => {
     const filteredHoldings = selectedPortfolioId ? holdings.filter(h => h.portfolioId === selectedPortfolioId) : holdings;
-    if (!groupByPortfolio || selectedPortfolioId || filteredHoldings.length === 0) return { 'All Holdings': filteredHoldings };
+    if (!groupByPortfolio || selectedPortfolioId || filteredHoldings.length === 0) return { [t('All Holdings', 'כל האחזקות')]: filteredHoldings };
     const groups: Record<string, import('../lib/types').DashboardHolding[]> = {};
     filteredHoldings.forEach(h => {
       if (!groups[h.portfolioName]) groups[h.portfolioName] = [];
@@ -190,7 +190,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
             color="primary"
             sx={{ borderRadius: 2, textTransform: 'none', px: 2, py: 0.5, mr: 1, border: 1, borderColor: 'divider' }}
           >
-            {t('Include Unvested', 'כלול לא מובשל')}
+            {t('Include Unvested', 'כלול לא מובשלים')}
           </ToggleButton>
           <ToggleButton
             value="grouped"
@@ -200,10 +200,10 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
             color="primary"
             sx={{ borderRadius: 2, textTransform: 'none', px: 2, py: 0.5, mr: 1, border: 1, borderColor: 'divider' }}
           >
-            {t('Group by Portfolio', 'קבץ לפי תיק')}
+            {t('Group by Portfolio', 'קיבוץ לפי תיק')}
           </ToggleButton>
           <Divider orientation="vertical" flexItem sx={{ mx: 1, height: 20, alignSelf: 'center' }} />
-          <Tooltip title={t("Refresh Data", "רענן נתונים")}>
+          <Tooltip title={t("Refresh Data", "רענון")}>
             <IconButton 
               onClick={() => refresh()} 
               disabled={loading}

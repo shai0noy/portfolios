@@ -1,29 +1,29 @@
 import { createTheme, responsiveFontSizes } from '@mui/material/styles';
 
-export const getTheme = (mode: 'light' | 'dark', direction: 'ltr' | 'rtl' = 'ltr') => {
+export const getTheme = (mode: 'light' | 'dark', direction: 'ltr' | 'rtl' = 'ltr', colorblindMode: boolean = false) => {
   let theme = createTheme({
     direction,
     palette: {
       mode,
       ...(mode === 'light'
         ? {
-            // Light Mode (Restored/Preserved)
+            // Light Mode
             background: { default: '#f8f9fa', paper: '#ffffff' },
             primary: { main: '#2c3e50' },
             text: { primary: '#2c3e50', secondary: '#607d8b' },
             divider: '#e0e0e0',
-            success: { main: '#66bb6a' }, // Custom brighter green for light mode
-            error: { main: '#ef5350' },   // Custom red for light mode
+            success: { main: colorblindMode ? '#0288d1' : '#66bb6a' }, // Blue for colorblind, green otherwise
+            error: { main: '#ef5350' },
           }
         : {
-            // Dark Mode (Improved)
-            background: { default: '#0d1117', paper: '#161b22' }, // Darker, slightly blueish grey (GitHub-like)
-            primary: { main: '#e0f2f7' }, // Even brighter blue for primary actions
-            secondary: { main: '#e3b3ff' }, // Even brighter purple
-            text: { primary: '#ffffff', secondary: '#e0e0e0' }, // Pure white primary, very light grey secondary
+            // Dark Mode
+            background: { default: '#0d1117', paper: '#161b22' },
+            primary: { main: '#e0f2f7' },
+            secondary: { main: '#e3b3ff' },
+            text: { primary: '#ffffff', secondary: '#e0e0e0' },
             divider: '#30363d',
-            success: { main: '#a5d6a7' }, // Brighter green for dark mode (using the previous 'dark' shade as main)
-            error: { main: '#ef9a9a' },   // Brighter red for dark mode (using the previous 'main' shade for consistency)
+            success: { main: colorblindMode ? '#90caf9' : '#a5d6a7' }, // Light blue for colorblind, light green otherwise
+            error: { main: '#ef9a9a' },
           }),
     },
     typography: {
