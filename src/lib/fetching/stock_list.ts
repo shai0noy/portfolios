@@ -5,6 +5,7 @@
 
 import type { TickerListItem, SecurityTypeConfig, TaseSecurity } from './types';
 import { fetchGemelnetTickers } from './gemelnet';
+import { fetchPensyanetTickers } from './pensyanet';
 import taseTypeIds from './tase_type_ids.json';
 import { Exchange } from '../types';
 import { fetchGlobesTickersByType } from './globes';
@@ -178,6 +179,11 @@ export async function fetchAllTickers(
   if (exchange === Exchange.GEMEL) {
     const tickers = await fetchGemelnetTickers(signal);
     return { 'gemel_fund': tickers.map(t => ({...t, exchange: Exchange.GEMEL})) };
+  }
+
+  if (exchange === Exchange.PENSION) {
+    const tickers = await fetchPensyanetTickers(signal);
+    return { 'pension_fund': tickers.map(t => ({...t, exchange: Exchange.PENSION})) };
   }
 
   // Fetch from Globes alone for other exchanges

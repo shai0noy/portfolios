@@ -270,20 +270,20 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
 
       await addTransaction(sheetId, txn);
 
-      // If GEMEL, also save the fetched price to external holdings for history
-      if (parseExchange(exchange) === Exchange.GEMEL && selectedTicker?.price && selectedTicker?.timestamp) {
+      // If GEMEL or PENSION, also save the fetched price to external holdings for history
+      if ((parseExchange(exchange) === Exchange.GEMEL || parseExchange(exchange) === Exchange.PENSION) && selectedTicker?.price && selectedTicker?.timestamp) {
           try {
               // Note: We use the fetched price/date, NOT the transaction price/date
               await addExternalPrice(
                   sheetId, 
                   ticker, 
-                  Exchange.GEMEL, 
+                  parseExchange(exchange), 
                   new Date(selectedTicker.timestamp), 
                   selectedTicker.price, 
                   normalizeCurrency(selectedTicker.currency || 'ILS')
               );
           } catch (err) {
-              console.warn("Failed to add external price for GEMEL txn:", err);
+              console.warn("Failed to add external price for GEMEL/PENSION txn:", err);
           }
       }
 

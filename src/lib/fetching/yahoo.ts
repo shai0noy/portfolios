@@ -13,7 +13,7 @@ const YAHOO_EXCHANGE_MAP: Record<string, string> = {
 };
 
 export async function fetchYahooTickerData(ticker: string, exchange: Exchange, signal?: AbortSignal, forceRefresh = false, range: '1y' | 'max' = 'max'): Promise<TickerData | null> {
-  if (exchange === Exchange.GEMEL) {
+  if (exchange === Exchange.GEMEL || exchange === Exchange.PENSION) {
     console.warn(`Yahoo fetch does not support exchange: ${exchange}`);
     return null;
   }

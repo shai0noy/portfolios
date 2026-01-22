@@ -3,6 +3,7 @@ import { fetchGlobesStockQuote } from './globes';
 import { fetchYahooTickerData } from './yahoo';
 import { fetchAllTickers } from './stock_list';
 import { fetchGemelnetQuote } from './gemelnet';
+import { fetchPensyanetQuote } from './pensyanet';
 import type { TickerData, TickerListItem } from './types';
 import { Exchange, parseExchange } from '../types';
 
@@ -11,6 +12,8 @@ export * from './stock_list';
 export * from './cbs';
 export * from './yahoo';
 export * from './globes';
+export * from './gemelnet';
+export * from './pensyanet';
 
 
 let tickersDataset: Record<string, TickerListItem[]> | null = null;
@@ -27,7 +30,7 @@ export function getTickersDataset(signal?: AbortSignal, forceRefresh = false): P
   tickersDatasetLoading = (async () => {
     try {
       console.log('Loading tickers dataset...');
-      const exchanges = [Exchange.TASE, Exchange.NASDAQ, Exchange.NYSE, Exchange.GEMEL, Exchange.FOREX];
+      const exchanges = [Exchange.TASE, Exchange.NASDAQ, Exchange.NYSE, Exchange.GEMEL, Exchange.PENSION, Exchange.FOREX];
       const results = await Promise.all(exchanges.map(ex => fetchAllTickers(ex, undefined, signal)));
       
       const combined: Record<string, TickerListItem[]> = {};
@@ -67,6 +70,11 @@ export async function getTickerData(ticker: string, exchange: string, numericSec
   // GEMEL has its own dedicated fetcher
   if (parsedExchange === Exchange.GEMEL) {
     return fetchGemelnetQuote(Number(ticker), signal, forceRefresh);
+  }
+
+  // PENSION has its own dedicated fetcher
+  if (parsedExchange === Exchange.PENSION) {
+    return fetchPensyanetQuote(Number(ticker), signal, forceRefresh);
   }
 
   let data: TickerData | null = null;
@@ -118,6 +126,17 @@ export async function fetchTickerHistory(ticker: string, exchange: string, signa
     console.log(`[fetchTickerHistory] Fetching Gemel history for ${ticker}`);
     const data = await fetchGemelnetQuote(Number(ticker), signal, forceRefresh);
     console.log(`[fetchTickerHistory] Got Gemel data:`, data?.historical?.length);
+    return {
+      historical: data?.historical,
+      dividends: data?.dividends,
+      splits: data?.splits,
+    };
+  }
+
+  if (parsedExchange === Exchange.PENSION) {
+    console.log(`[fetchTickerHistory] Fetching Pension history for ${ticker}`);
+    const data = await fetchPensyanetQuote(Number(ticker), signal, forceRefresh);
+    console.log(`[fetchTickerHistory] Got Pension data:`, data?.historical?.length);
     return {
       historical: data?.historical,
       dividends: data?.dividends,

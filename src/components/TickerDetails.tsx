@@ -118,8 +118,8 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
 
     try {
       let currentNumericId = numericId;
-      // If numericId is missing for TASE/GEMEL, find it from the tickers dataset.
-      if (!currentNumericId && (exchange === Exchange.TASE || exchange === Exchange.GEMEL)) {
+      // If numericId is missing for TASE/GEMEL/PENSION, find it from the tickers dataset.
+      if (!currentNumericId && (exchange === Exchange.TASE || exchange === Exchange.GEMEL || exchange === Exchange.PENSION)) {
         console.log(`Numeric ID missing for ${ticker} on ${exchange}. Fetching dataset to find it.`);
         const dataset = await getTickersDataset();
         let foundItem: TickerListItem | undefined;
@@ -128,7 +128,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
           if (foundItem) break;
         }
         if (foundItem) {
-          const foundId = foundItem.taseInfo?.securityId || foundItem.gemelInfo?.fundId;
+          const foundId = foundItem.taseInfo?.securityId || foundItem.providentInfo?.fundId;
           if (foundId) {
             console.log(`Found numeric ID: ${foundId}`);
             currentNumericId = String(foundId);
@@ -137,7 +137,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
         }
       }
 
-      if (!currentNumericId && (exchange === Exchange.TASE || exchange === Exchange.GEMEL)) {
+      if (!currentNumericId && (exchange === Exchange.TASE || exchange === Exchange.GEMEL || exchange === Exchange.PENSION)) {
         console.warn(`Could not find numeric ID for ${ticker}. Data fetching may be incomplete.`);
       }
 
@@ -223,6 +223,15 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
       if (nid)
         links.push({ name: 'GemelNet', url: `https://gemelnet.cma.gov.il/views/perutHodshi.aspx?idGuf=${nid}&OCHLUSIYA=1` });
       links.push({ name: 'MyGemel', url: `https://www.mygemel.net/קופות-גמל/${clenaedHeName}` });
+      return links;
+    }
+
+    if (exchange === Exchange.PENSION) {
+      const nid = numericId || data?.numericId || holdingData?.numericId;
+      const clenaedHeName = resolvedNameHe?.replace(/[^a-zA-Z0-9א-ת ]/g, '').replace(/ /g, '-');
+      if (nid)
+        links.push({ name: 'PensyaNet', url: `https://pensyanet.cma.gov.il/Parameters/TsuaHod` }); // Generic link as PensyaNet uses POST
+      links.push({ name: 'MyGemel', url: `https://www.mygemel.net/קרנות-פנסיה/${clenaedHeName}` });
       return links;
     }
 
@@ -370,7 +379,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   }, [data?.dividends, data?.splits, displayData?.currency, historicalData]);
 
   const isTase = exchange == Exchange.TASE || displayData?.exchange === Exchange.TASE;
-  const isGemel = exchange?.toUpperCase() === Exchange.GEMEL || displayData?.exchange === Exchange.GEMEL;
+  const isProvident = exchange?.toUpperCase() === Exchange.GEMEL || displayData?.exchange === Exchange.GEMEL || exchange?.toUpperCase() === Exchange.PENSION || displayData?.exchange === Exchange.PENSION;
   const price = displayData?.price;
   const openPrice = displayData?.openPrice;
   const maxDecimals = (price != null && price % 1 !== 0) || (openPrice != null && openPrice % 1 !== 0) ? 2 : 0;
@@ -416,7 +425,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
           </Box>
           {displayData && (
             <Box sx={{ textAlign: 'right', ml: 2, display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-              {!isGemel && (
+              {!isProvident && (
                 <>
                   <Box display="flex" alignItems="baseline" justifyContent="flex-end" sx={{ gap: 1.5 }}>
                     <Typography variant="h6" component="div" fontWeight={600}>

@@ -84,14 +84,14 @@ export interface TaseInfo {
   taseType: string;
 }
 
-export interface GemelInfo {
+export interface ProvidentInfo {
   fundId: number;
   managingCompany: string;
-  fundSubType: string;
-  specialization: string;
-  subSpecialization: string;
-  managementFee?: number;
-  depositFee?: number;
+  fundType?: string; // SUG_KUPA / SUG_KRN
+  specialization?: string; // HITMAHUT_RASHIT
+  subSpecialization?: string; // HITMAHUT_MISHNIT
+  managementFee?: number; // SHIUR_DMEI_NIHUL_AHARON
+  depositFee?: number; // SHIUR_D_NIHUL_AHARON_HAFKADOT
 }
 
 // Merge this with TickerData, TaseSecurity
@@ -100,10 +100,10 @@ export interface TickerListItem {
   exchange: Exchange;
   nameEn: string;
   nameHe?: string;
-  type: string; // 'stock', 'etf', 'gemel_fund' etc.
+  type: string; // 'stock', 'etf', 'gemel_fund', 'pension_fund' etc.
   
   taseInfo?: TaseInfo;
-  gemelInfo?: GemelInfo;
+  providentInfo?: ProvidentInfo;
   globesRawSymbol?: string;
 }
 

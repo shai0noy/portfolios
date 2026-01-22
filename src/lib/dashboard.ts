@@ -350,13 +350,13 @@ export function useDashboardData(sheetId: string, options: { includeUnvested: bo
       const processedHoldings: DashboardHolding[] = [];
       const holdingsList = Array.from(holdingMap.values());
       const missingDataPromises = holdingsList.map(async (h) => {
-         const needsFetch = !h.currentPrice || h.currentPrice === 0 || h.exchange === Exchange.GEMEL;
+         const needsFetch = !h.currentPrice || h.currentPrice === 0 || h.exchange === Exchange.GEMEL || h.exchange === Exchange.PENSION;
          
          if (needsFetch) {
              try {
                  const live = await getTickerData(h.ticker, h.exchange, null);
                  if (live) {
-                     if (live.exchange === Exchange.GEMEL && live.timestamp) {
+                     if ((live.exchange === Exchange.GEMEL || live.exchange === Exchange.PENSION) && live.timestamp) {
                          const key = `${live.exchange}:${live.ticker}`;
                          const storedHistory = extPrices[key];
                          if (storedHistory) {

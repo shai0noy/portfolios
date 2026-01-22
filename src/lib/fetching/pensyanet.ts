@@ -3,19 +3,19 @@ import type { TickerListItem, TickerData } from './types';
 import { Exchange } from '../types';
 
 
-export interface GemelnetDataPoint {
+export interface PensyanetDataPoint {
   date: number; // Unix timestamp (start of month)
   nominalReturn: number; // Percentage return (TSUA_NOMINALI_BFOAL)
 }
 
-export interface GemelnetFundData {
+export interface PensyanetFundData {
   fundId: number;
   fundName: string;
-  data: GemelnetDataPoint[];
+  data: PensyanetDataPoint[];
   lastUpdated: number;
 }
 
-const CACHE_KEY_PREFIX = 'gemelnet_v1_';
+const CACHE_KEY_PREFIX = 'pensyanet_v1_';
 const CACHE_TTL = 48 * 60 * 60 * 1000; // 48 hours
 
 // Helper to get date parts
@@ -35,7 +35,7 @@ function parseDateStr(dateStr: string): number {
 }
 
 /**
- * Fetches historical fund data from Gemelnet.
+ * Fetches historical fund data from Pensyanet.
  * Uses a local storage cache with a 48-hour TTL.
  * 
  * @param fundId The ID of the fund.
@@ -43,12 +43,12 @@ function parseDateStr(dateStr: string): number {
  * @param endMonth End date for the range (default: Today).
  * @param forceRefresh If true, bypasses the cache.
  */
-export async function fetchGemelnetFund(
+export async function fetchPensyanetFund(
   fundId: number,
   startMonth: Date,
   endMonth: Date = new Date(),
   forceRefresh = false
-): Promise<GemelnetFundData | null> {
+): Promise<PensyanetFundData | null> {
   const sParts = getDateParts(startMonth);
   const eParts = getDateParts(endMonth);
   const cacheKey = `${CACHE_KEY_PREFIX}${fundId}_${sParts.year}${sParts.month}_${eParts.year}${eParts.month}`;
@@ -59,44 +59,38 @@ export async function fetchGemelnetFund(
     try {
       const cachedRaw = localStorage.getItem(cacheKey);
       if (cachedRaw) {
-        const cached: GemelnetFundData = JSON.parse(cachedRaw);
+        const cached: PensyanetFundData = JSON.parse(cachedRaw);
         if (now - cached.lastUpdated < CACHE_TTL) {
-          console.log(`[Gemelnet] Using cached data for fund ${fundId}`);
+          console.log(`[Pensyanet] Using cached data for fund ${fundId}`);
           return cached;
         }
       }
     } catch (e) {
-      console.warn('[Gemelnet] Error reading cache:', e);
+      console.warn('[Pensyanet] Error reading cache:', e);
     }
   }
 
   // 2. Fetch Data
-  // Note: Direct calls to gemelnet.cma.gov.il may fail in a browser due to CORS.
-  // We use our worker proxy to bypass this.
-  const url = `https://portfolios.noy-shai.workers.dev/?apiId=gemelnet_fund&startYear=${sParts.year}&startMonth=${sParts.month}&endYear=${eParts.year}&endMonth=${eParts.month}&fundId=${fundId}`;
+  const url = `https://portfolios.noy-shai.workers.dev/?apiId=pensyanet_fund&startYear=${sParts.year}&startMonth=${sParts.month}&endYear=${eParts.year}&endMonth=${eParts.month}&fundId=${fundId}`;
   
-  console.log(`[Gemelnet] Fetching data for fund ${fundId}...`);
+  console.log(`[Pensyanet] Fetching data for fund ${fundId}...`);
   
   try {
     const [xmlText, tickersList] = await Promise.all([
       fetchXml(url),
-      fetchGemelnetTickers() // This uses its own cache, so it's efficient
+      fetchPensyanetTickers() // This uses its own cache, so it's efficient
     ]);
     const xmlDoc = parseXmlString(xmlText);
     
-    const rows = Array.from(xmlDoc.querySelectorAll('Row'));
-    const points: GemelnetDataPoint[] = [];
+    // Pensyanet XML response uses 'ROW' (uppercase)
+    const rows = Array.from(xmlDoc.querySelectorAll('ROW'));
+    const points: PensyanetDataPoint[] = [];
     const fundInfo = tickersList.find(t => t.providentInfo?.fundId === fundId);
     const fundName = fundInfo?.nameEn || '';
 
     rows.forEach(row => {
       const getText = (tag: string) => row.querySelector(tag)?.textContent || '';
       
-      const idKupaStr = getText('ID_KUPA');
-      if (!idKupaStr || parseInt(idKupaStr, 10) !== fundId) {
-        return;
-      }
-
       const dateStr = getText('TKF_DIVUACH');
       if (dateStr) {
         const returnStr = getText('TSUA_NOMINALI_BFOAL');
@@ -110,7 +104,7 @@ export async function fetchGemelnetFund(
     // Sort by date ascending
     points.sort((a, b) => a.date - b.date);
 
-    const result: GemelnetFundData = {
+    const result: PensyanetFundData = {
       fundId: fundId,
       fundName,
       data: points,
@@ -121,21 +115,21 @@ export async function fetchGemelnetFund(
     try {
       localStorage.setItem(cacheKey, JSON.stringify(result));
     } catch (e) {
-      console.warn('[Gemelnet] Failed to save to cache (likely quota exceeded):', e);
+      console.warn('[Pensyanet] Failed to save to cache (likely quota exceeded):', e);
     }
 
     return result;
 
   } catch (error) {
-    console.error(`[Gemelnet] Failed to fetch or parse data for fund ${fundId}:`, error);
+    console.error(`[Pensyanet] Failed to fetch or parse data for fund ${fundId}:`, error);
     return null;
   }
 }
 
-const LIST_CACHE_KEY = 'gemelnet_tickers_list';
+const LIST_CACHE_KEY = 'pensyanet_tickers_list';
 const LIST_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
 
-export async function fetchGemelnetTickers(signal?: AbortSignal, forceRefresh = false): Promise<TickerListItem[]> {
+export async function fetchPensyanetTickers(signal?: AbortSignal, forceRefresh = false): Promise<TickerListItem[]> {
   const now = Date.now();
 
   // 1. Check Cache
@@ -145,12 +139,12 @@ export async function fetchGemelnetTickers(signal?: AbortSignal, forceRefresh = 
       if (cachedRaw) {
         const cached = JSON.parse(cachedRaw);
         if (now - cached.timestamp < LIST_CACHE_TTL) {
-          console.log('[Gemelnet] Using cached tickers list');
+          console.log('[Pensyanet] Using cached tickers list');
           return cached.data;
         }
       }
     } catch (e) {
-      console.warn('[Gemelnet] Cache read error', e);
+      console.warn('[Pensyanet] Cache read error', e);
     }
   }
 
@@ -161,13 +155,13 @@ export async function fetchGemelnetTickers(signal?: AbortSignal, forceRefresh = 
 
   const sParts = getDateParts(startDate);
   const eParts = getDateParts(endDate);
-  const url = `https://portfolios.noy-shai.workers.dev/?apiId=gemelnet_list&startYear=${sParts.year}&startMonth=${sParts.month}&endYear=${eParts.year}&endMonth=${eParts.month}`;
+  const url = `https://portfolios.noy-shai.workers.dev/?apiId=pensyanet_list&startYear=${sParts.year}&startMonth=${sParts.month}&endYear=${eParts.year}&endMonth=${eParts.month}`;
 
-  console.log('[Gemelnet] Fetching tickers list...');
+  console.log('[Pensyanet] Fetching tickers list...');
   try {
     const xmlText = await fetchXml(url, signal);
     const xmlDoc = parseXmlString(xmlText);
-    const rows = Array.from(xmlDoc.querySelectorAll('Row'));
+    const rows = Array.from(xmlDoc.querySelectorAll('ROW'));
     const tickersMap = new Map<number, TickerListItem>();
 
     rows.forEach(row => {
@@ -175,20 +169,18 @@ export async function fetchGemelnetTickers(signal?: AbortSignal, forceRefresh = 
       const idStr = getText('ID');
       const id = parseInt(idStr, 10);
       if (id && !tickersMap.has(id)) {
-        const name = getText('SHM_KUPA');
+        const name = getText('SHM_KRN');
         tickersMap.set(id, {
           symbol: idStr,
-          exchange: Exchange.GEMEL,
+          exchange: Exchange.PENSION,
           nameHe: name,
           nameEn: name,
-          type: 'gemel_fund',
+          type: 'pension_fund',
           providentInfo: {
             fundId: id,
             managingCompany: getText('SHM_HEVRA_MENAHELET'),
-            fundType: getText('SUG_KUPA'),
-            specialization: getText('HITMAHUT_RASHIT'),
-            subSpecialization: getText('HITMAHUT_MISHNIT'),
-            managementFee: parseFloat(getText('SHIUR_DMEI_NIHUL_AHARON')) || 0,
+            fundType: getText('SUG_KRN'),
+            managementFee: parseFloat(getText('SHIUR_D_NIHUL_AHARON_NCHASIM')) || 0,
             depositFee: parseFloat(getText('SHIUR_D_NIHUL_AHARON_HAFKADOT')) || 0,
           }
         });
@@ -199,16 +191,16 @@ export async function fetchGemelnetTickers(signal?: AbortSignal, forceRefresh = 
     try {
       localStorage.setItem(LIST_CACHE_KEY, JSON.stringify({ timestamp: now, data: tickers }));
     } catch (e) {
-      console.warn('[Gemelnet] Cache write error', e);
+      console.warn('[Pensyanet] Cache write error', e);
     }
     return tickers;
   } catch (e) {
-    console.error('[Gemelnet] Error fetching tickers', e);
+    console.error('[Pensyanet] Error fetching tickers', e);
     return [];
   }
 }
 
-export async function fetchGemelnetQuote(
+export async function fetchPensyanetQuote(
   fundId: number,
   _signal?: AbortSignal,
   forceRefresh = false
@@ -217,16 +209,16 @@ export async function fetchGemelnetQuote(
   const endDate = new Date();
   const startDate = new Date('2000-01-01');
 
-  const fundData = await fetchGemelnetFund(fundId, startDate, endDate, forceRefresh);
+  const fundData = await fetchPensyanetFund(fundId, startDate, endDate, forceRefresh);
   if (!fundData || fundData.data.length === 0) {
-    console.log(`[Gemelnet] fetchGemelnetQuote: No data found for ${fundId}`, fundData);
+    console.log(`[Pensyanet] fetchPensyanetQuote: No data found for ${fundId}`, fundData);
     return null;
   }
 
   let fundName = fundData.fundName;
   if (!fundName) {
       // Name missing in cache? Try to fetch/lookup again
-      const tickers = await fetchGemelnetTickers();
+      const tickers = await fetchPensyanetTickers();
       const info = tickers.find(t => t.providentInfo?.fundId === fundId);
       if (info) fundName = info.nameEn || info.nameHe || '';
   }
@@ -288,7 +280,7 @@ export async function fetchGemelnetQuote(
   const tickerData: TickerData = {
     ticker: String(fundId),
     numericId: fundId,
-    exchange: Exchange.GEMEL,
+    exchange: Exchange.PENSION,
     price: latestPrice,
     ...(chg1m && { changePct1m: chg1m.pct, changeDate1m: chg1m.date }),
     ...(chg3m && { changePct3m: chg3m.pct, changeDate3m: chg3m.date }),
@@ -302,7 +294,7 @@ export async function fetchGemelnetQuote(
     currency: 'ILS', // Could also be 'ILA', doesn't matter due to lack of real price
     name: fundName,
     nameHe: fundName,
-    source: 'Gemelnet',
+    source: 'Pensyanet',
     historical,
   };
   return tickerData;

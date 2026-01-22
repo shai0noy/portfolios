@@ -11,7 +11,7 @@ export const Currency = {
 
 const EXCHANGES = [
   'NASDAQ', 'NYSE', 'TASE', 'LSE', 'FWB',
-  'EURONEXT', 'JPX', 'HKEX', 'TSX', 'ASX', 'GEMEL',
+  'EURONEXT', 'JPX', 'HKEX', 'TSX', 'ASX', 'GEMEL', 'PENSION',
   'FOREX', 'UNKNOWN'
 ] as const;
 
@@ -94,6 +94,12 @@ const EXCHANGE_SETTINGS: Record<Exchange, ExchangeSettings> = {
     aliases: [], 
     googleFinanceCode: '',
     googleSheetsCode: 'GEMEL',
+    yahooFinanceSuffix: ''
+  },
+  [Exchange.PENSION]: { 
+    aliases: [], 
+    googleFinanceCode: '',
+    googleSheetsCode: 'PENSION',
     yahooFinanceSuffix: ''
   },
   [Exchange.FOREX]: { 
