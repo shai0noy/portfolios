@@ -12,7 +12,7 @@ export const Currency = {
 const EXCHANGES = [
   'NASDAQ', 'NYSE', 'TASE', 'LSE', 'FWB',
   'EURONEXT', 'JPX', 'HKEX', 'TSX', 'ASX', 'GEMEL', 'PENSION',
-  'FOREX', 'UNKNOWN'
+  'FOREX',
 ] as const;
 
 export type Exchange = typeof EXCHANGES[number];
@@ -160,7 +160,7 @@ export function toGoogleFinanceExchangeCode(exchange: Exchange): string {
  * @param exchange The canonical exchange.
  * @returns The ticker formatted for Yahoo Finance (e.g., 'BARC.L').
  */
-export function toYahooFinanceTicker(ticker: string, exchange: Exchange): string {
+export function toYahooFinanceTicker(ticker: string, exchange: Exchange, isCr): string {
   const suffix = EXCHANGE_SETTINGS[exchange]?.yahooFinanceSuffix || '';
   return `${ticker}${suffix}`;
 }

@@ -55,6 +55,7 @@ export async function fetchGlobesTickersByType(type: string, exchange: Exchange,
               nameHe,
               type: type,
               globesRawSymbol: numericSecurityId,
+              globesTypeHe: getElementText('InstrumentTypeHe'),
               taseInfo: {
                 securityId: Number(numericSecurityId),
                 companyName: nameEn, 
@@ -216,8 +217,7 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
       }
     }
 
-    // Sector fallback
-    const sector = getText('InstrumentTypeHe') || getText('industry_sector') || getText('instrument_type');
+    const globesTypeHe = getText('InstrumentTypeHe');
     const timestamp = getText('timestamp');
 
 
@@ -248,7 +248,7 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
       changePct1d,
       changeDate1d: effectiveTimestamp,
       timestamp: effectiveTimestamp,
-      sector: sector || undefined,
+      sector: undefined,
       changePctYtd,
       changePctRecent,
       recentChangeDays,
@@ -263,6 +263,7 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
       source: 'Globes',
       globesInstrumentId: globesInstrumentId || undefined,
       tradeTimeStatus,
+      globesTypeHe
     };
 
     tickerDataCache.set(cacheKey, { data: tickerData, timestamp: now });

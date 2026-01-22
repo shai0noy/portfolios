@@ -50,6 +50,7 @@ export interface TickerData {
   dividends?: Dividend[];
   splits?: Split[];
   tradeTimeStatus?: string;
+  globesTypeHe?: string;
 }
 
 export interface HistoricalDataPoint {
@@ -105,6 +106,7 @@ export interface TickerListItem {
   taseInfo?: TaseInfo;
   providentInfo?: ProvidentInfo;
   globesRawSymbol?: string;
+  globesTypeHe?: string;
 }
 
 // Configuration for ticker types
