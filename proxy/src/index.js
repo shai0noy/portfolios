@@ -9,6 +9,7 @@ const API_MAP = {
   "tase_list_stocks": "https://datawise.tase.co.il/v1/basic-securities/trade-securities-list/{raw:taseFetchDate}",
   "gemelnet_fund": "https://gemelnet.cma.gov.il/tsuot/ui/tsuotHodXML.aspx?miTkfDivuach={startYear}{startMonth}&adTkfDivuach={endYear}{endMonth}&kupot={fundId}&Dochot=1&sug=3",
   "gemelnet_list": "https://gemelnet.cma.gov.il/tsuot/ui/tsuotHodXML.aspx?miTkfDivuach={startYear}{startMonth}&adTkfDivuach={endYear}{endMonth}&kupot=0000&Dochot=1&sug=1",
+  "pensyanet_fund": "https://pensyanet.cma.gov.il/Parameters/ExportToXML",
   "pensyanet_list": "https://pensyanet.cma.gov.il/Parameters/ExportToXML",
 };
 
@@ -53,7 +54,7 @@ async function invokeApi(apiId, params, env) {
   }
 
   let method = "GET";
-  if (apiId === 'pensyanet_list') {
+  if (apiId === 'pensyanet_list' || apiId === 'pensyanet_fund') {
     method = "POST";
   }
 
@@ -120,7 +121,7 @@ async function invokeApi(apiId, params, env) {
       }
     };
 
-    if (apiId === 'pensyanet_list') {
+    if (apiId === 'pensyanet_list' || apiId === 'pensyanet_fund') {
       fetchOpts.headers["Content-Type"] = "application/x-www-form-urlencoded";
       const startYear = params.get('startYear');
       const startMonth = params.get('startMonth');
@@ -128,12 +129,11 @@ async function invokeApi(apiId, params, env) {
       const endMonth = params.get('endMonth');
 
       if (!startYear || !startMonth || !endYear || !endMonth) {
-        return new Response("Missing required parameters for pensyanet_list: startYear, startMonth, endYear, endMonth", { status: 400, headers: corsHeaders });
+        return new Response(`Missing required parameters for ${apiId}: startYear, startMonth, endYear, endMonth`, { status: 400, headers: corsHeaders });
       }
 
       // Get last day of month. Month is 1-based.
       const getEndDate = (year, month) => new Date(year, month, 0);
-
       const startDateObj = getEndDate(startYear, startMonth);
       const endDateObj = getEndDate(endYear, endMonth);
 
@@ -142,18 +142,29 @@ async function invokeApi(apiId, params, env) {
         const m = String(date.getMonth() + 1).padStart(2, '0');
         const d = String(date.getDate()).padStart(2, '0');
         return `${y}-${m}-${d}`;
-      }
-
+      };
       const startDate = formatDateForApi(startDateObj);
       const endDate = formatDateForApi(endDateObj);
 
       const vmObject = {
         "ParametersTab": 0,
-        "BasicSearchVM": { "SelectedFunds": [{ "FundID": 0, "IsGroup": true }], "SimpleSearchReportType": 100 },
-        "XmlEx0ortVM": { "SelectedMainReportType": 1, "SelectedReportType": "1" },
+        "BasicSearchVM": { "SelectedFunds": [], "SimpleSearchReportType": 1 },
+        "XmlEx0ortVM": { "SelectedMainReportType": 1001, "SelectedReportType": "" },
         "ReportStartDate": `${startDate}T22:00:00.000Z`,
         "ReportEndDate": `${endDate}T22:00:00.000Z`
       };
+
+      if (apiId === 'pensyanet_list') {
+        vmObject.BasicSearchVM.SelectedFunds = [{ "FundID": 0, "IsGroup": true }];
+        vmObject.XmlEx0ortVM.SelectedReportType = "1";
+      } else { // pensyanet_fund
+        const fundId = params.get('fundId');
+        if (!fundId) {
+          return new Response("Missing required parameter for pensyanet_fund: fundId", { status: 400, headers: corsHeaders });
+        }
+        vmObject.BasicSearchVM.SelectedFunds = [{ "FundID": parseInt(fundId, 10), "IsGroup": false }];
+        vmObject.XmlEx0ortVM.SelectedReportType = "3";
+      }
       fetchOpts.body = `vm=${encodeURIComponent(JSON.stringify(vmObject))}`;
     }
 
