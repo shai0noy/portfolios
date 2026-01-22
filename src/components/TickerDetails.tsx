@@ -345,11 +345,12 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
       const basePrice = findPriceAtDate(startDate);
       if (!basePrice) return { amount: 0, pct: 0 };
       let sum = 0;
-      for (let i = data.dividends!.length - 1; i >= 0; i--) {
-        if (data.dividends![i].date < startDate) {
-          break; // Stop if we've passed the start date - the array is sorted
+      // dividends are sorted descending (Newest first)
+      for (const div of data.dividends!) {
+        if (div.date < startDate) {
+          break; // Stop if we've passed the start date (entered older dates)
         }
-        sum += data.dividends![i].amount;
+        sum += div.amount;
       }
       return { amount: sum, pct: sum / basePrice };
     };
