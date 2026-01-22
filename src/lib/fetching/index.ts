@@ -81,29 +81,42 @@ export async function getTickerData(
     return fetchPensyanetQuote(tickerNum, signal, forceRefresh);
   }
 
-  // Start fetching sector info if TASE
+  const yahooPromise = fetchYahooTickerData(ticker, parsedExchange, signal, forceRefresh, '1y');
+
+  let globesPromise: Promise<TickerData | null>;
   let sectorPromise: Promise<string | undefined> = Promise.resolve(undefined);
+
   if (parsedExchange === Exchange.TASE) {
-    sectorPromise = getTickersDataset(signal).then(dataset => {
+    const lookupPromise = getTickersDataset(signal).then(dataset => {
       for (const list of Object.values(dataset)) {
         const found = list.find(t => 
           t.exchange === Exchange.TASE && 
           (t.symbol === ticker || (secId && t.taseInfo?.securityId === secId))
         );
-        if (found?.taseInfo?.companySector) {
-          return found.taseInfo.companySector;
-        }
+        if (found) return found;
       }
       return undefined;
     }).catch(e => {
-      console.warn('Error looking up TASE sector:', e);
+      console.warn('Error looking up TASE info:', e);
       return undefined;
     });
+
+    sectorPromise = lookupPromise.then(item => item?.taseInfo?.companySector);
+
+    if (secId) {
+      globesPromise = fetchGlobesStockQuote(ticker, secId, parsedExchange, signal, forceRefresh);
+    } else {
+      globesPromise = lookupPromise.then(item => {
+        return fetchGlobesStockQuote(ticker, item?.taseInfo?.securityId, parsedExchange, signal, forceRefresh);
+      });
+    }
+  } else {
+    globesPromise = fetchGlobesStockQuote(ticker, secId, parsedExchange, signal, forceRefresh);
   }
 
   const [globesData, yahooData, taseSector] = await Promise.all([
-    fetchGlobesStockQuote(ticker, secId, parsedExchange, signal, forceRefresh),
-    fetchYahooTickerData(ticker, parsedExchange, signal, forceRefresh, '1y'),
+    globesPromise,
+    yahooPromise,
     sectorPromise
   ]);
 
