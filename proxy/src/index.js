@@ -123,8 +123,8 @@ async function invokeApi(apiId, params, env) {
 
     if (apiId.startsWith('pensyanet')) {
       fetchOpts.headers["Content-Type"] = "application/x-www-form-urlencoded";
-      const startYear = params.get('startYear');
-      const startMonth = params.get('startMonth');
+      let startYear = params.get('startYear');
+      let startMonth = params.get('startMonth');
       let endYear = params.get('endYear');
       let endMonth = params.get('endMonth');
 
@@ -132,19 +132,36 @@ async function invokeApi(apiId, params, env) {
         return new Response(`Missing required parameters for ${apiId}: startYear, startMonth, endYear, endMonth`, { status: 400, headers: corsHeaders });
       }
 
-      // Ensure the end date is not the current month
-      const today = new Date();
-      if (parseInt(endYear, 10) === today.getFullYear() && parseInt(endMonth, 10) === today.getMonth() + 1) {
-        const prevMonth = new Date(today.getFullYear(), today.getMonth(), 0); // Last day of previous month
-        endYear = prevMonth.getFullYear().toString();
-        endMonth = String(prevMonth.getMonth() + 1).padStart(2, '0');
-        console.log(`Adjusted pensyanet end date to ${endYear}/${endMonth} to avoid current month.`);
+      const isList = apiId === 'pensyanet_list';
+
+      if (isList) {
+        // For pensya list - limit the end date to be at most current_month - 2.
+        const today = new Date();
+        // new Date(year, monthIndex, day). monthIndex is 0-11.
+        // To get 2 months ago, we use today.getMonth() - 2.
+        const limitDate = new Date(today.getFullYear(), today.getMonth() - 2, 1);
+        const requestedEndDate = new Date(parseInt(endYear, 10), parseInt(endMonth, 10) - 1, 1);
+
+        if (requestedEndDate > limitDate) {
+          endYear = limitDate.getFullYear().toString();
+          endMonth = String(limitDate.getMonth() + 1).padStart(2, '0');
+          console.log(`Adjusted pensyanet_list end date to ${endYear}/${endMonth} (limit is current month - 2).`);
+        }
+      }
+
+      // For both list and fund, start date must be equal or smaller than end date.
+      const startDateObj = new Date(parseInt(startYear, 10), parseInt(startMonth, 10) - 1, 1);
+      const endDateObj = new Date(parseInt(endYear, 10), parseInt(endMonth, 10) - 1, 1);
+
+      if (startDateObj > endDateObj) {
+        // If start is after end, set start to be the same as end.
+        startYear = endYear;
+        startMonth = endMonth;
+        console.log(`Adjusted pensyanet start date to ${startYear}/${startMonth} to be <= end date.`);
       }
 
       const startDate = new Date(Date.UTC(startYear, startMonth - 1, 1)).toISOString().slice(0, 10);
       const endDate = new Date(Date.UTC(endYear, endMonth, 0)).toISOString().slice(0, 10);
-
-      const isList = apiId === 'pensyanet_list';
       const fundId = params.get('fundId');
 
       if (!isList && !fundId) {
