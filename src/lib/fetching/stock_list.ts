@@ -222,11 +222,10 @@ async function fetchTaseTickers(
   config: SecurityTypeConfig = DEFAULT_SECURITY_TYPE_CONFIG
 ): Promise<Record<string, TickerListItem[]>> {
 
-  // 1. Fetch base data from TASE
-  const taseSecurities = await fetchTaseSecurities(signal);
-
-  // 2. Fetch all enabled types from Globes
-  const allGlobesTickers = await fetchGlobesTickers(Exchange.TASE, config, signal);
+  const [taseSecurities, allGlobesTickers] = await Promise.all([
+    fetchTaseSecurities(signal),
+    fetchGlobesTickers(Exchange.TASE, config, signal)
+  ]);
 
   // 3. Create a map for efficient lookup of Globes data
   const globesTickerMap = new Map<number, TickerListItem>();
