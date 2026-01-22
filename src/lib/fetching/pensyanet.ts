@@ -126,7 +126,7 @@ export async function fetchPensyanetFund(
   }
 }
 
-const LIST_CACHE_KEY = 'pensyanet_tickers_list';
+const LIST_CACHE_KEY = 'pensyanet_tickers_list_v1';
 const LIST_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 export async function fetchPensyanetTickers(signal?: AbortSignal, forceRefresh = false): Promise<TickerListItem[]> {
