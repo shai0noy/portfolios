@@ -157,6 +157,10 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
         splits: tickerData?.splits || prev?.splits
       }));
       setSheetRebuildTime(sheetRebuild);
+      
+      if (tickerData?.historical && tickerData.historical.length > 0) {
+        setHistoricalData(tickerData.historical);
+      }
 
       if (!tickerData && !holding) {
         setError(t('Ticker not found.', 'הנייר לא נמצא.'));

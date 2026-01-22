@@ -237,6 +237,8 @@ export async function fetchGemelnetQuote(
   // Build Price Index (Map: YYYY-MM -> { price, date })
   const priceMap = new Map<string, { price: number, date: number }>();
   let currentPrice = 100;
+  const historical: { date: Date, price: number }[] = [];
+
   const getKey = (ts: number) => {
       const d = new Date(ts);
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -245,6 +247,7 @@ export async function fetchGemelnetQuote(
   for (const point of sortedData) {
       currentPrice *= (1 + point.nominalReturn / 100);
       priceMap.set(getKey(point.date), { price: currentPrice, date: point.date });
+      historical.push({ date: new Date(point.date), price: currentPrice });
   }
 
   const latestPoint = sortedData[sortedData.length - 1];
@@ -300,6 +303,7 @@ export async function fetchGemelnetQuote(
     name: fundName,
     nameHe: fundName,
     source: 'Gemelnet',
+    historical,
   };
   return tickerData;
 }

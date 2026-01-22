@@ -145,33 +145,15 @@ export function TickerChart({ data, currency }: TickerChartProps) {
         return () => clearTimeout(swapTimer);
     }, [data, displayData, FADE_MS, FADE_IN_DELAY]);
 
-    if (!displayData || displayData.length < 2) return null;
-
-    // Calculations (Likeness & Gradient Offset)
-    const basePrice = displayData[0].price;
-    const isUp = displayData[displayData.length - 1].price >= basePrice;
-    const chartColor = isUp ? theme.palette.success.main : theme.palette.error.main;
-
-    const percentData = useMemo(() => displayData.map(p => ({
-        ...p,
-        yValue: basePrice > 0 ? (p.price / basePrice - 1) : 0,
-    })), [displayData, basePrice]);
-
-    const yMax = Math.max(...percentData.map(p => p.yValue));
-    const yMin = Math.min(...percentData.map(p => p.yValue));
-    const xMin = percentData[0].date.getTime();
-    const xMax = percentData[percentData.length - 1].date.getTime();
-
-    let offset;
-    if (yMin >= 0) {
-        // If the entire graph is above the zero line, the "split" is at the bottom.
-        offset = 1;
-    } else if (yMax <= 0) {
-        // If the entire graph is below the zero line, the "split" is at the top.
-        offset = 0;
-    } else {
-        offset = Math.max(0, Math.min(1, yMax / (yMax - yMin)));
-    }
+    // Move hooks above the conditional return
+    const percentData = useMemo(() => {
+        if (!displayData || displayData.length < 1) return [];
+        const basePrice = displayData[0].price;
+        return displayData.map(p => ({
+            ...p,
+            yValue: basePrice > 0 ? (p.price / basePrice - 1) : 0,
+        }));
+    }, [displayData]);
 
     const findClosestPoint = useCallback((date: number) => {
         const data = percentData;
@@ -238,10 +220,34 @@ export function TickerChart({ data, currency }: TickerChartProps) {
         ];
     }, [percentData, startPoint, endPoint]);
 
+    if (!displayData || displayData.length < 2 || percentData.length < 2) return null;
+
+    // Calculations (Likeness & Gradient Offset)
+    const basePrice = displayData[0].price;
+    const isUp = displayData[displayData.length - 1].price >= basePrice;
+    const chartColor = isUp ? theme.palette.success.main : theme.palette.error.main;
+
+    const yMax = Math.max(...percentData.map(p => p.yValue));
+    const yMin = Math.min(...percentData.map(p => p.yValue));
+    const xMin = percentData[0].date.getTime();
+    const xMax = percentData[percentData.length - 1].date.getTime();
+
+    let offset;
+    if (yMin >= 0) {
+        // If the entire graph is above the zero line, the "split" is at the bottom.
+        offset = 1;
+    } else if (yMax <= 0) {
+        // If the entire graph is below the zero line, the "split" is at the top.
+        offset = 0;
+    } else {
+        offset = Math.max(0, Math.min(1, yMax / (yMax - yMin)));
+    }
+
     return (
         <Box sx={{
             width: '100%',
             height: 300,
+            minWidth: 0,
             position: 'relative',
             userSelect: 'none',
             '& *': {
@@ -249,7 +255,7 @@ export function TickerChart({ data, currency }: TickerChartProps) {
             }
         }}>
             <SelectionSummary startPoint={startPoint} endPoint={endPoint} currency={currency} t={t} />
-            <ResponsiveContainer>
+            <ResponsiveContainer width="100%" height="100%">
                 <AreaChart
                     data={chartData}
                     onClick={handleClick}

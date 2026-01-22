@@ -114,6 +114,17 @@ export async function getTickerData(ticker: string, exchange: string, numericSec
 export async function fetchTickerHistory(ticker: string, exchange: string, signal?: AbortSignal, forceRefresh = false): Promise<Pick<TickerData, 'historical' | 'dividends' | 'splits'>> {
   const parsedExchange = parseExchange(exchange);
 
+  if (parsedExchange === Exchange.GEMEL) {
+    console.log(`[fetchTickerHistory] Fetching Gemel history for ${ticker}`);
+    const data = await fetchGemelnetQuote(Number(ticker), signal, forceRefresh);
+    console.log(`[fetchTickerHistory] Got Gemel data:`, data?.historical?.length);
+    return {
+      historical: data?.historical,
+      dividends: data?.dividends,
+      splits: data?.splits,
+    };
+  }
+
   // Fetch 1-year data, with forceRefresh if requested by the user.
   const yahooData1yPromise = fetchYahooTickerData(ticker, parsedExchange, signal, forceRefresh, '1y');
 
