@@ -242,7 +242,8 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
       links.push({ name: 'Google Finance', url: `https://www.google.com/finance/quote/${formattedTicker}` });
 
     } else {
-      links.push({ name: 'Yahoo Finance', url: `https://finance.yahoo.com/quote/${toYahooFinanceTicker(ticker, exchange)}` });
+      const isCrypto = data?.globesTypeHe === "מטבע דיגיטלי";
+      links.push({ name: 'Yahoo Finance', url: `https://finance.yahoo.com/quote/${toYahooFinanceTicker(ticker, exchange, isCrypto)}` });
 
       const gExchange = toGoogleFinanceExchangeCode(exchange);
       if (gExchange) {

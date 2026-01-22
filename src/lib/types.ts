@@ -106,7 +106,7 @@ const EXCHANGE_SETTINGS: Record<Exchange, ExchangeSettings> = {
     aliases: ['FX', 'CURRENCY', 'CRYPTO', 'CC', 'CCC'], 
     googleFinanceCode: '',
     googleSheetsCode: 'CURRENCY',
-    yahooFinanceSuffix: '' // Yahoo uses =X for currencies, but not for crypto, currently we don't distinguish them, so leave empty to handle crypto properly
+    yahooFinanceSuffix: '=X' // For crypto, no suffix is needed - toYahooFinanceTicker will not add it
   },
 };
 
@@ -160,7 +160,10 @@ export function toGoogleFinanceExchangeCode(exchange: Exchange): string {
  * @param exchange The canonical exchange.
  * @returns The ticker formatted for Yahoo Finance (e.g., 'BARC.L').
  */
-export function toYahooFinanceTicker(ticker: string, exchange: Exchange, isCr): string {
+export function toYahooFinanceTicker(ticker: string, exchange: Exchange, isCrypto: boolean): string {
+  if (exchange === Exchange.FOREX && isCrypto) {
+    return ticker; // No suffix for crypto
+  }
   const suffix = EXCHANGE_SETTINGS[exchange]?.yahooFinanceSuffix || '';
   return `${ticker}${suffix}`;
 }

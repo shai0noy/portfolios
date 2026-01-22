@@ -7,6 +7,11 @@ In details of gemel funds, handle gains display/calc - and cost basis!
 allow charting gemel
 should charts use adj price?
 Fix chart sub selection
+Why does eth-usd show no data older than 1y in chart?
+Show sector in search results
+Show sector and type in ticker detials, dash
+Figure out how we broke gemel fund names from showing!!!!
+Comperasion chars + allow metrics: r^2, beta
 
 Discovery/selling points page
 Cloudflare throttling and force cache
