@@ -1,10 +1,17 @@
-import { Box, Paper, Typography, Grid, Tooltip, Button, ToggleButton, ToggleButtonGroup } from '@mui/material';
+import { Box, Paper, Typography, Grid, Tooltip, Button, ToggleButton, ToggleButtonGroup, IconButton } from '@mui/material';
 import { formatPercent, formatValue } from '../lib/currency';
 import { logIfFalsy } from '../lib/utils';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import type { ExchangeRates } from '../lib/types';
 import { useLanguage } from '../lib/i18n';
+import { useState, useEffect, useCallback, useRef } from 'react';
+
+// Time constants for auto-stepping
+const AUTO_STEP_DELAY = 2 * 60 * 1000; // 2 minutes
+const INTERACTION_STEP_DELAY = 8 * 60 * 1000; // 8 minutes
 
 interface SummaryProps {
   summary: {
@@ -114,95 +121,167 @@ const PerfStat = ({ label, percentage, isIncomplete, aum, displayCurrency, size 
 export function DashboardSummary({ summary, displayCurrency, exchangeRates, onBack, onCurrencyChange, selectedPortfolio }: SummaryProps) {
   logIfFalsy(exchangeRates, "DashboardSummary: exchangeRates missing");
   const { t, isRtl } = useLanguage();
+  
+  const [activeStep, setActiveStep] = useState(0);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const isManualRef = useRef(false);
+
+  // Timer logic
+  const startTimer = useCallback((delay: number) => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+        setActiveStep(prev => (prev + 1) % 3);
+    }, delay);
+  }, []);
+
+  useEffect(() => {
+    const delay = isManualRef.current ? INTERACTION_STEP_DELAY : AUTO_STEP_DELAY;
+    isManualRef.current = false;
+    startTimer(delay);
+    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+  }, [activeStep, startTimer]);
+
+  const handleManualStep = (direction: 'next' | 'prev') => {
+    isManualRef.current = true;
+    setActiveStep(prev => {
+        if (direction === 'next') return (prev + 1) % 3;
+        return (prev - 1 + 3) % 3;
+    });
+  };
+
+  const handleInteraction = () => {
+    // Reset timer to long delay without changing step
+    startTimer(INTERACTION_STEP_DELAY);
+  };
 
   return (
-    <Paper variant="outlined" sx={{ p: 3, mb: 4, position: 'relative' }}>
-      <Grid container spacing={2} alignItems="center">
-        <Grid item xs={12} md={3}>
-          {selectedPortfolio ? (
-            <>
-              <Button 
-                variant="text" 
-                onClick={onBack} 
-                startIcon={<ArrowBackIcon fontSize="small" sx={{ transform: isRtl ? 'rotate(180deg)' : 'none' }} />}
-                sx={{ 
-                  mb: 0.5, 
-                  textTransform: 'none', 
-                  color: 'text.secondary', 
-                  minWidth: 'auto', 
-                  p: 0,
-                  ml: -1,
-                  mt: -3.5,
-                  '&:hover': { bgcolor: 'transparent', color: 'text.primary' } 
-                }}
-                disableRipple
-              >
-                {t('Back to All', 'חזרה לכל התיקים')}
-              </Button>
-              <Typography variant="h5" fontWeight="bold" color="primary">{selectedPortfolio}</Typography>
-            </>
-          ) : (
-            <Typography variant="subtitle2" color="text.secondary">{t('TOTAL AUM', 'שווי כולל')}</Typography>
-          )}
-          <Typography variant="h4" fontWeight="bold" color="primary">{formatValue(summary.aum, displayCurrency, 0)}</Typography>
-        </Grid>
-        <Grid item xs={12} md={9}>
-          <Box display="flex" flexDirection="column" gap={2} alignItems="flex-end">
-              {/* Main Stats Row */}
-              <Box display="flex" gap={4} justifyContent="flex-end" alignItems="center" flexWrap="wrap">
-                <Stat 
-                    label={t("Value After Tax", "שווי אחרי מס")}
-                    value={summary.valueAfterTax}
-                    pct={summary.aum > 0 ? summary.valueAfterTax / summary.aum : undefined}
-                    displayCurrency={displayCurrency}
-                />
-                <Stat 
-                    label={t("Unrealized Gain", "רווח לא ממומש")}
-                    value={summary.totalUnrealized}
-                    pct={summary.totalUnrealizedGainPct}
-                    color={summary.totalUnrealized >= 0 ? 'success.main' : 'error.main'}
-                    displayCurrency={displayCurrency}
-                />
-                <Stat 
-                    label={t("Realized Gain", "רווח ממומש")}
-                    value={summary.totalRealized}
-                    pct={summary.totalRealizedGainPct}
-                    color={summary.totalRealized >= 0 ? 'success.main' : 'error.main'}
-                    displayCurrency={displayCurrency}
-                />
-                <ToggleButtonGroup
-                  value={displayCurrency}
-                  exclusive
-                  onChange={(_, val) => val && onCurrencyChange(val)}
-                  size="small"
-                  sx={{ ml: 2, height: 32, direction: 'ltr' }}
-                >
-                  <ToggleButton value="USD" sx={{ px: 2, fontWeight: 600 }}>USD</ToggleButton>
-                  <ToggleButton value="ILS" sx={{ px: 2, fontWeight: 600 }}>ILS</ToggleButton>
-                </ToggleButtonGroup>
-              </Box>
+    <Paper 
+        variant="outlined" 
+        sx={{ p: 3, mb: 4, position: 'relative' }} 
+        onClick={handleInteraction}
+    >
+      {/* Navigation Buttons */}
+      <IconButton 
+         onClick={(e) => { e.stopPropagation(); handleManualStep('prev'); }}
+         sx={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', zIndex: 2 }}
+         size="small"
+      >
+         <ChevronLeftIcon />
+      </IconButton>
+       
+      <IconButton 
+         onClick={(e) => { e.stopPropagation(); handleManualStep('next'); }}
+         sx={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', zIndex: 2 }}
+         size="small"
+      >
+         <ChevronRightIcon />
+      </IconButton>
 
-              {/* Performance / Detail Row */}
-              <Box display="flex" gap={2} justifyContent="flex-end" alignItems="center" flexWrap="wrap">
-                 <Stat
-                    label={t("1D", "יומי")}
-                    value={summary.totalDayChange}
-                    pct={summary.totalDayChangePct}
-                    color={summary.totalDayChange >= 0 ? 'success.main' : 'error.main'}
-                    tooltip={summary.totalDayChangeIsIncomplete ? t("Calculation is based on partial data.", "החישוב מבוסס על נתונים חלקיים.") : undefined}
-                    displayCurrency={displayCurrency}
-                    size="small"
-                />
-                
-                <PerfStat label={t("1W", "שבוע")} percentage={summary.perf1w} isIncomplete={summary.perf1w_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
-                <PerfStat label={t("1M", "חודש")} percentage={summary.perf1m} isIncomplete={summary.perf1m_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
-                <PerfStat label={t("3M", "3 חודשים")} percentage={summary.perf3m} isIncomplete={summary.perf3m_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
-                <PerfStat label={t("YTD", "מתחילת שנה")} percentage={summary.perfYtd} isIncomplete={summary.perfYtd_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
-                <PerfStat label={t("1Y", "שנה")} percentage={summary.perf1y} isIncomplete={summary.perf1y_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
+      <Box sx={{ px: 4 }}>
+        {activeStep === 0 && (
+          <Grid container spacing={2} alignItems="center">
+            <Grid item xs={12} md={3}>
+              {selectedPortfolio ? (
+                <>
+                  <Button 
+                    variant="text" 
+                    onClick={(e) => { e.stopPropagation(); handleInteraction(); onBack(); }} 
+                    startIcon={<ArrowBackIcon fontSize="small" sx={{ transform: isRtl ? 'rotate(180deg)' : 'none' }} />}
+                    sx={{ 
+                      mb: 0.5, 
+                      textTransform: 'none', 
+                      color: 'text.secondary', 
+                      minWidth: 'auto', 
+                      p: 0,
+                      ml: -1,
+                      mt: -3.5,
+                      '&:hover': { bgcolor: 'transparent', color: 'text.primary' } 
+                    }}
+                    disableRipple
+                  >
+                    {t('Back to All', 'חזרה לכל התיקים')}
+                  </Button>
+                  <Typography variant="h5" fontWeight="bold" color="primary">{selectedPortfolio}</Typography>
+                </>
+              ) : (
+                <Typography variant="subtitle2" color="text.secondary">{t('TOTAL AUM', 'שווי כולל')}</Typography>
+              )}
+              <Typography variant="h4" fontWeight="bold" color="primary">{formatValue(summary.aum, displayCurrency, 0)}</Typography>
+            </Grid>
+            <Grid item xs={12} md={9}>
+              <Box display="flex" flexDirection="column" gap={2} alignItems="flex-end">
+                  {/* Main Stats Row */}
+                  <Box display="flex" gap={4} justifyContent="flex-end" alignItems="center" flexWrap="wrap">
+                    <Stat 
+                        label={t("Value After Tax", "שווי אחרי מס")}
+                        value={summary.valueAfterTax}
+                        pct={summary.aum > 0 ? summary.valueAfterTax / summary.aum : undefined}
+                        displayCurrency={displayCurrency}
+                    />
+                    <Stat 
+                        label={t("Unrealized Gain", "רווח לא ממומש")}
+                        value={summary.totalUnrealized}
+                        pct={summary.totalUnrealizedGainPct}
+                        color={summary.totalUnrealized >= 0 ? 'success.main' : 'error.main'}
+                        displayCurrency={displayCurrency}
+                    />
+                    <Stat 
+                        label={t("Realized Gain", "רווח ממומש")}
+                        value={summary.totalRealized}
+                        pct={summary.totalRealizedGainPct}
+                        color={summary.totalRealized >= 0 ? 'success.main' : 'error.main'}
+                        displayCurrency={displayCurrency}
+                    />
+                    <ToggleButtonGroup
+                      value={displayCurrency}
+                      exclusive
+                      onChange={(_, val) => {
+                          if (val) {
+                              handleInteraction();
+                              onCurrencyChange(val);
+                          }
+                      }}
+                      size="small"
+                      sx={{ ml: 2, height: 32, direction: 'ltr' }}
+                    >
+                      <ToggleButton value="USD" sx={{ px: 2, fontWeight: 600 }}>USD</ToggleButton>
+                      <ToggleButton value="ILS" sx={{ px: 2, fontWeight: 600 }}>ILS</ToggleButton>
+                    </ToggleButtonGroup>
+                  </Box>
+
+                  {/* Performance / Detail Row */}
+                  <Box display="flex" gap={2} justifyContent="flex-end" alignItems="center" flexWrap="wrap">
+                    <Stat
+                        label={t("1D", "יומי")}
+                        value={summary.totalDayChange}
+                        pct={summary.totalDayChangePct}
+                        color={summary.totalDayChange >= 0 ? 'success.main' : 'error.main'}
+                        tooltip={summary.totalDayChangeIsIncomplete ? t("Calculation is based on partial data.", "החישוב מבוסס על נתונים חלקיים.") : undefined}
+                        displayCurrency={displayCurrency}
+                        size="small"
+                    />
+                    
+                    <PerfStat label={t("1W", "שבוע")} percentage={summary.perf1w} isIncomplete={summary.perf1w_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
+                    <PerfStat label={t("1M", "חודש")} percentage={summary.perf1m} isIncomplete={summary.perf1m_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
+                    <PerfStat label={t("3M", "3 חודשים")} percentage={summary.perf3m} isIncomplete={summary.perf3m_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
+                    <PerfStat label={t("YTD", "מתחילת שנה")} percentage={summary.perfYtd} isIncomplete={summary.perfYtd_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
+                    <PerfStat label={t("1Y", "שנה")} percentage={summary.perf1y} isIncomplete={summary.perf1y_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
+                  </Box>
               </Box>
-          </Box>
-        </Grid>
-      </Grid>
+            </Grid>
+          </Grid>
+        )}
+        {activeStep === 1 && (
+            <Box height={150} display="flex" alignItems="center" justifyContent="center">
+                <Typography variant="h6" color="text.secondary">Screen 2 Placeholder</Typography>
+            </Box>
+        )}
+        {activeStep === 2 && (
+            <Box height={150} display="flex" alignItems="center" justifyContent="center">
+                <Typography variant="h6" color="text.secondary">Screen 3 Placeholder</Typography>
+            </Box>
+        )}
+      </Box>
     </Paper>
   );
 }
