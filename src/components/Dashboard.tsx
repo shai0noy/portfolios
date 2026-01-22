@@ -71,22 +71,19 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
     }
   };
 
-  const [summary, setSummary] = useState(INITIAL_SUMMARY);
+  const summary = useMemo(() => {
+    if (loading) return INITIAL_SUMMARY;
+    const targetHoldings = selectedPortfolioId 
+      ? holdings.filter(h => h.portfolioId === selectedPortfolioId) 
+      : holdings;
+    return calculateDashboardSummary(targetHoldings, displayCurrency, exchangeRates);
+  }, [loading, selectedPortfolioId, holdings, displayCurrency, exchangeRates]);
 
   useEffect(() => {
-    // If error occurs, we might want to handle it or show error state.
     if (error) {
         console.error("Dashboard error state:", error);
     }
-
-    if (loading) return;
-
-    if (selectedPortfolioId) {
-      setSummary(calculateDashboardSummary(holdings.filter(h => h.portfolioId === selectedPortfolioId), displayCurrency, exchangeRates));
-    } else {
-      setSummary(calculateDashboardSummary(holdings, displayCurrency, exchangeRates));
-    }
-  }, [selectedPortfolioId, holdings, exchangeRates, displayCurrency, loading, error]);
+  }, [error]);
 
   // Default Columns
   const defaultColumns = {
