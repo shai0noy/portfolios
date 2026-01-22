@@ -121,50 +121,46 @@ async function invokeApi(apiId, params, env) {
       }
     };
 
-    if (apiId === 'pensyanet_list' || apiId === 'pensyanet_fund') {
+    if (apiId.startsWith('pensyanet')) {
       fetchOpts.headers["Content-Type"] = "application/x-www-form-urlencoded";
       const startYear = params.get('startYear');
       const startMonth = params.get('startMonth');
-      const endYear = params.get('endYear');
-      const endMonth = params.get('endMonth');
+      let endYear = params.get('endYear');
+      let endMonth = params.get('endMonth');
 
       if (!startYear || !startMonth || !endYear || !endMonth) {
         return new Response(`Missing required parameters for ${apiId}: startYear, startMonth, endYear, endMonth`, { status: 400, headers: corsHeaders });
       }
 
-      // Get last day of month. Month is 1-based.
-      const getEndDate = (year, month) => new Date(year, month, 0);
-      const startDateObj = getEndDate(startYear, startMonth);
-      const endDateObj = getEndDate(endYear, endMonth);
+      // Ensure the end date is not the current month
+      const today = new Date();
+      if (parseInt(endYear, 10) === today.getFullYear() && parseInt(endMonth, 10) === today.getMonth() + 1) {
+        const prevMonth = new Date(today.getFullYear(), today.getMonth(), 0); // Last day of previous month
+        endYear = prevMonth.getFullYear().toString();
+        endMonth = String(prevMonth.getMonth() + 1).padStart(2, '0');
+        console.log(`Adjusted pensyanet end date to ${endYear}/${endMonth} to avoid current month.`);
+      }
 
-      const formatDateForApi = (date) => {
-        const y = date.getFullYear();
-        const m = String(date.getMonth() + 1).padStart(2, '0');
-        const d = String(date.getDate()).padStart(2, '0');
-        return `${y}-${m}-${d}`;
-      };
-      const startDate = formatDateForApi(startDateObj);
-      const endDate = formatDateForApi(endDateObj);
+      const startDate = new Date(Date.UTC(startYear, startMonth - 1, 1)).toISOString().slice(0, 10);
+      const endDate = new Date(Date.UTC(endYear, endMonth, 0)).toISOString().slice(0, 10);
+
+      const isList = apiId === 'pensyanet_list';
+      const fundId = params.get('fundId');
+
+      if (!isList && !fundId) {
+        return new Response("Missing required parameter for pensyanet_fund: fundId", { status: 400, headers: corsHeaders });
+      }
 
       const vmObject = {
         "ParametersTab": 0,
-        "BasicSearchVM": { "SelectedFunds": [], "SimpleSearchReportType": 1 },
-        "XmlExportVM": { "SelectedMainReportType": 1001, "SelectedReportType": "" },
-        "ReportStartDate": `${startDate}T22:00:00.000Z`,
-        "ReportEndDate": `${endDate}T22:00:00.000Z`
+        "BasicSearchVM": {
+          "SelectedFunds": isList ? [{ "FundID": 0, "IsGroup": true }] : [{ "FundID": parseInt(fundId, 10), "IsGroup": false }],
+          "SimpleSearchReportType": 1
+        },
+        "XmlExportVM": { "SelectedMainReportType": 1001, "SelectedReportType": isList ? "1" : "3" },
+        "ReportStartDate": `${startDate}T00:00:00.000Z`,
+        "ReportEndDate": `${endDate}T00:00:00.000Z`
       };
-
-      if (apiId === 'pensyanet_list') {
-        vmObject.BasicSearchVM.SelectedFunds = [{ "FundID": 0, "IsGroup": true }];
-        vmObject.XmlExportVM.SelectedReportType = "1";
-      } else { // pensyanet_fund
-        const fundId = params.get('fundId');
-        if (!fundId) {
-          return new Response("Missing required parameter for pensyanet_fund: fundId", { status: 400, headers: corsHeaders });
-        }
-        vmObject.BasicSearchVM.SelectedFunds = [{ "FundID": parseInt(fundId, 10), "IsGroup": false }];
-        vmObject.XmlExportVM.SelectedReportType = "3";
-      }
       fetchOpts.body = `vm=${encodeURIComponent(JSON.stringify(vmObject))}`;
     }
 
