@@ -10,6 +10,8 @@ Fix chart sub selection
 
 Discovery/selling points page
 Cloudflare throttling and force cache
+maybe store type in sheet
+tase types vs globes types??
 
 dsahboard summary:
 - daily movers by value/pct

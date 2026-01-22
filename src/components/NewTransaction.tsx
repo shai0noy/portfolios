@@ -419,14 +419,10 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                 {priceError && <Alert severity="error" sx={{ mb: 2 }}>{priceError}</Alert>}
 
                 {!showForm && (
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                      <Button variant="contained" startIcon={<AddCircleOutlineIcon />} onClick={() => { setShowForm(true); setSaveSuccess(false); }}>Add Another for {ticker}</Button>
-                    </Box>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                      <Button variant="outlined" startIcon={<DashboardIcon />} onClick={() => navigate('/dashboard')}>Back to Dashboard</Button>
-                      <Button variant="outlined" startIcon={<SearchIcon />} onClick={handleSearchAgain}>Back to Search</Button>
-                    </Box>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                    <Button variant="contained" startIcon={<AddCircleOutlineIcon />} onClick={() => { setShowForm(true); setSaveSuccess(false); }}>Add Another for {ticker}</Button>
+                    <Button variant="outlined" startIcon={<DashboardIcon />} onClick={() => navigate('/dashboard')}>Back to Dashboard</Button>
+                    <Button variant="outlined" startIcon={<SearchIcon />} onClick={handleSearchAgain}>Back to Search</Button>
                   </Box>
                 )}
 
