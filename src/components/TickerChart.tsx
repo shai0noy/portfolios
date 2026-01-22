@@ -159,6 +159,8 @@ export function TickerChart({ data, currency }: TickerChartProps) {
 
     const yMax = Math.max(...percentData.map(p => p.yValue));
     const yMin = Math.min(...percentData.map(p => p.yValue));
+    const xMin = percentData[0].date.getTime();
+    const xMax = percentData[percentData.length - 1].date.getTime();
 
     let offset;
     if (yMin >= 0) {
@@ -171,13 +173,34 @@ export function TickerChart({ data, currency }: TickerChartProps) {
         offset = Math.max(0, Math.min(1, yMax / (yMax - yMin)));
     }
 
-    const findClosestPoint = (date: number) => {
-        return percentData.reduce((prev, curr) => Math.abs(curr.date.getTime() - date) < Math.abs(prev.date.getTime() - date) ? curr : prev);
-    };
+    const findClosestPoint = useCallback((date: number) => {
+        const data = percentData;
+        if (!data || data.length === 0) return null;
+        // Optimization: Binary search for O(log N) lookup
+        let low = 0;
+        let high = data.length - 1;
+        
+        if (date <= data[0].date.getTime()) return data[0];
+        if (date >= data[high].date.getTime()) return data[high];
+
+        while (low < high) {
+            const mid = Math.floor((low + high) / 2);
+            if (data[mid].date.getTime() < date) {
+                low = mid + 1;
+            } else {
+                high = mid;
+            }
+        }
+        
+        const next = data[low];
+        const prev = data[low - 1]; 
+        return (date - prev.date.getTime() < next.date.getTime() - date) ? prev : next;
+    }, [percentData]);
 
     const handleClick = useCallback((e: any) => {
         if (!e || !e.activeLabel) return;
         const point = findClosestPoint(e.activeLabel);
+        if (!point) return;
 
         setSelection(prev => {
             if (prev.isSelecting) {
@@ -185,19 +208,35 @@ export function TickerChart({ data, currency }: TickerChartProps) {
             }
             return { start: point, end: point, isSelecting: true };
         });
-    }, [percentData]);
+    }, [findClosestPoint]);
 
     const handleMouseMove = useCallback((e: any) => {
         if (selection.isSelecting && e && e.activeLabel) {
             const point = findClosestPoint(e.activeLabel);
-            if (point.date.getTime() !== selection.end?.date?.getTime()) {
+            if (point && point.date.getTime() !== selection.end?.date?.getTime()) {
                 setSelection(prev => ({ ...prev, end: point }));
             }
         }
-    }, [selection.isSelecting, selection.end, percentData]);
+    }, [selection.isSelecting, selection.end, findClosestPoint]);
 
     const selectionPoints = selection.start && selection.end ? [selection.start, selection.end].sort((a,b) => a.date.getTime() - b.date.getTime()) : [];
     const [startPoint, endPoint] = selectionPoints;
+
+    const chartData = useMemo(() => {
+        if (!startPoint || !endPoint || startPoint === endPoint) return percentData;
+        
+        const startIndex = percentData.indexOf(startPoint);
+        const endIndex = percentData.indexOf(endPoint);
+
+        if (startIndex === -1 || endIndex === -1) return percentData;
+
+        // Optimization: Recycle objects outside the range, map only the range
+        return [
+            ...percentData.slice(0, startIndex),
+            ...percentData.slice(startIndex, endIndex + 1).map(p => ({ ...p, highlightedY: p.yValue })),
+            ...percentData.slice(endIndex + 1)
+        ];
+    }, [percentData, startPoint, endPoint]);
 
     return (
         <Box sx={{
@@ -205,20 +244,14 @@ export function TickerChart({ data, currency }: TickerChartProps) {
             height: 300,
             position: 'relative',
             userSelect: 'none',
-            '& .recharts-wrapper': {
-                outline: 'none',
-            },
-            '& .recharts-wrapper:focus-visible': {
-                outline: 'none',
-            },
-                '& .recharts-surface:focus-visible': {
-                outline: 'none',
+            '& *': {
+                outline: 'none !important',
             }
         }}>
             <SelectionSummary startPoint={startPoint} endPoint={endPoint} currency={currency} t={t} />
             <ResponsiveContainer>
                 <AreaChart
-                    data={percentData}
+                    data={chartData}
                     onClick={handleClick}
                     onMouseMove={handleMouseMove}
                     margin={{ top: 10, right: 5, left: 0, bottom: 0 }}
@@ -235,7 +268,7 @@ export function TickerChart({ data, currency }: TickerChartProps) {
                     <XAxis
                         dataKey="date"
                         type="number"
-                        domain={['dataMin', 'dataMax']}
+                        domain={[xMin, xMax]}
                         scale="time"
                         tickFormatter={formatXAxis}
                         tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
@@ -248,6 +281,7 @@ export function TickerChart({ data, currency }: TickerChartProps) {
                         width={50}
                         tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
                         dx={3}
+                        domain={[yMin, yMax]}
                     />
                     <Tooltip content={<CustomTooltip currency={currency} t={t} basePrice={basePrice} />} />
                     <ReferenceLine y={0} stroke={theme.palette.text.secondary} strokeDasharray="3 3" />
@@ -268,14 +302,25 @@ export function TickerChart({ data, currency }: TickerChartProps) {
                             pointerEvents: 'none' 
                         }}
                     />
+
+                    {startPoint && endPoint && startPoint !== endPoint && (
+                        <Area
+                            type="monotone"
+                            dataKey="highlightedY"
+                            stroke="none"
+                            fill={chartColor}
+                            fillOpacity={0.2}
+                            isAnimationActive={false}
+                            activeDot={false}
+                            style={{ pointerEvents: 'none' }}
+                        />
+                    )}
+
                     {startPoint && (
                         <ReferenceDot x={startPoint.date.getTime()} y={startPoint.yValue} r={6} fill={chartColor} stroke="white" strokeWidth={2} isFront={true} />
                     )}
                     {endPoint && (
                         <ReferenceDot x={endPoint.date.getTime()} y={endPoint.yValue} r={6} fill={chartColor} stroke="white" strokeWidth={2} isFront={true} />
-                    )}
-                    {startPoint && endPoint && startPoint.date.getTime() !== endPoint.date.getTime() && (
-                        <path d={`M${startPoint.cx},${startPoint.cy}L${endPoint.cx},${endPoint.cy}`} stroke={chartColor} strokeWidth={2} strokeDasharray="5 5" />
                     )}
                 </AreaChart>
             </ResponsiveContainer>
