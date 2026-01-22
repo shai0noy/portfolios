@@ -273,10 +273,12 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
               onChange={(e) => setSelectedExchange(e.target.value as string)}
             >
               <MenuItem value="ALL">{t('All', 'הכל')}</MenuItem>
-              <MenuItem value="TASE">TASE</MenuItem>
+              <MenuItem value="TASE">TASE ({t('Tel Aviv', 'תל אביב')})</MenuItem>
               <MenuItem value="NASDAQ">NASDAQ</MenuItem>
               <MenuItem value="NYSE">NYSE</MenuItem>
               <MenuItem value="FOREX">FOREX</MenuItem>
+              <MenuItem value="GEMEL">{t('Gemel Funds', 'קופות גמל')}</MenuItem>
+              <MenuItem value="PENSION">{t('Pension Funds', 'קרנות פנסיה')}</MenuItem>
             </Select>
           </FormControl>
         </Grid>
@@ -287,7 +289,7 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
               value={selectedType}
               label={t('Type', 'סוג')}
               onChange={(e) => setSelectedType(e.target.value as string)}
-              disabled={selectedExchange !== 'ALL' && selectedExchange !== 'TASE' && selectedExchange !== 'FOREX'}
+              disabled={selectedExchange !== 'ALL' && selectedExchange !== 'TASE' && selectedExchange !== 'FOREX' && selectedExchange !== 'GEMEL' && selectedExchange !== 'PENSION'}
             >
               <MenuItem value="ALL">{t('All Types', 'כל הסוגים')}</MenuItem>
               {typeFilterOptions.map(({ key, displayName }) => (
