@@ -171,11 +171,58 @@ export function TickerChart({ data, currency }: TickerChartProps) {
         offset = Math.max(0, Math.min(1, yMax / (yMax - yMin)));
     }
 
+    const findClosestPoint = (date: number) => {
+        return percentData.reduce((prev, curr) => Math.abs(curr.date.getTime() - date) < Math.abs(prev.date.getTime() - date) ? curr : prev);
+    };
+
+    const handleClick = useCallback((e: any) => {
+        if (!e || !e.activeLabel) return;
+        const point = findClosestPoint(e.activeLabel);
+
+        setSelection(prev => {
+            if (prev.isSelecting) {
+                return { ...prev, end: point, isSelecting: false };
+            }
+            return { start: point, end: point, isSelecting: true };
+        });
+    }, [percentData]);
+
+    const handleMouseMove = useCallback((e: any) => {
+        if (selection.isSelecting && e && e.activeLabel) {
+            const point = findClosestPoint(e.activeLabel);
+            if (point.date.getTime() !== selection.end?.date?.getTime()) {
+                setSelection(prev => ({ ...prev, end: point }));
+            }
+        }
+    }, [selection.isSelecting, selection.end, percentData]);
+
+    const selectionPoints = selection.start && selection.end ? [selection.start, selection.end].sort((a,b) => a.date.getTime() - b.date.getTime()) : [];
+    const [startPoint, endPoint] = selectionPoints;
+
     return (
-        <Box sx={{ width: '100%', height: 300, position: 'relative' }}>
-            <SelectionSummary startPoint={selection.start} endPoint={selection.end} currency={currency} t={t} />
+        <Box sx={{
+            width: '100%',
+            height: 300,
+            position: 'relative',
+            userSelect: 'none',
+            '& .recharts-wrapper': {
+                outline: 'none',
+            },
+            '& .recharts-wrapper:focus-visible': {
+                outline: 'none',
+            },
+                '& .recharts-surface:focus-visible': {
+                outline: 'none',
+            }
+        }}>
+            <SelectionSummary startPoint={startPoint} endPoint={endPoint} currency={currency} t={t} />
             <ResponsiveContainer>
-                <AreaChart data={percentData} margin={{ top: 10, right: 5, left: 0, bottom: 0 }}>
+                <AreaChart
+                    data={percentData}
+                    onClick={handleClick}
+                    onMouseMove={handleMouseMove}
+                    margin={{ top: 10, right: 5, left: 0, bottom: 0 }}
+                >
                     <defs>
                         <linearGradient id="splitGradient" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="0" stopColor={theme.palette.success.main} stopOpacity={0.4} />
@@ -221,6 +268,15 @@ export function TickerChart({ data, currency }: TickerChartProps) {
                             pointerEvents: 'none' 
                         }}
                     />
+                    {startPoint && (
+                        <ReferenceDot x={startPoint.date.getTime()} y={startPoint.yValue} r={6} fill={chartColor} stroke="white" strokeWidth={2} isFront={true} />
+                    )}
+                    {endPoint && (
+                        <ReferenceDot x={endPoint.date.getTime()} y={endPoint.yValue} r={6} fill={chartColor} stroke="white" strokeWidth={2} isFront={true} />
+                    )}
+                    {startPoint && endPoint && startPoint.date.getTime() !== endPoint.date.getTime() && (
+                        <path d={`M${startPoint.cx},${startPoint.cy}L${endPoint.cx},${endPoint.cy}`} stroke={chartColor} strokeWidth={2} strokeDasharray="5 5" />
+                    )}
                 </AreaChart>
             </ResponsiveContainer>
         </Box>
