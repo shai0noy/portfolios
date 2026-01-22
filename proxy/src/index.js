@@ -9,6 +9,7 @@ const API_MAP = {
   "tase_list_stocks": "https://datawise.tase.co.il/v1/basic-securities/trade-securities-list/{raw:taseFetchDate}",
   "gemelnet_fund": "https://gemelnet.cma.gov.il/tsuot/ui/tsuotHodXML.aspx?miTkfDivuach={startYear}{startMonth}&adTkfDivuach={endYear}{endMonth}&kupot={fundId}&Dochot=1&sug=3",
   "gemelnet_list": "https://gemelnet.cma.gov.il/tsuot/ui/tsuotHodXML.aspx?miTkfDivuach={startYear}{startMonth}&adTkfDivuach={endYear}{endMonth}&kupot=0000&Dochot=1&sug=1",
+  "pensyanet_list": "https://pensyanet.cma.gov.il/Parameters/ExportToXML",
 };
 
 // Regex: English (a-z), Hebrew (א-ת), Numbers (0-9) and symbols: , . : - ^ and space
@@ -51,6 +52,11 @@ async function invokeApi(apiId, params, env) {
     }
   }
 
+  let method = "GET";
+  if (apiId === 'pensyanet_list') {
+    method = "POST";
+  }
+
   let taseFetchDate;
   if (apiId === 'tase_list_stocks') {
     if (params.get('taseFetchDate')) {
@@ -82,18 +88,20 @@ async function invokeApi(apiId, params, env) {
   const targetUrl = new URL(targetUrlString);
 
   // Append other params as query string for APIs that need them.
-  for (const [key, value] of params.entries()) {
-    if (key === 'apiId') continue;
-    // Only append if it wasn't a placeholder
-    if (!API_MAP[apiId].includes(`{${key}}`) && !API_MAP[apiId].includes(`{raw:${key}}`)) {
-      targetUrl.searchParams.append(key, value);
+  if (method === "GET") {
+    for (const [key, value] of params.entries()) {
+      if (key === 'apiId') continue;
+      // Only append if it wasn't a placeholder
+      if (!API_MAP[apiId].includes(`{${key}}`) && !API_MAP[apiId].includes(`{raw:${key}}`)) {
+        targetUrl.searchParams.append(key, value);
+      }
     }
   }
 
   // 5. Fetch from origin with caching
   try {
     const fetchOpts = {
-      method: "GET",
+      method: method,
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Accept": "application/json, text/plain, text/html, application/xhtml+xml, application/xml;q=0.9, image/avif, image/webp, mobile/v1, */*;q=0.8",
@@ -111,6 +119,44 @@ async function invokeApi(apiId, params, env) {
         },
       }
     };
+
+    if (apiId === 'pensyanet_list') {
+      fetchOpts.headers["Content-Type"] = "application/x-www-form-urlencoded";
+      const startYear = params.get('startYear');
+      const startMonth = params.get('startMonth');
+      const endYear = params.get('endYear');
+      const endMonth = params.get('endMonth');
+
+      if (!startYear || !startMonth || !endYear || !endMonth) {
+        return new Response("Missing required parameters for pensyanet_list: startYear, startMonth, endYear, endMonth", { status: 400, headers: corsHeaders });
+      }
+
+      // Get last day of month. Month is 1-based.
+      const getEndDate = (year, month) => new Date(year, month, 0);
+
+      const startDateObj = getEndDate(startYear, startMonth);
+      const endDateObj = getEndDate(endYear, endMonth);
+
+      const formatDateForApi = (date) => {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+      }
+
+      const startDate = formatDateForApi(startDateObj);
+      const endDate = formatDateForApi(endDateObj);
+
+      const vmObject = {
+        "ParametersTab": 0,
+        "BasicSearchVM": { "SelectedFunds": [{ "FundID": 0, "IsGroup": true }], "SimpleSearchReportType": 100 },
+        "XmlEx0ortVM": { "SelectedMainReportType": 1, "SelectedReportType": "1" },
+        "ReportStartDate": `${startDate}T22:00:00.000Z`,
+        "ReportEndDate": `${endDate}T22:00:00.000Z`
+      };
+      fetchOpts.body = `vm=${encodeURIComponent(JSON.stringify(vmObject))}`;
+    }
+
     if (apiId === 'tase_list_stocks') {
       fetchOpts.headers["apiKey"] = env.TASE_API_KEY;
     } else if (apiId === 'cbs_price_index') {
@@ -119,6 +165,8 @@ async function invokeApi(apiId, params, env) {
       fetchOpts.headers["Referer"] = "https://www.globes.co.il/";
     } else if (apiId.startsWith("yahoo")) {
       fetchOpts.headers["Referer"] = "https://finance.yahoo.com/";
+    } else if (apiId.startsWith("pensyanet")) {
+      fetchOpts.headers["Referer"] = "https://pensyanet.cma.gov.il/";
     }
 
 
