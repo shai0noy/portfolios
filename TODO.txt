@@ -8,6 +8,14 @@ allow charting gemel
 should charts use adj price?
 Fix chart sub selection
 
+Discovery/selling points page
+Cloudflare throttling and force cache
+
+dsahboard summary:
+- daily movers by value/pct
+- chart
+- market comperission (compare gains to sp500, ta, etc)
+
 ON HOLD: Keep track of dividands since purchase! Add to sheet
 ON HOLD: Handle splits, etc, name changes
 ON HOLD: Support mobile screen sizes

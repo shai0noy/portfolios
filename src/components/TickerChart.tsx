@@ -220,7 +220,20 @@ export function TickerChart({ data, currency }: TickerChartProps) {
         ];
     }, [percentData, startPoint, endPoint]);
 
-    if (!displayData || displayData.length < 2 || percentData.length < 2) return null;
+    if (!displayData || displayData.length < 2 || percentData.length < 2) {
+        return (
+            <Box sx={{
+                width: '100%',
+                height: 300,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: 1,
+            }}>
+                <Typography color="text.secondary">{t('No data available for this range', 'אין נתונים זמינים לטווח זה')}</Typography>
+            </Box>
+        );
+    }
 
     // Calculations (Likeness & Gradient Offset)
     const basePrice = displayData[0].price;
