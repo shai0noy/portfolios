@@ -149,21 +149,21 @@ async function invokeApi(apiId, params, env) {
       const vmObject = {
         "ParametersTab": 0,
         "BasicSearchVM": { "SelectedFunds": [], "SimpleSearchReportType": 1 },
-        "XmlEx0ortVM": { "SelectedMainReportType": 1001, "SelectedReportType": "" },
+        "XmlExportVM": { "SelectedMainReportType": 1001, "SelectedReportType": "" },
         "ReportStartDate": `${startDate}T22:00:00.000Z`,
         "ReportEndDate": `${endDate}T22:00:00.000Z`
       };
 
       if (apiId === 'pensyanet_list') {
         vmObject.BasicSearchVM.SelectedFunds = [{ "FundID": 0, "IsGroup": true }];
-        vmObject.XmlEx0ortVM.SelectedReportType = "1";
+        vmObject.XmlExportVM.SelectedReportType = "1";
       } else { // pensyanet_fund
         const fundId = params.get('fundId');
         if (!fundId) {
           return new Response("Missing required parameter for pensyanet_fund: fundId", { status: 400, headers: corsHeaders });
         }
         vmObject.BasicSearchVM.SelectedFunds = [{ "FundID": parseInt(fundId, 10), "IsGroup": false }];
-        vmObject.XmlEx0ortVM.SelectedReportType = "3";
+        vmObject.XmlExportVM.SelectedReportType = "3";
       }
       fetchOpts.body = `vm=${encodeURIComponent(JSON.stringify(vmObject))}`;
     }
