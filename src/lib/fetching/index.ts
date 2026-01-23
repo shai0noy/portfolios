@@ -4,7 +4,7 @@ import { fetchYahooTickerData } from './yahoo';
 import { fetchAllTickers } from './stock_list';
 import { fetchGemelnetQuote } from './gemelnet';
 import { fetchPensyanetQuote } from './pensyanet';
-import type { TickerData, TickerListItem } from './types';
+import type { TickerData, TickerListItem, TaseInfo } from './types';
 import { Exchange, parseExchange } from '../types';
 
 export * from './types';
@@ -84,7 +84,7 @@ export async function getTickerData(
   const yahooPromise = fetchYahooTickerData(ticker, parsedExchange, signal, forceRefresh, '1y');
 
   let globesPromise: Promise<TickerData | null>;
-  let sectorPromise: Promise<string | undefined> = Promise.resolve(undefined);
+  let taseInfoPromise: Promise<TaseInfo | undefined> = Promise.resolve(undefined);
 
   if (parsedExchange === Exchange.TASE) {
     const lookupPromise = getTickersDataset(signal).then(dataset => {
@@ -101,7 +101,7 @@ export async function getTickerData(
       return undefined;
     });
 
-    sectorPromise = lookupPromise.then(item => item?.taseInfo?.companySector);
+    taseInfoPromise = lookupPromise.then(item => item?.taseInfo);
 
     if (secId) {
       globesPromise = fetchGlobesStockQuote(ticker, secId, parsedExchange, signal, forceRefresh);
@@ -114,16 +114,19 @@ export async function getTickerData(
     globesPromise = fetchGlobesStockQuote(ticker, secId, parsedExchange, signal, forceRefresh);
   }
 
-  const [globesData, yahooData, taseSector] = await Promise.all([
+  const [globesData, yahooData, taseInfo] = await Promise.all([
     globesPromise,
     yahooPromise,
-    sectorPromise
+    taseInfoPromise
   ]);
+
+  const taseSector = taseInfo?.companySector;
+  const taseSubSector = taseInfo?.companySubSector;
 
   // Fallback to Yahoo if the first source fails, or merge data if both succeed.
   if (!globesData) {
-    if (yahooData && taseSector) {
-      return { ...yahooData, sector: taseSector };
+    if (yahooData) {
+      return { ...yahooData, sector: taseSector, subSector: taseSubSector };
     }
     return yahooData;
   }
@@ -148,11 +151,12 @@ export async function getTickerData(
       openPrice: globesData.openPrice ?? yahooData.openPrice,
       source: `${globesData.source} + Yahoo Finance`,
       sector: taseSector || globesData.sector || yahooData.sector,
+      subSector: taseSubSector,
     };
   }
 
-  if (taseSector) {
-    return { ...globesData, sector: taseSector };
+  if (taseInfo) {
+    return { ...globesData, sector: taseSector, subSector: taseSubSector };
   }
 
   return globesData;

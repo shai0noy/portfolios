@@ -350,7 +350,7 @@ export function useDashboardData(sheetId: string, options: { includeUnvested: bo
       const processedHoldings: DashboardHolding[] = [];
       const holdingsList = Array.from(holdingMap.values());
       const missingDataPromises = holdingsList.map(async (h) => {
-        const needsFetch = !h.currentPrice || h.currentPrice === 0 || h.exchange === Exchange.GEMEL || h.exchange === Exchange.PENSION;
+        const needsFetch = !h.currentPrice || h.currentPrice === 0 || h.exchange === Exchange.GEMEL || h.exchange === Exchange.PENSION || h.dayChangePct === 0;
 
         if (needsFetch) {
           try {

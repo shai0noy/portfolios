@@ -11,7 +11,6 @@ Show sector in search results
 Show sector and type in ticker detials, dash
 Figure out how we broke gemel fund names from showing!!!! They stop showing once they are in holdings. Doesnt effect pension
 Comperasion chars + allow metrics: r^2, beta
-Use adj price in chart?
 דמי ניהול - להציג + לחשב בגמל וכו'
 
 Discovery/selling points page

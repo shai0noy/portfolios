@@ -23,6 +23,7 @@ export interface TickerData {
   changeDate1d?: Date; // Timestamp of the previous close used for daily change
   timestamp?: Date; // Last update time
   sector?: string;
+  subSector?: string;
   changePctYtd?: number;
   changeDateYtd?: Date; // Timestamp of the start of the year price
   changePctRecent?: number;
