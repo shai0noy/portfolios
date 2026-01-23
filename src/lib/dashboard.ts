@@ -89,9 +89,9 @@ export function calculateDashboardSummary(data: DashboardHolding[], displayCurre
     aumWithDayChangeData: 0,
     holdingsWithDayChange: 0,
     ...Object.fromEntries(Object.keys(perfPeriods).flatMap(p => [
-        [`totalChange_${p}`, 0],
-        [`aumFor_${p}`, 0],
-        [`holdingsFor_${p}`, 0]
+      [`totalChange_${p}`, 0],
+      [`aumFor_${p}`, 0],
+      [`holdingsFor_${p}`, 0]
     ]))
   };
 
@@ -106,29 +106,29 @@ export function calculateDashboardSummary(data: DashboardHolding[], displayCurre
     acc.totalReturnDisplay += vals.totalGain;
 
     if (h.dayChangePct !== 0 && isFinite(h.dayChangePct)) {
-        const marketValueDisplay = vals.marketValue;
-        const changeValDisplay = marketValueDisplay * h.dayChangePct / (1 + h.dayChangePct);
+      const marketValueDisplay = vals.marketValue;
+      const changeValDisplay = marketValueDisplay * h.dayChangePct / (1 + h.dayChangePct);
 
-        acc.totalDayChange += changeValDisplay;
-        acc.aumWithDayChangeData += vals.marketValue;
-        acc.holdingsWithDayChange++;
+      acc.totalDayChange += changeValDisplay;
+      acc.aumWithDayChangeData += vals.marketValue;
+      acc.holdingsWithDayChange++;
     }
-    
+
     for (const [key, holdingKey] of Object.entries(perfPeriods)) {
-        const perf = h[holdingKey as keyof DashboardHolding] as number;
-        if (perf && !isNaN(perf)) {
-            const { changeVal } = calculatePerformanceInDisplayCurrency(
-                h.currentPrice, h.stockCurrency,
-                perf, displayCurrency, exchangeRates
-            );
-            
-            const currentMVDisplay = vals.marketValue;
-            const totalChangeForHolding = changeVal * h.totalQty;
-            
-            (acc as any)[`totalChange_${key}`] += totalChangeForHolding;
-            (acc as any)[`aumFor_${key}`] += currentMVDisplay;
-            (acc as any)[`holdingsFor_${key}`]++;
-        }
+      const perf = h[holdingKey as keyof DashboardHolding] as number;
+      if (perf && !isNaN(perf)) {
+        const { changeVal } = calculatePerformanceInDisplayCurrency(
+          h.currentPrice, h.stockCurrency,
+          perf, displayCurrency, exchangeRates
+        );
+
+        const currentMVDisplay = vals.marketValue;
+        const totalChangeForHolding = changeVal * h.totalQty;
+
+        (acc as any)[`totalChange_${key}`] += totalChangeForHolding;
+        (acc as any)[`aumFor_${key}`] += currentMVDisplay;
+        (acc as any)[`holdingsFor_${key}`]++;
+      }
     }
 
     return acc;
@@ -141,7 +141,7 @@ export function calculateDashboardSummary(data: DashboardHolding[], displayCurre
     totalRealized: s.totalRealizedDisplay,
     totalDividends: s.totalDividendsDisplay,
     totalReturn: s.totalReturnDisplay,
-    totalCostOfSold: s.totalCostOfSoldDisplay, 
+    totalCostOfSold: s.totalCostOfSoldDisplay,
     totalUnrealizedGainPct: (s.aum - s.totalUnrealizedDisplay) > 0 ? s.totalUnrealizedDisplay / (s.aum - s.totalUnrealizedDisplay) : 0,
     totalRealizedGainPct: s.totalCostOfSoldDisplay > 0 ? s.totalRealizedDisplay / s.totalCostOfSoldDisplay : 0,
     totalDayChange: s.totalDayChange,
@@ -155,7 +155,7 @@ export function calculateDashboardSummary(data: DashboardHolding[], displayCurre
   summaryResult.totalDayChangePct = prevClose > 0 ? s.totalDayChange / prevClose : 0;
   summaryResult.perf1d = summaryResult.totalDayChangePct;
   summaryResult.totalDayChangeIsIncomplete = s.holdingsWithDayChange > 0 && s.holdingsWithDayChange < totalHoldings;
-  
+
   for (const key of Object.keys(perfPeriods)) {
     const totalChange = (s as any)[`totalChange_${key}`];
     const aumForPeriod = (s as any)[`aumFor_${key}`];
@@ -165,7 +165,7 @@ export function calculateDashboardSummary(data: DashboardHolding[], displayCurre
     const holdingsForPeriod = (s as any)[`holdingsFor_${key}`];
     (summaryResult as any)[`${key}_incomplete`] = holdingsForPeriod > 0 && holdingsForPeriod < totalHoldings;
   }
-  
+
   return summaryResult;
 }
 
@@ -198,7 +198,7 @@ export function useDashboardData(sheetId: string, options: { includeUnvested: bo
         fetchTransactions(sheetId),
         getExternalPrices(sheetId)
       ]);
-      
+
       setPortfolios(ports);
       const newPortMap = new Map(ports.map(p => [p.id, p]));
       const holdingMap = new Map<string, DashboardHolding>();
@@ -225,15 +225,15 @@ export function useDashboardData(sheetId: string, options: { includeUnvested: bo
         if (!holdingMap.has(key)) {
           const live = liveDataMap.get(`${t.ticker}:${t.exchange}`);
           const exchange = t.exchange || live?.exchange;
-          
+
           if (!exchange) {
-              console.warn(`Exchange missing for ticker: ${t.ticker}`);
-              return;
+            console.warn(`Exchange missing for ticker: ${t.ticker}`);
+            return;
           }
           const isTase = exchange === Exchange.TASE;
-          
+
           const stockCurrency = normalizeCurrency(live?.currency || t.currency || (isTase ? Currency.ILA : Currency.USD));
-          const currentPrice = live?.price || 0; 
+          const currentPrice = live?.price || 0;
 
           holdingMap.set(key, {
             key,
@@ -271,9 +271,9 @@ export function useDashboardData(sheetId: string, options: { includeUnvested: bo
         const tQty = t.qty || 0;
 
         if (portfolioCurrency === Currency.ILS) {
-             originalPricePortfolioCurrency = priceInILS;
+          originalPricePortfolioCurrency = priceInILS;
         } else {
-             originalPricePortfolioCurrency = convertCurrency(priceInUSD, Currency.USD, portfolioCurrency, exchangeRates);
+          originalPricePortfolioCurrency = convertCurrency(priceInUSD, Currency.USD, portfolioCurrency, exchangeRates);
         }
 
         const txnValuePortfolioCurrency = tQty * originalPricePortfolioCurrency;
@@ -282,125 +282,127 @@ export function useDashboardData(sheetId: string, options: { includeUnvested: bo
         else if (h.stockCurrency === Currency.ILS) effectiveTxnPrice = priceInILS;
         else if (h.stockCurrency === Currency.USD) effectiveTxnPrice = priceInUSD;
         else {
-             const txnCurrency = normalizeCurrency(t.currency || '');
-             if (txnCurrency === Currency.ILA) effectiveTxnPrice = toILS(effectiveTxnPrice, Currency.ILA);
+          const txnCurrency = normalizeCurrency(t.currency || '');
+          if (txnCurrency === Currency.ILA) effectiveTxnPrice = toILS(effectiveTxnPrice, Currency.ILA);
         }
-        
+
         const txnValueStockCurrency = tQty * effectiveTxnPrice;
         const txnValueUSD = tQty * priceInUSD;
         const txnValueILS = tQty * priceInILS;
 
         if (t.type === 'BUY') {
-            if (isVested) h.qtyVested += tQty; else h.qtyUnvested += tQty;
-            h.costBasisPortfolioCurrency += txnValuePortfolioCurrency;
-            h.costBasisStockCurrency += txnValueStockCurrency;
-            h.costBasisUSD += txnValueUSD;
-            h.costBasisILS += txnValueILS;
+          if (isVested) h.qtyVested += tQty; else h.qtyUnvested += tQty;
+          h.costBasisPortfolioCurrency += txnValuePortfolioCurrency;
+          h.costBasisStockCurrency += txnValueStockCurrency;
+          h.costBasisUSD += txnValueUSD;
+          h.costBasisILS += txnValueILS;
         } else if (t.type === 'SELL') {
-            const totalQtyPreSell = h.qtyVested + h.qtyUnvested;
-            const avgCostPC = totalQtyPreSell > 1e-9 ? h.costBasisPortfolioCurrency / totalQtyPreSell : 0;
-            const costOfSoldPC = avgCostPC * tQty;
-            const avgCostSC = totalQtyPreSell > 1e-9 ? h.costBasisStockCurrency / totalQtyPreSell : 0;
-            const costOfSoldSC = avgCostSC * tQty;
-            const avgCostUSD = totalQtyPreSell > 1e-9 ? h.costBasisUSD / totalQtyPreSell : 0;
-            const costOfSoldUSD = avgCostUSD * tQty;
-            const avgCostILS = totalQtyPreSell > 1e-9 ? h.costBasisILS / totalQtyPreSell : 0;
-            const costOfSoldILS = avgCostILS * tQty;
+          const totalQtyPreSell = h.qtyVested + h.qtyUnvested;
+          const avgCostPC = totalQtyPreSell > 1e-9 ? h.costBasisPortfolioCurrency / totalQtyPreSell : 0;
+          const costOfSoldPC = avgCostPC * tQty;
+          const avgCostSC = totalQtyPreSell > 1e-9 ? h.costBasisStockCurrency / totalQtyPreSell : 0;
+          const costOfSoldSC = avgCostSC * tQty;
+          const avgCostUSD = totalQtyPreSell > 1e-9 ? h.costBasisUSD / totalQtyPreSell : 0;
+          const costOfSoldUSD = avgCostUSD * tQty;
+          const avgCostILS = totalQtyPreSell > 1e-9 ? h.costBasisILS / totalQtyPreSell : 0;
+          const costOfSoldILS = avgCostILS * tQty;
 
-            h.costOfSoldPortfolioCurrency += costOfSoldPC;
-            h.proceedsPortfolioCurrency += txnValuePortfolioCurrency; 
-            h.costBasisPortfolioCurrency -= costOfSoldPC;
-            h.costOfSoldStockCurrency += costOfSoldSC;
-            h.proceedsStockCurrency += txnValueStockCurrency;
-            h.costBasisStockCurrency -= costOfSoldSC;
-            h.costOfSoldUSD += costOfSoldUSD;
-            h.proceedsUSD += txnValueUSD;
-            h.costBasisUSD -= costOfSoldUSD;
-            h.costOfSoldILS += costOfSoldILS;
-            h.proceedsILS += txnValueILS;
-            h.costBasisILS -= costOfSoldILS;
+          h.costOfSoldPortfolioCurrency += costOfSoldPC;
+          h.proceedsPortfolioCurrency += txnValuePortfolioCurrency;
+          h.costBasisPortfolioCurrency -= costOfSoldPC;
+          h.costOfSoldStockCurrency += costOfSoldSC;
+          h.proceedsStockCurrency += txnValueStockCurrency;
+          h.costBasisStockCurrency -= costOfSoldSC;
+          h.costOfSoldUSD += costOfSoldUSD;
+          h.proceedsUSD += txnValueUSD;
+          h.costBasisUSD -= costOfSoldUSD;
+          h.costOfSoldILS += costOfSoldILS;
+          h.proceedsILS += txnValueILS;
+          h.costBasisILS -= costOfSoldILS;
 
-            if (Math.abs(h.costBasisPortfolioCurrency) < 1e-6) h.costBasisPortfolioCurrency = 0;
-            if (Math.abs(h.costBasisStockCurrency) < 1e-6) h.costBasisStockCurrency = 0;
-            if (Math.abs(h.costBasisUSD) < 1e-6) h.costBasisUSD = 0;
-            if (Math.abs(h.costBasisILS) < 1e-6) h.costBasisILS = 0;
+          if (Math.abs(h.costBasisPortfolioCurrency) < 1e-6) h.costBasisPortfolioCurrency = 0;
+          if (Math.abs(h.costBasisStockCurrency) < 1e-6) h.costBasisStockCurrency = 0;
+          if (Math.abs(h.costBasisUSD) < 1e-6) h.costBasisUSD = 0;
+          if (Math.abs(h.costBasisILS) < 1e-6) h.costBasisILS = 0;
 
-            let qtyToSell = tQty;
-            if (isVested) {
-                const canSellVested = Math.min(qtyToSell, h.qtyVested);
-                h.qtyVested -= canSellVested;
-                qtyToSell -= canSellVested;
-            }
-            if (qtyToSell > 0 && options.includeUnvested) { 
-                const canSellUnvested = Math.min(qtyToSell, h.qtyUnvested);
-                h.qtyUnvested -= canSellUnvested;
-            }
+          let qtyToSell = tQty;
+          if (isVested) {
+            const canSellVested = Math.min(qtyToSell, h.qtyVested);
+            h.qtyVested -= canSellVested;
+            qtyToSell -= canSellVested;
+          }
+          if (qtyToSell > 0 && options.includeUnvested) {
+            const canSellUnvested = Math.min(qtyToSell, h.qtyUnvested);
+            h.qtyUnvested -= canSellUnvested;
+          }
         } else if (t.type === 'DIVIDEND') {
-            const taxAmountPC = txnValuePortfolioCurrency * (t.tax || 0);
-            h.dividendsPortfolioCurrency += txnValuePortfolioCurrency - taxAmountPC;
-            const taxAmountSC = txnValueStockCurrency * (t.tax || 0);
-            h.dividendsStockCurrency += txnValueStockCurrency - taxAmountSC;
-            const taxAmountUSD = txnValueUSD * (t.tax || 0);
-            h.dividendsUSD += txnValueUSD - taxAmountUSD;
-            const taxAmountILS = txnValueILS * (t.tax || 0);
-            h.dividendsILS += txnValueILS - taxAmountILS;
+          const taxAmountPC = txnValuePortfolioCurrency * (t.tax || 0);
+          h.dividendsPortfolioCurrency += txnValuePortfolioCurrency - taxAmountPC;
+          const taxAmountSC = txnValueStockCurrency * (t.tax || 0);
+          h.dividendsStockCurrency += txnValueStockCurrency - taxAmountSC;
+          const taxAmountUSD = txnValueUSD * (t.tax || 0);
+          h.dividendsUSD += txnValueUSD - taxAmountUSD;
+          const taxAmountILS = txnValueILS * (t.tax || 0);
+          h.dividendsILS += txnValueILS - taxAmountILS;
         }
       });
-        
+
       const processedHoldings: DashboardHolding[] = [];
       const holdingsList = Array.from(holdingMap.values());
       const missingDataPromises = holdingsList.map(async (h) => {
-         const needsFetch = !h.currentPrice || h.currentPrice === 0 || h.exchange === Exchange.GEMEL || h.exchange === Exchange.PENSION;
-         
-         if (needsFetch) {
-             try {
-                 const live = await getTickerData(h.ticker, h.exchange, null);
-                 if (live) {
-                     if ((live.exchange === Exchange.GEMEL || live.exchange === Exchange.PENSION) && live.timestamp) {
-                         const key = `${live.exchange}:${live.ticker}`;
-                         const storedHistory = extPrices[key];
-                         if (storedHistory) {
-                             const liveDate = new Date(live.timestamp);
-                             liveDate.setHours(0,0,0,0);
-                             const match = storedHistory.find(item => {
-                                 const itemDate = new Date(item.date);
-                                 itemDate.setHours(0,0,0,0);
-                                 return itemDate.getTime() === liveDate.getTime();
-                             });
-                             if (match) {
-                                 const diff = Math.abs(match.price - (live.price || 0));
-                                 if (diff > 0.01) console.warn(`[Data Mismatch] ${key} at ${toGoogleSheetDateFormat(match.date)}: Live=${live.price}, Stored=${match.price}`);
-                                 else console.log(`[Data Verified] ${key} at ${toGoogleSheetDateFormat(match.date)}: Match (${live.price})`);
-                             } else {
-                                 console.log(`[Data Info] ${key}: New live data point for ${toGoogleSheetDateFormat(liveDate)}. Latest stored: ${storedHistory[0]?.date ? toGoogleSheetDateFormat(storedHistory[0].date) : 'None'}`);
-                             }
-                         }
-                     }
-                     if (live.price) h.currentPrice = live.price;
-                     if (live.changePct1d !== undefined) h.dayChangePct = live.changePct1d;
-                     if (live.name) h.displayName = live.name;
-                     if (live.nameHe) h.nameHe = live.nameHe;
-                     if (live.sector) h.sector = live.sector;
-                     if (live.changePctRecent) h.perf1w = live.changePctRecent;
-                     if (live.changePct1m) h.perf1m = live.changePct1m;
-                     if (live.changePct3m) h.perf3m = live.changePct3m;
-                     if (live.changePctYtd) h.perfYtd = live.changePctYtd;
-                     if (live.changePct1y) h.perf1y = live.changePct1y;
-                     if (live.changePct3y) h.perf3y = live.changePct3y;
-                     if (live.changePct5y) h.perf5y = live.changePct5y;
-                 }
-             } catch (e) {
-                 console.warn(`Failed to hydrate missing data for ${h.ticker}`, e);
-             }
-         }
-         return h;
+        const needsFetch = !h.currentPrice || h.currentPrice === 0 || h.exchange === Exchange.GEMEL || h.exchange === Exchange.PENSION;
+
+        if (needsFetch) {
+          try {
+            const live = await getTickerData(h.ticker, h.exchange, null);
+            if (live) {
+              if ((live.exchange === Exchange.GEMEL || live.exchange === Exchange.PENSION) && live.timestamp) {
+                const key = `${live.exchange}:${live.ticker}`;
+                const storedHistory = extPrices[key];
+                if (storedHistory) {
+                  const liveDate = new Date(live.timestamp);
+                  liveDate.setHours(0, 0, 0, 0);
+                  const match = storedHistory.find(item => {
+                    const itemDate = new Date(item.date);
+                    itemDate.setHours(0, 0, 0, 0);
+                    return itemDate.getTime() === liveDate.getTime();
+                  });
+                  if (match) {
+                    const diff = Math.abs(match.price - (live.price || 0));
+                    if (diff > 0.01) console.warn(`[Data Mismatch] ${key} at ${toGoogleSheetDateFormat(match.date)}: Live=${live.price}, Stored=${match.price}`);
+                    else console.log(`[Data Verified] ${key} at ${toGoogleSheetDateFormat(match.date)}: Match (${live.price})`);
+                  } else {
+                    console.log(`[Data Info] ${key}: New live data point for ${toGoogleSheetDateFormat(liveDate)}. Latest stored: ${storedHistory[0]?.date ? toGoogleSheetDateFormat(storedHistory[0].date) : 'None'}`);
+                  }
+                }
+              }
+              if (live.price) h.currentPrice = live.price;
+              if (live.changePct1d !== undefined) h.dayChangePct = live.changePct1d;
+              if (live.name) h.displayName = live.name;
+              if (live.nameHe) h.nameHe = live.nameHe;
+              if (live.sector) h.sector = live.sector;
+              if ([5,6,7,8].includes(live.recentChangeDays || 0)) {
+                h.perf1w = live.changePctRecent!;
+              }
+              if (live.changePct1m !== undefined) h.perf1m = live.changePct1m;
+              if (live.changePct3m !== undefined) h.perf3m = live.changePct3m;
+              if (live.changePctYtd !== undefined) h.perfYtd = live.changePctYtd;
+              if (live.changePct1y !== undefined) h.perf1y = live.changePct1y;
+              if (live.changePct3y !== undefined) h.perf3y = live.changePct3y;
+              if (live.changePct5y !== undefined) h.perf5y = live.changePct5y;
+            }
+          } catch (e) {
+            console.warn(`Failed to hydrate missing data for ${h.ticker}`, e);
+          }
+        }
+        return h;
       });
 
       await Promise.all(missingDataPromises);
 
       holdingMap.forEach(h => {
         h.totalQty = h.qtyVested + h.qtyUnvested;
-        const priceInStockCurrency = h.currentPrice; 
+        const priceInStockCurrency = h.currentPrice;
         const currentPricePC = convertCurrency(priceInStockCurrency, h.stockCurrency, h.portfolioCurrency, exchangeRates);
         h.marketValuePortfolioCurrency = h.totalQty * currentPricePC;
         h.unrealizedGainPortfolioCurrency = h.marketValuePortfolioCurrency - h.costBasisPortfolioCurrency;
@@ -408,7 +410,7 @@ export function useDashboardData(sheetId: string, options: { includeUnvested: bo
         h.totalGainPortfolioCurrency = h.unrealizedGainPortfolioCurrency + h.realizedGainPortfolioCurrency + h.dividendsPortfolioCurrency;
         h.dayChangeValuePortfolioCurrency = h.marketValuePortfolioCurrency * h.dayChangePct;
         h.avgCost = h.totalQty > 1e-9 ? h.costBasisStockCurrency / h.totalQty : 0;
-        h.mvVested = h.qtyVested * currentPricePC; 
+        h.mvVested = h.qtyVested * currentPricePC;
         h.mvUnvested = h.qtyUnvested * currentPricePC;
         h.totalMV = h.marketValuePortfolioCurrency;
         h.unrealizedGainPct = h.costBasisPortfolioCurrency > 1e-6 ? h.unrealizedGainPortfolioCurrency / h.costBasisPortfolioCurrency : 0;
@@ -416,7 +418,7 @@ export function useDashboardData(sheetId: string, options: { includeUnvested: bo
         h.totalGainPct = (h.costBasisPortfolioCurrency + h.costOfSoldPortfolioCurrency) > 1e-6 ? h.totalGainPortfolioCurrency / (h.costBasisPortfolioCurrency + h.costOfSoldPortfolioCurrency) : 0;
         processedHoldings.push(h);
       });
-      
+
       setHoldings(processedHoldings);
     } catch (e) {
       console.error('loadData error:', e);
