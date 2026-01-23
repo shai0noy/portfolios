@@ -12,17 +12,21 @@ function loadScript(src: string): Promise<void> {
           resolve();
       } else {
           existingScript.addEventListener('load', () => resolve());
-          existingScript.addEventListener('error', (e) => reject(new Error(`Failed to load script ${src}: ${e}`)));
+          existingScript.addEventListener('error', () => reject(new Error(`Failed to load script ${src}. This could be due to a network issue, a browser extension blocking the script, or incorrect configuration of "Authorized JavaScript origins" in your Google Cloud project.`)));
       }
       return;
     }
     const script = document.createElement('script');
     script.src = src;
+    script.async = true;
+    script.defer = true;
     script.onload = () => {
       (script as any).hasLoaded = true;
       resolve();
     };
-    script.onerror = (e) => reject(new Error(`Failed to load script ${src}: ${e}`));
+    script.onerror = () => {
+        reject(new Error(`Failed to load script ${src}. This could be due to a network issue, a browser extension blocking the script, or incorrect configuration of "Authorized JavaScript origins" in your Google Cloud project.`))
+    };
     document.body.appendChild(script);
   });
 }

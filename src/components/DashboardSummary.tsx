@@ -1,13 +1,13 @@
 import { Box, Paper, Typography, Grid, Tooltip, Button, ToggleButton, ToggleButtonGroup, IconButton } from '@mui/material';
-import { formatPercent, formatValue } from '../lib/currency';
+import { formatPercent, formatValue, calculatePerformanceInDisplayCurrency } from '../lib/currency';
 import { logIfFalsy } from '../lib/utils';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
-import type { ExchangeRates } from '../lib/types';
+import type { ExchangeRates, DashboardHolding } from '../lib/types';
 import { useLanguage } from '../lib/i18n';
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 
 // Time constants for auto-stepping
 const AUTO_STEP_DELAY = 2 * 60 * 1000; // 2 minutes
@@ -44,6 +44,7 @@ interface SummaryProps {
     perfYtd: number;
     perfYtd_incomplete: boolean;
   };
+  holdings: DashboardHolding[];
   displayCurrency: string;
   exchangeRates: ExchangeRates;
   selectedPortfolio: string | null;
@@ -118,7 +119,119 @@ const PerfStat = ({ label, percentage, isIncomplete, aum, displayCurrency, size 
   return <Stat label={label} value={absoluteChange} pct={percentage} color={color} tooltip={isIncomplete ? t("Calculation is based on partial data.", "החישוב מבוסס על נתונים חלקיים.") : undefined} displayCurrency={displayCurrency} size={size} />;
 }
 
-export function DashboardSummary({ summary, displayCurrency, exchangeRates, onBack, onCurrencyChange, selectedPortfolio }: SummaryProps) {
+type TimePeriod = '1d' | '1w' | '1m';
+
+interface Mover {
+  key: string;
+  name: string;
+  ticker: string;
+  change: number;
+  pct: number;
+}
+
+const TopMovers = ({ holdings, displayCurrency, exchangeRates }: { holdings: DashboardHolding[], displayCurrency: string, exchangeRates: ExchangeRates }) => {
+  const { t } = useLanguage();
+  const [period, setPeriod] = useState<TimePeriod>('1d');
+
+  const movers = useMemo((): Mover[] => {
+    if (!holdings) return [];
+
+    const getChange = (h: DashboardHolding) => {
+      const perf = (() => {
+        switch (period) {
+          case '1d':
+            return h.dayChangePct;
+          case '1w':
+            return h.perf1w;
+          case '1m':
+            return h.perf1m;
+          default:
+            return 0;
+        }
+      })();
+
+      if (isNaN(perf) || perf === 0) return 0;
+      
+      const { changeVal } = calculatePerformanceInDisplayCurrency(h.currentPrice, h.stockCurrency, perf, displayCurrency, exchangeRates);
+      return changeVal * h.totalQty;
+    };
+    
+    const getPct = (h: DashboardHolding) => {
+        switch (period) {
+            case '1d':
+                return h.dayChangePct;
+            case '1w':
+                return h.perf1w;
+            case '1m':
+                return h.perf1m;
+            default:
+                return 0;
+        }
+    }
+
+    return holdings
+      .map(h => ({
+        key: h.key,
+        name: h.displayName,
+        ticker: h.ticker,
+        change: getChange(h),
+        pct: getPct(h)
+      }))
+      .filter(h => !isNaN(h.change) && h.change !== 0)
+      .sort((a, b) => Math.abs(b.change) - Math.abs(a.change))
+      .slice(0, 5);
+  }, [holdings, period, displayCurrency, exchangeRates]);
+
+  return (
+    <Box sx={{height: 150}}>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+        <Typography variant="subtitle2" color="text.secondary">{t('Top Movers', 'המניות הבולטות')}</Typography>
+        <ToggleButtonGroup
+          value={period}
+          exclusive
+          size="small"
+          onChange={(_, newPeriod) => { if (newPeriod) setPeriod(newPeriod); }}
+        >
+          <ToggleButton value="1d" sx={{px: 1, fontSize: '0.7rem'}}>{t('1D', 'יום')}</ToggleButton>
+          <ToggleButton value="1w" sx={{px: 1, fontSize: '0.7rem'}}>{t('1W', 'שבוע')}</ToggleButton>
+          <ToggleButton value="1m" sx={{px: 1, fontSize: '0.7rem'}}>{t('1M', 'חודש')}</ToggleButton>
+        </ToggleButtonGroup>
+      </Box>
+      <Grid container spacing={1}>
+        {movers.map(mover => (
+          <Grid item xs={12} sm={6} md={4} lg={2.4} key={mover.key}>
+            <Box display="flex" justifyContent="space-between" alignItems="center" sx={{
+              borderBottom: '1px solid',
+              borderColor: 'divider',
+              pb: 0.5,
+            }}>
+              <Tooltip title={mover.name}>
+                  <Typography variant="body2" fontWeight="500" noWrap sx={{maxWidth: 80}}>
+                      {mover.ticker}
+                  </Typography>
+              </Tooltip>
+              <Box textAlign="right">
+                <Typography variant="body2" color={mover.change >= 0 ? 'success.main' : 'error.main'}>
+                  {formatValue(mover.change, displayCurrency, 0)}
+                </Typography>
+                <Typography variant="caption" color={mover.change >= 0 ? 'success.main' : 'error.main'}>
+                  {mover.pct > 0 ? '+' : ''}{formatPercent(mover.pct)}
+                </Typography>
+              </Box>
+            </Box>
+          </Grid>
+        ))}
+        {movers.length === 0 && (
+            <Grid item xs={12} sx={{textAlign: 'center', color: 'text.secondary', mt: 4}}>
+                 <Typography variant="body2">{t('No significant movers for this period.', 'אין תנודות משמעותיות בתקופה זו.')}</Typography>
+            </Grid>
+        )}
+      </Grid>
+    </Box>
+  );
+};
+
+export function DashboardSummary({ summary, holdings, displayCurrency, exchangeRates, onBack, onCurrencyChange, selectedPortfolio }: SummaryProps) {
   logIfFalsy(exchangeRates, "DashboardSummary: exchangeRates missing");
   const { t, isRtl } = useLanguage();
   
@@ -277,9 +390,7 @@ export function DashboardSummary({ summary, displayCurrency, exchangeRates, onBa
             </Box>
         )}
         {activeStep === 2 && (
-            <Box height={150} display="flex" alignItems="center" justifyContent="center">
-                <Typography variant="h6" color="text.secondary">Screen 3 Placeholder</Typography>
-            </Box>
+            <TopMovers holdings={holdings} displayCurrency={displayCurrency} exchangeRates={exchangeRates} />
         )}
       </Box>
     </Paper>

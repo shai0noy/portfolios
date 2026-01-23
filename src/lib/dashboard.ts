@@ -377,17 +377,17 @@ export function useDashboardData(sheetId: string, options: { includeUnvested: bo
                          }
                      }
                      if (live.price) h.currentPrice = live.price;
-                     if (live.changePct1d !== undefined) h.dayChangePct = live.changePct1d / 100;
+                     if (live.changePct1d !== undefined) h.dayChangePct = live.changePct1d;
                      if (live.name) h.displayName = live.name;
                      if (live.nameHe) h.nameHe = live.nameHe;
                      if (live.sector) h.sector = live.sector;
-                     if (live.changePctRecent) h.perf1w = live.changePctRecent / 100;
-                     if (live.changePct1m) h.perf1m = live.changePct1m / 100;
-                     if (live.changePct3m) h.perf3m = live.changePct3m / 100;
-                     if (live.changePctYtd) h.perfYtd = live.changePctYtd / 100;
-                     if (live.changePct1y) h.perf1y = live.changePct1y / 100;
-                     if (live.changePct3y) h.perf3y = live.changePct3y / 100;
-                     if (live.changePct5y) h.perf5y = live.changePct5y / 100;
+                     if (live.changePctRecent) h.perf1w = live.changePctRecent;
+                     if (live.changePct1m) h.perf1m = live.changePct1m;
+                     if (live.changePct3m) h.perf3m = live.changePct3m;
+                     if (live.changePctYtd) h.perfYtd = live.changePctYtd;
+                     if (live.changePct1y) h.perf1y = live.changePct1y;
+                     if (live.changePct3y) h.perf3y = live.changePct3y;
+                     if (live.changePct5y) h.perf5y = live.changePct5y;
                  }
              } catch (e) {
                  console.warn(`Failed to hydrate missing data for ${h.ticker}`, e);

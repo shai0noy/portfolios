@@ -71,19 +71,22 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
     }
   };
 
-  const summary = useMemo(() => {
-    if (loading) return INITIAL_SUMMARY;
-    const targetHoldings = selectedPortfolioId 
-      ? holdings.filter(h => h.portfolioId === selectedPortfolioId) 
-      : holdings;
-    return calculateDashboardSummary(targetHoldings, displayCurrency, exchangeRates);
-  }, [loading, selectedPortfolioId, holdings, displayCurrency, exchangeRates]);
+  const [summary, setSummary] = useState(INITIAL_SUMMARY);
 
   useEffect(() => {
+    // If error occurs, we might want to handle it or show error state.
     if (error) {
         console.error("Dashboard error state:", error);
     }
-  }, [error]);
+
+    if (loading) return;
+
+    if (selectedPortfolioId) {
+      setSummary(calculateDashboardSummary(holdings.filter(h => h.portfolioId === selectedPortfolioId), displayCurrency, exchangeRates));
+    } else {
+      setSummary(calculateDashboardSummary(holdings, displayCurrency, exchangeRates));
+    }
+  }, [selectedPortfolioId, holdings, exchangeRates, displayCurrency, loading, error]);
 
   // Default Columns
   const defaultColumns = {
@@ -138,7 +141,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
   // Grouping Logic
   const groupedData = useMemo(() => {
     const filteredHoldings = selectedPortfolioId ? holdings.filter(h => h.portfolioId === selectedPortfolioId) : holdings;
-    if (!groupByPortfolio || selectedPortfolioId || filteredHoldings.length === 0) return { [t('All Holdings', 'כל האחזקות')]: filteredHoldings };
+    if (!groupByPortfolio || selectedPortfolioId || filteredHoldings.length === 0) return { 'All Holdings': filteredHoldings };
     const groups: Record<string, import('../lib/types').DashboardHolding[]> = {};
     filteredHoldings.forEach(h => {
       if (!groups[h.portfolioName]) groups[h.portfolioName] = [];
@@ -213,6 +216,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
     <Box sx={{ maxWidth: 1400, mx: 'auto', mt: 4 }}>
       <DashboardSummary
         summary={summary}
+        holdings={selectedPortfolioId ? holdings.filter(h => h.portfolioId === selectedPortfolioId) : holdings}
         displayCurrency={displayCurrency}
         exchangeRates={exchangeRates}
         selectedPortfolio={portMap.get(selectedPortfolioId || '')?.name || null}
@@ -250,7 +254,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
             color="primary"
             sx={{ borderRadius: 2, textTransform: 'none', px: 2, py: 0.5, mr: 1, border: 1, borderColor: 'divider' }}
           >
-            {t('Include Unvested', 'כלול לא מובשלים')}
+            {t('Include Unvested', 'כלול לא מובשל')}
           </ToggleButton>
           <ToggleButton
             value="grouped"
@@ -260,10 +264,10 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
             color="primary"
             sx={{ borderRadius: 2, textTransform: 'none', px: 2, py: 0.5, mr: 1, border: 1, borderColor: 'divider' }}
           >
-            {t('Group by Portfolio', 'קיבוץ לפי תיק')}
+            {t('Group by Portfolio', 'קבץ לפי תיק')}
           </ToggleButton>
           <Divider orientation="vertical" flexItem sx={{ mx: 1, height: 20, alignSelf: 'center' }} />
-          <Tooltip title={t("Refresh Data", "רענון")}>
+          <Tooltip title={t("Refresh Data", "רענן נתונים")}>
             <IconButton 
               onClick={() => refresh()} 
               disabled={loading}
