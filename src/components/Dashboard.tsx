@@ -141,14 +141,21 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
   // Grouping Logic
   const groupedData = useMemo(() => {
     const filteredHoldings = selectedPortfolioId ? holdings.filter(h => h.portfolioId === selectedPortfolioId) : holdings;
-    if (!groupByPortfolio || selectedPortfolioId || filteredHoldings.length === 0) return { 'All Holdings': filteredHoldings };
+
+    if (selectedPortfolioId) {
+      const p = portfolios.find(p => p.id === selectedPortfolioId);
+      const name = p ? p.name : (filteredHoldings.length > 0 ? filteredHoldings[0].portfolioName : 'Portfolio');
+      return { [name]: filteredHoldings };
+    }
+
+    if (!groupByPortfolio || filteredHoldings.length === 0) return { 'All Holdings': filteredHoldings };
     const groups: Record<string, import('../lib/types').DashboardHolding[]> = {};
     filteredHoldings.forEach(h => {
       if (!groups[h.portfolioName]) groups[h.portfolioName] = [];
       groups[h.portfolioName].push(h);
     });
     return groups;
-  }, [holdings, groupByPortfolio, selectedPortfolioId]);
+  }, [holdings, groupByPortfolio, selectedPortfolioId, portfolios]);
 
   if (loading) return <Box display="flex" justifyContent="center" p={5}><CircularProgress /></Box>;
 

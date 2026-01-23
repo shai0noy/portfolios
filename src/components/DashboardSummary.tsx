@@ -131,22 +131,21 @@ interface Mover {
 
 const TopMovers = ({ holdings, displayCurrency, exchangeRates }: { holdings: DashboardHolding[], displayCurrency: string, exchangeRates: ExchangeRates }) => {
   const { t } = useLanguage();
-  const [period, setPeriod] = useState<TimePeriod>('1d');
+  const [sortBy, setSortBy] = useState<'change' | 'pct'>('change');
 
-  const movers = useMemo((): Mover[] => {
-    if (!holdings) return [];
+  const allMovers = useMemo(() => {
+    const periods: TimePeriod[] = ['1d', '1w', '1m'];
+    const result: Record<TimePeriod, Mover[]> = { '1d': [], '1w': [], '1m': [] };
 
-    const getChange = (h: DashboardHolding) => {
+    if (!holdings) return result;
+
+    const getChange = (h: DashboardHolding, period: TimePeriod) => {
       const perf = (() => {
         switch (period) {
-          case '1d':
-            return h.dayChangePct;
-          case '1w':
-            return h.perf1w;
-          case '1m':
-            return h.perf1m;
-          default:
-            return 0;
+          case '1d': return h.dayChangePct;
+          case '1w': return h.perf1w;
+          case '1m': return h.perf1m;
+          default: return 0;
         }
       })();
 
@@ -156,77 +155,99 @@ const TopMovers = ({ holdings, displayCurrency, exchangeRates }: { holdings: Das
       return changeVal * h.totalQty;
     };
     
-    const getPct = (h: DashboardHolding) => {
+    const getPct = (h: DashboardHolding, period: TimePeriod) => {
         switch (period) {
-            case '1d':
-                return h.dayChangePct;
-            case '1w':
-                return h.perf1w;
-            case '1m':
-                return h.perf1m;
-            default:
-                return 0;
+            case '1d': return h.dayChangePct;
+            case '1w': return h.perf1w;
+            case '1m': return h.perf1m;
+            default: return 0;
         }
     }
 
-    return holdings
-      .map(h => ({
-        key: h.key,
-        name: h.displayName,
-        ticker: h.ticker,
-        change: getChange(h),
-        pct: getPct(h)
-      }))
-      .filter(h => !isNaN(h.change) && h.change !== 0)
-      .sort((a, b) => Math.abs(b.change) - Math.abs(a.change))
-      .slice(0, 5);
-  }, [holdings, period, displayCurrency, exchangeRates]);
+    for (const period of periods) {
+        result[period] = holdings
+            .map(h => ({
+                key: h.key,
+                name: h.displayName,
+                ticker: h.ticker,
+                change: getChange(h, period),
+                pct: getPct(h, period)
+            }))
+            .filter(h => h.change !== 0 && !isNaN(h.change))
+            .sort((a, b) => {
+                if (sortBy === 'pct') {
+                    return Math.abs(b.pct) - Math.abs(a.pct);
+                }
+                return Math.abs(b.change) - Math.abs(a.change);
+            })
+            .slice(0, 6);
+    }
+    return result;
+
+  }, [holdings, displayCurrency, exchangeRates, t, sortBy]);
+
+  const periodLabels = {
+    '1d': t('Daily', 'יומי'),
+    '1w': t('Weekly', 'שבועי'),
+    '1m': t('Monthly', 'חודשי')
+  };
+
+  const MoverItem = ({mover}: {mover: Mover}) => (
+    <Box sx={{ px: 1, py: 0.5, border: '1px solid', borderColor: 'divider', borderRadius: 2, mr: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Tooltip title={mover.name}>
+            <Typography variant="body2" fontWeight="500" noWrap>
+                {mover.ticker}
+            </Typography>
+        </Tooltip>
+        <Box textAlign="right" sx={{ ml: 1 }}>
+            <Typography variant="body2" color={mover.change >= 0 ? 'success.main' : 'error.main'} noWrap>
+                {formatValue(mover.change, displayCurrency, 0)}
+                <span style={{ fontSize: '0.75rem', marginLeft: '4px', opacity: 0.8 }}>
+                    ({mover.pct > 0 ? '+' : ''}{formatPercent(mover.pct)})
+                </span>
+            </Typography>
+        </Box>
+    </Box>
+  );
+
+  const MoversRow = ({period, isLast}: {period: TimePeriod, isLast: boolean}) => (
+      <Box sx={{ display: 'flex', alignItems: 'center', py: 0.5, borderBottom: isLast ? 'none' : '1px solid', borderColor: 'divider' }}>
+          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 'bold', textTransform: 'uppercase', minWidth: 70, mr: 1 }}>{periodLabels[period]}</Typography>
+          {allMovers[period].length === 0 ? (
+              <Box sx={{textAlign: 'left', color: 'text.secondary', pl: 1}}>
+                   <Typography variant="caption">{t('No significant movers.', 'אין תנודות משמעותיות.')}</Typography>
+              </Box>
+          ) : (
+            <Box sx={{ display: 'flex', overflowX: 'auto', py: 1, flex: 1 }}>
+                {allMovers[period].map(mover => <MoverItem key={mover.key} mover={mover} />)}
+            </Box>
+          )}
+      </Box>
+  );
 
   return (
-    <Box sx={{height: 150}}>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+    <Box sx={{ p: 1 }}>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={1} px={1}>
         <Typography variant="subtitle2" color="text.secondary">{t('Top Movers', 'המניות הבולטות')}</Typography>
-        <ToggleButtonGroup
-          value={period}
-          exclusive
-          size="small"
-          onChange={(_, newPeriod) => { if (newPeriod) setPeriod(newPeriod); }}
-        >
-          <ToggleButton value="1d" sx={{px: 1, fontSize: '0.7rem'}}>{t('1D', 'יום')}</ToggleButton>
-          <ToggleButton value="1w" sx={{px: 1, fontSize: '0.7rem'}}>{t('1W', 'שבוע')}</ToggleButton>
-          <ToggleButton value="1m" sx={{px: 1, fontSize: '0.7rem'}}>{t('1M', 'חודש')}</ToggleButton>
-        </ToggleButtonGroup>
+        <Box display="flex" alignItems="center">
+          <Typography variant="caption" color="text.secondary" sx={{ mr: 1, display: { xs: 'none', sm: 'block' } }}>{t('Sort by:', 'מיין לפי:')}</Typography>
+          <ToggleButtonGroup
+            value={sortBy}
+            exclusive
+            size="small"
+            onChange={(_, newSortBy) => { if (newSortBy) setSortBy(newSortBy as 'change' | 'pct'); }}
+            aria-label="Sort by"
+          >
+            <ToggleButton value="change" sx={{ px: 1, fontSize: '0.7rem', textTransform: 'none' }} aria-label="Sort by value">{t('Value', 'ערך')}</ToggleButton>
+            <ToggleButton value="pct" sx={{ px: 1, fontSize: '0.7rem', textTransform: 'none' }} aria-label="Sort by percentage">{t('%', '%')}</ToggleButton>
+          </ToggleButtonGroup>
+        </Box>
       </Box>
-      <Grid container spacing={1}>
-        {movers.map(mover => (
-          <Grid item xs={12} sm={6} md={4} lg={2.4} key={mover.key}>
-            <Box display="flex" justifyContent="space-between" alignItems="center" sx={{
-              borderBottom: '1px solid',
-              borderColor: 'divider',
-              pb: 0.5,
-            }}>
-              <Tooltip title={mover.name}>
-                  <Typography variant="body2" fontWeight="500" noWrap sx={{maxWidth: 80}}>
-                      {mover.ticker}
-                  </Typography>
-              </Tooltip>
-              <Box textAlign="right">
-                <Typography variant="body2" color={mover.change >= 0 ? 'success.main' : 'error.main'}>
-                  {formatValue(mover.change, displayCurrency, 0)}
-                </Typography>
-                <Typography variant="caption" color={mover.change >= 0 ? 'success.main' : 'error.main'}>
-                  {mover.pct > 0 ? '+' : ''}{formatPercent(mover.pct)}
-                </Typography>
-              </Box>
-            </Box>
-          </Grid>
+      <Box>
+        {(['1d', '1w', '1m'] as TimePeriod[]).map((period, index, arr) => (
+            <MoversRow key={period} period={period} isLast={index === arr.length - 1} />
         ))}
-        {movers.length === 0 && (
-            <Grid item xs={12} sx={{textAlign: 'center', color: 'text.secondary', mt: 4}}>
-                 <Typography variant="body2">{t('No significant movers for this period.', 'אין תנודות משמעותיות בתקופה זו.')}</Typography>
-            </Grid>
-        )}
-      </Grid>
+      </Box>
     </Box>
   );
 };

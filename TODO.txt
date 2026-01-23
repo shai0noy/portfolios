@@ -17,6 +17,7 @@ remove casts to any
 refactor code....
 Display sector form gemel/pension
 Crypto not showing charts longer than 1y
+move currency selector and "back to all" buttons in dashbaord 
 
 Discovery/selling points page
 Cloudflare throttling and force cache
