@@ -18,7 +18,7 @@ export async function fetchYahooTickerData(ticker: string, exchange: Exchange, s
     return null;
   }
   const now = Date.now();
-  const yahooTicker = toYahooFinanceTicker(ticker, exchange, /* isCrypto */ false); // Assuming non-crypto for now
+  const yahooTicker = toYahooFinanceTicker(ticker, exchange, /* isCrypto */ true); // Assuming crypto for now
   const cacheKey = `yahoo:${yahooTicker}:${range}`;
 
   if (!forceRefresh) {

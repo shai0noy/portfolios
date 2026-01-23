@@ -1,14 +1,12 @@
 ### Pleae be carful not to override entire file when updating tasks ###
 
-DONE? Fix div calc in display
-
 Move SOURCE text in search result - smaller and in bottom corner
 In details of gemel funds, handle gains display/calc - and cost basis!
 should charts use adj price?
 Why does eth-usd show no data older than 1y in chart?
 Hide chart duration buttons when ther's not enough data. Label 'max' according to actual period
-Show sector in search results
-Show sector and type in ticker detials, dash
+Show sector and type in search results (cuurently showing type form code, need to reconcile..)
+Show ticker type dash
 Figure out how we broke gemel fund names from showing!!!! They stop showing once they are in holdings. Doesnt effect pension
 Comperasion chars + allow metrics: r^2, beta
 דמי ניהול - להציג + לחשב בגמל וכו'
@@ -18,7 +16,7 @@ REALLY need refactoring of types
 remove casts to any
 refactor code....
 Display sector form gemel/pension
-Crypto not showing charts??
+Crypto not showing charts longer than 1y
 
 Discovery/selling points page
 Cloudflare throttling and force cache
