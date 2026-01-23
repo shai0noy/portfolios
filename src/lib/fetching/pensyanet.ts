@@ -163,7 +163,10 @@ export async function fetchPensyanetTickers(signal?: AbortSignal, forceRefresh =
     const xmlDoc = parseXmlString(xmlText);
     const rows = Array.from(xmlDoc.querySelectorAll('ROW'));
     const tickersMap = new Map<number, TickerListItem>();
-
+    const parseFee = (feeStr: string): number | undefined => {
+      const fee = parseFloat(feeStr);
+      return isNaN(fee) ? undefined : fee;
+    };
     rows.forEach(row => {
       const getText = (tag: string) => row.querySelector(tag)?.textContent || '';
       const idStr = getText('ID');
@@ -175,13 +178,13 @@ export async function fetchPensyanetTickers(signal?: AbortSignal, forceRefresh =
           exchange: Exchange.PENSION,
           nameHe: name,
           nameEn: name,
-          type: 'pension_fund',
+          globesTypeCode: 'pension_fund',
           providentInfo: {
             fundId: id,
             managingCompany: getText('SHM_HEVRA_MENAHELET'),
             fundType: getText('SUG_KRN'),
-            managementFee: parseFloat(getText('SHIUR_D_NIHUL_AHARON_NCHASIM')) || 0,
-            depositFee: parseFloat(getText('SHIUR_D_NIHUL_AHARON_HAFKADOT')) || 0,
+            managementFee: parseFee(getText('SHIUR_D_NIHUL_AHARON_NCHASIM')),
+            depositFee: parseFee(getText('SHIUR_D_NIHUL_AHARON_HAFKADOT')),
           }
         });
       }

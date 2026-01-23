@@ -169,7 +169,10 @@ export async function fetchGemelnetTickers(signal?: AbortSignal, forceRefresh = 
     const xmlDoc = parseXmlString(xmlText);
     const rows = Array.from(xmlDoc.querySelectorAll('Row'));
     const tickersMap = new Map<number, TickerListItem>();
-
+    const parseFee = (feeStr: string): number | undefined => {
+        const fee = parseFloat(feeStr);
+        return isNaN(fee) ? undefined : fee;
+      };
     rows.forEach(row => {
       const getText = (tag: string) => row.querySelector(tag)?.textContent || '';
       const idStr = getText('ID');
@@ -181,15 +184,15 @@ export async function fetchGemelnetTickers(signal?: AbortSignal, forceRefresh = 
           exchange: Exchange.GEMEL,
           nameHe: name,
           nameEn: name,
-          type: 'gemel_fund',
+          globesTypeCode: 'gemel_fund',
           providentInfo: {
             fundId: id,
             managingCompany: getText('SHM_HEVRA_MENAHELET'),
             fundType: getText('SUG_KUPA'),
             specialization: getText('HITMAHUT_RASHIT'),
             subSpecialization: getText('HITMAHUT_MISHNIT'),
-            managementFee: parseFloat(getText('SHIUR_DMEI_NIHUL_AHARON')) || 0,
-            depositFee: parseFloat(getText('SHIUR_D_NIHUL_AHARON_HAFKADOT')) || 0,
+            managementFee: parseFee(getText('SHIUR_DMEI_NIHUL_AHARON')),
+            depositFee: parseFee(getText('SHIUR_D_NIHUL_AHARON_HAFKADOT')),
           }
         });
       }
@@ -298,7 +301,7 @@ export async function fetchGemelnetQuote(
     ...(chg5y && { changePct5y: chg5y.pct, changeDate5y: chg5y.date }),
     ...(chg10y && { changePct10y: chg10y.pct, changeDate10y: chg10y.date }),
     ...(chgMax && { changePctMax: chgMax.pct, changeDateMax: chgMax.date }),
-    timestamp: latestPoint.date,
+    timestamp: new Date(latestPoint.date),
     currency: 'ILS', // Could also be 'ILA', doesn't matter due to lack of real price
     name: fundName,
     nameHe: fundName,

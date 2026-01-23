@@ -12,6 +12,13 @@ Show sector and type in ticker detials, dash
 Figure out how we broke gemel fund names from showing!!!! They stop showing once they are in holdings. Doesnt effect pension
 Comperasion chars + allow metrics: r^2, beta
 דמי ניהול - להציג + לחשב בגמל וכו'
+Extract common code in gemel and pension
+Div is broken again!
+REALLY need refactoring of types
+remove casts to any
+refactor code....
+Display sector form gemel/pension
+Crypto not showing charts??
 
 Discovery/selling points page
 Cloudflare throttling and force cache

@@ -48,27 +48,27 @@ export async function fetchGlobesTickersByType(type: string, exchange: Exchange,
         symbol = formatForexSymbol(symbol);
       }
 
-            return {
-              symbol,
-              exchange: exchange,
-              nameEn,
-              nameHe,
-              type: type,
-              globesRawSymbol: numericSecurityId,
-              globesTypeHe: getElementText('InstrumentTypeHe'),
-              taseInfo: {
-                securityId: Number(numericSecurityId),
-                companyName: nameEn, 
-                companySuperSector: '',
-                companySector: '',
-                companySubSector: '',
-                globesInstrumentId: globesInstrumentId,
-                taseType: type 
-              }
-            };
-          });
-        });
-      }
+      return {
+        symbol,
+        exchange: exchange,
+        nameEn,
+        nameHe,
+        globesTypeCode: type,
+        globesRawSymbol: numericSecurityId,
+        globesTypeHe: getElementText('InstrumentTypeHe'),
+        taseInfo: {
+          securityId: Number(numericSecurityId),
+          companyName: nameEn,
+          companySuperSector: '',
+          companySector: '',
+          companySubSector: '',
+          globesInstrumentId: globesInstrumentId,
+          taseType: type
+        }
+      };
+    });
+  });
+}
 export async function fetchGlobesCurrencies(signal?: AbortSignal): Promise<TickerListItem[]> {
   const tickers = await fetchGlobesTickersByType('currency', Exchange.FOREX, signal);
   return tickers.map(t => ({ ...t, exchange: Exchange.FOREX }));
@@ -86,21 +86,21 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
 
   // Special handling for FOREX: Use the tickers list to find the correct raw Globes identifier
   if (exchange === Exchange.FOREX) {
-      const formattedInput = formatForexSymbol(tickerSymbol);
-      tickerSymbol = formattedInput; // Ensure we return the formatted ticker in TickerData
+    const formattedInput = formatForexSymbol(tickerSymbol);
+    tickerSymbol = formattedInput; // Ensure we return the formatted ticker in TickerData
 
-      // Fetch the full list of currencies (cached) to lookup the raw symbol
-      const currencies = await fetchGlobesTickersByType('currency', Exchange.FOREX, signal);
-      
-      // Find the item that matches our formatted symbol
-      const match = currencies.find(c => c.symbol === formattedInput);
-      
-      if (match && match.globesRawSymbol) {
-          identifier = match.globesRawSymbol;
-      } else {
-          console.warn(`Globes: Could not find FOREX ticker ${formattedInput} (raw input: ${symbol}) in Globes currency list.`);
-          return null; 
-      }
+    // Fetch the full list of currencies (cached) to lookup the raw symbol
+    const currencies = await fetchGlobesTickersByType('currency', Exchange.FOREX, signal);
+
+    // Find the item that matches our formatted symbol
+    const match = currencies.find(c => c.symbol === formattedInput);
+
+    if (match && match.globesRawSymbol) {
+      identifier = match.globesRawSymbol;
+    } else {
+      console.warn(`Globes: Could not find FOREX ticker ${formattedInput} (raw input: ${symbol}) in Globes currency list.`);
+      return null;
+    }
   }
 
   const cacheKey = `globes:${requestedExchangeCode}:${identifier}`;
@@ -147,11 +147,11 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
     const nameEn = getText('name_en') || getText('nameEn');
     const nameHe = getText('name_he');
     const globesInstrumentId = getText('instrumentId');
-    
+
     // Check CurrencyRate for unit conversion hint (0.01 implies price is in Agorot)
     const currencyRateStr = getText('CurrencyRate');
     const currencyRate = currencyRateStr ? parseFloat(currencyRateStr) : 1;
-    
+
     const currencyStr = getText('currency') || 'ILS';
     let baseCurrency: Currency;
     let currency: Currency;
@@ -229,11 +229,11 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
     const changePct1d = percentageChange / 100;
     const changePctRecent = calculatePctChange(last, parseFloat(getText('LastWeekClosePrice') || '0'));
     const recentChangeDays = 7;
-    const changePct1m = calculatePctChange(last, parseFloat(getText('LastMonthClosePrice')|| '0'));
-    const changePct3m = calculatePctChange(last,  parseFloat(getText('Last3MonthsAgoClosePrice')|| '0'));
+    const changePct1m = calculatePctChange(last, parseFloat(getText('LastMonthClosePrice') || '0'));
+    const changePct3m = calculatePctChange(last, parseFloat(getText('Last3MonthsAgoClosePrice') || '0'));
     const changePct1y = parseFloat(getText('ChangeFromLastYear') || '0');
     const changePct3y = calculatePctChange(last, parseFloat(getText('Last3YearsAgoClosePrice') || '0'));
-    const changePctYtd = calculatePctChange(last, parseFloat(getText('LastYearClosePrice')|| '0'));
+    const changePctYtd = calculatePctChange(last, parseFloat(getText('LastYearClosePrice') || '0'));
 
     const parsedTimestamp = timestamp ? new Date(timestamp).valueOf() : NaN;
     const effectiveTimestamp = !isNaN(parsedTimestamp) ? parsedTimestamp : now;

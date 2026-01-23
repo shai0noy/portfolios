@@ -11,7 +11,7 @@ import { Exchange } from '../types';
 import { fetchGlobesTickersByType } from './globes';
 
 /**
- * Default configuration for fetching ticker types.
+ * Default configuration for fetching ticker types from Globes.
  * Specifies which security types are enabled for fetching by default.
  */
 export const DEFAULT_SECURITY_TYPE_CONFIG: SecurityTypeConfig = {
@@ -256,8 +256,8 @@ async function fetchTaseTickers(
           exchange: Exchange.TASE,
           nameEn: security.securityName,
           nameHe: globesTicker?.nameHe || security.securityNameHe || security.securityName,
-          type: globesType || 'Unknown',
-          
+          globesTypeCode: globesType,
+          globesTypeHe: globesTicker?.globesTypeHe,
           // TASE Specific Info
           taseInfo: {
             securityId: security.securityId,

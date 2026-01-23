@@ -103,12 +103,11 @@ export interface TickerListItem {
   exchange: Exchange;
   nameEn: string;
   nameHe?: string;
-  type: string; // 'stock', 'etf', 'gemel_fund', 'pension_fund' etc.
-  
   taseInfo?: TaseInfo;
   providentInfo?: ProvidentInfo;
   globesRawSymbol?: string;
   globesTypeHe?: string;
+  globesTypeCode?: string; // 'stock', 'etf', 'gemel_fund', 'pension_fund' etc.
 }
 
 // Configuration for ticker types
