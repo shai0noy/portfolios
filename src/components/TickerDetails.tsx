@@ -221,8 +221,8 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
       const nid = numericId || data?.numericId || holdingData?.numericId;
       const clenaedHeName = resolvedNameHe?.replace(/[^a-zA-Z0-9א-ת ]/g, '').replace(/ /g, '-');
       if (nid)
+        links.push({ name: 'MyGemel', url: `https://www.mygemel.net/קופות-גמל/${clenaedHeName}` });
         links.push({ name: 'GemelNet', url: `https://gemelnet.cma.gov.il/views/perutHodshi.aspx?idGuf=${nid}&OCHLUSIYA=1` });
-      links.push({ name: 'MyGemel', url: `https://www.mygemel.net/קופות-גמל/${clenaedHeName}` });
       return links;
     }
 
@@ -230,14 +230,16 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
       const nid = numericId || data?.numericId || holdingData?.numericId;
       const clenaedHeName = resolvedNameHe?.replace(/[^a-zA-Z0-9א-ת ]/g, '').replace(/ /g, '-');
       if (nid)
-        links.push({ name: 'PensyaNet', url: `https://pensyanet.cma.gov.il/Parameters/TsuaHod` }); // Generic link as PensyaNet uses POST
-      links.push({ name: 'MyGemel', url: `https://www.mygemel.net/קרנות-פנסיה/${clenaedHeName}` });
+        links.push({ name: 'MyGemel', url: `https://www.mygemel.net/פנסיה/${clenaedHeName}` });
+        links.push({ name: 'PensyaNet', url: `https://pensyanet.cma.gov.il/Parameters/Index` }); // Generic link as PensyaNet uses POST
       return links;
     }
 
     if (exchange === Exchange.FOREX) {
       // e.g. BTC-USD
       const formattedTicker = ticker.includes('-') ? ticker : `${ticker}-USD`;
+      const isCrypto = data?.globesTypeHe === "מטבע דיגיטלי"; // TODO - extract logic (also in other places)
+      toYahooFinanceTicker(formattedTicker, exchange, isCrypto);
       links.push({ name: 'Yahoo Finance', url: `https://finance.yahoo.com/quote/${formattedTicker}` });
       links.push({ name: 'Google Finance', url: `https://www.google.com/finance/quote/${formattedTicker}` });
 
