@@ -407,7 +407,8 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
               <Typography variant="subtitle1" component="div" color="text.secondary">
                 {resolvedName ? `${exchange?.toUpperCase()}: ${ticker}` : exchange?.toUpperCase()}
               </Typography>
-              {displayData?.sector && <Chip label={displayData.subSector ? `${displayData.sector} • ${displayData.subSector}` : displayData.sector} size="small" variant="outlined" />}
+              {displayData?.sector && <Chip label={displayData.subSector ? (displayData.sector.includes(displayData.subSector) || displayData.subSector.includes(displayData.sector) ? displayData.subSector : `${displayData.sector} • ${displayData.subSector}`) : displayData.sector} size="small" variant="outlined" />}
+              {displayData?.taseType && <Chip label={displayData.taseType} size="small" variant="outlined" />}
             </Box>
             {(() => {
               const lastSplit = data?.splits?.[0];

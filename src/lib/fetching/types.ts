@@ -24,6 +24,7 @@ export interface TickerData {
   timestamp?: Date; // Last update time
   sector?: string;
   subSector?: string;
+  taseType?: string;
   changePctYtd?: number;
   changeDateYtd?: Date; // Timestamp of the start of the year price
   changePctRecent?: number;

@@ -122,11 +122,12 @@ export async function getTickerData(
 
   const taseSector = taseInfo?.companySector;
   const taseSubSector = taseInfo?.companySubSector;
+  const taseType = taseInfo?.taseType;
 
   // Fallback to Yahoo if the first source fails, or merge data if both succeed.
   if (!globesData) {
     if (yahooData) {
-      return { ...yahooData, sector: taseSector, subSector: taseSubSector };
+      return { ...yahooData, sector: taseSector, subSector: taseSubSector, taseType };
     }
     return yahooData;
   }
@@ -152,11 +153,12 @@ export async function getTickerData(
       source: `${globesData.source} + Yahoo Finance`,
       sector: taseSector || globesData.sector || yahooData.sector,
       subSector: taseSubSector,
+      taseType: taseType,
     };
   }
 
   if (taseInfo) {
-    return { ...globesData, sector: taseSector, subSector: taseSubSector };
+    return { ...globesData, sector: taseSector, subSector: taseSubSector, taseType };
   }
 
   return globesData;
