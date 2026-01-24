@@ -81,6 +81,28 @@ function AppContent() {
   const location = useLocation();
   const navigate = useNavigate();
 
+  useEffect(() => {
+    let scrollTimer: number | null = null;
+    const handleScroll = () => {
+      document.body.classList.add('scrolling');
+      if (scrollTimer !== null) {
+        window.clearTimeout(scrollTimer);
+      }
+      scrollTimer = window.setTimeout(() => {
+        document.body.classList.remove('scrolling');
+      }, 3000); // Remove class after 3s of no scrolling
+    };
+
+    window.addEventListener('scroll', handleScroll, true); // Use capture phase
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll, true);
+      if (scrollTimer !== null) {
+        window.clearTimeout(scrollTimer);
+      }
+    };
+  }, []);
+
   // Listen for import=true in query params
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -114,6 +136,11 @@ function AppContent() {
     link.rel = "stylesheet";
     document.head.appendChild(link);
   }, []);
+
+  useEffect(() => {
+    document.body.classList.remove('theme-light', 'theme-dark');
+    document.body.classList.add(`theme-${mode}`);
+  }, [mode]);
 
   useEffect(() => {
     localStorage.setItem('themeMode', mode);
