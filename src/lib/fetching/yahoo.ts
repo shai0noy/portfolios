@@ -27,7 +27,12 @@ export async function fetchYahooTickerData(ticker: string, exchange: Exchange, s
     if (cached) {
       // Rehydrate dates
       if (cached.timestamp && (now - new Date(cached.timestamp).getTime() < CACHE_TTL)) {
-         return cached.data;
+         // Invalidate cache if we need Max data but it's missing (legacy cache)
+         if (range === 'max' && cached.data.changePctMax === undefined) {
+            // Fall through to fetch
+         } else {
+            return cached.data;
+         }
       }
     }
   }
@@ -120,6 +125,8 @@ export async function fetchYahooTickerData(ticker: string, exchange: Exchange, s
       let changeDate5y: Date | undefined;
       let changePctYtd: number | undefined;
       let changeDateYtd: Date | undefined;
+      let changePctMax: number | undefined;
+      let changeDateMax: Date | undefined;
 
       const closes = result.indicators?.quote?.[0]?.close || [];
       const adjCloses = result.indicators?.adjclose?.[0]?.adjclose || [];
@@ -265,6 +272,9 @@ export async function fetchYahooTickerData(ticker: string, exchange: Exchange, s
           const ytdPoint = findYtdClose();
           const resYtd = calcChangeAndDate(ytdPoint);
           changePctYtd = resYtd.pct; changeDateYtd = resYtd.date;
+
+          const resMax = calcChangeAndDate(points[0]);
+          changePctMax = resMax.pct; changeDateMax = resMax.date;
         }
       }
 
@@ -295,6 +305,8 @@ export async function fetchYahooTickerData(ticker: string, exchange: Exchange, s
         changeDate5y,
         changePctYtd,
         changeDateYtd,
+        changePctMax,
+        changeDateMax,
         changePct10y: undefined,
         timestamp: new Date(now),
         ticker,

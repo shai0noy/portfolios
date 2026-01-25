@@ -316,12 +316,12 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   const resolvedNameHe = data?.nameHe || holdingData?.nameHe || initialNameHe;
 
   // Helper to construct performance object
-  const getPerf = (val?: number, date?: Date, alwaysShow?: boolean) => {
-    if (val === undefined || (val === 0 && !alwaysShow)) return undefined;
+  const getPerf = (val?: number, date?: Date) => {
+    if (val === undefined || val === null || isNaN(val)) return undefined;
     return { val, date };
   };
   const perfData: Record<string, { val: number, date?: Date } | undefined> = {
-    '1D': getPerf(data?.changePct1d ?? (holdingData as any)?.changePct1d, data?.changeDate1d ?? (holdingData as any)?.changeDate1d, /*alwaysShow*/ true),
+    '1D': getPerf(data?.changePct1d ?? (holdingData as any)?.changePct1d, data?.changeDate1d ?? (holdingData as any)?.changeDate1d),
     [data?.recentChangeDays ? `${data.recentChangeDays}D` : '1W']: getPerf(data?.changePctRecent ?? (holdingData as any)?.perf1w ?? (holdingData as any)?.changePctRecent, data?.changeDateRecent ?? (holdingData as any)?.changeDateRecent),
     '1M': getPerf(data?.changePct1m ?? (holdingData as any)?.changePct1m, data?.changeDate1m ?? (holdingData as any)?.changeDate1m),
     '3M': getPerf(data?.changePct3m ?? (holdingData as any)?.changePct3m, data?.changeDate3m ?? (holdingData as any)?.changeDate3m),
@@ -513,7 +513,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                       {volumeDisplay && (
                          <>
                            <Tooltip title={t('Average daily trading volume (quarterly avg, in ticker currency)', 'מחזור מסחר יומי ממוצע (ממוצע רבעוני, במטבע הנייר)')} arrow>
-                             <Typography variant="caption" color="text.secondary" sx={{ cursor: 'help', borderBottom: '1px dotted', borderColor: 'text.secondary' }}>
+                             <Typography variant="caption" color="text.secondary" sx={{ cursor: 'help' }}>
                                {t('Vol:', 'מחזור:')} {volumeDisplay}
                              </Typography>
                            </Tooltip>

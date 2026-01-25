@@ -19,10 +19,12 @@ import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
 import TranslateIcon from '@mui/icons-material/Translate';
 import MenuIcon from '@mui/icons-material/Menu';
+import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
 import ColorBlind from '@mui/icons-material/VisibilityOff';
 import { getTheme } from './theme';
 import { usePortfolios } from './lib/hooks'; // Assuming we'll create this hook or reuse existing logic
 import { exportDashboardData } from './lib/exporter';
+import { clearAllCache } from './lib/fetching/utils/cache';
 
 import { useLanguage } from './lib/i18n';
 import { CacheProvider } from '@emotion/react';
@@ -408,6 +410,12 @@ function AppContent() {
                <Tooltip title={t("Open Google Sheet", "פתח גיליון Google")}>
                 <IconButton onClick={openSheet} size="small" sx={{ color: 'text.secondary' }}>
                   <OpenInNewIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+
+              <Tooltip title={t("Clear Cache", "נקה מטמון")}>
+                <IconButton onClick={() => { clearAllCache().then(() => window.location.reload()); }} size="small" sx={{ color: 'text.secondary' }}>
+                  <DeleteSweepIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
 

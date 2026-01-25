@@ -81,7 +81,32 @@ export async function getTickerData(
     return fetchPensyanetQuote(tickerNum, signal, forceRefresh);
   }
 
-  const yahooPromise = fetchYahooTickerData(ticker, parsedExchange, signal, forceRefresh, '1y');
+  const [yahooData1y, yahooDataMax] = await Promise.all([
+    fetchYahooTickerData(ticker, parsedExchange, signal, forceRefresh, '1y'),
+    fetchYahooTickerData(ticker, parsedExchange, signal, forceRefresh, 'max')
+  ]);
+
+  let yahooData: TickerData | null = null;
+  if (yahooData1y || yahooDataMax) {
+      if (!yahooData1y) yahooData = yahooDataMax;
+      else if (!yahooDataMax) yahooData = yahooData1y;
+      else {
+          // Merge: use 1y for recent stats/precision, max for long term
+          yahooData = {
+              ...yahooDataMax,
+              ...yahooData1y,
+              // Explicitly ensure long term stats come from Max
+              changePct3y: yahooDataMax.changePct3y,
+              changeDate3y: yahooDataMax.changeDate3y,
+              changePct5y: yahooDataMax.changePct5y,
+              changeDate5y: yahooDataMax.changeDate5y,
+              changePctMax: yahooDataMax.changePctMax,
+              changeDateMax: yahooDataMax.changeDateMax,
+              // Use 1y historical for better immediate chart resolution (fetchTickerHistory will update with full hybrid later)
+              historical: yahooData1y.historical
+          };
+      }
+  }
 
   let globesPromise: Promise<TickerData | null>;
   let taseInfoPromise: Promise<TaseInfo | undefined> = Promise.resolve(undefined);
@@ -114,9 +139,9 @@ export async function getTickerData(
     globesPromise = fetchGlobesStockQuote(ticker, secId, parsedExchange, signal, forceRefresh);
   }
 
-  const [globesData, yahooData, taseInfo] = await Promise.all([
+  const [globesData, _unusedYahoo, taseInfo] = await Promise.all([
     globesPromise,
-    yahooPromise,
+    Promise.resolve(yahooData),
     taseInfoPromise
   ]);
 
@@ -140,15 +165,33 @@ export async function getTickerData(
       dividends: globesData.dividends ?? yahooData.dividends,
       splits: globesData.splits ?? yahooData.splits,
       changePct1d: globesData.changePct1d ?? yahooData.changePct1d,
+      changeDate1d: globesData.changePct1d !== undefined ? globesData.changeDate1d : yahooData.changeDate1d,
+
       changePctRecent: globesData.changePctRecent ?? yahooData.changePctRecent,
-      changeDateRecent: globesData.changeDateRecent ?? yahooData.changeDateRecent,
-      recentChangeDays: globesData.recentChangeDays ?? yahooData.recentChangeDays,
+      changeDateRecent: globesData.changePctRecent !== undefined ? globesData.changeDateRecent : yahooData.changeDateRecent,
+      recentChangeDays: globesData.changePctRecent !== undefined ? globesData.recentChangeDays : yahooData.recentChangeDays,
+
       changePct1m: globesData.changePct1m ?? yahooData.changePct1m,
+      changeDate1m: globesData.changePct1m !== undefined ? globesData.changeDate1m : yahooData.changeDate1m,
+
       changePct3m: globesData.changePct3m ?? yahooData.changePct3m,
+      changeDate3m: globesData.changePct3m !== undefined ? globesData.changeDate3m : yahooData.changeDate3m,
+
       changePct1y: globesData.changePct1y ?? yahooData.changePct1y,
+      changeDate1y: globesData.changePct1y !== undefined ? globesData.changeDate1y : yahooData.changeDate1y,
+
       changePct3y: globesData.changePct3y ?? yahooData.changePct3y,
+      changeDate3y: globesData.changePct3y !== undefined ? globesData.changeDate3y : yahooData.changeDate3y,
+
       changePct5y: globesData.changePct5y ?? yahooData.changePct5y,
+      changeDate5y: globesData.changePct5y !== undefined ? globesData.changeDate5y : yahooData.changeDate5y,
+
       changePctYtd: globesData.changePctYtd ?? yahooData.changePctYtd,
+      changeDateYtd: globesData.changePctYtd !== undefined ? globesData.changeDateYtd : yahooData.changeDateYtd,
+
+      changePctMax: globesData.changePctMax ?? yahooData.changePctMax,
+      changeDateMax: globesData.changePctMax !== undefined ? globesData.changeDateMax : yahooData.changeDateMax,
+
       openPrice: globesData.openPrice ?? yahooData.openPrice,
       source: `${globesData.source} + Yahoo Finance`,
       sector: taseSector || globesData.sector || yahooData.sector,

@@ -290,7 +290,7 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
       currency,
       exchange: exchangeRes,
       changePct1d,
-      changeDate1d: new Date(effectiveTimestamp),
+      changeDate1d: undefined,
       timestamp: new Date(effectiveTimestamp),
       sector: undefined,
       changePctYtd,

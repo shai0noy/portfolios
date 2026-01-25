@@ -47,6 +47,15 @@ export async function loadRawFromCache<T>(key: string): Promise<T | null> {
     }
 }
 
+export async function clearAllCache(): Promise<void> {
+    try {
+        await db.clear();
+        console.log('Cache cleared successfully');
+    } catch (e) {
+        console.error('Error clearing cache:', e);
+    }
+}
+
 export async function withTaseCache<T>(cacheKey: string, fetcher: () => Promise<T>): Promise<T> {
   const now = Date.now();
 
