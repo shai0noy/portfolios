@@ -4,8 +4,14 @@ import { Exchange } from '../types';
 import { 
   getDateParts, 
   parseDateStr, 
-  calculateTickerDataFromFundHistory 
+  calculateTickerDataFromFundHistory,
 } from './gemel_utils';
+import { 
+  saveToCache, 
+  loadFromCache,
+  GEMEL_CACHE_TTL,
+  GEMEL_LIST_CACHE_TTL
+} from './utils/cache';
 import type { 
   FundData, 
   FundDataPoint 
@@ -15,7 +21,6 @@ export type PensyanetDataPoint = FundDataPoint;
 export type PensyanetFundData = FundData;
 
 const CACHE_KEY_PREFIX = 'pensyanet_v1_';
-const CACHE_TTL = 48 * 60 * 60 * 1000; // 48 hours
 
 /**
  * Fetches historical fund data from Pensyanet.
@@ -40,12 +45,11 @@ export async function fetchPensyanetFund(
   // 1. Check Cache
   if (!forceRefresh) {
     try {
-      const cachedRaw = localStorage.getItem(cacheKey);
-      if (cachedRaw) {
-        const cached: FundData = JSON.parse(cachedRaw);
-        if (now - cached.lastUpdated < CACHE_TTL) {
+      const cached = await loadFromCache<FundData>(cacheKey);
+      if (cached) {
+        if (now - cached.timestamp < GEMEL_CACHE_TTL) {
           console.log(`[Pensyanet] Using cached data for fund ${fundId}`);
-          return cached;
+          return cached.data;
         }
       }
     } catch (e) {
@@ -96,7 +100,7 @@ export async function fetchPensyanetFund(
 
     // 3. Save to Cache
     try {
-      localStorage.setItem(cacheKey, JSON.stringify(result));
+      await saveToCache(cacheKey, result);
     } catch (e) {
       console.warn('[Pensyanet] Failed to save to cache (likely quota exceeded):', e);
     }
@@ -109,8 +113,7 @@ export async function fetchPensyanetFund(
   }
 }
 
-const LIST_CACHE_KEY = 'pensyanet_tickers_list_v4';
-const LIST_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
+const LIST_CACHE_KEY = 'pensyanet_tickers_list_v5';
 
 interface CompactTicker {
   i: number; // id
@@ -176,10 +179,9 @@ export async function fetchPensyanetTickers(signal?: AbortSignal, forceRefresh =
   // 1. Check Cache
   if (!forceRefresh) {
     try {
-      const cachedRaw = localStorage.getItem(LIST_CACHE_KEY);
-      if (cachedRaw) {
-        const cached = JSON.parse(cachedRaw);
-        if (now - cached.timestamp < LIST_CACHE_TTL) {
+      const cached = await loadFromCache<CompactTicker[]>(LIST_CACHE_KEY);
+      if (cached) {
+        if (now - cached.timestamp < GEMEL_LIST_CACHE_TTL) {
           console.log('[Pensyanet] Using cached tickers list');
           return decompressTickers(cached.data);
         }
@@ -233,7 +235,7 @@ export async function fetchPensyanetTickers(signal?: AbortSignal, forceRefresh =
     const tickers = Array.from(tickersMap.values());
     try {
       const compressed = compressTickers(tickers);
-      localStorage.setItem(LIST_CACHE_KEY, JSON.stringify({ timestamp: now, data: compressed }));
+      await saveToCache(LIST_CACHE_KEY, compressed);
     } catch (e) {
       console.warn('[Pensyanet] Cache write error', e);
     }

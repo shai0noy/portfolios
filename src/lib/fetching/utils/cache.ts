@@ -1,17 +1,50 @@
 // src/lib/fetching/utils/cache.ts
-import type { TickerData, HistoricalDataPoint } from '../types';
 import * as db from './idb';
 
 // Simple in-memory cache with a Time-To-Live (TTL)
-export const tickerDataCache = new Map<string, { data: TickerData, timestamp: number }>();
-export const historicalDataCache = new Map<string, { data: HistoricalDataPoint[], timestamp: number }>();
 export const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
-const TASE_CACHE_TTL = 5 * 24 * 60 * 60 * 1000; // 5 days in milliseconds
+export const TASE_CACHE_TTL = 5 * 24 * 60 * 60 * 1000; // 5 days
+export const GEMEL_CACHE_TTL = 48 * 60 * 60 * 1000; // 48 hours
+export const GEMEL_LIST_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 interface CachedData<T> {
   data: T;
   timestamp: number;
+}
+
+export async function saveToCache<T>(key: string, data: T, timestamp: number = Date.now()): Promise<void> {
+    try {
+        await db.set(key, { data, timestamp });
+    } catch (e) {
+        console.error(`Error saving to cache for ${key}`, e);
+    }
+}
+
+export async function loadFromCache<T>(key: string): Promise<CachedData<T> | null> {
+    try {
+        const cached = await db.get<CachedData<T>>(key);
+        if (cached) {
+             return cached;
+        }
+    } catch (e) {
+        console.error(`Error loading from cache for ${key}`, e);
+    }
+    return null;
+}
+
+/**
+ * Loads raw data from cache without assuming {data, timestamp} structure wrapper, 
+ * unless that's what was stored.
+ */
+export async function loadRawFromCache<T>(key: string): Promise<T | null> {
+    try {
+        const val = await db.get<T>(key);
+        return val !== undefined ? val : null;
+    } catch(e) {
+        console.error(`Error loading raw from cache ${key}`, e);
+        return null;
+    }
 }
 
 export async function withTaseCache<T>(cacheKey: string, fetcher: () => Promise<T>): Promise<T> {

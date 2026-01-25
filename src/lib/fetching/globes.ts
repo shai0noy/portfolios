@@ -1,5 +1,5 @@
 // src/lib/fetching/globes.ts
-import { tickerDataCache, CACHE_TTL, withTaseCache } from './utils/cache';
+import { CACHE_TTL, saveToCache, loadFromCache, TASE_CACHE_TTL } from './utils/cache';
 import { fetchXml, parseXmlString, extractDataFromXmlNS } from './utils/xml_parser';
 import type { TickerData, TickerListItem } from './types';
 import { Exchange, parseExchange, Currency } from '../types';
@@ -22,12 +22,29 @@ function toGlobesExchangeCode(exchange: Exchange): string {
  */
 export async function fetchGlobesTickersByType(type: string, exchange: Exchange, signal?: AbortSignal): Promise<TickerListItem[]> {
   const exchangeCode = toGlobesExchangeCode(exchange);
-  const cacheKey = `globes:tickers:v5:${exchangeCode}:${type}`;
-  return withTaseCache(cacheKey, async () => {
-    const globesApiUrl = `https://portfolios.noy-shai.workers.dev/?apiId=globes_list&exchange=${exchangeCode}&type=${type}`;
-    const xmlString = await fetchXml(globesApiUrl, signal);
-    const xmlDoc = parseXmlString(xmlString);
-    return extractDataFromXmlNS(xmlDoc, GLOBES_API_NAMESPACE, 'anyType', (element): TickerListItem | null => {
+  // Using TASE_CACHE_TTL which is longer (5 days) for lists
+  const cacheKey = `globes:tickers:v7:${exchangeCode}:${type}`;
+  
+  // Use manual caching instead of withTaseCache for consistent implementation across files
+  const now = Date.now();
+  try {
+      const cached = await loadFromCache<TickerListItem[]>(cacheKey);
+      if (cached && (now - cached.timestamp < TASE_CACHE_TTL)) {
+          if (!Array.isArray(cached.data)) {
+              console.warn(`Globes tickers cache for ${cacheKey} is invalid (not an array):`, cached.data);
+              // Invalid cache, proceed to fetch
+          } else {
+              return cached.data;
+          }
+      }
+  } catch (e) {
+      console.warn('Globes tickers cache read failed', e);
+  }
+
+  const globesApiUrl = `https://portfolios.noy-shai.workers.dev/?apiId=globes_list&exchange=${exchangeCode}&type=${type}`;
+  const xmlString = await fetchXml(globesApiUrl, signal);
+  const xmlDoc = parseXmlString(xmlString);
+  const data = extractDataFromXmlNS(xmlDoc, GLOBES_API_NAMESPACE, 'anyType', (element): TickerListItem | null => {
       if (element.getAttributeNS(XSI_NAMESPACE, 'type') !== 'Instrument') {
         return null;
       }
@@ -67,7 +84,11 @@ export async function fetchGlobesTickersByType(type: string, exchange: Exchange,
         }
       };
     });
-  });
+
+    if (data && data.length > 0) {
+        await saveToCache(cacheKey, data);
+    }
+    return data;
 }
 export async function fetchGlobesCurrencies(signal?: AbortSignal): Promise<TickerListItem[]> {
   const tickers = await fetchGlobesTickersByType('currency', Exchange.FOREX, signal);
@@ -105,8 +126,9 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
 
   const cacheKey = `globes:${requestedExchangeCode}:${identifier}`;
   if (!forceRefresh) {
-    const cached = tickerDataCache.get(cacheKey);
-    if (cached && now - cached.timestamp < CACHE_TTL) {
+    const cached = await loadFromCache<TickerData>(cacheKey);
+    // TickerData has its own timestamp, but let's be safe and check if it has been hydrated
+    if (cached && cached.timestamp && (now - new Date(cached.timestamp).getTime() < CACHE_TTL)) {
       return cached.data;
     }
   }
@@ -168,7 +190,11 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
           console.warn(`Globes: CurrencyRate indicates 0.01 for ${identifier}, but base currency is ${currencyStr}.`);
         }
       } else if (currencyRate != 1) {
-        console.warn(`Globes: Unexpected CurrencyRate ${currencyRate} for ${identifier}, expected 1 or 0.01.`);
+        // For non-ILS currencies, the rate might be the exchange rate to ILS, which is fine.
+        // We only warn if it's ILS/ILA and not 1 or 0.01
+        if (baseCurrency === Currency.ILS || baseCurrency === Currency.ILA) {
+             console.warn(`Globes: Unexpected CurrencyRate ${currencyRate} for ${identifier} (${baseCurrency}), expected 1 or 0.01.`);
+        }
       }
     } catch (e) {
       console.warn(`Globes: Could not parse currency '${currencyStr}' for ${identifier}, defaulting to ILA.`);
@@ -266,7 +292,7 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
       globesTypeHe: globesTypeHe || undefined
     };
 
-    tickerDataCache.set(cacheKey, { data: tickerData, timestamp: now });
+    saveToCache(cacheKey, tickerData, now);
     return tickerData;
   } catch (error) {
     console.error(`Failed to parse ticker data for ${identifier}:`, error);

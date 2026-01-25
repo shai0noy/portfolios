@@ -1,5 +1,5 @@
 // src/lib/fetching/cbs.ts
-import { tickerDataCache, CACHE_TTL } from './utils/cache';
+import { CACHE_TTL, saveToCache, loadFromCache } from './utils/cache';
 
 // --- Types ---
 
@@ -50,10 +50,9 @@ export async function fetchCpi(
   const now = Date.now();
   const cacheKey = `cpi:${id}:${startPeriod}:${endPeriod}`;
 
-  const cached = tickerDataCache.get(cacheKey);
+  const cached = await loadFromCache<CpiDataPoint[]>(cacheKey);
   if (cached && now - cached.timestamp < CACHE_TTL) {
-    // The cache is generic, so we need to assert the type on retrieval.
-    return cached.data as unknown as CpiDataPoint[];
+    return cached.data;
   }
 
   let allData: CpiDataPoint[] = [];
@@ -96,9 +95,7 @@ export async function fetchCpi(
     allData.sort((a, b) => a.date - b.date);
 
     // Cache the final consolidated and sorted result
-    // The cache utility expects a TickerData-like object, but we store other structures.
-    // We'll wrap it to fit the expected { data, timestamp } structure.
-    tickerDataCache.set(cacheKey, { data: allData, timestamp: now } as any);
+    await saveToCache(cacheKey, allData);
 
     return allData;
 

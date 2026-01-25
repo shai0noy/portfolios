@@ -1,5 +1,5 @@
 // src/lib/fetching/yahoo.ts
-import { tickerDataCache, CACHE_TTL } from './utils/cache';
+import { CACHE_TTL, saveToCache, loadFromCache } from './utils/cache';
 import type { TickerData } from './types';
 import { Exchange, parseExchange, toYahooFinanceTicker } from '../types';
 
@@ -22,9 +22,12 @@ export async function fetchYahooTickerData(ticker: string, exchange: Exchange, s
   const cacheKey = `yahoo:${yahooTicker}:${range}`;
 
   if (!forceRefresh) {
-    const cached = tickerDataCache.get(cacheKey);
-    if (cached && now - cached.timestamp < CACHE_TTL) {
-      return cached.data;
+    const cached = await loadFromCache<TickerData>(cacheKey);
+    if (cached) {
+      // Rehydrate dates
+      if (cached.timestamp && (now - new Date(cached.timestamp).getTime() < CACHE_TTL)) {
+         return cached.data;
+      }
     }
   }
 
@@ -288,7 +291,7 @@ export async function fetchYahooTickerData(ticker: string, exchange: Exchange, s
       splits,
     };
 
-    tickerDataCache.set(cacheKey, { data: tickerData, timestamp: now });
+    saveToCache(cacheKey, tickerData, now);
     return tickerData;
 
   } catch (error) {

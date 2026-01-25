@@ -6,7 +6,8 @@ should charts use adj price?
 Hide chart duration buttons when ther's not enough data. Label 'max' according to actual period
 Show sector and type in search results (cuurently showing type form code, need to reconcile..)
 Show ticker type dash
-Figure out how we broke gemel fund names from showing!!!! They stop showing once they are in holdings. Doesnt effect pension
+Show holdings of funds
+Show trading volume in TickerDetails
 Comperasion chars + allow metrics: r^2, beta
 דמי ניהול - להציג + לחשב בגמל וכו'
 Div is broken again!
