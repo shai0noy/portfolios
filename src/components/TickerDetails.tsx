@@ -7,11 +7,12 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { getTickerData, getTickersDataset, type TickerListItem, fetchTickerHistory } from '../lib/fetching';
 import { fetchHolding, getMetadataValue } from '../lib/sheets/index';
 import { Exchange, parseExchange, toGoogleFinanceExchangeCode, toYahooFinanceTicker, type Holding, type Portfolio } from '../lib/types';
-import { formatPrice, formatPercent } from '../lib/currency';
+import { formatPrice, formatPercent, toILS, normalizeCurrency } from '../lib/currency';
 import { useLanguage } from '../lib/i18n';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
 import { getOwnedInPortfolios } from '../lib/portfolioUtils';
 import { TickerChart } from './TickerChart';
+import { Currency } from '../lib/types';
 
 interface TickerDetailsProps {
   sheetId: string;
@@ -58,7 +59,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [sheetRebuildTime, setSheetRebuildTime] = useState<string | null>(null);
-  const { t, tTry } = useLanguage();
+  const { t, tTry, language } = useLanguage();
 
   const displayHistory = useMemo(() => {
     if (!historicalData) return [];
@@ -388,6 +389,48 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   const maxDecimals = (price != null && price % 1 !== 0) || (openPrice != null && openPrice % 1 !== 0) ? 2 : 0;
   const dayChange = perfData['1D']?.val || 0;
 
+  const formatVolume = (val?: number, currencyCode?: string) => {
+    if (val === undefined || val === null || isNaN(val)) return null;
+    
+    let effectiveVal = val;
+    let effectiveCurrency = currencyCode;
+
+    // Convert ILA to ILS for volume display
+    if (currencyCode && normalizeCurrency(currencyCode) === Currency.ILA) {
+        effectiveVal = toILS(val, Currency.ILA);
+        effectiveCurrency = Currency.ILS;
+    }
+
+    // Default suffixes
+    const suffixes = {
+        K: 'K',
+        M: 'M',
+        B: 'B'
+    };
+    
+    // Manual overrides for Hebrew suffixes
+    if (language === 'he') {
+        suffixes.K = " א'";
+        suffixes.M = " מ'";
+        suffixes.B = " B"; 
+    }
+
+    let suffix = '';
+    let div = 1;
+    if (effectiveVal >= 1_000_000_000) { suffix = suffixes.B; div = 1_000_000_000; }
+    else if (effectiveVal >= 1_000_000) { suffix = suffixes.M; div = 1_000_000; }
+    else if (effectiveVal >= 1_000) { suffix = suffixes.K; div = 1_000; }
+    
+    const formattedNum = (effectiveVal / div).toLocaleString(undefined, { maximumFractionDigits: 1 });
+    // Use formatPrice just to get the currency symbol/text by formatting 0
+    const currencyStr = effectiveCurrency ? formatPrice(0, effectiveCurrency, 0, t).replace(/[0-9.,-]+/g, '').trim() : '';
+    
+    return { text: `${formattedNum}${suffix}`, currency: currencyStr };
+  };
+
+  const volData = formatVolume(displayData?.volume, displayData?.currency);
+  const volumeDisplay = volData ? `${volData.text} ${volData.currency}` : null;
+
   return (
     <Dialog open={true} onClose={handleClose} maxWidth={false} fullWidth PaperProps={{ sx: { width: 'min(900px, 96%)' } }}>
       <DialogTitle>
@@ -447,12 +490,22 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                       </Typography>
                     </Tooltip>
                   </Box>
-                  {(openPrice != null || data?.tradeTimeStatus) && (
+                  {(openPrice != null || data?.tradeTimeStatus || volumeDisplay) && (
                     <Box display="flex" alignItems="baseline" justifyContent="flex-end" sx={{ gap: 1, mt: 0.25 }}>
                       {openPrice != null && (
                         <Typography variant="caption" color="text.secondary">{t('Open:', 'פתיחה:')} {formatPrice(openPrice, isTase ? 'ILA' : displayData.currency, maxDecimals, t)}</Typography>
                       )}
-                      {openPrice != null && data?.tradeTimeStatus && (<Typography variant="caption" color="text.secondary">|</Typography>)}
+                      {openPrice != null && (data?.tradeTimeStatus || volumeDisplay) && (<Typography variant="caption" color="text.secondary">|</Typography>)}
+                      {volumeDisplay && (
+                         <>
+                           <Tooltip title={t('Average daily trading volume (quarterly avg, in ticker currency)', 'מחזור מסחר יומי ממוצע (ממוצע רבעוני, במטבע הנייר)')} arrow>
+                             <Typography variant="caption" color="text.secondary" sx={{ cursor: 'help', borderBottom: '1px dotted', borderColor: 'text.secondary' }}>
+                               {t('Vol:', 'מחזור:')} {volumeDisplay}
+                             </Typography>
+                           </Tooltip>
+                           {data?.tradeTimeStatus && (<Typography variant="caption" color="text.secondary">|</Typography>)}
+                         </>
+                      )}
                       {data?.tradeTimeStatus && (
                         <Typography variant="caption" color="text.secondary">{data.tradeTimeStatus}</Typography>
                       )}

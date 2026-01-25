@@ -154,6 +154,7 @@ export async function getTickerData(
       sector: taseSector || globesData.sector || yahooData.sector,
       subSector: taseSubSector,
       taseType: taseType,
+      volume: globesData.volume ?? yahooData.volume,
     };
   }
 

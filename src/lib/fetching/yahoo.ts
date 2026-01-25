@@ -62,6 +62,10 @@ export async function fetchYahooTickerData(ticker: string, exchange: Exchange, s
 
     const meta = result.meta;
     const price = meta.regularMarketPrice;
+    
+    // Volume extraction (Monetary Volume)
+    const shareVolume = meta.regularMarketVolume || (result.indicators?.quote?.[0]?.volume?.slice(-1)[0]);
+    const volume = (shareVolume && price) ? shareVolume * price : undefined;
 
     // Get the last open price from the indicators
     const quote = result.indicators?.quote?.[0];
@@ -289,6 +293,7 @@ export async function fetchYahooTickerData(ticker: string, exchange: Exchange, s
       historical,
       dividends,
       splits,
+      volume,
     };
 
     saveToCache(cacheKey, tickerData, now);

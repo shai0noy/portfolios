@@ -53,6 +53,7 @@ export interface TickerData {
   splits?: Split[];
   tradeTimeStatus?: string;
   globesTypeHe?: string;
+  volume?: number;
 }
 
 export interface HistoricalDataPoint {

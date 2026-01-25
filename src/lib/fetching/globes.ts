@@ -246,6 +246,24 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
     const globesTypeHe = getText('InstrumentTypeHe');
     const timestamp = getText('timestamp');
 
+    // Volume Extraction
+    const totVolMoneyStr = getText('AverageQuarterTotVolMoney');
+    const totVolStr = getText('AverageQuarterTotVol');
+    let volume: number | undefined = undefined;
+
+    if (totVolMoneyStr) {
+        // totVolMoney is in thousands
+        volume = parseFloat(totVolMoneyStr) * 1000;
+        if (baseCurrency === Currency.ILS && currency === Currency.ILA) {
+          volume = volume * 100; // Convert NIS to Agorot
+        }
+    } else if (totVolStr) {
+        // Fallback: Volume in units * current price
+        const units = parseFloat(totVolStr);
+        if (!isNaN(units) && last) {
+            volume = units * last;
+        }
+    }
 
     const calculatePctChange = (current: number, previous: number) => {
       if (!previous) return 0;
@@ -289,7 +307,8 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
       source: 'Globes',
       globesInstrumentId: globesInstrumentId ? globesInstrumentId : undefined,
       tradeTimeStatus,
-      globesTypeHe: globesTypeHe || undefined
+      globesTypeHe: globesTypeHe || undefined,
+      volume // In 'currency' units
     };
 
     saveToCache(cacheKey, tickerData, now);
