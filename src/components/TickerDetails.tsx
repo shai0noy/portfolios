@@ -55,6 +55,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   const [holdingData, setHoldingData] = useState<Holding | null>(null);
   const [historicalData, setHistoricalData] = useState<any[] | null>(null);
   const [chartRange, setChartRange] = useState('1Y');
+  const [chartMetric, setChartMetric] = useState<'percent' | 'price'>('percent');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -628,7 +629,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
 
             {historicalData && historicalData.length > 0 && (
               <>
-                <Box display="flex" justifyContent="space-between" alignItems="center">
+                <Box display="flex" justifyContent="flex-start" alignItems="center" gap={2}>
                   <ToggleButtonGroup
                     value={chartRange}
                     exclusive
@@ -642,8 +643,18 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                        </ToggleButton>
                     ))}
                   </ToggleButtonGroup>
+                  <ToggleButtonGroup
+                    value={chartMetric}
+                    exclusive
+                    onChange={(_, newMetric) => { if (newMetric) setChartMetric(newMetric); }}
+                    aria-label="chart metric"
+                    size="small"
+                  >
+                    <ToggleButton value="percent" aria-label="percent">%</ToggleButton>
+                    <ToggleButton value="price" aria-label="price">$</ToggleButton>
+                  </ToggleButtonGroup>
                 </Box>
-                <TickerChart data={displayHistory} currency={displayData.currency} />
+                <TickerChart data={displayHistory} currency={displayData.currency} mode={chartMetric} />
               </>
             )}
 

@@ -9,9 +9,10 @@ import { useTheme } from '@mui/material/styles';import { useState, useEffect, us
 interface TickerChartProps {
     data: { date: Date; price: number; adjClose?: number }[];
     currency: string;
+    mode?: 'percent' | 'price';
 }
 
-const CustomTooltip = ({ active, payload, currency, t, basePrice }: any) => {
+const CustomTooltip = ({ active, payload, currency, t, basePrice, mode }: any) => {
     if (active && payload && payload.length) {
         const point = payload[0].payload;
         const date = point.date; // It's already a Date object
@@ -80,7 +81,7 @@ const SelectionSummary = ({ startPoint, endPoint, currency, t }: any) => {
 };
 
 
-export function TickerChart({ data, currency }: TickerChartProps) {
+export function TickerChart({ data, currency, mode = 'percent' }: TickerChartProps) {
     const FADE_MS = 170;          // Speed of the opacity transition
     const TRANSFORM_MS = 360;     // Speed of the line movement (Very fast)
     const BUFFER_MS = 30;        // Safety window for browser paint
@@ -148,7 +149,7 @@ export function TickerChart({ data, currency }: TickerChartProps) {
     }, [data, displayData, FADE_MS, FADE_IN_DELAY]);
 
     // Move hooks above the conditional return
-    const percentData = useMemo(() => {
+    const processedData = useMemo(() => {
         if (!displayData || displayData.length < 1) return [];
         // Use adjClose if available, otherwise price. 
         // Important: Must use consistent field for base and current to get correct % change.
@@ -159,18 +160,21 @@ export function TickerChart({ data, currency }: TickerChartProps) {
             const val = p.adjClose || p.price;
             return {
                 ...p,
-                yValue: basePrice > 0 ? (val / basePrice - 1) : 0,
+                yValue: mode === 'percent' ? (basePrice > 0 ? (val / basePrice - 1) : 0) : val,
             };
         });
-    }, [displayData]);
+    }, [displayData, mode]);
 
     const { yMin, yMax } = useMemo(() => {
-        if (!percentData || percentData.length === 0) return { yMin: 0, yMax: 0 };
-        const vals = percentData.map(p => p.yValue);
+        if (!processedData || processedData.length === 0) return { yMin: 0, yMax: 0 };
+        const vals = processedData.map(p => p.yValue);
         return { yMin: Math.min(...vals), yMax: Math.max(...vals) };
-    }, [percentData]);
+    }, [processedData]);
 
     const formatYAxis = useCallback((tick: number) => {
+        if (mode === 'price') {
+            return formatPrice(tick, currency, 0, t);
+        }
         const range = yMax - yMin;
         const decimals = range > 0.1 ? 0 : 1; 
         return '\u200E' + new Intl.NumberFormat(undefined, {
@@ -178,10 +182,10 @@ export function TickerChart({ data, currency }: TickerChartProps) {
             minimumFractionDigits: 0,
             maximumFractionDigits: decimals,
         }).format(tick);
-    }, [yMin, yMax]);
+    }, [yMin, yMax, mode, currency, t]);
 
     const findClosestPoint = useCallback((date: number) => {
-        const data = percentData;
+        const data = processedData;
         if (!data || data.length === 0) return null;
         // Optimization: Binary search for O(log N) lookup
         let low = 0;
@@ -202,7 +206,7 @@ export function TickerChart({ data, currency }: TickerChartProps) {
         const next = data[low];
         const prev = data[low - 1]; 
         return (date - prev.date.getTime() < next.date.getTime() - date) ? prev : next;
-    }, [percentData]);
+    }, [processedData]);
 
     const handleClick = useCallback((e: any) => {
         if (!e || !e.activeLabel) return;
@@ -230,22 +234,22 @@ export function TickerChart({ data, currency }: TickerChartProps) {
     const [startPoint, endPoint] = selectionPoints;
 
     const chartData = useMemo(() => {
-        if (!startPoint || !endPoint || startPoint === endPoint) return percentData;
+        if (!startPoint || !endPoint || startPoint === endPoint) return processedData;
         
-        const startIndex = percentData.indexOf(startPoint);
-        const endIndex = percentData.indexOf(endPoint);
+        const startIndex = processedData.indexOf(startPoint);
+        const endIndex = processedData.indexOf(endPoint);
 
-        if (startIndex === -1 || endIndex === -1) return percentData;
+        if (startIndex === -1 || endIndex === -1) return processedData;
 
         // Optimization: Recycle objects outside the range, map only the range
         return [
-            ...percentData.slice(0, startIndex),
-            ...percentData.slice(startIndex, endIndex + 1).map(p => ({ ...p, highlightedY: p.yValue })),
-            ...percentData.slice(endIndex + 1)
+            ...processedData.slice(0, startIndex),
+            ...processedData.slice(startIndex, endIndex + 1).map(p => ({ ...p, highlightedY: p.yValue })),
+            ...processedData.slice(endIndex + 1)
         ];
-    }, [percentData, startPoint, endPoint]);
+    }, [processedData, startPoint, endPoint]);
 
-    if (!displayData || displayData.length < 2 || percentData.length < 2) {
+    if (!displayData || displayData.length < 2 || processedData.length < 2) {
         return (
             <Box sx={{
                 width: '100%',
@@ -268,18 +272,22 @@ export function TickerChart({ data, currency }: TickerChartProps) {
     const isUp = lastPrice >= basePrice;
     const chartColor = isUp ? theme.palette.success.main : theme.palette.error.main;
 
-    const xMin = percentData[0].date.getTime();
-    const xMax = percentData[percentData.length - 1].date.getTime();
+    const xMin = processedData[0].date.getTime();
+    const xMax = processedData[processedData.length - 1].date.getTime();
+
+    // Determine the split threshold
+    const threshold = mode === 'price' ? basePrice : 0;
 
     let offset;
-    if (yMin >= 0) {
-        // If the entire graph is above the zero line, the "split" is at the bottom.
-        offset = 1;
-    } else if (yMax <= 0) {
-        // If the entire graph is below the zero line, the "split" is at the top.
+    if (yMin >= threshold) {
+        // Entirely positive
+        offset = 1; 
+    } else if (yMax <= threshold) {
+        // Entirely negative
         offset = 0;
     } else {
-        offset = Math.max(0, Math.min(1, yMax / (yMax - yMin)));
+        // Split
+        offset = Math.max(0, Math.min(1, (yMax - threshold) / (yMax - yMin)));
     }
 
     return (
@@ -323,13 +331,13 @@ export function TickerChart({ data, currency }: TickerChartProps) {
                     <YAxis
                         orientation="right"
                         tickFormatter={formatYAxis}
-                        width={50}
+                        width={mode === 'price' ? 60 : 50}
                         tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
                         dx={3}
                         domain={[yMin, yMax]}
                     />
-                    <Tooltip content={<CustomTooltip currency={currency} t={t} basePrice={basePrice} />} />
-                    <ReferenceLine y={0} stroke={theme.palette.text.secondary} strokeDasharray="3 3" />
+                    <Tooltip content={<CustomTooltip currency={currency} t={t} basePrice={basePrice} mode={mode} />} />
+                    <ReferenceLine y={threshold} stroke={theme.palette.text.secondary} strokeDasharray="3 3" />
                     
                     <Area 
                         type="monotone" 
