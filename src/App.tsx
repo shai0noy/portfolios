@@ -297,7 +297,9 @@ function AppContent() {
       </MenuItem>
       <MenuItem onClick={toggleLanguage}>
         <ListItemIcon>
-          <TranslateIcon fontSize="small" />
+          <Typography variant="button" sx={{ fontWeight: 700, fontSize: '0.85rem', ml: 0.3, mt: '3px' }}>
+            {language === 'en' ? 'He' : 'En'}
+          </Typography>
         </ListItemIcon>
         <ListItemText>{t("הצג בעברית", "Switch to English")}</ListItemText>
       </MenuItem>
@@ -313,6 +315,14 @@ function AppContent() {
         </ListItemIcon>
         <ListItemText>{t('Export Data', 'ייצוא נתונים')}</ListItemText>
       </MenuItem>
+      {typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && (
+        <MenuItem onClick={() => { handlePopulateTestData(); handleMobileMenuClose(); }}>
+          <ListItemIcon>
+            <BuildIcon fontSize="small" sx={{ opacity: 0.5 }} />
+          </ListItemIcon>
+          <ListItemText>{t('Populate Test Data', 'מלא נתוני בדיקה')}</ListItemText>
+        </MenuItem>
+      )}
       <MenuItem onClick={() => { openSheet(); handleMobileMenuClose(); }}>
         <ListItemIcon>
           <OpenInNewIcon fontSize="small" />
@@ -324,6 +334,12 @@ function AppContent() {
           {rebuilding ? <CircularProgress size={20} /> : <BuildIcon fontSize="small" />}
         </ListItemIcon>
         <ListItemText>{t('Setup Sheet', 'הגדרות גיליון')}</ListItemText>
+      </MenuItem>
+      <MenuItem onClick={() => { clearAllCache().then(() => window.location.reload()); handleMobileMenuClose(); }}>
+        <ListItemIcon>
+          <DeleteSweepIcon fontSize="small" />
+        </ListItemIcon>
+        <ListItemText>{t('Clear Cache', 'נקה מטמון')}</ListItemText>
       </MenuItem>
       <MenuItem onClick={() => { handleLogout(); handleMobileMenuClose(); }}>
         <ListItemIcon>
@@ -371,65 +387,6 @@ function AppContent() {
               >
                 <MenuIcon />
               </IconButton>
-            </Box>
-
-            <Box display="flex" gap={1} sx={{ display: 'none', flexShrink: 0, alignItems: 'center' }}>
-               <Tooltip title={t("Switch Theme", "מצב בהיר/כהה")}>
-                <IconButton onClick={toggleColorMode} size="small" sx={{ color: 'text.secondary' }}>
-                  {mode === 'dark' ? <Brightness7Icon fontSize="small" /> : <Brightness4Icon fontSize="small" />}
-                </IconButton>
-              </Tooltip>
-
-              <Tooltip title={t("הצג בעברית", "Switch to English")}>
-                <IconButton onClick={toggleLanguage} size="small" sx={{ color: 'text.secondary', width: 34, height: 34 }}>
-                  <Typography variant="button" sx={{ fontWeight: 700, fontSize: '0.8rem' }}>
-                    {language === 'en' ? 'He' : 'En'}
-                  </Typography>
-                </IconButton>
-              </Tooltip>
-
-               <Tooltip title={t("Import Transactions via CSV", "ייבוא עסקאות מ-CSV")}>
-                <IconButton onClick={() => setImportOpen(true)} size="small" sx={{ color: 'text.secondary' }}>
-                  <CloudUploadIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-
-              <Tooltip title={t("Export data (CSV / Google Sheet)", "ייצוא נתונים (CSV / Google Sheet)")}>
-                <IconButton onClick={(e) => setExportMenuAnchorElApp(e.currentTarget)} size="small" sx={{ color: 'text.secondary' }}>
-                  {exportInProgress ? <CircularProgress size={18} /> : <FileDownloadIcon fontSize="small" />}
-                </IconButton>
-              </Tooltip>
-
-              {typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && (
-                <Tooltip title={t("Populate test data (localhost only)", "מלא נתוני בדיקה (localhost בלבד)")}>
-                  <IconButton onClick={handlePopulateTestData} size="small" sx={{ color: 'text.disabled', opacity: 0.15 }}>
-                    <BuildIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              )}
-               <Tooltip title={t("Open Google Sheet", "פתח גיליון Google")}>
-                <IconButton onClick={openSheet} size="small" sx={{ color: 'text.secondary' }}>
-                  <OpenInNewIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-
-              <Tooltip title={t("Clear Cache", "נקה מטמון")}>
-                <IconButton onClick={() => { clearAllCache().then(() => window.location.reload()); }} size="small" sx={{ color: 'text.secondary' }}>
-                  <DeleteSweepIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-
-              <Tooltip title={t("Setup Sheet (Reset Schema & Rebuild Live Data)", "הגדרות גיליון (איפוס מבנה ורענון נתונים)")}>
-                <IconButton onClick={handleSetupSheet} size="small" sx={{ color: 'text.secondary' }} disabled={rebuilding}>
-                   {rebuilding ? <CircularProgress size={20} /> : <BuildIcon fontSize="small" />}
-                </IconButton>
-              </Tooltip>
-              
-               <Tooltip title={t("Logout", "יציאה")}>
-                <IconButton onClick={handleLogout} size="small" sx={{ color: 'text.secondary' }}>
-                  <LogoutIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
             </Box>
           </Toolbar>
         </AppBar>
