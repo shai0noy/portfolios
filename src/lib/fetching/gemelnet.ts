@@ -1,38 +1,21 @@
 import { fetchXml, parseXmlString } from './utils/xml_parser';
 import type { TickerListItem, TickerData } from './types';
 import { Exchange } from '../types';
+import { 
+  getDateParts, 
+  parseDateStr, 
+  calculateTickerDataFromFundHistory 
+} from './gemel_utils';
+import type { 
+  FundData, 
+  FundDataPoint 
+} from './gemel_utils';
 
-
-export interface GemelnetDataPoint {
-  date: number; // Unix timestamp (start of month)
-  nominalReturn: number; // Percentage return (TSUA_NOMINALI_BFOAL)
-}
-
-export interface GemelnetFundData {
-  fundId: number;
-  fundName: string;
-  data: GemelnetDataPoint[];
-  lastUpdated: number;
-}
+export type GemelnetDataPoint = FundDataPoint;
+export type GemelnetFundData = FundData;
 
 const CACHE_KEY_PREFIX = 'gemelnet_v1_';
 const CACHE_TTL = 48 * 60 * 60 * 1000; // 48 hours
-
-// Helper to get date parts
-function getDateParts(date: Date): { year: string, month: string } {
-  const y = date.getFullYear().toString();
-  const m = (date.getMonth() + 1).toString().padStart(2, '0');
-  return { year: y, month: m };
-}
-
-// Helper to parse YYYYMM to timestamp (returns End of Month)
-function parseDateStr(dateStr: string): number {
-  if (!dateStr || dateStr.length !== 6) return 0;
-  const y = parseInt(dateStr.substring(0, 4), 10);
-  const m = parseInt(dateStr.substring(4, 6), 10) - 1; // Month is 0-indexed in JS Date
-  // Day 0 of next month is the last day of the current month
-  return new Date(y, m + 1, 0).getTime();
-}
 
 /**
  * Fetches historical fund data from Gemelnet.
@@ -48,7 +31,7 @@ export async function fetchGemelnetFund(
   startMonth: Date,
   endMonth: Date = new Date(),
   forceRefresh = false
-): Promise<GemelnetFundData | null> {
+): Promise<FundData | null> {
   const sParts = getDateParts(startMonth);
   const eParts = getDateParts(endMonth);
   const cacheKey = `${CACHE_KEY_PREFIX}${fundId}_${sParts.year}${sParts.month}_${eParts.year}${eParts.month}`;
@@ -59,7 +42,7 @@ export async function fetchGemelnetFund(
     try {
       const cachedRaw = localStorage.getItem(cacheKey);
       if (cachedRaw) {
-        const cached: GemelnetFundData = JSON.parse(cachedRaw);
+        const cached: FundData = JSON.parse(cachedRaw);
         if (now - cached.lastUpdated < CACHE_TTL) {
           console.log(`[Gemelnet] Using cached data for fund ${fundId}`);
           return cached;
@@ -85,7 +68,7 @@ export async function fetchGemelnetFund(
     const xmlDoc = parseXmlString(xmlText);
     
     const rows = Array.from(xmlDoc.querySelectorAll('Row'));
-    const points: GemelnetDataPoint[] = [];
+    const points: FundDataPoint[] = [];
     const fundInfo = tickersList.find(t => t.providentInfo?.fundId === fundId);
     const fundName = fundInfo?.nameEn || '';
 
@@ -110,7 +93,7 @@ export async function fetchGemelnetFund(
     // Sort by date ascending
     points.sort((a, b) => a.date - b.date);
 
-    const result: GemelnetFundData = {
+    const result: FundData = {
       fundId: fundId,
       fundName,
       data: points,
@@ -132,8 +115,72 @@ export async function fetchGemelnetFund(
   }
 }
 
-const LIST_CACHE_KEY = 'gemelnet_tickers_list';
+const LIST_CACHE_KEY = 'gemelnet_tickers_list_v2';
 const LIST_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+interface CompactTicker {
+  i: number; // id
+  n: string; // name
+  ft: string; // fundType
+  s?: string; // specialization
+  ss?: string; // subSpecialization
+  mf?: number; // managementFee
+  df?: number; // depositFee
+  x?: Record<string, any>; // Extras
+}
+
+function compressTickers(tickers: TickerListItem[]): CompactTicker[] {
+  const KNOWN_KEYS = new Set(['fundId', 'managingCompany', 'fundType', 'specialization', 'subSpecialization', 'managementFee', 'depositFee']);
+  
+  return tickers.map(t => {
+    const pInfo = t.providentInfo;
+    const extras: Record<string, any> = {};
+    
+    if (pInfo) {
+      Object.keys(pInfo).forEach(key => {
+        if (!KNOWN_KEYS.has(key)) {
+          console.warn(`[Gemelnet] Unexpected key in ProvidentInfo during compression: ${key} (Value: ${(pInfo as any)[key]}) for ticker ${t.symbol}`);
+          extras[key] = (pInfo as any)[key];
+        }
+      });
+    }
+
+    const compressed: CompactTicker = {
+      i: pInfo?.fundId || parseInt(t.symbol, 10),
+      n: t.nameHe || t.nameEn,
+      ft: pInfo?.fundType || '',
+      s: pInfo?.specialization,
+      ss: pInfo?.subSpecialization,
+      mf: pInfo?.managementFee,
+      df: pInfo?.depositFee,
+    };
+
+    if (Object.keys(extras).length > 0) {
+      compressed.x = extras;
+    }
+    
+    return compressed;
+  });
+}
+
+function decompressTickers(compact: CompactTicker[]): TickerListItem[] {
+  return compact.map(c => ({
+    symbol: String(c.i),
+    exchange: Exchange.GEMEL,
+    nameHe: c.n,
+    nameEn: c.n,
+    globesTypeCode: 'gemel_fund',
+    providentInfo: {
+      fundId: c.i,
+      fundType: c.ft,
+      specialization: c.s,
+      subSpecialization: c.ss,
+      managementFee: c.mf,
+      depositFee: c.df,
+      ...(c.x || {})
+    }
+  }));
+}
 
 export async function fetchGemelnetTickers(signal?: AbortSignal, forceRefresh = false): Promise<TickerListItem[]> {
   const now = Date.now();
@@ -146,7 +193,7 @@ export async function fetchGemelnetTickers(signal?: AbortSignal, forceRefresh = 
         const cached = JSON.parse(cachedRaw);
         if (now - cached.timestamp < LIST_CACHE_TTL) {
           console.log('[Gemelnet] Using cached tickers list');
-          return cached.data;
+          return decompressTickers(cached.data);
         }
       }
     } catch (e) {
@@ -199,7 +246,8 @@ export async function fetchGemelnetTickers(signal?: AbortSignal, forceRefresh = 
 
     const tickers = Array.from(tickersMap.values());
     try {
-      localStorage.setItem(LIST_CACHE_KEY, JSON.stringify({ timestamp: now, data: tickers }));
+      const compressed = compressTickers(tickers);
+      localStorage.setItem(LIST_CACHE_KEY, JSON.stringify({ timestamp: now, data: compressed }));
     } catch (e) {
       console.warn('[Gemelnet] Cache write error', e);
     }
@@ -225,87 +273,13 @@ export async function fetchGemelnetQuote(
     return null;
   }
 
-  let fundName = fundData.fundName;
-  if (!fundName) {
+  // Ensure fundName is populated if missing (it should be in fundData, but double check cache issues)
+  if (!fundData.fundName) {
       // Name missing in cache? Try to fetch/lookup again
       const tickers = await fetchGemelnetTickers();
       const info = tickers.find(t => t.providentInfo?.fundId === fundId);
-      if (info) fundName = info.nameEn || info.nameHe || '';
+      if (info) fundData.fundName = info.nameEn || info.nameHe || '';
   }
 
-  // Sort by date ascending for index calculation
-  const sortedData = [...fundData.data].sort((a, b) => a.date - b.date);
-  
-  // Build Price Index (Map: YYYY-MM -> { price, date })
-  const priceMap = new Map<string, { price: number, date: number }>();
-  let currentPrice = 100;
-  const historical: { date: Date, price: number }[] = [];
-
-  const getKey = (ts: number) => {
-      const d = new Date(ts);
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-  };
-
-  for (const point of sortedData) {
-      currentPrice *= (1 + point.nominalReturn / 100);
-      priceMap.set(getKey(point.date), { price: currentPrice, date: point.date });
-      historical.push({ date: new Date(point.date), price: currentPrice });
-  }
-
-  const latestPoint = sortedData[sortedData.length - 1];
-  const latestPrice = currentPrice;
-  
-  const getChange = (months: number) => {
-      const d = new Date(latestPoint.date);
-      d.setDate(1); // Set to 1st of month to avoid overflow when subtracting months from 31st
-      d.setMonth(d.getMonth() - months);
-      const base = priceMap.get(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
-      return base ? { pct: latestPrice / base.price - 1, date: base.date } : undefined;
-  };
-
-  const [chg1m, chg3m, chg1y, chg3y, chg5y, chg10y] = [1, 3, 12, 36, 60, 120].map(getChange);
-
-  // YTD
-  const lastYear = new Date(latestPoint.date).getFullYear();
-  const currYear = new Date().getFullYear();
-  let chgYtd: { pct: number, date: number } | undefined;
-  
-  if (lastYear < currYear) {
-      chgYtd = { pct: 0, date: new Date(currYear, 0, 1).getTime() };
-  } else {
-      const base = priceMap.get(`${lastYear - 1}-12`) || (() => {
-          const first = sortedData.find(d => new Date(d.date).getFullYear() === lastYear);
-          if (!first) return undefined;
-          const startPrice = priceMap.get(getKey(first.date))!.price / (1 + first.nominalReturn / 100);
-          return { price: startPrice, date: first.date };
-      })();
-      if (base) chgYtd = { pct: latestPrice / base.price - 1, date: base.date };
-  }
-
-  // Max
-  const first = sortedData[0];
-  const startPrice = priceMap.get(getKey(first.date))!.price / (1 + first.nominalReturn / 100);
-  const chgMax = { pct: latestPrice / startPrice - 1, date: first.date };
-
-  const tickerData: TickerData = {
-    ticker: String(fundId),
-    numericId: fundId,
-    exchange: Exchange.GEMEL,
-    price: latestPrice,
-    ...(chg1m && { changePct1m: chg1m.pct, changeDate1m: new Date(chg1m.date) }),
-    ...(chg3m && { changePct3m: chg3m.pct, changeDate3m: new Date(chg3m.date) }),
-    ...(chgYtd && { changePctYtd: chgYtd.pct, changeDateYtd: new Date(chgYtd.date) }),
-    ...(chg1y && { changePct1y: chg1y.pct, changeDate1y: new Date(chg1y.date) }),
-    ...(chg3y && { changePct3y: chg3y.pct, changeDate3y: new Date(chg3y.date) }),
-    ...(chg5y && { changePct5y: chg5y.pct, changeDate5y: new Date(chg5y.date) }),
-    ...(chg10y && { changePct10y: chg10y.pct, changeDate10y: new Date(chg10y.date) }),
-    ...(chgMax && { changePctMax: chgMax.pct, changeDateMax: new Date(chgMax.date) }),
-    timestamp: new Date(latestPoint.date),
-    currency: 'ILS', // Could also be 'ILA', doesn't matter due to lack of real price
-    name: fundName,
-    nameHe: fundName,
-    source: 'Gemelnet',
-    historical,
-  };
-  return tickerData;
+  return calculateTickerDataFromFundHistory(fundData, Exchange.GEMEL, 'Gemelnet');
 }

@@ -1,38 +1,21 @@
 import { fetchXml, parseXmlString } from './utils/xml_parser';
 import type { TickerListItem, TickerData } from './types';
 import { Exchange } from '../types';
+import { 
+  getDateParts, 
+  parseDateStr, 
+  calculateTickerDataFromFundHistory 
+} from './gemel_utils';
+import type { 
+  FundData, 
+  FundDataPoint 
+} from './gemel_utils';
 
-
-export interface PensyanetDataPoint {
-  date: number; // Unix timestamp (start of month)
-  nominalReturn: number; // Percentage return (TSUA_NOMINALI_BFOAL)
-}
-
-export interface PensyanetFundData {
-  fundId: number;
-  fundName: string;
-  data: PensyanetDataPoint[];
-  lastUpdated: number;
-}
+export type PensyanetDataPoint = FundDataPoint;
+export type PensyanetFundData = FundData;
 
 const CACHE_KEY_PREFIX = 'pensyanet_v1_';
 const CACHE_TTL = 48 * 60 * 60 * 1000; // 48 hours
-
-// Helper to get date parts
-function getDateParts(date: Date): { year: string, month: string } {
-  const y = date.getFullYear().toString();
-  const m = (date.getMonth() + 1).toString().padStart(2, '0');
-  return { year: y, month: m };
-}
-
-// Helper to parse YYYYMM to timestamp (returns End of Month)
-function parseDateStr(dateStr: string): number {
-  if (!dateStr || dateStr.length !== 6) return 0;
-  const y = parseInt(dateStr.substring(0, 4), 10);
-  const m = parseInt(dateStr.substring(4, 6), 10) - 1; // Month is 0-indexed in JS Date
-  // Day 0 of next month is the last day of the current month
-  return new Date(y, m + 1, 0).getTime();
-}
 
 /**
  * Fetches historical fund data from Pensyanet.
@@ -48,7 +31,7 @@ export async function fetchPensyanetFund(
   startMonth: Date,
   endMonth: Date = new Date(),
   forceRefresh = false
-): Promise<PensyanetFundData | null> {
+): Promise<FundData | null> {
   const sParts = getDateParts(startMonth);
   const eParts = getDateParts(endMonth);
   const cacheKey = `${CACHE_KEY_PREFIX}${fundId}_${sParts.year}${sParts.month}_${eParts.year}${eParts.month}`;
@@ -59,7 +42,7 @@ export async function fetchPensyanetFund(
     try {
       const cachedRaw = localStorage.getItem(cacheKey);
       if (cachedRaw) {
-        const cached: PensyanetFundData = JSON.parse(cachedRaw);
+        const cached: FundData = JSON.parse(cachedRaw);
         if (now - cached.lastUpdated < CACHE_TTL) {
           console.log(`[Pensyanet] Using cached data for fund ${fundId}`);
           return cached;
@@ -84,7 +67,7 @@ export async function fetchPensyanetFund(
     
     // Pensyanet XML response uses 'ROW' (uppercase)
     const rows = Array.from(xmlDoc.querySelectorAll('ROW'));
-    const points: PensyanetDataPoint[] = [];
+    const points: FundDataPoint[] = [];
     const fundInfo = tickersList.find(t => t.providentInfo?.fundId === fundId);
     const fundName = fundInfo?.nameEn || '';
 
@@ -104,7 +87,7 @@ export async function fetchPensyanetFund(
     // Sort by date ascending
     points.sort((a, b) => a.date - b.date);
 
-    const result: PensyanetFundData = {
+    const result: FundData = {
       fundId: fundId,
       fundName,
       data: points,
@@ -276,87 +259,12 @@ export async function fetchPensyanetQuote(
     return null;
   }
 
-  let fundName = fundData.fundName;
-  if (!fundName) {
+  if (!fundData.fundName) {
       // Name missing in cache? Try to fetch/lookup again
       const tickers = await fetchPensyanetTickers();
       const info = tickers.find(t => t.providentInfo?.fundId === fundId);
-      if (info) fundName = info.nameEn || info.nameHe || '';
+      if (info) fundData.fundName = info.nameEn || info.nameHe || '';
   }
 
-  // Sort by date ascending for index calculation
-  const sortedData = [...fundData.data].sort((a, b) => a.date - b.date);
-  
-  // Build Price Index (Map: YYYY-MM -> { price, date })
-  const priceMap = new Map<string, { price: number, date: number }>();
-  let currentPrice = 100;
-  const historical: { date: Date, price: number }[] = [];
-
-  const getKey = (ts: number) => {
-      const d = new Date(ts);
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-  };
-
-  for (const point of sortedData) {
-      currentPrice *= (1 + point.nominalReturn / 100);
-      priceMap.set(getKey(point.date), { price: currentPrice, date: point.date });
-      historical.push({ date: new Date(point.date), price: currentPrice });
-  }
-
-  const latestPoint = sortedData[sortedData.length - 1];
-  const latestPrice = currentPrice;
-  
-  const getChange = (months: number) => {
-      const d = new Date(latestPoint.date);
-      d.setDate(1); // Set to 1st of month to avoid overflow when subtracting months from 31st
-      d.setMonth(d.getMonth() - months);
-      const base = priceMap.get(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
-      return base ? { pct: latestPrice / base.price - 1, date: base.date } : undefined;
-  };
-
-  const [chg1m, chg3m, chg1y, chg3y, chg5y, chg10y] = [1, 3, 12, 36, 60, 120].map(getChange);
-
-  // YTD
-  const lastYear = new Date(latestPoint.date).getFullYear();
-  const currYear = new Date().getFullYear();
-  let chgYtd: { pct: number, date: number } | undefined;
-  
-  if (lastYear < currYear) {
-      chgYtd = { pct: 0, date: new Date(currYear, 0, 1).getTime() };
-  } else {
-      const base = priceMap.get(`${lastYear - 1}-12`) || (() => {
-          const first = sortedData.find(d => new Date(d.date).getFullYear() === lastYear);
-          if (!first) return undefined;
-          const startPrice = priceMap.get(getKey(first.date))!.price / (1 + first.nominalReturn / 100);
-          return { price: startPrice, date: first.date };
-      })();
-      if (base) chgYtd = { pct: latestPrice / base.price - 1, date: base.date };
-  }
-
-  // Max
-  const first = sortedData[0];
-  const startPrice = priceMap.get(getKey(first.date))!.price / (1 + first.nominalReturn / 100);
-  const chgMax = { pct: latestPrice / startPrice - 1, date: first.date };
-
-  const tickerData: TickerData = {
-    ticker: String(fundId),
-    numericId: fundId,
-    exchange: Exchange.PENSION,
-    price: latestPrice,
-    ...(chg1m && { changePct1m: chg1m.pct, changeDate1m: new Date(chg1m.date) }),
-    ...(chg3m && { changePct3m: chg3m.pct, changeDate3m: new Date(chg3m.date) }),
-    ...(chgYtd && { changePctYtd: chgYtd.pct, changeDateYtd: new Date(chgYtd.date) }),
-    ...(chg1y && { changePct1y: chg1y.pct, changeDate1y: new Date(chg1y.date) }),
-    ...(chg3y && { changePct3y: chg3y.pct, changeDate3y: new Date(chg3y.date) }),
-    ...(chg5y && { changePct5y: chg5y.pct, changeDate5y: new Date(chg5y.date) }),
-    ...(chg10y && { changePct10y: chg10y.pct, changeDate10y: new Date(chg10y.date) }),
-    ...(chgMax && { changePctMax: chgMax.pct, changeDateMax: new Date(chgMax.date) }),
-    timestamp: new Date(latestPoint.date),
-    currency: 'ILS', // Could also be 'ILA', doesn't matter due to lack of real price
-    name: fundName,
-    nameHe: fundName,
-    source: 'Pensyanet',
-    historical,
-  };
-  return tickerData;
+  return calculateTickerDataFromFundHistory(fundData, Exchange.PENSION, 'Pensyanet');
 }

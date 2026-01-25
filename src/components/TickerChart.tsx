@@ -4,9 +4,7 @@ import { formatPrice, formatPercent } from '../lib/currency';
 import { Paper, Typography, Box } from '@mui/material';
 import { useTheme } from '@mui/material/styles';import { useState, useEffect, useCallback, useMemo } from 'react';
 
-const yAxisTickFormatter = (tick: number) => {
-    return formatPercent(tick);
-};
+
 
 interface TickerChartProps {
     data: { date: Date; price: number }[];
@@ -155,6 +153,22 @@ export function TickerChart({ data, currency }: TickerChartProps) {
         }));
     }, [displayData]);
 
+    const { yMin, yMax } = useMemo(() => {
+        if (!percentData || percentData.length === 0) return { yMin: 0, yMax: 0 };
+        const vals = percentData.map(p => p.yValue);
+        return { yMin: Math.min(...vals), yMax: Math.max(...vals) };
+    }, [percentData]);
+
+    const formatYAxis = useCallback((tick: number) => {
+        const range = yMax - yMin;
+        const decimals = range > 0.1 ? 0 : 1; 
+        return '\u200E' + new Intl.NumberFormat(undefined, {
+            style: 'percent',
+            minimumFractionDigits: 0,
+            maximumFractionDigits: decimals,
+        }).format(tick);
+    }, [yMin, yMax]);
+
     const findClosestPoint = useCallback((date: number) => {
         const data = percentData;
         if (!data || data.length === 0) return null;
@@ -240,8 +254,6 @@ export function TickerChart({ data, currency }: TickerChartProps) {
     const isUp = displayData[displayData.length - 1].price >= basePrice;
     const chartColor = isUp ? theme.palette.success.main : theme.palette.error.main;
 
-    const yMax = Math.max(...percentData.map(p => p.yValue));
-    const yMin = Math.min(...percentData.map(p => p.yValue));
     const xMin = percentData[0].date.getTime();
     const xMax = percentData[percentData.length - 1].date.getTime();
 
@@ -296,7 +308,7 @@ export function TickerChart({ data, currency }: TickerChartProps) {
                     />
                     <YAxis
                         orientation="right"
-                        tickFormatter={yAxisTickFormatter}
+                        tickFormatter={formatYAxis}
                         width={50}
                         tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
                         dx={3}
