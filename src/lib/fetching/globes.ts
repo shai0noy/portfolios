@@ -246,8 +246,8 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
       currency,
       exchange: exchangeRes,
       changePct1d,
-      changeDate1d: effectiveTimestamp,
-      timestamp: effectiveTimestamp,
+      changeDate1d: new Date(effectiveTimestamp),
+      timestamp: new Date(effectiveTimestamp),
       sector: undefined,
       changePctYtd,
       changePctRecent,
@@ -261,9 +261,9 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
       ticker: tickerSymbol,
       numericId: securityId || null,
       source: 'Globes',
-      globesInstrumentId: globesInstrumentId || undefined,
+      globesInstrumentId: globesInstrumentId ? globesInstrumentId : undefined,
       tradeTimeStatus,
-      globesTypeHe
+      globesTypeHe: globesTypeHe || undefined
     };
 
     tickerDataCache.set(cacheKey, { data: tickerData, timestamp: now });

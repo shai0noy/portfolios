@@ -99,7 +99,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
         fetchTickerHistory(ticker, exchange, undefined, true)
       ]);
       setHistoricalData(historyResponse?.historical || []);
-      setData(prev => ({ ...prev, dividends: historyResponse?.dividends, splits: historyResponse?.splits }));
+      setData((prev: any) => ({ ...prev, dividends: historyResponse?.dividends, splits: historyResponse?.splits }));
     }
     setRefreshing(false);
   };
@@ -150,7 +150,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
       ]);
 
       setHoldingData(holding);
-      setData(prev => ({
+      setData((prev: any) => ({
         ...prev,
         ...tickerData,
         dividends: tickerData?.dividends || prev?.dividends,
@@ -181,7 +181,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
     if (ticker && exchange) {
       fetchTickerHistory(ticker, exchange).then(historyResponse => {
         setHistoricalData(historyResponse?.historical || []);
-        setData(prev => ({ ...prev, dividends: historyResponse?.dividends, splits: historyResponse?.splits }));
+        setData((prev: any) => ({ ...prev, dividends: historyResponse?.dividends, splits: historyResponse?.splits }));
       });
     }
   }, [fetchData, ticker, exchange]);
@@ -294,7 +294,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   // Robustly handle timestamp regardless of its source type (Date, string, or number)
   const rawTimestamp = data?.timestamp || sheetRebuildTime;
   const dataTimestamp = rawTimestamp ? new Date(rawTimestamp) : null;
-  const lastUpdated = formatTimestamp(dataTimestamp);
+  const lastUpdated = formatTimestamp(dataTimestamp || undefined);
   const isStale = dataTimestamp ? (Date.now() - dataTimestamp.getTime()) > 1000 * 60 * 60 * 24 * 3 : false; // > 3 days
 
   const resolvedName = data?.name || holdingData?.name || initialName;
@@ -481,7 +481,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
           <>
             {isStale && (
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-                {t('Data is from', 'הנתונים מתאריך')}: {formatDate(dataTimestamp)}
+                {t('Data is from', 'הנתונים מתאריך')}: {formatDate(dataTimestamp || undefined)}
               </Typography>
             )}
             <Typography variant="subtitle2" gutterBottom>{t('Performance', 'ביצועים')}</Typography>
@@ -528,7 +528,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                   <ToggleButtonGroup
                     value={chartRange}
                     exclusive
-                    onChange={(e, newRange) => { if (newRange) setChartRange(newRange); }}
+                    onChange={(_, newRange) => { if (newRange) setChartRange(newRange); }}
                     aria-label="chart range"
                     size="small"
                   >

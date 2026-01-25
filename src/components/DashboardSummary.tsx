@@ -257,7 +257,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
   const { t, isRtl } = useLanguage();
   
   const [activeStep, setActiveStep] = useState(0);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isManualRef = useRef(false);
 
   // Timer logic

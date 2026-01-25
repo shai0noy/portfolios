@@ -126,8 +126,66 @@ export async function fetchPensyanetFund(
   }
 }
 
-const LIST_CACHE_KEY = 'pensyanet_tickers_list_v1';
+const LIST_CACHE_KEY = 'pensyanet_tickers_list_v4';
 const LIST_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+interface CompactTicker {
+  i: number; // id
+  n: string; // name
+  ft: string; // fundType
+  mf?: number; // managementFee
+  df?: number; // depositFee
+  x?: Record<string, any>; // Extras
+}
+
+function compressTickers(tickers: TickerListItem[]): CompactTicker[] {
+  const KNOWN_KEYS = new Set(['fundId', 'managingCompany', 'fundType', 'managementFee', 'depositFee']);
+  
+  return tickers.map(t => {
+    const pInfo = t.providentInfo;
+    const extras: Record<string, any> = {};
+    
+    if (pInfo) {
+      Object.keys(pInfo).forEach(key => {
+        if (!KNOWN_KEYS.has(key)) {
+          console.warn(`[Pensyanet] Unexpected key in ProvidentInfo during compression: ${key} (Value: ${(pInfo as any)[key]}) for ticker ${t.symbol}`);
+          extras[key] = (pInfo as any)[key];
+        }
+      });
+    }
+
+    const compressed: CompactTicker = {
+      i: pInfo?.fundId || parseInt(t.symbol, 10),
+      n: t.nameHe || t.nameEn,
+      ft: pInfo?.fundType || '',
+      mf: pInfo?.managementFee,
+      df: pInfo?.depositFee,
+    };
+
+    if (Object.keys(extras).length > 0) {
+      compressed.x = extras;
+    }
+    
+    return compressed;
+  });
+}
+
+function decompressTickers(compact: CompactTicker[]): TickerListItem[] {
+  return compact.map(c => ({
+    symbol: String(c.i),
+    exchange: Exchange.PENSION,
+    nameHe: c.n,
+    nameEn: c.n,
+    globesTypeCode: 'pension_fund',
+    providentInfo: {
+      fundId: c.i,
+      fundType: c.ft,
+      managementFee: c.mf,
+      depositFee: c.df,
+      ...(c.x || {})
+    }
+  }));
+}
 
 export async function fetchPensyanetTickers(signal?: AbortSignal, forceRefresh = false): Promise<TickerListItem[]> {
   const now = Date.now();
@@ -140,7 +198,7 @@ export async function fetchPensyanetTickers(signal?: AbortSignal, forceRefresh =
         const cached = JSON.parse(cachedRaw);
         if (now - cached.timestamp < LIST_CACHE_TTL) {
           console.log('[Pensyanet] Using cached tickers list');
-          return cached.data;
+          return decompressTickers(cached.data);
         }
       }
     } catch (e) {
@@ -181,7 +239,6 @@ export async function fetchPensyanetTickers(signal?: AbortSignal, forceRefresh =
           globesTypeCode: 'pension_fund',
           providentInfo: {
             fundId: id,
-            managingCompany: getText('SHM_HEVRA_MENAHELET'),
             fundType: getText('SUG_KRN'),
             managementFee: parseFee(getText('SHIUR_D_NIHUL_AHARON_NCHASIM')),
             depositFee: parseFee(getText('SHIUR_D_NIHUL_AHARON_HAFKADOT')),
@@ -192,7 +249,8 @@ export async function fetchPensyanetTickers(signal?: AbortSignal, forceRefresh =
 
     const tickers = Array.from(tickersMap.values());
     try {
-      localStorage.setItem(LIST_CACHE_KEY, JSON.stringify({ timestamp: now, data: tickers }));
+      const compressed = compressTickers(tickers);
+      localStorage.setItem(LIST_CACHE_KEY, JSON.stringify({ timestamp: now, data: compressed }));
     } catch (e) {
       console.warn('[Pensyanet] Cache write error', e);
     }
@@ -285,15 +343,15 @@ export async function fetchPensyanetQuote(
     numericId: fundId,
     exchange: Exchange.PENSION,
     price: latestPrice,
-    ...(chg1m && { changePct1m: chg1m.pct, changeDate1m: chg1m.date }),
-    ...(chg3m && { changePct3m: chg3m.pct, changeDate3m: chg3m.date }),
-    ...(chgYtd && { changePctYtd: chgYtd.pct, changeDateYtd: chgYtd.date }),
-    ...(chg1y && { changePct1y: chg1y.pct, changeDate1y: chg1y.date }),
-    ...(chg3y && { changePct3y: chg3y.pct, changeDate3y: chg3y.date }),
-    ...(chg5y && { changePct5y: chg5y.pct, changeDate5y: chg5y.date }),
-    ...(chg10y && { changePct10y: chg10y.pct, changeDate10y: chg10y.date }),
-    ...(chgMax && { changePctMax: chgMax.pct, changeDateMax: chgMax.date }),
-    timestamp: latestPoint.date,
+    ...(chg1m && { changePct1m: chg1m.pct, changeDate1m: new Date(chg1m.date) }),
+    ...(chg3m && { changePct3m: chg3m.pct, changeDate3m: new Date(chg3m.date) }),
+    ...(chgYtd && { changePctYtd: chgYtd.pct, changeDateYtd: new Date(chgYtd.date) }),
+    ...(chg1y && { changePct1y: chg1y.pct, changeDate1y: new Date(chg1y.date) }),
+    ...(chg3y && { changePct3y: chg3y.pct, changeDate3y: new Date(chg3y.date) }),
+    ...(chg5y && { changePct5y: chg5y.pct, changeDate5y: new Date(chg5y.date) }),
+    ...(chg10y && { changePct10y: chg10y.pct, changeDate10y: new Date(chg10y.date) }),
+    ...(chgMax && { changePctMax: chgMax.pct, changeDateMax: new Date(chgMax.date) }),
+    timestamp: new Date(latestPoint.date),
     currency: 'ILS', // Could also be 'ILA', doesn't matter due to lack of real price
     name: fundName,
     nameHe: fundName,

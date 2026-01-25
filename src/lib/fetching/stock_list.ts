@@ -195,13 +195,13 @@ export async function fetchAllTickers(
       exchange: exchange,
       taseInfo: {
         ...globesTicker.taseInfo!,
-        taseType: config[globesTicker.type]?.displayName || 'Unknown',
+        taseType: config[globesTicker.globesTypeCode || '']?.displayName || 'Unknown',
       }
    }));
 
    // Group by type
    const grouped = allTickers.reduce((acc, ticker) => {
-    const type = ticker.type || 'unknown';
+    const type = ticker.globesTypeCode || 'unknown';
     if (!acc[type]) {
       acc[type] = [];
     }
@@ -248,7 +248,7 @@ async function fetchTaseTickers(
       }
 
       const taseType = taseSecurityTypeMap.get(security.securityFullTypeCode);
-      const globesType = globesTicker?.type  || (globesTicker ? getGlobesTypeFromTaseType(globesTicker.type) : undefined);
+      const globesType = globesTicker?.globesTypeCode  || (globesTicker ? getGlobesTypeFromTaseType(globesTicker.globesTypeCode || '') : undefined);
  
       allTickers.push({
           // Base Data
@@ -285,7 +285,7 @@ async function fetchTaseTickers(
             taseInfo: {
                 ...globesTicker.taseInfo!,
                 companyName: globesTicker.nameEn, // Fallback to globes name
-                taseType: DEFAULT_SECURITY_TYPE_CONFIG[globesTicker.type]?.displayName || 'Unknown', // Use globes type as a fallback
+                taseType: DEFAULT_SECURITY_TYPE_CONFIG[globesTicker.globesTypeCode || '']?.displayName || 'Unknown', // Use globes type as a fallback
             }
         });
       }
@@ -293,7 +293,7 @@ async function fetchTaseTickers(
   
   // 6. Group all resulting tickers by type for the final output
   const grouped = allTickers.reduce((acc, ticker) => {
-    const type = ticker.type || 'unknown';
+    const type = ticker.globesTypeCode || 'unknown';
     if (!acc[type]) {
       acc[type] = [];
     }

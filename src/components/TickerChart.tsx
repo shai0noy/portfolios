@@ -13,7 +13,7 @@ interface TickerChartProps {
     currency: string;
 }
 
-const CustomTooltip = ({ active, payload, label, currency, t, basePrice }: any) => {
+const CustomTooltip = ({ active, payload, currency, t, basePrice }: any) => {
     if (active && payload && payload.length) {
         const point = payload[0].payload;
         const date = point.date; // It's already a Date object
@@ -336,10 +336,10 @@ export function TickerChart({ data, currency }: TickerChartProps) {
                     )}
 
                     {startPoint && (
-                        <ReferenceDot x={startPoint.date.getTime()} y={startPoint.yValue} r={6} fill={chartColor} stroke="white" strokeWidth={2} isFront={true} />
+                        <ReferenceDot x={startPoint.date.getTime()} y={startPoint.yValue} r={6} fill={chartColor} stroke="white" strokeWidth={2} />
                     )}
                     {endPoint && (
-                        <ReferenceDot x={endPoint.date.getTime()} y={endPoint.yValue} r={6} fill={chartColor} stroke="white" strokeWidth={2} isFront={true} />
+                        <ReferenceDot x={endPoint.date.getTime()} y={endPoint.yValue} r={6} fill={chartColor} stroke="white" strokeWidth={2} />
                     )}
                 </AreaChart>
             </ResponsiveContainer>

@@ -89,7 +89,6 @@ export interface TaseInfo {
 
 export interface ProvidentInfo {
   fundId: number;
-  managingCompany: string;
   fundType?: string; // SUG_KUPA / SUG_KRN
   specialization?: string; // HITMAHUT_RASHIT
   subSpecialization?: string; // HITMAHUT_MISHNIT
