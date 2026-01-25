@@ -61,11 +61,48 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   const [sheetRebuildTime, setSheetRebuildTime] = useState<string | null>(null);
   const { t, tTry, language } = useLanguage();
 
+  const oldestDate = historicalData?.[0]?.date;
+  const now = new Date();
+  
+  const availableRanges = useMemo(() => {
+    if (!oldestDate) return ['ALL'];
+    const diffTime = Math.abs(now.getTime() - oldestDate.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+    const diffMonths = diffDays / 30;
+    const diffYears = diffDays / 365;
+
+    const ranges = [];
+    if (diffMonths >= 1) ranges.push('1M');
+    if (diffMonths >= 3) ranges.push('3M');
+    if (diffMonths >= 6) ranges.push('6M');
+    
+    // YTD is special: show if data starts before Jan 1st of this year
+    if (oldestDate.getFullYear() < now.getFullYear()) ranges.push('YTD');
+
+    if (diffYears >= 1) ranges.push('1Y');
+    if (diffYears >= 3) ranges.push('3Y');
+    if (diffYears >= 5) ranges.push('5Y');
+    
+    ranges.push('ALL');
+    return ranges;
+  }, [oldestDate]);
+
+  const maxLabel = useMemo(() => {
+      if (!oldestDate) return 'Max';
+      const diffTime = Math.abs(now.getTime() - oldestDate.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      const diffYears = diffDays / 365;
+      
+      if (diffYears >= 1) return `Max (${diffYears.toFixed(1)}Y)`;
+      const diffMonths = diffDays / 30;
+      if (diffMonths >= 1) return `Max (${diffMonths.toFixed(1)}M)`;
+      return `Max (${diffDays}D)`;
+  }, [oldestDate]);
+
   const displayHistory = useMemo(() => {
     if (!historicalData) return [];
     if (chartRange === 'ALL') return historicalData;
 
-    const now = new Date();
     const startDate = new Date();
     startDate.setHours(0, 0, 0, 0); // Normalize time
 
@@ -599,14 +636,11 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                     aria-label="chart range"
                     size="small"
                   >
-                    <ToggleButton value="1M" aria-label="1 month">1M</ToggleButton>
-                    <ToggleButton value="3M" aria-label="3 months">3M</ToggleButton>
-                    <ToggleButton value="6M" aria-label="6 months">6M</ToggleButton>
-                    <ToggleButton value="YTD" aria-label="year to date">YTD</ToggleButton>
-                    <ToggleButton value="1Y" aria-label="1 year">1Y</ToggleButton>
-                    <ToggleButton value="3Y" aria-label="3 years">3Y</ToggleButton>
-                    <ToggleButton value="5Y" aria-label="5 years">5Y</ToggleButton>
-                    <ToggleButton value="ALL" aria-label="all time">ALL</ToggleButton>
+                    {availableRanges.map(range => (
+                       <ToggleButton key={range} value={range} aria-label={range}>
+                         {range === 'ALL' ? maxLabel : range}
+                       </ToggleButton>
+                    ))}
                   </ToggleButtonGroup>
                 </Box>
                 <TickerChart data={displayHistory} currency={displayData.currency} />
