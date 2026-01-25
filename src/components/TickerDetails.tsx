@@ -63,26 +63,40 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
 
   const displayHistory = useMemo(() => {
     if (!historicalData) return [];
+    if (chartRange === 'ALL') return historicalData;
+
     const now = new Date();
-    let startDate = new Date();
+    const startDate = new Date();
+    startDate.setHours(0, 0, 0, 0); // Normalize time
 
     switch (chartRange) {
       case '1M':
         startDate.setMonth(now.getMonth() - 1);
+        startDate.setDate(startDate.getDate() - 5); // Buffer
+        break;
+      case '3M':
+        startDate.setMonth(now.getMonth() - 3);
+        startDate.setDate(startDate.getDate() - 5);
         break;
       case '6M':
         startDate.setMonth(now.getMonth() - 6);
+        startDate.setDate(startDate.getDate() - 5);
         break;
       case 'YTD':
-        startDate = new Date(now.getFullYear(), 0, 1);
+        startDate.setFullYear(now.getFullYear(), 0, 1);
         break;
       case '1Y':
         startDate.setFullYear(now.getFullYear() - 1);
+        startDate.setDate(1); // Snap to start of month to catch monthly data
+        break;
+      case '3Y':
+        startDate.setFullYear(now.getFullYear() - 3);
+        startDate.setDate(1);
         break;
       case '5Y':
         startDate.setFullYear(now.getFullYear() - 5);
+        startDate.setDate(1);
         break;
-      case 'ALL':
       default:
         return historicalData;
     }
@@ -586,9 +600,11 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                     size="small"
                   >
                     <ToggleButton value="1M" aria-label="1 month">1M</ToggleButton>
+                    <ToggleButton value="3M" aria-label="3 months">3M</ToggleButton>
                     <ToggleButton value="6M" aria-label="6 months">6M</ToggleButton>
                     <ToggleButton value="YTD" aria-label="year to date">YTD</ToggleButton>
                     <ToggleButton value="1Y" aria-label="1 year">1Y</ToggleButton>
+                    <ToggleButton value="3Y" aria-label="3 years">3Y</ToggleButton>
                     <ToggleButton value="5Y" aria-label="5 years">5Y</ToggleButton>
                     <ToggleButton value="ALL" aria-label="all time">ALL</ToggleButton>
                   </ToggleButtonGroup>

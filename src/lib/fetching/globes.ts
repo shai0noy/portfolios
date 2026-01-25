@@ -275,9 +275,9 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
     const recentChangeDays = 7;
     const changePct1m = calculatePctChange(last, parseFloat(getText('LastMonthClosePrice') || '0'));
     const changePct3m = calculatePctChange(last, parseFloat(getText('Last3MonthsAgoClosePrice') || '0'));
-    const changePct1y = parseFloat(getText('ChangeFromLastYear') || '0');
+    const changePct1y = undefined;
     const changePct3y = calculatePctChange(last, parseFloat(getText('Last3YearsAgoClosePrice') || '0'));
-    const changePctYtd = calculatePctChange(last, parseFloat(getText('LastYearClosePrice') || '0'));
+    const changePctYtd = parseFloat(getText('ChangeFromLastYear') || '0') / 100;
 
     const parsedTimestamp = timestamp ? new Date(timestamp).valueOf() : NaN;
     const effectiveTimestamp = !isNaN(parsedTimestamp) ? parsedTimestamp : now;

@@ -122,8 +122,9 @@ export async function fetchYahooTickerData(ticker: string, exchange: Exchange, s
       let changeDateYtd: Date | undefined;
 
       const closes = result.indicators?.quote?.[0]?.close || [];
+      const adjCloses = result.indicators?.adjclose?.[0]?.adjclose || [];
       const timestamps = result.timestamp || [];
-      let historical: { date: Date, price: number }[] | undefined = undefined;
+      let historical: { date: Date, price: number, adjClose?: number }[] | undefined = undefined;
       let dividends: TickerData['dividends'] = undefined;
       let splits: TickerData['splits'] = undefined;
 
@@ -145,10 +146,17 @@ export async function fetchYahooTickerData(ticker: string, exchange: Exchange, s
 
       if (closes.length > 0 && timestamps.length === closes.length) {
         // Filter out nulls (sometimes Yahoo returns nulls) and map to objects
-        const points = timestamps.map((t: number, i: number) => ({ time: t, close: closes[i] }))
-          .filter((p: any) => p.close != null && p.time != null);
+        const points = timestamps.map((t: number, i: number) => ({ 
+            time: t, 
+            close: closes[i],
+            adjClose: adjCloses[i] 
+        })).filter((p: any) => p.close != null && p.time != null);
 
-        historical = points.map((p: { time: number; close: number }) => ({ date: new Date(p.time * 1000), price: p.close }));
+        historical = points.map((p: { time: number; close: number, adjClose?: number }) => ({ 
+            date: new Date(p.time * 1000), 
+            price: p.close,
+            adjClose: p.adjClose
+        }));
 
         if (points.length > 0) {
           const lastPoint = points[points.length - 1];
@@ -298,12 +306,12 @@ export async function fetchYahooTickerData(ticker: string, exchange: Exchange, s
         volume,
       };
 
-    await saveToCache(cacheKey, tickerData, now);
-    return tickerData;
+      await saveToCache(cacheKey, tickerData, now);
+      return tickerData;
 
-  } catch (error) {
-    console.error('Error parsing Yahoo data', error);
-    return null;
-  }
+    } catch (error) {
+      console.error('Error parsing Yahoo data', error);
+      return null;
+    }
   });
 }

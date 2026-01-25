@@ -7,7 +7,7 @@ Hide chart duration buttons when ther's not enough data. Label 'max' according t
 Show sector and type in search results (cuurently showing type form code, need to reconcile..)
 Show ticker type dash
 Show holdings of funds
-Show trading volume in TickerDetails
+DONE: Show trading volume in TickerDetails
 Comperasion chars + allow metrics: r^2, beta
 דמי ניהול - להציג + לחשב בגמל וכו'
 Div is broken again!
@@ -17,6 +17,10 @@ refactor code....
 Display sector form gemel/pension
 DONE?: Crypto not showing charts longer than 1y
 move currency selector and "back to all" buttons in dashbaord 
+Consider if request deduping is needed in places (cuurently in yahoo)
+in search results - sort stocks, etfs, then bonds
+In search resutls - also prefer matches of shorter name (when match is by name)
+When showing http://localhost:5173/portfolios/ticker/TASE/123456 - Try to resolve ticker (e.g. LUMI) and update the URL and data (load merged data from tase, yahoo)
 
 Discovery/selling points page
 Cloudflare throttling and force cache

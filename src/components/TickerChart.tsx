@@ -7,7 +7,7 @@ import { useTheme } from '@mui/material/styles';import { useState, useEffect, us
 
 
 interface TickerChartProps {
-    data: { date: Date; price: number }[];
+    data: { date: Date; price: number; adjClose?: number }[];
     currency: string;
 }
 
@@ -16,14 +16,15 @@ const CustomTooltip = ({ active, payload, currency, t, basePrice }: any) => {
         const point = payload[0].payload;
         const date = point.date; // It's already a Date object
         const dateStr = date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-        const price = point.price;
-        const percentChange = basePrice ? (price / basePrice - 1) : 0;
+        
+        const val = point.adjClose || point.price;
+        const percentChange = basePrice ? (val / basePrice - 1) : 0;
 
         return (
             <Paper elevation={3} sx={{ padding: '10px' }}>
                 <Typography variant="caption" display="block">{dateStr}</Typography>
                 <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                    {formatPrice(price, currency, undefined, t)}
+                    {formatPrice(val, currency, undefined, t)}
                 </Typography>
                 <Typography variant="body2" sx={{ color: percentChange >= 0 ? 'success.main' : 'error.main' }}>
                     {formatPercent(percentChange)}
@@ -40,8 +41,11 @@ const SelectionSummary = ({ startPoint, endPoint, currency, t }: any) => {
     const theme = useTheme();
     const isDarkMode = theme.palette.mode === 'dark';
 
-    const priceChange = endPoint.price - startPoint.price;
-    const percentChange = (endPoint.price / startPoint.price) - 1;
+    const startVal = startPoint.adjClose || startPoint.price;
+    const endVal = endPoint.adjClose || endPoint.price;
+
+    const priceChange = endVal - startVal;
+    const percentChange = (endVal / startVal) - 1;
     const duration = Math.abs(endPoint.date.getTime() - startPoint.date.getTime()) / (1000 * 60 * 60 * 24);
     const isPositive = percentChange >= 0;
     const color = isPositive ? 'success.main' : 'error.main';
@@ -146,11 +150,18 @@ export function TickerChart({ data, currency }: TickerChartProps) {
     // Move hooks above the conditional return
     const percentData = useMemo(() => {
         if (!displayData || displayData.length < 1) return [];
-        const basePrice = displayData[0].price;
-        return displayData.map(p => ({
-            ...p,
-            yValue: basePrice > 0 ? (p.price / basePrice - 1) : 0,
-        }));
+        // Use adjClose if available, otherwise price. 
+        // Important: Must use consistent field for base and current to get correct % change.
+        const first = displayData[0];
+        const basePrice = first.adjClose || first.price;
+        
+        return displayData.map(p => {
+            const val = p.adjClose || p.price;
+            return {
+                ...p,
+                yValue: basePrice > 0 ? (val / basePrice - 1) : 0,
+            };
+        });
     }, [displayData]);
 
     const { yMin, yMax } = useMemo(() => {
@@ -250,8 +261,11 @@ export function TickerChart({ data, currency }: TickerChartProps) {
     }
 
     // Calculations (Likeness & Gradient Offset)
-    const basePrice = displayData[0].price;
-    const isUp = displayData[displayData.length - 1].price >= basePrice;
+    const first = displayData[0];
+    const basePrice = first.adjClose || first.price;
+    const last = displayData[displayData.length - 1];
+    const lastPrice = last.adjClose || last.price;
+    const isUp = lastPrice >= basePrice;
     const chartColor = isUp ? theme.palette.success.main : theme.palette.error.main;
 
     const xMin = percentData[0].date.getTime();
