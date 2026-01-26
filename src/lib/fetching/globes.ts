@@ -1,5 +1,6 @@
 // src/lib/fetching/globes.ts
 import { CACHE_TTL, saveToCache, loadFromCache, TASE_CACHE_TTL } from './utils/cache';
+import { deduplicateRequest } from './utils/request_deduplicator';
 import { fetchXml, parseXmlString, extractDataFromXmlNS } from './utils/xml_parser';
 import type { TickerData } from './types';
 import { Exchange, parseExchange, Currency } from '../types';
@@ -207,80 +208,83 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
   }
 
   const globesApiUrl = `https://portfolios.noy-shai.workers.dev/?apiId=globes_data&exchange=${requestedExchangeCode}&ticker=${identifier}`;
-  let text;
-  try {
-    text = await fetchXml(globesApiUrl, signal);
-  } catch {
-    return null;
-  }
 
-  try {
-    const xmlDoc = parseXmlString(text);
-    const instrument = xmlDoc.getElementsByTagNameNS(GLOBES_API_NAMESPACE, 'Instrument')[0];
-    if (!instrument) {
-      console.log(`Globes: No instrument found for ${identifier}`);
+  return deduplicateRequest(cacheKey, async () => {
+    let text;
+    try {
+      text = await fetchXml(globesApiUrl, signal);
+    } catch {
       return null;
     }
 
-    const common = extractCommonGlobesData(instrument);
-    const tradeTimeStatus = parseTradeTimeStatus(instrument);
-    const { currency, baseCurrency } = parseCurrencyData(instrument, identifier);
-
-    const last = parseFloat(getText(instrument, 'last') || '0');
-    const openPrice = parseFloat(getText(instrument, 'openPrice') || '0');
-    const volume = parseVolume(instrument, last, baseCurrency, currency);
-
-    // Exchange parsing
-    const rawExchange = getText(instrument, 'exchange');
-    let exchangeRes = exchange;
-    if (rawExchange) {
-      try { exchangeRes = parseExchange(rawExchange); }
-      catch (e) { console.warn(`Globes: Unknown exchange '${rawExchange}', keeping requested ${exchange}.`); }
-    }
-
-    // Percentage Change Calculation
-    let percentageChange = parseFloat(getText(instrument, 'percentageChange') || '0');
-    if (percentageChange === 0) {
-      const changeVal = parseFloat(getText(instrument, 'change') || '0');
-      if (changeVal !== 0 && last !== 0) {
-        const prevClose = last - changeVal;
-        if (prevClose !== 0) percentageChange = (changeVal / prevClose) * 100;
+    try {
+      const xmlDoc = parseXmlString(text);
+      const instrument = xmlDoc.getElementsByTagNameNS(GLOBES_API_NAMESPACE, 'Instrument')[0];
+      if (!instrument) {
+        console.log(`Globes: No instrument found for ${identifier}`);
+        return null;
       }
+
+      const common = extractCommonGlobesData(instrument);
+      const tradeTimeStatus = parseTradeTimeStatus(instrument);
+      const { currency, baseCurrency } = parseCurrencyData(instrument, identifier);
+
+      const last = parseFloat(getText(instrument, 'last') || '0');
+      const openPrice = parseFloat(getText(instrument, 'openPrice') || '0');
+      const volume = parseVolume(instrument, last, baseCurrency, currency);
+
+      // Exchange parsing
+      const rawExchange = getText(instrument, 'exchange');
+      let exchangeRes = exchange;
+      if (rawExchange) {
+        try { exchangeRes = parseExchange(rawExchange); }
+        catch (e) { console.warn(`Globes: Unknown exchange '${rawExchange}', keeping requested ${exchange}.`); }
+      }
+
+      // Percentage Change Calculation
+      let percentageChange = parseFloat(getText(instrument, 'percentageChange') || '0');
+      if (percentageChange === 0) {
+        const changeVal = parseFloat(getText(instrument, 'change') || '0');
+        if (changeVal !== 0 && last !== 0) {
+          const prevClose = last - changeVal;
+          if (prevClose !== 0) percentageChange = (changeVal / prevClose) * 100;
+        }
+      }
+
+      const timestampStr = getText(instrument, 'timestamp');
+      const parsedTimestamp = timestampStr ? new Date(timestampStr).valueOf() : NaN;
+      const effectiveTimestamp = !isNaN(parsedTimestamp) ? parsedTimestamp : now;
+
+      const tickerData: TickerData = {
+        price: last,
+        openPrice,
+        name: common.nameEn || undefined,
+        nameHe: common.nameHe || undefined,
+        currency,
+        exchange: exchangeRes,
+        changePct1d: percentageChange / 100,
+        timestamp: new Date(effectiveTimestamp),
+        changePctYtd: parseFloat(getText(instrument, 'ChangeFromLastYear') || '0') / 100,
+        changePctRecent: calculateChangePct(last, getText(instrument, 'LastWeekClosePrice')),
+        recentChangeDays: 7,
+        changePct1m: calculateChangePct(last, getText(instrument, 'LastMonthClosePrice')),
+        changePct3m: calculateChangePct(last, getText(instrument, 'Last3MonthsAgoClosePrice')),
+        changePct3y: calculateChangePct(last, getText(instrument, 'Last3YearsAgoClosePrice')),
+        ticker: tickerSymbol,
+        numericId: securityId || null,
+        source: 'Globes',
+        globesInstrumentId: common.instrumentId || undefined,
+        tradeTimeStatus,
+        globesTypeHe: common.instrumentTypeHe || undefined,
+        volume
+      };
+
+      saveToCache(cacheKey, tickerData, now);
+      return tickerData;
+
+    } catch (error) {
+      console.error(`Failed to parse ticker data for ${identifier}:`, error);
+      return null;
     }
-
-    const timestampStr = getText(instrument, 'timestamp');
-    const parsedTimestamp = timestampStr ? new Date(timestampStr).valueOf() : NaN;
-    const effectiveTimestamp = !isNaN(parsedTimestamp) ? parsedTimestamp : now;
-
-    const tickerData: TickerData = {
-      price: last,
-      openPrice,
-      name: common.nameEn || undefined,
-      nameHe: common.nameHe || undefined,
-      currency,
-      exchange: exchangeRes,
-      changePct1d: percentageChange / 100,
-      timestamp: new Date(effectiveTimestamp),
-      changePctYtd: parseFloat(getText(instrument, 'ChangeFromLastYear') || '0') / 100,
-      changePctRecent: calculateChangePct(last, getText(instrument, 'LastWeekClosePrice')),
-      recentChangeDays: 7,
-      changePct1m: calculateChangePct(last, getText(instrument, 'LastMonthClosePrice')),
-      changePct3m: calculateChangePct(last, getText(instrument, 'Last3MonthsAgoClosePrice')),
-      changePct3y: calculateChangePct(last, getText(instrument, 'Last3YearsAgoClosePrice')),
-      ticker: tickerSymbol,
-      numericId: securityId || null,
-      source: 'Globes',
-      globesInstrumentId: common.instrumentId || undefined,
-      tradeTimeStatus,
-      globesTypeHe: common.instrumentTypeHe || undefined,
-      volume
-    };
-
-    saveToCache(cacheKey, tickerData, now);
-    return tickerData;
-
-  } catch (error) {
-    console.error(`Failed to parse ticker data for ${identifier}:`, error);
-    return null;
-  }
+  });
 }
