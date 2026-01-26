@@ -53,6 +53,26 @@ export function getTickersDataset(signal?: AbortSignal, forceRefresh = false): P
   return tickersDatasetLoading;
 }
 
+function mergeHistory(hist1y: { date: Date; price: number }[] | undefined, histMax: { date: Date; price: number }[] | undefined) {
+  const h1 = hist1y || [];
+  const hMax = histMax || [];
+
+  if (h1.length === 0 && hMax.length === 0) return undefined;
+  if (h1.length === 0) return hMax;
+  if (hMax.length === 0) return h1;
+
+  // Assume hMax covers the full range but might be lower resolution.
+  // We want to use h1 (1y daily) for the recent period and hMax for older data.
+  // Find the start date of h1
+  const h1StartDate = h1[0].date.getTime();
+  
+  // Take everything from hMax that is BEFORE h1 starts
+  const olderData = hMax.filter(p => p.date.getTime() < h1StartDate);
+  
+  const combined = [...olderData, ...h1];
+  return combined.sort((a, b) => a.date.getTime() - b.date.getTime());
+}
+
 export async function getTickerData(
   ticker: string,
   exchange: string,
@@ -103,8 +123,8 @@ export async function getTickerData(
               changeDate5y: yahooDataMax.changeDate5y,
               changePctMax: yahooDataMax.changePctMax,
               changeDateMax: yahooDataMax.changeDateMax,
-              // Use 1y historical for better immediate chart resolution (fetchTickerHistory will update with full hybrid later)
-              historical: yahooData1y.historical
+              // Use merged historical data so the chart has max range immediately
+              historical: mergeHistory(yahooData1y.historical, yahooDataMax.historical)
           };
       }
   }
@@ -162,7 +182,7 @@ export async function getTickerData(
     // Merge data: Globes data is primary, fill in missing fields from Yahoo.
     return {
       ...globesData,
-      historical: globesData.historical ?? yahooData.historical,
+      historical: globesData.historical ?? yahooData.historical, // Use the merged historical from yahooData if globes is missing it
       dividends: globesData.dividends ?? yahooData.dividends,
       splits: globesData.splits ?? yahooData.splits,
       changePct1d: globesData.changePct1d ?? yahooData.changePct1d,
@@ -229,30 +249,8 @@ export async function fetchTickerHistory(
     fetchYahooTickerData(ticker, parsedExchange, signal, false, 'max')
   ]);
 
-  const hist1y = yahooData1y?.historical || [];
-  const histMax = yahooDataMax?.historical || [];
-
-  if (hist1y.length === 0 && histMax.length === 0) {
-    return { historical: undefined, dividends: undefined, splits: undefined };
-  }
-
-  const lastDate = histMax.length > 0 ? histMax[histMax.length - 1].date : new Date();
-  const oneYearAgoTs = new Date(lastDate).setFullYear(new Date(lastDate).getFullYear() - 1);
-  
-  const olderData = histMax.filter(p => p.date.getTime() < oneYearAgoTs);
-  const recentData = hist1y.length > 0 ? hist1y : histMax.filter(p => p.date.getTime() >= oneYearAgoTs);
-  
-  const combined = [...olderData, ...recentData];
-  const uniqueMap = new Map<number, { date: Date; price: number }>();
-  
-  for (const point of combined) {
-    uniqueMap.set(point.date.getTime(), point);
-  }
-  
-  const mergedHistorical = Array.from(uniqueMap.values()).sort((a, b) => a.date.getTime() - b.date.getTime());
-
   return {
-    historical: mergedHistorical,
+    historical: mergeHistory(yahooData1y?.historical, yahooDataMax?.historical),
     dividends: yahooDataMax?.dividends,
     splits: yahooDataMax?.splits,
   };
