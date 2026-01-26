@@ -1,4 +1,5 @@
 import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, Box, Chip, CircularProgress, Tooltip, IconButton, ToggleButtonGroup, ToggleButton, Menu, MenuItem } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AddIcon from '@mui/icons-material/Add';
@@ -64,6 +65,35 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   const [comparisonLoading, setComparisonLoading] = useState<Record<string, boolean>>({});
   const [compareMenuAnchor, setCompareMenuAnchor] = useState<null | HTMLElement>(null);
   const { t, tTry, language } = useLanguage();
+  const theme = useTheme();
+
+  const EXTRA_COLORS = useMemo(() => {
+    return theme.palette.mode === 'dark'
+        ? [
+    '#5E9EFF',
+    '#FF922B',
+    '#69DB7C',
+    '#B197FC',
+    '#FF6B6B',
+    '#3BC9DB',
+    '#FCC419',
+    '#F06595',
+    '#20C997',
+    '#94D82D',
+  ]
+        : [
+    '#1864AB',
+    '#D9480F',
+    '#2B8A3E',
+    '#5F3DC4',
+    '#C92A2A',
+    '#0B7285',
+    '#E67700',
+    '#A61E4D',
+    '#087F5B',
+    '#364FC7',
+  ]
+  }, [theme.palette.mode]);
 
   const oldestDate = historicalData?.[0]?.date;
   const now = new Date();
@@ -121,6 +151,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
             setComparisonSeries(prev => [...prev, {
                 name: option.name,
                 data: historyResponse.historical,
+                color: EXTRA_COLORS[prev.length % EXTRA_COLORS.length]
             }]);
         } else {
             console.error(`Could not fetch history for ${option.name}`);
@@ -613,6 +644,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
       </DialogTitle>
 
 
+
       <DialogContent dividers>
         {loading && (
           <Box display="flex" justifyContent="center" p={5}>
@@ -691,7 +723,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                     onChange={(_, newMetric) => { if (newMetric) setChartMetric(newMetric); }}
                     aria-label="chart metric"
                     size="small"
-                  >
+                    disabled={isComparison} >
                     <ToggleButton value="percent" aria-label="percent">%</ToggleButton>
                     <ToggleButton value="price" aria-label="price">$</ToggleButton>
                   </ToggleButtonGroup>
@@ -717,7 +749,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                       ))}
                   </Menu>
                 </Box>
-                {comparisonSeries.length > 0 && (<Box display="flex" flexWrap="wrap" gap={1} sx={{ mt: 1, mb: 1 }}>{comparisonSeries.map((s) => (<Chip key={s.name} label={s.name} onDelete={() => handleRemoveComparison(s.name)} color="secondary" size="small" />))}</Box>)}
+                {comparisonSeries.length > 0 && (<Box display="flex" flexWrap="wrap" gap={1} sx={{ mt: 1, mb: 1 }}>{comparisonSeries.map((s) => (<Chip key={s.name} label={s.name} onDelete={() => handleRemoveComparison(s.name)} variant="outlined" size="small" sx={{ color: s.color, borderColor: s.color }} />))}</Box>)}
                 <TickerChart series={[ { name: resolvedName || ticker || 'Main', data: displayHistory }, ...displayComparisonSeries ]} currency={displayData.currency} mode={effectiveChartMetric} />
               </>
             )}

@@ -114,6 +114,7 @@ export async function getTickerData(
       else {
           // Merge: use 1y for recent stats/precision, max for long term
           yahooData = {
+              // TODO: Make merging logic cleaner
               ...yahooDataMax,
               ...yahooData1y,
               // Explicitly ensure long term stats come from Max
@@ -124,7 +125,9 @@ export async function getTickerData(
               changePctMax: yahooDataMax.changePctMax,
               changeDateMax: yahooDataMax.changeDateMax,
               // Use merged historical data so the chart has max range immediately
-              historical: mergeHistory(yahooData1y.historical, yahooDataMax.historical)
+              historical: mergeHistory(yahooData1y.historical, yahooDataMax.historical),
+              dividends: yahooDataMax.dividends,
+              splits: yahooDataMax.splits
           };
       }
   }

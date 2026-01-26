@@ -17,11 +17,55 @@ interface TickerChartProps {
     mode?: 'percent' | 'price';
 }
 
-const CustomTooltip = ({ active, payload, currency, t, basePrice }: any) => {
+const CustomTooltip = ({ active, payload, currency, t, basePrice, isComparison, series }: any) => {
     if (active && payload && payload.length) {
         const point = payload[0].payload;
         const date = point.date; // It's already a Date object
         const dateStr = date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+
+        if (isComparison) {
+            // Sort payload to have main series first, then by series index
+            const sortedPayload = [...payload].sort((a, b) => {
+                if (a.dataKey === 'yValue') return -1;
+                if (b.dataKey === 'yValue') return 1;
+                if (a.dataKey.startsWith('series_') && b.dataKey.startsWith('series_')) {
+                    return parseInt(a.dataKey.split('_')[1]) - parseInt(b.dataKey.split('_')[1]);
+                }
+                return 0;
+            });
+
+            return (
+                <Paper elevation={3} sx={{ padding: '10px', minWidth: 150 }}>
+                    <Typography variant="caption" display="block" sx={{ mb: 1 }}>{dateStr}</Typography>
+                    {sortedPayload.map((p: any) => {
+                        let seriesName = '';
+                        if (p.dataKey === 'yValue') {
+                            seriesName = series[0].name;
+                        } else if (p.dataKey.startsWith('series_')) {
+                            const seriesIndex = parseInt(p.dataKey.split('_')[1], 10) + 1;
+                            if (series[seriesIndex]) {
+                                seriesName = series[seriesIndex].name;
+                            }
+                        }
+
+                        // Don't render if we can't find a name or if value is null/undefined
+                        if (!seriesName || p.value === null || p.value === undefined) return null;
+
+                        return (
+                            <Box key={seriesName} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2 }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+                                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: p.color, flexShrink: 0 }} />
+                                    <Typography variant="caption" noWrap>{seriesName}</Typography>
+                                </Box>
+                                <Typography variant="caption" sx={{ fontWeight: 'bold' }}>
+                                    {formatPercent(p.value)}
+                                </Typography>
+                            </Box>
+                        );
+                    })}
+                </Paper>
+            );
+        }
         
         const val = point.adjClose || point.price;
         const percentChange = basePrice ? (val / basePrice - 1) : 0;
@@ -84,8 +128,6 @@ const SelectionSummary = ({ startPoint, endPoint, currency, t }: any) => {
         </Box>
     );
 };
-
-const EXTRA_COLORS = ['#ff7300', '#387908', '#8884d8', '#82ca9d', '#ffc658'];
 
 export function TickerChart({ series, currency, mode = 'percent' }: TickerChartProps) {
     const FADE_MS = 170;          // Speed of the opacity transition
@@ -385,19 +427,21 @@ export function TickerChart({ series, currency, mode = 'percent' }: TickerChartP
                         dx={3}
                         domain={[yMin, yMax]}
                     />
-                    <Tooltip content={<CustomTooltip currency={currency} t={t} basePrice={basePrice} mode={mode} />} />
+                    <Tooltip content={<CustomTooltip currency={currency} t={t} basePrice={basePrice} isComparison={isComparison} series={displaySeries} />} />
                     <ReferenceLine y={threshold} stroke={theme.palette.text.secondary} strokeDasharray="3 3" />
                     
                     {displaySeries.slice(1).map((s, i) => (
-                        <Line 
+                        <Line
                             key={i}
                             type="monotone" 
                             dataKey={`series_${i}`} 
-                            stroke={s.color || EXTRA_COLORS[i % EXTRA_COLORS.length]} 
+                            stroke={s.color} 
                             strokeWidth={2} 
                             dot={false}
-                            isAnimationActive={false}
+                            isAnimationActive={true}
                             connectNulls
+                            animationDuration={TRANSFORM_MS}
+                            animationEasing="ease-in-out"
                         />
                     ))}
 
