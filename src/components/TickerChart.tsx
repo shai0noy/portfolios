@@ -12,7 +12,7 @@ interface TickerChartProps {
     mode?: 'percent' | 'price';
 }
 
-const CustomTooltip = ({ active, payload, currency, t, basePrice, mode }: any) => {
+const CustomTooltip = ({ active, payload, currency, t, basePrice }: any) => {
     if (active && payload && payload.length) {
         const point = payload[0].payload;
         const date = point.date; // It's already a Date object
