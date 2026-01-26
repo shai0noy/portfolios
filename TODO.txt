@@ -6,7 +6,7 @@ Show ticker type dash
 Show holdings of funds
 Comperasion chars + allow metrics: r^2, beta
 דמי ניהול - להציג + לחשב בגמל וכו'
-
+securityId is populated with non numeric IDs - should be changed to number and only filled form globes/tase numeric IDs
 remove casts to any
 refactor code....
 move currency selector and "back to all" buttons in dashbaord 

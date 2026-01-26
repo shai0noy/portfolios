@@ -735,7 +735,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
             </Box>
 
             <Box mt={2} display="flex" justifyContent="flex-end" alignItems="center" gap={1}>
-              <Typography variant="caption" color="text.secondary">
+              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
                 {data
                   ? `${t('Data source:', 'מקור המידע:')} ${data.source || 'API'}, ${data.timestamp ? formatTimestamp(data.timestamp) : 'N/A'}`
                   : sheetRebuildTime
