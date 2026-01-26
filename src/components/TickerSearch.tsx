@@ -330,11 +330,8 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
                         <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mt: 0.5 }}>
                           <Chip
                             label={`${profile.exchange}:${profile.symbol}${profile.securityId ? ` (${profile.securityId})` : ''}`} size="small" variant="outlined" />
-                          
-                          {profile.sector && <Chip label={profile.sector} size="small" variant="outlined" />}
-                          
                           {displayType && <Chip label={displayType} size="small" color="primary" variant="outlined" />}
-                          
+                          {profile.sector && <Chip label={profile.sector} size="small" variant="outlined" />}  
                           {option.ownedInPortfolios && option.ownedInPortfolios.length > 0 && (
                             <Tooltip title={`Owned in: ${option.ownedInPortfolios.join(', ')}`}>
                               <BusinessCenterIcon color="success" sx={{ fontSize: 16, ml: 1 }} />

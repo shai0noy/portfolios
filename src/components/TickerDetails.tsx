@@ -558,7 +558,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                          </>
                       )}
                       {data?.tradeTimeStatus && (
-                        <Typography variant="caption" color="text.secondary">{data.tradeTimeStatus}</Typography>
+                        <Typography variant="caption" color="text.secondary">{t('Stage:', 'שלב:')} {data.tradeTimeStatus}</Typography>
                       )}
                     </Box>
                   )}
