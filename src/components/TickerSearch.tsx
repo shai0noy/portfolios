@@ -79,6 +79,28 @@ function searchTaseType(
   ).map(t => processTaseResult(t, instrumentType, portfolios));
 }
 
+// Higher Priority = Lower number
+const TYPE_PRIORITY: Record<string, number> = {
+  'stock': 1,
+  'etf': 1,
+  'fund': 1,
+  'gemel_fund': 1,
+  'pension_fund': 1,
+  'currency': 2,
+  'index': 2,
+  'makam': 3,
+  'gov_generic': 3,
+  'bond_conversion': 3,
+  'bond_ta': 3,
+  'option_ta': 4,
+  'option_maof': 4,
+  'option_other': 5,
+};
+
+function getPriority(type?: string): number {
+  return TYPE_PRIORITY[type || ''] || 99;
+}
+
 async function performSearch(
   searchTerm: string,
   exchange: string,
@@ -88,7 +110,7 @@ async function performSearch(
   const termUC = searchTerm.toUpperCase();
   let results: SearchResult[] = [];
 
-  // Search in local dataset (which for now covers TASE, NASDAQ, NYSE, FOREX)
+  // Search in local dataset
   Object.entries(taseDataset).forEach(([type, tickers]) => {
     let matches = searchTaseType(tickers, type, termUC, portfolios);
     if (exchange !== 'ALL') {
@@ -107,20 +129,43 @@ async function performSearch(
   return uniqueResults.sort((a, b) => {
     const aSymbol = a.symbol.toUpperCase();
     const bSymbol = b.symbol.toUpperCase();
+    const aNameEn = (a.name || '').toUpperCase();
+    const bNameEn = (b.name || '').toUpperCase();
+    const aNameHe = (a.nameHe || '').toUpperCase();
+    const bNameHe = (b.nameHe || '').toUpperCase();
+
+    // 1. Exact Ticker Match (Top Priority)
+    const aExactTicker = aSymbol === termUC || a.numericSecurityId?.toString() === termUC;
+    const bExactTicker = bSymbol === termUC || b.numericSecurityId?.toString() === termUC;
+    if (aExactTicker && !bExactTicker) return -1;
+    if (!aExactTicker && bExactTicker) return 1;
+
+    // 2. Ticker Starts With Search Term (High Priority)
+    const aPrefixTicker = aSymbol.startsWith(termUC);
+    const bPrefixTicker = bSymbol.startsWith(termUC);
+    if (aPrefixTicker && !bPrefixTicker) return -1;
+    if (!aPrefixTicker && bPrefixTicker) return 1;
+
+    // 3. Instrument Popularity (Stocks/Funds > Bonds > Options)
+    const aPriority = getPriority(a.type);
+    const bPriority = getPriority(b.type);
+    if (aPriority !== bPriority) {
+      return aPriority - bPriority;
+    }
+
+    // 4. Name Match Quality (Shortest Name Wins)
+    // Only check name length if it actually matches the search term (contains it)
+    // Since we filtered by includes, we assume they all match somewhat.
+    // However, we want to favor the one where the match is "cleaner" (shorter overall string)
+    const aLen = Math.min(aNameEn.length || 999, aNameHe.length || 999);
+    const bLen = Math.min(bNameEn.length || 999, bNameHe.length || 999);
     
-    // 1. Exact Ticker Match
-    const aExact = aSymbol === termUC;
-    const bExact = bSymbol === termUC;
-    if (aExact && !bExact) return -1;
-    if (!aExact && bExact) return 1;
+    // We only use length as a tie-breaker if the difference is significant or if it's a name-based search
+    if (aLen !== bLen) {
+      return aLen - bLen;
+    }
 
-    // 2. Ticker Starts With Search Term
-    const aPrefix = aSymbol.startsWith(termUC);
-    const bPrefix = bSymbol.startsWith(termUC);
-    if (aPrefix && !bPrefix) return -1;
-    if (!aPrefix && bPrefix) return 1;
-
-    // 3. Alphabetical Ticker
+    // 5. Alphabetical Ticker (Final Tie-Breaker)
     return aSymbol.localeCompare(bSymbol);
   });
 }

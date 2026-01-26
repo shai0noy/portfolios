@@ -234,6 +234,7 @@ export async function fetchGemelnetTickers(signal?: AbortSignal, forceRefresh = 
           nameHe: name,
           nameEn: name,
           globesTypeCode: 'gemel_fund',
+          globesTypeHe: 'קרן גמל',
           providentInfo: {
             fundId: id,
             fundType: getText('SUG_KUPA'),

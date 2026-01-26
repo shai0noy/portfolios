@@ -222,6 +222,7 @@ export async function fetchPensyanetTickers(signal?: AbortSignal, forceRefresh =
           nameHe: name,
           nameEn: name,
           globesTypeCode: 'pension_fund',
+          globesTypeHe: 'קרן פנסיה',
           providentInfo: {
             fundId: id,
             fundType: getText('SUG_KRN'),
