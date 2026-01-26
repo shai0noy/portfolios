@@ -1,6 +1,8 @@
 import { fetchXml, parseXmlString } from './utils/xml_parser';
-import type { TickerListItem, TickerData } from './types';
+import type { TickerData } from './types';
+import type { TickerProfile } from '../types/ticker';
 import { Exchange } from '../types';
+import { InstrumentClassification, InstrumentType } from '../types/instrument';
 import { 
   getDateParts, 
   parseDateStr, 
@@ -72,8 +74,8 @@ export async function fetchPensyanetFund(
     // Pensyanet XML response uses 'ROW' (uppercase)
     const rows = Array.from(xmlDoc.querySelectorAll('ROW'));
     const points: FundDataPoint[] = [];
-    const fundInfo = tickersList.find(t => t.providentInfo?.fundId === fundId);
-    const fundName = fundInfo?.nameEn || '';
+    const fundInfo = tickersList.find(t => t.meta?.type === 'PROVIDENT' && t.meta.fundId === fundId);
+    const fundName = fundInfo?.name || '';
 
     rows.forEach(row => {
       const getText = (tag: string) => row.querySelector(tag)?.textContent || '';
@@ -113,7 +115,7 @@ export async function fetchPensyanetFund(
   }
 }
 
-const LIST_CACHE_KEY = 'pensyanet_tickers_list_v6';
+const LIST_CACHE_KEY = 'pensyanet_tickers_list_v7';
 
 interface CompactTicker {
   i: number; // id
@@ -124,57 +126,41 @@ interface CompactTicker {
   x?: Record<string, any>; // Extras
 }
 
-function compressTickers(tickers: TickerListItem[]): CompactTicker[] {
-  const KNOWN_KEYS = new Set(['fundId', 'managingCompany', 'fundType', 'managementFee', 'depositFee']);
-  
+function compressTickers(tickers: TickerProfile[]): CompactTicker[] {
   return tickers.map(t => {
-    const pInfo = t.providentInfo;
-    const extras: Record<string, any> = {};
-    
-    if (pInfo) {
-      Object.keys(pInfo).forEach(key => {
-        if (!KNOWN_KEYS.has(key)) {
-          console.warn(`[Pensyanet] Unexpected key in ProvidentInfo during compression: ${key} (Value: ${(pInfo as any)[key]}) for ticker ${t.symbol}`);
-          extras[key] = (pInfo as any)[key];
-        }
-      });
-    }
+    if (t.meta?.type !== 'PROVIDENT') return null;
+    const pInfo = t.meta;
 
     const compressed: CompactTicker = {
-      i: pInfo?.fundId || parseInt(t.symbol, 10),
-      n: t.nameHe || t.nameEn,
-      ft: pInfo?.fundType || '',
-      mf: pInfo?.managementFee,
-      df: pInfo?.depositFee,
+      i: pInfo.fundId,
+      n: t.name,
+      ft: t.type.specificType || '',
+      mf: pInfo.managementFee,
+      df: pInfo.depositFee,
     };
-
-    if (Object.keys(extras).length > 0) {
-      compressed.x = extras;
-    }
     
     return compressed;
-  });
+  }).filter((t): t is CompactTicker => t !== null);
 }
 
-function decompressTickers(compact: CompactTicker[]): TickerListItem[] {
+function decompressTickers(compact: CompactTicker[]): TickerProfile[] {
   return compact.map(c => ({
     symbol: String(c.i),
     exchange: Exchange.PENSION,
+    securityId: String(c.i),
+    name: c.n,
     nameHe: c.n,
-    nameEn: c.n,
-    globesTypeCode: 'pension_fund',
-    globesTypeHe: 'קרן פנסיה',
-    providentInfo: {
+    type: new InstrumentClassification(InstrumentType.SAVING_PENSION, c.ft),
+    meta: {
+      type: 'PROVIDENT',
       fundId: c.i,
-      fundType: c.ft,
       managementFee: c.mf,
       depositFee: c.df,
-      ...(c.x || {})
     }
   }));
 }
 
-export async function fetchPensyanetTickers(signal?: AbortSignal, forceRefresh = false): Promise<TickerListItem[]> {
+export async function fetchPensyanetTickers(signal?: AbortSignal, forceRefresh = false): Promise<TickerProfile[]> {
   const now = Date.now();
 
   // 1. Check Cache
@@ -206,7 +192,7 @@ export async function fetchPensyanetTickers(signal?: AbortSignal, forceRefresh =
     const xmlText = await fetchXml(url, signal);
     const xmlDoc = parseXmlString(xmlText);
     const rows = Array.from(xmlDoc.querySelectorAll('ROW'));
-    const tickersMap = new Map<number, TickerListItem>();
+    const tickersMap = new Map<number, TickerProfile>();
     const parseFee = (feeStr: string): number | undefined => {
       const fee = parseFloat(feeStr);
       return isNaN(fee) ? undefined : fee;
@@ -220,13 +206,13 @@ export async function fetchPensyanetTickers(signal?: AbortSignal, forceRefresh =
         tickersMap.set(id, {
           symbol: idStr,
           exchange: Exchange.PENSION,
+          securityId: idStr,
+          name: name,
           nameHe: name,
-          nameEn: name,
-          globesTypeCode: 'pension_fund',
-          globesTypeHe: 'קרן פנסיה',
-          providentInfo: {
+          type: new InstrumentClassification(InstrumentType.SAVING_PENSION, getText('SUG_KRN')),
+          meta: {
+            type: 'PROVIDENT',
             fundId: id,
-            fundType: getText('SUG_KRN'),
             managementFee: parseFee(getText('SHIUR_D_NIHUL_AHARON_NCHASIM')),
             depositFee: parseFee(getText('SHIUR_D_NIHUL_AHARON_HAFKADOT')),
           }
@@ -266,8 +252,8 @@ export async function fetchPensyanetQuote(
   if (!fundData.fundName) {
       // Name missing in cache? Try to fetch/lookup again
       const tickers = await fetchPensyanetTickers();
-      const info = tickers.find(t => t.providentInfo?.fundId === fundId);
-      if (info) fundData.fundName = info.nameEn || info.nameHe || '';
+      const info = tickers.find(t => t.meta?.type === 'PROVIDENT' && t.meta.fundId === fundId);
+      if (info) fundData.fundName = info.name || info.nameHe || '';
   }
 
   return calculateTickerDataFromFundHistory(fundData, Exchange.PENSION, 'Pensyanet');

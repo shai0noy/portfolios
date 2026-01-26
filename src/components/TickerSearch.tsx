@@ -3,8 +3,10 @@ import {
   TextField, Grid, Typography, CircularProgress, MenuItem, Select, FormControl, InputLabel,
   List, ListItemButton, ListItemText, Paper, Box, Divider, Chip, Tooltip
 } from '@mui/material';
-import { getTickersDataset, getTickerData, type TickerListItem, type TickerData, DEFAULT_SECURITY_TYPE_CONFIG } from '../lib/fetching';
-import { parseExchange, type Portfolio } from '../lib/types';
+import { getTickersDataset, getTickerData, type TickerData } from '../lib/fetching';
+import type { TickerProfile } from '../lib/types/ticker';
+import { InstrumentGroup, INSTRUMENT_METADATA } from '../lib/types/instrument';
+import { type Portfolio } from '../lib/types';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
 import { useLanguage } from '../lib/i18n';
 import { getOwnedInPortfolios } from '../lib/portfolioUtils';
@@ -17,7 +19,7 @@ interface TickerSearchProps {
   isPortfoliosLoading: boolean;
 }
 
-// Custom hook for debouncing
+// Custom hook for debouncing input values
 function useDebounce(value: string, delay: number) {
   const [debouncedValue, setDebouncedValue] = useState(value);
 
@@ -35,203 +37,155 @@ function useDebounce(value: string, delay: number) {
 }
 
 interface SearchResult {
-  symbol: string;
-  numericSecurityId?: number; // TASE specific
-  name: string;
-  nameHe?: string;
-  exchange: string;
-  type?: string;
-  globesInstrumentId?: string; // TASE specific
-  rawTicker?: TickerListItem | TickerData;
+  profile: TickerProfile;
   ownedInPortfolios?: string[];
-  sector?: string;
-  displayTypeEn?: string;
-  displayTypeHe?: string;
 }
 
-function processTaseResult(t: TickerListItem, instrumentType: string, portfolios: Portfolio[]): SearchResult {
-  return {
-    symbol: t.symbol,
-    numericSecurityId: t.taseInfo?.securityId,
-    name: t.nameEn,
-    nameHe: t.nameHe,
-    exchange: t.exchange || 'TASE',
-    type: instrumentType,
-    globesInstrumentId: t.taseInfo?.globesInstrumentId,
-    rawTicker: t,
-    ownedInPortfolios: getOwnedInPortfolios(t.symbol, portfolios, t.exchange),
-    sector: t.providentInfo?.subSpecialization || t.providentInfo?.specialization || t.taseInfo?.companySubSector || t.taseInfo?.companySector,
-    displayTypeEn: t.taseInfo?.taseType,
-    displayTypeHe: t.globesTypeHe,
-  };
-}
-
-function searchTaseType(
-  tickers: TickerListItem[],
-  instrumentType: string,
-  termUC: string,
-  portfolios: Portfolio[]
-): SearchResult[] {
-  return tickers.filter(item =>
-    ((item.symbol || '').toUpperCase().includes(termUC) || item.taseInfo?.securityId?.toString() === termUC ||
-    (item.nameEn || '').toUpperCase().includes(termUC) ||
-    (item.nameHe || '').toUpperCase().includes(termUC))
-  ).map(t => processTaseResult(t, instrumentType, portfolios));
-}
-
-// Higher Priority = Lower number
-const TYPE_PRIORITY: Record<string, number> = {
-  'stock': 1,
-  'etf': 1,
-  'fund': 1,
-  'gemel_fund': 1,
-  'pension_fund': 1,
-  'currency': 2,
-  'index': 2,
-  'makam': 3,
-  'gov_generic': 3,
-  'bond_conversion': 3,
-  'bond_ta': 3,
-  'option_ta': 4,
-  'option_maof': 4,
-  'option_other': 5,
-};
-
-function getPriority(type?: string): number {
-  return TYPE_PRIORITY[type || ''] || 99;
-}
-
+/**
+ * Searches the dataset for tickers matching the term.
+ * Filters by exchange if specified.
+ */
 async function performSearch(
   searchTerm: string,
   exchange: string,
-  taseDataset: Record<string, TickerListItem[]>,
+  dataset: Record<string, TickerProfile[]>,
   portfolios: Portfolio[]
 ): Promise<SearchResult[]> {
   const termUC = searchTerm.toUpperCase();
   let results: SearchResult[] = [];
 
-  // Search in local dataset
-  Object.entries(taseDataset).forEach(([type, tickers]) => {
-    let matches = searchTaseType(tickers, type, termUC, portfolios);
-    if (exchange !== 'ALL') {
-      matches = matches.filter(r => r.exchange === exchange);
+  // Iterate over all groups in the dataset
+  Object.values(dataset).flat().forEach((profile) => {
+    // Basic filtering: Exchange
+    if (exchange !== 'ALL' && profile.exchange !== exchange) return;
+
+    // Search Logic: Match Symbol, Name (En/He), or Security ID
+    const matchesSymbol = profile.symbol.toUpperCase().includes(termUC);
+    const matchesId = profile.securityId?.toString() === termUC;
+    const matchesNameEn = (profile.name || '').toUpperCase().includes(termUC);
+    const matchesNameHe = (profile.nameHe || '').toUpperCase().includes(termUC);
+
+    if (matchesSymbol || matchesId || matchesNameEn || matchesNameHe) {
+      results.push({
+        profile,
+        ownedInPortfolios: getOwnedInPortfolios(profile.symbol, portfolios, profile.exchange),
+      });
     }
-    results = results.concat(matches);
   });
 
+  // Remove Duplicates (by Symbol + Exchange)
   const uniqueResults = results.reduce((acc, current) => {
-    const existing = acc.find(item => item.symbol === current.symbol && item.exchange === current.exchange);
-    if (!existing) acc.push(current);
+    const exists = acc.find(r => r.profile.symbol === current.profile.symbol && r.profile.exchange === current.profile.exchange);
+    if (!exists) acc.push(current);
     return acc;
   }, [] as SearchResult[]);
 
-  // Improved Sorting Logic
+  // Sorting Logic
   return uniqueResults.sort((a, b) => {
-    const aSymbol = a.symbol.toUpperCase();
-    const bSymbol = b.symbol.toUpperCase();
-    const aNameEn = (a.name || '').toUpperCase();
-    const bNameEn = (b.name || '').toUpperCase();
-    const aNameHe = (a.nameHe || '').toUpperCase();
-    const bNameHe = (b.nameHe || '').toUpperCase();
-
-    // 1. Exact Ticker Match (Top Priority)
-    const aExactTicker = aSymbol === termUC || a.numericSecurityId?.toString() === termUC;
-    const bExactTicker = bSymbol === termUC || b.numericSecurityId?.toString() === termUC;
-    if (aExactTicker && !bExactTicker) return -1;
-    if (!aExactTicker && bExactTicker) return 1;
-
-    // 2. Ticker Starts With Search Term (High Priority)
-    const aPrefixTicker = aSymbol.startsWith(termUC);
-    const bPrefixTicker = bSymbol.startsWith(termUC);
-    if (aPrefixTicker && !bPrefixTicker) return -1;
-    if (!aPrefixTicker && bPrefixTicker) return 1;
-
-    // 3. Instrument Popularity (Stocks/Funds > Bonds > Options)
-    const aPriority = getPriority(a.type);
-    const bPriority = getPriority(b.type);
-    if (aPriority !== bPriority) {
-      return aPriority - bPriority;
-    }
-
-    // 4. Name Match Quality (Shortest Name Wins)
-    // Only check name length if it actually matches the search term (contains it)
-    // Since we filtered by includes, we assume they all match somewhat.
-    // However, we want to favor the one where the match is "cleaner" (shorter overall string)
-    const aLen = Math.min(aNameEn.length || 999, aNameHe.length || 999);
-    const bLen = Math.min(bNameEn.length || 999, bNameHe.length || 999);
+    const pA = a.profile;
+    const pB = b.profile;
     
-    // We only use length as a tie-breaker if the difference is significant or if it's a name-based search
-    if (aLen !== bLen) {
-      return aLen - bLen;
-    }
+    // 1. Exact Match Priority
+    const aExact = pA.symbol.toUpperCase() === termUC || pA.securityId === termUC;
+    const bExact = pB.symbol.toUpperCase() === termUC || pB.securityId === termUC;
+    if (aExact && !bExact) return -1;
+    if (!aExact && bExact) return 1;
 
-    // 5. Alphabetical Ticker (Final Tie-Breaker)
-    return aSymbol.localeCompare(bSymbol);
+    // 2. Starts With Priority
+    const aPrefix = pA.symbol.toUpperCase().startsWith(termUC);
+    const bPrefix = pB.symbol.toUpperCase().startsWith(termUC);
+    if (aPrefix && !bPrefix) return -1;
+    if (!aPrefix && bPrefix) return 1;
+
+    // 3. Instrument Group Priority
+    // Cast to explicit array to satisfy strict type checking
+    const priorityOrder: InstrumentGroup[] = [
+      InstrumentGroup.STOCK, 
+      InstrumentGroup.ETF, 
+      InstrumentGroup.MUTUAL_FUND, 
+      InstrumentGroup.INDEX, 
+      InstrumentGroup.BOND, 
+      InstrumentGroup.SAVING,
+      InstrumentGroup.FOREX,
+      InstrumentGroup.DERIVATIVE,
+      InstrumentGroup.OTHER
+    ];
+    
+    const idxA = priorityOrder.indexOf(pA.type.group);
+    const idxB = priorityOrder.indexOf(pB.type.group);
+    
+    // If both are in the priority list, lower index wins
+    if (idxA !== -1 && idxB !== -1 && idxA !== idxB) return idxA - idxB;
+    // If one is in list and other isn't, the one in list wins
+    if (idxA !== -1 && idxB === -1) return -1;
+    if (idxA === -1 && idxB !== -1) return 1;
+
+    // 4. Name Length (Shorter is usually a better match for "cleaner" results)
+    const lenA = (pA.name || '').length;
+    const lenB = (pB.name || '').length;
+    if (lenA !== lenB) return lenA - lenB;
+
+    return 0;
   });
 }
 
 export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchange, portfolios, isPortfoliosLoading }: TickerSearchProps) {
-  const [taseDataset, setTaseDataset] = useState<Record<string, TickerListItem[]>>({});
-  const [isTaseDatasetLoading, setIsTaseDatasetLoading] = useState(false);
+  // Dataset is Record<string, TickerProfile[]>
+  const [dataset, setDataset] = useState<Record<string, TickerProfile[]>>({});
+  const [isDatasetLoading, setIsDatasetLoading] = useState(false);
+  
   const [isFocused, setIsFocused] = useState(false);
   const [inputValue, setInputValue] = useState(prefilledTicker || '');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  
   const [selectedExchange, setSelectedExchange] = useState(prefilledExchange || 'ALL');
-  const [selectedType, setSelectedType] = useState('ALL');
+  const [selectedGroup, setSelectedGroup] = useState<InstrumentGroup | 'ALL'>('ALL');
+  
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { t, tTry } = useLanguage();
 
   const searchTickers = useCallback(async (term: string, exchange: string) => {
     try {
-      const results = await performSearch(term, exchange, taseDataset, portfolios);
+      const results = await performSearch(term, exchange, dataset, portfolios);
       setSearchResults(results);
     } catch (err) {
       console.error("Search failed", err);
       setError("Search failed");
     }
-  }, [taseDataset, portfolios]);
+  }, [dataset, portfolios]);
 
   const debouncedInput = useDebounce(inputValue, 300);
 
+  // Load the full ticker dataset once on mount/visibility
   useEffect(() => {
     let active = true;
 
     const loadDataset = async () => {
-      if (Object.keys(taseDataset).length > 0) return; // Already loaded locally
+      if (Object.keys(dataset).length > 0) return;
 
-      setIsTaseDatasetLoading(true);
+      setIsDatasetLoading(true);
       try {
         const data = await getTickersDataset();
-        if (active) setTaseDataset(data);
+        if (active) setDataset(data);
       } finally {
-        if (active) setIsTaseDatasetLoading(false);
+        if (active) setIsDatasetLoading(false);
       }
     };
 
-    if (document.visibilityState === 'visible') {
-      loadDataset();
-    }
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        loadDataset();
-      }
-    };
-
+    if (document.visibilityState === 'visible') loadDataset();
+    const handleVisibilityChange = () => { if (document.visibilityState === 'visible') loadDataset(); };
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => {
-      active = false;
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [taseDataset]);
+    return () => { active = false; document.removeEventListener('visibilitychange', handleVisibilityChange); };
+  }, []);
+
+  // Trigger search on input change
   useEffect(() => {
-    if (isFocused && !isPortfoliosLoading && !isTaseDatasetLoading) {
+    if (isFocused && !isPortfoliosLoading && !isDatasetLoading) {
       if (!debouncedInput) {
         setSearchResults([]);
         return;
       }
-
       const doSearch = async () => {
         setIsLoading(true);
         try {
@@ -242,57 +196,54 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
       };
       doSearch();
     }
-  }, [debouncedInput, selectedExchange, isPortfoliosLoading, isTaseDatasetLoading, isFocused, searchTickers]);
+  }, [debouncedInput, selectedExchange, isPortfoliosLoading, isDatasetLoading, isFocused, searchTickers]);
 
+  // Filter results by selected Instrument Group
   const filteredResults = useMemo(() => {
-    const filtered = selectedType === 'ALL' ? searchResults : searchResults.filter(opt => opt.type === selectedType);
+    const filtered = selectedGroup === 'ALL' 
+      ? searchResults 
+      : searchResults.filter(res => res.profile.type.group === selectedGroup);
     return filtered.slice(0, 50);
-  }, [searchResults, selectedType]);
+  }, [searchResults, selectedGroup]);
 
-  const typeFilterOptions = useMemo(() => {
-    return Object.entries(DEFAULT_SECURITY_TYPE_CONFIG)
-      .filter(([, { enabled }]) => enabled)
-      .map(([key, { displayName }]) => ({ key, displayName }));
-  }, []);
-
-  const getTranslatedType = (typeKey: string, defaultName: string) => {
-    const map: Record<string, string> = {
-      'stock': t('Stocks', 'מניות'),
-      'etf': t('ETFs', 'תעודות סל'),
-      'fund': t('Mutual Funds', 'קרנות נאמנות'),
-      'gemel_fund': t('Provident Funds', 'קופות גמל'),
-      'index': t('Indices', 'מדדים'),
-      'makam': t('Makam', 'מק"מ'),
-      'gov_generic': t('Gov Bonds', 'אג"ח מדינה'),
-      'bond_conversion': t('Convertible Bonds', 'אג"ח להמרה'),
-      'bond_ta': t('Corp Bonds', 'אג"ח חברות'),
-      'option_ta': t('Options (TA)', 'אופציות (ת"א)'),
-      'option_maof': t('Options (Maof)', 'אופציות (מעו"ף)'),
-      'currency': t('Currencies & Crypto', 'מט"ח וקריפטו'),
+  // Build Filter Options from InstrumentGroup Enum
+  const groupFilterOptions = useMemo(() => {
+    const groupTranslations: Record<InstrumentGroup, string> = {
+      [InstrumentGroup.STOCK]: t('Stocks', 'מניות'),
+      [InstrumentGroup.ETF]: t('ETFs', 'תעודות סל'),
+      [InstrumentGroup.MUTUAL_FUND]: t('Mutual Funds', 'קרנות נאמנות'),
+      [InstrumentGroup.BOND]: t('Bonds', 'אג"ח'),
+      [InstrumentGroup.SAVING]: t('Saving Funds', 'קרנות חיסכון'),
+      [InstrumentGroup.DERIVATIVE]: t('Derivatives', 'נגזרים'),
+      [InstrumentGroup.FOREX]: t('Forex & Crypto', 'מט"ח וקריפטו'),
+      [InstrumentGroup.INDEX]: t('Indices', 'מדדים'),
+      [InstrumentGroup.OTHER]: t('Other', 'אחר')
     };
-    return map[typeKey] || defaultName;
-  };
+
+    return Object.values(InstrumentGroup).map(group => ({
+      key: group,
+      displayName: groupTranslations[group] || group
+    }));
+  }, [t]);
 
   const handleOptionSelect = async (result: SearchResult) => {
-    if (result.rawTicker && 'price' in result.rawTicker) {
-      onTickerSelect({ ...result.rawTicker, symbol: result.symbol, exchange: parseExchange(result.exchange), numeric_id: result.numericSecurityId });
-    } else {
-      setIsLoading(true);
-      const data = await getTickerData(result.symbol, result.exchange, result.numericSecurityId || null);
-      setIsLoading(false);
-      if (data) {
-        onTickerSelect({ 
-          ...data, 
-          name: data.name || result.name, 
-          nameHe: data.nameHe || result.nameHe, 
-          symbol: result.symbol, 
-          exchange: parseExchange(result.exchange), 
-          numeric_id: result.numericSecurityId 
-        });
-      }
+    const { profile } = result;
+    setIsLoading(true);
+    
+    // Fetch full TickerData (quote) to get price
+    const numericId = profile.securityId ? Number(profile.securityId) : null;
+    const data = await getTickerData(profile.symbol, profile.exchange, numericId);
+    
+    setIsLoading(false);
+    if (data) {
+      onTickerSelect({ 
+        ...data,
+        symbol: profile.symbol, // Ensure symbol is explicit
+        numeric_id: numericId || undefined 
+      });
     }
     setSearchResults([]);
-    setInputValue(result.symbol);
+    setInputValue(profile.symbol);
   };
 
   return (
@@ -309,7 +260,7 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
             InputProps={{
               endAdornment: (
                 <>
-                  {(isLoading || isTaseDatasetLoading || isPortfoliosLoading) ? <CircularProgress color="inherit" size={20} /> : null}
+                  {(isLoading || isDatasetLoading || isPortfoliosLoading) ? <CircularProgress color="inherit" size={20} /> : null}
                 </>
               ),
             }}
@@ -337,13 +288,17 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
           <FormControl fullWidth size="small">
             <InputLabel>{t('Type', 'סוג')}</InputLabel>
             <Select
-              value={selectedType}
+              value={selectedGroup}
               label={t('Type', 'סוג')}
-              onChange={(e) => setSelectedType(e.target.value as string)}
-              disabled={selectedExchange !== 'ALL' && selectedExchange !== 'TASE' && selectedExchange !== 'FOREX' && selectedExchange !== 'GEMEL' && selectedExchange !== 'PENSION'}
+              onChange={(e) => setSelectedGroup(e.target.value as (InstrumentGroup | 'ALL'))}
+              renderValue={(selected) => {
+                if (selected === 'ALL') return t('All Types', 'כל הסוגים');
+                const option = groupFilterOptions.find(opt => opt.key === selected);
+                return option ? option.displayName : selected;
+              }}
             >
               <MenuItem value="ALL">{t('All Types', 'כל הסוגים')}</MenuItem>
-              {typeFilterOptions.map(({ key, displayName }) => (
+              {groupFilterOptions.map(({ key, displayName }) => (
                 <MenuItem key={key} value={key}>{displayName}</MenuItem>
               ))}
             </Select>
@@ -359,33 +314,40 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
           sx={{ maxHeight: 300, overflowY: 'auto', my: 1 }}
         >
           <List dense>
-            {filteredResults.map((option, index) => (
-              <Box key={`${option.exchange}:${option.symbol}`}>
-                <ListItemButton onClick={() => handleOptionSelect(option)}>
-                  <ListItemText
-                    primary={<Typography variant="body1">{tTry(option.name, option.nameHe)}</Typography>}
-                    secondaryTypographyProps={{ component: 'div' }} // Render secondary as div
-                    secondary={
-                      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mt: 0.5 }}>
-                        <Chip
-                          label={`${option.exchange}:${option.symbol}${option.numericSecurityId ? ` (${option.numericSecurityId})` : ''}`} size="small" variant="outlined" />
-                        {option.sector && <Chip label={option.sector} size="small" variant="outlined" />}
-                        {(option.displayTypeEn || option.displayTypeHe) 
-                          ? <Chip label={tTry(option.displayTypeEn, option.displayTypeHe)} size="small" color="primary" variant="outlined" />
-                          : (option.type && DEFAULT_SECURITY_TYPE_CONFIG[option.type] && <Chip label={getTranslatedType(option.type, DEFAULT_SECURITY_TYPE_CONFIG[option.type]?.displayName || option.type)} size="small" color="primary" variant="outlined" />)
-                        }
-                        {option.ownedInPortfolios && option.ownedInPortfolios.length > 0 && (
-                          <Tooltip title={`Owned in: ${option.ownedInPortfolios.join(', ')}`}>
-                            <BusinessCenterIcon color="success" sx={{ fontSize: 16, ml: 1 }} />
-                          </Tooltip>
-                        )}
-                      </Box>
-                    }
-                  />
-                </ListItemButton>
-                {index < filteredResults.length - 1 && <Divider />}
-              </Box>
-            ))}
+            {filteredResults.map((option, index) => {
+              const { profile } = option;
+              // Determine display type: Prioritize localized name from metadata
+              const typeMeta = INSTRUMENT_METADATA[profile.type.type];
+              const displayType = t(typeMeta?.nameEn || profile.type.nameEn, typeMeta?.nameHe || profile.type.nameHe);
+
+              return (
+                <Box key={`${profile.exchange}:${profile.symbol}`}>
+                  <ListItemButton onClick={() => handleOptionSelect(option)}>
+                    <ListItemText
+                      primary={<Typography variant="body1">{tTry(profile.name, profile.nameHe)}</Typography>}
+                      secondaryTypographyProps={{ component: 'div' }} 
+                      secondary={
+                        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mt: 0.5 }}>
+                          <Chip
+                            label={`${profile.exchange}:${profile.symbol}${profile.securityId ? ` (${profile.securityId})` : ''}`} size="small" variant="outlined" />
+                          
+                          {profile.sector && <Chip label={profile.sector} size="small" variant="outlined" />}
+                          
+                          {displayType && <Chip label={displayType} size="small" color="primary" variant="outlined" />}
+                          
+                          {option.ownedInPortfolios && option.ownedInPortfolios.length > 0 && (
+                            <Tooltip title={`Owned in: ${option.ownedInPortfolios.join(', ')}`}>
+                              <BusinessCenterIcon color="success" sx={{ fontSize: 16, ml: 1 }} />
+                            </Tooltip>
+                          )}
+                        </Box>
+                      }
+                    />
+                  </ListItemButton>
+                  {index < filteredResults.length - 1 && <Divider />}
+                </Box>
+              );
+            })}
           </List>
         </Paper>
       )}

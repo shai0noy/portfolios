@@ -1,6 +1,8 @@
 import { fetchXml, parseXmlString } from './utils/xml_parser';
-import type { TickerListItem, TickerData } from './types';
+import type { TickerData } from './types';
+import type { TickerProfile } from '../types/ticker';
 import { Exchange } from '../types';
+import { InstrumentClassification, InstrumentType } from '../types/instrument';
 import { 
   getDateParts, 
   parseDateStr, 
@@ -73,8 +75,8 @@ export async function fetchGemelnetFund(
     
     const rows = Array.from(xmlDoc.querySelectorAll('Row'));
     const points: FundDataPoint[] = [];
-    const fundInfo = tickersList.find(t => t.providentInfo?.fundId === fundId);
-    const fundName = fundInfo?.nameEn || '';
+    const fundInfo = tickersList.find(t => t.meta?.type === 'PROVIDENT' && t.meta.fundId === fundId);
+    const fundName = fundInfo?.name || '';
 
     rows.forEach(row => {
       const getText = (tag: string) => row.querySelector(tag)?.textContent || '';
@@ -119,7 +121,7 @@ export async function fetchGemelnetFund(
   }
 }
 
-const LIST_CACHE_KEY = 'gemelnet_tickers_list_v4';
+const LIST_CACHE_KEY = 'gemelnet_tickers_list_v5';
 
 interface CompactTicker {
   i: number; // id
@@ -132,61 +134,46 @@ interface CompactTicker {
   x?: Record<string, any>; // Extras
 }
 
-function compressTickers(tickers: TickerListItem[]): CompactTicker[] {
-  const KNOWN_KEYS = new Set(['fundId', 'managingCompany', 'fundType', 'specialization', 'subSpecialization', 'managementFee', 'depositFee']);
-  
+function compressTickers(tickers: TickerProfile[]): CompactTicker[] {
+  // Compression logic remains similar but operates on TickerProfile
   return tickers.map(t => {
-    const pInfo = t.providentInfo;
-    const extras: Record<string, any> = {};
-    
-    if (pInfo) {
-      Object.keys(pInfo).forEach(key => {
-        if (!KNOWN_KEYS.has(key)) {
-          console.warn(`[Gemelnet] Unexpected key in ProvidentInfo during compression: ${key} (Value: ${(pInfo as any)[key]}) for ticker ${t.symbol}`);
-          extras[key] = (pInfo as any)[key];
-        }
-      });
-    }
+    if (t.meta?.type !== 'PROVIDENT') return null;
+    const pInfo = t.meta;
 
     const compressed: CompactTicker = {
-      i: pInfo?.fundId || parseInt(t.symbol, 10),
-      n: t.nameHe || t.nameEn,
-      ft: pInfo?.fundType || '',
-      s: pInfo?.specialization,
-      ss: pInfo?.subSpecialization,
-      mf: pInfo?.managementFee,
-      df: pInfo?.depositFee,
+      i: pInfo.fundId,
+      n: t.name, // Use name, assumed hebrew/english are same or handled
+      ft: t.type.specificType || '', // Store raw type
+      s: t.sector, // Use sector for specialization
+      ss: t.subSector, // Use subSector for subSpecialization
+      mf: pInfo.managementFee,
+      df: pInfo.depositFee,
     };
-
-    if (Object.keys(extras).length > 0) {
-      compressed.x = extras;
-    }
     
     return compressed;
-  });
+  }).filter((t): t is CompactTicker => t !== null);
 }
 
-function decompressTickers(compact: CompactTicker[]): TickerListItem[] {
+function decompressTickers(compact: CompactTicker[]): TickerProfile[] {
   return compact.map(c => ({
     symbol: String(c.i),
     exchange: Exchange.GEMEL,
+    securityId: String(c.i),
+    name: c.n,
     nameHe: c.n,
-    nameEn: c.n,
-    globesTypeCode: 'gemel_fund',
-    globesTypeHe: 'קרן גמל',
-    providentInfo: {
+    type: new InstrumentClassification(InstrumentType.SAVING_PROVIDENT, c.ft),
+    sector: c.s,
+    subSector: c.ss,
+    meta: {
+      type: 'PROVIDENT',
       fundId: c.i,
-      fundType: c.ft,
-      specialization: c.s,
-      subSpecialization: c.ss,
       managementFee: c.mf,
-      depositFee: c.df,
-      ...(c.x || {})
+      depositFee: c.df
     }
   }));
 }
 
-export async function fetchGemelnetTickers(signal?: AbortSignal, forceRefresh = false): Promise<TickerListItem[]> {
+export async function fetchGemelnetTickers(signal?: AbortSignal, forceRefresh = false): Promise<TickerProfile[]> {
   const now = Date.now();
 
   // 1. Check Cache
@@ -218,7 +205,7 @@ export async function fetchGemelnetTickers(signal?: AbortSignal, forceRefresh = 
     const xmlText = await fetchXml(url, signal);
     const xmlDoc = parseXmlString(xmlText);
     const rows = Array.from(xmlDoc.querySelectorAll('Row'));
-    const tickersMap = new Map<number, TickerListItem>();
+    const tickersMap = new Map<number, TickerProfile>();
     const parseFee = (feeStr: string): number | undefined => {
         const fee = parseFloat(feeStr);
         return isNaN(fee) ? undefined : fee;
@@ -232,15 +219,15 @@ export async function fetchGemelnetTickers(signal?: AbortSignal, forceRefresh = 
         tickersMap.set(id, {
           symbol: idStr,
           exchange: Exchange.GEMEL,
+          securityId: idStr,
+          name: name,
           nameHe: name,
-          nameEn: name,
-          globesTypeCode: 'gemel_fund',
-          globesTypeHe: 'קרן גמל',
-          providentInfo: {
+          type: new InstrumentClassification(InstrumentType.SAVING_PROVIDENT, getText('SUG_KUPA')),
+          sector: getText('HITMAHUT_RASHIT'),
+          subSector: getText('HITMAHUT_MISHNIT'),
+          meta: {
+            type: 'PROVIDENT',
             fundId: id,
-            fundType: getText('SUG_KUPA'),
-            specialization: getText('HITMAHUT_RASHIT'),
-            subSpecialization: getText('HITMAHUT_MISHNIT'),
             managementFee: parseFee(getText('SHIUR_DMEI_NIHUL_AHARON')),
             depositFee: parseFee(getText('SHIUR_D_NIHUL_AHARON_HAFKADOT')),
           }
@@ -281,8 +268,8 @@ export async function fetchGemelnetQuote(
   if (!fundData.fundName) {
       // Name missing in cache? Try to fetch/lookup again
       const tickers = await fetchGemelnetTickers();
-      const info = tickers.find(t => t.providentInfo?.fundId === fundId);
-      if (info) fundData.fundName = info.nameEn || info.nameHe || '';
+      const info = tickers.find(t => t.meta?.type === 'PROVIDENT' && t.meta.fundId === fundId);
+      if (info) fundData.fundName = info.name || info.nameHe || '';
   }
 
   return calculateTickerDataFromFundHistory(fundData, Exchange.GEMEL, 'Gemelnet');

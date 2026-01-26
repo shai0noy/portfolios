@@ -4,8 +4,9 @@ import { fetchYahooTickerData } from './yahoo';
 import { fetchAllTickers } from './stock_list';
 import { fetchGemelnetQuote } from './gemelnet';
 import { fetchPensyanetQuote } from './pensyanet';
-import type { TickerData, TickerListItem, TaseInfo } from './types';
+import type { TickerData } from './types';
 import { Exchange, parseExchange } from '../types';
+import type { TickerProfile } from '../types/ticker';
 
 export * from './types';
 export * from './stock_list';
@@ -16,10 +17,10 @@ export * from './gemelnet';
 export * from './pensyanet';
 
 
-let tickersDataset: Record<string, TickerListItem[]> | null = null;
-let tickersDatasetLoading: Promise<Record<string, TickerListItem[]>> | null = null;
+let tickersDataset: Record<string, TickerProfile[]> | null = null;
+let tickersDatasetLoading: Promise<Record<string, TickerProfile[]>> | null = null;
 
-export function getTickersDataset(signal?: AbortSignal, forceRefresh = false): Promise<Record<string, TickerListItem[]>> {
+export function getTickersDataset(signal?: AbortSignal, forceRefresh = false): Promise<Record<string, TickerProfile[]>> {
   if (tickersDataset && !forceRefresh) {
     return Promise.resolve(tickersDataset);
   }
@@ -32,7 +33,7 @@ export function getTickersDataset(signal?: AbortSignal, forceRefresh = false): P
       const exchanges = [Exchange.TASE, Exchange.NASDAQ, Exchange.NYSE, Exchange.GEMEL, Exchange.PENSION, Exchange.FOREX];
       const results = await Promise.all(exchanges.map(ex => fetchAllTickers(ex, undefined, signal)));
       
-      const combined: Record<string, TickerListItem[]> = {};
+      const combined: Record<string, TickerProfile[]> = {};
       results.forEach(res => {
         Object.entries(res).forEach(([type, items]) => {
             if (!combined[type]) combined[type] = [];
@@ -109,14 +110,15 @@ export async function getTickerData(
   }
 
   let globesPromise: Promise<TickerData | null>;
-  let taseInfoPromise: Promise<TaseInfo | undefined> = Promise.resolve(undefined);
+  let taseInfoPromise: Promise<any | undefined> = Promise.resolve(undefined);
 
   if (parsedExchange === Exchange.TASE) {
+    // Note: getTickersDataset now returns TickerProfile[], so we need to adjust how we look up TaseInfo
     const lookupPromise = getTickersDataset(signal).then(dataset => {
       for (const list of Object.values(dataset)) {
         const found = list.find(t => 
           t.exchange === Exchange.TASE && 
-          (t.symbol === ticker || (secId && t.taseInfo?.securityId === secId))
+          (t.symbol === ticker || (secId && t.securityId === String(secId)))
         );
         if (found) return found;
       }
@@ -126,33 +128,32 @@ export async function getTickerData(
       return undefined;
     });
 
-    taseInfoPromise = lookupPromise.then(item => item?.taseInfo);
+    taseInfoPromise = lookupPromise.then(item => item?.meta?.type === 'TASE' ? item.meta : undefined);
 
     if (secId) {
       globesPromise = fetchGlobesStockQuote(ticker, secId, parsedExchange, signal, forceRefresh);
     } else {
+      // If we don't have securityId, we try to find it from the dataset
       globesPromise = lookupPromise.then(item => {
-        return fetchGlobesStockQuote(ticker, item?.taseInfo?.securityId, parsedExchange, signal, forceRefresh);
+        const sid = item?.securityId ? Number(item.securityId) : undefined;
+        if (!sid) return null;
+        return fetchGlobesStockQuote(ticker, sid, parsedExchange, signal, forceRefresh);
       });
     }
   } else {
     globesPromise = fetchGlobesStockQuote(ticker, secId, parsedExchange, signal, forceRefresh);
   }
 
-  const [globesData, _unusedYahoo, taseInfo] = await Promise.all([
+  const [globesData, _unusedYahoo, _unusedTaseInfo] = await Promise.all([
     globesPromise,
     Promise.resolve(yahooData),
     taseInfoPromise
   ]);
 
-  const taseSector = taseInfo?.companySector;
-  const taseSubSector = taseInfo?.companySubSector;
-  const taseType = taseInfo?.taseType;
-
   // Fallback to Yahoo if the first source fails, or merge data if both succeed.
   if (!globesData) {
     if (yahooData) {
-      return { ...yahooData, sector: taseSector, subSector: taseSubSector, taseType };
+      return { ...yahooData };
     }
     return yahooData;
   }
@@ -194,15 +195,11 @@ export async function getTickerData(
 
       openPrice: globesData.openPrice ?? yahooData.openPrice,
       source: `${globesData.source} + Yahoo Finance`,
-      sector: taseSector || globesData.sector || yahooData.sector,
-      subSector: taseSubSector,
-      taseType: taseType,
+      sector: globesData.sector || yahooData.sector,
+      subSector: globesData.subSector || yahooData.subSector,
+      taseType: globesData.taseType,
       volume: globesData.volume ?? yahooData.volume,
     };
-  }
-
-  if (taseInfo) {
-    return { ...globesData, sector: taseSector, subSector: taseSubSector, taseType };
   }
 
   return globesData;

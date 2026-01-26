@@ -1,10 +1,12 @@
 // src/lib/fetching/globes.ts
 import { CACHE_TTL, saveToCache, loadFromCache, TASE_CACHE_TTL } from './utils/cache';
 import { fetchXml, parseXmlString, extractDataFromXmlNS } from './utils/xml_parser';
-import type { TickerData, TickerListItem } from './types';
+import type { TickerData } from './types';
 import { Exchange, parseExchange, Currency } from '../types';
 import { normalizeCurrency } from '../currency';
 import { formatForexSymbol } from './utils/forex';
+import type { TickerProfile } from '../types/ticker';
+import { InstrumentClassification } from '../types/instrument';
 
 const GLOBES_API_NAMESPACE = 'http://financial.globes.co.il/';
 const XSI_NAMESPACE = 'http://www.w3.org/2001/XMLSchema-instance';
@@ -105,13 +107,13 @@ function calculateChangePct(current: number, previousStr: string): number {
 
 // --- Main Fetch Functions ---
 
-export async function fetchGlobesTickersByType(type: string, exchange: Exchange, signal?: AbortSignal): Promise<TickerListItem[]> {
+export async function fetchGlobesTickersByType(type: string, exchange: Exchange, signal?: AbortSignal): Promise<TickerProfile[]> {
   const exchangeCode = toGlobesExchangeCode(exchange);
-  const cacheKey = `globes:tickers:v7:${exchangeCode}:${type}`;
+  const cacheKey = `globes:tickers:v8:${exchangeCode}:${type}`; // Incremented cache version
   const now = Date.now();
 
   try {
-      const cached = await loadFromCache<TickerListItem[]>(cacheKey);
+      const cached = await loadFromCache<TickerProfile[]>(cacheKey);
       if (cached && (now - cached.timestamp < TASE_CACHE_TTL)) {
           if (Array.isArray(cached.data)) return cached.data;
       }
@@ -121,7 +123,7 @@ export async function fetchGlobesTickersByType(type: string, exchange: Exchange,
   const xmlString = await fetchXml(globesApiUrl, signal);
   const xmlDoc = parseXmlString(xmlString);
   
-  const data = extractDataFromXmlNS(xmlDoc, GLOBES_API_NAMESPACE, 'anyType', (element): TickerListItem | null => {
+  const data = extractDataFromXmlNS(xmlDoc, GLOBES_API_NAMESPACE, 'anyType', (element): TickerProfile | null => {
       if (element.getAttributeNS(XSI_NAMESPACE, 'type') !== 'Instrument') return null;
 
       const common = extractCommonGlobesData(element);
@@ -132,22 +134,18 @@ export async function fetchGlobesTickersByType(type: string, exchange: Exchange,
         symbol = formatForexSymbol(symbol);
       }
 
+      const classification = new InstrumentClassification(type, undefined, { he: common.instrumentTypeHe });
+
       return {
         symbol,
         exchange,
-        nameEn: common.nameEn,
+        securityId: common.symbol, // Globes symbol is the security ID
+        name: common.nameEn,
         nameHe: common.nameHe,
-        globesTypeCode: type,
-        globesRawSymbol: common.symbol,
-        globesTypeHe: common.instrumentTypeHe,
-        taseInfo: {
-          securityId: Number(common.symbol),
-          companyName: common.nameEn,
-          companySuperSector: '',
-          companySector: '',
-          companySubSector: '',
-          globesInstrumentId: common.instrumentId,
-          taseType: type
+        type: classification,
+        meta: {
+          type: 'GLOBES',
+          instrumentId: common.instrumentId,
         }
       };
     });
@@ -156,9 +154,10 @@ export async function fetchGlobesTickersByType(type: string, exchange: Exchange,
     return data;
 }
 
-export async function fetchGlobesCurrencies(signal?: AbortSignal): Promise<TickerListItem[]> {
+export async function fetchGlobesCurrencies(signal?: AbortSignal): Promise<TickerProfile[]> {
   const tickers = await fetchGlobesTickersByType('currency', Exchange.FOREX, signal);
-  return tickers.map(t => ({ ...t, exchange: Exchange.FOREX }));
+  // Ensure exchange is set correctly if not already (it is set in fetchGlobesTickersByType)
+  return tickers; 
 }
 
 export async function fetchGlobesStockQuote(symbol: string, securityId: number | undefined, exchange: Exchange, signal?: AbortSignal, forceRefresh = false): Promise<TickerData | null> {
@@ -179,8 +178,20 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
     const currencies = await fetchGlobesTickersByType('currency', Exchange.FOREX, signal);
     const match = currencies.find(c => c.symbol === formattedInput);
 
-    if (match?.globesRawSymbol) {
-      identifier = match.globesRawSymbol;
+    // match.meta is ExchangeMetadata which is a union. We need to check if it's 'GLOBES' or 'TASE' type to access instrumentId/securityId.
+    // However, TickerProfile structure puts this in `meta`.
+    // Since fetchGlobesTickersByType returns TickerProfile with GLOBES meta:
+    let rawGlobesId: string | undefined;
+    if (match?.meta && match.meta.type === 'GLOBES') {
+        rawGlobesId = match.securityId; // or match.meta.instrumentId depending on what we want.
+        // Wait, identifier for fetchGlobesStockQuote API call is usually the security ID (symbol in list) or instrumentId?
+        // Looking at previous code: `identifier = match.globesRawSymbol;` which was mapped to `numericSecurityId`.
+        // So `match.securityId` (from TickerProfile) should be correct.
+        rawGlobesId = match.securityId; 
+    }
+
+    if (rawGlobesId) {
+      identifier = rawGlobesId;
     } else {
       console.warn(`Globes: Could not find FOREX ticker ${formattedInput} in Globes currency list.`);
       return null;

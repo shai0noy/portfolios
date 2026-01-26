@@ -4,7 +4,8 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import AddIcon from '@mui/icons-material/Add';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { getTickerData, getTickersDataset, type TickerListItem, fetchTickerHistory } from '../lib/fetching';
+import { getTickerData, getTickersDataset, fetchTickerHistory } from '../lib/fetching';
+import type { TickerProfile } from '../lib/types/ticker';
 import { fetchHolding, getMetadataValue } from '../lib/sheets/index';
 import { Exchange, parseExchange, toGoogleFinanceExchangeCode, toYahooFinanceTicker, type Holding, type Portfolio } from '../lib/types';
 import { formatPrice, formatPercent, toILS, normalizeCurrency } from '../lib/currency';
@@ -175,18 +176,16 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
       if (!currentNumericId && (exchange === Exchange.TASE || exchange === Exchange.GEMEL || exchange === Exchange.PENSION)) {
         console.log(`Numeric ID missing for ${ticker} on ${exchange}. Fetching dataset to find it.`);
         const dataset = await getTickersDataset();
-        let foundItem: TickerListItem | undefined;
+        let foundItem: TickerProfile | undefined;
+        // Search through all groups in the dataset record
         for (const key in dataset) {
           foundItem = dataset[key].find(item => item.symbol === ticker && item.exchange === exchange);
           if (foundItem) break;
         }
-        if (foundItem) {
-          const foundId = foundItem.taseInfo?.securityId || foundItem.providentInfo?.fundId;
-          if (foundId) {
-            console.log(`Found numeric ID: ${foundId}`);
-            currentNumericId = String(foundId);
+        if (foundItem && foundItem.securityId) {
+            console.log(`Found numeric ID: ${foundItem.securityId}`);
+            currentNumericId = foundItem.securityId;
             setDerivedNumericId(currentNumericId); // Save for future renders
-          }
         }
       }
 
