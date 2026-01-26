@@ -669,7 +669,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                     <ToggleButton value="price" aria-label="price">$</ToggleButton>
                   </ToggleButtonGroup>
                 </Box>
-                <TickerChart data={displayHistory} currency={displayData.currency} mode={chartMetric} />
+                <TickerChart series={[{ name: resolvedName || ticker || 'Main', data: displayHistory }]} currency={displayData.currency} mode={chartMetric} />
               </>
             )}
 

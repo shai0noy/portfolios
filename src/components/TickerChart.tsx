@@ -1,13 +1,18 @@
-import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceDot, ReferenceLine } from 'recharts';
+import { ResponsiveContainer, AreaChart, Area, Line, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceDot, ReferenceLine } from 'recharts';
 import { useLanguage } from '../lib/i18n';
 import { formatPrice, formatPercent } from '../lib/currency';
 import { Paper, Typography, Box } from '@mui/material';
 import { useTheme } from '@mui/material/styles';import { useState, useEffect, useCallback, useMemo } from 'react';
 
 
+export interface ChartSeries {
+    name: string;
+    data: { date: Date; price: number; adjClose?: number }[];
+    color?: string;
+}
 
 interface TickerChartProps {
-    data: { date: Date; price: number; adjClose?: number }[];
+    series: ChartSeries[];
     currency: string;
     mode?: 'percent' | 'price';
 }
@@ -80,8 +85,9 @@ const SelectionSummary = ({ startPoint, endPoint, currency, t }: any) => {
     );
 };
 
+const EXTRA_COLORS = ['#ff7300', '#387908', '#8884d8', '#82ca9d', '#ffc658'];
 
-export function TickerChart({ data, currency, mode = 'percent' }: TickerChartProps) {
+export function TickerChart({ series, currency, mode = 'percent' }: TickerChartProps) {
     const FADE_MS = 170;          // Speed of the opacity transition
     const TRANSFORM_MS = 360;     // Speed of the line movement (Very fast)
     const BUFFER_MS = 30;        // Safety window for browser paint
@@ -92,7 +98,7 @@ export function TickerChart({ data, currency, mode = 'percent' }: TickerChartPro
     const { t } = useLanguage();
     const theme = useTheme();
 
-    const [displayData, setDisplayData] = useState(data);
+    const [displaySeries, setDisplaySeries] = useState(series);
     const [shadeOpacity, setShadeOpacity] = useState(1);
     
     const [selection, setSelection] = useState({
@@ -101,11 +107,13 @@ export function TickerChart({ data, currency, mode = 'percent' }: TickerChartPro
         isSelecting: false,
     });
 
+    const mainSeries = displaySeries?.[0];
+
     const dateRangeDays = useMemo(() => {
-        if (!displayData || displayData.length < 2) return 0;
-        const range = displayData[displayData.length - 1].date.getTime() - displayData[0].date.getTime();
+        if (!mainSeries?.data || mainSeries.data.length < 2) return 0;
+        const range = mainSeries.data[mainSeries.data.length - 1].date.getTime() - mainSeries.data[0].date.getTime();
         return range / (1000 * 60 * 60 * 24);
-    }, [displayData]);
+    }, [mainSeries]);
 
     const formatXAxis = useCallback((tickItem: number) => {
         const date = new Date(tickItem);
@@ -127,7 +135,7 @@ export function TickerChart({ data, currency, mode = 'percent' }: TickerChartPro
     }, [dateRangeDays]);
 
     useEffect(() => {
-        if (!data || data === displayData) return;
+        if (!series || series === displaySeries) return;
 
         // 1. Instant fade out
         setShadeOpacity(0);
@@ -135,7 +143,7 @@ export function TickerChart({ data, currency, mode = 'percent' }: TickerChartPro
 
         // 2. Wait for fade-out, then swap data (Triggers TRANSFORM_MS line move)
         const swapTimer = setTimeout(() => {
-            setDisplayData(data);
+            setDisplaySeries(series);
 
             // 3. Re-enable shade ONLY after transform is guaranteed finished
             const fadeInTimer = setTimeout(() => {
@@ -146,30 +154,65 @@ export function TickerChart({ data, currency, mode = 'percent' }: TickerChartPro
         }, FADE_MS);
 
         return () => clearTimeout(swapTimer);
-    }, [data, displayData, FADE_MS, FADE_IN_DELAY]);
+    }, [series, displaySeries, FADE_MS, FADE_IN_DELAY]);
 
     // Move hooks above the conditional return
-    const processedData = useMemo(() => {
-        if (!displayData || displayData.length < 1) return [];
+    const chartData = useMemo(() => {
+        if (!mainSeries?.data || mainSeries.data.length < 1) return [];
         // Use adjClose if available, otherwise price. 
         // Important: Must use consistent field for base and current to get correct % change.
-        const first = displayData[0];
+        const first = mainSeries.data[0];
         const basePrice = first.adjClose || first.price;
         
-        return displayData.map(p => {
+        const processedMain = mainSeries.data.map(p => {
             const val = p.adjClose || p.price;
             return {
                 ...p,
                 yValue: mode === 'percent' ? (basePrice > 0 ? (val / basePrice - 1) : 0) : val,
             };
         });
-    }, [displayData, mode]);
+
+        // Merge other series
+        const otherSeries = displaySeries.slice(1);
+        if (otherSeries.length === 0) return processedMain;
+
+        return processedMain.map(p => {
+            const point: any = { ...p };
+            otherSeries.forEach((s, i) => {
+                // Find closest point in other series? Or exact match?
+                // Assuming aligned dates for now or finding exact match.
+                // For performance on small datasets, find is ok.
+                const match = s.data.find(d => d.date.getTime() === p.date.getTime());
+                if (match) {
+                    const val = match.adjClose || match.price;
+                    // Normalize other series to its own start in the visible range
+                    const sFirst = s.data[0];
+                    const sBase = sFirst.adjClose || sFirst.price;
+                    point[`series_${i}`] = mode === 'percent' ? (sBase > 0 ? (val / sBase - 1) : 0) : val;
+                }
+            });
+            return point;
+        });
+    }, [displaySeries, mode, mainSeries]);
 
     const { yMin, yMax } = useMemo(() => {
-        if (!processedData || processedData.length === 0) return { yMin: 0, yMax: 0 };
-        const vals = processedData.map(p => p.yValue);
-        return { yMin: Math.min(...vals), yMax: Math.max(...vals) };
-    }, [processedData]);
+        if (!chartData || chartData.length === 0) return { yMin: 0, yMax: 0 };
+        let min = Infinity;
+        let max = -Infinity;
+        chartData.forEach((p: any) => {
+            if (p.yValue < min) min = p.yValue;
+            if (p.yValue > max) max = p.yValue;
+            // Check others
+            Object.keys(p).forEach(k => {
+                if (k.startsWith('series_')) {
+                    const v = p[k];
+                    if (v < min) min = v;
+                    if (v > max) max = v;
+                }
+            });
+        });
+        return { yMin, yMax };
+    }, [chartData]);
 
     const formatYAxis = useCallback((tick: number) => {
         if (mode === 'price') {
@@ -185,13 +228,13 @@ export function TickerChart({ data, currency, mode = 'percent' }: TickerChartPro
     }, [yMin, yMax, mode, currency, t]);
 
     const findClosestPoint = useCallback((date: number) => {
-        const data = processedData;
+        const data = chartData;
         if (!data || data.length === 0) return null;
         // Optimization: Binary search for O(log N) lookup
         let low = 0;
         let high = data.length - 1;
         
-        if (date <= data[0].date.getTime()) return data[0];
+        if (date <= data[0].date.getTime()) return data[0] as any;
         if (date >= data[high].date.getTime()) return data[high];
 
         while (low < high) {
@@ -205,8 +248,8 @@ export function TickerChart({ data, currency, mode = 'percent' }: TickerChartPro
         
         const next = data[low];
         const prev = data[low - 1]; 
-        return (date - prev.date.getTime() < next.date.getTime() - date) ? prev : next;
-    }, [processedData]);
+        return ((date - prev.date.getTime() < next.date.getTime() - date) ? prev : next) as any;
+    }, [chartData]);
 
     const handleClick = useCallback((e: any) => {
         if (!e || !e.activeLabel) return;
@@ -233,23 +276,23 @@ export function TickerChart({ data, currency, mode = 'percent' }: TickerChartPro
     const selectionPoints = selection.start && selection.end ? [selection.start, selection.end].sort((a,b) => a.date.getTime() - b.date.getTime()) : [];
     const [startPoint, endPoint] = selectionPoints;
 
-    const chartData = useMemo(() => {
-        if (!startPoint || !endPoint || startPoint === endPoint) return processedData;
+    const finalData = useMemo(() => {
+        if (!startPoint || !endPoint || startPoint === endPoint) return chartData;
         
-        const startIndex = processedData.indexOf(startPoint);
-        const endIndex = processedData.indexOf(endPoint);
+        const startIndex = chartData.indexOf(startPoint);
+        const endIndex = chartData.indexOf(endPoint);
 
-        if (startIndex === -1 || endIndex === -1) return processedData;
+        if (startIndex === -1 || endIndex === -1) return chartData;
 
         // Optimization: Recycle objects outside the range, map only the range
         return [
-            ...processedData.slice(0, startIndex),
-            ...processedData.slice(startIndex, endIndex + 1).map(p => ({ ...p, highlightedY: p.yValue })),
-            ...processedData.slice(endIndex + 1)
+            ...chartData.slice(0, startIndex),
+            ...chartData.slice(startIndex, endIndex + 1).map((p: any) => ({ ...p, highlightedY: p.yValue })),
+            ...chartData.slice(endIndex + 1)
         ];
-    }, [processedData, startPoint, endPoint]);
+    }, [chartData, startPoint, endPoint]);
 
-    if (!displayData || displayData.length < 2 || processedData.length < 2) {
+    if (!mainSeries?.data || mainSeries.data.length < 2 || chartData.length < 2) {
         return (
             <Box sx={{
                 width: '100%',
@@ -265,15 +308,15 @@ export function TickerChart({ data, currency, mode = 'percent' }: TickerChartPro
     }
 
     // Calculations (Likeness & Gradient Offset)
-    const first = displayData[0];
+    const first = mainSeries.data[0];
     const basePrice = first.adjClose || first.price;
-    const last = displayData[displayData.length - 1];
+    const last = mainSeries.data[mainSeries.data.length - 1];
     const lastPrice = last.adjClose || last.price;
     const isUp = lastPrice >= basePrice;
     const chartColor = isUp ? theme.palette.success.main : theme.palette.error.main;
 
-    const xMin = processedData[0].date.getTime();
-    const xMax = processedData[processedData.length - 1].date.getTime();
+    const xMin = chartData[0].date.getTime();
+    const xMax = chartData[chartData.length - 1].date.getTime();
 
     // Determine the split threshold
     const threshold = mode === 'price' ? basePrice : 0;
@@ -304,7 +347,7 @@ export function TickerChart({ data, currency, mode = 'percent' }: TickerChartPro
             <SelectionSummary startPoint={startPoint} endPoint={endPoint} currency={currency} t={t} />
             <ResponsiveContainer width="100%" height="100%">
                 <AreaChart
-                    data={chartData}
+                    data={finalData}
                     onClick={handleClick}
                     onMouseMove={handleMouseMove}
                     margin={{ top: 10, right: 5, left: 0, bottom: 0 }}
@@ -339,6 +382,18 @@ export function TickerChart({ data, currency, mode = 'percent' }: TickerChartPro
                     <Tooltip content={<CustomTooltip currency={currency} t={t} basePrice={basePrice} mode={mode} />} />
                     <ReferenceLine y={threshold} stroke={theme.palette.text.secondary} strokeDasharray="3 3" />
                     
+                    {displaySeries.slice(1).map((s, i) => (
+                        <Line 
+                            key={i}
+                            type="monotone" 
+                            dataKey={`series_${i}`} 
+                            stroke={s.color || EXTRA_COLORS[i % EXTRA_COLORS.length]} 
+                            strokeWidth={2} 
+                            dot={false}
+                            isAnimationActive={false}
+                        />
+                    ))}
+
                     <Area 
                         type="monotone" 
                         dataKey="yValue" 
