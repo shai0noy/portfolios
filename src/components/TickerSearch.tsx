@@ -44,6 +44,9 @@ interface SearchResult {
   globesInstrumentId?: string; // TASE specific
   rawTicker?: TickerListItem | TickerData;
   ownedInPortfolios?: string[];
+  sector?: string;
+  displayTypeEn?: string;
+  displayTypeHe?: string;
 }
 
 function processTaseResult(t: TickerListItem, instrumentType: string, portfolios: Portfolio[]): SearchResult {
@@ -57,6 +60,9 @@ function processTaseResult(t: TickerListItem, instrumentType: string, portfolios
     globesInstrumentId: t.taseInfo?.globesInstrumentId,
     rawTicker: t,
     ownedInPortfolios: getOwnedInPortfolios(t.symbol, portfolios, t.exchange),
+    sector: t.taseInfo?.companySubSector || t.taseInfo?.companySector,
+    displayTypeEn: t.taseInfo?.taseType,
+    displayTypeHe: t.globesTypeHe,
   };
 }
 
@@ -314,7 +320,11 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
                       <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mt: 0.5 }}>
                         <Chip
                           label={`${option.exchange}:${option.symbol}${option.numericSecurityId ? ` (${option.numericSecurityId})` : ''}`} size="small" variant="outlined" />
-                        {option.type && DEFAULT_SECURITY_TYPE_CONFIG[option.type] && <Chip label={getTranslatedType(option.type, DEFAULT_SECURITY_TYPE_CONFIG[option.type]?.displayName || option.type)} size="small" color="primary" variant="outlined" />}
+                        {option.sector && <Chip label={option.sector} size="small" variant="outlined" />}
+                        {(option.displayTypeEn || option.displayTypeHe) 
+                          ? <Chip label={tTry(option.displayTypeEn, option.displayTypeHe)} size="small" color="primary" variant="outlined" />
+                          : (option.type && DEFAULT_SECURITY_TYPE_CONFIG[option.type] && <Chip label={getTranslatedType(option.type, DEFAULT_SECURITY_TYPE_CONFIG[option.type]?.displayName || option.type)} size="small" color="primary" variant="outlined" />)
+                        }
                         {option.ownedInPortfolios && option.ownedInPortfolios.length > 0 && (
                           <Tooltip title={`Owned in: ${option.ownedInPortfolios.join(', ')}`}>
                             <BusinessCenterIcon color="success" sx={{ fontSize: 16, ml: 1 }} />
