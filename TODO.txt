@@ -2,24 +2,17 @@
 
 Move SOURCE text in search result - smaller and in bottom corner
 In details of gemel funds, handle gains display/calc - and cost basis!
-Done: Show sector and type in search results (currently showing type form code, need to reconcile..)
 Show ticker type dash
 Show holdings of funds
-DONE: Show trading volume in TickerDetails
 Comperasion chars + allow metrics: r^2, beta
 דמי ניהול - להציג + לחשב בגמל וכו'
-Div is broken again!
-REALLY need refactoring of types
+
 remove casts to any
 refactor code....
-Display sector form gemel/pension
-DONE?: Crypto not showing charts longer than 1y
 move currency selector and "back to all" buttons in dashbaord 
-fix display name in search results (of IL tickers, seem to use ticke rather than name in dropdown)!
 Consider if request deduping is needed in places (cuurently in yahoo)
-Done: In search resutls - also prefer matches of shorter name (when match is by name)
-Done: in search results - sort e.g. stocks, funds, etfs, then bonds, etc - accroding to the popularity of instrument
-When showing http://localhost:5173/portfolios/ticker/TASE/123456 - Try to resolve ticker (e.g. LUMI) and update the URL and data (load merged data from tase, yahoo)
+Done???: Div is broken again!
+
  
 
 Discovery/selling points page
@@ -28,7 +21,6 @@ maybe store type in sheet
 tase types vs globes types??
 
 dsahboard summary:
-- Done: daily movers by value/pct
 - chart
 - market comperission (compare gains to sp500, ta, etc)
 
@@ -44,15 +36,24 @@ Refine set of defaults columns shown
 HOLD: Handle Reit taxing
 
 Low priority:
-- Done: Support switching display lang to Hebrew - should also affect stock names when avilable (with cookie to persist)
 - Smart layer based tax calc (FIFO selling and per layer taxing)
 - Allow fetching Israeli price indecies (eg CPI) - https://api.cbs.gov.il/index/data/price?id=120010&format=json&download=false&startPeriod=01-2000&endPeriod=12-2019
-- Done:  Add chart to ticker view - it should allow day range, week, month 1,3,5 years, YTD, max
 - ON HOLD: Add portfolio sum chart for dashboard view
 - ON HOLD: Allow comparing portfolios to common indecies, eg CPI, SP500, TLV-125
 - ON HOLD: Use Gemini for anlysis and insight
 - ON HOLD: Forcast mode, where future txns, vesting are taken into account, and growth of holding is predicted based on custom uesr input or recent trends. Should also include taxes
 
+Done: Show sector and type in search results (currently showing type form code, need to reconcile..)
+DONE: Show trading volume in TickerDetails
+Done: REALLY need refactoring of typesDone: Display sector form gemel/pension
+DONE?: Crypto not showing charts longer than 1y
+Done:fix display name in search results (of IL tickers, seem to use ticke rather than name in dropdown)!
+Done: In search resutls - also prefer matches of shorter name (when match is by name)
+Done: in search results - sort e.g. stocks, funds, etfs, then bonds, etc - accroding to the popularity of instrument
+- Done: daily movers by value/pct
+- Done:  Add chart to ticker view - it should allow day range, week, month 1,3,5 years, YTD, max
+- Done: Support switching display lang to Hebrew - should also affect stock names when avilable (with cookie to persist)
+DONE: When showing http://localhost:5173/portfolios/ticker/TASE/123456 - Try to resolve ticker (e.g. LUMI) and update the URL and data (load merged data from tase, yahoo)
 DONE: Fix TS2322: Type '{ ..., sheetId: string; }' is not assignable to type 'IntrinsicAttributes & TableProps'. Property 'sheetId' does not exist on type 'IntrinsicAttributes & TableProps' in Dashboard.tsx (removed sheetId prop from DashboardTable call).
 DONE: Fix TS1484: 'TaseTicker' is a type and must be imported using a type-only import in ticker.ts.
 DONE: Important: Improve google login handling - increase buffers, impl todos, make the session last long and require rarely re-login

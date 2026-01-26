@@ -179,13 +179,29 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
         let foundItem: TickerProfile | undefined;
         // Search through all groups in the dataset record
         for (const key in dataset) {
-          foundItem = dataset[key].find(item => item.symbol === ticker && item.exchange === exchange);
+          foundItem = dataset[key].find(item => 
+            item.exchange === exchange && 
+            (item.symbol === ticker || item.securityId === ticker)
+          );
           if (foundItem) break;
         }
-        if (foundItem && foundItem.securityId) {
-            console.log(`Found numeric ID: ${foundItem.securityId}`);
-            currentNumericId = foundItem.securityId;
-            setDerivedNumericId(currentNumericId); // Save for future renders
+        
+        if (foundItem) {
+            if (foundItem.securityId) {
+                console.log(`Found numeric ID: ${foundItem.securityId}`);
+                currentNumericId = foundItem.securityId;
+                setDerivedNumericId(currentNumericId);
+            }
+            
+            // If we searched by ID (or non-canonical symbol) and found the canonical symbol, redirect
+            if (foundItem.symbol && foundItem.symbol !== ticker) {
+                console.log(`Redirecting to canonical symbol: ${foundItem.symbol}`);
+                navigate(`/ticker/${exchange}/${foundItem.symbol}`, { 
+                    replace: true, 
+                    state: { ...state, numericId: currentNumericId } 
+                });
+                return; // Stop processing this obsolete render
+            }
         }
       }
 
