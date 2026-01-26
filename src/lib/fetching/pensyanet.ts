@@ -113,7 +113,7 @@ export async function fetchPensyanetFund(
   }
 }
 
-const LIST_CACHE_KEY = 'pensyanet_tickers_list_v5';
+const LIST_CACHE_KEY = 'pensyanet_tickers_list_v6';
 
 interface CompactTicker {
   i: number; // id
@@ -163,6 +163,7 @@ function decompressTickers(compact: CompactTicker[]): TickerListItem[] {
     nameHe: c.n,
     nameEn: c.n,
     globesTypeCode: 'pension_fund',
+    globesTypeHe: 'קרן פנסיה',
     providentInfo: {
       fundId: c.i,
       fundType: c.ft,

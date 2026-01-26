@@ -17,8 +17,8 @@ DONE?: Crypto not showing charts longer than 1y
 move currency selector and "back to all" buttons in dashbaord 
 fix display name in search results (of IL tickers, seem to use ticke rather than name in dropdown)!
 Consider if request deduping is needed in places (cuurently in yahoo)
-In search resutls - also prefer matches of shorter name (when match is by name)
-in search results - sort e.g. stocks, funds, etfs, then bonds, etc - accroding to the popularity of instrument
+Done: In search resutls - also prefer matches of shorter name (when match is by name)
+Done: in search results - sort e.g. stocks, funds, etfs, then bonds, etc - accroding to the popularity of instrument
 When showing http://localhost:5173/portfolios/ticker/TASE/123456 - Try to resolve ticker (e.g. LUMI) and update the URL and data (load merged data from tase, yahoo)
  
 

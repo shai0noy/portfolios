@@ -119,7 +119,7 @@ export async function fetchGemelnetFund(
   }
 }
 
-const LIST_CACHE_KEY = 'gemelnet_tickers_list_v3';
+const LIST_CACHE_KEY = 'gemelnet_tickers_list_v4';
 
 interface CompactTicker {
   i: number; // id
@@ -173,6 +173,7 @@ function decompressTickers(compact: CompactTicker[]): TickerListItem[] {
     nameHe: c.n,
     nameEn: c.n,
     globesTypeCode: 'gemel_fund',
+    globesTypeHe: 'קרן גמל',
     providentInfo: {
       fundId: c.i,
       fundType: c.ft,

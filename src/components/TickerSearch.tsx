@@ -60,7 +60,7 @@ function processTaseResult(t: TickerListItem, instrumentType: string, portfolios
     globesInstrumentId: t.taseInfo?.globesInstrumentId,
     rawTicker: t,
     ownedInPortfolios: getOwnedInPortfolios(t.symbol, portfolios, t.exchange),
-    sector: t.taseInfo?.companySubSector || t.taseInfo?.companySector,
+    sector: t.providentInfo?.subSpecialization || t.providentInfo?.specialization || t.taseInfo?.companySubSector || t.taseInfo?.companySector,
     displayTypeEn: t.taseInfo?.taseType,
     displayTypeHe: t.globesTypeHe,
   };
@@ -353,7 +353,11 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
       </Grid>
 
       {(filteredResults.length > 0) && (
-        <Paper elevation={2} sx={{ maxHeight: 300, overflowY: 'auto', my: 1 }}>
+        <Paper 
+          elevation={2} 
+          className="visible-scrollbar"
+          sx={{ maxHeight: 300, overflowY: 'auto', my: 1 }}
+        >
           <List dense>
             {filteredResults.map((option, index) => (
               <Box key={`${option.exchange}:${option.symbol}`}>
