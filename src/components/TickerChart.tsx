@@ -211,7 +211,7 @@ export function TickerChart({ series, currency, mode = 'percent' }: TickerChartP
                 }
             });
         });
-        return { yMin, yMax };
+        return { yMin: min, yMax: max };
     }, [chartData]);
 
     const formatYAxis = useCallback((tick: number) => {
