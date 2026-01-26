@@ -19,7 +19,8 @@ fetch mgmt fee from tase and also show
 add search to dashbaord - open ticker detials rather than open add txn mode
 DONE: Make sure div calc in ticker details uses max data range and not just 1 y
 DONE: In multi line charts - the tooltip should show just change, and have value for each line (with matching color)
-In multi line charts - in range selection mode the selection shade should match the line color
+DONE: In multi line charts - in range selection mode the selection shade should match the line color
+use 5y rather than 1y for yahoo hist and improve name
 
 Discovery/selling points page
 Cloudflare throttling and force cache

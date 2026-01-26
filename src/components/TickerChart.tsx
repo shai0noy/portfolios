@@ -24,41 +24,38 @@ const CustomTooltip = ({ active, payload, currency, t, basePrice, isComparison, 
         const dateStr = date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 
         if (isComparison) {
-            // Sort payload to have main series first, then by series index
-            const sortedPayload = [...payload].sort((a, b) => {
-                if (a.dataKey === 'yValue') return -1;
-                if (b.dataKey === 'yValue') return 1;
-                if (a.dataKey.startsWith('series_') && b.dataKey.startsWith('series_')) {
-                    return parseInt(a.dataKey.split('_')[1]) - parseInt(b.dataKey.split('_')[1]);
-                }
-                return 0;
-            });
-
+            // The `payload` array can be sparse if some series have null data at this point.
+            // Instead, we iterate over all `series` and look up their values in the `point` object.
+            // The `point` object (`payload[0].payload`) contains the complete data for the hovered x-axis value.
             return (
                 <Paper elevation={3} sx={{ padding: '10px', minWidth: 150 }}>
                     <Typography variant="caption" display="block" sx={{ mb: 1 }}>{dateStr}</Typography>
-                    {sortedPayload.map((p: any) => {
-                        let seriesName = '';
-                        if (p.dataKey === 'yValue') {
-                            seriesName = series[0].name;
-                        } else if (p.dataKey.startsWith('series_')) {
-                            const seriesIndex = parseInt(p.dataKey.split('_')[1], 10) + 1;
-                            if (series[seriesIndex]) {
-                                seriesName = series[seriesIndex].name;
-                            }
-                        }
+                    {series.map((s: ChartSeries, index: number) => {
+                        const seriesName = s.name;
+                        let value: number | undefined | null;
+                        let color: string | undefined;
 
-                        // Don't render if we can't find a name or if value is null/undefined
-                        if (!seriesName || p.value === null || p.value === undefined) return null;
+                        if (index === 0) {
+                            // Main series
+                            value = point.yValue;
+                            // The main series color is dynamic, find it in the payload.
+                            const payloadEntry = payload.find((p: any) => p.dataKey === 'yValue');
+                            color = payloadEntry?.color;
+                        } else {
+                            // Comparison series
+                            const dataKey = `series_${index - 1}`;
+                            value = point[dataKey];
+                            color = s.color; // Color is stored in the series object for comparisons.
+                        }
 
                         return (
                             <Box key={seriesName} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2 }}>
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
-                                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: p.color, flexShrink: 0 }} />
+                                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: color, flexShrink: 0 }} />
                                     <Typography variant="caption" noWrap>{seriesName}</Typography>
                                 </Box>
                                 <Typography variant="caption" sx={{ fontWeight: 'bold' }}>
-                                    {formatPercent(p.value)}
+                                    {(value !== null && value !== undefined) ? formatPercent(value) : 'N/A'}
                                 </Typography>
                             </Box>
                         );
@@ -85,42 +82,96 @@ const CustomTooltip = ({ active, payload, currency, t, basePrice, isComparison, 
     return null;
 };
 
-const SelectionSummary = ({ startPoint, endPoint, currency, t }: any) => {
+const SelectionSummary = ({ startPoint, endPoint, currency, t, isComparison, series, mainLineColor }: any) => {
     if (!startPoint || !endPoint) return null;
 
     const theme = useTheme();
     const isDarkMode = theme.palette.mode === 'dark';
 
+    const startDate = new Date(Math.min(startPoint.date.getTime(), endPoint.date.getTime()));
+    const endDate = new Date(Math.max(startPoint.date.getTime(), endPoint.date.getTime()));
+    const startDateStr = startDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    const endDateStr = endDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    const duration = Math.round(Math.abs(endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+
+    const boxStyle = {
+        position: 'absolute',
+        top: '8px',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        zIndex: 10,
+        background: isDarkMode ? 'rgba(40, 40, 40, 0.7)' : 'rgba(255, 255, 255, 0.7)',
+        backdropFilter: 'blur(4px)',
+        padding: '8px 12px',
+        borderRadius: '8px',
+        pointerEvents: 'none',
+        boxShadow: 3,
+        border: `1px solid ${theme.palette.divider}`,
+        minWidth: 200,
+    };
+
+    if (isComparison) {
+        const changes = series.map((s: ChartSeries, index: number) => {
+            let startVal: number | undefined;
+            let endVal: number | undefined;
+            
+            if (index === 0) { // Main series
+                startVal = startPoint.yValue;
+                endVal = endPoint.yValue;
+            } else { // Comparison series
+                const dataKey = `series_${index - 1}`;
+                startVal = startPoint[dataKey];
+                endVal = endPoint[dataKey];
+            }
+
+            if (startVal === undefined || endVal === undefined || startVal === null || endVal === null) {
+                return { name: s.name, change: NaN, color: index === 0 ? mainLineColor : s.color };
+            }
+            
+            const change = (1 + endVal) / (1 + startVal) - 1;
+
+            return { name: s.name, change, color: index === 0 ? mainLineColor : s.color };
+        });
+
+        return (
+            <Box sx={boxStyle}>
+                <Typography variant="caption" sx={{ fontWeight: 'bold', display: 'block', color: isDarkMode ? 'white' : 'black', textAlign: 'center', mb: 1 }}>
+                    {startDateStr} to {endDateStr} ({duration} days)
+                </Typography>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                    {changes.map(item => {
+                        if (isNaN(item.change)) return null;
+                        const textColor = item.change >= 0 ? 'success.main' : 'error.main';
+                        return (
+                            <Box key={item.name} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2 }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+                                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: item.color, flexShrink: 0 }} />
+                                    <Typography variant="caption" noWrap>{item.name}</Typography>
+                                </Box>
+                                <Typography variant="caption" sx={{ fontWeight: 'bold', color: textColor }}>
+                                    {formatPercent(item.change)}
+                                </Typography>
+                            </Box>
+                        );
+                    })}
+                </Box>
+            </Box>
+        );
+    } 
+    
+    // Single-line mode logic (existing)
     const startVal = startPoint.adjClose || startPoint.price;
     const endVal = endPoint.adjClose || endPoint.price;
 
     const priceChange = endVal - startVal;
-    const percentChange = (endVal / startVal) - 1;
-    const duration = Math.abs(endPoint.date.getTime() - startPoint.date.getTime()) / (1000 * 60 * 60 * 24);
+    const percentChange = (startVal !== 0) ? (endVal / startVal) - 1 : 0;
     const isPositive = percentChange >= 0;
     const color = isPositive ? 'success.main' : 'error.main';
 
-    const startDateStr = new Date(Math.min(startPoint.date.getTime(), endPoint.date.getTime())).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-    const endDateStr = new Date(Math.max(startPoint.date.getTime(), endPoint.date.getTime())).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-
     return (
-        <Box sx={{
-            position: 'absolute',
-            top: '8px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 10,
-            background: isDarkMode ? 'rgba(40, 40, 40, 0.7)' : 'rgba(255, 255, 255, 0.7)',
-            backdropFilter: 'blur(4px)',
-            padding: '4px 12px',
-            borderRadius: '8px',
-            pointerEvents: 'none',
-            textAlign: 'center',
-            boxShadow: 3,
-            border: `1px solid ${theme.palette.divider}`
-        }}>
+        <Box sx={{...boxStyle, textAlign: 'center', minWidth: 'auto'}}>
             <Typography variant="caption" sx={{ fontWeight: 'bold', display: 'block', color: isDarkMode ? 'white' : 'black' }}>
-                {startDateStr} to {endDateStr} ({Math.round(duration)} days)
+                {startDateStr} to {endDateStr} ({duration} days)
             </Typography>
             <Typography variant="body2" sx={{ fontWeight: 'bold', color }}>
                 {formatPrice(priceChange, currency, undefined, t)} ({formatPercent(percentChange)})
@@ -160,20 +211,13 @@ export function TickerChart({ series, currency, mode = 'percent' }: TickerChartP
 
     const formatXAxis = useCallback((tickItem: number) => {
         const date = new Date(tickItem);
-        if (dateRangeDays <= 35) { // ~1M and less
-            // For the first of the month, show month to provide context
-            if (date.getDate() === 1) {
-                return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-            }
-            return date.toLocaleDateString(undefined, { day: 'numeric' });
-        }
-        if (dateRangeDays <= 366) { // up to 1Y
+        if (dateRangeDays <= 95) { // ~3 months
             return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
         }
-        if (dateRangeDays <= 366 * 5) { // up to 5Y
-            return date.toLocaleDateString(undefined, { month: 'short', year: '2-digit' });
+        if (dateRangeDays <= 366 * 2) { // up to 2Y
+            return date.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
         }
-        // > 5Y
+        // > 2Y
         return date.toLocaleDateString(undefined, { year: 'numeric' });
     }, [dateRangeDays]);
 
@@ -225,12 +269,23 @@ export function TickerChart({ series, currency, mode = 'percent' }: TickerChartP
         // Merge other series
         const otherSeries = displaySeries.slice(1);
         if (otherSeries.length === 0) return processedMain;
-
+        
+        // Create pointers for each comparison series for an efficient merge
+        const seriesPointers = otherSeries.map(() => 0);
+ 
         return processedMain.map(p => {
             const point: any = { ...p };
             otherSeries.forEach((s, i) => {
-                // Find closest point in other series by date (ignoring time)
-                const match = s.data.find(d => isSameDay(d.date, p.date));
+                // Advance the pointer for the current comparison series to find the
+                // latest data point that is at or before the main series' current date.
+                while (
+                    seriesPointers[i] + 1 < s.data.length &&
+                    s.data[seriesPointers[i] + 1].date.getTime() <= p.date.getTime()
+                ) {
+                    seriesPointers[i]++;
+                }
+
+                const match = s.data[seriesPointers[i]];
                 if (match) {
                     const val = match.adjClose || match.price;
                     // Normalize other series to its own start in the visible range
@@ -294,9 +349,12 @@ export function TickerChart({ series, currency, mode = 'percent' }: TickerChartP
             }
         }
         
-        const next = data[low];
-        const prev = data[low - 1]; 
-        return ((date - prev.date.getTime() < next.date.getTime() - date) ? prev : next) as any;
+        // After loop, data[low] is the first point with date >= hovered date.
+        // We want the point at or before the hovered date (the "floor").
+        if (data[low].date.getTime() > date && low > 0) {
+            return data[low - 1] as any;
+        }
+        return data[low] as any;
     }, [chartData]);
 
     const handleClick = useCallback((e: any) => {
@@ -366,6 +424,58 @@ export function TickerChart({ series, currency, mode = 'percent' }: TickerChartP
     const xMin = chartData[0].date.getTime();
     const xMax = chartData[chartData.length - 1].date.getTime();
 
+    const xAxisTicks = useMemo(() => {
+        if (!xMin || !xMax) return undefined;
+
+        const startDate = new Date(xMin);
+        const endDate = new Date(xMax);
+        const ticks: number[] = [];
+
+        if (dateRangeDays <= 7) {
+            return undefined; // Let recharts handle very short ranges
+        }
+
+        if (dateRangeDays <= 95) { // Up to ~3 months: weekly ticks
+            let currentTick = new Date(startDate);
+            currentTick.setHours(0, 0, 0, 0);
+            // Start from the Monday of the week of the start date
+            currentTick.setDate(currentTick.getDate() - (currentTick.getDay() + 6) % 7);
+            
+            while (currentTick <= endDate) {
+                if (currentTick >= startDate) { // Only add ticks within the domain
+                    ticks.push(currentTick.getTime());
+                }
+                currentTick.setDate(currentTick.getDate() + 7);
+            }
+        } else if (dateRangeDays <= 366 * 2) { // Up to 2 years: monthly ticks
+            const monthInterval = dateRangeDays <= 366 ? 1 : 2;
+            let currentTick = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+            currentTick.setHours(0, 0, 0, 0);
+            
+            while (currentTick <= endDate) {
+                if (currentTick >= startDate) {
+                    ticks.push(currentTick.getTime());
+                }
+                currentTick.setMonth(currentTick.getMonth() + monthInterval);
+            }
+        } else { // More than 2 years: yearly ticks
+            const yearInterval = dateRangeDays <= 366 * 5 ? 1 : Math.ceil(dateRangeDays / (365 * 5));
+            let currentTick = new Date(startDate.getFullYear(), 0, 1);
+            currentTick.setHours(0, 0, 0, 0);
+
+            while (currentTick <= endDate) {
+                if (currentTick >= startDate) {
+                    ticks.push(currentTick.getTime());
+                }
+                currentTick.setFullYear(currentTick.getFullYear() + yearInterval);
+            }
+        }
+
+        if (ticks.length < 2) return undefined; // Fallback to default
+
+        return ticks;
+    }, [xMin, xMax, dateRangeDays]);
+
     // Determine the split threshold
     const threshold = mode === 'price' ? basePrice : 0;
 
@@ -392,7 +502,7 @@ export function TickerChart({ series, currency, mode = 'percent' }: TickerChartP
                 outline: 'none !important',
             }
         }}>
-            <SelectionSummary startPoint={startPoint} endPoint={endPoint} currency={currency} t={t} />
+            <SelectionSummary startPoint={startPoint} endPoint={endPoint} currency={currency} t={t} isComparison={isComparison} series={displaySeries} mainLineColor={mainLineColor} />
             <ResponsiveContainer width="100%" height="100%">
                 <AreaChart
                     data={finalData}
@@ -416,7 +526,7 @@ export function TickerChart({ series, currency, mode = 'percent' }: TickerChartP
                         scale="time"
                         tickFormatter={formatXAxis}
                         tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
-                        tickCount={7}
+                        ticks={xAxisTicks}
                         dy={5}
                     />
                     <YAxis
@@ -467,7 +577,7 @@ export function TickerChart({ series, currency, mode = 'percent' }: TickerChartP
                             type="monotone"
                             dataKey="highlightedY"
                             stroke="none"
-                            fill={chartColor}
+                            fill={mainLineColor}
                             fillOpacity={0.2}
                             isAnimationActive={false}
                             activeDot={false}
@@ -480,6 +590,14 @@ export function TickerChart({ series, currency, mode = 'percent' }: TickerChartP
                     )}
                     {endPoint && (
                         <ReferenceDot x={endPoint.date.getTime()} y={endPoint.yValue} r={6} fill={chartColor} stroke="white" strokeWidth={2} />
+                    )}
+
+                    {/* Vertical lines for selection range */}
+                    {startPoint && endPoint && startPoint !== endPoint && (
+                        <>
+                            <ReferenceLine x={startPoint.date.getTime()} stroke={theme.palette.text.secondary} strokeWidth={1} strokeDasharray="2 2" strokeOpacity={0.5} />
+                            <ReferenceLine x={endPoint.date.getTime()} stroke={theme.palette.text.secondary} strokeWidth={1} strokeDasharray="2 2" strokeOpacity={0.5} />
+                        </>
                     )}
                 </AreaChart>
             </ResponsiveContainer>
