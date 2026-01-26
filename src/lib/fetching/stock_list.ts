@@ -22,7 +22,7 @@ export const DEFAULT_SECURITY_TYPE_CONFIG: SecurityTypeConfig = {
   gov_generic: { enabled: false, displayName: 'Gov Bonds' },
   bond_conversion: { enabled: false, displayName: 'Convertible Bonds' },
   bond_ta: { enabled: false, displayName: 'Corporate Bonds' },
-  fund: { enabled: false, displayName: 'Funds' },
+  fund: { enabled: true, displayName: 'Funds' },
   option_ta: { enabled: false, displayName: 'Options TA' },
   option_maof: { enabled: false, displayName: 'Options Maof' },
   option_other: { enabled: false, displayName: 'Other Derivatives' },
@@ -254,8 +254,8 @@ async function fetchTaseTickers(
           // Base Data
           symbol: getEffectiveTicker(security.symbol, Exchange.TASE) || security.symbol,
           exchange: Exchange.TASE,
-          nameEn: security.securityName,
-          nameHe: globesTicker?.nameHe || security.securityNameHe || security.securityName,
+          nameEn: globesTicker?.nameEn || security.securityName,
+          nameHe: globesTicker?.nameHe || security.securityNameHe,
           globesTypeCode: globesType,
           globesTypeHe: globesTicker?.globesTypeHe,
           // TASE Specific Info
