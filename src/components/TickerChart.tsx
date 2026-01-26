@@ -108,6 +108,7 @@ export function TickerChart({ series, currency, mode = 'percent' }: TickerChartP
     });
 
     const mainSeries = displaySeries?.[0];
+    const isComparison = displaySeries.length > 1;
 
     const dateRangeDays = useMemo(() => {
         if (!mainSeries?.data || mainSeries.data.length < 2) return 0;
@@ -164,6 +165,13 @@ export function TickerChart({ series, currency, mode = 'percent' }: TickerChartP
         const first = mainSeries.data[0];
         const basePrice = first.adjClose || first.price;
         
+        // Helper to compare dates ignoring time
+        const isSameDay = (d1: Date, d2: Date) => {
+            return d1.getFullYear() === d2.getFullYear() &&
+                   d1.getMonth() === d2.getMonth() &&
+                   d1.getDate() === d2.getDate();
+        };
+
         const processedMain = mainSeries.data.map(p => {
             const val = p.adjClose || p.price;
             return {
@@ -179,10 +187,8 @@ export function TickerChart({ series, currency, mode = 'percent' }: TickerChartP
         return processedMain.map(p => {
             const point: any = { ...p };
             otherSeries.forEach((s, i) => {
-                // Find closest point in other series? Or exact match?
-                // Assuming aligned dates for now or finding exact match.
-                // For performance on small datasets, find is ok.
-                const match = s.data.find(d => d.date.getTime() === p.date.getTime());
+                // Find closest point in other series by date (ignoring time)
+                const match = s.data.find(d => isSameDay(d.date, p.date));
                 if (match) {
                     const val = match.adjClose || match.price;
                     // Normalize other series to its own start in the visible range
@@ -313,7 +319,7 @@ export function TickerChart({ series, currency, mode = 'percent' }: TickerChartP
     const last = mainSeries.data[mainSeries.data.length - 1];
     const lastPrice = last.adjClose || last.price;
     const isUp = lastPrice >= basePrice;
-    const chartColor = isUp ? theme.palette.success.main : theme.palette.error.main;
+    const chartColor = isUp ? theme.palette.success.main : theme.palette.error.main;    const mainLineColor = isComparison ? theme.palette.text.primary : chartColor;
 
     const xMin = chartData[0].date.getTime();
     const xMax = chartData[chartData.length - 1].date.getTime();
@@ -391,15 +397,16 @@ export function TickerChart({ series, currency, mode = 'percent' }: TickerChartP
                             strokeWidth={2} 
                             dot={false}
                             isAnimationActive={false}
+                            connectNulls
                         />
                     ))}
 
                     <Area 
                         type="monotone" 
                         dataKey="yValue" 
-                        stroke={chartColor} 
+                        stroke={mainLineColor} 
                         strokeWidth={2} 
-                        fill="url(#splitGradient)"
+                        fill={isComparison ? "none" : "url(#splitGradient)"}
                         fillOpacity={shadeOpacity}
                         isAnimationActive={true}
                         animationDuration={TRANSFORM_MS}

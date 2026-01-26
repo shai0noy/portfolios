@@ -1,4 +1,4 @@
-import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, Box, Chip, CircularProgress, Tooltip, IconButton, ToggleButtonGroup, ToggleButton } from '@mui/material';
+import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, Box, Chip, CircularProgress, Tooltip, IconButton, ToggleButtonGroup, ToggleButton, Menu, MenuItem } from '@mui/material';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AddIcon from '@mui/icons-material/Add';
@@ -11,8 +11,7 @@ import { Exchange, parseExchange, toGoogleFinanceExchangeCode, toYahooFinanceTic
 import { formatPrice, formatPercent, toILS, normalizeCurrency } from '../lib/currency';
 import { useLanguage } from '../lib/i18n';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
-import { getOwnedInPortfolios } from '../lib/portfolioUtils';
-import { TickerChart } from './TickerChart';
+import { getOwnedInPortfolios } from '../lib/portfolioUtils';import { TickerChart, type ChartSeries } from './TickerChart';
 import { Currency } from '../lib/types';
 
 interface TickerDetailsProps {
@@ -61,6 +60,9 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [sheetRebuildTime, setSheetRebuildTime] = useState<string | null>(null);
+  const [comparisonSeries, setComparisonSeries] = useState<ChartSeries[]>([]);
+  const [comparisonLoading, setComparisonLoading] = useState<Record<string, boolean>>({});
+  const [compareMenuAnchor, setCompareMenuAnchor] = useState<null | HTMLElement>(null);
   const { t, tTry, language } = useLanguage();
 
   const oldestDate = historicalData?.[0]?.date;
@@ -101,47 +103,72 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
       return `Max (${diffDays}D)`;
   }, [oldestDate]);
 
-  const displayHistory = useMemo(() => {
-    if (!historicalData) return [];
-    if (chartRange === 'ALL') return historicalData;
+  const comparisonOptions = [
+    { ticker: '^SPX', exchange: Exchange.NYSE, name: 'S&P 500' },
+    { ticker: '^NDX', exchange: Exchange.NASDAQ, name: 'NASDAQ 100' },
+    { ticker: 'TA35', exchange: Exchange.TASE, name: 'Tel Aviv 35' },
+    { ticker: '^TA125', exchange: Exchange.TASE, name: 'Tel Aviv 125' },
+  ];
+
+  const handleSelectComparison = async (option: typeof comparisonOptions[0]) => {
+    setCompareMenuAnchor(null);
+    if (comparisonSeries.some(s => s.name === option.name)) return;
+
+    setComparisonLoading(prev => ({ ...prev, [option.name]: true }));
+    try {
+        const historyResponse = await fetchTickerHistory(option.ticker, option.exchange);
+        if (historyResponse?.historical) {
+            setComparisonSeries(prev => [...prev, {
+                name: option.name,
+                data: historyResponse.historical,
+            }]);
+        } else {
+            console.error(`Could not fetch history for ${option.name}`);
+        }
+    } catch (e) {
+        console.error(`Failed to fetch comparison ticker ${option.name}`, e);
+    } finally {
+        setComparisonLoading(prev => ({ ...prev, [option.name]: false }));
+    }
+  };
+
+  const handleRemoveComparison = (name: string) => {
+      setComparisonSeries(prev => prev.filter(s => s.name !== name));
+  };
+
+  const getClampedData = useCallback((data: any[] | null, range: string, now: Date) => {
+    if (!data) return [];
+    if (range === 'ALL') return data;
 
     const startDate = new Date();
     startDate.setHours(0, 0, 0, 0); // Normalize time
 
-    switch (chartRange) {
-      case '1M':
-        startDate.setMonth(now.getMonth() - 1);
-        startDate.setDate(startDate.getDate() - 5); // Buffer
-        break;
-      case '3M':
-        startDate.setMonth(now.getMonth() - 3);
-        startDate.setDate(startDate.getDate() - 5);
-        break;
-      case '6M':
-        startDate.setMonth(now.getMonth() - 6);
-        startDate.setDate(startDate.getDate() - 5);
-        break;
-      case 'YTD':
-        startDate.setFullYear(now.getFullYear(), 0, 1);
-        break;
-      case '1Y':
-        startDate.setFullYear(now.getFullYear() - 1);
-        startDate.setDate(1); // Snap to start of month to catch monthly data
-        break;
-      case '3Y':
-        startDate.setFullYear(now.getFullYear() - 3);
-        startDate.setDate(1);
-        break;
-      case '5Y':
-        startDate.setFullYear(now.getFullYear() - 5);
-        startDate.setDate(1);
-        break;
-      default:
-        return historicalData;
+    switch (range) {
+      case '1M': startDate.setMonth(now.getMonth() - 1); startDate.setDate(startDate.getDate() - 5); break;
+      case '3M': startDate.setMonth(now.getMonth() - 3); startDate.setDate(startDate.getDate() - 5); break;
+      case '6M': startDate.setMonth(now.getMonth() - 6); startDate.setDate(startDate.getDate() - 5); break;
+      case 'YTD': startDate.setFullYear(now.getFullYear(), 0, 1); break;
+      case '1Y': startDate.setFullYear(now.getFullYear() - 1); startDate.setDate(1); break;
+      case '3Y': startDate.setFullYear(now.getFullYear() - 3); startDate.setDate(1); break;
+      case '5Y': startDate.setFullYear(now.getFullYear() - 5); startDate.setDate(1); break;
+      default: return data;
     }
-    return historicalData.filter(d => d.date.getTime() >= startDate.getTime());
-  }, [historicalData, chartRange]);
+    return data.filter(d => d.date.getTime() >= startDate.getTime());
+  }, []);
 
+  const displayHistory = useMemo(() => {
+    return getClampedData(historicalData, chartRange, now);
+  }, [historicalData, chartRange, now, getClampedData]);
+
+  const displayComparisonSeries = useMemo(() => {
+      return comparisonSeries.map(series => ({
+          ...series,
+          data: getClampedData(series.data, chartRange, now)
+      }));
+  }, [comparisonSeries, chartRange, now, getClampedData]);
+
+  const isComparison = comparisonSeries.length > 0;
+  const effectiveChartMetric = isComparison ? 'percent' : chartMetric;
 
   const ownedInPortfolios = ticker ? getOwnedInPortfolios(ticker, portfolios, exchange) : undefined;
 
@@ -668,8 +695,30 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                     <ToggleButton value="percent" aria-label="percent">%</ToggleButton>
                     <ToggleButton value="price" aria-label="price">$</ToggleButton>
                   </ToggleButtonGroup>
+                  <Button
+                      aria-controls="compare-menu"
+                      aria-haspopup="true"
+                      onClick={(e) => setCompareMenuAnchor(e.currentTarget)}
+                  >
+                      {t('Compare', 'השווה')}
+                  </Button>
+                  <Menu
+                      id="compare-menu"
+                      anchorEl={compareMenuAnchor}
+                      keepMounted
+                      open={Boolean(compareMenuAnchor)}
+                      onClose={() => setCompareMenuAnchor(null)}
+                  >
+                      {comparisonOptions.map((opt) => (
+                          <MenuItem key={opt.name} onClick={() => handleSelectComparison(opt)} disabled={comparisonSeries.some(s => s.name === opt.name) || comparisonLoading[opt.name]}>
+                              {opt.name}
+                              {comparisonLoading[opt.name] && <CircularProgress size={16} sx={{ ml: 1 }} />}
+                          </MenuItem>
+                      ))}
+                  </Menu>
                 </Box>
-                <TickerChart series={[{ name: resolvedName || ticker || 'Main', data: displayHistory }]} currency={displayData.currency} mode={chartMetric} />
+                {comparisonSeries.length > 0 && (<Box display="flex" flexWrap="wrap" gap={1} sx={{ mt: 1, mb: 1 }}>{comparisonSeries.map((s) => (<Chip key={s.name} label={s.name} onDelete={() => handleRemoveComparison(s.name)} color="secondary" size="small" />))}</Box>)}
+                <TickerChart series={[ { name: resolvedName || ticker || 'Main', data: displayHistory }, ...displayComparisonSeries ]} currency={displayData.currency} mode={effectiveChartMetric} />
               </>
             )}
 
