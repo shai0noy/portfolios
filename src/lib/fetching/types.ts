@@ -55,6 +55,8 @@ export interface TickerData {
   globesTypeHe?: string;
   volume?: number;
   providentInfo?: ProvidentInfo;
+  fromCache?: boolean;
+  fromCacheMax?: boolean;
 }
 
 export interface HistoricalDataPoint {

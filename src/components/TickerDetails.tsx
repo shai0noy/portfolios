@@ -7,13 +7,14 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { getTickerData, getTickersDataset, fetchTickerHistory } from '../lib/fetching';
 import type { TickerProfile } from '../lib/types/ticker';
-import { fetchHolding, getMetadataValue } from '../lib/sheets/index';
+import { fetchHolding, getMetadataValue, syncDividends, fetchDividends } from '../lib/sheets/index';
 import { Exchange, parseExchange, toGoogleFinanceExchangeCode, toYahooFinanceTicker, type Holding, type Portfolio } from '../lib/types';
 import { formatPrice, formatPercent, toILS, normalizeCurrency } from '../lib/currency';
 import { useLanguage } from '../lib/i18n';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
 import { getOwnedInPortfolios } from '../lib/portfolioUtils';import { TickerChart, type ChartSeries } from './TickerChart';
 import { Currency } from '../lib/types';
+import type { Dividend } from '../lib/fetching/types';
 
 interface TickerDetailsProps {
   sheetId: string;
@@ -66,6 +67,21 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   const [compareMenuAnchor, setCompareMenuAnchor] = useState<null | HTMLElement>(null);
   const { t, tTry, language } = useLanguage();
   const theme = useTheme();
+
+  const mergeDividends = useCallback((apiDivs: Dividend[] = [], sheetDivs: Dividend[] = []): Dividend[] => {
+    const seen = new Set<string>();
+    const merged: Dividend[] = [];
+
+    [...apiDivs, ...sheetDivs].forEach(div => {
+        const key = `${div.date.toISOString().split('T')[0]}:${Number(div.amount).toFixed(6)}`;
+        if (!seen.has(key)) {
+            seen.add(key);
+            merged.push(div);
+        }
+    });
+
+    return merged.sort((a, b) => b.date.getTime() - a.date.getTime());
+  }, []);
 
   const EXTRA_COLORS = useMemo(() => {
     return theme.palette.mode === 'dark'
@@ -269,20 +285,26 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
 
       const numericIdVal = currentNumericId ? parseInt(currentNumericId, 10) : null;
 
-      const [tickerData, holding, sheetRebuild] = await Promise.all([
+      const [tickerData, holding, sheetRebuild, sheetDividends] = await Promise.all([
         getTickerData(ticker, exchange, numericIdVal, undefined, forceRefresh),
         fetchHolding(sheetId, ticker, upperExchange),
         getMetadataValue(sheetId, 'holdings_rebuild'),
+        fetchDividends(sheetId, ticker, exchange)
       ]);
 
       setHoldingData(holding);
       setData((prev: any) => ({
         ...prev,
         ...tickerData,
-        dividends: tickerData?.dividends || prev?.dividends,
+        dividends: mergeDividends(tickerData?.dividends || [], sheetDividends),
         splits: tickerData?.splits || prev?.splits
       }));
       setSheetRebuildTime(sheetRebuild);
+
+      // Sync dividends if from a fresh fetch (not from cache)
+      if (tickerData?.dividends && tickerData.dividends.length > 0 && !tickerData.fromCacheMax) {
+          syncDividends(sheetId, ticker, exchange, tickerData.dividends, tickerData.source || 'API');
+      }
       
       if (tickerData?.historical && tickerData.historical.length > 0) {
         setHistoricalData(tickerData.historical);
@@ -305,9 +327,21 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
     fetchData();
     // Fetch history data separately
     if (ticker && exchange) {
-      fetchTickerHistory(ticker, exchange).then(historyResponse => {
+      Promise.all([
+          fetchTickerHistory(ticker, exchange),
+          fetchDividends(sheetId, ticker, exchange)
+      ]).then(([historyResponse, sheetDividends]) => {
         setHistoricalData(historyResponse?.historical || []);
-        setData((prev: any) => ({ ...prev, dividends: historyResponse?.dividends, splits: historyResponse?.splits }));
+        setData((prev: any) => ({ 
+            ...prev, 
+            dividends: mergeDividends(historyResponse?.dividends || [], sheetDividends), 
+            splits: historyResponse?.splits 
+        }));
+        
+        // Sync dividends from history if not from cache (Yahoo case)
+        if (historyResponse?.dividends && historyResponse.dividends.length > 0 && !historyResponse.fromCacheMax) {
+            syncDividends(sheetId, ticker, exchange, historyResponse.dividends, 'Yahoo History');
+        }
       });
     }
   }, [fetchData, ticker, exchange]);

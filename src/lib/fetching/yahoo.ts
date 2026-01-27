@@ -40,7 +40,7 @@ export async function fetchYahooTickerData(ticker: string, exchange: Exchange, s
          if (range === 'max' && cached.data.changePctMax === undefined) {
             // Fall through to fetch
          } else {
-            return cached.data;
+            return { ...cached.data, fromCache: true };
          }
       }
     }

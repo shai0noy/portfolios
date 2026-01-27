@@ -7,6 +7,7 @@ import { getTickersDataset, getTickerData, type TickerData } from '../lib/fetchi
 import type { TickerProfile } from '../lib/types/ticker';
 import { InstrumentGroup, INSTRUMENT_METADATA } from '../lib/types/instrument';
 import { type Portfolio } from '../lib/types';
+import { syncDividends } from '../lib/sheets';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
 import { useLanguage } from '../lib/i18n';
 import { getOwnedInPortfolios } from '../lib/portfolioUtils';
@@ -17,6 +18,7 @@ interface TickerSearchProps {
   prefilledExchange?: string;
   portfolios: Portfolio[];
   isPortfoliosLoading: boolean;
+  sheetId: string;
 }
 
 // Custom hook for debouncing input values
@@ -251,6 +253,11 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
     
     setIsLoading(false);
     if (data) {
+      // Sync dividends if from a fresh fetch (not from cache)
+      if (data.dividends && data.dividends.length > 0 && !data.fromCacheMax) {
+          syncDividends(sheetId, profile.symbol, profile.exchange, data.dividends, data.source || 'API');
+      }
+
       onTickerSelect({ 
         ...data,
         symbol: profile.symbol, // Ensure symbol is explicit

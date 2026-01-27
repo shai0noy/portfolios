@@ -127,7 +127,9 @@ export async function getTickerData(
               // Use combined historical data so the chart has max range immediately
               historical: combineHistory(yahooData5y.historical, yahooDataMax.historical),
               dividends: yahooDataMax.dividends,
-              splits: yahooDataMax.splits
+              splits: yahooDataMax.splits,
+              fromCache: yahooData5y.fromCache,
+              fromCacheMax: yahooDataMax.fromCache
           };
       }
   }
@@ -229,31 +231,65 @@ export async function getTickerData(
 }
 
 export async function fetchTickerHistory(
+
   ticker: string,
+
   exchange: Exchange,
+
   signal?: AbortSignal,
+
   forceRefresh = false
-): Promise<Pick<TickerData, 'historical' | 'dividends' | 'splits'>> {
+
+): Promise<Pick<TickerData, 'historical' | 'dividends' | 'splits' | 'fromCache' | 'fromCacheMax'>> {
+
   const tickerNum = Number(ticker);
 
+
+
   if (exchange === Exchange.GEMEL) {
+
     const data = await fetchGemelnetQuote(tickerNum, signal, forceRefresh);
-    return { historical: data?.historical, dividends: data?.dividends, splits: data?.splits };
+
+    return { historical: data?.historical, dividends: data?.dividends, splits: data?.splits, fromCache: data?.fromCache, fromCacheMax: data?.fromCacheMax };
+
   }
+
+
 
   if (exchange === Exchange.PENSION) {
+
     const data = await fetchPensyanetQuote(tickerNum, signal, forceRefresh);
-    return { historical: data?.historical, dividends: data?.dividends, splits: data?.splits };
+
+    return { historical: data?.historical, dividends: data?.dividends, splits: data?.splits, fromCache: data?.fromCache, fromCacheMax: data?.fromCacheMax };
+
   }
 
+
+
   const [yahooData5y, yahooDataMax] = await Promise.all([
+
     fetchYahooTickerData(ticker, exchange, signal, forceRefresh, '5y'),
+
     fetchYahooTickerData(ticker, exchange, signal, false, 'max')
+
   ]);
 
+
+
   return {
+
     historical: combineHistory(yahooData5y?.historical, yahooDataMax?.historical),
+
     dividends: yahooDataMax?.dividends,
+
     splits: yahooDataMax?.splits,
+
+    fromCache: yahooData5y?.fromCache,
+
+    fromCacheMax: yahooDataMax?.fromCache
+
   };
+
 }
+
+

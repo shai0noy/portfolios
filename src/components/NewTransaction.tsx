@@ -9,12 +9,12 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import SearchIcon from '@mui/icons-material/Search';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
 import DashboardIcon from '@mui/icons-material/Dashboard';
-import { parseExchange, type Portfolio, type Transaction } from '../lib/types';
-import { addTransaction, fetchPortfolios, addExternalPrice } from '../lib/sheets/index';
+import { parseExchange, type Portfolio, type Transaction, Exchange } from '../lib/types';
+import { addTransaction, fetchPortfolios, addExternalPrice, syncDividends, addDividendEvent } from '../lib/sheets/index';
 import { getTickerData, type TickerData } from '../lib/fetching';
 import { TickerSearch } from './TickerSearch';
 import { convertCurrency, formatPrice, getExchangeRates, normalizeCurrency } from '../lib/currency';
-import { Currency, type ExchangeRates, Exchange } from '../lib/types';
+import { Currency, type ExchangeRates } from '../lib/types';
 import { useLanguage } from '../lib/i18n';
 
 interface Props {
@@ -45,7 +45,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   const [portId, setPortId] = useState('');
   const [ticker, setTicker] = useState(locationState?.prefilledTicker || '');
   const [exchange, setExchange] = useState(locationState?.prefilledExchange || '');
-  const [type, setType] = useState<'BUY' | 'SELL' | 'DIVIDEND' | 'FEE'>('BUY');
+  const [type, setType] = useState<'BUY' | 'SELL' | 'DIVIDEND' | 'FEE' | 'DIV_EVENT'>('BUY');
   const [qty, setQty] = useState<string>('');
   const [price, setPrice] = useState<string>(() => {
     const p = locationState?.initialPrice;
@@ -91,6 +91,11 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
           setExchange(data.exchange || locationState.prefilledExchange || '');
           setTicker(locationState.prefilledTicker!)
           setShowForm(true);
+
+          // Sync dividends if from a fresh fetch (not from cache)
+          if (data.dividends && data.dividends.length > 0 && !data.fromCacheMax) {
+            syncDividends(sheetId, locationState.prefilledTicker!, parseExchange(data.exchange || locationState.prefilledExchange || ''), data.dividends, 'YAHOO');
+          }
         } else {
           setPriceError(`${t('Ticker not found on', 'הנייר לא נמצא ב-')}${locationState.prefilledExchange}`);
           setSelectedTicker(null);
@@ -142,7 +147,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
 
   useEffect(() => {
     const selectedPort = portfolios.find(p => p.id === portId);
-    if (!selectedPort) return;
+    if (!selectedPort || type === 'DIV_EVENT') return;
 
     const t = parseFloat(total);
     if (!Number.isFinite(t) || t === 0) {
@@ -234,11 +239,17 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
 
   const handleSubmit = async () => {
     const errors: { [key: string]: boolean } = {};
-    if (!portId) errors.portId = true;
-    if (!ticker) errors.ticker = true;
-    if (!qty || parseFloat(qty) === 0) errors.qty = true;
-    if (!price || parseFloat(price) === 0) errors.price = true;
-    if (!total || parseFloat(total) === 0) errors.total = true;
+    
+    if (type === 'DIV_EVENT') {
+        if (!ticker) errors.ticker = true;
+        if (!price || parseFloat(price) === 0) errors.price = true;
+    } else {
+        if (!portId) errors.portId = true;
+        if (!ticker) errors.ticker = true;
+        if (!qty || parseFloat(qty) === 0) errors.qty = true;
+        if (!price || parseFloat(price) === 0) errors.price = true;
+        if (!total || parseFloat(total) === 0) errors.total = true;
+    }
 
     setValidationErrors(errors);
 
@@ -251,40 +262,44 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
       const q = parseFloat(qty);
       const p = parseFloat(price);
 
-      const txn: Transaction = {
-        date,
-        portfolioId: portId,
-        ticker,
-        exchange: parseExchange(exchange),
-        type,
-        originalQty: q,
-        originalPrice: p,
-        origOpenPriceAtCreationDate: selectedTicker?.openPrice || 0,
-        currency: normalizeCurrency(tickerCurrency),
-        numericId: (selectedTicker as any)?.numericId,
-        vestDate,
-        comment,
-        commission: parseFloat(commission) || 0,
-        tax: parseFloat(tax) || 0,
-      };
-
-      await addTransaction(sheetId, txn);
-
-      // If GEMEL or PENSION, also save the fetched price to external holdings for history
-      if ((parseExchange(exchange) === Exchange.GEMEL || parseExchange(exchange) === Exchange.PENSION) && selectedTicker?.price && selectedTicker?.timestamp) {
-        try {
-          // Note: We use the fetched price/date, NOT the transaction price/date
-          await addExternalPrice(
-            sheetId,
+      if (type === 'DIV_EVENT') {
+          await addDividendEvent(sheetId, ticker, parseExchange(exchange), new Date(date), p);
+      } else {
+          const txn: Transaction = {
+            date,
+            portfolioId: portId,
             ticker,
-            parseExchange(exchange),
-            new Date(selectedTicker.timestamp),
-            selectedTicker.price,
-            normalizeCurrency(selectedTicker.currency || 'ILS')
-          );
-        } catch (err) {
-          console.warn("Failed to add external price for GEMEL/PENSION txn:", err);
-        }
+            exchange: parseExchange(exchange),
+            type,
+            originalQty: q,
+            originalPrice: p,
+            origOpenPriceAtCreationDate: selectedTicker?.openPrice || 0,
+            currency: normalizeCurrency(tickerCurrency),
+            numericId: (selectedTicker as any)?.numericId,
+            vestDate,
+            comment,
+            commission: parseFloat(commission) || 0,
+            tax: parseFloat(tax) || 0,
+          };
+
+          await addTransaction(sheetId, txn);
+
+          // If GEMEL or PENSION, also save the fetched price to external holdings for history
+          if ((parseExchange(exchange) === Exchange.GEMEL || parseExchange(exchange) === Exchange.PENSION) && selectedTicker?.price && selectedTicker?.timestamp) {
+            try {
+              // Note: We use the fetched price/date, NOT the transaction price/date
+              await addExternalPrice(
+                sheetId,
+                ticker,
+                parseExchange(exchange),
+                new Date(selectedTicker.timestamp),
+                selectedTicker.price,
+                normalizeCurrency(selectedTicker.currency || 'ILS')
+              );
+            } catch (err) {
+              console.warn("Failed to add external price for GEMEL/PENSION txn:", err);
+            }
+          }
       }
 
       setSaveSuccess(true);
@@ -375,6 +390,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
               onTickerSelect={handleTickerSelect}
               portfolios={portfolios}
               isPortfoliosLoading={isPortfoliosLoading}
+              sheetId={sheetId}
             />
           </Grid>
         )}
@@ -446,24 +462,26 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
 
                 {showForm && selectedTicker && (
                   <>
-                    <Grid item xs={12}><Divider sx={{ my: 1 }}>Transaction Details</Divider></Grid>
+                    <Grid item xs={12}><Divider sx={{ my: 1 }}>{type === 'DIV_EVENT' ? 'Dividend Details' : 'Transaction Details'}</Divider></Grid>
                     <Grid container spacing={2}>
-                      <Grid item xs={12} sm={4}>
-                        <FormControl fullWidth size="small" error={!!validationErrors.portId} required>
-                          <InputLabel>Portfolio</InputLabel>
-                          <Select
-                            value={portId} label="Portfolio"
-                            onChange={(e) => setPortId(e.target.value)}
-                            disabled={isPortfoliosLoading}
-                            sx={{ bgcolor: !portId ? 'action.hover' : 'inherit' }}
-                          >
-                            {isPortfoliosLoading ? <MenuItem value="">Loading...</MenuItem> : portfolios.map(p => (
-                              <MenuItem key={p.id} value={p.id}>{p.name} ({p.currency})</MenuItem>
-                            ))}
-                          </Select>
-                          {!portId && <Typography variant="caption" color="text.secondary" sx={{ ml: 1.5, mt: 0.5 }}>Required</Typography>}
-                        </FormControl>
-                      </Grid>
+                      {type !== 'DIV_EVENT' && (
+                        <Grid item xs={12} sm={4}>
+                          <FormControl fullWidth size="small" error={!!validationErrors.portId} required>
+                            <InputLabel>Portfolio</InputLabel>
+                            <Select
+                              value={portId} label="Portfolio"
+                              onChange={(e) => setPortId(e.target.value)}
+                              disabled={isPortfoliosLoading}
+                              sx={{ bgcolor: !portId ? 'action.hover' : 'inherit' }}
+                            >
+                              {isPortfoliosLoading ? <MenuItem value="">Loading...</MenuItem> : portfolios.map(p => (
+                                <MenuItem key={p.id} value={p.id}>{p.name} ({p.currency})</MenuItem>
+                              ))}
+                            </Select>
+                            {!portId && <Typography variant="caption" color="text.secondary" sx={{ ml: 1.5, mt: 0.5 }}>Required</Typography>}
+                          </FormControl>
+                        </Grid>
+                      )}
                       <Grid item xs={12} sm={4}>
                         <TextField
                           type="date" label="Date" size="small" fullWidth
@@ -477,88 +495,110 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                           <Select value={type} label="Type" onChange={(e) => setType(e.target.value as any)}>
                             <MenuItem value="BUY">Buy</MenuItem>
                             <MenuItem value="SELL">Sell</MenuItem>
-                            <MenuItem value="DIVIDEND">Dividend</MenuItem>
+                            <MenuItem value="DIV_EVENT">Dividend</MenuItem>
                           </Select>
                         </FormControl>
                       </Grid>
-                      <Grid item xs={12}><Divider sx={{ my: 1 }}></Divider></Grid>
-                      <Grid item xs={6} sm={4}>
-                        <Tooltip title="Number of shares/units bought or sold.">
-                          <TextField
-                            label="Quantity" type="number" size="small" fullWidth
-                            value={qty} onChange={e => handleQtyChange(e.target.value)}
-                            error={!!validationErrors.qty}
-                            required
-                            helperText={!qty ? "Required" : ""}
-                            sx={{ bgcolor: !qty ? 'action.hover' : 'inherit' }}
-                          />
-                        </Tooltip>
-                      </Grid>
-                      <Grid item xs={6} sm={4}>
-                        <Tooltip title={`Price per single share/unit.${tickerCurrency === 'ILA' ? ' In Agorot.' : ''}`}>
-                          <TextField
-                            label="Price" type="number" size="small" fullWidth
-                            value={price}
-                            onChange={e => handlePriceChange(e.target.value)}
-                            InputProps={tickerCurrency === 'ILA'
-                              ? { endAdornment: <InputAdornment position="end">{t('ag.', "א'")}</InputAdornment> }
-                              : { startAdornment: <InputAdornment position="start">{tickerCurrency}</InputAdornment> }
-                            }
-                            error={!!validationErrors.price}
-                            required
-                            helperText={!price ? "Required" : ""}
-                            sx={{ bgcolor: !price ? 'action.hover' : 'inherit' }}
-                          />
-                        </Tooltip>
-                      </Grid>
-                      <Grid item xs={12} sm={4}>
-                        <Tooltip title="Total transaction value (Quantity × Price).">
-                          <TextField
-                            label="Total Cost" type="number" size="small" fullWidth
-                            value={total} onChange={e => handleTotalChange(e.target.value)}
-                            InputProps={{ startAdornment: <InputAdornment position="start">{majorCurrency}</InputAdornment> }}
-                            error={!!validationErrors.total}
-                            required
-                            helperText={!total ? "Required" : ""}
-                            sx={{ bgcolor: !total ? 'action.hover' : 'inherit' }}
-                          />
-                        </Tooltip>
-                      </Grid>
-                      <Grid item xs={12}><Divider sx={{ my: 1 }}> </Divider></Grid>
 
-                      <Grid item xs={4} sm={3}>
-                        <TextField
-                          label="Commission" type="number" size="small" fullWidth
-                          value={commission} onChange={e => handleCommissionChange(e.target.value)}
-                          InputProps={{ startAdornment: <InputAdornment position="start">{portfolioCurrency}</InputAdornment> }}
-                        />
-                      </Grid>
-                      <Grid item xs={4} sm={3}>
-                        <TextField
-                          label="Commission %" type="number" size="small" fullWidth
-                          value={commissionPct} onChange={e => handleCommissionPctChange(e.target.value)}
-                          InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
-                        />
-                      </Grid>
-                      {(type === 'SELL' || type === 'DIVIDEND') && (
-                        <Grid item xs={4} sm={3}>
-                          <Tooltip title="Tax on transaction (if applicable).">
-                            <TextField label="Tax %" type="number" size="small" fullWidth value={tax} onChange={e => setTax(e.target.value)} />
-                          </Tooltip>
+                      {type === 'DIV_EVENT' ? (
+                        <Grid item xs={12} sm={4}>
+                            <Tooltip title="Dividend amount per share.">
+                              <TextField
+                                label="Dividend Amount" type="number" size="small" fullWidth
+                                value={price}
+                                onChange={e => setPrice(e.target.value)}
+                                InputProps={tickerCurrency === 'ILA'
+                                  ? { endAdornment: <InputAdornment position="end">{t('ag.', "א'")}</InputAdornment> }
+                                  : { startAdornment: <InputAdornment position="start">{tickerCurrency}</InputAdornment> }
+                                }
+                                error={!!validationErrors.price}
+                                required
+                                helperText={!price ? "Required" : ""}
+                              />
+                            </Tooltip>
                         </Grid>
+                      ) : (
+                        <>
+                          <Grid item xs={12}><Divider sx={{ my: 1 }}></Divider></Grid>
+                          <Grid item xs={6} sm={4}>
+                            <Tooltip title="Number of shares/units bought or sold.">
+                              <TextField
+                                label="Quantity" type="number" size="small" fullWidth
+                                value={qty} onChange={e => handleQtyChange(e.target.value)}
+                                error={!!validationErrors.qty}
+                                required
+                                helperText={!qty ? "Required" : ""}
+                                sx={{ bgcolor: !qty ? 'action.hover' : 'inherit' }}
+                              />
+                            </Tooltip>
+                          </Grid>
+                          <Grid item xs={6} sm={4}>
+                            <Tooltip title={`Price per single share/unit.${tickerCurrency === 'ILA' ? ' In Agorot.' : ''}`}>
+                              <TextField
+                                label="Price" type="number" size="small" fullWidth
+                                value={price}
+                                onChange={e => handlePriceChange(e.target.value)}
+                                InputProps={tickerCurrency === 'ILA'
+                                  ? { endAdornment: <InputAdornment position="end">{t('ag.', "א'")}</InputAdornment> }
+                                  : { startAdornment: <InputAdornment position="start">{tickerCurrency}</InputAdornment> }
+                                }
+                                error={!!validationErrors.price}
+                                required
+                                helperText={!price ? "Required" : ""}
+                                sx={{ bgcolor: !price ? 'action.hover' : 'inherit' }}
+                              />
+                            </Tooltip>
+                          </Grid>
+                          <Grid item xs={12} sm={4}>
+                            <Tooltip title="Total transaction value (Quantity × Price).">
+                              <TextField
+                                label="Total Cost" type="number" size="small" fullWidth
+                                value={total} onChange={e => handleTotalChange(e.target.value)}
+                                InputProps={{ startAdornment: <InputAdornment position="start">{majorCurrency}</InputAdornment> }}
+                                error={!!validationErrors.total}
+                                required
+                                helperText={!total ? "Required" : ""}
+                                sx={{ bgcolor: !total ? 'action.hover' : 'inherit' }}
+                              />
+                            </Tooltip>
+                          </Grid>
+                          <Grid item xs={12}><Divider sx={{ my: 1 }}> </Divider></Grid>
+
+                          <Grid item xs={4} sm={3}>
+                            <TextField
+                              label="Commission" type="number" size="small" fullWidth
+                              value={commission} onChange={e => handleCommissionChange(e.target.value)}
+                              InputProps={{ startAdornment: <InputAdornment position="start">{portfolioCurrency}</InputAdornment> }}
+                            />
+                          </Grid>
+                          <Grid item xs={4} sm={3}>
+                            <TextField
+                              label="Commission %" type="number" size="small" fullWidth
+                              value={commissionPct} onChange={e => handleCommissionPctChange(e.target.value)}
+                              InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
+                            />
+                          </Grid>
+                          {(type === 'SELL' || type === 'DIVIDEND') && (
+                            <Grid item xs={4} sm={3}>
+                              <Tooltip title="Tax on transaction (if applicable).">
+                                <TextField label="Tax %" type="number" size="small" fullWidth value={tax} onChange={e => setTax(e.target.value)} />
+                              </Tooltip>
+                            </Grid>
+                          )}
+                          <Grid item xs={12} sm={(type === 'SELL' || type === 'DIVIDEND') ? 6 : 9}>
+                            <Tooltip title="Date when these shares vest (if applicable for RSUs/Options).">
+                              <TextField label="Vesting Date" type="date" size="small" fullWidth value={vestDate} onChange={e => setVestDate(e.target.value)} InputLabelProps={{ shrink: true }} />
+                            </Tooltip>
+                          </Grid>
+                        </>
                       )}
-                      <Grid item xs={12} sm={(type === 'SELL' || type === 'DIVIDEND') ? 6 : 9}>
-                        <Tooltip title="Date when these shares vest (if applicable for RSUs/Options).">
-                          <TextField label="Vesting Date" type="date" size="small" fullWidth value={vestDate} onChange={e => setVestDate(e.target.value)} InputLabelProps={{ shrink: true }} />
-                        </Tooltip>
-                      </Grid>
                       <Grid item xs={12}>
                         <TextField label="Comment" size="small" fullWidth value={comment} onChange={e => setComment(e.target.value)} />
                       </Grid>
                     </Grid>
                     <Box mt={2}>
                       <Button variant="contained" size="large" fullWidth startIcon={<AddCircleOutlineIcon />} onClick={handleSubmit} disabled={loading}>
-                        {loading ? 'Saving...' : 'Save Transaction'}
+                        {loading ? 'Saving...' : (type === 'DIV_EVENT' ? 'Record Dividend' : 'Save Transaction')}
                       </Button>
                     </Box>
                   </>

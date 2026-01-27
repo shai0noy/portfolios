@@ -10,13 +10,15 @@ import {
     holdingMapping, holdingNumericKeys, type Headers, DEFAULT_SHEET_NAME, PORT_OPT_RANGE, type SheetHolding,
     TX_SHEET_NAME, TX_FETCH_RANGE, CONFIG_SHEET_NAME, CONFIG_RANGE, METADATA_SHEET, 
     metadataHeaders, METADATA_RANGE, HOLDINGS_SHEET, HOLDINGS_RANGE, SHEET_STRUCTURE_VERSION_DATE,
-    EXTERNAL_DATASETS_SHEET_NAME, externalDatasetsHeaders, EXTERNAL_DATASETS_RANGE
+    EXTERNAL_DATASETS_SHEET_NAME, externalDatasetsHeaders, EXTERNAL_DATASETS_RANGE,
+    DIV_SHEET_NAME, dividendHeaders, DIVIDENDS_RANGE
 } from './config';
 import { getHistoricalPriceFormula } from './formulas';
 import { logIfFalsy } from '../utils';
 import { createRowMapper, fetchSheetData, objectToRow, createHeaderUpdateRequest, getSheetId, ensureSheets } from './utils';
 import { PORTFOLIO_SHEET_NAME } from './config';
 import { fetchGlobesStockQuote } from '../fetching/globes';
+import type { Dividend } from '../fetching/types';
 
 // --- Mappers for each data type ---
 const mapRowToPortfolio = createRowMapper(portfolioHeaders);
@@ -66,7 +68,8 @@ export const ensureSchema = withAuthHandling(async (spreadsheetId: string) => {
         HOLDINGS_SHEET, 
         CONFIG_SHEET_NAME, 
         METADATA_SHEET, 
-        EXTERNAL_DATASETS_SHEET_NAME
+        EXTERNAL_DATASETS_SHEET_NAME,
+        DIV_SHEET_NAME
     ] as const;
     
     // ensureSheets returns a map of { SheetName: SheetID }
@@ -85,6 +88,7 @@ export const ensureSchema = withAuthHandling(async (spreadsheetId: string) => {
                 createHeaderUpdateRequest(sheetIds[CONFIG_SHEET_NAME], configHeaders as unknown as Headers),
                 createHeaderUpdateRequest(sheetIds[METADATA_SHEET], metadataHeaders as unknown as Headers),
                 createHeaderUpdateRequest(sheetIds[EXTERNAL_DATASETS_SHEET_NAME], externalDatasetsHeaders as unknown as Headers),
+                createHeaderUpdateRequest(sheetIds[DIV_SHEET_NAME], dividendHeaders as unknown as Headers),
                 
                 // 3. Format Date columns in Transaction Log (A=date, K=vestDate, P=Creation_Date) to YYYY-MM-DD
                 // This ensures dates entered via code or UI appear correctly in the sheet.
@@ -105,6 +109,13 @@ export const ensureSchema = withAuthHandling(async (spreadsheetId: string) => {
                 {
                     repeatCell: {
                         range: { sheetId: sheetIds[TX_SHEET_NAME], startColumnIndex: 15, endColumnIndex: 16, startRowIndex: 1 },
+                        cell: { userEnteredFormat: { numberFormat: { type: 'DATE', pattern: 'yyyy-mm-dd' } } },
+                        fields: 'userEnteredFormat.numberFormat'
+                    }
+                },
+                {
+                    repeatCell: {
+                        range: { sheetId: sheetIds[DIV_SHEET_NAME], startColumnIndex: 2, endColumnIndex: 3, startRowIndex: 1 },
                         cell: { userEnteredFormat: { numberFormat: { type: 'DATE', pattern: 'yyyy-mm-dd' } } },
                         fields: 'userEnteredFormat.numberFormat'
                     }
@@ -520,6 +531,124 @@ function createHoldingRow(h: HoldingNonGeneratedData, meta: TickerData | null, r
     return row;
 }
 
+// In-memory deduplication for dividend syncing in the current session
+const dividendSyncLock = new Set<string>();
+
+export const fetchDividends = withAuthHandling(async (spreadsheetId: string, ticker: string, exchange: Exchange): Promise<Dividend[]> => {
+    const gapi = await ensureGapi();
+    try {
+        const res = await gapi.client.sheets.spreadsheets.values.get({
+            spreadsheetId,
+            range: DIVIDENDS_RANGE,
+            valueRenderOption: 'UNFORMATTED_VALUE',
+        });
+        const rows = res.result.values || [];
+        
+        const targetExchange = toGoogleSheetsExchangeCode(exchange);
+        const targetTicker = ticker.toUpperCase();
+
+        return rows
+            .filter(row => String(row[0]) === targetExchange && String(row[1]) === targetTicker)
+            .map(row => {
+                let date: Date;
+                const rawDate = row[2];
+                if (typeof rawDate === 'number') {
+                    date = new Date((rawDate - 25569) * 86400 * 1000);
+                } else {
+                    date = new Date(rawDate);
+                }
+                return {
+                    date,
+                    amount: Number(row[3])
+                };
+            })
+            .filter(div => !isNaN(div.date.getTime()) && !isNaN(div.amount));
+    } catch (error: any) {
+        if (error.result?.error?.code === 400) {
+            return [];
+        }
+        throw error;
+    }
+});
+
+export const syncDividends = withAuthHandling(async (spreadsheetId: string, ticker: string, exchange: Exchange, dividends: Dividend[], source: string) => {
+    if (!dividends || dividends.length === 0) return;
+    
+    const lockKey = `${exchange}:${ticker.toUpperCase()}`;
+    if (dividendSyncLock.has(lockKey)) return;
+    dividendSyncLock.add(lockKey);
+
+    // Normalize source
+    const effectiveSource = source.toUpperCase().includes('MANUAL') ? 'MANUAL' : 'YAHOO';
+
+    const gapi = await ensureGapi();
+    try {
+        // 1. Fetch existing dividends for this ticker to avoid duplicates
+        const res = await gapi.client.sheets.spreadsheets.values.get({
+            spreadsheetId,
+            range: DIVIDENDS_RANGE,
+            valueRenderOption: 'UNFORMATTED_VALUE',
+        });
+        const rows = res.result.values || [];
+        
+        // Use a set of keys for efficient lookup: "EXCHANGE:TICKER:DATE:AMOUNT"
+        const existingKeys = new Set(rows.map(row => {
+            const rowEx = String(row[0]);
+            const rowTicker = String(row[1]);
+            // Date might be number (OADate) or string
+            let rowDate: string;
+            if (typeof row[2] === 'number') {
+                const date = new Date((row[2] - 25569) * 86400 * 1000);
+                rowDate = date.toISOString().split('T')[0];
+            } else {
+                rowDate = new Date(row[2]).toISOString().split('T')[0];
+            }
+            const rowAmount = Number(row[3]).toFixed(6);
+            return `${rowEx}:${rowTicker}:${rowDate}:${rowAmount}`;
+        }));
+
+        const newRows = dividends
+            .map(div => {
+                const dateStr = div.date.toISOString().split('T')[0];
+                const amountStr = div.amount.toFixed(6);
+                const key = `${exchange}:${ticker}:${dateStr}:${amountStr}`;
+                if (existingKeys.has(key)) return null;
+                
+                return [
+                    toGoogleSheetsExchangeCode(exchange),
+                    ticker.toUpperCase(),
+                    dateStr,
+                    div.amount,
+                    effectiveSource
+                ];
+            })
+            .filter((row): row is any[] => row !== null);
+
+        if (newRows.length > 0) {
+            await gapi.client.sheets.spreadsheets.values.append({
+                spreadsheetId,
+                range: `${DIV_SHEET_NAME}!A:A`,
+                valueInputOption: 'USER_ENTERED',
+                resource: { values: newRows }
+            });
+        }
+    } catch (error: any) {
+        if (error.result?.error?.code === 400) {
+             console.warn("Dividends sheet not found, skipping sync.");
+             return;
+        }
+        throw error;
+    }
+});
+
+export const addDividendEvent = withAuthHandling(async (spreadsheetId: string, ticker: string, exchange: Exchange, date: Date, amount: number) => {
+    // Clear lock for this ticker so it can re-fetch/re-sync if needed, though syncDividends handles dupes
+    const lockKey = `${exchange}:${ticker.toUpperCase()}`;
+    dividendSyncLock.delete(lockKey);
+
+    await syncDividends(spreadsheetId, ticker, exchange, [{ date, amount }], 'MANUAL');
+});
+
 export const rebuildHoldingsSheet = withAuthHandling(async (spreadsheetId: string) => {
     const gapi = await ensureGapi();
     const transactions = await fetchTransactions(spreadsheetId);
@@ -548,6 +677,12 @@ export const rebuildHoldingsSheet = withAuthHandling(async (spreadsheetId: strin
     const enrichedData = await Promise.all(Object.values(holdings).map(async (h) => {
         let meta: TickerData | null = null;
         try { meta = await getTickerData(h.ticker, h.exchange, h.numericId); } catch (e) { console.warn("Failed to fetch metadata for " + h.ticker, e); }
+        
+        // Sync dividends if available
+        if (meta?.dividends && meta.dividends.length > 0) {
+            await syncDividends(spreadsheetId, h.ticker, h.exchange, meta.dividends, 'YAHOO');
+        }
+
         return { h, meta };
     }));
 
