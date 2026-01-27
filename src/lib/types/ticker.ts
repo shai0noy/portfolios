@@ -17,7 +17,15 @@ export interface TickerId {
  * Keeps the top-level Profile clean while preserving necessary details.
  */
 export type ExchangeMetadata = 
-  | { type: 'TASE', securityId: number, isin?: string }
+  | { 
+      type: 'TASE', 
+      securityId: number, 
+      isin?: string,
+      superSector?: string,
+      shortName?: string,
+      exposureProfile?: string,
+      underlyingAssets?: { name: string, weight: number }[]
+    }
   | { type: 'GLOBES', instrumentId: string }
   | { type: 'PROVIDENT', fundId: number, managementFee?: number, depositFee?: number, managingCompany?: string }
   | { type: 'GENERIC' };

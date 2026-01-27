@@ -100,9 +100,9 @@ function parseVolume(instrument: Element, last: number, baseCurrency: Currency, 
   return undefined;
 }
 
-function calculateChangePct(current: number, previousStr: string): number {
+function calculateChangePct(current: number, previousStr: string): number | undefined {
     const prev = parseFloat(previousStr || '0');
-    if (!prev) return 0;
+    if (!prev) return undefined;
     return (current - prev) / prev;
 }
 
@@ -242,8 +242,10 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
       }
 
       // Percentage Change Calculation
-      let percentageChange = parseFloat(getText(instrument, 'percentageChange') || '0');
-      if (percentageChange === 0) {
+      const rawPercentageChange = getText(instrument, 'percentageChange');
+      let percentageChange: number | undefined = (rawPercentageChange && !isNaN(parseFloat(rawPercentageChange))) ? parseFloat(rawPercentageChange) : undefined;
+      
+      if (percentageChange === undefined || percentageChange === 0) {
         const changeVal = parseFloat(getText(instrument, 'change') || '0');
         if (changeVal !== 0 && last !== 0) {
           const prevClose = last - changeVal;
@@ -255,6 +257,9 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
       const parsedTimestamp = timestampStr ? new Date(timestampStr).valueOf() : NaN;
       const effectiveTimestamp = !isNaN(parsedTimestamp) ? parsedTimestamp : now;
 
+      const changePctYtdRaw = getText(instrument, 'ChangeFromLastYear');
+      const changePctYtd = (changePctYtdRaw && !isNaN(parseFloat(changePctYtdRaw))) ? parseFloat(changePctYtdRaw) / 100 : undefined;
+
       const tickerData: TickerData = {
         price: last,
         openPrice,
@@ -262,9 +267,9 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
         nameHe: common.nameHe || undefined,
         currency,
         exchange: exchangeRes,
-        changePct1d: percentageChange / 100,
+        changePct1d: percentageChange !== undefined ? percentageChange / 100 : undefined,
         timestamp: new Date(effectiveTimestamp),
-        changePctYtd: parseFloat(getText(instrument, 'ChangeFromLastYear') || '0') / 100,
+        changePctYtd,
         changePctRecent: calculateChangePct(last, getText(instrument, 'LastWeekClosePrice')),
         recentChangeDays: 7,
         changePct1m: calculateChangePct(last, getText(instrument, 'LastMonthClosePrice')),

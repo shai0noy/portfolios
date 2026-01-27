@@ -118,6 +118,28 @@ async function fetchTaseSecurities(signal?: AbortSignal): Promise<TaseSecurity[]
 }
 
 /**
+ * Fetches the list of mutual funds from the TASE API.
+ */
+async function fetchTaseFunds(signal?: AbortSignal): Promise<any[]> {
+    const url = `https://portfolios.noy-shai.workers.dev/?apiId=tase_list_funds`;
+    try {
+        console.log(`Fetching TASE funds...`);
+        const response = await fetch(url, { signal });
+        if (!response.ok) {
+            console.error(`Failed to fetch TASE funds: ${response.statusText}`);
+            return [];
+        }
+        const data = await response.json();
+        const result = data?.funds?.result || [];
+        console.log(`Fetched ${result.length} TASE funds.`);
+        return result;
+    } catch(e) {
+        console.error('Error fetching or parsing TASE funds', e);
+        return [];
+    }
+}
+
+/**
  * Helper to fetch all enabled Globes tickers for a given exchange.
  * Returns TickerProfile[] directly from globes fetcher.
  */
@@ -211,8 +233,9 @@ async function fetchTaseTickers(
   signal?: AbortSignal
 ): Promise<Record<string, TickerProfile[]>> {
 
-  // Fetch TASE securities (Primary Source for TASE)
+  // Fetch TASE securities and funds in parallel (Primary Sources for TASE)
   const taseSecuritiesPromise = fetchTaseSecurities(signal);
+  const taseFundsPromise = fetchTaseFunds(signal);
   
   // Fetch Globes data for TASE (Enrichment Source)
   // We fetch all relevant globes categories for TASE
@@ -229,8 +252,9 @@ async function fetchTaseTickers(
       }
   })).then(results => results.flat());
 
-  const [taseSecurities, allGlobesTickers] = await Promise.all([
+  const [taseSecurities, taseFunds, allGlobesTickers] = await Promise.all([
     taseSecuritiesPromise,
+    taseFundsPromise,
     globesTickersPromise
   ]);
 
@@ -278,9 +302,10 @@ async function fetchTaseTickers(
       const name = globesTicker?.name || security.securityName;
       const nameHe = globesTicker?.nameHe || security.securityNameHe;
 
-      // Determine Sector
-      // Priority: TASE Sector (official) > Globes
-      const sector = security.companySubSector || security.companySector || globesTicker?.sector;
+      // Determine Sectors
+      // Alignment: SuperSector -> Sector -> SubSector
+      const superSector = security.companySuperSector;
+      const sector = security.companySector || globesTicker?.sector;
       const subSector = security.companySubSector || globesTicker?.subSector;
 
       allTickers.push({
@@ -299,12 +324,67 @@ async function fetchTaseTickers(
           meta: {
             type: 'TASE',
             securityId: security.securityId,
-            isin: security.isin
+            isin: security.isin,
+            superSector: superSector,
+            shortName: security.securityName
           }
       });
   }
 
-  console.log(`Merged TASE data. Matched ${matchedGlobesIds.size} securities with Globes data out of ${taseSecurities.length} TASE securities.`);
+  // 4.5. Add TASE funds (join with globes as well)
+  for (const fund of taseFunds) {
+      const fundIdStr = String(fund.fundId);
+      const globesTicker = globesTickerMap.get(fundIdStr);
+
+      if (globesTicker) {
+          matchedGlobesIds.add(fundIdStr);
+      }
+
+      const taseTypeStr = fund.classificationMain?.value || fund.classificationMajor?.value || 'Mutual Fund';
+      let classification = new InstrumentClassification(InstrumentType.MUTUAL_FUND, taseTypeStr);
+      
+      const canonicalFromTase = getInstrumentTypeFromTaseType(taseTypeStr);
+      if (canonicalFromTase !== InstrumentType.UNKNOWN) {
+          classification = new InstrumentClassification(canonicalFromTase, taseTypeStr);
+      } else if (globesTicker) {
+          classification = globesTicker.type;
+      }
+
+      const name = globesTicker?.name || fund.fundLongName || fund.fundName;
+      const nameHe = globesTicker?.nameHe || fund.fundLongName || fund.fundName;
+
+      // Map sectors per requirements
+      const superSector = fund.classificationMajor?.value;
+      const sector = fund.classificationMain?.value || globesTicker?.sector;
+      const subSector = fund.classificationSecondary?.value || globesTicker?.subSector;
+
+      const underlyingAssets = fund.underlyingAsset?.map((a: any) => ({
+          name: a.underlyingAsset?.value,
+          weight: a.underlyingAsset?.weight
+      })).filter((a: any) => a.name && a.weight != null);
+
+      allTickers.push({
+          symbol: fundIdStr, // Funds use ID as symbol in TASE
+          exchange: Exchange.TASE,
+          securityId: fundIdStr,
+          name,
+          nameHe,
+          type: classification,
+          sector,
+          subSector,
+          meta: {
+              type: 'TASE',
+              securityId: parseInt(fundIdStr, 10),
+              isin: fund.isin,
+              superSector,
+              shortName: fund.fundName,
+              exposureProfile: fund.exposureProfile,
+              underlyingAssets
+          }
+      });
+  }
+
+  console.log(`Merged TASE data. Matched ${matchedGlobesIds.size} items with Globes data.`);
 
   // 5. Complete the outer join: Add Globes tickers that didn't have a match in the TASE list
   // (e.g. Indices, or data sync issues)

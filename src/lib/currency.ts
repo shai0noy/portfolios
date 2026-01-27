@@ -137,11 +137,11 @@ export function convertCurrency(amount: number, from: Currency | string, to: Cur
 export const calculatePerformanceInDisplayCurrency = (
   currentPrice: number,
   stockCurrency: Currency | string,
-  perfPct: number,
+  perfPct: number | undefined | null,
   displayCurrency: string,
   exchangeRates: ExchangeRates
 ) => {
-  if (!perfPct || isNaN(perfPct)) return { changeVal: 0, changePct1d: 0 };
+  if (perfPct === undefined || perfPct === null || isNaN(perfPct)) return { changeVal: NaN, changePct1d: NaN };
 
   const normStockCurrency = normalizeCurrency(stockCurrency as string);
   const normDisplayCurrency = normalizeCurrency(displayCurrency);

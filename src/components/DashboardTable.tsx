@@ -80,6 +80,7 @@ export function DashboardTable(props: TableProps) {
   };
 
   const formatPct = (n: number) => {
+    if (n === undefined || n === null || isNaN(n)) return '-';
     const val = (n * 100).toFixed(2);
     return (isRtl && n < 0 ? '\u200E' : '') + val + '%';
   };

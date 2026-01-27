@@ -16,9 +16,15 @@ export function createRowMapper<T extends readonly string[]>(headers: T) {
             if (index !== undefined && row[index] !== undefined && row[index] !== null) {
                 const value: any = row[index];
                 if (numericKeys.includes(key)) {
-                    const numVal = parseFloat(String(value).replace(/,/g, '').replace(/%/, ''));
-                    (obj as any)[key] = isNaN(numVal) ? 0 : numVal;
-                    if (mapping[key].includes('%')) (obj as any)[key] = ((obj as any)[key] as number) / 100;
+                    if (value === undefined || value === null || String(value).trim() === "") {
+                        (obj as any)[key] = undefined;
+                    } else {
+                        const numVal = parseFloat(String(value).replace(/,/g, '').replace(/%/, ''));
+                        (obj as any)[key] = isNaN(numVal) ? undefined : numVal;
+                        if ((obj as any)[key] !== undefined && mapping[key].includes('%')) {
+                            (obj as any)[key] = ((obj as any)[key] as number) / 100;
+                        }
+                    }
                 } else {
                     obj[key] = value;
                 }
