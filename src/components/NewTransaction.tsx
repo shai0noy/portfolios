@@ -12,7 +12,7 @@ import DashboardIcon from '@mui/icons-material/Dashboard';
 import { parseExchange, type Portfolio, type Transaction } from '../lib/types';
 import { addTransaction, fetchPortfolios, addExternalPrice } from '../lib/sheets/index';
 import { getTickerData, type TickerData } from '../lib/fetching';
-import { TickerSearch } from './TickerSearch'; 
+import { TickerSearch } from './TickerSearch';
 import { convertCurrency, formatPrice, getExchangeRates, normalizeCurrency } from '../lib/currency';
 import { Currency, type ExchangeRates, Exchange } from '../lib/types';
 import { useLanguage } from '../lib/i18n';
@@ -48,10 +48,10 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   const [type, setType] = useState<'BUY' | 'SELL' | 'DIVIDEND' | 'FEE'>('BUY');
   const [qty, setQty] = useState<string>('');
   const [price, setPrice] = useState<string>(() => {
-      const p = locationState?.initialPrice;
-      if (!p) return '';
-      const num = parseFloat(p);
-      return isNaN(num) ? p : parseFloat(num.toFixed(6)).toString();
+    const p = locationState?.initialPrice;
+    if (!p) return '';
+    const num = parseFloat(p);
+    return isNaN(num) ? p : parseFloat(num.toFixed(6)).toString();
   });
   const [total, setTotal] = useState<string>('');
   const [vestDate, setVestDate] = useState('');
@@ -72,15 +72,15 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
         setLoading(true);
         const data = await getTickerData(locationState.prefilledTicker!, locationState.prefilledExchange || '',
           locationState.numericId || null, undefined, false);
-        
+
         console.log('NewTransaction data:', data);
         console.log('NewTransaction locationState:', locationState);
 
         if (data) {
-          const combinedData = { 
-            ...data, 
-            symbol: locationState.prefilledTicker!, 
-            exchange: data.exchange || locationState.prefilledExchange || '', 
+          const combinedData = {
+            ...data,
+            symbol: locationState.prefilledTicker!,
+            exchange: data.exchange || locationState.prefilledExchange || '',
             numericId: locationState.numericId || data.numericId,
             name: data.name || locationState.initialName,
             nameHe: data.nameHe || locationState.initialNameHe
@@ -272,19 +272,19 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
 
       // If GEMEL or PENSION, also save the fetched price to external holdings for history
       if ((parseExchange(exchange) === Exchange.GEMEL || parseExchange(exchange) === Exchange.PENSION) && selectedTicker?.price && selectedTicker?.timestamp) {
-          try {
-              // Note: We use the fetched price/date, NOT the transaction price/date
-              await addExternalPrice(
-                  sheetId, 
-                  ticker, 
-                  parseExchange(exchange), 
-                  new Date(selectedTicker.timestamp), 
-                  selectedTicker.price, 
-                  normalizeCurrency(selectedTicker.currency || 'ILS')
-              );
-          } catch (err) {
-              console.warn("Failed to add external price for GEMEL/PENSION txn:", err);
-          }
+        try {
+          // Note: We use the fetched price/date, NOT the transaction price/date
+          await addExternalPrice(
+            sheetId,
+            ticker,
+            parseExchange(exchange),
+            new Date(selectedTicker.timestamp),
+            selectedTicker.price,
+            normalizeCurrency(selectedTicker.currency || 'ILS')
+          );
+        } catch (err) {
+          console.warn("Failed to add external price for GEMEL/PENSION txn:", err);
+        }
       }
 
       setSaveSuccess(true);
@@ -402,20 +402,20 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                     color="primary"
                     variant="outlined"
                     onClick={handleViewTicker}
-                    sx={{ cursor: 'pointer' }}
+                    sx={{ cursor: 'pointer', height: 24, fontSize: '0.75rem' }}
                   />
                   {selectedTicker?.price && (
                     <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
                       {formatPrice(selectedTicker.price, tickerCurrency, 2, t)}
                     </Typography>
                   )}
-                  {selectedTicker?.source && (
-                    <Typography variant="caption" color="text.secondary">
-                      ({selectedTicker.source})
-                    </Typography>
-                  )}
-                </Box>
 
+                </Box>
+                {selectedTicker?.source && (
+                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.6rem', ml: 2, mb: 0.5, opacity: 0.8, float: 'right', marginTop: -3 }}>
+                    {t('Source:', 'מקור:')} {selectedTicker.source}
+                  </Typography>
+                )}
                 {priceError && <Alert severity="error" sx={{ mb: 2 }}>{priceError}</Alert>}
 
                 {!showForm && (
@@ -484,7 +484,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                             label="Price" type="number" size="small" fullWidth
                             value={price}
                             onChange={e => handlePriceChange(e.target.value)}
-                            InputProps={tickerCurrency === 'ILA' 
+                            InputProps={tickerCurrency === 'ILA'
                               ? { endAdornment: <InputAdornment position="end">{t('ag.', "א'")}</InputAdornment> }
                               : { startAdornment: <InputAdornment position="start">{tickerCurrency}</InputAdornment> }
                             }
@@ -519,7 +519,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                       </Grid>
                       <Grid item xs={4} sm={3}>
                         <TextField
-                          label="Comm %" type="number" size="small" fullWidth
+                          label="Commission %" type="number" size="small" fullWidth
                           value={commissionPct} onChange={e => handleCommissionPctChange(e.target.value)}
                           InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
                         />
