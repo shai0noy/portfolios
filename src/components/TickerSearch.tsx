@@ -1,13 +1,14 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   TextField, Grid, Typography, CircularProgress, MenuItem, Select, FormControl, InputLabel,
-  List, ListItemButton, ListItemText, Paper, Box, Divider, Chip, Tooltip
+  List, ListItemButton, ListItemText, Paper, Box, Divider, Chip, Tooltip, InputAdornment
 } from '@mui/material';
 import { getTickersDataset, getTickerData, type TickerData } from '../lib/fetching';
 import type { TickerProfile } from '../lib/types/ticker';
 import { InstrumentGroup, INSTRUMENT_METADATA } from '../lib/types/instrument';
 import { type Portfolio } from '../lib/types';
 import { syncDividends } from '../lib/sheets';
+import SearchIcon from '@mui/icons-material/Search';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
 import { useLanguage } from '../lib/i18n';
 import { getOwnedInPortfolios } from '../lib/portfolioUtils';
@@ -19,6 +20,7 @@ interface TickerSearchProps {
   portfolios: Portfolio[];
   isPortfoliosLoading: boolean;
   sheetId: string;
+  collapsible?: boolean;
 }
 
 // Custom hook for debouncing input values
@@ -139,7 +141,7 @@ async function performSearch(
   });
 }
 
-export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchange, portfolios, isPortfoliosLoading }: TickerSearchProps) {
+export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchange, portfolios, isPortfoliosLoading, sheetId, collapsible }: TickerSearchProps) {
   // Dataset is Record<string, TickerProfile[]>
   const [dataset, setDataset] = useState<Record<string, TickerProfile[]>>({});
   const [isDatasetLoading, setIsDatasetLoading] = useState(false);
@@ -150,6 +152,8 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
   
   const [selectedExchange, setSelectedExchange] = useState(prefilledExchange || 'ALL');
   const [selectedGroup, setSelectedGroup] = useState<InstrumentGroup | 'ALL'>('ALL');
+
+  const isIdle = collapsible && !inputValue && !isFocused;
   
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -265,120 +269,157 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
       });
     }
     setSearchResults([]);
-    setInputValue(profile.symbol);
+    setInputValue('');
+    setIsFocused(false);
   };
 
   return (
-    <Box>
-      <Grid container spacing={1} alignItems="center" sx={{ mb: 1 }}>
-        <Grid item xs={12} sm={6}>
-          <TextField
-            onFocus={() => setIsFocused(true)}
-            label={`${t('Search Ticker', 'חפש נייר')} ${selectedExchange === 'ALL' ? '' : `(${selectedExchange})`}`}
-            size="small"
-            fullWidth
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            InputProps={{
-              endAdornment: (
-                <>
-                  {(isLoading || isDatasetLoading || isPortfoliosLoading) ? <CircularProgress color="inherit" size={20} /> : null}
-                </>
-              ),
-            }}
-          />
-        </Grid>
-        <Grid item xs={6} sm={3}>
-          <FormControl fullWidth size="small">
-            <InputLabel>{t('Exchange', 'בורסה')}</InputLabel>
-            <Select
-              value={selectedExchange}
-              label={t('Exchange', 'בורסה')}
-              onChange={(e) => setSelectedExchange(e.target.value as string)}
-            >
-              <MenuItem value="ALL">{t('All', 'הכל')}</MenuItem>
-              <MenuItem value="TASE">TASE ({t('Tel Aviv', 'תל אביב')})</MenuItem>
-              <MenuItem value="NASDAQ">NASDAQ</MenuItem>
-              <MenuItem value="NYSE">NYSE</MenuItem>
-              <MenuItem value="FOREX">FOREX</MenuItem>
-              <MenuItem value="GEMEL">{t('Gemel Funds', 'קופות גמל')}</MenuItem>
-              <MenuItem value="PENSION">{t('Pension Funds', 'קרנות פנסיה')}</MenuItem>
-            </Select>
-          </FormControl>
-        </Grid>
-        <Grid item xs={6} sm={3}>
-          <FormControl fullWidth size="small">
-            <InputLabel>{t('Type', 'סוג')}</InputLabel>
-            <Select
-              value={selectedGroup}
-              label={t('Type', 'סוג')}
-              onChange={(e) => setSelectedGroup(e.target.value as (InstrumentGroup | 'ALL'))}
-              renderValue={(selected) => {
-                if (selected === 'ALL') return t('All Types', 'כל הסוגים');
-                const option = groupFilterOptions.find(opt => opt.key === selected);
-                return option ? option.displayName : selected;
+    <Box sx={{ mt: -2, mb: isIdle ? 3 : 4 }}>
+      <Paper 
+        elevation={0} 
+        sx={{ 
+          p: isIdle ? 0 : 1.5, 
+          borderRadius: 3, 
+          border: isIdle ? 'none' : 1, 
+          borderColor: 'divider',
+          bgcolor: isIdle ? 'transparent' : 'background.paper',
+          transition: 'all 0.2s ease-in-out'
+        }}
+      >
+        <Grid container spacing={1} alignItems="center" justifyContent={isIdle ? 'center' : 'flex-start'}>
+          <Grid item xs={12} sm={isIdle ? 8 : 6}>
+            <TextField
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => {
+                // Delay onBlur to allow clicking on results
+                setTimeout(() => {
+                  if (!inputValue) setIsFocused(false);
+                }, 200);
               }}
-            >
-              <MenuItem value="ALL">{t('All Types', 'כל הסוגים')}</MenuItem>
-              {groupFilterOptions.map(({ key, displayName }) => (
-                <MenuItem key={key} value={key}>{displayName}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+              label={isIdle ? null : `${t('Search Ticker', 'חפש נייר')} ${selectedExchange === 'ALL' ? '' : `(${selectedExchange})`}`}
+              placeholder={isIdle ? t('Search Ticker...', 'חפש נייר...') : ''}
+              size="small"
+              fullWidth
+              value={inputValue}
+              autoComplete="off"
+              onChange={(e) => setInputValue(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon color="action" fontSize="small" />
+                  </InputAdornment>
+                ),
+                endAdornment: (
+                  <>
+                    {(isLoading || isDatasetLoading || isPortfoliosLoading) ? <CircularProgress color="inherit" size={20} /> : null}
+                  </>
+                ),
+                sx: isIdle ? { 
+                  borderRadius: 2, 
+                  height: 32,
+                  bgcolor: 'action.hover',
+                  '& fieldset': { border: 'none' }
+                } : {}
+              }}
+            />
+          </Grid>
+          {!isIdle && (
+            <>
+              <Grid item xs={6} sm={3}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>{t('Exchange', 'בורסה')}</InputLabel>
+                  <Select
+                    value={selectedExchange}
+                    label={t('Exchange', 'בורסה')}
+                    onChange={(e) => setSelectedExchange(e.target.value as string)}
+                  >
+                    <MenuItem value="ALL">{t('All', 'הכל')}</MenuItem>
+                    <MenuItem value="TASE">TASE ({t('Tel Aviv', 'תל אביב')})</MenuItem>
+                    <MenuItem value="NASDAQ">NASDAQ</MenuItem>
+                    <MenuItem value="NYSE">NYSE</MenuItem>
+                    <MenuItem value="FOREX">FOREX</MenuItem>
+                    <MenuItem value="GEMEL">{t('Gemel Funds', 'קופות גמל')}</MenuItem>
+                    <MenuItem value="PENSION">{t('Pension Funds', 'קרנות פנסיה')}</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={6} sm={3}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>{t('Type', 'סוג')}</InputLabel>
+                  <Select
+                    value={selectedGroup}
+                    label={t('Type', 'סוג')}
+                    onChange={(e) => setSelectedGroup(e.target.value as (InstrumentGroup | 'ALL'))}
+                    renderValue={(selected) => {
+                      if (selected === 'ALL') return t('All Types', 'כל הסוגים');
+                      const option = groupFilterOptions.find(opt => opt.key === selected);
+                      return option ? option.displayName : selected;
+                    }}
+                  >
+                    <MenuItem value="ALL">{t('All Types', 'כל הסוגים')}</MenuItem>
+                    {groupFilterOptions.map(({ key, displayName }) => (
+                      <MenuItem key={key} value={key}>{displayName}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+            </>
+          )}
+          {error && <Grid item xs={12}><Typography color="error">{error}</Typography></Grid>}
         </Grid>
-        {error && <Grid item xs={12}><Typography color="error">{error}</Typography></Grid>}
-      </Grid>
 
-      {(filteredResults.length > 0) && (
-        <Paper 
-          elevation={2} 
-          className="visible-scrollbar"
-          sx={{ maxHeight: 300, overflowY: 'auto', my: 1 }}
-        >
-          <List dense>
-            {filteredResults.map((option, index) => {
-              const { profile } = option;
-              // Determine display type: Prioritize localized name from metadata
-              const typeMeta = INSTRUMENT_METADATA[profile.type.type];
-              const displayType = t(typeMeta?.nameEn || profile.type.nameEn, typeMeta?.nameHe || profile.type.nameHe);
+        {(filteredResults.length > 0) && (
+          <Paper 
+            elevation={2} 
+            className="visible-scrollbar"
+            sx={{ maxHeight: 300, overflowY: 'auto', my: 1, border: 1, borderColor: 'divider' }}
+          >
+            <List dense>
+              {filteredResults.map((option, index) => {
+                const { profile } = option;
+                // Determine display type: Prioritize localized name from metadata
+                const typeMeta = INSTRUMENT_METADATA[profile.type.type];
+                const displayType = t(typeMeta?.nameEn || profile.type.nameEn, typeMeta?.nameHe || profile.type.nameHe);
 
-              return (
-                <Box key={`${profile.exchange}:${profile.symbol}`}>
-                  <ListItemButton onClick={() => handleOptionSelect(option)}>
-                    <ListItemText
-                      primary={<Typography variant="body1">{tTry(profile.name, profile.nameHe)}</Typography>}
-                      secondaryTypographyProps={{ component: 'div' }} 
-                      secondary={
-                        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mt: 0.5 }}>
-                          <Chip
-                            label={`${profile.exchange}:${profile.symbol}${profile.securityId && profile.securityId !== profile.symbol ? ` (${profile.securityId})` : ''}`} size="small" variant="outlined" />
-                          {displayType && <Chip label={displayType} size="small" color="primary" variant="outlined" />}
-                          {profile.sector && <Chip label={profile.sector} size="small" variant="outlined" />}  
-                          {option.ownedInPortfolios && option.ownedInPortfolios.length > 0 && (
-                            <Tooltip title={`Owned in: ${option.ownedInPortfolios.join(', ')}`}>
-                              <BusinessCenterIcon color="success" sx={{ fontSize: 16, ml: 1 }} />
-                            </Tooltip>
-                          )}
-                        </Box>
-                      }
-                    />
+                return (
+                  <Box key={`${profile.exchange}:${profile.symbol}`}>
+                    <ListItemButton onClick={() => handleOptionSelect(option)}>
+                      <ListItemText
+                        primary={<Typography variant="body1">{tTry(profile.name, profile.nameHe)}</Typography>}
+                        secondaryTypographyProps={{ component: 'div' }} 
+                        secondary={
+                          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mt: 0.5 }}>
+                            <Chip
+                              label={`${profile.exchange}:${profile.symbol}${profile.securityId && profile.securityId !== profile.symbol ? ` (${profile.securityId})` : ''}`} size="small" variant="outlined" />
+                            {displayType && <Chip label={displayType} size="small" color="primary" variant="outlined" />}
+                            {profile.sector && <Chip label={profile.sector} size="small" variant="outlined" />}  
+                            {option.ownedInPortfolios && option.ownedInPortfolios.length > 0 && (
+                              <Tooltip title={`Owned in: ${option.ownedInPortfolios.join(', ')}`}>
+                                <BusinessCenterIcon color="success" sx={{ fontSize: 16, ml: 1 }} />
+                              </Tooltip>
+                            )}
+                          </Box>
+                        }
+                      />
+                    </ListItemButton>
+                    {index < filteredResults.length - 1 && <Divider />}
+                  </Box>
+                );
+              })}
+              {searchResults.length > limit && (
+                <Box sx={{ p: 1, textAlign: 'center' }}>
+                  <ListItemButton onClick={() => setLimit(prev => prev + 100)} sx={{ justifyContent: 'center' }}>
+                    <Typography variant="body2" color="primary">
+                      {t('Show more results', 'הצג תוצאות נוספות')} ({searchResults.length - limit} {t('remaining', 'נותרו')})
+                    </Typography>
                   </ListItemButton>
-                  {index < filteredResults.length - 1 && <Divider />}
                 </Box>
-              );
-            })}
-            {searchResults.length > limit && (
-              <Box sx={{ p: 1, textAlign: 'center' }}>
-                <ListItemButton onClick={() => setLimit(prev => prev + 100)} sx={{ justifyContent: 'center' }}>
-                  <Typography variant="body2" color="primary">
-                    {t('Show more results', 'הצג תוצאות נוספות')} ({searchResults.length - limit} {t('remaining', 'נותרו')})
-                  </Typography>
-                </ListItemButton>
-              </Box>
-            )}
-          </List>
-        </Paper>
-      )}
+              )}
+            </List>
+          </Paper>
+        )}
+      </Paper>
     </Box>
   );
 }
+        

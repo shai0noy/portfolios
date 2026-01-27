@@ -391,6 +391,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
               portfolios={portfolios}
               isPortfoliosLoading={isPortfoliosLoading}
               sheetId={sheetId}
+              collapsible={false}
             />
           </Grid>
         )}

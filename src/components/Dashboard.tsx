@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useSearchParams, Link as RouterLink } from 'react-router-dom';
+import { useSearchParams, Link as RouterLink, useNavigate, useLocation } from 'react-router-dom';
 import {
-  Box, CircularProgress, IconButton, Tooltip, Typography, ToggleButton, Divider, Button
+  Box, CircularProgress, IconButton, Tooltip, Typography, ToggleButton, Divider, Button, Paper
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
@@ -13,6 +13,7 @@ import { DashboardSummary } from './DashboardSummary';
 import { DashboardTable } from './DashboardTable';
 import { useLanguage } from '../lib/i18n';
 import { useDashboardData, calculateDashboardSummary, INITIAL_SUMMARY } from '../lib/dashboard';
+import { TickerSearch } from './TickerSearch';
 
 interface DashboardProps {
   sheetId: string;
@@ -20,6 +21,8 @@ interface DashboardProps {
 
 export const Dashboard = ({ sheetId }: DashboardProps) => {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [groupByPortfolio, setGroupByPortfolio] = useState(true);
   const [includeUnvested, setIncludeUnvested] = useState<boolean>(false);
   // Persist Currency - normalize initial value
@@ -235,6 +238,24 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
           {t('Note: Some transactions with future dates exist and are not included in the calculations.', 'הערה: קיימות עסקאות עם תאריך עתידי שאינן נכללות בחישובים.')}
         </Typography>
       )}
+
+      <TickerSearch 
+        sheetId={sheetId}
+        portfolios={portfolios}
+        isPortfoliosLoading={loading}
+        collapsible={true}
+        onTickerSelect={(ticker) => {
+          navigate(`/ticker/${ticker.exchange}/${ticker.symbol}`, {
+            state: {
+              from: '/dashboard',
+              background: location,
+              numericId: ticker.numeric_id?.toString(),
+              initialName: ticker.name,
+              initialNameHe: ticker.nameHe
+            }
+          });
+        }}
+      />
 
       {/* CONTROLS */}
       <Box display="flex" justifyContent="space-between" mb={2} alignItems="center">
