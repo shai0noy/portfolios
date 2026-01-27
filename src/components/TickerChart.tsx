@@ -585,7 +585,7 @@ export function TickerChart({ series, currency, mode = 'percent' }: TickerChartP
                     <XAxis
                         dataKey="date"
                         type="number"
-                        domain={[xMin, xMax]}
+                        domain={[xMin ?? 'dataMin', xMax ?? 'dataMax']}
                         scale="time"
                         tickFormatter={formatXAxis}
                         tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
