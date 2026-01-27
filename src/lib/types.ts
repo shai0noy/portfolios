@@ -29,15 +29,15 @@ interface ExchangeSettings {
   yahooFinanceSuffix: string;
 }
 
-const EXCHANGE_SETTINGS: Record<Exchange, ExchangeSettings> = {
+export const EXCHANGE_SETTINGS: Record<Exchange, ExchangeSettings> = {
   [Exchange.NASDAQ]: { 
-    aliases: ['XNAS', 'NMS', 'NGS', 'NCM'], 
+    aliases: ['XNAS', 'NMS', 'NGS', 'NCM', 'NIM', 'BTS', 'BATS'], 
     googleFinanceCode: 'NASDAQ',
     googleSheetsCode: 'NASDAQ',
     yahooFinanceSuffix: ''
   },
   [Exchange.NYSE]: { 
-    aliases: ['XNYS', 'ARCA'], 
+    aliases: ['XNYS', 'ARCA', 'WCB', 'ASE', 'AMEX', 'NYQ'], 
     googleFinanceCode: 'NYSE', 
     googleSheetsCode: 'NYSE',
     yahooFinanceSuffix: ''

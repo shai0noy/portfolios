@@ -2,16 +2,25 @@
 import { CACHE_TTL, saveToCache, loadFromCache } from './utils/cache';
 import { deduplicateRequest } from './utils/request_deduplicator';
 import type { TickerData } from './types';
-import { Exchange, parseExchange, toYahooFinanceTicker } from '../types';
+import { Exchange, parseExchange, toYahooFinanceTicker, EXCHANGE_SETTINGS } from '../types';
 
-const YAHOO_EXCHANGE_MAP: Record<string, string> = {
-  'NMS': 'NASDAQ',
-  'NYQ': 'NYSE',
-  'ASE': 'AMEX',
-  'PCX': 'ARCA',
-  'BTS': 'BATS',
-  // Add other mappings as needed
-};
+/**
+ * Maps Yahoo Finance exchange codes (e.g. 'NMS', 'NYQ') to canonical Exchange names.
+ * Built dynamically from the aliases defined in EXCHANGE_SETTINGS.
+ */
+const YAHOO_EXCHANGE_MAP: Record<string, string> = (() => {
+  const map: Record<string, string> = {
+    // Manual overrides or special cases if needed
+  };
+  
+  Object.entries(EXCHANGE_SETTINGS).forEach(([ex, config]) => {
+    config.aliases.forEach(alias => {
+      map[alias.toUpperCase()] = ex;
+    });
+  });
+  
+  return map;
+})();
 
 export async function fetchYahooTickerData(ticker: string, exchange: Exchange, signal?: AbortSignal, forceRefresh = false, range: '1y' | 'max' = 'max'): Promise<TickerData | null> {
   if (exchange === Exchange.GEMEL || exchange === Exchange.PENSION) {
@@ -81,8 +90,13 @@ export async function fetchYahooTickerData(ticker: string, exchange: Exchange, s
 
       const currency = meta.currency;
       const exchangeCode = meta.exchangeName || 'OTHER';
-      const mappedExchange = YAHOO_EXCHANGE_MAP[exchangeCode] || exchangeCode;
-      let exchange: Exchange = parseExchange(mappedExchange);
+      let mappedExchange: Exchange;
+      try {
+        mappedExchange = parseExchange(YAHOO_EXCHANGE_MAP[exchangeCode.toUpperCase()] || exchangeCode);
+      } catch (e) {
+        console.warn(`Yahoo: Unknown exchange '${exchangeCode}' for ${ticker}, falling back to requested exchange ${exchange}`);
+        mappedExchange = exchange;
+      }
       const longName = meta.longName || meta.shortName;
       const prevClose = meta.previousClose || meta.chartPreviousClose;
       const granularity = meta.dataGranularity; // e.g. "1mo"
