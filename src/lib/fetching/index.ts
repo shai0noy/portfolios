@@ -4,6 +4,7 @@ import { fetchYahooTickerData } from './yahoo';
 import { fetchAllTickers } from './stock_list';
 import { fetchGemelnetQuote } from './gemelnet';
 import { fetchPensyanetQuote } from './pensyanet';
+import { getCbsTickers } from './cbs';
 import type { TickerData } from './types';
 import { Exchange, parseExchange } from '../types';
 import type { TickerProfile } from '../types/ticker';
@@ -40,6 +41,13 @@ export function getTickersDataset(signal?: AbortSignal, forceRefresh = false): P
             combined[type] = combined[type].concat(items);
         });
       });
+
+      // Add CBS tickers
+      const cbsTickers = getCbsTickers();
+      if (cbsTickers.length > 0) {
+        if (!combined['Index']) combined['Index'] = [];
+        combined['Index'] = combined['Index'].concat(cbsTickers);
+      }
 
       tickersDataset = combined;
       return combined;
@@ -326,5 +334,3 @@ export async function fetchTickerHistory(
   };
 
 }
-
-

@@ -12,7 +12,7 @@ export const Currency = {
 const EXCHANGES = [
   'NASDAQ', 'NYSE', 'TASE', 'LSE', 'FWB',
   'EURONEXT', 'JPX', 'HKEX', 'TSX', 'ASX', 'GEMEL', 'PENSION',
-  'FOREX',
+  'FOREX', 'CBS',
 ] as const;
 
 export type Exchange = typeof EXCHANGES[number];
@@ -107,6 +107,12 @@ export const EXCHANGE_SETTINGS: Record<Exchange, ExchangeSettings> = {
     googleFinanceCode: '',
     googleSheetsCode: 'CURRENCY',
     yahooFinanceSuffix: '=X' // For crypto, no suffix is needed - toYahooFinanceTicker will not add it
+  },
+  [Exchange.CBS]: {
+    aliases: ['CPI', 'MADAD'],
+    googleFinanceCode: '',
+    googleSheetsCode: 'CBS',
+    yahooFinanceSuffix: ''
   },
 };
 

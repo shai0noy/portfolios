@@ -1,5 +1,8 @@
 // src/lib/fetching/cbs.ts
 import { CACHE_TTL, saveToCache, loadFromCache } from './utils/cache';
+import { Exchange } from '../types';
+import { InstrumentGroup } from '../types/instrument';
+import type { TickerProfile } from '../types/ticker';
 
 // --- Types ---
 
@@ -37,6 +40,47 @@ const HEBREW_MONTHS: Record<string, number> = {
   "ינואר": 1, "פברואר": 2, "מרץ": 3, "אפריל": 4, "מאי": 5, "יוני": 6,
   "יולי": 7, "אוגוסט": 8, "ספטמבר": 9, "אוקטובר": 10, "נובמבר": 11, "דצמבר": 12
 };
+
+const CBS_INDECIES = {
+  "120010": { nameHe: "מדד המחירים לצרכן, כללי" , nameEn: "Israel Consumer Price Index"},
+  "120460": {nameHe: "מדד מחירי מחירי השכירות", nameEn: "Israel Housing Rental Price Index"},
+  "400100": {nameHe: "מדד מחירי הדיור, כל הארץ", nameEn: "Israel House Prices Index, National"},
+  "60000": { nameHe: "מדד מחירי הדיור, ירושלים", nameEn: "Israel House Prices Index, Jerusalem" },
+  "60100": { nameHe: "מדד מחירי הדיור, צפון", nameEn: "House Prices Index, North" },
+  "60200": { nameHe: "מדד מחירי הדיור, חיפה", nameEn: "House Prices Index, Haifa" },
+  "60300": { nameHe: "מדד מחירי הדיור, מרכז", nameEn: "House Prices Index, Center" },
+  "60400": { nameHe: "מדד מחירי הדיור, תל אביב", nameEn: "House Prices Index, Tel Aviv" },
+  "60500": { nameHe: "מדד מחירי הדיור, דרום", nameEn: "House Prices Index, South" },
+  "70000": { nameHe: "מדד מחירי דירות חדשות", nameEn: "House Prices Index, New Construction" },
+  "121360": { nameHe: "מדד המחירים לצרכן: אחזקת כלי רכב", nameEn: "Israel Consumer Price Index: Car Ownership" },
+  "140704": { nameHe: "מדד המחירים לצרכן: מכוניות חדשות", nameEn: "Israel Consumer Price Index: New Cars" },
+  "140690": { nameHe: "מדד המחירים לצרכן: דלק ושמנים לכלי רכב", nameEn: "Israel Consumer Price Index: Car Fuel and Oils" },
+  
+  // Included because it's funny
+  "150050": {nameHe: "מדד המחירים לצרכן: עגבניות", nameEn: "Israel Consumer Price Index: Tomatoes" },
+  "150060": {nameHe: "מדד המחירים לצרכן: מלפפונים", nameEn: "Israel Cucumber Price Index: Cucumber" },
+  "150270": {nameHe: "מדד המחירים לצרכן: מלפפונים כבושים", nameEn: "Israel Consumer Price Index: Canned Cucumber"},
+  "120070": { nameHe: "מדד המחירים לצרכן: לחם", nameEn: "Israel Consumer Price Index: Bread" },
+  "120320": { nameHe: "מדד המחירים לצרכן: קפה", nameEn: "Israel Consumer Price Index: Coffee" },
+  "121440": { nameHe: "מדד המחירים לצרכן: סיגריות וטבק", nameEn: "Israel Consumer Price Index: Cigarettes and Tobacco" },
+  "140220": { nameHe: "מדד המחירים לצרכן: בירה", nameEn: "Israel Consumer Price Index: Beer" }
+}
+
+export function getCbsTickers(): TickerProfile[] {
+  return Object.entries(CBS_INDECIES).map(([id, info]) => ({
+    symbol: id,
+    exchange: Exchange.CBS,
+    securityId: id,
+    name: info.nameEn,
+    nameHe: info.nameHe,
+    type: {
+      group: InstrumentGroup.INDEX,
+      type: 'index',
+      nameEn: 'Index',
+      nameHe: 'מדד'
+    }
+  }));
+}
 
 // --- Normalization Logic ---
 
@@ -114,7 +158,7 @@ function normalizeCpiSeries(series: CbsDatePoint[], id: string): CpiDataPoint[] 
  * @returns A promise that resolves to an array of CPI data points or null if an error occurs.
  */
 export async function fetchCpi(
-  id: string = '120010', // Default to general CPI
+  id: string ,
   signal?: AbortSignal
 ): Promise<CpiDataPoint[] | null> {
   const now = Date.now();

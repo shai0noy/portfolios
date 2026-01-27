@@ -6,7 +6,7 @@ import {
 import { getTickersDataset, getTickerData, type TickerData } from '../lib/fetching';
 import type { TickerProfile } from '../lib/types/ticker';
 import { InstrumentGroup, INSTRUMENT_METADATA } from '../lib/types/instrument';
-import { type Portfolio } from '../lib/types';
+import { type Portfolio, Exchange } from '../lib/types';
 import { syncDividends } from '../lib/sheets';
 import SearchIcon from '@mui/icons-material/Search';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
@@ -106,7 +106,13 @@ async function performSearch(
     if (aOwned && !bOwned) return -1;
     if (!aOwned && bOwned) return 1;
 
-    // 4. Instrument Group Priority
+    // 4. CBS Priority (Lowest)
+    const aIsCBS = pA.exchange === Exchange.CBS;
+    const bIsCBS = pB.exchange === Exchange.CBS;
+    if (aIsCBS && !bIsCBS) return 1;
+    if (!aIsCBS && bIsCBS) return -1;
+
+    // 5. Instrument Group Priority
     const priorityOrder: InstrumentGroup[] = [
       InstrumentGroup.INDEX,
       InstrumentGroup.STOCK, 
