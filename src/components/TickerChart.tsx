@@ -17,49 +17,83 @@ interface TickerChartProps {
     mode?: 'percent' | 'price';
 }
 
-const CustomTooltip = ({ active, payload, currency, t, basePrice, isComparison, series }: any) => {
+const CustomTooltip = ({ active, payload, currency, t, basePrice, isComparison, series, mode }: any) => {
     if (active && payload && payload.length) {
         const point = payload[0].payload;
         const date = point.date; // It's already a Date object
         const dateStr = date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 
         if (isComparison) {
+            const mainValue = point.yValue;
             // The `payload` array can be sparse if some series have null data at this point.
             // Instead, we iterate over all `series` and look up their values in the `point` object.
             // The `point` object (`payload[0].payload`) contains the complete data for the hovered x-axis value.
             return (
-                <Paper elevation={3} sx={{ padding: '10px', minWidth: 150 }}>
-                    <Typography variant="caption" display="block" sx={{ mb: 1 }}>{dateStr}</Typography>
-                    {series.map((s: ChartSeries, index: number) => {
-                        const seriesName = s.name;
-                        let value: number | undefined | null;
-                        let color: string | undefined;
+                <Paper elevation={3} sx={{ padding: '10px', minWidth: 160 }}>
+                    <Typography variant="caption" display="block" sx={{ mb: 1, borderBottom: 1, borderColor: 'divider', pb: 0.5 }}>
+                        {dateStr}
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                        {series.map((s: ChartSeries, index: number) => {
+                            const seriesName = s.name;
+                            let value: number | undefined | null;
+                            let color: string | undefined;
 
-                        if (index === 0) {
-                            // Main series
-                            value = point.yValue;
-                            // The main series color is dynamic, find it in the payload.
-                            const payloadEntry = payload.find((p: any) => p.dataKey === 'yValue');
-                            color = payloadEntry?.color;
-                        } else {
-                            // Comparison series
-                            const dataKey = `series_${index - 1}`;
-                            value = point[dataKey];
-                            color = s.color; // Color is stored in the series object for comparisons.
-                        }
+                            if (index === 0) {
+                                // Main series
+                                value = point.yValue;
+                                // The main series color is dynamic, find it in the payload.
+                                const payloadEntry = payload.find((p: any) => p.dataKey === 'yValue');
+                                color = payloadEntry?.color;
+                            } else {
+                                // Comparison series
+                                const dataKey = `series_${index - 1}`;
+                                value = point[dataKey];
+                                color = s.color; // Color is stored in the series object for comparisons.
+                            }
 
-                        return (
-                            <Box key={seriesName} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2 }}>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
-                                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: color, flexShrink: 0 }} />
-                                    <Typography variant="caption" noWrap>{seriesName}</Typography>
+                            let diff: number | undefined;
+                            if (index !== 0 && value !== null && value !== undefined && mainValue !== null && mainValue !== undefined) {
+                                if (mode === 'percent') {
+                                    diff = (1 + value) / (1 + mainValue) - 1;
+                                } else {
+                                    diff = (mainValue !== 0) ? (value / mainValue - 1) : 0;
+                                }
+                            }
+
+                            return (
+                                <Box key={seriesName} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2 }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0, flex: 1 }}>
+                                        <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: color, flexShrink: 0 }} />
+                                        <Typography variant="caption" noWrap sx={{ opacity: index === 0 ? 1 : 0.9 }}>
+                                            {seriesName}
+                                        </Typography>
+                                    </Box>
+                                    <Box sx={{ textAlign: 'right', display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
+                                        <Typography variant="caption" sx={{ fontWeight: 'bold' }}>
+                                            {(value !== null && value !== undefined) 
+                                                ? (mode === 'percent' ? formatPercent(value) : formatPrice(value, currency, undefined, t)) 
+                                                : 'N/A'}
+                                            {index === 0 && (
+                                                <Box component="span" sx={{ opacity: 0.6, ml: 0.5, fontSize: '0.65rem', fontWeight: 'normal' }}>
+                                                    ({t('Base', 'בסיס')})
+                                                </Box>
+                                            )}
+                                        </Typography>
+                                        {diff !== undefined && !isNaN(diff) && (
+                                            <Typography variant="caption" sx={{ 
+                                                fontSize: '0.65rem', 
+                                                opacity: 0.7,
+                                                fontWeight: 500
+                                            }}>
+                                                ({diff >= 0 ? '+' : ''}{formatPercent(diff)})
+                                            </Typography>
+                                        )}
+                                    </Box>
                                 </Box>
-                                <Typography variant="caption" sx={{ fontWeight: 'bold' }}>
-                                    {(value !== null && value !== undefined) ? formatPercent(value) : 'N/A'}
-                                </Typography>
-                            </Box>
-                        );
-                    })}
+                            );
+                        })}
+                    </Box>
                 </Paper>
             );
         }
@@ -82,7 +116,7 @@ const CustomTooltip = ({ active, payload, currency, t, basePrice, isComparison, 
     return null;
 };
 
-const SelectionSummary = ({ startPoint, endPoint, currency, t, isComparison, series, mainLineColor }: any) => {
+const SelectionSummary = ({ startPoint, endPoint, currency, t, isComparison, series, mainLineColor, mode }: any) => {
     if (!startPoint || !endPoint) return null;
 
     const theme = useTheme();
@@ -128,10 +162,17 @@ const SelectionSummary = ({ startPoint, endPoint, currency, t, isComparison, ser
                 return { name: s.name, change: NaN, color: index === 0 ? mainLineColor : s.color };
             }
             
-            const change = (1 + endVal) / (1 + startVal) - 1;
+            let change: number;
+            if (mode === 'percent') {
+                change = (1 + endVal) / (1 + startVal) - 1;
+            } else {
+                change = (startVal !== 0) ? (endVal / startVal - 1) : 0;
+            }
 
             return { name: s.name, change, color: index === 0 ? mainLineColor : s.color };
         });
+
+        const mainChange = changes[0].change;
 
         return (
             <Box sx={boxStyle}>
@@ -139,18 +180,40 @@ const SelectionSummary = ({ startPoint, endPoint, currency, t, isComparison, ser
                     {startDateStr} to {endDateStr} ({duration} days)
                 </Typography>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                    {changes.map(item => {
+                    {changes.map((item, index) => {
                         if (isNaN(item.change)) return null;
                         const textColor = item.change >= 0 ? 'success.main' : 'error.main';
+
+                        let diff: number | undefined;
+                        if (index !== 0 && !isNaN(mainChange)) {
+                            diff = (1 + item.change) / (1 + mainChange) - 1;
+                        }
+
                         return (
                             <Box key={item.name} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2 }}>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0, flex: 1 }}>
                                     <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: item.color, flexShrink: 0 }} />
                                     <Typography variant="caption" noWrap>{item.name}</Typography>
                                 </Box>
-                                <Typography variant="caption" sx={{ fontWeight: 'bold', color: textColor }}>
-                                    {formatPercent(item.change)}
-                                </Typography>
+                                <Box sx={{ textAlign: 'right', display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
+                                    <Typography variant="caption" sx={{ fontWeight: 'bold', color: textColor }}>
+                                        {formatPercent(item.change)}
+                                        {index === 0 && (
+                                            <Box component="span" sx={{ opacity: 0.6, ml: 0.5, fontSize: '0.65rem', fontWeight: 'normal', color: isDarkMode ? 'white' : 'black' }}>
+                                                ({t('Base', 'בסיס')})
+                                            </Box>
+                                        )}
+                                    </Typography>
+                                    {diff !== undefined && !isNaN(diff) && (
+                                        <Typography variant="caption" sx={{ 
+                                            fontSize: '0.65rem', 
+                                            opacity: 0.7,
+                                            fontWeight: 500
+                                        }}>
+                                            ({diff >= 0 ? '+' : ''}{formatPercent(diff)})
+                                        </Typography>
+                                    )}
+                                </Box>
                             </Box>
                         );
                     })}
@@ -502,7 +565,7 @@ export function TickerChart({ series, currency, mode = 'percent' }: TickerChartP
                 outline: 'none !important',
             }
         }}>
-            <SelectionSummary startPoint={startPoint} endPoint={endPoint} currency={currency} t={t} isComparison={isComparison} series={displaySeries} mainLineColor={mainLineColor} />
+            <SelectionSummary startPoint={startPoint} endPoint={endPoint} currency={currency} t={t} isComparison={isComparison} series={displaySeries} mainLineColor={mainLineColor} mode={mode} />
             <ResponsiveContainer width="100%" height="100%">
                 <AreaChart
                     data={finalData}
@@ -537,7 +600,7 @@ export function TickerChart({ series, currency, mode = 'percent' }: TickerChartP
                         dx={3}
                         domain={[yMin, yMax]}
                     />
-                    <Tooltip content={<CustomTooltip currency={currency} t={t} basePrice={basePrice} isComparison={isComparison} series={displaySeries} />} />
+                    <Tooltip content={<CustomTooltip currency={currency} t={t} basePrice={basePrice} isComparison={isComparison} series={displaySeries} mode={mode} />} />
                     <ReferenceLine y={threshold} stroke={theme.palette.text.secondary} strokeDasharray="3 3" />
                     
                     {displaySeries.slice(1).map((s, i) => (
