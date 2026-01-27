@@ -54,6 +54,7 @@ export interface TickerData {
   tradeTimeStatus?: string;
   globesTypeHe?: string;
   volume?: number;
+  providentInfo?: ProvidentInfo;
 }
 
 export interface HistoricalDataPoint {

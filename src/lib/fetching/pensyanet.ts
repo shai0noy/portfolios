@@ -65,20 +65,18 @@ export async function fetchPensyanetFund(
   console.log(`[Pensyanet] Fetching data for fund ${fundId}...`);
   
   try {
-    const [xmlText, tickersList] = await Promise.all([
-      fetchXml(url),
-      fetchPensyanetTickers() // This uses its own cache, so it's efficient
-    ]);
+    const xmlText = await fetchXml(url);
     const xmlDoc = parseXmlString(xmlText);
     
     // Pensyanet XML response uses 'ROW' (uppercase)
     const rows = Array.from(xmlDoc.querySelectorAll('ROW'));
     const points: FundDataPoint[] = [];
-    const fundInfo = tickersList.find(t => t.meta?.type === 'PROVIDENT' && t.meta.fundId === fundId);
-    const fundName = fundInfo?.name || '';
 
     rows.forEach(row => {
       const getText = (tag: string) => row.querySelector(tag)?.textContent || '';
+      
+      const idKupaStr = getText('TKF_DIVUACH'); // Actually TKF_DIVUACH is used for date, ID is usually constant in response? 
+      // Let's re-verify Pensyanet response tags. TKF_DIVUACH is definitely date.
       
       const dateStr = getText('TKF_DIVUACH');
       if (dateStr) {
@@ -95,9 +93,9 @@ export async function fetchPensyanetFund(
 
     const result: FundData = {
       fundId: fundId,
-      fundName,
+      fundName: '', // Populated by Quote wrapper
       data: points,
-      lastUpdated: now
+      lastUpdated: now,
     };
 
     // 3. Save to Cache
@@ -115,7 +113,7 @@ export async function fetchPensyanetFund(
   }
 }
 
-const LIST_CACHE_KEY = 'pensyanet_tickers_list_v7';
+const LIST_CACHE_KEY = 'pensyanet_tickers_list_v10';
 
 interface CompactTicker {
   i: number; // id
@@ -239,22 +237,38 @@ export async function fetchPensyanetQuote(
   _signal?: AbortSignal,
   forceRefresh = false
 ): Promise<TickerData | null> {
-  // Fetch history from 2000
+  // 1. Fetch history and tickers list in parallel
   const endDate = new Date();
   const startDate = new Date('2000-01-01');
 
-  const fundData = await fetchPensyanetFund(fundId, startDate, endDate, forceRefresh);
+  const [fundData, tickers] = await Promise.all([
+    fetchPensyanetFund(fundId, startDate, endDate, forceRefresh),
+    fetchPensyanetTickers() // This uses its own cache, so it's efficient
+  ]);
+
   if (!fundData || fundData.data.length === 0) {
     console.log(`[Pensyanet] fetchPensyanetQuote: No data found for ${fundId}`, fundData);
     return null;
   }
 
-  if (!fundData.fundName) {
-      // Name missing in cache? Try to fetch/lookup again
-      const tickers = await fetchPensyanetTickers();
-      const info = tickers.find(t => t.meta?.type === 'PROVIDENT' && t.meta.fundId === fundId);
-      if (info) fundData.fundName = info.name || info.nameHe || '';
+  // 2. Join with metadata from list (Fees, Name, etc.)
+  const info = tickers.find(t => t.meta?.type === 'PROVIDENT' && t.meta.fundId === fundId);
+  let providentInfo: ProvidentInfo | undefined;
+
+  if (info) {
+      fundData.fundName = info.name || info.nameHe || '';
+      if (info.meta?.type === 'PROVIDENT') {
+          providentInfo = {
+              fundId: info.meta.fundId,
+              fundType: info.type.specificType,
+              specialization: info.sector,
+              subSpecialization: info.subSector,
+              managementFee: info.meta.managementFee,
+              depositFee: info.meta.depositFee,
+          };
+      }
   }
 
-  return calculateTickerDataFromFundHistory(fundData, Exchange.PENSION, 'Pensyanet');
+  return calculateTickerDataFromFundHistory(fundData, Exchange.PENSION, 'Pensyanet', providentInfo);
 }
+      

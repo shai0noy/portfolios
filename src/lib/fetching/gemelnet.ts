@@ -60,23 +60,16 @@ export async function fetchGemelnetFund(
   }
 
   // 2. Fetch Data
-  // Note: Direct calls to gemelnet.cma.gov.il may fail in a browser due to CORS.
-  // We use our worker proxy to bypass this.
   const url = `https://portfolios.noy-shai.workers.dev/?apiId=gemelnet_fund&startYear=${sParts.year}&startMonth=${sParts.month}&endYear=${eParts.year}&endMonth=${eParts.month}&fundId=${fundId}`;
   
   console.log(`[Gemelnet] Fetching data for fund ${fundId}...`);
   
   try {
-    const [xmlText, tickersList] = await Promise.all([
-      fetchXml(url),
-      fetchGemelnetTickers() // This uses its own cache, so it's efficient
-    ]);
+    const xmlText = await fetchXml(url);
     const xmlDoc = parseXmlString(xmlText);
     
     const rows = Array.from(xmlDoc.querySelectorAll('Row'));
     const points: FundDataPoint[] = [];
-    const fundInfo = tickersList.find(t => t.meta?.type === 'PROVIDENT' && t.meta.fundId === fundId);
-    const fundName = fundInfo?.name || '';
 
     rows.forEach(row => {
       const getText = (tag: string) => row.querySelector(tag)?.textContent || '';
@@ -101,9 +94,9 @@ export async function fetchGemelnetFund(
 
     const result: FundData = {
       fundId: fundId,
-      fundName,
+      fundName: '', // Name is populated by the Quote wrapper
       data: points,
-      lastUpdated: now
+      lastUpdated: now,
     };
 
     // 3. Save to Cache
@@ -121,7 +114,7 @@ export async function fetchGemelnetFund(
   }
 }
 
-const LIST_CACHE_KEY = 'gemelnet_tickers_list_v5';
+const LIST_CACHE_KEY = 'gemelnet_tickers_list_v8';
 
 interface CompactTicker {
   i: number; // id
@@ -254,23 +247,38 @@ export async function fetchGemelnetQuote(
   _signal?: AbortSignal,
   forceRefresh = false
 ): Promise<TickerData | null> {
-  // Fetch history from 2000
+  // 1. Fetch history and tickers list in parallel
   const endDate = new Date();
   const startDate = new Date('2000-01-01');
 
-  const fundData = await fetchGemelnetFund(fundId, startDate, endDate, forceRefresh);
+  const [fundData, tickers] = await Promise.all([
+    fetchGemelnetFund(fundId, startDate, endDate, forceRefresh),
+    fetchGemelnetTickers() // This uses its own cache, so it's efficient
+  ]);
+
   if (!fundData || fundData.data.length === 0) {
     console.log(`[Gemelnet] fetchGemelnetQuote: No data found for ${fundId}`, fundData);
     return null;
   }
 
-  // Ensure fundName is populated if missing (it should be in fundData, but double check cache issues)
-  if (!fundData.fundName) {
-      // Name missing in cache? Try to fetch/lookup again
-      const tickers = await fetchGemelnetTickers();
-      const info = tickers.find(t => t.meta?.type === 'PROVIDENT' && t.meta.fundId === fundId);
-      if (info) fundData.fundName = info.name || info.nameHe || '';
+  // 2. Join with metadata from list (Fees, Name, etc.)
+  const info = tickers.find(t => t.meta?.type === 'PROVIDENT' && t.meta.fundId === fundId);
+  let providentInfo: ProvidentInfo | undefined;
+  
+  if (info) {
+      fundData.fundName = info.name || info.nameHe || '';
+      if (info.meta?.type === 'PROVIDENT') {
+          providentInfo = {
+              fundId: info.meta.fundId,
+              fundType: info.type.specificType,
+              specialization: info.sector,
+              subSpecialization: info.subSector,
+              managementFee: info.meta.managementFee,
+              depositFee: info.meta.depositFee,
+          };
+      }
   }
 
-  return calculateTickerDataFromFundHistory(fundData, Exchange.GEMEL, 'Gemelnet');
+  return calculateTickerDataFromFundHistory(fundData, Exchange.GEMEL, 'Gemelnet', providentInfo);
 }
+      

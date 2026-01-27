@@ -52,7 +52,8 @@ async function performSearch(
   portfolios: Portfolio[]
 ): Promise<SearchResult[]> {
   const termUC = searchTerm.toUpperCase();
-  let results: SearchResult[] = [];
+  const isNumeric = /^\d+$/.test(termUC);
+  const resultsMap = new Map<string, SearchResult>();
 
   // Iterate over all groups in the dataset
   Object.values(dataset).flat().forEach((profile) => {
@@ -61,31 +62,29 @@ async function performSearch(
 
     // Search Logic: Match Symbol, Name (En/He), or Security ID
     const matchesSymbol = profile.symbol.toUpperCase().includes(termUC);
-    const matchesId = profile.securityId?.toString() === termUC;
+    const matchesId = profile.securityId?.toString().includes(termUC);
     const matchesNameEn = (profile.name || '').toUpperCase().includes(termUC);
     const matchesNameHe = (profile.nameHe || '').toUpperCase().includes(termUC);
 
     if (matchesSymbol || matchesId || matchesNameEn || matchesNameHe) {
-      results.push({
-        profile,
-        ownedInPortfolios: getOwnedInPortfolios(profile.symbol, portfolios, profile.exchange),
-      });
+      const key = `${profile.exchange}:${profile.symbol}`;
+      if (!resultsMap.has(key)) {
+        resultsMap.set(key, {
+          profile,
+          ownedInPortfolios: getOwnedInPortfolios(profile.symbol, portfolios, profile.exchange),
+        });
+      }
     }
   });
 
-  // Remove Duplicates (by Symbol + Exchange)
-  const uniqueResults = results.reduce((acc, current) => {
-    const exists = acc.find(r => r.profile.symbol === current.profile.symbol && r.profile.exchange === current.profile.exchange);
-    if (!exists) acc.push(current);
-    return acc;
-  }, [] as SearchResult[]);
+  const uniqueResults = Array.from(resultsMap.values());
 
   // Sorting Logic
   return uniqueResults.sort((a, b) => {
     const pA = a.profile;
     const pB = b.profile;
     
-    // 1. Exact Match Priority
+    // 1. Exact Match Priority (Symbol or ID)
     const aExact = pA.symbol.toUpperCase() === termUC || pA.securityId === termUC;
     const bExact = pB.symbol.toUpperCase() === termUC || pB.securityId === termUC;
     if (aExact && !bExact) return -1;
@@ -97,30 +96,39 @@ async function performSearch(
     if (aPrefix && !bPrefix) return -1;
     if (!aPrefix && bPrefix) return 1;
 
-    // 3. Instrument Group Priority
-    // Cast to explicit array to satisfy strict type checking
+    // 3. Ownership Priority
+    const aOwned = a.ownedInPortfolios && a.ownedInPortfolios.length > 0;
+    const bOwned = b.ownedInPortfolios && b.ownedInPortfolios.length > 0;
+    if (aOwned && !bOwned) return -1;
+    if (!aOwned && bOwned) return 1;
+
+    // 4. Instrument Group Priority
     const priorityOrder: InstrumentGroup[] = [
+      InstrumentGroup.INDEX,
       InstrumentGroup.STOCK, 
       InstrumentGroup.ETF, 
-      InstrumentGroup.MUTUAL_FUND, 
-      InstrumentGroup.INDEX, 
-      InstrumentGroup.BOND, 
       InstrumentGroup.SAVING,
+      InstrumentGroup.MUTUAL_FUND, 
+      InstrumentGroup.BOND, 
       InstrumentGroup.FOREX,
       InstrumentGroup.DERIVATIVE,
       InstrumentGroup.OTHER
     ];
+
+    // If searching for a numeric ID, prioritize SAVING (Gemel/Pension) higher
+    if (isNumeric && termUC.length >= 3) {
+        if (pA.type.group === InstrumentGroup.SAVING && pB.type.group !== InstrumentGroup.SAVING) return -1;
+        if (pA.type.group !== InstrumentGroup.SAVING && pB.type.group === InstrumentGroup.SAVING) return 1;
+    }
     
     const idxA = priorityOrder.indexOf(pA.type.group);
     const idxB = priorityOrder.indexOf(pB.type.group);
     
-    // If both are in the priority list, lower index wins
     if (idxA !== -1 && idxB !== -1 && idxA !== idxB) return idxA - idxB;
-    // If one is in list and other isn't, the one in list wins
     if (idxA !== -1 && idxB === -1) return -1;
     if (idxA === -1 && idxB !== -1) return 1;
 
-    // 4. Name Length (Shorter is usually a better match for "cleaner" results)
+    // 5. Name Length
     const lenA = (pA.name || '').length;
     const lenB = (pB.name || '').length;
     if (lenA !== lenB) return lenA - lenB;
@@ -179,6 +187,8 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
     return () => { active = false; document.removeEventListener('visibilitychange', handleVisibilityChange); };
   }, []);
 
+  const [limit, setLimit] = useState(100);
+
   // Trigger search on input change
   useEffect(() => {
     if (isFocused && !isPortfoliosLoading && !isDatasetLoading) {
@@ -203,8 +213,13 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
     const filtered = selectedGroup === 'ALL' 
       ? searchResults 
       : searchResults.filter(res => res.profile.type.group === selectedGroup);
-    return filtered.slice(0, 50);
-  }, [searchResults, selectedGroup]);
+    return filtered.slice(0, limit);
+  }, [searchResults, selectedGroup, limit]);
+
+  // Reset limit on search term change
+  useEffect(() => {
+    setLimit(100);
+  }, [debouncedInput, selectedExchange, selectedGroup]);
 
   // Build Filter Options from InstrumentGroup Enum
   const groupFilterOptions = useMemo(() => {
@@ -345,6 +360,15 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
                 </Box>
               );
             })}
+            {searchResults.length > limit && (
+              <Box sx={{ p: 1, textAlign: 'center' }}>
+                <ListItemButton onClick={() => setLimit(prev => prev + 100)} sx={{ justifyContent: 'center' }}>
+                  <Typography variant="body2" color="primary">
+                    {t('Show more results', 'הצג תוצאות נוספות')} ({searchResults.length - limit} {t('remaining', 'נותרו')})
+                  </Typography>
+                </ListItemButton>
+              </Box>
+            )}
           </List>
         </Paper>
       )}

@@ -409,7 +409,23 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                       {formatPrice(selectedTicker.price, tickerCurrency, 2, t)}
                     </Typography>
                   )}
-
+                  {(selectedTicker?.providentInfo?.managementFee !== undefined || selectedTicker?.providentInfo?.depositFee !== undefined) && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
+                      {selectedTicker?.providentInfo?.managementFee !== undefined && (
+                        <Typography variant="caption" sx={{ display: 'flex', gap: 0.3 }}>
+                          {t('Mgmt fee:', 'דמי ניהול:')} <Box component="span" sx={{ fontWeight: 600, color: 'text.primary' }}>{selectedTicker.providentInfo.managementFee}%</Box>
+                        </Typography>
+                      )}
+                      {selectedTicker?.providentInfo?.managementFee !== undefined && selectedTicker?.providentInfo?.depositFee !== undefined && (
+                        <Typography variant="caption" sx={{ opacity: 0.5, mx: 0.5 }}>•</Typography>
+                      )}
+                      {selectedTicker?.providentInfo?.depositFee !== undefined && (
+                        <Typography variant="caption" sx={{ display: 'flex', gap: 0.3 }}>
+                          {t('Deposit fee:', 'דמי הפקדה:')} <Box component="span" sx={{ fontWeight: 600, color: 'text.primary' }}>{selectedTicker.providentInfo.depositFee}%</Box>
+                        </Typography>
+                      )}
+                    </Box>
+                  )}
                 </Box>
                 {selectedTicker?.source && (
                   <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.6rem', ml: 2, mb: 0.5, opacity: 0.8, float: 'right', marginTop: -3 }}>

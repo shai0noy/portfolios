@@ -1,5 +1,5 @@
 import { Exchange } from '../types';
-import type { TickerData } from './types';
+import type { TickerData, ProvidentInfo } from './types';
 
 export interface FundDataPoint {
   date: number; // Unix timestamp (start of month)
@@ -11,6 +11,7 @@ export interface FundData {
   fundName: string;
   data: FundDataPoint[];
   lastUpdated: number;
+  providentInfo?: ProvidentInfo;
 }
 
 // Helper to get date parts
@@ -36,7 +37,8 @@ export function parseDateStr(dateStr: string): number {
 export function calculateTickerDataFromFundHistory(
   fundData: FundData,
   exchange: Exchange,
-  sourceName: string
+  sourceName: string,
+  providentInfo?: ProvidentInfo
 ): TickerData | null {
   if (!fundData || fundData.data.length === 0) {
     return null;
@@ -117,6 +119,7 @@ export function calculateTickerDataFromFundHistory(
     nameHe: fundName,
     source: sourceName,
     historical,
+    providentInfo,
   };
   return tickerData;
 }

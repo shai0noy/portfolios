@@ -1,12 +1,11 @@
 ### Pleae be carful not to override entire file when updating tasks ###
 
 toYahooSymbol method should prefix index tickers - but some symbols have none, so maybe we need to try both in parallel, same for currencies maybe? with =X suffix
-Move SOURCE text in search result - smaller and in bottom corner
 In details of gemel funds, handle gains display/calc - and cost basis!
 Show ticker type dash
 Show holdings of funds
 Comperasion chars + allow metrics: r^2, beta
-דמי ניהול - להציג + לחשב בגמל וכו'
+דמי ניהול - לחשב בגמל וכו'
 securityId is populated with non numeric IDs - should be changed to number and only filled form globes/tase numeric IDs
 remove casts to any
 refactor code....
@@ -21,8 +20,9 @@ DONE: Make sure div calc in ticker details uses max data range and not just 1 y
 DONE: In multi line charts - the tooltip should show just change, and have value for each line (with matching color)
 DONE: In multi line charts - in range selection mode the selection shade should match the line color
 DONE: use 5y rather than 1y for yahoo hist and improve name
+DONE: Move SOURCE text in search result - smaller and in bottom corner
 
-Discovery/selling points page
+Discovery/selling points splash page
 Cloudflare throttling and force cache
 maybe store type in sheet
 tase types vs globes types??
