@@ -1,5 +1,5 @@
 import { fetchXml, parseXmlString } from './utils/xml_parser';
-import type { TickerData } from './types';
+import type { ProvidentInfo, TickerData } from './types';
 import type { TickerProfile } from '../types/ticker';
 import { Exchange } from '../types';
 import { InstrumentClassification, InstrumentType } from '../types/instrument';

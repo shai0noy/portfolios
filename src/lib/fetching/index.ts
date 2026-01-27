@@ -4,7 +4,7 @@ import { fetchYahooTickerData } from './yahoo';
 import { fetchAllTickers } from './stock_list';
 import { fetchGemelnetQuote } from './gemelnet';
 import { fetchPensyanetQuote } from './pensyanet';
-import { getCbsTickers } from './cbs';
+import { fetchCpi, getCbsTickers } from './cbs';
 import type { TickerData } from './types';
 import { Exchange, parseExchange } from '../types';
 import type { TickerProfile } from '../types/ticker';
@@ -33,12 +33,12 @@ export function getTickersDataset(signal?: AbortSignal, forceRefresh = false): P
     try {
       const exchanges = [Exchange.TASE, Exchange.NASDAQ, Exchange.NYSE, Exchange.GEMEL, Exchange.PENSION, Exchange.FOREX];
       const results = await Promise.all(exchanges.map(ex => fetchAllTickers(ex, undefined, signal)));
-      
+
       const combined: Record<string, TickerProfile[]> = {};
       results.forEach(res => {
         Object.entries(res).forEach(([type, items]) => {
-            if (!combined[type]) combined[type] = [];
-            combined[type] = combined[type].concat(items);
+          if (!combined[type]) combined[type] = [];
+          combined[type] = combined[type].concat(items);
         });
       });
 
@@ -73,10 +73,10 @@ function combineHistory(histShort: { date: Date; price: number }[] | undefined, 
   // We want to use hShort (e.g. 5y daily) for the recent period and hMax for older data.
   // Find the start date of hShort
   const shortStartDate = hShort[0].date.getTime();
-  
+
   // Take everything from hMax that is BEFORE hShort starts
   const olderData = hMax.filter(p => p.date.getTime() < shortStartDate);
-  
+
   const combined = [...olderData, ...hShort];
   return combined.sort((a, b) => a.date.getTime() - b.date.getTime());
 }
@@ -110,6 +110,11 @@ export async function getTickerData(
     return fetchPensyanetQuote(tickerNum, signal, forceRefresh);
   }
 
+  // CBS has its own dedicated fetcher
+  if (parsedExchange === Exchange.CBS) {
+    return fetchCpi(tickerNum, signal);
+  }
+
   const [yahooData5y, yahooDataMax] = await Promise.all([
     fetchYahooTickerData(ticker, parsedExchange, signal, forceRefresh, '5y'),
     fetchYahooTickerData(ticker, parsedExchange, signal, forceRefresh, 'max')
@@ -117,29 +122,29 @@ export async function getTickerData(
 
   let yahooData: TickerData | null = null;
   if (yahooData5y || yahooDataMax) {
-      if (!yahooData5y) yahooData = yahooDataMax;
-      else if (!yahooDataMax) yahooData = yahooData5y;
-      else {
-          // Merge: use 5y for recent stats/precision, max for long term
-          yahooData = {
-              // TODO: Make merging logic cleaner
-              ...yahooDataMax,
-              ...yahooData5y,
-              // Explicitly ensure long term stats come from Max
-              changePct3y: yahooDataMax.changePct3y,
-              changeDate3y: yahooDataMax.changeDate3y,
-              changePct5y: yahooDataMax.changePct5y,
-              changeDate5y: yahooDataMax.changeDate5y,
-              changePctMax: yahooDataMax.changePctMax,
-              changeDateMax: yahooDataMax.changeDateMax,
-              // Use combined historical data so the chart has max range immediately
-              historical: combineHistory(yahooData5y.historical, yahooDataMax.historical),
-              dividends: yahooDataMax.dividends,
-              splits: yahooDataMax.splits,
-              fromCache: yahooData5y.fromCache,
-              fromCacheMax: yahooDataMax.fromCache
-          };
-      }
+    if (!yahooData5y) yahooData = yahooDataMax;
+    else if (!yahooDataMax) yahooData = yahooData5y;
+    else {
+      // Merge: use 5y for recent stats/precision, max for long term
+      yahooData = {
+        // TODO: Make merging logic cleaner
+        ...yahooDataMax,
+        ...yahooData5y,
+        // Explicitly ensure long term stats come from Max
+        changePct3y: yahooDataMax.changePct3y,
+        changeDate3y: yahooDataMax.changeDate3y,
+        changePct5y: yahooDataMax.changePct5y,
+        changeDate5y: yahooDataMax.changeDate5y,
+        changePctMax: yahooDataMax.changePctMax,
+        changeDateMax: yahooDataMax.changeDateMax,
+        // Use combined historical data so the chart has max range immediately
+        historical: combineHistory(yahooData5y.historical, yahooDataMax.historical),
+        dividends: yahooDataMax.dividends,
+        splits: yahooDataMax.splits,
+        fromCache: yahooData5y.fromCache,
+        fromCacheMax: yahooDataMax.fromCache
+      };
+    }
   }
 
   let globesPromise: Promise<TickerData | null>;
@@ -149,8 +154,8 @@ export async function getTickerData(
     // Note: getTickersDataset now returns TickerProfile[], so we need to adjust how we look up TaseInfo
     const lookupPromise = getTickersDataset(signal).then(dataset => {
       for (const list of Object.values(dataset)) {
-        const found = list.find(t => 
-          t.exchange === Exchange.TASE && 
+        const found = list.find(t =>
+          t.exchange === Exchange.TASE &&
           (t.symbol === ticker || (secId && t.securityId === String(secId)))
         );
         if (found) return found;
@@ -184,14 +189,14 @@ export async function getTickerData(
   ]);
 
   if (parsedExchange === Exchange.TASE && taseProfile) {
-      console.log(`[getTickerData] Found TASE profile for ${ticker}:`, taseProfile);
+    console.log(`[getTickerData] Found TASE profile for ${ticker}:`, taseProfile);
   }
 
   // Fallback to Yahoo if the first source fails, or merge data if both succeed.
   if (!globesData) {
     if (yahooData) {
-      return { 
-        ...yahooData, 
+      return {
+        ...yahooData,
         meta: taseProfile?.meta || yahooData.meta,
         type: taseProfile?.type || yahooData.type,
         name: taseProfile?.name || yahooData.name,
@@ -200,17 +205,17 @@ export async function getTickerData(
     }
     // No data from Globes or Yahoo, but maybe we have TASE profile info
     if (taseProfile) {
-        return {
-            ticker: taseProfile.symbol,
-            exchange: Exchange.TASE,
-            numericId: taseProfile.securityId ? parseInt(taseProfile.securityId, 10) : null,
-            name: taseProfile.name,
-            nameHe: taseProfile.nameHe,
-            type: taseProfile.type,
-            meta: taseProfile.meta,
-            price: 0,
-            source: 'TASE Profile'
-        };
+      return {
+        ticker: taseProfile.symbol,
+        exchange: Exchange.TASE,
+        numericId: taseProfile.securityId ? parseInt(taseProfile.securityId, 10) : null,
+        name: taseProfile.name,
+        nameHe: taseProfile.nameHe,
+        type: taseProfile.type,
+        meta: taseProfile.meta,
+        price: 0,
+        source: 'TASE Profile'
+      };
     }
     return yahooData;
   }
@@ -307,6 +312,11 @@ export async function fetchTickerHistory(
 
   }
 
+
+  if (exchange === Exchange.CBS) {
+    const data = await fetchCpi(tickerNum, signal);
+    return { historical: data?.historical, fromCache: data?.fromCache, fromCacheMax: data?.fromCacheMax };
+  }
 
 
   const [yahooData5y, yahooDataMax] = await Promise.all([

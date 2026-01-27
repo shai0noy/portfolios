@@ -461,31 +461,8 @@ export function TickerChart({ series, currency, mode = 'percent' }: TickerChartP
         ];
     }, [chartData, startPoint, endPoint]);
 
-    if (!mainSeries?.data || mainSeries.data.length < 2 || chartData.length < 2) {
-        return (
-            <Box sx={{
-                width: '100%',
-                height: 300,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                borderRadius: 1,
-            }}>
-                <Typography color="text.secondary">{t('No data available for this range', 'אין נתונים זמינים לטווח זה')}</Typography>
-            </Box>
-        );
-    }
-
-    // Calculations (Likeness & Gradient Offset)
-    const first = mainSeries.data[0];
-    const basePrice = first.adjClose || first.price;
-    const last = mainSeries.data[mainSeries.data.length - 1];
-    const lastPrice = last.adjClose || last.price;
-    const isUp = lastPrice >= basePrice;
-    const chartColor = isUp ? theme.palette.success.main : theme.palette.error.main;    const mainLineColor = isComparison ? theme.palette.text.primary : chartColor;
-
-    const xMin = chartData[0].date.getTime();
-    const xMax = chartData[chartData.length - 1].date.getTime();
+    const xMin = chartData.length > 0 ? chartData[0].date.getTime() : null;
+    const xMax = chartData.length > 0 ? chartData[chartData.length - 1].date.getTime() : null;
 
     const xAxisTicks = useMemo(() => {
         if (!xMin || !xMax) return undefined;
@@ -538,6 +515,29 @@ export function TickerChart({ series, currency, mode = 'percent' }: TickerChartP
 
         return ticks;
     }, [xMin, xMax, dateRangeDays]);
+
+    if (!mainSeries?.data || mainSeries.data.length < 2 || chartData.length < 2) {
+        return (
+            <Box sx={{
+                width: '100%',
+                height: 300,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: 1,
+            }}>
+                <Typography color="text.secondary">{t('No data available for this range', 'אין נתונים זמינים לטווח זה')}</Typography>
+            </Box>
+        );
+    }
+
+    // Calculations (Likeness & Gradient Offset)
+    const first = mainSeries.data[0];
+    const basePrice = first.adjClose || first.price;
+    const last = mainSeries.data[mainSeries.data.length - 1];
+    const lastPrice = last.adjClose || last.price;
+    const isUp = lastPrice >= basePrice;
+    const chartColor = isUp ? theme.palette.success.main : theme.palette.error.main;    const mainLineColor = isComparison ? theme.palette.text.primary : chartColor;
 
     // Determine the split threshold
     const threshold = mode === 'price' ? basePrice : 0;

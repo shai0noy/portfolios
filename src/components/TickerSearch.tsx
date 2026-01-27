@@ -114,13 +114,13 @@ async function performSearch(
 
     // 5. Instrument Group Priority
     const priorityOrder: InstrumentGroup[] = [
-      InstrumentGroup.INDEX,
       InstrumentGroup.STOCK, 
       InstrumentGroup.ETF, 
       InstrumentGroup.SAVING,
       InstrumentGroup.MUTUAL_FUND, 
-      InstrumentGroup.BOND, 
       InstrumentGroup.FOREX,
+      InstrumentGroup.INDEX,
+      InstrumentGroup.BOND, 
       InstrumentGroup.DERIVATIVE,
       InstrumentGroup.OTHER
     ];
@@ -346,6 +346,7 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
                     <MenuItem value="FOREX">FOREX</MenuItem>
                     <MenuItem value="GEMEL">{t('Gemel Funds', 'קופות גמל')}</MenuItem>
                     <MenuItem value="PENSION">{t('Pension Funds', 'קרנות פנסיה')}</MenuItem>
+                    <MenuItem value="CBS">{t('Israel Price Indecies', 'מדדי מחירים')}</MenuItem>
                   </Select>
                 </FormControl>
               </Grid>

@@ -1,16 +1,13 @@
 // src/lib/fetching/cbs.ts
 import { CACHE_TTL, saveToCache, loadFromCache } from './utils/cache';
 import { Exchange } from '../types';
-import { InstrumentGroup } from '../types/instrument';
+import { InstrumentClassification, InstrumentType } from '../types/instrument';
 import type { TickerProfile } from '../types/ticker';
+import type { TickerData } from './types';
+import { calculateTickerDataFromIndexHistory, type FundData, type FundDataPoint } from './gemel_utils';
 
 // --- Types ---
-
-export interface CpiDataPoint {
-  date: number; // Unix timestamp (End of month)
-  value: number;
-}
-
+ 
 interface CbsDatePoint {
   year: number;
   month: number;
@@ -27,6 +24,7 @@ interface CbsMonthData {
 
 interface CbsApiResponse {
   month: CbsMonthData[];
+  name: string;
   paging: {
     total_items: number;
     page_size: number;
@@ -58,8 +56,8 @@ const CBS_INDECIES = {
   
   // Included because it's funny
   "150050": {nameHe: "מדד המחירים לצרכן: עגבניות", nameEn: "Israel Consumer Price Index: Tomatoes" },
-  "150060": {nameHe: "מדד המחירים לצרכן: מלפפונים", nameEn: "Israel Cucumber Price Index: Cucumber" },
-  "150270": {nameHe: "מדד המחירים לצרכן: מלפפונים כבושים", nameEn: "Israel Consumer Price Index: Canned Cucumber"},
+  "150060": {nameHe: "מדד המחירים לצרכן: מלפפונים", nameEn: "Israel Consumer Price Index: Cucumbers" },
+  "150270": {nameHe: "מדד המחירים לצרכן: מלפפונים כבושים", nameEn: "Israel Consumer Price Index: Canned Cucumbers"},
   "120070": { nameHe: "מדד המחירים לצרכן: לחם", nameEn: "Israel Consumer Price Index: Bread" },
   "120320": { nameHe: "מדד המחירים לצרכן: קפה", nameEn: "Israel Consumer Price Index: Coffee" },
   "121440": { nameHe: "מדד המחירים לצרכן: סיגריות וטבק", nameEn: "Israel Consumer Price Index: Cigarettes and Tobacco" },
@@ -73,25 +71,20 @@ export function getCbsTickers(): TickerProfile[] {
     securityId: id,
     name: info.nameEn,
     nameHe: info.nameHe,
-    type: {
-      group: InstrumentGroup.INDEX,
-      type: 'index',
-      nameEn: 'Index',
-      nameHe: 'מדד'
-    }
+    type: new InstrumentClassification(InstrumentType.CPI, undefined, { en: 'CPI' })
   }));
 }
 
 // --- Normalization Logic ---
 
-function normalizeCpiSeries(series: CbsDatePoint[], id: string): CpiDataPoint[] {
+function normalizeCpiSeries(series: CbsDatePoint[], id: number): FundDataPoint[] {
   // 1. Sort Chronologically (Oldest -> Newest)
   const sorted = [...series].sort((a, b) => (a.year - b.year) || (a.month - b.month));
 
   if (!sorted.length) return [];
 
   // 2. Strict Assertion: Must start at Sept 1951 (only for 120010)
-  if (id === '120010') {
+  if (id === 120010) {
     if (sorted[0].year !== 1951 || sorted[0].month !== 9) {
       throw new Error(`Series invalid: Must start at Sept 1951 (found ${sorted[0].month}/${sorted[0].year})`);
     }
@@ -144,7 +137,7 @@ function normalizeCpiSeries(series: CbsDatePoint[], id: string): CpiDataPoint[] 
     const lastDay = new Date(entry.year, entry.month, 0); 
     return {
       date: lastDay.getTime(),
-      value: Number(val.toFixed(2))
+      nominalReturn: Number(val.toFixed(2))
     };
   });
 }
@@ -158,13 +151,13 @@ function normalizeCpiSeries(series: CbsDatePoint[], id: string): CpiDataPoint[] 
  * @returns A promise that resolves to an array of CPI data points or null if an error occurs.
  */
 export async function fetchCpi(
-  id: string ,
+  id: number ,
   signal?: AbortSignal
-): Promise<CpiDataPoint[] | null> {
+): Promise<TickerData | null> {
   const now = Date.now();
   const cacheKey = `cpi:${id}:full_v1`;
 
-  const cached = await loadFromCache<CpiDataPoint[]>(cacheKey);
+  const cached = await loadFromCache<TickerData>(cacheKey);
   if (cached && now - cached.timestamp < CACHE_TTL) {
     return cached.data;
   }
@@ -172,7 +165,7 @@ export async function fetchCpi(
   let allRawData: CbsDatePoint[] = [];
   let currentPage = 1;
   let morePages = true;
-
+  let name = '';
   try {
     while (morePages) {
       const url = `https://portfolios.noy-shai.workers.dev/?apiId=cbs_price_index&id=${id}&page=${currentPage}`;
@@ -200,15 +193,23 @@ export async function fetchCpi(
       } else {
         morePages = false;
       }
+      name ||= data.name;
     }
 
     // Normalize the data
-    const normalized = normalizeCpiSeries(allRawData, id);
+    const normalizedData = normalizeCpiSeries(allRawData, id);
+    const fundData: FundData = {
+      fundId: id,
+      fundName: CBS_INDECIES[String(id)]?.nameHe || name,
+      data: normalizedData,
+      lastUpdated: Date.now()
+    };
+    const info = calculateTickerDataFromIndexHistory(fundData, Exchange.CBS, 'CBS');
+    
 
     // Cache the final consolidated and sorted result
-    await saveToCache(cacheKey, normalized);
-
-    return normalized;
+    await saveToCache(cacheKey, info);
+    return info;
 
   } catch (e) {
     console.error("Failed to fetch or parse CPI data", e);

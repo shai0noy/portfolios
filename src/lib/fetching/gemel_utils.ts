@@ -123,3 +123,90 @@ export function calculateTickerDataFromFundHistory(
   };
   return tickerData;
 }
+
+/**
+ * Calculates historical performance metrics and builds TickerData
+ * from a raw series of index values.
+ * The `nominalReturn` field in `FundDataPoint` is expected to be the absolute index value.
+ */
+export function calculateTickerDataFromIndexHistory(
+  fundData: FundData,
+  exchange: Exchange,
+  sourceName: string,
+  providentInfo?: ProvidentInfo
+): TickerData | null {
+  if (!fundData || fundData.data.length === 0) {
+    return null;
+  }
+
+  const { fundId, fundName, data } = fundData;
+  
+  // Sort by date ascending
+  const sortedData = [...data].sort((a, b) => a.date - b.date);
+  
+  // Build Price Index Map (Map: YYYY-MM -> { price, date })
+  // Here, "price" is the index value.
+  const priceMap = new Map<string, { price: number, date: number }>();
+  const historical: { date: Date, price: number }[] = [];
+
+  const getKey = (ts: number) => {
+      const d = new Date(ts);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  };
+
+  for (const point of sortedData) {
+      // The 'nominalReturn' field holds the absolute index value.
+      const indexValue = point.nominalReturn;
+      priceMap.set(getKey(point.date), { price: indexValue, date: point.date });
+      historical.push({ date: new Date(point.date), price: indexValue });
+  }
+
+  const latestPoint = sortedData[sortedData.length - 1];
+  const latestPrice = latestPoint.nominalReturn;
+  
+  const getChange = (months: number) => {
+      const d = new Date(latestPoint.date);
+      d.setDate(1); // Set to 1st of month to avoid overflow
+      d.setMonth(d.getMonth() - months);
+      const base = priceMap.get(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+      return base ? { pct: latestPrice / base.price - 1, date: base.date } : undefined;
+  };
+
+  const [chg1m, chg3m, chg1y, chg3y, chg5y, chg10y] = [1, 3, 12, 36, 60, 120].map(getChange);
+
+  // YTD
+  const currentYear = new Date(latestPoint.date).getFullYear();
+  let chgYtd: { pct: number, date: number } | undefined;
+
+  const ytdBase = priceMap.get(`${currentYear - 1}-12`);
+  if (ytdBase) {
+    chgYtd = { pct: latestPrice / ytdBase.price - 1, date: ytdBase.date };
+  }
+
+  // Max change
+  const firstPoint = sortedData[0];
+  const chgMax = { pct: latestPrice / firstPoint.nominalReturn - 1, date: firstPoint.date };
+
+  const tickerData: TickerData = {
+    ticker: String(fundId),
+    numericId: fundId,
+    exchange: exchange,
+    price: latestPrice,
+    ...(chg1m && { changePct1m: chg1m.pct, changeDate1m: new Date(chg1m.date) }),
+    ...(chg3m && { changePct3m: chg3m.pct, changeDate3m: new Date(chg3m.date) }),
+    ...(chgYtd && { changePctYtd: chgYtd.pct, changeDateYtd: new Date(chgYtd.date) }),
+    ...(chg1y && { changePct1y: chg1y.pct, changeDate1y: new Date(chg1y.date) }),
+    ...(chg3y && { changePct3y: chg3y.pct, changeDate3y: new Date(chg3y.date) }),
+    ...(chg5y && { changePct5y: chg5y.pct, changeDate5y: new Date(chg5y.date) }),
+    ...(chg10y && { changePct10y: chg10y.pct, changeDate10y: new Date(chg10y.date) }),
+    ...(chgMax && { changePctMax: chgMax.pct, changeDateMax: new Date(chgMax.date) }),
+    timestamp: new Date(latestPoint.date),
+    currency: 'ILS',
+    name: fundName,
+    nameHe: fundName,
+    source: sourceName,
+    historical,
+    providentInfo,
+  };
+  return tickerData;
+}

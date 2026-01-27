@@ -382,6 +382,8 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
 
     const links = [];
 
+    if (exchange === Exchange.CBS) return [];
+     
     if (exchange === Exchange.GEMEL) {
       const nid = numericId || data?.numericId || holdingData?.numericId;
       const clenaedHeName = resolvedNameHe?.replace(/[^a-zA-Z0-9א-ת ]/g, '').replace(/ /g, '-');

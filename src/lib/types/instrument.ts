@@ -58,6 +58,7 @@ export const InstrumentType = {
 
   // INDEX Group
   INDEX: 'INDEX',
+  CPI: 'CPI',
 
   UNKNOWN: 'UNKNOWN'
 } as const;
@@ -117,7 +118,8 @@ export const INSTRUMENT_METADATA: Record<InstrumentType, InstrumentMetadata> = {
   
   // Index
   [InstrumentType.INDEX]: { group: InstrumentGroup.INDEX, nameEn: 'Index', nameHe: 'מדד', globesTypes: ['index'] },
-  
+  [InstrumentType.CPI]: { group: InstrumentGroup.INDEX, nameEn: 'Consumer Price Index', nameHe: 'מדד מחירים לצרכן', globesTypes: [''] },
+
   // Other
   [InstrumentType.UNKNOWN]: { group: InstrumentGroup.OTHER, nameEn: 'Unknown', nameHe: 'לא ידוע' },
 };
