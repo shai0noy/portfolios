@@ -154,6 +154,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
     { ticker: '^NDX', exchange: Exchange.NASDAQ, name: 'NASDAQ 100' },
     { ticker: 'TA35', exchange: Exchange.TASE, name: 'Tel Aviv 35' },
     { ticker: '^TA125', exchange: Exchange.TASE, name: 'Tel Aviv 125' },
+    { ticker: '120010', exchange: Exchange.CBS, name: 'Israel Consumer Price Index'}
   ];
 
   const handleSelectComparison = async (option: typeof comparisonOptions[0]) => {
