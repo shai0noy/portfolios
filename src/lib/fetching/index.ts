@@ -53,23 +53,23 @@ export function getTickersDataset(signal?: AbortSignal, forceRefresh = false): P
   return tickersDatasetLoading;
 }
 
-function mergeHistory(hist1y: { date: Date; price: number }[] | undefined, histMax: { date: Date; price: number }[] | undefined) {
-  const h1 = hist1y || [];
+function combineHistory(histShort: { date: Date; price: number }[] | undefined, histMax: { date: Date; price: number }[] | undefined) {
+  const hShort = histShort || [];
   const hMax = histMax || [];
 
-  if (h1.length === 0 && hMax.length === 0) return undefined;
-  if (h1.length === 0) return hMax;
-  if (hMax.length === 0) return h1;
+  if (hShort.length === 0 && hMax.length === 0) return undefined;
+  if (hShort.length === 0) return hMax;
+  if (hMax.length === 0) return hShort;
 
   // Assume hMax covers the full range but might be lower resolution.
-  // We want to use h1 (1y daily) for the recent period and hMax for older data.
-  // Find the start date of h1
-  const h1StartDate = h1[0].date.getTime();
+  // We want to use hShort (e.g. 5y daily) for the recent period and hMax for older data.
+  // Find the start date of hShort
+  const shortStartDate = hShort[0].date.getTime();
   
-  // Take everything from hMax that is BEFORE h1 starts
-  const olderData = hMax.filter(p => p.date.getTime() < h1StartDate);
+  // Take everything from hMax that is BEFORE hShort starts
+  const olderData = hMax.filter(p => p.date.getTime() < shortStartDate);
   
-  const combined = [...olderData, ...h1];
+  const combined = [...olderData, ...hShort];
   return combined.sort((a, b) => a.date.getTime() - b.date.getTime());
 }
 
@@ -86,7 +86,7 @@ export async function getTickerData(
   } catch (e) {
     console.warn(`getTickerData: Invalid exchange '${exchange}', defaulting to NASDAQ for Yahoo fallback logic.`, e);
     // For invalid exchange, we can only try yahoo.
-    return fetchYahooTickerData(ticker, Exchange.NASDAQ, signal, forceRefresh, '1y');
+    return fetchYahooTickerData(ticker, Exchange.NASDAQ, signal, forceRefresh, '5y');
   }
 
   const secId = numericSecurityId ? Number(numericSecurityId) : undefined;
@@ -102,21 +102,21 @@ export async function getTickerData(
     return fetchPensyanetQuote(tickerNum, signal, forceRefresh);
   }
 
-  const [yahooData1y, yahooDataMax] = await Promise.all([
-    fetchYahooTickerData(ticker, parsedExchange, signal, forceRefresh, '1y'),
+  const [yahooData5y, yahooDataMax] = await Promise.all([
+    fetchYahooTickerData(ticker, parsedExchange, signal, forceRefresh, '5y'),
     fetchYahooTickerData(ticker, parsedExchange, signal, forceRefresh, 'max')
   ]);
 
   let yahooData: TickerData | null = null;
-  if (yahooData1y || yahooDataMax) {
-      if (!yahooData1y) yahooData = yahooDataMax;
-      else if (!yahooDataMax) yahooData = yahooData1y;
+  if (yahooData5y || yahooDataMax) {
+      if (!yahooData5y) yahooData = yahooDataMax;
+      else if (!yahooDataMax) yahooData = yahooData5y;
       else {
-          // Merge: use 1y for recent stats/precision, max for long term
+          // Merge: use 5y for recent stats/precision, max for long term
           yahooData = {
               // TODO: Make merging logic cleaner
               ...yahooDataMax,
-              ...yahooData1y,
+              ...yahooData5y,
               // Explicitly ensure long term stats come from Max
               changePct3y: yahooDataMax.changePct3y,
               changeDate3y: yahooDataMax.changeDate3y,
@@ -124,8 +124,8 @@ export async function getTickerData(
               changeDate5y: yahooDataMax.changeDate5y,
               changePctMax: yahooDataMax.changePctMax,
               changeDateMax: yahooDataMax.changeDateMax,
-              // Use merged historical data so the chart has max range immediately
-              historical: mergeHistory(yahooData1y.historical, yahooDataMax.historical),
+              // Use combined historical data so the chart has max range immediately
+              historical: combineHistory(yahooData5y.historical, yahooDataMax.historical),
               dividends: yahooDataMax.dividends,
               splits: yahooDataMax.splits
           };
@@ -246,13 +246,13 @@ export async function fetchTickerHistory(
     return { historical: data?.historical, dividends: data?.dividends, splits: data?.splits };
   }
 
-  const [yahooData1y, yahooDataMax] = await Promise.all([
-    fetchYahooTickerData(ticker, exchange, signal, forceRefresh, '1y'),
+  const [yahooData5y, yahooDataMax] = await Promise.all([
+    fetchYahooTickerData(ticker, exchange, signal, forceRefresh, '5y'),
     fetchYahooTickerData(ticker, exchange, signal, false, 'max')
   ]);
 
   return {
-    historical: mergeHistory(yahooData1y?.historical, yahooDataMax?.historical),
+    historical: combineHistory(yahooData5y?.historical, yahooDataMax?.historical),
     dividends: yahooDataMax?.dividends,
     splits: yahooDataMax?.splits,
   };
