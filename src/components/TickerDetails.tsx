@@ -1,4 +1,4 @@
-import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, Box, Chip, CircularProgress, Tooltip, IconButton, ToggleButtonGroup, ToggleButton, Menu, MenuItem } from '@mui/material';
+import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, Box, Chip, CircularProgress, Tooltip, IconButton, ToggleButtonGroup, ToggleButton, Menu, MenuItem, Table, TableBody, TableCell, TableHead, TableRow, Paper } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import RefreshIcon from '@mui/icons-material/Refresh';
@@ -301,6 +301,11 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
       }));
       setSheetRebuildTime(sheetRebuild);
 
+      if (tickerData) {
+          console.log(`[TickerDetails] Fetched data for ${ticker}:`, tickerData);
+          if (tickerData.meta) console.log(`[TickerDetails] Meta for ${ticker}:`, tickerData.meta);
+      }
+
       // Sync dividends if from a fresh fetch (not from cache)
       if (tickerData?.dividends && tickerData.dividends.length > 0 && !tickerData.fromCacheMax) {
           syncDividends(sheetId, ticker, exchange, tickerData.dividends, tickerData.source || 'API');
@@ -596,9 +601,21 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
         <Box display="flex" justifyContent="space-between" alignItems="flex-start">
           <Box sx={{ flex: 1, minWidth: 0, pr: 2 }}>
             <Box display="flex" alignItems="center" gap={1}>
-              <Typography variant="h4" component="div" fontWeight="bold">
-                {tTry(resolvedName || ticker, resolvedNameHe)}
-              </Typography>
+              <Tooltip title={tTry(resolvedName || ticker, resolvedNameHe)} arrow>
+                <Typography 
+                  variant={(resolvedName || '').length > 30 ? 'h5' : 'h4'} 
+                  component="div" 
+                  fontWeight="bold"
+                  sx={{ 
+                    overflow: 'hidden', 
+                    textOverflow: 'ellipsis', 
+                    whiteSpace: 'nowrap',
+                    maxWidth: '100%'
+                  }}
+                >
+                  {tTry(resolvedName || ticker, resolvedNameHe)}
+                </Typography>
+              </Tooltip>
               {ownedInPortfolios && ownedInPortfolios.length > 0 && (
                 <Tooltip title={`${t('Owned in', 'מוחזק ב')}: ${ownedInPortfolios.join(', ')}`}>
                   <BusinessCenterIcon color="action" />
@@ -610,7 +627,10 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                 {resolvedName ? `${exchange?.toUpperCase()}: ${ticker}` : exchange?.toUpperCase()}
               </Typography>
               {displayData?.sector && <Chip label={displayData.subSector ? (displayData.sector.includes(displayData.subSector) || displayData.subSector.includes(displayData.sector) ? displayData.subSector : `${displayData.sector} • ${displayData.subSector}`) : displayData.sector} size="small" variant="outlined" />}
-              {(displayData?.taseType || displayData?.globesTypeHe) && <Chip label={displayData?.taseType || displayData.globesTypeHe} size="small" variant="outlined" />}
+              {(() => {
+                  const displayType = displayData?.type ? t(displayData.type.nameEn, displayData.type.nameHe) : (displayData?.taseType || displayData?.globesTypeHe);
+                  return displayType ? <Chip label={displayType} size="small" variant="outlined" /> : null;
+              })()}
               {displayData?.providentInfo?.managementFee !== undefined && (
                 <Chip label={`${t('Mgmt fee:', 'דמי ניהול:')} ${displayData.providentInfo.managementFee}%`} size="small" variant="outlined" />
               )}
@@ -649,12 +669,12 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                       </Typography>
                     </Tooltip>
                   </Box>
-                  {(openPrice != null || data?.tradeTimeStatus || volumeDisplay) && (
+                  {(openPrice != null && openPrice !== 0 || data?.tradeTimeStatus || volumeDisplay) && (
                     <Box display="flex" alignItems="baseline" justifyContent="flex-end" sx={{ gap: 1, mt: 0.25 }}>
-                      {openPrice != null && (
+                      {openPrice != null && openPrice !== 0 && (
                         <Typography variant="caption" color="text.secondary">{t('Open:', 'פתיחה:')} {formatPrice(openPrice, isTase ? 'ILA' : displayData.currency, maxDecimals, t)}</Typography>
                       )}
-                      {openPrice != null && (data?.tradeTimeStatus || volumeDisplay) && (<Typography variant="caption" color="text.secondary">|</Typography>)}
+                      {openPrice != null && openPrice !== 0 && (data?.tradeTimeStatus || volumeDisplay) && (<Typography variant="caption" color="text.secondary">|</Typography>)}
                       {volumeDisplay && (
                          <>
                            <Tooltip title={t('Average daily trading volume (quarterly avg, in ticker currency)', 'מחזור מסחר יומי ממוצע (ממוצע רבעוני, במטבע הנייר)')} arrow>
@@ -827,6 +847,41 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                 </Box>
               </>
             )}
+
+            {/* Underlying Assets Section */}
+            {(() => {
+                const meta = data?.meta || holdingData?.meta;
+                if (meta?.type === 'TASE' && meta.underlyingAssets && meta.underlyingAssets.length > 0) {
+                    return (
+                        <>
+                            <Typography variant="subtitle2" gutterBottom sx={{ mt: 2 }}>
+                                {t('Underlying Assets', 'נכסי בסיס')}
+                            </Typography>
+                            <Paper variant="outlined" sx={{ mb: 2, overflow: 'hidden' }}>
+                                <Table size="small">
+                                    <TableHead sx={{ bgcolor: 'action.hover' }}>
+                                        <TableRow>
+                                            <TableCell sx={{ fontWeight: 'bold', fontSize: '0.75rem' }}>{t('Asset Name', 'שם נכס')}</TableCell>
+                                            <TableCell align="right" sx={{ fontWeight: 'bold', fontSize: '0.75rem' }}>{t('Weight', 'משקל')}</TableCell>
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {meta.underlyingAssets.map((asset, i) => (
+                                            <TableRow key={i} sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+                                                <TableCell sx={{ fontSize: '0.75rem' }}>{asset.name}</TableCell>
+                                                <TableCell align="right" sx={{ fontSize: '0.75rem', fontWeight: 600 }}>
+                                                    {formatPercent(asset.weight / 100)}
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </Paper>
+                        </>
+                    );
+                }
+                return null;
+            })()}
           </>
         )}
 

@@ -361,7 +361,12 @@ function AppContent() {
         </ListItemIcon>
         <ListItemText>{t('Setup Sheet', 'הגדרות גיליון')}</ListItemText>
       </MenuItem>
-      <MenuItem onClick={() => { clearAllCache().then(() => window.location.reload()); handleMobileMenuClose(); }}>
+      <MenuItem onClick={() => { 
+        if (confirm(t('This will clear all locally cached market data (prices, history, ticker lists). Your session and settings will be preserved. Continue?', 'פעולה זו תנקה את כל המידע המאוחסן מקומית (מחירים, היסטוריה, רשימות ניירות). החיבור וההגדרות שלך יישמרו. להמשיך?'))) {
+          clearAllCache().then(() => window.location.reload()); 
+        }
+        handleMobileMenuClose(); 
+      }}>
         <ListItemIcon>
           <DeleteSweepIcon fontSize="small" />
         </ListItemIcon>

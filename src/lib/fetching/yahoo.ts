@@ -29,7 +29,7 @@ export async function fetchYahooTickerData(ticker: string, exchange: Exchange, s
   }
   const now = Date.now();
   const yahooTicker = toYahooFinanceTicker(ticker, exchange, /* isCrypto */ true); // Assuming crypto for now
-  const cacheKey = `yahoo:${yahooTicker}:${range}`;
+  const cacheKey = `yahoo:quote:v2:${yahooTicker}:${range}`;
 
   if (!forceRefresh) {
     const cached = await loadFromCache<TickerData>(cacheKey);

@@ -110,7 +110,7 @@ function calculateChangePct(current: number, previousStr: string): number | unde
 
 export async function fetchGlobesTickersByType(type: string, exchange: Exchange, signal?: AbortSignal): Promise<TickerProfile[]> {
   const exchangeCode = toGlobesExchangeCode(exchange);
-  const cacheKey = `globes:tickers:v8:${exchangeCode}:${type}`; // Incremented cache version
+  const cacheKey = `globes:tickers:v15:${exchangeCode}:${type}`; // Incremented cache version
   const now = Date.now();
 
   try {
@@ -199,7 +199,7 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
     }
   }
 
-  const cacheKey = `globes:${requestedExchangeCode}:${identifier}`;
+  const cacheKey = `globes:quote:v2:${requestedExchangeCode}:${identifier}`;
   if (!forceRefresh) {
     const cached = await loadFromCache<TickerData>(cacheKey);
     if (cached?.timestamp && (now - new Date(cached.timestamp).getTime() < CACHE_TTL)) {

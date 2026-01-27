@@ -19,6 +19,11 @@ Discovery/selling points splash page
 Cloudflare throttling and force cache
 maybe store type in sheet
 tase types vs globes types??
+If there is no sheet document ID, do not show the "create first portfolio" screen, rather, you should send the user to exisitng the screen to enter an existing sheet ID or create one
+If exposure porfile (e.g. 4D, 03) is avilable in ticker details, show two chips according to its parsing:
+ - The numeric part is stock exposure 0-6 maps to (0%, <10%, <30%, <50%, <120%, <200%, >200%)
+ - The letter part (which can be a 0) is foreign currency exposure 0,A-F maps to (0%, <10%, <30%, <50%, <120%, <200%, >200%)
+ - parse this early and show in the ticker details UI
 
 dsahboard summary:
 - chart
@@ -43,7 +48,7 @@ Low priority:
 - ON HOLD: Use Gemini for anlysis and insight
 - ON HOLD: Forcast mode, where future txns, vesting are taken into account, and growth of holding is predicted based on custom uesr input or recent trends. Should also include taxes
 
-Done: add search to dashbaord - open ticker detials rather than open add txn mode
+Done: add search to dashbaord - open ticker details rather than open add txn mode
 Done: Div is broken again!
 DONE: Make sure div calc in ticker details uses max data range and not just 1 y
 DONE: In multi line charts - the tooltip should show just change, and have value for each line (with matching color)

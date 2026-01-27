@@ -1,5 +1,7 @@
 // src/lib/fetching/types.ts
 import { Exchange } from '../types';
+import type { ExchangeMetadata } from '../types/ticker';
+import { InstrumentClassification } from '../types/instrument';
 
 export interface Dividend {
   date: Date; // Unix timestamp (in milliseconds) of the dividend payout
@@ -57,6 +59,8 @@ export interface TickerData {
   providentInfo?: ProvidentInfo;
   fromCache?: boolean;
   fromCacheMax?: boolean;
+  meta?: ExchangeMetadata;
+  type?: InstrumentClassification;
 }
 
 export interface HistoricalDataPoint {

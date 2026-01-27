@@ -135,7 +135,7 @@ export async function getTickerData(
   }
 
   let globesPromise: Promise<TickerData | null>;
-  let taseInfoPromise: Promise<any | undefined> = Promise.resolve(undefined);
+  let taseProfilePromise: Promise<TickerProfile | undefined> = Promise.resolve(undefined);
 
   if (parsedExchange === Exchange.TASE) {
     // Note: getTickersDataset now returns TickerProfile[], so we need to adjust how we look up TaseInfo
@@ -153,7 +153,7 @@ export async function getTickerData(
       return undefined;
     });
 
-    taseInfoPromise = lookupPromise.then(item => item?.meta?.type === 'TASE' ? item.meta : undefined);
+    taseProfilePromise = lookupPromise;
 
     if (secId) {
       globesPromise = fetchGlobesStockQuote(ticker, secId, parsedExchange, signal, forceRefresh);
@@ -169,24 +169,57 @@ export async function getTickerData(
     globesPromise = fetchGlobesStockQuote(ticker, secId, parsedExchange, signal, forceRefresh);
   }
 
-  const [globesData, _unusedYahoo, _unusedTaseInfo] = await Promise.all([
+  const [globesData, _unusedYahoo, taseProfile] = await Promise.all([
     globesPromise,
     Promise.resolve(yahooData),
-    taseInfoPromise
+    taseProfilePromise
   ]);
+
+  if (parsedExchange === Exchange.TASE && taseProfile) {
+      console.log(`[getTickerData] Found TASE profile for ${ticker}:`, taseProfile);
+  }
 
   // Fallback to Yahoo if the first source fails, or merge data if both succeed.
   if (!globesData) {
     if (yahooData) {
-      return { ...yahooData };
+      return { 
+        ...yahooData, 
+        meta: taseProfile?.meta || yahooData.meta,
+        type: taseProfile?.type || yahooData.type,
+        name: taseProfile?.name || yahooData.name,
+        nameHe: taseProfile?.nameHe || yahooData.nameHe
+      };
+    }
+    // No data from Globes or Yahoo, but maybe we have TASE profile info
+    if (taseProfile) {
+        return {
+            ticker: taseProfile.symbol,
+            exchange: Exchange.TASE,
+            numericId: taseProfile.securityId ? parseInt(taseProfile.securityId, 10) : null,
+            name: taseProfile.name,
+            nameHe: taseProfile.nameHe,
+            type: taseProfile.type,
+            meta: taseProfile.meta,
+            price: 0,
+            source: 'TASE Profile'
+        };
     }
     return yahooData;
   }
 
+  // Merge data: Prefer TASE Profile > Globes > Yahoo
+  const finalData: TickerData = {
+    ...globesData,
+    meta: taseProfile?.meta || globesData.meta || yahooData?.meta,
+    type: taseProfile?.type || globesData.type || yahooData?.type,
+    name: taseProfile?.name || globesData.name || yahooData?.name,
+    nameHe: taseProfile?.nameHe || globesData.nameHe || yahooData?.nameHe,
+  };
+
   if (yahooData) {
-    // Merge data: Globes data is primary, fill in missing fields from Yahoo.
+    // Fill in missing fields from Yahoo.
     return {
-      ...globesData,
+      ...finalData,
       historical: globesData.historical ?? yahooData.historical, // Use the merged historical from yahooData if globes is missing it
       dividends: globesData.dividends ?? yahooData.dividends,
       splits: globesData.splits ?? yahooData.splits,
@@ -220,14 +253,16 @@ export async function getTickerData(
 
       openPrice: globesData.openPrice ?? yahooData.openPrice,
       source: `${globesData.source} + Yahoo Finance`,
-      sector: globesData.sector || yahooData.sector,
-      subSector: globesData.subSector || yahooData.subSector,
+      sector: taseProfile?.sector || globesData.sector || yahooData.sector,
+      subSector: taseProfile?.subSector || globesData.subSector || yahooData.subSector,
       taseType: globesData.taseType,
       volume: globesData.volume ?? yahooData.volume,
+      fromCache: yahooData.fromCache,
+      fromCacheMax: yahooData.fromCacheMax
     };
   }
 
-  return globesData;
+  return finalData;
 }
 
 export async function fetchTickerHistory(
