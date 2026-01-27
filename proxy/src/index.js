@@ -183,7 +183,7 @@ async function invokeApi(apiId, params, env) {
       fetchOpts.body = `vm=${encodeURIComponent(JSON.stringify(vmObject))}`;
     }
 
-    if (apiId === 'tase_list_stocks') {
+    if (apiId === 'tase_list_stocks' || apiId === 'tase_list_funds') {
       fetchOpts.headers["apiKey"] = env.TASE_API_KEY;
     } else if (apiId === 'cbs_price_index') {
       fetchOpts.headers["Referer"] = "https://www.cbs.gov.il/";
