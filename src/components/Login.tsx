@@ -132,7 +132,7 @@ export function Login({ onLogin }: { onLogin: (sheetId: string) => void }) {
     <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" minHeight="100vh" bgcolor="background.default">
       <Container maxWidth="sm">
         <Paper elevation={0} sx={{ p: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', borderRadius: 3, border: 1, borderColor: 'divider', textAlign: 'center' }}>
-          <Typography variant="h4" gutterBottom color="primary" fontWeight="bold">Portfolio Tracker</Typography>
+          <Typography variant="h4" gutterBottom color="primary" fontWeight="bold">Portfolios</Typography>
           {!isSignedIn ? (
             <>
               <Typography variant="body1" color="text.secondary" paragraph>

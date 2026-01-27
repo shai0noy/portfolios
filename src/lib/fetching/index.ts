@@ -114,6 +114,7 @@ export async function getTickerData(
       else {
           // Merge: use 1y for recent stats/precision, max for long term
           yahooData = {
+              // TODO: Make merging logic cleaner
               ...yahooDataMax,
               ...yahooData1y,
               // Explicitly ensure long term stats come from Max
@@ -124,7 +125,9 @@ export async function getTickerData(
               changePctMax: yahooDataMax.changePctMax,
               changeDateMax: yahooDataMax.changeDateMax,
               // Use merged historical data so the chart has max range immediately
-              historical: mergeHistory(yahooData1y.historical, yahooDataMax.historical)
+              historical: mergeHistory(yahooData1y.historical, yahooDataMax.historical),
+              dividends: yahooDataMax.dividends,
+              splits: yahooDataMax.splits
           };
       }
   }
@@ -227,26 +230,25 @@ export async function getTickerData(
 
 export async function fetchTickerHistory(
   ticker: string,
-  exchange: string,
+  exchange: Exchange,
   signal?: AbortSignal,
   forceRefresh = false
 ): Promise<Pick<TickerData, 'historical' | 'dividends' | 'splits'>> {
-  const parsedExchange = parseExchange(exchange);
   const tickerNum = Number(ticker);
 
-  if (parsedExchange === Exchange.GEMEL) {
+  if (exchange === Exchange.GEMEL) {
     const data = await fetchGemelnetQuote(tickerNum, signal, forceRefresh);
     return { historical: data?.historical, dividends: data?.dividends, splits: data?.splits };
   }
 
-  if (parsedExchange === Exchange.PENSION) {
+  if (exchange === Exchange.PENSION) {
     const data = await fetchPensyanetQuote(tickerNum, signal, forceRefresh);
     return { historical: data?.historical, dividends: data?.dividends, splits: data?.splits };
   }
 
   const [yahooData1y, yahooDataMax] = await Promise.all([
-    fetchYahooTickerData(ticker, parsedExchange, signal, forceRefresh, '1y'),
-    fetchYahooTickerData(ticker, parsedExchange, signal, false, 'max')
+    fetchYahooTickerData(ticker, exchange, signal, forceRefresh, '1y'),
+    fetchYahooTickerData(ticker, exchange, signal, false, 'max')
   ]);
 
   return {
