@@ -39,7 +39,7 @@ const HEBREW_MONTHS: Record<string, number> = {
   "יולי": 7, "אוגוסט": 8, "ספטמבר": 9, "אוקטובר": 10, "נובמבר": 11, "דצמבר": 12
 };
 
-const CBS_INDECIES = {
+const CBS_INDICES = {
   "120010": { nameHe: "מדד המחירים לצרכן, כללי" , nameEn: "Israel Consumer Price Index"},
   "120460": {nameHe: "מדד מחירי מחירי השכירות", nameEn: "Israel Housing Rental Price Index"},
   "400100": {nameHe: "מדד מחירי הדיור, כל הארץ", nameEn: "Israel House Prices Index, National"},
@@ -65,7 +65,7 @@ const CBS_INDECIES = {
 }
 
 export function getCbsTickers(): TickerProfile[] {
-  return Object.entries(CBS_INDECIES).map(([id, info]) => ({
+  return Object.entries(CBS_INDICES).map(([id, info]) => ({
     symbol: id,
     exchange: Exchange.CBS,
     securityId: id,
@@ -200,7 +200,7 @@ export async function fetchCpi(
     const normalizedData = normalizeCpiSeries(allRawData, id);
     const fundData: FundData = {
       fundId: id,
-      fundName: CBS_INDECIES[String(id)]?.nameHe || name,
+      fundName: CBS_INDICES[String(id)]?.nameHe || name,
       data: normalizedData,
       lastUpdated: Date.now()
     };

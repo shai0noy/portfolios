@@ -346,7 +346,7 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
                     <MenuItem value="FOREX">FOREX</MenuItem>
                     <MenuItem value="GEMEL">{t('Gemel Funds', 'קופות גמל')}</MenuItem>
                     <MenuItem value="PENSION">{t('Pension Funds', 'קרנות פנסיה')}</MenuItem>
-                    <MenuItem value="CBS">{t('Israel Price Indecies', 'מדדי מחירים')}</MenuItem>
+                    <MenuItem value="CBS">{t('Israel Price indices', 'מדדי מחירים')}</MenuItem>
                   </Select>
                 </FormControl>
               </Grid>

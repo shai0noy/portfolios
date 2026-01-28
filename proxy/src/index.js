@@ -9,6 +9,7 @@ const API_MAP = {
   "cbs_price_index": "https://api.cbs.gov.il/index/data/price?id={id}&format=json&download=false&PageSize=1000&page={page}",
   "tase_list_stocks": "https://datawise.tase.co.il/v1/basic-securities/trade-securities-list/{raw:taseFetchDate}",
   "tase_list_funds": "https://datawise.tase.co.il/v1/fund/fund-list?listingStatusId=1",
+  "tase_list_indices": "https://datawise.tase.co.il/v1/basic-indices/indices-list",
   "gemelnet_fund": "https://gemelnet.cma.gov.il/tsuot/ui/tsuotHodXML.aspx?miTkfDivuach={startYear}{startMonth}&adTkfDivuach={endYear}{endMonth}&kupot={fundId}&Dochot=1&sug=3",
   "gemelnet_list": "https://gemelnet.cma.gov.il/tsuot/ui/tsuotHodXML.aspx?miTkfDivuach={startYear}{startMonth}&adTkfDivuach={endYear}{endMonth}&kupot=0000&Dochot=1&sug=1",
   "pensyanet_fund": "https://pensyanet.cma.gov.il/Parameters/ExportToXML",
@@ -183,7 +184,7 @@ async function invokeApi(apiId, params, env) {
       fetchOpts.body = `vm=${encodeURIComponent(JSON.stringify(vmObject))}`;
     }
 
-    if (apiId === 'tase_list_stocks' || apiId === 'tase_list_funds') {
+    if (apiId === 'tase_list_stocks' || apiId === 'tase_list_funds' || apiId === 'tase_list_indices') {
       fetchOpts.headers["apiKey"] = env.TASE_API_KEY;
     } else if (apiId === 'cbs_price_index') {
       fetchOpts.headers["Referer"] = "https://www.cbs.gov.il/";

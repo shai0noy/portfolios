@@ -44,9 +44,9 @@ HOLD: Handle Reit taxing
 
 Low priority:
 - Smart layer based tax calc (FIFO selling and per layer taxing)
-- DONE: Allow fetching Israeli price indecies (eg CPI) - https://api.cbs.gov.il/index/data/price?id=120010&format=json&download=false&PageSize=1000
+- DONE: Allow fetching Israeli price indices (eg CPI) - https://api.cbs.gov.il/index/data/price?id=120010&format=json&download=false&PageSize=1000
 - ON HOLD: Add portfolio sum chart for dashboard view
-- ON HOLD: Allow comparing portfolios to common indecies, eg CPI, SP500, TLV-125
+- ON HOLD: Allow comparing portfolios to common indices, eg CPI, SP500, TLV-125
 - ON HOLD: Use Gemini for anlysis and insight
 - ON HOLD: Forcast mode, where future txns, vesting are taken into account, and growth of holding is predicted based on custom uesr input or recent trends. Should also include taxes
 
