@@ -106,7 +106,7 @@ export const EXCHANGE_SETTINGS: Record<Exchange, ExchangeSettings> = {
     aliases: ['FX', 'CURRENCY', 'CRYPTO', 'CC', 'CCC'],
     googleFinanceCode: '',
     googleSheetsCode: 'CURRENCY',
-    yahooFinanceSuffix: '=X' // For crypto, no suffix is needed - toYahooFinanceTicker will not add it
+    yahooFinanceSuffix: '=X'
   },
   [Exchange.CBS]: {
     aliases: ['CPI', 'MADAD'],
@@ -115,24 +115,6 @@ export const EXCHANGE_SETTINGS: Record<Exchange, ExchangeSettings> = {
     yahooFinanceSuffix: ''
   },
 };
-
-const ISRAEL_TICKER_OVERRIDES = {
-  '147': 'MIDCAP50',
-  '163': 'MIDCAP120',
-  '143': 'TA90',
-  '137': '^TA125',
-  '142': 'TA35',
-  '707': 'TELBOND20',
-  '709': 'TELBOND60',
-  '170': 'TA-OG',
-  '148': 'TA-FIN',
-  '145': 'TEL-TECH',
-  '169': 'TA-TECH',
-  '167': 'TASEBM',
-  '164': 'TA-BANKS',
-  '168': 'TA-COMP',
-  '149': 'ESTATE15'
-}
 
 /**
  * Parses an exchange identifier string into a known Exchange type.
@@ -175,48 +157,6 @@ export function toGoogleSheetsExchangeCode(exchange: Exchange): string {
  */
 export function toGoogleFinanceExchangeCode(exchange: Exchange): string {
   return EXCHANGE_SETTINGS[exchange]?.googleFinanceCode || exchange;
-}
-
-/**
- * Converts a ticker and a canonical Exchange type to its most likely Yahoo Finance symbol.
- * Handles common rules like prefixing indices with '^' and suffixing currencies with '=X'.
- */
-export function toYahooSymbol(ticker: string, exchange: Exchange): string {
-  const u = ticker.toUpperCase();
-  if (exchange === Exchange.FOREX) {
-    if (u.includes('-')) return u;
-    
-    // Rule: If USD is first in a 6-char pair, Yahoo often uses just the target + =X (e.g. USDILS -> ILS=X)
-    if (u.startsWith('USD') && u.length === 6) {
-      return u.substring(3) + '=X';
-    }
-
-    // Rule: If USD is second, it could be hyphenated (crypto) or suffixed (forex)
-    if (u.endsWith('USD') && u.length === 6) {
-        // We default to hyphen for 6-char pairs ending in USD as it's common for crypto
-        // Candidates logic will try =X as fallback
-        return u.substring(0, 3) + '-USD';
-    }
-
-    return u.endsWith('=X') ? u : `${u}=X`;
-  }
-  if (exchange === Exchange.NYSE || exchange === Exchange.NASDAQ) {
-    if (u.startsWith('^')) return u;
-    return u;
-  }
-  if (exchange == Exchange.TASE && ticker in ISRAEL_TICKER_OVERRIDES) {
-    ticker = ISRAEL_TICKER_OVERRIDES[ticker];
-  }
-  const suffix = EXCHANGE_SETTINGS[exchange]?.yahooFinanceSuffix || '';
-  return `${u}${suffix}`;
-}
-
-/**
- * Legacy wrapper for toYahooSymbol.
- * @deprecated Use toYahooSymbol instead.
- */
-export function toYahooFinanceTicker(ticker: string, exchange: Exchange, _isCrypto: boolean): string {
-  return toYahooSymbol(ticker, exchange);
 }
 
 export interface ExchangeRates {

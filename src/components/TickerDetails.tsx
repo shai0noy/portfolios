@@ -8,7 +8,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { getTickerData, getTickersDataset, fetchTickerHistory, getVerifiedYahooSymbol } from '../lib/fetching';
 import type { TickerProfile } from '../lib/types/ticker';
 import { fetchHolding, getMetadataValue, syncDividends, fetchDividends } from '../lib/sheets/index';
-import { Exchange, parseExchange, toGoogleFinanceExchangeCode, toYahooSymbol, type Holding, type Portfolio } from '../lib/types';
+import { Exchange, parseExchange, toGoogleFinanceExchangeCode, type Holding, type Portfolio } from '../lib/types';
 import { formatPrice, formatPercent, toILS, normalizeCurrency } from '../lib/currency';
 import { useLanguage } from '../lib/i18n';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';

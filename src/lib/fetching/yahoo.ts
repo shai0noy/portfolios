@@ -2,7 +2,7 @@
 import { CACHE_TTL, saveToCache, loadFromCache } from './utils/cache';
 import { deduplicateRequest } from './utils/request_deduplicator';
 import type { TickerData } from './types';
-import { Exchange, parseExchange, toYahooSymbol, EXCHANGE_SETTINGS } from '../types';
+import { Exchange, parseExchange, EXCHANGE_SETTINGS } from '../types';
 import { InstrumentGroup } from '../types/instrument';
 
 /**
@@ -10,21 +10,103 @@ import { InstrumentGroup } from '../types/instrument';
  * Built dynamically from the aliases defined in EXCHANGE_SETTINGS.
  */
 const YAHOO_EXCHANGE_MAP: Record<string, string> = (() => {
-  const map: Record<string, string> = {
-    // Manual overrides or special cases if needed
-  };
-  
+  const map: Record<string, string> = {};
   Object.entries(EXCHANGE_SETTINGS).forEach(([ex, config]) => {
     config.aliases.forEach(alias => {
       map[alias.toUpperCase()] = ex;
     });
   });
-  
   return map;
 })();
 
+export const ISRAEL_TICKER_OVERRIDES: Record<string, string> = {
+  '147': 'MIDCAP50.TA',
+  '163': 'MIDCAP120.TA',
+  '143': 'TA90.TA',
+  '137': '^TA125.TA',
+  '142': 'TA35.TA',
+  '707': 'TELBOND20.TA',
+  '709': 'TELBOND60.TA',
+  '170': 'TA-OG.TA',
+  '148': 'TA-FIN.TA',
+  '145': 'TEL-TECH.TA',
+  '169': 'TA-TECH.TA',
+  '167': 'TASEBM.TA',
+  '164': 'TA-BANKS.TA',
+  '168': 'TA-COMP.TA',
+  '149': 'ESTATE15.TA'
+};
+
+/**
+ * Generates a list of candidate Yahoo symbols for a given ticker, prioritized by likelihood.
+ * Merges symbol formatting logic and probing logic into a single streamlined flow.
+ */
+export function getYahooTickerCandidates(ticker: string, exchange: Exchange, group?: InstrumentGroup): string[] {
+  const u = ticker.toUpperCase();
+
+  // 1. Authoritative Overrides
+  if (exchange === Exchange.TASE && u in ISRAEL_TICKER_OVERRIDES) {
+    return [ISRAEL_TICKER_OVERRIDES[u]];
+  }
+
+  const candidates: string[] = [];
+
+  // 2. Forex & Crypto
+  if (exchange === Exchange.FOREX || group === InstrumentGroup.FOREX) {
+    const clean = u.replace(/-/g, '').replace(/=X$/g, '');
+    
+    if (clean.length === 6) {
+        const base = clean.substring(0, 3);
+        const quote = clean.substring(3);
+        
+        if (base === 'USD') {
+            // USD first -> try ILS=X then ILS-USD
+            candidates.push(`${quote}=X`);
+            candidates.push(`${quote}-USD`);
+        } else if (quote === 'USD') {
+            // USD second -> try BTC-USD then BTCUSD=X
+            candidates.push(`${base}-USD`);
+            candidates.push(`${clean}=X`);
+            candidates.push(`${base}=X`); // Fallback if just base exists
+        } else {
+            candidates.push(`${clean}=X`);
+            candidates.push(`${base}=X`);
+        }
+    } else {
+        candidates.push(u.endsWith('=X') ? u : `${u}=X`);
+        candidates.push(u);
+    }
+  } 
+  // 3. Indices
+  else if (group === InstrumentGroup.INDEX || u.startsWith('^')) {
+    if (/^\d+$/.test(u)) {
+      candidates.push(u); // Numeric indices usually don't have prefixes
+    } else {
+      candidates.push(u.startsWith('^') ? u : `^${u}`);
+      if (u.startsWith('^')) candidates.push(u.substring(1));
+    }
+  } 
+  // 4. Standard / Stocks
+  else {
+    const suffix = EXCHANGE_SETTINGS[exchange]?.yahooFinanceSuffix || '';
+    candidates.push(`${u}${suffix}`);
+    // Fallback for indices entered as symbols in US exchanges
+    if ((exchange === Exchange.NYSE || exchange === Exchange.NASDAQ) && !u.startsWith('^')) {
+      candidates.push(`^${u}`);
+    }
+  }
+
+  return Array.from(new Set(candidates));
+}
+
+/**
+ * Legacy wrapper for candidates[0].
+ */
+export function toYahooSymbol(ticker: string, exchange: Exchange): string {
+  return getYahooTickerCandidates(ticker, exchange)[0];
+}
+
 // In-memory map to remember which Yahoo symbol worked for a given (Ticker, Exchange) pair.
-// This prevents trying multiple candidates repeatedly in the same session.
 const symbolSuccessMap = new Map<string, string>();
 
 /**
@@ -36,52 +118,6 @@ export function getVerifiedYahooSymbol(ticker: string, exchange: Exchange): stri
   return symbolSuccessMap.get(successKey) || toYahooSymbol(ticker, exchange);
 }
 
-function getYahooCandidates(ticker: string, exchange: Exchange, group?: InstrumentGroup): string[] {
-  const candidates: string[] = [];
-  const tickerUC = ticker.toUpperCase();
-
-  // 1. Primary candidate from our standard logic
-  candidates.push(toYahooSymbol(ticker, exchange));
-
-  // 2. Fallbacks for indices and currencies
-  // If we know it's an index or forex, or it looks like one, try common variations.
-  const isForex = exchange === Exchange.FOREX || group === InstrumentGroup.FOREX;
-  const isIndex = group === InstrumentGroup.INDEX || tickerUC.startsWith('^');
-
-  if (isForex) {
-    if (tickerUC.includes('-')) {
-        // e.g. BTC-USD -> try EURUSD=X or EUR=X variations if it fails
-        const parts = tickerUC.split('-');
-        candidates.push(`${parts[0]}${parts[1]}=X`);
-        candidates.push(`${parts[0]}=X`);
-    } else if (tickerUC.length === 6) {
-        // e.g. EURUSD -> try BTC-USD and EUR=X
-        const base = tickerUC.substring(0, 3);
-        const quote = tickerUC.substring(3);
-        candidates.push(`${base}-${quote}`);
-        candidates.push(`${base}=X`);
-        candidates.push(`${tickerUC}=X`);
-    } else {
-        candidates.push(tickerUC.endsWith('=X') ? tickerUC.slice(0, -2) : `${tickerUC}=X`);
-    }
-  } else if (isIndex) {
-    // Try toggling the index prefix '^' regardless of exchange
-    if (tickerUC.startsWith('^')) {
-      candidates.push(tickerUC.slice(1));
-    } else if (!/^\d+$/.test(tickerUC)) {
-      // Only prefix '^' if the ticker is not numeric
-      candidates.push(`^${tickerUC}`);
-    }
-  } else if (exchange === Exchange.TASE) {
-    // Special case for TASE: often users don't know if it's an index or stock
-    if (!tickerUC.startsWith('^') && !/^\d+$/.test(tickerUC)) {
-      candidates.push(`^${tickerUC}`);
-    }
-  }
-
-  return Array.from(new Set(candidates));
-}
-
 export async function fetchYahooTickerData(
   ticker: string, 
   exchange: Exchange, 
@@ -91,53 +127,44 @@ export async function fetchYahooTickerData(
   group?: InstrumentGroup
 ): Promise<TickerData | null> {
   if (exchange === Exchange.GEMEL || exchange === Exchange.PENSION || exchange === Exchange.CBS) {
-    console.warn(`Yahoo fetch does not support exchange: ${exchange}`);
     return null;
   }
   
   const now = Date.now();
   const cacheKey = `yahoo:quote:v3:${exchange}:${ticker}:${range}`;
-
-  // 1. Check Success Map (In-memory)
   const successKey = `${exchange}:${ticker.toUpperCase()}`;
   const knownSymbol = symbolSuccessMap.get(successKey);
   
-  // 2. Check Cache
   if (!forceRefresh) {
     const cached = await loadFromCache<TickerData>(cacheKey);
-    if (cached) {
-      if (cached.timestamp && (now - new Date(cached.timestamp).getTime() < CACHE_TTL)) {
-         if (range === 'max' && cached.data.changePctMax === undefined) {
-            // Fall through to fetch
-         } else {
-            return { ...cached.data, fromCache: true };
-         }
+    if (cached?.timestamp && (now - new Date(cached.timestamp).getTime() < CACHE_TTL)) {
+      if (!(range === 'max' && cached.data.changePctMax === undefined)) {
+        return { ...cached.data, fromCache: true };
       }
     }
   }
 
-  const candidates = knownSymbol ? [knownSymbol] : getYahooCandidates(ticker, exchange, group);
+  const candidates = knownSymbol ? [knownSymbol] : getYahooTickerCandidates(ticker, exchange, group);
 
   return deduplicateRequest(cacheKey, async () => {
-    // Try candidates in parallel
     const results = await Promise.all(candidates.map(async (yahooTicker) => {
-        const url = `https://portfolios.noy-shai.workers.dev/?apiId=yahoo_hist&ticker=${yahooTicker}&range=${range}`;
-        try {
-          const res = await fetch(url, { signal });
-          if (!res.ok) return null;
-          const data = await res.json();
-          const result = data?.chart?.result?.[0];
-          if (!result) return null;
-          return { yahooTicker, result };
-        } catch {
-          return null;
-        }
+      const url = `https://portfolios.noy-shai.workers.dev/?apiId=yahoo_hist&ticker=${yahooTicker}&range=${range}`;
+      try {
+        const res = await fetch(url, { signal });
+        if (!res.ok) return null;
+        const data = await res.json();
+        const result = data?.chart?.result?.[0];
+        if (!result) return null;
+        return { yahooTicker, result };
+      } catch {
+        return null;
+      }
     }));
 
     const match = results.find(r => r !== null);
     if (!match) {
-        console.log(`Yahoo: No result found for ${ticker} (${exchange}) after trying candidates: ${candidates.join(', ')}`);
-        return null;
+      console.log(`Yahoo: No result found for ${ticker} (${exchange}) after trying candidates: ${candidates.join(', ')}`);
+      return null;
     }
 
     const { yahooTicker, result } = match;
@@ -146,76 +173,45 @@ export async function fetchYahooTickerData(
     try {
       const meta = result.meta;
       const price = meta.regularMarketPrice;
-      
-      // Volume extraction (Monetary Volume)
       const shareVolume = meta.regularMarketVolume || (result.indicators?.quote?.[0]?.volume?.slice(-1)[0]);
       const volume = (shareVolume && price) ? shareVolume * price : undefined;
-
-      // Get the last open price from the indicators
       const quote = result.indicators?.quote?.[0];
       const openPrices = quote?.open || [];
       const openPrice = openPrices.length > 0 ? openPrices[openPrices.length - 1] : null;
-
       const currency = meta.currency;
       const exchangeCode = meta.exchangeName || 'OTHER';
+      
       let mappedExchange: Exchange;
       try {
         mappedExchange = parseExchange(YAHOO_EXCHANGE_MAP[exchangeCode.toUpperCase()] || exchangeCode);
-      } catch (e) {
-        console.warn(`Yahoo: Unknown exchange '${exchangeCode}' for ${ticker}, falling back to requested exchange ${exchange}`);
+      } catch {
         mappedExchange = exchange;
       }
+
       const longName = meta.longName || meta.shortName;
       const prevClose = meta.previousClose || meta.chartPreviousClose;
-      const granularity = meta.dataGranularity; // e.g. "1mo"
+      const granularity = meta.dataGranularity;
 
-      let changePct1d: number | undefined = undefined;
-      let changePctRecent: number | undefined = undefined;
-      let changeDateRecent: Date | undefined = undefined;
-      let recentChangeDays: number | undefined = undefined;
-
-      // Only calculate 1D change if we have appropriate data granularity
+      let changePct1d: number | undefined;
       if (price && meta.previousClose) {
         changePct1d = (price - meta.previousClose) / meta.previousClose;
-      }
-      // 2. Fallback: If granularity is daily, use chartPreviousClose
-      else if (price && prevClose && granularity === '1d') {
+      } else if (price && prevClose && granularity === '1d') {
         changePct1d = (price - prevClose) / prevClose;
-      }
-      // 3. Fallback: Use the last two data points if available
-      else if (result.indicators?.quote?.[0]?.close) {
-        const closesList = result.indicators.quote[0].close;
-        const validCloses = closesList.filter((c: any) => c != null);
+      } else if (quote?.close) {
+        const validCloses = quote.close.filter((c: any) => c != null);
         if (validCloses.length >= 2) {
           const last = validCloses[validCloses.length - 1];
           const prev = validCloses[validCloses.length - 2];
-          // Use regularMarketPrice as current if available, else last bar close
-          const current = price || last;
-          changePct1d = (current - prev) / prev;
+          changePct1d = ((price || last) - prev) / prev;
         }
       }
 
-      let changePct1m: number | undefined;
-      let changeDate1m: Date | undefined;
-      let changePct3m: number | undefined;
-      let changeDate3m: Date | undefined;
-      let changePct1y: number | undefined;
-      let changeDate1y: Date | undefined;
-      let changePct3y: number | undefined;
-      let changeDate3y: Date | undefined;
-      let changePct5y: number | undefined;
-      let changeDate5y: Date | undefined;
-      let changePctYtd: number | undefined;
-      let changeDateYtd: Date | undefined;
-      let changePctMax: number | undefined;
-      let changeDateMax: Date | undefined;
+      let changePct1m, changeDate1m, changePct3m, changeDate3m, changePct1y, changeDate1y, changePct3y, changeDate3y, changePct5y, changeDate5y, changePctYtd, changeDateYtd, changePctMax, changeDateMax;
 
-      const closes = result.indicators?.quote?.[0]?.close || [];
+      const closes = quote?.close || [];
       const adjCloses = result.indicators?.adjclose?.[0]?.adjclose || [];
       const timestamps = result.timestamp || [];
-      let historical: { date: Date, price: number, adjClose?: number }[] | undefined = undefined;
-      let dividends: TickerData['dividends'] = undefined;
-      let splits: TickerData['splits'] = undefined;
+      let historical, dividends, splits;
 
       if (result.events) {
         if (result.events.dividends) {
@@ -234,14 +230,13 @@ export async function fetchYahooTickerData(
       }
 
       if (closes.length > 0 && timestamps.length === closes.length) {
-        // Filter out nulls (sometimes Yahoo returns nulls) and map to objects
         const points = timestamps.map((t: number, i: number) => ({ 
             time: t, 
             close: closes[i],
             adjClose: adjCloses[i] 
         })).filter((p: any) => p.close != null && p.time != null);
 
-        historical = points.map((p: { time: number; close: number, adjClose?: number }) => ({ 
+        historical = points.map((p: any) => ({ 
             date: new Date(p.time * 1000), 
             price: p.close,
             adjClose: p.adjClose
@@ -249,146 +244,51 @@ export async function fetchYahooTickerData(
 
         if (points.length > 0) {
           const lastPoint = points[points.length - 1];
-          // Use live price if available, otherwise last close
           const currentClose = price || lastPoint.close;
 
-          // Helper to find absolute closest point in time
           const findClosestPoint = (targetTs: number) => {
-            if (points.length === 0) return null;
-            let closest = points[0];
-            let minDiff = Math.abs(points[0].time - targetTs);
-
+            let closest = points[0], minDiff = Math.abs(points[0].time - targetTs);
             for (let i = 1; i < points.length; i++) {
               const diff = Math.abs(points[i].time - targetTs);
-              if (diff < minDiff) {
-                minDiff = diff;
-                closest = points[i];
-              }
+              if (diff < minDiff) { minDiff = diff; closest = points[i]; }
             }
             return closest;
           };
 
-          const getDateAgo = (amount: number, unit: 'days' | 'weeks' | 'months' | 'years') => {
-            const targetTime = new Date(lastPoint.time * 1000);
-            if (unit === 'days') {
-              targetTime.setDate(targetTime.getDate() - amount);
-            } else if (unit === 'weeks') {
-              targetTime.setDate(targetTime.getDate() - (amount * 7));
-            } else if (unit === 'months') {
-              targetTime.setMonth(targetTime.getMonth() - amount);
-            } else if (unit === 'years') {
-              targetTime.setFullYear(targetTime.getFullYear() - amount);
-            }
-            return targetTime.getTime() / 1000;
+          const getDateAgo = (amount: number, unit: string) => {
+            const d = new Date(lastPoint.time * 1000);
+            if (unit === 'months') d.setMonth(d.getMonth() - amount);
+            else if (unit === 'years') d.setFullYear(d.getFullYear() - amount);
+            return d.getTime() / 1000;
           };
 
-          const findYtdClose = () => {
-            const targetTime = new Date(lastPoint.time * 1000);
-            targetTime.setMonth(0); // Jan current year
-            targetTime.setDate(0); // Dec 31 prev year
-            return findClosestPoint(targetTime.getTime() / 1000);
-          }
+          const calcChange = (p: any) => (!p ? { pct: undefined, date: undefined } : { pct: (currentClose - p.close) / p.close, date: new Date(p.time * 1000) });
 
-          const calcChangeAndDate = (prevPoint: any) => {
-            if (!prevPoint) return { pct: undefined, date: undefined };
-            return {
-              pct: (currentClose - prevPoint.close) / prevPoint.close,
-              date: new Date(prevPoint.time * 1000) // Convert to Date object
-            };
-          };
-
-          // Recent change: Look back 1 week
-          const oneWeekAgoTs = getDateAgo(1, 'weeks');
-
-          let recentPoint = points[0];
-          let minDiffRecent = Math.abs(points[0].time - oneWeekAgoTs);
-          for (let i = 1; i < points.length; i++) {
-            const diff = Math.abs(points[i].time - oneWeekAgoTs);
-            if (diff <= minDiffRecent) {
-              minDiffRecent = diff;
-              recentPoint = points[i];
-            }
-          }
-
-          if (recentPoint && recentPoint.time === lastPoint.time && points.length > 1) {
-            const idx = points.indexOf(recentPoint);
-            if (idx > 0) recentPoint = points[idx - 1];
-          }
-
-          const recentRes = calcChangeAndDate(recentPoint);
-          if (recentRes.pct !== undefined && recentPoint && recentPoint.time < lastPoint.time) {
-            changePctRecent = recentRes.pct;
-            changeDateRecent = recentRes.date;
-            recentChangeDays = Math.round((lastPoint.time - recentPoint.time) / 86400);
-          }
-
-          const res1m = calcChangeAndDate(findClosestPoint(getDateAgo(1, 'months')));
-          changePct1m = res1m.pct; changeDate1m = res1m.date;
-
-          const res3m = calcChangeAndDate(findClosestPoint(getDateAgo(3, 'months')));
-          changePct3m = res3m.pct; changeDate3m = res3m.date;
-
-          const res1y = calcChangeAndDate(findClosestPoint(getDateAgo(1, 'years')));
-          changePct1y = res1y.pct; changeDate1y = res1y.date;
-
-          const res3y = calcChangeAndDate(findClosestPoint(getDateAgo(3, 'years')));
-          changePct3y = res3y.pct; changeDate3y = res3y.date;
-
-          const res5y = calcChangeAndDate(findClosestPoint(getDateAgo(5, 'years')));
-          changePct5y = res5y.pct; changeDate5y = res5y.date;
-
-          const ytdPoint = findYtdClose();
-          const resYtd = calcChangeAndDate(ytdPoint);
-          changePctYtd = resYtd.pct; changeDateYtd = resYtd.date;
-
-          const resMax = calcChangeAndDate(points[0]);
-          changePctMax = resMax.pct; changeDateMax = resMax.date;
+          const m1 = findClosestPoint(getDateAgo(1, 'months')), m3 = findClosestPoint(getDateAgo(3, 'months')), y1 = findClosestPoint(getDateAgo(1, 'years')), y3 = findClosestPoint(getDateAgo(3, 'years')), y5 = findClosestPoint(getDateAgo(5, 'years'));
+          
+          const res1m = calcChange(m1); changePct1m = res1m.pct; changeDate1m = res1m.date;
+          const res3m = calcChange(m3); changePct3m = res3m.pct; changeDate3m = res3m.date;
+          const res1y = calcChange(y1); changePct1y = res1y.pct; changeDate1y = res1y.date;
+          const res3y = calcChange(y3); changePct3y = res3y.pct; changeDate3y = res3y.date;
+          const res5y = calcChange(y5); changePct5y = res5y.pct; changeDate5y = res5y.date;
+          
+          const targetYtd = new Date(lastPoint.time * 1000); targetYtd.setMonth(0); targetYtd.setDate(0);
+          const resYtd = calcChange(findClosestPoint(targetYtd.getTime() / 1000)); changePctYtd = resYtd.pct; changeDateYtd = resYtd.date;
+          const resMax = calcChange(points[0]); changePctMax = resMax.pct; changeDateMax = resMax.date;
         }
       }
 
-      if (!price) {
-        console.log(`Yahoo: No price found for ${ticker}`);
-        return null;
-      }
+      if (!price) return null;
 
       const tickerData: TickerData = {
-        price,
-        openPrice,
-        name: longName,
-        currency,
-        exchange: mappedExchange,
-        changePct1d,
-        changePctRecent,
-        changeDateRecent,
-        recentChangeDays,
-        changePct1m,
-        changeDate1m,
-        changePct3m,
-        changeDate3m,
-        changePct1y,
-        changeDate1y,
-        changePct3y,
-        changeDate3y,
-        changePct5y,
-        changeDate5y,
-        changePctYtd,
-        changeDateYtd,
-        changePctMax,
-        changeDateMax,
-        changePct10y: undefined,
-        timestamp: new Date(now),
-        ticker,
-        numericId: null,
-        source: 'Yahoo Finance',
-        historical,
-        dividends,
-        splits,
-        volume,
+        price, openPrice, name: longName, currency, exchange: mappedExchange,
+        changePct1d, changePct1m, changeDate1m, changePct3m, changeDate3m, changePct1y, changeDate1y,
+        changePct3y, changeDate3y, changePct5y, changeDate5y, changePctYtd, changeDateYtd, changePctMax, changeDateMax,
+        timestamp: new Date(now), ticker, numericId: null, source: 'Yahoo Finance', historical, dividends, splits, volume,
       };
 
       await saveToCache(cacheKey, tickerData, now);
       return tickerData;
-
     } catch (error) {
       console.error('Error parsing Yahoo data', error);
       return null;
