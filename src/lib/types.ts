@@ -178,21 +178,40 @@ export function toGoogleFinanceExchangeCode(exchange: Exchange): string {
 }
 
 /**
- * Converts a ticker and a canonical Exchange type to a ticker string suitable for Yahoo Finance.
- * For non-US exchanges, this typically involves adding a suffix.
- * @param ticker The stock ticker.
- * @param exchange The canonical exchange.
- * @returns The ticker formatted for Yahoo Finance (e.g., 'BARC.L').
+ * Converts a ticker and a canonical Exchange type to its most likely Yahoo Finance symbol.
+ * Handles common rules like prefixing indices with '^' and suffixing currencies with '=X'.
  */
-export function toYahooFinanceTicker(ticker: string, exchange: Exchange, isCrypto: boolean): string {
-  if (exchange === Exchange.FOREX && isCrypto) {
-    return ticker; // No suffix for crypto
+export function toYahooSymbol(ticker: string, exchange: Exchange): string {
+  const tickerUC = ticker.toUpperCase();
+  if (exchange === Exchange.FOREX) {
+    if (tickerUC.includes('-') || tickerUC.length > 6) return tickerUC; // Likely crypto (e.g. BTC-USD)
+    return tickerUC.endsWith('=X') ? tickerUC : `${tickerUC}=X`;
+  }
+  if (exchange === Exchange.NYSE || exchange === Exchange.NASDAQ) {
+    // Common US indices that don't always come with '^'
+    const commonIndices = ['SPX', 'NDX', 'DJI', 'VIX', 'RUT'];
+    if (commonIndices.includes(tickerUC) || (tickerUC.length >= 3 && !tickerUC.startsWith('^') && tickerUC.startsWith('TA'))) {
+       // Note: TA indices are TASE, handled below.
+    }
+    // If it's a known index format or requested via '^', ensure prefix
+    if (tickerUC.startsWith('^')) return tickerUC;
+    // We can't know for sure if a generic 3-letter code is an index or stock without a lookup, 
+    // but the fetcher now tries both. For external links, we'll assume stock unless prefixed.
+    return tickerUC;
   }
   if (exchange == Exchange.TASE && ticker in ISRAEL_TICKER_OVERRIDES) {
     ticker = ISRAEL_TICKER_OVERRIDES[ticker];
   }
   const suffix = EXCHANGE_SETTINGS[exchange]?.yahooFinanceSuffix || '';
-  return `${ticker}${suffix}`;
+  return `${tickerUC}${suffix}`;
+}
+
+/**
+ * Legacy wrapper for toYahooSymbol.
+ * @deprecated Use toYahooSymbol instead.
+ */
+export function toYahooFinanceTicker(ticker: string, exchange: Exchange, _isCrypto: boolean): string {
+  return toYahooSymbol(ticker, exchange);
 }
 
 export interface ExchangeRates {

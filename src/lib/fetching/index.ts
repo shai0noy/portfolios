@@ -100,6 +100,21 @@ export async function getTickerData(
   const secId = numericSecurityId ? Number(numericSecurityId) : undefined;
   const tickerNum = Number(ticker);
 
+  // Lookup profile to determine group/type for smart fetching
+  const profileLookupPromise = getTickersDataset(signal).then(dataset => {
+    for (const list of Object.values(dataset)) {
+      const found = list.find(t => 
+        t.exchange === parsedExchange && 
+        (t.symbol === ticker || (secId && t.securityId === String(secId)))
+      );
+      if (found) return found;
+    }
+    return undefined;
+  }).catch(e => {
+    console.warn('Error looking up ticker profile:', e);
+    return undefined;
+  });
+
   // GEMEL has its own dedicated fetcher
   if (parsedExchange === Exchange.GEMEL) {
     return fetchGemelnetQuote(tickerNum, signal, forceRefresh);
@@ -115,9 +130,12 @@ export async function getTickerData(
     return fetchCpi(tickerNum, signal);
   }
 
+  const profile = await profileLookupPromise;
+  const group = profile?.type.group;
+
   const [yahooData5y, yahooDataMax] = await Promise.all([
-    fetchYahooTickerData(ticker, parsedExchange, signal, forceRefresh, '5y'),
-    fetchYahooTickerData(ticker, parsedExchange, signal, forceRefresh, 'max')
+    fetchYahooTickerData(ticker, parsedExchange, signal, forceRefresh, '5y', group),
+    fetchYahooTickerData(ticker, parsedExchange, signal, forceRefresh, 'max', group)
   ]);
 
   let yahooData: TickerData | null = null;
@@ -148,35 +166,21 @@ export async function getTickerData(
   }
 
   let globesPromise: Promise<TickerData | null>;
-  let taseProfilePromise: Promise<TickerProfile | undefined> = Promise.resolve(undefined);
+  let taseProfilePromise: Promise<TickerProfile | undefined> = Promise.resolve(profile as any);
 
   if (parsedExchange === Exchange.TASE) {
-    // Note: getTickersDataset now returns TickerProfile[], so we need to adjust how we look up TaseInfo
-    const lookupPromise = getTickersDataset(signal).then(dataset => {
-      for (const list of Object.values(dataset)) {
-        const found = list.find(t =>
-          t.exchange === Exchange.TASE &&
-          (t.symbol === ticker || (secId && t.securityId === String(secId)))
-        );
-        if (found) return found;
-      }
-      return undefined;
-    }).catch(e => {
-      console.warn('Error looking up TASE info:', e);
-      return undefined;
-    });
-
-    taseProfilePromise = lookupPromise;
+    taseProfilePromise = Promise.resolve(profile as any);
 
     if (secId) {
       globesPromise = fetchGlobesStockQuote(ticker, secId, parsedExchange, signal, forceRefresh);
     } else {
       // If we don't have securityId, we try to find it from the dataset
-      globesPromise = lookupPromise.then(item => {
-        const sid = item?.securityId ? Number(item.securityId) : undefined;
-        if (!sid) return null;
-        return fetchGlobesStockQuote(ticker, sid, parsedExchange, signal, forceRefresh);
-      });
+      const sid = profile?.securityId ? Number(profile.securityId) : undefined;
+      if (sid) {
+          globesPromise = fetchGlobesStockQuote(ticker, sid, parsedExchange, signal, forceRefresh);
+      } else {
+          globesPromise = Promise.resolve(null);
+      }
     }
   } else {
     globesPromise = fetchGlobesStockQuote(ticker, secId, parsedExchange, signal, forceRefresh);
@@ -319,11 +323,26 @@ export async function fetchTickerHistory(
   }
 
 
+  // Lookup profile to determine group for smart fetching
+  const profile = await getTickersDataset(signal).then(dataset => {
+    for (const list of Object.values(dataset)) {
+        const found = list.find(t => 
+            t.exchange === exchange && 
+            (t.symbol === ticker || t.securityId === ticker)
+        );
+        if (found) return found;
+    }
+    return undefined;
+  }).catch(() => undefined);
+
+  const group = profile?.type.group;
+
+
   const [yahooData5y, yahooDataMax] = await Promise.all([
 
-    fetchYahooTickerData(ticker, exchange, signal, forceRefresh, '5y'),
+    fetchYahooTickerData(ticker, exchange, signal, forceRefresh, '5y', group),
 
-    fetchYahooTickerData(ticker, exchange, signal, false, 'max')
+    fetchYahooTickerData(ticker, exchange, signal, false, 'max', group)
 
   ]);
 

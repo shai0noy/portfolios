@@ -5,10 +5,10 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import AddIcon from '@mui/icons-material/Add';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { getTickerData, getTickersDataset, fetchTickerHistory } from '../lib/fetching';
+import { getTickerData, getTickersDataset, fetchTickerHistory, getVerifiedYahooSymbol } from '../lib/fetching';
 import type { TickerProfile } from '../lib/types/ticker';
 import { fetchHolding, getMetadataValue, syncDividends, fetchDividends } from '../lib/sheets/index';
-import { Exchange, parseExchange, toGoogleFinanceExchangeCode, toYahooFinanceTicker, type Holding, type Portfolio } from '../lib/types';
+import { Exchange, parseExchange, toGoogleFinanceExchangeCode, toYahooSymbol, type Holding, type Portfolio } from '../lib/types';
 import { formatPrice, formatPercent, toILS, normalizeCurrency } from '../lib/currency';
 import { useLanguage } from '../lib/i18n';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
@@ -406,14 +406,11 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
     if (exchange === Exchange.FOREX) {
       // e.g. BTC-USD
       const formattedTicker = ticker.includes('-') ? ticker : `${ticker}-USD`;
-      const isCrypto = data?.globesTypeHe === "מטבע דיגיטלי"; // TODO - extract logic (also in other places)
-      toYahooFinanceTicker(formattedTicker, exchange, isCrypto);
-      links.push({ name: 'Yahoo Finance', url: `https://finance.yahoo.com/quote/${formattedTicker}` });
+      links.push({ name: 'Yahoo Finance', url: `https://finance.yahoo.com/quote/${getVerifiedYahooSymbol(ticker, exchange)}` });
       links.push({ name: 'Google Finance', url: `https://www.google.com/finance/quote/${formattedTicker}` });
 
     } else {
-      const isCrypto = data?.globesTypeHe === "מטבע דיגיטלי";
-      links.push({ name: 'Yahoo Finance', url: `https://finance.yahoo.com/quote/${toYahooFinanceTicker(ticker, exchange, isCrypto)}` });
+      links.push({ name: 'Yahoo Finance', url: `https://finance.yahoo.com/quote/${getVerifiedYahooSymbol(ticker, exchange)}` });
 
       const gExchange = toGoogleFinanceExchangeCode(exchange);
       if (gExchange) {

@@ -2,7 +2,8 @@
 import { CACHE_TTL, saveToCache, loadFromCache } from './utils/cache';
 import { deduplicateRequest } from './utils/request_deduplicator';
 import type { TickerData } from './types';
-import { Exchange, parseExchange, toYahooFinanceTicker, EXCHANGE_SETTINGS } from '../types';
+import { Exchange, parseExchange, toYahooSymbol, EXCHANGE_SETTINGS } from '../types';
+import { InstrumentGroup } from '../types/instrument';
 
 /**
  * Maps Yahoo Finance exchange codes (e.g. 'NMS', 'NYQ') to canonical Exchange names.
@@ -22,21 +23,70 @@ const YAHOO_EXCHANGE_MAP: Record<string, string> = (() => {
   return map;
 })();
 
-export async function fetchYahooTickerData(ticker: string, exchange: Exchange, signal?: AbortSignal, forceRefresh = false, range: '1y' | '5y' | 'max' = '5y'): Promise<TickerData | null> {
+// In-memory map to remember which Yahoo symbol worked for a given (Ticker, Exchange) pair.
+// This prevents trying multiple candidates repeatedly in the same session.
+const symbolSuccessMap = new Map<string, string>();
+
+/**
+ * Returns a Yahoo Finance symbol that is known to work for the given ticker/exchange,
+ * or the most likely one based on standard rules.
+ */
+export function getVerifiedYahooSymbol(ticker: string, exchange: Exchange): string {
+  const successKey = `${exchange}:${ticker.toUpperCase()}`;
+  return symbolSuccessMap.get(successKey) || toYahooSymbol(ticker, exchange);
+}
+
+function getYahooCandidates(ticker: string, exchange: Exchange, group?: InstrumentGroup): string[] {
+  const candidates: string[] = [];
+  const tickerUC = ticker.toUpperCase();
+
+  // 1. Primary candidate from our standard logic
+  candidates.push(toYahooSymbol(ticker, exchange));
+
+  // 2. Fallbacks for indices and currencies
+  // If we know it's an index or forex, or it looks like one, try common variations.
+  const isForex = exchange === Exchange.FOREX || group === InstrumentGroup.FOREX;
+  const isIndex = group === InstrumentGroup.INDEX || tickerUC.startsWith('^');
+
+  if (isForex) {
+    // Try toggling =X
+    candidates.push(tickerUC.endsWith('=X') ? tickerUC.slice(0, -2) : `${tickerUC}=X`);
+  } else if (isIndex) {
+    // Try toggling the index prefix '^' regardless of exchange
+    candidates.push(tickerUC.startsWith('^') ? tickerUC.slice(1) : `^${tickerUC}`);
+  } else if (exchange === Exchange.TASE) {
+    // Special case for TASE: often users don't know if it's an index or stock
+    if (!tickerUC.startsWith('^')) candidates.push(`^${tickerUC}`);
+  }
+
+  return Array.from(new Set(candidates));
+}
+
+export async function fetchYahooTickerData(
+  ticker: string, 
+  exchange: Exchange, 
+  signal?: AbortSignal, 
+  forceRefresh = false, 
+  range: '1y' | '5y' | 'max' = '5y',
+  group?: InstrumentGroup
+): Promise<TickerData | null> {
   if (exchange === Exchange.GEMEL || exchange === Exchange.PENSION) {
     console.warn(`Yahoo fetch does not support exchange: ${exchange}`);
     return null;
   }
+  
   const now = Date.now();
-  const yahooTicker = toYahooFinanceTicker(ticker, exchange, /* isCrypto */ true); // Assuming crypto for now
-  const cacheKey = `yahoo:quote:v2:${yahooTicker}:${range}`;
+  const cacheKey = `yahoo:quote:v3:${exchange}:${ticker}:${range}`;
 
+  // 1. Check Success Map (In-memory)
+  const successKey = `${exchange}:${ticker.toUpperCase()}`;
+  const knownSymbol = symbolSuccessMap.get(successKey);
+  
+  // 2. Check Cache
   if (!forceRefresh) {
     const cached = await loadFromCache<TickerData>(cacheKey);
     if (cached) {
-      // Rehydrate dates
       if (cached.timestamp && (now - new Date(cached.timestamp).getTime() < CACHE_TTL)) {
-         // Invalidate cache if we need Max data but it's missing (legacy cache)
          if (range === 'max' && cached.data.changePctMax === undefined) {
             // Fall through to fetch
          } else {
@@ -46,36 +96,34 @@ export async function fetchYahooTickerData(ticker: string, exchange: Exchange, s
     }
   }
 
-  const url = `https://portfolios.noy-shai.workers.dev/?apiId=yahoo_hist&ticker=${yahooTicker}&range=${range}`;
+  const candidates = knownSymbol ? [knownSymbol] : getYahooCandidates(ticker, exchange, group);
 
   return deduplicateRequest(cacheKey, async () => {
-    let data;
-    try {
-      const res = await fetch(url, { signal });
-      if (!res.ok) {
-        const errorBody = await res.text();
-        console.error(`Yahoo fetch failed with status ${res.status}:`, errorBody);
-        throw new Error(`Network response was not ok: ${res.statusText}`);
-      }
-      data = await res.json();
-    } catch (e: unknown) {
-      if (e instanceof Error && e.name === 'AbortError') {
-        console.log('Yahoo fetch aborted');
-      } else {
-        console.error('Yahoo fetch failed', e);
-      }
-      return null;
+    // Try candidates in parallel
+    const results = await Promise.all(candidates.map(async (yahooTicker) => {
+        const url = `https://portfolios.noy-shai.workers.dev/?apiId=yahoo_hist&ticker=${yahooTicker}&range=${range}`;
+        try {
+          const res = await fetch(url, { signal });
+          if (!res.ok) return null;
+          const data = await res.json();
+          const result = data?.chart?.result?.[0];
+          if (!result) return null;
+          return { yahooTicker, result };
+        } catch {
+          return null;
+        }
+    }));
+
+    const match = results.find(r => r !== null);
+    if (!match) {
+        console.log(`Yahoo: No result found for ${ticker} (${exchange}) after trying candidates: ${candidates.join(', ')}`);
+        return null;
     }
 
+    const { yahooTicker, result } = match;
+    symbolSuccessMap.set(successKey, yahooTicker);
+
     try {
-      const result = data?.chart?.result?.[0];
-      if (!result) {
-        console.log(`Yahoo: No result found for ${ticker}`);
-        return null;
-      }
-
-      // console.log(`Yahoo: Fetched raw result for ${ticker}`, result);
-
       const meta = result.meta;
       const price = meta.regularMarketPrice;
       
@@ -116,8 +164,8 @@ export async function fetchYahooTickerData(ticker: string, exchange: Exchange, s
       }
       // 3. Fallback: Use the last two data points if available
       else if (result.indicators?.quote?.[0]?.close) {
-        const closes = result.indicators.quote[0].close;
-        const validCloses = closes.filter((c: any) => c != null);
+        const closesList = result.indicators.quote[0].close;
+        const validCloses = closesList.filter((c: any) => c != null);
         if (validCloses.length >= 2) {
           const last = validCloses[validCloses.length - 1];
           const prev = validCloses[validCloses.length - 2];
@@ -185,7 +233,6 @@ export async function fetchYahooTickerData(ticker: string, exchange: Exchange, s
           const currentClose = price || lastPoint.close;
 
           // Helper to find absolute closest point in time
-          // Used for 1M, 1Y etc where accuracy matters more than strict "not older than" constraint
           const findClosestPoint = (targetTs: number) => {
             if (points.length === 0) return null;
             let closest = points[0];
@@ -217,10 +264,6 @@ export async function fetchYahooTickerData(ticker: string, exchange: Exchange, s
 
           const findYtdClose = () => {
             const targetTime = new Date(lastPoint.time * 1000);
-            // We want the close of the previous year.
-            // Timestamps are monthly starts (e.g. Dec 1).
-            // Dec 1 candle represents Dec data (Close = Dec 31).
-            // So we want the candle with timestamp <= Dec 31 of prev year.
             targetTime.setMonth(0); // Jan current year
             targetTime.setDate(0); // Dec 31 prev year
             return findClosestPoint(targetTime.getTime() / 1000);
@@ -237,10 +280,6 @@ export async function fetchYahooTickerData(ticker: string, exchange: Exchange, s
           // Recent change: Look back 1 week
           const oneWeekAgoTs = getDateAgo(1, 'weeks');
 
-          // Custom search for recent: Find closest point, but prefer more recent if similar distance.
-          // Loop through all points to find the closest.
-          // If diffs are equal (or very close), prefer the one with the larger timestamp (later index).
-
           let recentPoint = points[0];
           let minDiffRecent = Math.abs(points[0].time - oneWeekAgoTs);
           for (let i = 1; i < points.length; i++) {
@@ -251,17 +290,12 @@ export async function fetchYahooTickerData(ticker: string, exchange: Exchange, s
             }
           }
 
-          // If the found point IS the last point (current), try previous to ensure non-zero change
-          // This happens if the weekly data is sparse and the "closest" to 1 week ago is actually "today".
           if (recentPoint && recentPoint.time === lastPoint.time && points.length > 1) {
             const idx = points.indexOf(recentPoint);
             if (idx > 0) recentPoint = points[idx - 1];
           }
 
-          // console.log(`Yahoo: recentPoint search for ${ticker}. Target: ${new Date(oneWeekAgoTs * 1000).toISOString()}. Found: ${recentPoint ? new Date(recentPoint.time * 1000).toISOString() : 'None'}. Current: ${new Date(lastPoint.time * 1000).toISOString()}`);
-
           const recentRes = calcChangeAndDate(recentPoint);
-          // Ensure we found a point, AND it's not the current live point (to avoid 0% change)
           if (recentRes.pct !== undefined && recentPoint && recentPoint.time < lastPoint.time) {
             changePctRecent = recentRes.pct;
             changeDateRecent = recentRes.date;
@@ -302,7 +336,7 @@ export async function fetchYahooTickerData(ticker: string, exchange: Exchange, s
         openPrice,
         name: longName,
         currency,
-        exchange,
+        exchange: mappedExchange,
         changePct1d,
         changePctRecent,
         changeDateRecent,
