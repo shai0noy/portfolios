@@ -267,6 +267,7 @@ export function useDashboardData(sheetId: string, options: { includeUnvested: bo
             totalQty: 0,
             currentPrice: currentPrice,
             stockCurrency,
+            type: live?.type,
             costBasisPortfolioCurrency: 0, costOfSoldPortfolioCurrency: 0, proceedsPortfolioCurrency: 0, dividendsPortfolioCurrency: 0,
             unrealizedGainPortfolioCurrency: 0, realizedGainPortfolioCurrency: 0, totalGainPortfolioCurrency: 0, marketValuePortfolioCurrency: 0,
             dayChangeValuePortfolioCurrency: 0, costBasisStockCurrency: 0, costOfSoldStockCurrency: 0, proceedsStockCurrency: 0, dividendsStockCurrency: 0,
@@ -368,7 +369,7 @@ export function useDashboardData(sheetId: string, options: { includeUnvested: bo
       const processedHoldings: DashboardHolding[] = [];
       const holdingsList = Array.from(holdingMap.values());
       const missingDataPromises = holdingsList.map(async (h) => {
-        const needsFetch = !h.currentPrice || h.currentPrice === 0 || h.exchange === Exchange.GEMEL || h.exchange === Exchange.PENSION || h.dayChangePct === 0;
+        const needsFetch = !h.currentPrice || h.currentPrice === 0 || h.exchange === Exchange.GEMEL || h.exchange === Exchange.PENSION || h.dayChangePct === 0 || !h.type;
 
         if (needsFetch) {
           try {
@@ -399,6 +400,7 @@ export function useDashboardData(sheetId: string, options: { includeUnvested: bo
               if (live.name) h.displayName = live.name;
               if (live.nameHe) h.nameHe = live.nameHe;
               if (live.sector) h.sector = live.sector;
+              if (live.type) h.type = live.type;
               if ([5,6,7,8].includes(live.recentChangeDays || 0)) {
                 h.perf1w = live.changePctRecent!;
               }

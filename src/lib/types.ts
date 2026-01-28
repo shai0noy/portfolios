@@ -237,6 +237,7 @@ export interface DashboardHolding {
   perf1y: number;
   perf3y: number;
   perf5y: number;
+  type?: InstrumentClassification;
 }
 
 export interface Portfolio {

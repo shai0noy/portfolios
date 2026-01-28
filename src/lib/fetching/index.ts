@@ -227,10 +227,12 @@ export async function getTickerData(
   // Merge data: Prefer TASE Profile > Globes > Yahoo
   const finalData: TickerData = {
     ...globesData,
-    meta: taseProfile?.meta || globesData.meta || yahooData?.meta,
-    type: taseProfile?.type || globesData.type || yahooData?.type,
-    name: taseProfile?.name || globesData.name || yahooData?.name,
-    nameHe: taseProfile?.nameHe || globesData.nameHe || yahooData?.nameHe,
+    meta: taseProfile?.meta || globesData?.meta || yahooData?.meta,
+    type: taseProfile?.type || globesData?.type || yahooData?.type,
+    name: taseProfile?.name || globesData?.name || yahooData?.name,
+    nameHe: taseProfile?.nameHe || globesData?.nameHe || yahooData?.nameHe,
+    sector: taseProfile?.sector || globesData?.sector || yahooData?.sector,
+    subSector: taseProfile?.subSector || globesData?.subSector || yahooData?.subSector,
   };
 
   if (yahooData) {

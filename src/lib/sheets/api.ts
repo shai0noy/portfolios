@@ -19,6 +19,7 @@ import { createRowMapper, fetchSheetData, objectToRow, createHeaderUpdateRequest
 import { PORTFOLIO_SHEET_NAME } from './config';
 import { fetchGlobesStockQuote } from '../fetching/globes';
 import type { Dividend } from '../fetching/types';
+import { InstrumentClassification } from '../types/instrument';
 
 // --- Mappers for each data type ---
 const mapRowToPortfolio = createRowMapper(portfolioHeaders);
@@ -193,6 +194,10 @@ export const fetchHolding = withAuthHandling(async (spreadsheetId: string, ticke
                 // fallback or leave as is, type safety might be compromised if not Exchange enum
                 holding.exchange = undefined as unknown as Exchange;
             }
+
+            if (holding.type && typeof holding.type === 'string') {
+                holding.type = new InstrumentClassification(holding.type);
+            }
             return holding;
         });
 
@@ -291,9 +296,12 @@ export const fetchPortfolios = withAuthHandling(async (spreadsheetId: string): P
     
     priceData.forEach(item => {
         try {
-            const holding = item as SheetHolding;
+            const holding = item as any;
             if (holding.exchange) {
                 holding.exchange = parseExchange(String(holding.exchange));
+            }
+            if (holding.type && typeof holding.type === 'string') {
+                holding.type = new InstrumentClassification(holding.type);
             }
             const key = `${holding.ticker}-${holding.exchange}`;
             priceMap[key] = holding;
@@ -530,19 +538,20 @@ function createHoldingRow(h: HoldingNonGeneratedData, meta: TickerData | null, r
     row[6] = `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "name"), " ${meta?.name || ""}")`;
     row[7] = meta?.nameHe || "";
     row[8] = meta?.sector || "";
-    row[9] = `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "changepct")/100, 0)`;
+    row[9] = meta?.type?.type || "";
+    row[10] = `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "changepct")/100, 0)`;
 
     const priceFormula = (dateExpr: string) => getHistoricalPriceFormula(tickerAndExchange, dateExpr);
-    row[10] = `=IFERROR((${priceCell}/${priceFormula("TODAY()-7")})-1, "")`; // Change_1W
-    row[11] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-1)")})-1, "")`; // Change_1M
-    row[12] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-3)")})-1, "")`; // Change_3M
-    row[13] = `=IFERROR(${priceCell} / ${priceFormula("DATE(YEAR(TODAY())-1, 12, 31)")} - 1, "")`; // Change_YTD
-    row[14] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-12)")})-1, "")`; // Change_1Y
-    row[15] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-36)")})-1, "")`; // Change_3Y
-    row[16] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-60)")})-1, "")`; // Change_5Y
-    row[17] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-120)")})-1, "")`; // Change_10Y
-    row[18] = h.numericId || '';
-    row[19] = meta?.recentChangeDays || 7;
+    row[11] = `=IFERROR((${priceCell}/${priceFormula("TODAY()-7")})-1, "")`; // Change_1W
+    row[12] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-1)")})-1, "")`; // Change_1M
+    row[13] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-3)")})-1, "")`; // Change_3M
+    row[14] = `=IFERROR(${priceCell} / ${priceFormula("DATE(YEAR(TODAY())-1, 12, 31)")} - 1, "")`; // Change_YTD
+    row[15] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-12)")})-1, "")`; // Change_1Y
+    row[16] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-36)")})-1, "")`; // Change_3Y
+    row[17] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-60)")})-1, "")`; // Change_5Y
+    row[18] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-120)")})-1, "")`; // Change_10Y
+    row[19] = h.numericId || '';
+    row[20] = meta?.recentChangeDays || 7;
     return row;
 }
 

@@ -89,6 +89,7 @@ export function DashboardTable(props: TableProps) {
     const toDisplay = (val: number, curr: string) => convertCurrency(val, curr, displayCurrency, exchangeRates);
     switch (key) {
       case 'ticker': return h.ticker || '';
+      case 'type': return h.type ? t(h.type.nameEn, h.type.nameHe) : '';
       case 'qty': return h.totalQty;
       case 'avgCost': return toDisplay(h.avgCost, h.stockCurrency);
       case 'currentPrice': return toDisplay(h.currentPrice, h.stockCurrency);
@@ -159,6 +160,7 @@ export function DashboardTable(props: TableProps) {
               <TableRow sx={{ bgcolor: theme.palette.background.paper }}>
                 {columnVisibility.displayName ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'displayName')}><TableSortLabel active={sortBy === 'ticker'} direction={sortDir} onClick={() => handleSort('ticker')}>{t('Display Name', 'שם תצוגה')}</TableSortLabel></TableCell> : null}
                 {columnVisibility.ticker ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'ticker')}><TableSortLabel active={sortBy === 'ticker'} direction={sortDir} onClick={() => handleSort('ticker')}>{t('Ticker', 'סימול')}</TableSortLabel></TableCell> : null}
+                {columnVisibility.type ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'type')}><TableSortLabel active={sortBy === 'type'} direction={sortDir} onClick={() => handleSort('type')}>{t('Type', 'סוג')}</TableSortLabel></TableCell> : null}
                 {columnVisibility.sector ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'sector')}><TableSortLabel active={sortBy === 'sector'} direction={sortDir} onClick={() => handleSort('sector')}>{t('Sector', 'סקטור')}</TableSortLabel></TableCell> : null}
                 {columnVisibility.qty ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'qty')} align="right"><TableSortLabel active={sortBy === 'qty'} direction={sortDir} onClick={() => handleSort('qty')}>{t('Quantity', 'כמות')}</TableSortLabel></TableCell> : null}
                 {columnVisibility.avgCost ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'avgCost')} align="right"><TableSortLabel active={sortBy === 'avgCost'} direction={sortDir} onClick={() => handleSort('avgCost')}>{t('Avg Cost', 'עלות ממוצעת')}</TableSortLabel></TableCell> : null}
@@ -196,6 +198,9 @@ export function DashboardTable(props: TableProps) {
                   <TableRow key={h.key} hover onClick={() => navigate(`/ticker/${h.exchange.toUpperCase()}/${h.ticker}`, { state: { holding: h, from: '/dashboard' } })} sx={{ cursor: 'pointer' }}>
                     {columnVisibility.displayName ? <TableCell sx={{ fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 150 }}>{tTry(h.displayName, h.nameHe)}</TableCell> : null}
                     {columnVisibility.ticker ? <TableCell>{h.ticker}</TableCell> : null}
+                    {columnVisibility.type ? <TableCell>
+                        {h.type ? t(h.type.nameEn, h.type.nameHe) : '-'}
+                    </TableCell> : null}
                     {columnVisibility.sector ? <TableCell>{h.sector}</TableCell> : null}
                     {columnVisibility.qty ? <TableCell align="right">{formatNumber(h.totalQty)}</TableCell> : null}
                     {columnVisibility.avgCost ? <TableCell align="right">{formatPrice(h.avgCost, h.stockCurrency, 2, t)}</TableCell> : null}

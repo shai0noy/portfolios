@@ -1,24 +1,17 @@
 ### Pleae be carful not to override entire file when updating tasks ###
 
-DONE: toYahooSymbol method should prefix index tickers - but some symbols have none, so maybe we need to try both in parallel, same for currencies maybe? with =X suffix
 In details of gemel funds, handle gains display/calc - and cost basis!
-Show ticker type dash
 Show holdings of funds
 Comperasion chars + allow metrics: r^2, beta
 דמי ניהול - לחשב בגמל וכו'
-DONE: securityId is populated with non numeric IDs - should be changed to number and only filled form globes/tase numeric IDs
-DONE?: remove casts to any
 refactor code....
-DONE: move currency selector and "back to all" buttons in dashbaord 
 Consider if request deduping is needed in places (cuurently in yahoo, globes)
 verify adj price of results from sheet and globes? is it adj or not? need to know for unrealized gains
 Include mgmt fee in gemel calc
 fetch mgmt fee from tase and also show
-DONE: Fix label of comission pct not to go into the text box
 CPI data parsing, solve issue where values before 1985 are weird - 200x too large
 
 Discovery/selling points splash page
-DONE: Cloudflare throttling and force cache
 maybe store type in sheet
 tase types vs globes types??
 If there is no sheet document ID, do not show the "create first portfolio" screen, rather, you should send the user to exisitng the screen to enter an existing sheet ID or create one
@@ -44,12 +37,19 @@ HOLD: Handle Reit taxing
 
 Low priority:
 - Smart layer based tax calc (FIFO selling and per layer taxing)
-- DONE: Allow fetching Israeli price indices (eg CPI) - https://api.cbs.gov.il/index/data/price?id=120010&format=json&download=false&PageSize=1000
 - ON HOLD: Add portfolio sum chart for dashboard view
 - ON HOLD: Allow comparing portfolios to common indices, eg CPI, SP500, TLV-125
 - ON HOLD: Use Gemini for anlysis and insight
 - ON HOLD: Forcast mode, where future txns, vesting are taken into account, and growth of holding is predicted based on custom uesr input or recent trends. Should also include taxes
 
+DONE: Show ticker type in dash
+DONE: Allow fetching Israeli price indices (eg CPI) - https://api.cbs.gov.il/index/data/price?id=120010&format=json&download=false&PageSize=1000
+DONE: toYahooSymbol method should prefix index tickers - but some symbols have none, so maybe we need to try both in parallel, same for currencies maybe? with =X suffix
+DONE: securityId is populated with non numeric IDs - should be changed to number and only filled form globes/tase numeric IDs
+DONE?: remove casts to any
+DONE: move currency selector and "back to all" buttons in dashbaord 
+DONE: Fix label of comission pct not to go into the text box
+DONE: Cloudflare throttling and force cache
 Done: add search to dashbaord - open ticker details rather than open add txn mode
 Done: Div is broken again!
 DONE: Make sure div calc in ticker details uses max data range and not just 1 y

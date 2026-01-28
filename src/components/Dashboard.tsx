@@ -96,6 +96,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
   const defaultColumns = {
     displayName: true,
     ticker: true,
+    type: true,
     sector: true,
     qty: true,
     avgCost: true,
@@ -125,6 +126,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
   const columnDisplayNames: Record<string, string> = {
     displayName: t('Display Name', 'שם תצוגה'),
     ticker: t('Ticker', 'סימול'),
+    type: t('Type', 'סוג'),
     sector: t('Sector', 'סקטור'),
     qty: t('Quantity', 'כמות'),
     avgCost: t('Avg Cost', 'עלות ממוצעת'),
