@@ -1,12 +1,13 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, Link as RouterLink, useNavigate, useLocation } from 'react-router-dom';
 import {
-  Box, CircularProgress, IconButton, Tooltip, Typography, ToggleButton, Divider, Button
+  Box, CircularProgress, IconButton, Tooltip, Typography, ToggleButton, Divider, Button, ToggleButtonGroup
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import AddIcon from '@mui/icons-material/Add';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { ColumnSelector } from './ColumnSelector';
 import { normalizeCurrency } from '../lib/currency';
 import { DashboardSummary } from './DashboardSummary';
@@ -33,7 +34,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
   const [portMap, setPortMap] = useState<Map<string, any>>(new Map());
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const openColSelector = Boolean(anchorEl);
-  const { t } = useLanguage();
+  const { t, isRtl } = useLanguage();
 
   const { holdings, loading, error, portfolios, exchangeRates, hasFutureTxns, refresh } = useDashboardData(sheetId, { includeUnvested });
 
@@ -230,8 +231,6 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         displayCurrency={displayCurrency}
         exchangeRates={exchangeRates}
         selectedPortfolio={portMap.get(selectedPortfolioId || '')?.name || null}
-        onBack={() => handleSelectPortfolio(null)}
-        onCurrencyChange={setDisplayCurrency}
       />
       {hasFutureTxns && (
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'right', mt: 0.5, mb: 1, fontSize: '0.7rem' }}>
@@ -239,23 +238,50 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         </Typography>
       )}
 
-      <TickerSearch 
-        sheetId={sheetId}
-        portfolios={portfolios}
-        isPortfoliosLoading={loading}
-        collapsible={true}
-        onTickerSelect={(ticker) => {
-          navigate(`/ticker/${ticker.exchange}/${ticker.symbol}`, {
-            state: {
-              from: '/dashboard',
-              background: location,
-              numericId: ticker.numeric_id?.toString(),
-              initialName: ticker.name,
-              initialNameHe: ticker.nameHe
-            }
-          });
-        }}
-      />
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+        {selectedPortfolioId && (
+          <Button 
+            variant="text" 
+            size="small"
+            onClick={() => handleSelectPortfolio(null)} 
+            startIcon={<ArrowBackIcon fontSize="small" sx={{ transform: isRtl ? 'rotate(180deg)' : 'none' }} />}
+            sx={{ textTransform: 'none', color: 'text.secondary', minWidth: 'auto', whiteSpace: 'nowrap' }}
+          >
+            {t('All Portfolios', 'כל התיקים')}
+          </Button>
+        )}
+        
+        <Box sx={{ flexGrow: 1 }}>
+          <TickerSearch 
+            sheetId={sheetId}
+            portfolios={portfolios}
+            isPortfoliosLoading={loading}
+            collapsible={true}
+            onTickerSelect={(ticker) => {
+              navigate(`/ticker/${ticker.exchange}/${ticker.symbol}`, {
+                state: {
+                  from: '/dashboard',
+                  background: location,
+                  numericId: ticker.numeric_id?.toString(),
+                  initialName: ticker.name,
+                  initialNameHe: ticker.nameHe
+                }
+              });
+            }}
+          />
+        </Box>
+
+        <ToggleButtonGroup
+          value={displayCurrency}
+          exclusive
+          onChange={(_, val) => val && setDisplayCurrency(val)}
+          size="small"
+          sx={{ height: 32, direction: 'ltr', mb: 1 }}
+        >
+          <ToggleButton value="USD" sx={{ px: 1.5, fontWeight: 600, fontSize: '0.75rem' }}>USD</ToggleButton>
+          <ToggleButton value="ILS" sx={{ px: 1.5, fontWeight: 600, fontSize: '0.75rem' }}>ILS</ToggleButton>
+        </ToggleButtonGroup>
+      </Box>
 
       {/* CONTROLS */}
       <Box display="flex" justifyContent="space-between" mb={2} alignItems="center">

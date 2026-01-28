@@ -1,7 +1,6 @@
-import { Box, Paper, Typography, Grid, Tooltip, Button, ToggleButton, ToggleButtonGroup, IconButton } from '@mui/material';
+import { Box, Paper, Typography, Grid, Tooltip, ToggleButton, ToggleButtonGroup, IconButton } from '@mui/material';
 import { formatPercent, formatValue, calculatePerformanceInDisplayCurrency } from '../lib/currency';
 import { logIfFalsy } from '../lib/utils';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
@@ -48,8 +47,6 @@ interface SummaryProps {
   displayCurrency: string;
   exchangeRates: ExchangeRates;
   selectedPortfolio: string | null;
-  onBack: () => void;
-  onCurrencyChange: (currency: string) => void;
 }
 
 interface StatProps {
@@ -252,9 +249,9 @@ const TopMovers = ({ holdings, displayCurrency, exchangeRates }: { holdings: Das
   );
 };
 
-export function DashboardSummary({ summary, holdings, displayCurrency, exchangeRates, onBack, onCurrencyChange, selectedPortfolio }: SummaryProps) {
+export function DashboardSummary({ summary, holdings, displayCurrency, exchangeRates, selectedPortfolio }: SummaryProps) {
   logIfFalsy(exchangeRates, "DashboardSummary: exchangeRates missing");
-  const { t, isRtl } = useLanguage();
+  const { t } = useLanguage();
   
   const [activeStep, setActiveStep] = useState(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -315,30 +312,11 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
         {activeStep === 0 && (
           <Grid container spacing={2} alignItems="center">
             <Grid item xs={12} md={3}>
-              {selectedPortfolio ? (
-                <>
-                  <Button 
-                    variant="text" 
-                    onClick={(e) => { e.stopPropagation(); handleInteraction(); onBack(); }} 
-                    startIcon={<ArrowBackIcon fontSize="small" sx={{ transform: isRtl ? 'rotate(180deg)' : 'none' }} />}
-                    sx={{ 
-                      mb: 0.5, 
-                      textTransform: 'none', 
-                      color: 'text.secondary', 
-                      minWidth: 'auto', 
-                      p: 0,
-                      ml: -1,
-                      mt: -3.5,
-                      '&:hover': { bgcolor: 'transparent', color: 'text.primary' } 
-                    }}
-                    disableRipple
-                  >
-                    {t('Back to All', 'חזרה לכל התיקים')}
-                  </Button>
-                  <Typography variant="h5" fontWeight="bold" color="primary">{selectedPortfolio}</Typography>
-                </>
-              ) : (
+              {!selectedPortfolio && (
                 <Typography variant="subtitle2" color="text.secondary">{t('TOTAL AUM', 'שווי כולל')}</Typography>
+              )}
+              {selectedPortfolio && (
+                <Typography variant="h5" fontWeight="bold" color="primary">{selectedPortfolio}</Typography>
               )}
               <Typography variant="h4" fontWeight="bold" color="primary">{formatValue(summary.aum, displayCurrency, 0)}</Typography>
             </Grid>
@@ -366,21 +344,6 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                         color={summary.totalRealized >= 0 ? 'success.main' : 'error.main'}
                         displayCurrency={displayCurrency}
                     />
-                    <ToggleButtonGroup
-                      value={displayCurrency}
-                      exclusive
-                      onChange={(_, val) => {
-                          if (val) {
-                              handleInteraction();
-                              onCurrencyChange(val);
-                          }
-                      }}
-                      size="small"
-                      sx={{ ml: 2, height: 32, direction: 'ltr' }}
-                    >
-                      <ToggleButton value="USD" sx={{ px: 2, fontWeight: 600 }}>USD</ToggleButton>
-                      <ToggleButton value="ILS" sx={{ px: 2, fontWeight: 600 }}>ILS</ToggleButton>
-                    </ToggleButtonGroup>
                   </Box>
 
                   {/* Performance / Detail Row */}

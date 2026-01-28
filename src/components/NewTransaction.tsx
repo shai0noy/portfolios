@@ -570,6 +570,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                               label="Commission" type="number" size="small" fullWidth
                               value={commission} onChange={e => handleCommissionChange(e.target.value)}
                               InputProps={{ startAdornment: <InputAdornment position="start">{portfolioCurrency}</InputAdornment> }}
+                              InputLabelProps={{ shrink: true }}
                             />
                           </Grid>
                           <Grid item xs={4} sm={3}>
@@ -577,12 +578,13 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                               label="Commission %" type="number" size="small" fullWidth
                               value={commissionPct} onChange={e => handleCommissionPctChange(e.target.value)}
                               InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
+                              InputLabelProps={{ shrink: true }}
                             />
                           </Grid>
                           {(type === 'SELL' || type === 'DIVIDEND') && (
                             <Grid item xs={4} sm={3}>
                               <Tooltip title="Tax on transaction (if applicable).">
-                                <TextField label="Tax %" type="number" size="small" fullWidth value={tax} onChange={e => setTax(e.target.value)} />
+                                <TextField label="Tax %" type="number" size="small" fullWidth value={tax} onChange={e => setTax(e.target.value)} InputLabelProps={{ shrink: true }} />
                               </Tooltip>
                             </Grid>
                           )}

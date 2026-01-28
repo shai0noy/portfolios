@@ -7,14 +7,14 @@ Show holdings of funds
 Comperasion chars + allow metrics: r^2, beta
 דמי ניהול - לחשב בגמל וכו'
 DONE: securityId is populated with non numeric IDs - should be changed to number and only filled form globes/tase numeric IDs
-remove casts to any
+DONE?: remove casts to any
 refactor code....
 move currency selector and "back to all" buttons in dashbaord 
 Consider if request deduping is needed in places (cuurently in yahoo, globes)
 verify adj price of results from sheet and globes? is it adj or not? need to know for unrealized gains
 Include mgmt fee in gemel calc
 fetch mgmt fee from tase and also show
-Fix label of comission pct not to go into the text box
+DONE: Fix label of comission pct not to go into the text box
 CPI data parsing, solve issue where values before 1985 are weird - 200x too large
 
 Discovery/selling points splash page
