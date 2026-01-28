@@ -10,7 +10,7 @@ const API_MAP = {
   "tase_list_stocks": "https://datawise.tase.co.il/v1/basic-securities/trade-securities-list/{raw:taseFetchDate}",
   "tase_list_funds": "https://datawise.tase.co.il/v1/fund/fund-list?listingStatusId=1",
   "tase_list_indices": "https://datawise.tase.co.il/v1/basic-indices/indices-list",
-  "gemelnet_fund": "https://gemelnet.cma.gov.il/tsuot/ui/tsuotHodXML.aspx?miTkfDivuach={startYear}{startMonth}&adTkfDivuach={endYear}{endMonth}&kupot={fundId}&Dochot=1&sug=3",
+  "tase_index_comp": "https://datawise.tase.co.il/v1/basic-indices/index-components-basic/{raw:taseFetchDate}",
   "gemelnet_list": "https://gemelnet.cma.gov.il/tsuot/ui/tsuotHodXML.aspx?miTkfDivuach={startYear}{startMonth}&adTkfDivuach={endYear}{endMonth}&kupot=0000&Dochot=1&sug=1",
   "pensyanet_fund": "https://pensyanet.cma.gov.il/Parameters/ExportToXML",
   "pensyanet_list": "https://pensyanet.cma.gov.il/Parameters/ExportToXML",
@@ -62,7 +62,7 @@ async function invokeApi(apiId, params, env) {
   }
 
   let taseFetchDate;
-  if (apiId === 'tase_list_stocks') {
+  if (apiId === 'tase_list_stocks' || apiId === 'tase_index_comp') {
     if (params.get('taseFetchDate')) {
       taseFetchDate = new Date(params.get('taseFetchDate'));
     } else {
@@ -184,7 +184,7 @@ async function invokeApi(apiId, params, env) {
       fetchOpts.body = `vm=${encodeURIComponent(JSON.stringify(vmObject))}`;
     }
 
-    if (apiId === 'tase_list_stocks' || apiId === 'tase_list_funds' || apiId === 'tase_list_indices') {
+    if (apiId === 'tase_list_stocks' || apiId === 'tase_list_funds' || apiId === 'tase_list_indices' || apiId === 'tase_index_comp') {
       fetchOpts.headers["apiKey"] = env.TASE_API_KEY;
     } else if (apiId === 'cbs_price_index') {
       fetchOpts.headers["Referer"] = "https://www.cbs.gov.il/";
@@ -199,7 +199,7 @@ async function invokeApi(apiId, params, env) {
 
     let urlToFetch = targetUrl.toString();
     // Specific fix for TASE API trailing slash issue. It must be ...trade-securities-list/2025/12/30
-    if (apiId === 'tase_list_stocks') {
+    if (apiId === 'tase_list_stocks' || apiId === 'tase_index_comp') {
       if (urlToFetch.endsWith('/')) {
         urlToFetch = urlToFetch.slice(0, -1);
       }
@@ -222,7 +222,7 @@ async function invokeApi(apiId, params, env) {
       return newResponse;
     }
 
-    if (apiId === 'tase_list_stocks') {
+    if (apiId === 'tase_list_stocks' || apiId === 'tase_index_comp') {
       const clonedResponse = response.clone();
       const data = await clonedResponse.json();
       const resultsCount = data?.tradeSecuritiesList?.result?.length || 0;
