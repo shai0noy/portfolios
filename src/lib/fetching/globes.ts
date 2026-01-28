@@ -32,7 +32,9 @@ function extractCommonGlobesData(element: Element) {
     nameHe: getText(element, 'name_he'),
     nameEn: getText(element, 'name_en') || getText(element, 'nameEn'),
     instrumentId: getText(element, 'instrumentId'),
-    instrumentTypeHe: getText(element, 'InstrumentTypeHe')
+    instrumentTypeHe: getText(element, 'InstrumentTypeHe'),
+    indexNumber: getText(element, 'Index_Number'),
+    rawType: getText(element, 'type')
   };
 }
 
@@ -110,7 +112,7 @@ function calculateChangePct(current: number, previousStr: string): number | unde
 
 export async function fetchGlobesTickersByType(type: string, exchange: Exchange, signal?: AbortSignal): Promise<TickerProfile[]> {
   const exchangeCode = toGlobesExchangeCode(exchange);
-  const cacheKey = `globes:tickers:v15:${exchangeCode}:${type}`; // Incremented cache version
+  const cacheKey = `globes:tickers:v17:${exchangeCode}:${type}`; // Incremented cache version
   const now = Date.now();
 
   try {
@@ -130,17 +132,26 @@ export async function fetchGlobesTickersByType(type: string, exchange: Exchange,
       const common = extractCommonGlobesData(element);
       if (!common.symbol || !common.instrumentId) return null;
 
+      const classification = new InstrumentClassification(type, undefined, { he: common.instrumentTypeHe });
+      
       let symbol = common.symbol;
+      let securityId = common.symbol;
+
+      const isIndex = common.rawType?.toLowerCase() === 'index' || classification.type === 'INDEX';
+
+      if (isIndex && common.indexNumber) {
+        symbol = common.indexNumber;
+        securityId = common.indexNumber;
+      }
+
       if (exchange === Exchange.FOREX) {
         symbol = formatForexSymbol(symbol);
       }
 
-      const classification = new InstrumentClassification(type, undefined, { he: common.instrumentTypeHe });
-
       return {
         symbol,
         exchange,
-        securityId: common.symbol, // Globes symbol is the security ID
+        securityId, 
         name: common.nameEn,
         nameHe: common.nameHe,
         type: classification,
@@ -260,6 +271,16 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
       const changePctYtdRaw = getText(instrument, 'ChangeFromLastYear');
       const changePctYtd = (changePctYtdRaw && !isNaN(parseFloat(changePctYtdRaw))) ? parseFloat(changePctYtdRaw) / 100 : undefined;
 
+      let finalTicker = tickerSymbol;
+      let finalNumericId = securityId || null;
+
+      // If it's an index, prefer using the official index number as symbol/ID
+      const isIndex = common.rawType?.toLowerCase() === 'index';
+      if (isIndex && common.indexNumber) {
+        finalTicker = common.indexNumber;
+        finalNumericId = parseInt(common.indexNumber, 10) || finalNumericId;
+      }
+
       const tickerData: TickerData = {
         price: last,
         openPrice,
@@ -275,8 +296,8 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
         changePct1m: calculateChangePct(last, getText(instrument, 'LastMonthClosePrice')),
         changePct3m: calculateChangePct(last, getText(instrument, 'Last3MonthsAgoClosePrice')),
         changePct3y: calculateChangePct(last, getText(instrument, 'Last3YearsAgoClosePrice')),
-        ticker: tickerSymbol,
-        numericId: securityId || null,
+        ticker: finalTicker,
+        numericId: finalNumericId,
         source: 'Globes',
         globesInstrumentId: common.instrumentId || undefined,
         tradeTimeStatus,

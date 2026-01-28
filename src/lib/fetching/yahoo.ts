@@ -70,7 +70,7 @@ export async function fetchYahooTickerData(
   range: '1y' | '5y' | 'max' = '5y',
   group?: InstrumentGroup
 ): Promise<TickerData | null> {
-  if (exchange === Exchange.GEMEL || exchange === Exchange.PENSION) {
+  if (exchange === Exchange.GEMEL || exchange === Exchange.PENSION || exchange === Exchange.CBS) {
     console.warn(`Yahoo fetch does not support exchange: ${exchange}`);
     return null;
   }
