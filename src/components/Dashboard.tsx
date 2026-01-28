@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, Link as RouterLink, useNavigate, useLocation } from 'react-router-dom';
 import {
-  Box, CircularProgress, IconButton, Tooltip, Typography, ToggleButton, Divider, Button, Paper
+  Box, CircularProgress, IconButton, Tooltip, Typography, ToggleButton, Divider, Button
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';

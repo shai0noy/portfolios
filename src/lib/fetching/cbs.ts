@@ -39,7 +39,7 @@ const HEBREW_MONTHS: Record<string, number> = {
   "יולי": 7, "אוגוסט": 8, "ספטמבר": 9, "אוקטובר": 10, "נובמבר": 11, "דצמבר": 12
 };
 
-const CBS_INDICES = {
+const CBS_INDICES: Record<string, { nameHe: string; nameEn: string }> = {
   "120010": { nameHe: "מדד המחירים לצרכן, כללי" , nameEn: "Israel Consumer Price Index"},
   "120460": {nameHe: "מדד מחירי מחירי השכירות", nameEn: "Israel Housing Rental Price Index"},
   "400100": {nameHe: "מדד מחירי הדיור, כל הארץ", nameEn: "Israel House Prices Index, National"},

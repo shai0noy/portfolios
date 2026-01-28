@@ -244,6 +244,7 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
       [InstrumentGroup.DERIVATIVE]: t('Derivatives', 'נגזרים'),
       [InstrumentGroup.FOREX]: t('Forex & Crypto', 'מט"ח וקריפטו'),
       [InstrumentGroup.INDEX]: t('Indices', 'מדדים'),
+      [InstrumentGroup.COMMODITY]: t('Commodities', 'סחורות'),
       [InstrumentGroup.OTHER]: t('Other', 'אחר')
     };
 

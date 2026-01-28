@@ -1,5 +1,5 @@
 import { fetchXml, parseXmlString } from './utils/xml_parser';
-import type { TickerData } from './types';
+import type { TickerData, ProvidentInfo } from './types';
 import type { TickerProfile } from '../types/ticker';
 import { Exchange } from '../types';
 import { InstrumentClassification, InstrumentType } from '../types/instrument';
@@ -74,9 +74,6 @@ export async function fetchPensyanetFund(
 
     rows.forEach(row => {
       const getText = (tag: string) => row.querySelector(tag)?.textContent || '';
-      
-      const idKupaStr = getText('TKF_DIVUACH'); // Actually TKF_DIVUACH is used for date, ID is usually constant in response? 
-      // Let's re-verify Pensyanet response tags. TKF_DIVUACH is definitely date.
       
       const dateStr = getText('TKF_DIVUACH');
       if (dateStr) {

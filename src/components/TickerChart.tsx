@@ -180,7 +180,7 @@ const SelectionSummary = ({ startPoint, endPoint, currency, t, isComparison, ser
                     {startDateStr} to {endDateStr} ({duration} days)
                 </Typography>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                    {changes.map((item, index) => {
+                    {changes.map((item: any, index: number) => {
                         if (isNaN(item.change)) return null;
                         const textColor = item.change >= 0 ? 'success.main' : 'error.main';
 
@@ -314,13 +314,6 @@ export function TickerChart({ series, currency, mode = 'percent' }: TickerChartP
         const first = mainSeries.data[0];
         const basePrice = first.adjClose || first.price;
         
-        // Helper to compare dates ignoring time
-        const isSameDay = (d1: Date, d2: Date) => {
-            return d1.getFullYear() === d2.getFullYear() &&
-                   d1.getMonth() === d2.getMonth() &&
-                   d1.getDate() === d2.getDate();
-        };
-
         const processedMain = mainSeries.data.map(p => {
             const val = p.adjClose || p.price;
             return {

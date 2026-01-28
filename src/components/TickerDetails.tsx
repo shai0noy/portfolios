@@ -167,7 +167,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
         if (historyResponse?.historical) {
             setComparisonSeries(prev => [...prev, {
                 name: option.name,
-                data: historyResponse.historical,
+                data: historyResponse.historical!,
                 color: EXTRA_COLORS[prev.length % EXTRA_COLORS.length]
             }]);
         } else {
@@ -850,7 +850,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
 
             {/* Underlying Assets Section */}
             {(() => {
-                const meta = data?.meta || holdingData?.meta;
+                const meta = data?.meta || (holdingData as any)?.meta;
                 if (meta?.type === 'TASE' && meta.underlyingAssets && meta.underlyingAssets.length > 0) {
                     return (
                         <>
@@ -866,7 +866,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                                         </TableRow>
                                     </TableHead>
                                     <TableBody>
-                                        {meta.underlyingAssets.map((asset, i) => (
+                                        {meta.underlyingAssets.map((asset: { name: string, weight: number }, i: number) => (
                                             <TableRow key={i} sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
                                                 <TableCell sx={{ fontSize: '0.75rem' }}>{asset.name}</TableCell>
                                                 <TableCell align="right" sx={{ fontSize: '0.75rem', fontWeight: 600 }}>
