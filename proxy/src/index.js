@@ -41,8 +41,94 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type", // Add any other headers your client might send
 };
 
-async function invokeApi(apiId, params, env) {
+function getTaseFetchDate(params) {
+  if (params.get('taseFetchDate')) {
+    return new Date(params.get('taseFetchDate'));
+  }
+  // Provides the last active TASE trading day in YYYY/MM/DD format.
+  // TASE is closed on Saturday.
+  const taseFetchDate = new Date();
+  const daysToSubtract = taseFetchDate.getDay() === 0 ? 2 : 1;
+  const adjustedDate = new Date(taseFetchDate.getTime() - daysToSubtract * 24 * 60 * 60 * 1000);
+  params.set('taseFetchDate', formatDate(adjustedDate));
+  return adjustedDate;
+}
 
+function configurePensyanetOptions(apiId, params, fetchOpts) {
+  fetchOpts.headers["Content-Type"] = "application/x-www-form-urlencoded";
+  let startYear = params.get('startYear');
+  let startMonth = params.get('startMonth');
+  let endYear = params.get('endYear');
+  let endMonth = params.get('endMonth');
+
+  if (!startYear || !startMonth || !endYear || !endMonth) {
+    throw new Error(`Missing required parameters for ${apiId}: startYear, startMonth, endYear, endMonth`);
+  }
+
+  const isList = apiId === 'pensyanet_list';
+
+  if (isList) {
+    // For pensya list - limit the end date to be at most current_month - 2.
+    const today = new Date();
+    // new Date(year, monthIndex, day). monthIndex is 0-11.
+    // To get 2 months ago, we use today.getMonth() - 2.
+    const limitDate = new Date(today.getFullYear(), today.getMonth() - 2, 1);
+    const requestedEndDate = new Date(parseInt(endYear, 10), parseInt(endMonth, 10) - 1, 1);
+
+    if (requestedEndDate > limitDate) {
+      endYear = limitDate.getFullYear().toString();
+      endMonth = String(limitDate.getMonth() + 1).padStart(2, '0');
+      console.log(`Adjusted pensyanet_list end date to ${endYear}/${endMonth} (limit is current month - 2).`);
+    }
+  }
+
+  // For both list and fund, start date must be equal or smaller than end date.
+  const startDateObj = new Date(parseInt(startYear, 10), parseInt(startMonth, 10) - 1, 1);
+  const endDateObj = new Date(parseInt(endYear, 10), parseInt(endMonth, 10) - 1, 1);
+
+  if (startDateObj > endDateObj) {
+    // If start is after end, set start to be the same as end.
+    startYear = endYear;
+    startMonth = endMonth;
+    console.log(`Adjusted pensyanet start date to ${startYear}/${startMonth} to be <= end date.`);
+  }
+
+  const startDate = new Date(Date.UTC(startYear, startMonth - 1, 1)).toISOString().slice(0, 10);
+  const endDate = new Date(Date.UTC(endYear, endMonth, 0)).toISOString().slice(0, 10);
+  const fundId = params.get('fundId');
+
+  if (!isList && !fundId) {
+    throw new Error("Missing required parameter for pensyanet_fund: fundId");
+  }
+
+  const vmObject = {
+    "ParametersTab": 0,
+    "BasicSearchVM": {
+      "SelectedFunds": isList ? [{ "FundID": 0, "IsGroup": true }] : [{ "FundID": parseInt(fundId, 10), "IsGroup": false }],
+      "SimpleSearchReportType": 1
+    },
+    "XmlExportVM": { "SelectedMainReportType": 1001, "SelectedReportType": isList ? "1" : "3" },
+    "ReportStartDate": `${startDate}T00:00:00.000Z`,
+    "ReportEndDate": `${endDate}T00:00:00.000Z`
+  };
+  fetchOpts.body = `vm=${encodeURIComponent(JSON.stringify(vmObject))}`;
+}
+
+function addApiSpecificHeaders(apiId, env, fetchOpts) {
+  if (apiId === 'tase_list_stocks' || apiId === 'tase_list_funds' || apiId === 'tase_list_indices' || apiId === 'tase_index_comp') {
+    fetchOpts.headers["apiKey"] = env.TASE_API_KEY;
+  } else if (apiId === 'cbs_price_index') {
+    fetchOpts.headers["Referer"] = "https://www.cbs.gov.il/";
+  } else if (apiId.startsWith("globes")) {
+    fetchOpts.headers["Referer"] = "https://www.globes.co.il/";
+  } else if (apiId.startsWith("yahoo")) {
+    fetchOpts.headers["Referer"] = "https://finance.yahoo.com/";
+  } else if (apiId.startsWith("pensyanet")) {
+    fetchOpts.headers["Referer"] = "https://pensyanet.cma.gov.il/";
+  }
+}
+
+async function invokeApi(apiId, params, env) {
   // 1. Validate API ID
   if (!apiId || !API_MAP[apiId]) {
     return new Response("Invalid or missing apiId", { status: 400, headers: corsHeaders });
@@ -56,23 +142,11 @@ async function invokeApi(apiId, params, env) {
     }
   }
 
-  let method = "GET";
-  if (apiId === 'pensyanet_list' || apiId === 'pensyanet_fund') {
-    method = "POST";
-  }
+  const method = (apiId === 'pensyanet_list' || apiId === 'pensyanet_fund') ? "POST" : "GET";
 
   let taseFetchDate;
   if (apiId === 'tase_list_stocks' || apiId === 'tase_index_comp') {
-    if (params.get('taseFetchDate')) {
-      taseFetchDate = new Date(params.get('taseFetchDate'));
-    } else {
-      // Provides the last active TASE trading day in YYYY/MM/DD format.
-      // TASE is closed on Saturday. 
-      taseFetchDate = new Date();
-      const daysToSubtract = taseFetchDate.getDay() === 0 ? 2 : 1;
-      taseFetchDate = new Date(taseFetchDate.getTime() - daysToSubtract * 24 * 60 * 60 * 1000);
-      params.set('taseFetchDate', formatDate(taseFetchDate));
-    }
+    taseFetchDate = getTaseFetchDate(params);
   }
 
   // 3. Build target URL
@@ -125,77 +199,14 @@ async function invokeApi(apiId, params, env) {
     };
 
     if (apiId.startsWith('pensyanet')) {
-      fetchOpts.headers["Content-Type"] = "application/x-www-form-urlencoded";
-      let startYear = params.get('startYear');
-      let startMonth = params.get('startMonth');
-      let endYear = params.get('endYear');
-      let endMonth = params.get('endMonth');
-
-      if (!startYear || !startMonth || !endYear || !endMonth) {
-        return new Response(`Missing required parameters for ${apiId}: startYear, startMonth, endYear, endMonth`, { status: 400, headers: corsHeaders });
+      try {
+        configurePensyanetOptions(apiId, params, fetchOpts);
+      } catch (error) {
+        return new Response(error.message, { status: 400, headers: corsHeaders });
       }
-
-      const isList = apiId === 'pensyanet_list';
-
-      if (isList) {
-        // For pensya list - limit the end date to be at most current_month - 2.
-        const today = new Date();
-        // new Date(year, monthIndex, day). monthIndex is 0-11.
-        // To get 2 months ago, we use today.getMonth() - 2.
-        const limitDate = new Date(today.getFullYear(), today.getMonth() - 2, 1);
-        const requestedEndDate = new Date(parseInt(endYear, 10), parseInt(endMonth, 10) - 1, 1);
-
-        if (requestedEndDate > limitDate) {
-          endYear = limitDate.getFullYear().toString();
-          endMonth = String(limitDate.getMonth() + 1).padStart(2, '0');
-          console.log(`Adjusted pensyanet_list end date to ${endYear}/${endMonth} (limit is current month - 2).`);
-        }
-      }
-
-      // For both list and fund, start date must be equal or smaller than end date.
-      const startDateObj = new Date(parseInt(startYear, 10), parseInt(startMonth, 10) - 1, 1);
-      const endDateObj = new Date(parseInt(endYear, 10), parseInt(endMonth, 10) - 1, 1);
-
-      if (startDateObj > endDateObj) {
-        // If start is after end, set start to be the same as end.
-        startYear = endYear;
-        startMonth = endMonth;
-        console.log(`Adjusted pensyanet start date to ${startYear}/${startMonth} to be <= end date.`);
-      }
-
-      const startDate = new Date(Date.UTC(startYear, startMonth - 1, 1)).toISOString().slice(0, 10);
-      const endDate = new Date(Date.UTC(endYear, endMonth, 0)).toISOString().slice(0, 10);
-      const fundId = params.get('fundId');
-
-      if (!isList && !fundId) {
-        return new Response("Missing required parameter for pensyanet_fund: fundId", { status: 400, headers: corsHeaders });
-      }
-
-      const vmObject = {
-        "ParametersTab": 0,
-        "BasicSearchVM": {
-          "SelectedFunds": isList ? [{ "FundID": 0, "IsGroup": true }] : [{ "FundID": parseInt(fundId, 10), "IsGroup": false }],
-          "SimpleSearchReportType": 1
-        },
-        "XmlExportVM": { "SelectedMainReportType": 1001, "SelectedReportType": isList ? "1" : "3" },
-        "ReportStartDate": `${startDate}T00:00:00.000Z`,
-        "ReportEndDate": `${endDate}T00:00:00.000Z`
-      };
-      fetchOpts.body = `vm=${encodeURIComponent(JSON.stringify(vmObject))}`;
     }
 
-    if (apiId === 'tase_list_stocks' || apiId === 'tase_list_funds' || apiId === 'tase_list_indices' || apiId === 'tase_index_comp') {
-      fetchOpts.headers["apiKey"] = env.TASE_API_KEY;
-    } else if (apiId === 'cbs_price_index') {
-      fetchOpts.headers["Referer"] = "https://www.cbs.gov.il/";
-    } else if (apiId.startsWith("globes")) {
-      fetchOpts.headers["Referer"] = "https://www.globes.co.il/";
-    } else if (apiId.startsWith("yahoo")) {
-      fetchOpts.headers["Referer"] = "https://finance.yahoo.com/";
-    } else if (apiId.startsWith("pensyanet")) {
-      fetchOpts.headers["Referer"] = "https://pensyanet.cma.gov.il/";
-    }
-
+    addApiSpecificHeaders(apiId, env, fetchOpts);
 
     let urlToFetch = targetUrl.toString();
     // Specific fix for TASE API trailing slash issue. It must be ...trade-securities-list/2025/12/30
