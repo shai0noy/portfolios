@@ -5,7 +5,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import AddIcon from '@mui/icons-material/Add';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { getTickerData, getTickersDataset, fetchTickerHistory, getVerifiedYahooSymbol } from '../lib/fetching';
+import { getTickerData, getTickersDataset, fetchTickerHistory, getVerifiedYahooSymbol, type TickerData } from '../lib/fetching';
 import type { TickerProfile } from '../lib/types/ticker';
 import { fetchHolding, getMetadataValue, syncDividends, fetchDividends } from '../lib/sheets/index';
 import { Exchange, parseExchange, toGoogleFinanceExchangeCode, type Holding, type Portfolio } from '../lib/types';
@@ -53,9 +53,9 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   const initialName = propInitialName || state?.initialName;
   const initialNameHe = propInitialNameHe || state?.initialNameHe;
 
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<TickerData | null>(null);
   const [holdingData, setHoldingData] = useState<Holding | null>(null);
-  const [historicalData, setHistoricalData] = useState<any[] | null>(null);
+  const [historicalData, setHistoricalData] = useState<{ date: Date; price: number; adjClose?: number }[] | null>(null);
   const [chartRange, setChartRange] = useState('1Y');
   const [chartMetric, setChartMetric] = useState<'percent' | 'price'>('percent');
   const [loading, setLoading] = useState(true);
@@ -472,15 +472,15 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
     return { val, date };
   };
   const perfData: Record<string, { val: number, date?: Date } | undefined> = {
-    '1D': getPerf(data?.changePct1d ?? (holdingData as any)?.changePct1d, data?.changeDate1d ?? (holdingData as any)?.changeDate1d),
-    [data?.recentChangeDays ? `${data.recentChangeDays}D` : '1W']: getPerf(data?.changePctRecent ?? (holdingData as any)?.perf1w ?? (holdingData as any)?.changePctRecent, data?.changeDateRecent ?? (holdingData as any)?.changeDateRecent),
-    '1M': getPerf(data?.changePct1m ?? (holdingData as any)?.changePct1m, data?.changeDate1m ?? (holdingData as any)?.changeDate1m),
-    '3M': getPerf(data?.changePct3m ?? (holdingData as any)?.changePct3m, data?.changeDate3m ?? (holdingData as any)?.changeDate3m),
-    'YTD': getPerf(data?.changePctYtd ?? (holdingData as any)?.changePctYtd, data?.changeDateYtd ?? (holdingData as any)?.changeDateYtd),
-    '1Y': getPerf(data?.changePct1y ?? (holdingData as any)?.changePct1y, data?.changeDate1y ?? (holdingData as any)?.changeDate1y),
-    '3Y': getPerf(data?.changePct3y ?? (holdingData as any)?.changePct3y, data?.changeDate3y ?? (holdingData as any)?.changeDate3y),
-    '5Y': getPerf(data?.changePct5y ?? (holdingData as any)?.changePct5y, data?.changeDate5y ?? (holdingData as any)?.changeDate5y),
-    'Max': getPerf(data?.changePctMax ?? (holdingData as any)?.changePctMax, data?.changeDateMax ?? (holdingData as any)?.changeDateMax),
+    '1D': getPerf(data?.changePct1d ?? holdingData?.changePct1d, data?.changeDate1d ?? holdingData?.changeDate1d),
+    [data?.recentChangeDays ? `${data.recentChangeDays}D` : '1W']: getPerf(data?.changePctRecent ?? holdingData?.changePctRecent, data?.changeDateRecent ?? holdingData?.changeDateRecent),
+    '1M': getPerf(data?.changePct1m ?? holdingData?.changePct1m, data?.changeDate1m ?? holdingData?.changeDate1m),
+    '3M': getPerf(data?.changePct3m ?? holdingData?.changePct3m, data?.changeDate3m ?? holdingData?.changeDate3m),
+    'YTD': getPerf(data?.changePctYtd ?? holdingData?.changePctYtd, data?.changeDateYtd ?? holdingData?.changeDateYtd),
+    '1Y': getPerf(data?.changePct1y ?? holdingData?.changePct1y, data?.changeDate1y ?? holdingData?.changeDate1y),
+    '3Y': getPerf(data?.changePct3y ?? holdingData?.changePct3y, data?.changeDate3y ?? holdingData?.changeDate3y),
+    '5Y': getPerf(data?.changePct5y ?? holdingData?.changePct5y, data?.changeDate5y ?? holdingData?.changeDate5y),
+    'Max': getPerf(data?.changePctMax ?? holdingData?.changePctMax, data?.changeDateMax ?? holdingData?.changeDateMax),
   };
 
   const translateRange = (range: string) => {
@@ -502,7 +502,12 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
     return map[range] || range;
   };
 
-  const dividendGains = useMemo(() => {
+  interface DividendGain {
+    amount: number;
+    pct: number;
+  }
+
+  const dividendGains = useMemo<Record<string, DividendGain>>(() => {
     if (!data?.dividends || data.dividends.length === 0 || !displayData?.currency || !historicalData || historicalData.length === 0) return {};
 
     const findPriceAtDate = (date: Date) => {
@@ -539,12 +544,13 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
     const fiveYearsAgo = new Date(now.getFullYear() - 5, now.getMonth(), now.getDate());
     const maxStartDate = historicalData.length > 0 ? historicalData[0].date : new Date(0);
 
-    return {
+    const result: Record<string, DividendGain> = {
       'YTD': calculateDividendsForRange(ytdStart),
       '1Y': calculateDividendsForRange(oneYearAgo),
       '5Y': calculateDividendsForRange(fiveYearsAgo),
       'Max': calculateDividendsForRange(maxStartDate),
     };
+    return result;
   }, [data?.dividends, data?.splits, displayData?.currency, historicalData]);
 
   const isTase = exchange == Exchange.TASE || displayData?.exchange === Exchange.TASE;
@@ -662,7 +668,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                 <>
                   <Box display="flex" alignItems="baseline" justifyContent="flex-end" sx={{ gap: 1.5 }}>
                     <Typography variant="h6" component="div" fontWeight={600}>
-                      {formatPrice(price, isTase ? 'ILA' : displayData.currency, maxDecimals, t)}
+                      {formatPrice(price || 0, isTase ? 'ILA' : (displayData?.currency || 'USD'), maxDecimals, t)}
                     </Typography>
                     <Tooltip title={`${t('Day change', 'שינוי יומי')} (${lastUpdated})`} placement="top">
                       <Typography variant="h6" sx={{ fontWeight: 700, color: dayChange >= 0 ? 'success.main' : 'error.main' }}>
@@ -673,7 +679,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                   {(openPrice != null && openPrice !== 0 || data?.tradeTimeStatus || volumeDisplay) && (
                     <Box display="flex" alignItems="baseline" justifyContent="flex-end" sx={{ gap: 1, mt: 0.25 }}>
                       {openPrice != null && openPrice !== 0 && (
-                        <Typography variant="caption" color="text.secondary">{t('Open:', 'פתיחה:')} {formatPrice(openPrice, isTase ? 'ILA' : displayData.currency, maxDecimals, t)}</Typography>
+                        <Typography variant="caption" color="text.secondary">{t('Open:', 'פתיחה:')} {formatPrice(openPrice, isTase ? 'ILA' : (displayData?.currency || 'USD'), maxDecimals, t)}</Typography>
                       )}
                       {openPrice != null && openPrice !== 0 && (data?.tradeTimeStatus || volumeDisplay) && (<Typography variant="caption" color="text.secondary">|</Typography>)}
                       {volumeDisplay && (
@@ -805,7 +811,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                   </Menu>
                 </Box>
                 {comparisonSeries.length > 0 && (<Box display="flex" flexWrap="wrap" gap={1} sx={{ mt: 1, mb: 1 }}>{comparisonSeries.map((s) => (<Chip key={s.name} label={s.name} onDelete={() => handleRemoveComparison(s.name)} variant="outlined" size="small" sx={{ color: s.color, borderColor: s.color }} />))}</Box>)}
-                <TickerChart series={[ { name: resolvedName || ticker || 'Main', data: displayHistory }, ...displayComparisonSeries ]} currency={displayData.currency} mode={effectiveChartMetric} />
+                <TickerChart series={[ { name: resolvedName || ticker || 'Main', data: displayHistory }, ...displayComparisonSeries ]} currency={displayData?.currency || 'USD'} mode={effectiveChartMetric} />
               </>
             )}
 
@@ -814,7 +820,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                 <Typography variant="subtitle2" gutterBottom sx={{ mt: 2 }}>{t('Dividend Gains', 'רווחי דיבידנד')}</Typography>
                 <Box display="flex" flexWrap="wrap" gap={1} sx={{ mb: 2 }}>
                   {Object.entries(dividendGains).map(([range, info]) => {
-                    const value = (info as any).pct;
+                    const value = info.pct;
                     if (value === undefined || value === null || isNaN(value) || value === 0) {
                       return null;
                     }
@@ -839,7 +845,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                           <>
                             <Typography variant="caption" color="text.secondary">{translateRange(range)}</Typography>
                             <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatPercent(value)}</Typography>
-                            <Typography variant="caption" sx={{ fontSize: '0.7rem', opacity: 0.8 }}>{formatPrice((info as any).amount, displayData.currency, 2, t)}</Typography>
+                            <Typography variant="caption" sx={{ fontSize: '0.7rem', opacity: 0.8 }}>{formatPrice(info.amount, displayData?.currency || 'USD', 2, t)}</Typography>
                           </>
                         }
                       />
@@ -851,7 +857,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
 
             {/* Underlying Assets Section */}
             {(() => {
-                const meta = data?.meta || (holdingData as any)?.meta;
+                const meta = data?.meta || holdingData?.meta;
                 if (meta?.type === 'TASE' && meta.underlyingAssets && meta.underlyingAssets.length > 0) {
                     return (
                         <>

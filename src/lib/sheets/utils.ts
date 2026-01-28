@@ -8,14 +8,14 @@ import type { Headers } from './config';
  */
 export function createRowMapper<T extends readonly string[]>(headers: T) {
     const headerMap = new Map(headers.map((h, i) => [h, i]));
-    return <U>(row: any[], mapping: Record<keyof U, typeof headers[number]>, numericKeys: (keyof U)[] = []) => {
+    return <U>(row: unknown[], mapping: Record<keyof U, typeof headers[number]>, numericKeys: (keyof U)[] = []) => {
         const obj: Partial<U> = {};
         for (const key in mapping) {
             const headerName = mapping[key];
             const index = headerMap.get(headerName);
             if (index !== undefined && row[index] !== undefined && row[index] !== null) {
-                const value: any = row[index];
-                if (numericKeys.includes(key)) {
+                const value = row[index];
+                if (numericKeys.includes(key as keyof U)) {
                     if (value === undefined || value === null || String(value).trim() === "") {
                         (obj as any)[key] = undefined;
                     } else {
@@ -26,7 +26,7 @@ export function createRowMapper<T extends readonly string[]>(headers: T) {
                         }
                     }
                 } else {
-                    obj[key] = value;
+                    (obj as any)[key] = value;
                 }
             }
         }

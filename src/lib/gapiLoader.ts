@@ -4,18 +4,22 @@ let gapiScriptLoaded: Promise<void> | null = null;
 let gapiClientLoaded: Promise<typeof gapi> | null = null;
 let gisLoaded: Promise<void> | null = null;
 
+interface LoadedScriptElement extends HTMLScriptElement {
+  hasLoaded?: boolean;
+}
+
 function loadScript(src: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    const existingScript = document.querySelector(`script[src="${src}"]`);
+    const existingScript = document.querySelector(`script[src="${src}"]`) as LoadedScriptElement;
 
     if (existingScript) {
-      if ((existingScript as any).hasLoaded) {
+      if (existingScript.hasLoaded) {
         resolve();
         return;
       }
 
       const handleLoad = () => {
-        (existingScript as any).hasLoaded = true;
+        existingScript.hasLoaded = true;
         resolve();
         existingScript.removeEventListener('load', handleLoad);
         existingScript.removeEventListener('error', handleError);
@@ -38,13 +42,13 @@ function loadScript(src: string): Promise<void> {
       return;
     }
 
-    const script = document.createElement('script');
+    const script = document.createElement('script') as LoadedScriptElement;
     script.src = src;
     script.async = true;
     script.defer = true;
 
     const handleLoad = () => {
-      (script as any).hasLoaded = true;
+      script.hasLoaded = true;
       sessionStorage.removeItem('reloaded');
       resolve();
       script.removeEventListener('load', handleLoad);
@@ -80,13 +84,13 @@ async function loadGapiScript(): Promise<void> {
 async function loadGapiClient(): Promise<typeof gapi> {
   if (!gapiClientLoaded) {
     await loadGapiScript();
-    const gapi = (window as any).gapi;
-    if (!gapi) {
+    const gapiObj = (window as any).gapi;
+    if (!gapiObj) {
       throw new Error('GAPI object not found after script load');
     }
     gapiClientLoaded = new Promise((resolve, reject) => {
-      gapi.load('client:picker', {
-        callback: () => resolve(gapi),
+      gapiObj.load('client:picker', {
+        callback: () => resolve(gapiObj),
         onerror: reject,
         timeout: 5000,
         ontimeout: reject,

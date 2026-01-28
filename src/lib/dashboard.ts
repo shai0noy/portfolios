@@ -75,8 +75,23 @@ const perfPeriods = {
   perf5y: 'perf5y',
 } as const;
 
+interface SummaryAcc {
+  aum: number;
+  totalUnrealizedDisplay: number;
+  totalRealizedDisplay: number;
+  totalCostOfSoldDisplay: number;
+  totalDividendsDisplay: number;
+  totalReturnDisplay: number;
+  realizedGainAfterTaxDisplay: number;
+  valueAfterTaxDisplay: number;
+  totalDayChange: number;
+  aumWithDayChangeData: number;
+  holdingsWithDayChange: number;
+  [key: string]: number;
+}
+
 export function calculateDashboardSummary(data: DashboardHolding[], displayCurrency: string, exchangeRates: ExchangeRates): DashboardSummaryData {
-  const initialAcc = {
+  const initialAcc: SummaryAcc = {
     aum: 0,
     totalUnrealizedDisplay: 0,
     totalRealizedDisplay: 0,
@@ -88,12 +103,13 @@ export function calculateDashboardSummary(data: DashboardHolding[], displayCurre
     totalDayChange: 0,
     aumWithDayChangeData: 0,
     holdingsWithDayChange: 0,
-    ...Object.fromEntries(Object.keys(perfPeriods).flatMap(p => [
-      [`totalChange_${p}`, 0],
-      [`aumFor_${p}`, 0],
-      [`holdingsFor_${p}`, 0]
-    ]))
   };
+
+  Object.keys(perfPeriods).forEach(p => {
+    initialAcc[`totalChange_${p}`] = 0;
+    initialAcc[`aumFor_${p}`] = 0;
+    initialAcc[`holdingsFor_${p}`] = 0;
+  });
 
   const s = data.reduce((acc, h) => {
     const vals = calculateHoldingDisplayValues(h, displayCurrency, exchangeRates);
@@ -125,9 +141,9 @@ export function calculateDashboardSummary(data: DashboardHolding[], displayCurre
         const currentMVDisplay = vals.marketValue;
         const totalChangeForHolding = changeVal * h.totalQty;
 
-        (acc as any)[`totalChange_${key}`] += totalChangeForHolding;
-        (acc as any)[`aumFor_${key}`] += currentMVDisplay;
-        (acc as any)[`holdingsFor_${key}`]++;
+        acc[`totalChange_${key}`] += totalChangeForHolding;
+        acc[`aumFor_${key}`] += currentMVDisplay;
+        acc[`holdingsFor_${key}`]++;
       }
     }
 
@@ -157,13 +173,15 @@ export function calculateDashboardSummary(data: DashboardHolding[], displayCurre
   summaryResult.totalDayChangeIsIncomplete = s.holdingsWithDayChange > 0 && s.holdingsWithDayChange < totalHoldings;
 
   for (const key of Object.keys(perfPeriods)) {
-    const totalChange = (s as any)[`totalChange_${key}`];
-    const aumForPeriod = (s as any)[`aumFor_${key}`];
+    const totalChange = s[`totalChange_${key}`];
+    const aumForPeriod = s[`aumFor_${key}`];
     const prevValue = aumForPeriod - totalChange;
-    (summaryResult as any)[key] = prevValue > 0 ? totalChange / prevValue : 0;
+    const finalKey = key as keyof DashboardSummaryData;
+    (summaryResult as any)[finalKey] = prevValue > 0 ? totalChange / prevValue : 0;
 
-    const holdingsForPeriod = (s as any)[`holdingsFor_${key}`];
-    (summaryResult as any)[`${key}_incomplete`] = holdingsForPeriod > 0 && holdingsForPeriod < totalHoldings;
+    const holdingsForPeriod = s[`holdingsFor_${key}`];
+    const incompleteKey = `${key}_incomplete` as keyof DashboardSummaryData;
+    (summaryResult as any)[incompleteKey] = holdingsForPeriod > 0 && holdingsForPeriod < totalHoldings;
   }
 
   return summaryResult;
@@ -265,8 +283,8 @@ export function useDashboardData(sheetId: string, options: { includeUnvested: bo
         const h = holdingMap.get(key)!;
         const isVested = !t.vestDate || new Date(t.vestDate) <= new Date();
         let originalPricePortfolioCurrency = 0;
-        const priceInUSD = (t as any).originalPriceUSD || 0;
-        const priceInAgorot = (t as any).originalPriceILA || 0;
+        const priceInUSD = t.originalPriceUSD || 0;
+        const priceInAgorot = t.originalPriceILA || 0;
         const priceInILS = toILS(priceInAgorot, Currency.ILA);
         const tQty = t.qty || 0;
 

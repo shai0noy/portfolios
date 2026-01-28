@@ -17,9 +17,29 @@ interface TickerChartProps {
     mode?: 'percent' | 'price';
 }
 
-const CustomTooltip = ({ active, payload, currency, t, basePrice, isComparison, series, mode }: any) => {
+interface ChartPoint {
+    date: Date;
+    price: number;
+    adjClose?: number;
+    yValue: number;
+    highlightedY?: number;
+    [key: string]: any; 
+}
+
+interface CustomTooltipProps {
+    active?: boolean;
+    payload?: any[];
+    currency: string;
+    t: any;
+    basePrice: number;
+    isComparison: boolean;
+    series: ChartSeries[];
+    mode: 'percent' | 'price';
+}
+
+const CustomTooltip = ({ active, payload, currency, t, basePrice, isComparison, series, mode }: CustomTooltipProps) => {
     if (active && payload && payload.length) {
-        const point = payload[0].payload;
+        const point = payload[0].payload as ChartPoint;
         const date = point.date; // It's already a Date object
         const dateStr = date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 
@@ -116,7 +136,18 @@ const CustomTooltip = ({ active, payload, currency, t, basePrice, isComparison, 
     return null;
 };
 
-const SelectionSummary = ({ startPoint, endPoint, currency, t, isComparison, series, mainLineColor, mode }: any) => {
+interface SelectionSummaryProps {
+    startPoint: ChartPoint | null;
+    endPoint: ChartPoint | null;
+    currency: string;
+    t: any;
+    isComparison: boolean;
+    series: ChartSeries[];
+    mainLineColor: string;
+    mode: 'percent' | 'price';
+}
+
+const SelectionSummary = ({ startPoint, endPoint, currency, t, isComparison, series, mainLineColor, mode }: SelectionSummaryProps) => {
     if (!startPoint || !endPoint) return null;
 
     const theme = useTheme();
@@ -257,9 +288,13 @@ export function TickerChart({ series, currency, mode = 'percent' }: TickerChartP
     const [displaySeries, setDisplaySeries] = useState(series);
     const [shadeOpacity, setShadeOpacity] = useState(1);
     
-    const [selection, setSelection] = useState({
-        start: null as any | null,
-        end: null as any | null,
+    const [selection, setSelection] = useState<{
+        start: ChartPoint | null;
+        end: ChartPoint | null;
+        isSelecting: boolean;
+    }>({
+        start: null,
+        end: null,
         isSelecting: false,
     });
 
@@ -307,7 +342,7 @@ export function TickerChart({ series, currency, mode = 'percent' }: TickerChartP
     }, [series, displaySeries, FADE_MS, FADE_IN_DELAY]);
 
     // Move hooks above the conditional return
-    const chartData = useMemo(() => {
+    const chartData = useMemo<ChartPoint[]>(() => {
         if (!mainSeries?.data || mainSeries.data.length < 1) return [];
         // Use adjClose if available, otherwise price. 
         // Important: Must use consistent field for base and current to get correct % change.
@@ -330,7 +365,7 @@ export function TickerChart({ series, currency, mode = 'percent' }: TickerChartP
         const seriesPointers = otherSeries.map(() => 0);
  
         return processedMain.map(p => {
-            const point: any = { ...p };
+            const point = { ...p } as ChartPoint;
             otherSeries.forEach((s, i) => {
                 // Advance the pointer for the current comparison series to find the
                 // latest data point that is at or before the main series' current date.
@@ -358,13 +393,13 @@ export function TickerChart({ series, currency, mode = 'percent' }: TickerChartP
         if (!chartData || chartData.length === 0) return { yMin: 0, yMax: 0 };
         let min = Infinity;
         let max = -Infinity;
-        chartData.forEach((p: any) => {
+        chartData.forEach((p) => {
             if (p.yValue < min) min = p.yValue;
             if (p.yValue > max) max = p.yValue;
             // Check others
             Object.keys(p).forEach(k => {
                 if (k.startsWith('series_')) {
-                    const v = p[k];
+                    const v = p[k] as number;
                     if (v < min) min = v;
                     if (v > max) max = v;
                 }
@@ -386,14 +421,14 @@ export function TickerChart({ series, currency, mode = 'percent' }: TickerChartP
         }).format(tick);
     }, [yMin, yMax, mode, currency, t]);
 
-    const findClosestPoint = useCallback((date: number) => {
+    const findClosestPoint = useCallback((date: number): ChartPoint | null => {
         const data = chartData;
         if (!data || data.length === 0) return null;
         // Optimization: Binary search for O(log N) lookup
         let low = 0;
         let high = data.length - 1;
         
-        if (date <= data[0].date.getTime()) return data[0] as any;
+        if (date <= data[0].date.getTime()) return data[0];
         if (date >= data[high].date.getTime()) return data[high];
 
         while (low < high) {
@@ -408,14 +443,14 @@ export function TickerChart({ series, currency, mode = 'percent' }: TickerChartP
         // After loop, data[low] is the first point with date >= hovered date.
         // We want the point at or before the hovered date (the "floor").
         if (data[low].date.getTime() > date && low > 0) {
-            return data[low - 1] as any;
+            return data[low - 1];
         }
-        return data[low] as any;
+        return data[low];
     }, [chartData]);
 
     const handleClick = useCallback((e: any) => {
         if (!e || !e.activeLabel) return;
-        const point = findClosestPoint(e.activeLabel);
+        const point = findClosestPoint(Number(e.activeLabel));
         if (!point) return;
 
         setSelection(prev => {
@@ -428,7 +463,7 @@ export function TickerChart({ series, currency, mode = 'percent' }: TickerChartP
 
     const handleMouseMove = useCallback((e: any) => {
         if (selection.isSelecting && e && e.activeLabel) {
-            const point = findClosestPoint(e.activeLabel);
+            const point = findClosestPoint(Number(e.activeLabel));
             if (point && point.date.getTime() !== selection.end?.date?.getTime()) {
                 setSelection(prev => ({ ...prev, end: point }));
             }
@@ -449,7 +484,7 @@ export function TickerChart({ series, currency, mode = 'percent' }: TickerChartP
         // Optimization: Recycle objects outside the range, map only the range
         return [
             ...chartData.slice(0, startIndex),
-            ...chartData.slice(startIndex, endIndex + 1).map((p: any) => ({ ...p, highlightedY: p.yValue })),
+            ...chartData.slice(startIndex, endIndex + 1).map((p) => ({ ...p, highlightedY: p.yValue })),
             ...chartData.slice(endIndex + 1)
         ];
     }, [chartData, startPoint, endPoint]);

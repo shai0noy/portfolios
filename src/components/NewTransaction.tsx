@@ -77,15 +77,15 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
         console.log('NewTransaction locationState:', locationState);
 
         if (data) {
-          const combinedData = {
+          const combinedData: TickerData & { symbol: string } = {
             ...data,
             symbol: locationState.prefilledTicker!,
-            exchange: data.exchange || locationState.prefilledExchange || '',
+            exchange: data.exchange || parseExchange(locationState.prefilledExchange || ''),
             numericId: locationState.numericId || data.numericId,
             name: data.name || locationState.initialName,
             nameHe: data.nameHe || locationState.initialNameHe
           };
-          setSelectedTicker(combinedData as any);
+          setSelectedTicker(combinedData);
           setPrice(data.price ? parseFloat(data.price.toFixed(6)).toString() : '');
           setTickerCurrency(normalizeCurrency(data.currency || ''));
           setExchange(data.exchange || locationState.prefilledExchange || '');
@@ -275,7 +275,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
             originalPrice: p,
             origOpenPriceAtCreationDate: selectedTicker?.openPrice || 0,
             currency: normalizeCurrency(tickerCurrency),
-            numericId: (selectedTicker as any)?.numericId,
+            numericId: selectedTicker?.numericId || undefined,
             vestDate,
             comment,
             commission: parseFloat(commission) || 0,
@@ -332,9 +332,9 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
         state: {
           from: '/transaction',
           background: location,
-          numericId: (selectedTicker as any).numericId?.toString(),
+          numericId: selectedTicker.numericId?.toString(),
           initialName: selectedTicker.name,
-          initialNameHe: (selectedTicker as any).nameHe
+          initialNameHe: selectedTicker.nameHe
         }
       });
     }
@@ -402,7 +402,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
               <CardContent>
                 <Box display="flex" alignItems="center" justifyContent="space-between" mb={1}>
                   <Box display="flex" alignItems="center" gap={1}>
-                    <Typography variant="h6">{tTry(selectedTicker.name, (selectedTicker as any).nameHe)}</Typography>
+                    <Typography variant="h6">{tTry(selectedTicker.name, selectedTicker.nameHe)}</Typography>
                     {ownedDetails.length > 0 && (
                       <Tooltip title={`Total Held: ${totalHeld} (${ownedDetails.map(d => `${d.name}: ${d.qty}`).join(', ')})`}>
                         <BusinessCenterIcon color="success" />

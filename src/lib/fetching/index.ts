@@ -166,10 +166,10 @@ export async function getTickerData(
   }
 
   let globesPromise: Promise<TickerData | null>;
-  let taseProfilePromise: Promise<TickerProfile | undefined> = Promise.resolve(profile as any);
+  let taseProfilePromise: Promise<TickerProfile | undefined> = Promise.resolve(profile);
 
   if (parsedExchange === Exchange.TASE) {
-    taseProfilePromise = Promise.resolve(profile as any);
+    taseProfilePromise = Promise.resolve(profile);
 
     if (secId) {
       globesPromise = fetchGlobesStockQuote(ticker, secId, parsedExchange, signal, forceRefresh);

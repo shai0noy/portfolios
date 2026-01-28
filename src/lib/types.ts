@@ -1,3 +1,7 @@
+import type { ExchangeMetadata } from './types/ticker';
+import type { InstrumentClassification } from './types/instrument';
+import type { ProvidentInfo } from './fetching/types';
+
 export type PriceUnit = 'base' | 'agorot';
 
 export type Currency = 'USD' | 'ILS' | 'EUR' | 'GBP' | 'ILA';
@@ -283,9 +287,19 @@ export interface Holding {
   changeDate3y?: Date;
   changePct5y?: number;
   changeDate5y?: Date;
+  changePctMax?: number;
+  changeDateMax?: Date;
   changePct10y?: number;
   changeDate10y?: Date;
   numericId: number | null;
+  openPrice?: number;
+  volume?: number;
+  subSector?: string;
+  taseType?: string;
+  globesTypeHe?: string;
+  providentInfo?: ProvidentInfo;
+  meta?: ExchangeMetadata;
+  type?: InstrumentClassification;
 }
 
 export interface Transaction {

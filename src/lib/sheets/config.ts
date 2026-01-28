@@ -192,7 +192,7 @@ export const portfolioMapping: Record<keyof Omit<Portfolio, 'holdings'>, typeof 
 export const portfolioNumericKeys: (keyof Omit<Portfolio, 'holdings'>)[] = ['cgt', 'incTax', 'mgmtVal', 'commRate', 'commMin', 'commMax', 'divCommRate'];
 
 // Define a type for the part of Holding that is mapped from the sheet
-export type SheetHolding = Omit<Holding, 'portfolioId' | 'changeDate1d' | 'changeDateRecent' | 'changeDate1m' | 'changeDate3m' | 'changeDateYtd' | 'changeDate1y' | 'changeDate3y' | 'changeDate5y' | 'changeDate10y'>;
+export type SheetHolding = Omit<Holding, 'portfolioId' | 'changeDate1d' | 'changeDateRecent' | 'changeDate1m' | 'changeDate3m' | 'changeDateYtd' | 'changeDate1y' | 'changeDate3y' | 'changeDate5y' | 'changePctMax' | 'changeDateMax' | 'changeDate10y' | 'meta' | 'type' | 'openPrice' | 'volume' | 'subSector' | 'taseType' | 'globesTypeHe' | 'providentInfo'>;
 
 export const holdingMapping: Record<keyof SheetHolding, typeof holdingsHeaders[number]> = {
     ticker: 'Ticker', exchange: 'Exchange', qty: 'Quantity',

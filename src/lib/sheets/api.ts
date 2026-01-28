@@ -25,7 +25,18 @@ const mapRowToPortfolio = createRowMapper(portfolioHeaders);
 const mapRowToTransaction = createRowMapper(transactionHeaders);
 const mapRowToHolding = createRowMapper(holdingsHeaders);
 
-const isAuthError = (error: any): boolean => {
+interface GapiError {
+    result?: {
+        error?: {
+            status?: string;
+            code?: number;
+        };
+    };
+    type?: string;
+    error?: string;
+}
+
+const isAuthError = (error: GapiError): boolean => {
     if (!error) return false;
     // Google API client error for expired/invalid token
     if (error.result?.error?.status === 'UNAUTHENTICATED' || error.result?.error?.code === 401) {
@@ -38,12 +49,12 @@ const isAuthError = (error: any): boolean => {
     return false;
 };
 
-const withAuthHandling = <A extends any[], R>(fn: (...args: A) => Promise<R>): ((...args: A) => Promise<R>) => {
+const withAuthHandling = <A extends unknown[], R>(fn: (...args: A) => Promise<R>): ((...args: A) => Promise<R>) => {
     return async (...args: A): Promise<R> => {
         try {
             return await fn(...args);
         } catch (error) {
-            if (isAuthError(error)) {
+            if (isAuthError(error as GapiError)) {
                 console.warn('Authentication error detected. Clearing session and reloading.', error);
                 localStorage.removeItem('g_sheet_id');
                 // Reload the page. The application's entry point should handle
@@ -172,16 +183,17 @@ export const fetchHolding = withAuthHandling(async (spreadsheetId: string, ticke
         // Map all rows to objects, parsing the exchange string into our enum
         const allHoldings = rows.map(row => {
             const holdingRaw = mapRowToHolding<SheetHolding>(row, holdingMapping, holdingNumericKeys);
+            const holding = holdingRaw as Holding;
             try {
-                if ((holdingRaw as any).exchange) {
-                    (holdingRaw as any).exchange = parseExchange((holdingRaw as any).exchange);
+                if (holding.exchange) {
+                    holding.exchange = parseExchange(String(holding.exchange));
                 }
             } catch (e) {
-                console.warn(`fetchHolding: invalid exchange for ${holdingRaw.ticker}: ${(holdingRaw as any).exchange}`);
+                console.warn(`fetchHolding: invalid exchange for ${holding.ticker}: ${holding.exchange}`);
                 // fallback or leave as is, type safety might be compromised if not Exchange enum
-                (holdingRaw as any).exchange = undefined;
+                holding.exchange = undefined as unknown as Exchange;
             }
-            return holdingRaw as Holding;
+            return holding;
         });
 
         // Search for the holding in the mapped data
@@ -201,9 +213,9 @@ export const fetchHolding = withAuthHandling(async (spreadsheetId: string, ticke
             // Convert date fields from strings/numbers to Date objects
             const dateKeys: (keyof Holding)[] = ['changeDate1d', 'changeDateRecent', 'changeDate1m', 'changeDate3m', 'changeDateYtd', 'changeDate1y', 'changeDate3y', 'changeDate5y', 'changeDate10y'];
             dateKeys.forEach(key => {
-                const val = (holding as any)[key];
+                const val = holding![key];
                 if (val && !(val instanceof Date)) {
-                    (holding as any)[key] = new Date(val);
+                    (holding as any)[key] = new Date(val as any);
                 }
             });
         }
@@ -243,34 +255,35 @@ export const fetchPortfolios = withAuthHandling(async (spreadsheetId: string): P
     ).filter(Boolean);
 
     // 2. Process Transactions (Logic copied from fetchTransactions to avoid re-fetch, but reusing the mapper)
-    const transactions = transactionRows.map((row: any[]) => 
-        mapRowToTransaction<Omit<Transaction, 'grossValue'>>(row, transactionMapping, transactionNumericKeys)
-    ).map((t: any) => {
-        const cleanNumber = (val: any) => {
+    const transactions = transactionRows.map((row: unknown[]) => 
+        mapRowToTransaction<Omit<Transaction, 'grossValue'>>(row as any[], transactionMapping, transactionNumericKeys)
+    ).map((t) => {
+        const cleanNumber = (val: unknown) => {
             if (typeof val === 'number') return val;
             if (!val) return 0;
             return parseFloat(String(val).replace(/[^0-9.-]+/g, ""));
         };
         
-        if (t.exchange) {
-            t.exchange = parseExchange(t.exchange);
+        const txn = t as Transaction;
+        if (txn.exchange) {
+            txn.exchange = parseExchange(String(txn.exchange));
         } else {
-            t.exchange = undefined;
+            txn.exchange = undefined;
         }
 
         return {
-            ...t,
-            qty: cleanNumber(t.splitAdjustedQty || t.originalQty),
-            price: cleanNumber(t.splitAdjustedPrice || t.originalPrice),
-            grossValue: cleanNumber(t.originalQty) * cleanNumber(t.originalPrice)
-        } as Transaction;
+            ...txn,
+            qty: cleanNumber(txn.splitAdjustedQty || txn.originalQty),
+            price: cleanNumber(txn.splitAdjustedPrice || txn.originalPrice),
+            grossValue: cleanNumber(txn.originalQty) * cleanNumber(txn.originalPrice)
+        };
     });
 
     // 3. Process Holdings (for price map)
     const priceMap: Record<string, Omit<SheetHolding, 'qty'>> = {};
-    const priceData = holdingsRows.map((row: any[]) =>
+    const priceData = holdingsRows.map((row: unknown[]) =>
         mapRowToHolding<Omit<SheetHolding, 'qty'>>(
-            row,
+            row as any[],
             holdingMapping,
             holdingNumericKeys.filter(k => k !== 'qty') as any
         )
@@ -278,13 +291,14 @@ export const fetchPortfolios = withAuthHandling(async (spreadsheetId: string): P
     
     priceData.forEach(item => {
         try {
-            if ((item as any).exchange) {
-                (item as any).exchange = parseExchange((item as any).exchange);
+            const holding = item as SheetHolding;
+            if (holding.exchange) {
+                holding.exchange = parseExchange(String(holding.exchange));
             }
-            const key = `${item.ticker}-${item.exchange}`;
-            priceMap[key] = item;
+            const key = `${holding.ticker}-${holding.exchange}`;
+            priceMap[key] = holding;
         } catch (e) {
-            console.warn(`Skipping holding with invalid exchange: ${(item as any).ticker}`, e);
+            console.warn(`Skipping holding with invalid exchange: ${item.ticker}`, e);
         }
     });
 
@@ -340,15 +354,15 @@ export const fetchTransactions = withAuthHandling(async (spreadsheetId: string):
         'FORMATTED_VALUE' // Fetch formulas to get the raw formulas for calculation
     );
     return transactionsRaw.map(t_raw => {
-        const t = t_raw as any; // Allow modifying exchange
-        const cleanNumber = (val: any) => {
+        const t = t_raw as Transaction; 
+        const cleanNumber = (val: unknown) => {
             if (typeof val === 'number') return val;
             if (!val) return 0;
             return parseFloat(String(val).replace(/[^0-9.-]+/g, ""));
         };
         
         if (t.exchange) {
-            t.exchange = parseExchange(t.exchange);
+            t.exchange = parseExchange(String(t.exchange));
         } else {
             t.exchange = undefined;
         }
@@ -358,7 +372,7 @@ export const fetchTransactions = withAuthHandling(async (spreadsheetId: string):
             qty: cleanNumber(t.splitAdjustedQty || t.originalQty),
             price: cleanNumber(t.splitAdjustedPrice || t.originalPrice),
             grossValue: cleanNumber(t.originalQty) * cleanNumber(t.originalPrice)
-        };
+        } as Transaction;
     });
 });
 
@@ -408,11 +422,11 @@ export const addTransaction = withAuthHandling(async (spreadsheetId: string, t: 
 export const batchAddTransactions = withAuthHandling(async (spreadsheetId: string, transactions: Transaction[]) => {
     const gapi = await ensureGapi();
 
-    const allValuesToAppend: any[][] = [];
+    const allValuesToAppend: (string | number | null)[][] = [];
     
     // 2. Prepare data for appending
     transactions.forEach(t => {
-        const rowData: { [key: string]: any } = { ...t };
+        const rowData: Record<string, string | number | null | undefined> = { ...t as any };
         
         // Normalize specific fields for the sheet
         rowData.date = t.date ? toGoogleSheetDateFormat(new Date(t.date)) : '';
@@ -440,7 +454,8 @@ export const batchAddTransactions = withAuthHandling(async (spreadsheetId: strin
             if (colDef.formula) return null; // Formulas are added separately in step 3
             const key = colDef.key;
             // Use the normalized values from rowData if available, otherwise fallback to t[key]
-            return rowData[key] ?? null;
+            const val = rowData[key] ?? (t as any)[key];
+            return (val === undefined) ? null : (val as string | number | null);
         });
         allValuesToAppend.push(rowValues);
     });
@@ -632,8 +647,9 @@ export const syncDividends = withAuthHandling(async (spreadsheetId: string, tick
                 resource: { values: newRows }
             });
         }
-    } catch (error: any) {
-        if (error.result?.error?.code === 400) {
+    } catch (error: unknown) {
+        const err = error as GapiError;
+        if (err.result?.error?.code === 400) {
              console.warn("Dividends sheet not found, skipping sync.");
              return;
         }
@@ -652,7 +668,7 @@ export const addDividendEvent = withAuthHandling(async (spreadsheetId: string, t
 export const rebuildHoldingsSheet = withAuthHandling(async (spreadsheetId: string) => {
     const gapi = await ensureGapi();
     const transactions = await fetchTransactions(spreadsheetId);
-    const holdings: Record<string, Omit<Holding, 'portfolioId' | 'totalValue' | 'price' | 'currency' | 'name' | 'nameHe' | 'sector' | 'changePct1d' | 'changePctRecent' | 'changePct1m' | 'changePct3m' | 'changePctYtd' | 'changePct1y' | 'changePct3y' | 'changePct5y' | 'changePct10y'>> = {};
+    const holdings: Record<string, Omit<Holding, 'portfolioId' | 'totalValue' | 'price' | 'currency' | 'name' | 'nameHe' | 'sector' | 'changePct1d' | 'changePctRecent' | 'changePct1m' | 'changePct3m' | 'changePctYtd' | 'changePct1y' | 'changePct3y' | 'changePct5y' | 'changePctMax' | 'changeDateMax' | 'changePct10y' | 'meta' | 'type'>> = {};
 
     // Sort transactions by date to ensure we get the latest numericId for a holding
     transactions.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -665,8 +681,8 @@ export const rebuildHoldingsSheet = withAuthHandling(async (spreadsheetId: strin
                 holdings[key] = { ticker: txn.ticker, exchange: txn.exchange, qty: 0, numericId: null };
             }
             // Since transactions are sorted, this will overwrite with the latest numericId for each holding
-            if (txn.numericId) {
-                holdings[key].numericId = txn.numericId;
+            if (txn.numericId !== undefined) {
+                holdings[key].numericId = txn.numericId ?? null;
             }
             const multiplier = txn.type === 'BUY' ? 1 : -1;
             const qty = parseFloat(String(txn.splitAdjustedQty || txn.originalQty));
@@ -778,7 +794,7 @@ export const exportToSheet = withAuthHandling(async function (spreadsheetId: str
 }
 );
 
-export const fetchSheetExchangeRates = withAuthHandling(async (spreadsheetId: string): Promise<any> => {
+export const fetchSheetExchangeRates = withAuthHandling(async (spreadsheetId: string): Promise<Record<string, Record<string, number>>> => {
     const gapi = await ensureGapi();
     const res = await gapi.client.sheets.spreadsheets.values.get({
         spreadsheetId, range: CONFIG_RANGE, valueRenderOption: 'UNFORMATTED_VALUE'
@@ -798,7 +814,7 @@ export const fetchSheetExchangeRates = withAuthHandling(async (spreadsheetId: st
         ago5y: configHeaders.indexOf('5Y Ago'),
     };
 
-    const allRates: any = {};
+    const allRates: Record<string, Record<string, number>> = {};
     const rawPairs: Record<string, Record<string, number>> = {};
 
     // Initialize period objects
@@ -813,14 +829,15 @@ export const fetchSheetExchangeRates = withAuthHandling(async (spreadsheetId: st
     }
 
     // 1. Collect Raw Pairs
-    rows.forEach((r: any[]) => {
-        const rawKey = r[keyIndex];
+    rows.forEach((r: unknown[]) => {
+        const row = r as any[];
+        const rawKey = row[keyIndex];
         const pair = typeof rawKey === 'string' ? rawKey.trim().toUpperCase() : '';
         if (!pair || pair.length !== 6) return;
 
         for (const period in periodIndices) {
             const index = periodIndices[period];
-            const val = Number(r[index]);
+            const val = Number(row[index]);
             if (!isNaN(val) && val !== 0) {
                 rawPairs[period][pair] = val;
             }
@@ -907,7 +924,7 @@ export const fetchSheetExchangeRates = withAuthHandling(async (spreadsheetId: st
         const getRate = async (pair: string) => (await fetchGlobesStockQuote(pair, undefined, Exchange.FOREX))?.price;
 
         // Recover ILS first (critical pivot)
-        if (!currentRates['ILS']) currentRates['ILS'] = await getRate('USDILS');
+        if (!currentRates['ILS']) currentRates['ILS'] = await getRate('USDILS') || 0;
 
         await Promise.all(missing.filter(c => c !== 'ILS').map(async c => {
             // Try direct: USD -> Target
@@ -957,12 +974,13 @@ export const getExternalPrices = withAuthHandling(async (spreadsheetId: string):
         const rows = res.result.values || [];
         const prices: Record<string, { date: Date, price: number, currency: Currency }[]> = {};
 
-        rows.forEach((row: any[]) => {
+        rows.forEach((r: unknown[]) => {
+            const row = r as any[];
             if (!row[0] || !row[1] || !row[3]) return; // Ticker, Exchange, Price required
             
             let exchange: Exchange;
             try {
-                 exchange = parseExchange(row[1]);
+                 exchange = parseExchange(String(row[1]));
             } catch (e) {
                 return;
             }
@@ -993,9 +1011,10 @@ export const getExternalPrices = withAuthHandling(async (spreadsheetId: string):
         Object.values(prices).forEach(list => list.sort((a, b) => b.date.getTime() - a.date.getTime()));
         
         return prices;
-    } catch (e: any) {
+    } catch (e: unknown) {
+        const err = e as GapiError;
         // If sheet/range not found (e.g. older schema), return empty instead of failing
-        if (e.result?.error?.code === 400 || e.status === 400) {
+        if (err.result?.error?.code === 400) {
             console.warn("External_Datasets sheet not found or invalid range. Returning empty prices.");
             return {};
         }
