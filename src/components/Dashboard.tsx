@@ -238,14 +238,14 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         </Typography>
       )}
 
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1, mt: -1 }}>
         {selectedPortfolioId && (
           <Button 
             variant="text" 
             size="small"
             onClick={() => handleSelectPortfolio(null)} 
             startIcon={<ArrowBackIcon fontSize="small" sx={{ transform: isRtl ? 'rotate(180deg)' : 'none' }} />}
-            sx={{ textTransform: 'none', color: 'text.secondary', minWidth: 'auto', whiteSpace: 'nowrap' }}
+            sx={{ textTransform: 'none', color: 'text.secondary', minWidth: 'auto', whiteSpace: 'nowrap', mt: -1 }}
           >
             {t('All Portfolios', 'כל התיקים')}
           </Button>
@@ -257,6 +257,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
             portfolios={portfolios}
             isPortfoliosLoading={loading}
             collapsible={true}
+            sx={{ mt: 0, mb: 0 }}
             onTickerSelect={(ticker) => {
               navigate(`/ticker/${ticker.exchange}/${ticker.symbol}`, {
                 state: {
@@ -276,7 +277,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
           exclusive
           onChange={(_, val) => val && setDisplayCurrency(val)}
           size="small"
-          sx={{ height: 32, direction: 'ltr', mb: 1 }}
+          sx={{ height: 32, direction: 'ltr', mb: 0.5 }}
         >
           <ToggleButton value="USD" sx={{ px: 1.5, fontWeight: 600, fontSize: '0.75rem' }}>USD</ToggleButton>
           <ToggleButton value="ILS" sx={{ px: 1.5, fontWeight: 600, fontSize: '0.75rem' }}>ILS</ToggleButton>

@@ -21,6 +21,7 @@ interface TickerSearchProps {
   isPortfoliosLoading: boolean;
   sheetId: string;
   collapsible?: boolean;
+  sx?: any;
 }
 
 // Custom hook for debouncing input values
@@ -148,7 +149,7 @@ async function performSearch(
   });
 }
 
-export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchange, portfolios, isPortfoliosLoading, sheetId, collapsible }: TickerSearchProps) {
+export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchange, portfolios, isPortfoliosLoading, sheetId, collapsible, sx }: TickerSearchProps) {
   // Dataset is Record<string, TickerProfile[]>
   const [dataset, setDataset] = useState<Record<string, TickerProfile[]>>({});
   const [isDatasetLoading, setIsDatasetLoading] = useState(false);
@@ -282,7 +283,7 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
   };
 
   return (
-    <Box sx={{ mt: -2, mb: isIdle ? 3 : 4 }}>
+    <Box sx={{ mt: -2, mb: isIdle ? 3 : 4, ...sx }}>
       <Paper 
         elevation={0} 
         sx={{ 
