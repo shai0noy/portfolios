@@ -30,80 +30,80 @@ interface ExchangeSettings {
 }
 
 export const EXCHANGE_SETTINGS: Record<Exchange, ExchangeSettings> = {
-  [Exchange.NASDAQ]: { 
-    aliases: ['XNAS', 'NMS', 'NGS', 'NCM', 'NIM', 'BTS', 'BATS'], 
+  [Exchange.NASDAQ]: {
+    aliases: ['XNAS', 'NMS', 'NGS', 'NCM', 'NIM', 'BTS', 'BATS'],
     googleFinanceCode: 'NASDAQ',
     googleSheetsCode: 'NASDAQ',
     yahooFinanceSuffix: ''
   },
-  [Exchange.NYSE]: { 
-    aliases: ['XNYS', 'ARCA', 'WCB', 'ASE', 'AMEX', 'NYQ'], 
-    googleFinanceCode: 'NYSE', 
+  [Exchange.NYSE]: {
+    aliases: ['XNYS', 'ARCA', 'WCB', 'ASE', 'AMEX', 'NYQ'],
+    googleFinanceCode: 'NYSE',
     googleSheetsCode: 'NYSE',
     yahooFinanceSuffix: ''
   },
-  [Exchange.TASE]: { 
-    aliases: ['XTAE', 'TLV', 'TA'], 
+  [Exchange.TASE]: {
+    aliases: ['XTAE', 'TLV', 'TA'],
     googleFinanceCode: 'TLV',
-    googleSheetsCode: 'TLV', 
-    yahooFinanceSuffix: '.TA' 
+    googleSheetsCode: 'TLV',
+    yahooFinanceSuffix: '.TA'
   },
-  [Exchange.LSE]: { 
-    aliases: ['XLON', 'LONDON'], 
+  [Exchange.LSE]: {
+    aliases: ['XLON', 'LONDON'],
     googleFinanceCode: 'LON',
-    googleSheetsCode: 'LON', 
-    yahooFinanceSuffix: '.L' 
+    googleSheetsCode: 'LON',
+    yahooFinanceSuffix: '.L'
   },
-  [Exchange.FWB]: { 
-    aliases: ['XFRA', 'FRANKFURT', 'XETRA'], 
+  [Exchange.FWB]: {
+    aliases: ['XFRA', 'FRANKFURT', 'XETRA'],
     googleFinanceCode: 'FRA',
-    googleSheetsCode: 'FRA', 
-    yahooFinanceSuffix: '.F' 
+    googleSheetsCode: 'FRA',
+    yahooFinanceSuffix: '.F'
   },
-  [Exchange.EURONEXT]: { 
-    aliases: ['XPAR', 'XAMS', 'XBRU', 'XLIS', 'XDUB'], 
-    googleFinanceCode: 'EPA', 
+  [Exchange.EURONEXT]: {
+    aliases: ['XPAR', 'XAMS', 'XBRU', 'XLIS', 'XDUB'],
+    googleFinanceCode: 'EPA',
     googleSheetsCode: 'EPA',
-    yahooFinanceSuffix: '.PA' 
+    yahooFinanceSuffix: '.PA'
   },
-  [Exchange.JPX]: { 
-    aliases: ['XTKS'], 
-    googleFinanceCode: 'TYO', 
+  [Exchange.JPX]: {
+    aliases: ['XTKS'],
+    googleFinanceCode: 'TYO',
     googleSheetsCode: 'TYO',
-    yahooFinanceSuffix: '.T' 
+    yahooFinanceSuffix: '.T'
   },
-  [Exchange.HKEX]: { 
-    aliases: ['XHKG'], 
-    googleFinanceCode: 'HKG', 
-    googleSheetsCode: 'HKG',  
-    yahooFinanceSuffix: '.HK' 
+  [Exchange.HKEX]: {
+    aliases: ['XHKG'],
+    googleFinanceCode: 'HKG',
+    googleSheetsCode: 'HKG',
+    yahooFinanceSuffix: '.HK'
   },
-  [Exchange.TSX]: { 
-    aliases: ['XTSE'], 
-    googleFinanceCode: 'TSE', 
+  [Exchange.TSX]: {
+    aliases: ['XTSE'],
+    googleFinanceCode: 'TSE',
     googleSheetsCode: 'TSE',
-    yahooFinanceSuffix: '.TO' 
+    yahooFinanceSuffix: '.TO'
   },
-  [Exchange.ASX]: { 
-    aliases: ['XASX'], 
-    googleFinanceCode: 'ASX', 
+  [Exchange.ASX]: {
+    aliases: ['XASX'],
+    googleFinanceCode: 'ASX',
     googleSheetsCode: 'ASX',
-    yahooFinanceSuffix: '.AX' 
+    yahooFinanceSuffix: '.AX'
   },
-  [Exchange.GEMEL]: { 
-    aliases: [], 
+  [Exchange.GEMEL]: {
+    aliases: [],
     googleFinanceCode: '',
     googleSheetsCode: 'GEMEL',
     yahooFinanceSuffix: ''
   },
-  [Exchange.PENSION]: { 
-    aliases: [], 
+  [Exchange.PENSION]: {
+    aliases: [],
     googleFinanceCode: '',
     googleSheetsCode: 'PENSION',
     yahooFinanceSuffix: ''
   },
-  [Exchange.FOREX]: { 
-    aliases: ['FX', 'CURRENCY', 'CRYPTO', 'CC', 'CCC'], 
+  [Exchange.FOREX]: {
+    aliases: ['FX', 'CURRENCY', 'CRYPTO', 'CC', 'CCC'],
     googleFinanceCode: '',
     googleSheetsCode: 'CURRENCY',
     yahooFinanceSuffix: '=X' // For crypto, no suffix is needed - toYahooFinanceTicker will not add it
@@ -115,6 +115,24 @@ export const EXCHANGE_SETTINGS: Record<Exchange, ExchangeSettings> = {
     yahooFinanceSuffix: ''
   },
 };
+
+const ISRAEL_TICKER_OVERRIDES = {
+  '147': 'MIDCAP50',
+  '163': 'MIDCAP120',
+  '143': 'TA90',
+  '137': '^TA125',
+  '142': 'TA35',
+  '707': 'TELBOND20',
+  '709': 'TELBOND60',
+  '170': 'TA-OG',
+  '148': 'TA-FIN',
+  '145': 'TEL-TECH',
+  '169': 'TA-TECH',
+  '167': 'TASEBM',
+  '164': 'TA-BANKS',
+  '168': 'TA-COMP',
+  '149': 'ESTATE15'
+}
 
 /**
  * Parses an exchange identifier string into a known Exchange type.
@@ -170,13 +188,16 @@ export function toYahooFinanceTicker(ticker: string, exchange: Exchange, isCrypt
   if (exchange === Exchange.FOREX && isCrypto) {
     return ticker; // No suffix for crypto
   }
+  if (exchange == Exchange.TASE && ticker in ISRAEL_TICKER_OVERRIDES) {
+    ticker = ISRAEL_TICKER_OVERRIDES[ticker];
+  }
   const suffix = EXCHANGE_SETTINGS[exchange]?.yahooFinanceSuffix || '';
   return `${ticker}${suffix}`;
 }
 
 export interface ExchangeRates {
   current: Record<string, number>;
-  [key: string]: Record<string, number> | number; 
+  [key: string]: Record<string, number> | number;
 }
 
 export interface DashboardHolding {
@@ -224,20 +245,20 @@ export interface DashboardHolding {
   realizedGainILS: number;
 
   // Display fields
-  avgCost: number; 
-  mvVested: number; 
-  mvUnvested: number; 
-  totalMV: number; 
-  realizedGain: number; 
-  realizedGainPct: number; 
-  realizedGainAfterTax: number; 
-  dividends: number; 
-  unrealizedGain: number; 
-  unrealizedGainPct: number; 
-  totalGain: number; 
-  totalGainPct: number; 
-  valueAfterTax: number; 
-  dayChangeVal: number; 
+  avgCost: number;
+  mvVested: number;
+  mvUnvested: number;
+  totalMV: number;
+  realizedGain: number;
+  realizedGainPct: number;
+  realizedGainAfterTax: number;
+  dividends: number;
+  unrealizedGain: number;
+  unrealizedGainPct: number;
+  totalGain: number;
+  totalGainPct: number;
+  valueAfterTax: number;
+  dayChangeVal: number;
 
   sector: string;
   dayChangePct: number;
@@ -253,8 +274,8 @@ export interface DashboardHolding {
 export interface Portfolio {
   id: string;
   name: string;
-  cgt: number; 
-  incTax: number; 
+  cgt: number;
+  incTax: number;
   mgmtVal: number;
   mgmtType: 'percentage' | 'fixed';
   mgmtFreq: 'monthly' | 'quarterly' | 'yearly';
@@ -335,13 +356,13 @@ export interface Transaction {
 
 // Templates for quick setup
 export const PORTFOLIO_TEMPLATES: Record<string, Partial<Portfolio>> = {
-  'std_il': { 
-    cgt: 0.25, 
+  'std_il': {
+    cgt: 0.25,
     incTax: 0,
     commRate: 0.001, // 0.1%
     commMin: 5, // 5 ILS min
     commMax: 0,
-    currency: Currency.ILS, 
+    currency: Currency.ILS,
     divPolicy: 'cash_taxed',
     mgmtVal: 0,
     mgmtType: 'percentage',
@@ -349,13 +370,13 @@ export const PORTFOLIO_TEMPLATES: Record<string, Partial<Portfolio>> = {
     divCommRate: 0,
     taxPolicy: 'REAL_GAIN'
   },
-  'std_us': { 
-    cgt: 0.25, 
+  'std_us': {
+    cgt: 0.25,
     incTax: 0,
     commRate: 0, // Usually 0 commission
-    commMin: 0, 
+    commMin: 0,
     commMax: 0,
-    currency: Currency.USD, 
+    currency: Currency.USD,
     divPolicy: 'cash_taxed',
     mgmtVal: 0,
     mgmtType: 'percentage',
@@ -363,12 +384,12 @@ export const PORTFOLIO_TEMPLATES: Record<string, Partial<Portfolio>> = {
     divCommRate: 0,
     taxPolicy: 'NOMINAL_GAIN'
   },
-  'rsu': { 
-    cgt: 0.25, 
+  'rsu': {
+    cgt: 0.25,
     incTax: 0.50, // 50% marginal
-    commRate: 0, 
+    commRate: 0,
     commMin: 0,
-    currency: Currency.USD, 
+    currency: Currency.USD,
     divPolicy: 'hybrid_rsu',
     mgmtVal: 0,
     mgmtType: 'percentage',
@@ -376,26 +397,26 @@ export const PORTFOLIO_TEMPLATES: Record<string, Partial<Portfolio>> = {
     divCommRate: 0,
     taxPolicy: 'NOMINAL_GAIN'
   },
-  'hishtalmut': { 
-    cgt: 0, 
+  'hishtalmut': {
+    cgt: 0,
     incTax: 0,
-    commRate: 0, 
+    commRate: 0,
     commMin: 0,
-    currency: Currency.ILS, 
-    divPolicy: 'accumulate_tax_free', 
+    currency: Currency.ILS,
+    divPolicy: 'accumulate_tax_free',
     mgmtVal: 0.007, // 0.7% from accumulation
     mgmtType: 'percentage',
     mgmtFreq: 'yearly',
     divCommRate: 0,
     taxPolicy: 'TAX_FREE'
   },
-  'pension': { 
-    cgt: 0.33, 
+  'pension': {
+    cgt: 0.33,
     incTax: 0.33,
-    commRate: 0, 
+    commRate: 0,
     commMin: 0,
-    currency: Currency.ILS, 
-    divPolicy: 'accumulate_tax_free', 
+    currency: Currency.ILS,
+    divPolicy: 'accumulate_tax_free',
     mgmtVal: 0.002, // 0.2% from accumulation
     mgmtType: 'percentage',
     mgmtFreq: 'yearly',
