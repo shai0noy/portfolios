@@ -182,28 +182,33 @@ export function toGoogleFinanceExchangeCode(exchange: Exchange): string {
  * Handles common rules like prefixing indices with '^' and suffixing currencies with '=X'.
  */
 export function toYahooSymbol(ticker: string, exchange: Exchange): string {
-  const tickerUC = ticker.toUpperCase();
+  const u = ticker.toUpperCase();
   if (exchange === Exchange.FOREX) {
-    if (tickerUC.includes('-') || tickerUC.length > 6) return tickerUC; // Likely crypto (e.g. BTC-USD)
-    return tickerUC.endsWith('=X') ? tickerUC : `${tickerUC}=X`;
+    if (u.includes('-')) return u;
+    
+    // Rule: If USD is first in a 6-char pair, Yahoo often uses just the target + =X (e.g. USDILS -> ILS=X)
+    if (u.startsWith('USD') && u.length === 6) {
+      return u.substring(3) + '=X';
+    }
+
+    // Rule: If USD is second, it could be hyphenated (crypto) or suffixed (forex)
+    if (u.endsWith('USD') && u.length === 6) {
+        // We default to hyphen for 6-char pairs ending in USD as it's common for crypto
+        // Candidates logic will try =X as fallback
+        return u.substring(0, 3) + '-USD';
+    }
+
+    return u.endsWith('=X') ? u : `${u}=X`;
   }
   if (exchange === Exchange.NYSE || exchange === Exchange.NASDAQ) {
-    // Common US indices that don't always come with '^'
-    const commonIndices = ['SPX', 'NDX', 'DJI', 'VIX', 'RUT'];
-    if (commonIndices.includes(tickerUC) || (tickerUC.length >= 3 && !tickerUC.startsWith('^') && tickerUC.startsWith('TA'))) {
-       // Note: TA indices are TASE, handled below.
-    }
-    // If it's a known index format or requested via '^', ensure prefix
-    if (tickerUC.startsWith('^')) return tickerUC;
-    // We can't know for sure if a generic 3-letter code is an index or stock without a lookup, 
-    // but the fetcher now tries both. For external links, we'll assume stock unless prefixed.
-    return tickerUC;
+    if (u.startsWith('^')) return u;
+    return u;
   }
   if (exchange == Exchange.TASE && ticker in ISRAEL_TICKER_OVERRIDES) {
     ticker = ISRAEL_TICKER_OVERRIDES[ticker];
   }
   const suffix = EXCHANGE_SETTINGS[exchange]?.yahooFinanceSuffix || '';
-  return `${tickerUC}${suffix}`;
+  return `${u}${suffix}`;
 }
 
 /**

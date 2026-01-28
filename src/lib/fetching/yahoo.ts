@@ -49,14 +49,34 @@ function getYahooCandidates(ticker: string, exchange: Exchange, group?: Instrume
   const isIndex = group === InstrumentGroup.INDEX || tickerUC.startsWith('^');
 
   if (isForex) {
-    // Try toggling =X
-    candidates.push(tickerUC.endsWith('=X') ? tickerUC.slice(0, -2) : `${tickerUC}=X`);
+    if (tickerUC.includes('-')) {
+        // e.g. BTC-USD -> try EURUSD=X or EUR=X variations if it fails
+        const parts = tickerUC.split('-');
+        candidates.push(`${parts[0]}${parts[1]}=X`);
+        candidates.push(`${parts[0]}=X`);
+    } else if (tickerUC.length === 6) {
+        // e.g. EURUSD -> try BTC-USD and EUR=X
+        const base = tickerUC.substring(0, 3);
+        const quote = tickerUC.substring(3);
+        candidates.push(`${base}-${quote}`);
+        candidates.push(`${base}=X`);
+        candidates.push(`${tickerUC}=X`);
+    } else {
+        candidates.push(tickerUC.endsWith('=X') ? tickerUC.slice(0, -2) : `${tickerUC}=X`);
+    }
   } else if (isIndex) {
     // Try toggling the index prefix '^' regardless of exchange
-    candidates.push(tickerUC.startsWith('^') ? tickerUC.slice(1) : `^${tickerUC}`);
+    if (tickerUC.startsWith('^')) {
+      candidates.push(tickerUC.slice(1));
+    } else if (!/^\d+$/.test(tickerUC)) {
+      // Only prefix '^' if the ticker is not numeric
+      candidates.push(`^${tickerUC}`);
+    }
   } else if (exchange === Exchange.TASE) {
     // Special case for TASE: often users don't know if it's an index or stock
-    if (!tickerUC.startsWith('^')) candidates.push(`^${tickerUC}`);
+    if (!tickerUC.startsWith('^') && !/^\d+$/.test(tickerUC)) {
+      candidates.push(`^${tickerUC}`);
+    }
   }
 
   return Array.from(new Set(candidates));
