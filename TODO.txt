@@ -9,7 +9,7 @@ Comperasion chars + allow metrics: r^2, beta
 DONE: securityId is populated with non numeric IDs - should be changed to number and only filled form globes/tase numeric IDs
 DONE?: remove casts to any
 refactor code....
-move currency selector and "back to all" buttons in dashbaord 
+DONE: move currency selector and "back to all" buttons in dashbaord 
 Consider if request deduping is needed in places (cuurently in yahoo, globes)
 verify adj price of results from sheet and globes? is it adj or not? need to know for unrealized gains
 Include mgmt fee in gemel calc
@@ -18,7 +18,7 @@ DONE: Fix label of comission pct not to go into the text box
 CPI data parsing, solve issue where values before 1985 are weird - 200x too large
 
 Discovery/selling points splash page
-Cloudflare throttling and force cache
+DONE: Cloudflare throttling and force cache
 maybe store type in sheet
 tase types vs globes types??
 If there is no sheet document ID, do not show the "create first portfolio" screen, rather, you should send the user to exisitng the screen to enter an existing sheet ID or create one

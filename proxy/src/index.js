@@ -16,11 +16,49 @@ const API_MAP = {
   "pensyanet_list": "https://pensyanet.cma.gov.il/Parameters/ExportToXML",
 };
 
+// Rate limiting state (in-memory, per-isolate)
+const IP_LIMITS = new Map();
+const SHORT_LIMIT = 50;
+const SHORT_WINDOW = 5 * 60 * 1000; // 5 minutes
+const LONG_LIMIT = 150;
+const LONG_WINDOW = 24 * 60 * 60 * 1000; // 24 hours
+
+function isRateLimited(ip) {
+  if (!ip) return false;
+  const now = Date.now();
+  let record = IP_LIMITS.get(ip);
+  
+  if (!record) {
+    record = {
+      short: { count: 1, startTime: now },
+      long: { count: 1, startTime: now }
+    };
+    IP_LIMITS.set(ip, record);
+    return false;
+  }
+
+  // Check/Update Short window (5 mins)
+  if (now - record.short.startTime > SHORT_WINDOW) {
+    record.short.count = 1;
+    record.short.startTime = now;
+  } else {
+    record.short.count++;
+  }
+
+  // Check/Update Long window (24 hours)
+  if (now - record.long.startTime > LONG_WINDOW) {
+    record.long.count = 1;
+    record.long.startTime = now;
+  } else {
+    record.long.count++;
+  }
+
+  IP_LIMITS.set(ip, record);
+  return record.short.count > SHORT_LIMIT || record.long.count > LONG_LIMIT;
+}
+
 // Regex: English (a-z), Hebrew (א-ת), Numbers (0-9) and symbols: , . : - ^ and space
 function replacePlaceholder(urlString, key, value) {
-  // Use replaceAll for clarity and performance. It's supported in CF Workers.
-  // We can chain them because we assume `{key}` and `{raw:key}` won't overlap in a problematic way.
-  // We process raw placeholders first, then the encoded ones.
   return urlString
     .replaceAll(`{raw:${key}}`, () => value)
     .replaceAll(`{${key}}`, encodeURIComponent(value));
@@ -36,17 +74,15 @@ function formatDate(date) {
 }
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*", // Allow any origin
+  "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, HEAD, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type", // Add any other headers your client might send
+  "Access-Control-Allow-Headers": "Content-Type",
 };
 
 function getTaseFetchDate(params) {
   if (params.get('taseFetchDate')) {
     return new Date(params.get('taseFetchDate'));
   }
-  // Provides the last active TASE trading day in YYYY/MM/DD format.
-  // TASE is closed on Saturday.
   const taseFetchDate = new Date();
   const daysToSubtract = taseFetchDate.getDay() === 0 ? 2 : 1;
   const adjustedDate = new Date(taseFetchDate.getTime() - daysToSubtract * 24 * 60 * 60 * 1000);
@@ -68,29 +104,22 @@ function configurePensyanetOptions(apiId, params, fetchOpts) {
   const isList = apiId === 'pensyanet_list';
 
   if (isList) {
-    // For pensya list - limit the end date to be at most current_month - 2.
     const today = new Date();
-    // new Date(year, monthIndex, day). monthIndex is 0-11.
-    // To get 2 months ago, we use today.getMonth() - 2.
     const limitDate = new Date(today.getFullYear(), today.getMonth() - 2, 1);
     const requestedEndDate = new Date(parseInt(endYear, 10), parseInt(endMonth, 10) - 1, 1);
 
     if (requestedEndDate > limitDate) {
       endYear = limitDate.getFullYear().toString();
       endMonth = String(limitDate.getMonth() + 1).padStart(2, '0');
-      console.log(`Adjusted pensyanet_list end date to ${endYear}/${endMonth} (limit is current month - 2).`);
     }
   }
 
-  // For both list and fund, start date must be equal or smaller than end date.
   const startDateObj = new Date(parseInt(startYear, 10), parseInt(startMonth, 10) - 1, 1);
   const endDateObj = new Date(parseInt(endYear, 10), parseInt(endMonth, 10) - 1, 1);
 
   if (startDateObj > endDateObj) {
-    // If start is after end, set start to be the same as end.
     startYear = endYear;
     startMonth = endMonth;
-    console.log(`Adjusted pensyanet start date to ${startYear}/${startMonth} to be <= end date.`);
   }
 
   const startDate = new Date(Date.UTC(startYear, startMonth - 1, 1)).toISOString().slice(0, 10);
@@ -115,7 +144,7 @@ function configurePensyanetOptions(apiId, params, fetchOpts) {
 }
 
 function addApiSpecificHeaders(apiId, env, fetchOpts) {
-  if (apiId === 'tase_list_stocks' || apiId === 'tase_list_funds' || apiId === 'tase_list_indices' || apiId === 'tase_index_comp') {
+  if (apiId.startsWith('tase')) {
     fetchOpts.headers["apiKey"] = env.TASE_API_KEY;
   } else if (apiId === 'cbs_price_index') {
     fetchOpts.headers["Referer"] = "https://www.cbs.gov.il/";
@@ -128,13 +157,11 @@ function addApiSpecificHeaders(apiId, env, fetchOpts) {
   }
 }
 
-async function invokeApi(apiId, params, env) {
-  // 1. Validate API ID
+async function invokeApi(apiId, params, env, ctx) {
   if (!apiId || !API_MAP[apiId]) {
     return new Response("Invalid or missing apiId", { status: 400, headers: corsHeaders });
   }
 
-  // 2. Validate all provided arguments
   for (const [key, value] of params.entries()) {
     if (key === "apiId") continue;
     if (!VALID_VALUE_REGEX.test(value)) {
@@ -143,40 +170,49 @@ async function invokeApi(apiId, params, env) {
   }
 
   const method = (apiId === 'pensyanet_list' || apiId === 'pensyanet_fund') ? "POST" : "GET";
-
   let taseFetchDate;
   if (apiId === 'tase_list_stocks' || apiId === 'tase_index_comp') {
     taseFetchDate = getTaseFetchDate(params);
   }
 
-  // 3. Build target URL
   let targetUrlString = API_MAP[apiId];
-
-  // Replace placeholders for APIs that use them
   for (const [key, value] of params.entries()) {
     if (key === "apiId") continue;
     targetUrlString = replacePlaceholder(targetUrlString, key, value);
   }
 
-  // Safety Check for any remaining placeholders
   if (targetUrlString.includes("{") && targetUrlString.includes("}")) {
     return new Response("Missing required parameters for this API", { status: 400, headers: corsHeaders });
   }
 
   const targetUrl = new URL(targetUrlString);
-
-  // Append other params as query string for APIs that need them.
   if (method === "GET") {
     for (const [key, value] of params.entries()) {
       if (key === 'apiId') continue;
-      // Only append if it wasn't a placeholder
       if (!API_MAP[apiId].includes(`{${key}}`) && !API_MAP[apiId].includes(`{raw:${key}}`)) {
         targetUrl.searchParams.append(key, value);
       }
     }
   }
 
-  // 5. Fetch from origin with caching
+  // Use a deterministic cache key
+  const cacheUrl = new URL(targetUrl.toString());
+  if (method === "POST") {
+    params.forEach((v, k) => {
+        if (k !== 'apiId') cacheUrl.searchParams.append(`_p_${k}`, v);
+    });
+  }
+  const cacheKey = new Request(cacheUrl.toString(), { method: "GET" });
+  const cache = caches.default;
+
+  let response = await cache.match(cacheKey);
+  if (response) {
+    const newResponse = new Response(response.body, response);
+    newResponse.headers.set("X-Proxy-Cache", "HIT");
+    Object.keys(corsHeaders).forEach(key => newResponse.headers.set(key, corsHeaders[key]));
+    return newResponse;
+  }
+
   try {
     const fetchOpts = {
       method: method,
@@ -185,71 +221,49 @@ async function invokeApi(apiId, params, env) {
         "Accept": "application/json, text/plain, text/html, application/xhtml+xml, application/xml;q=0.9, image/avif, image/webp, mobile/v1, */*;q=0.8",
         "Accept-Language": "en-US,en;q=0.5",
       },
-      cacheTtl: 12 * 3600, // 12 hours,
-      cacheEverything: true,
       cf: {
-        cacheTtl: 12 * 3600, // 12 hours,
         cacheEverything: true,
-        cacheTtlByStatus: {
-          "200-299": 12 * 3600, // 12 hours,
-          "404": 1 * 3600, // 1 hour
-          "500-599": 10, // 10 seconds
-        },
+        cacheTtl: 12 * 3600,
       }
     };
 
     if (apiId.startsWith('pensyanet')) {
-      try {
-        configurePensyanetOptions(apiId, params, fetchOpts);
-      } catch (error) {
-        return new Response(error.message, { status: 400, headers: corsHeaders });
-      }
+      configurePensyanetOptions(apiId, params, fetchOpts);
     }
 
     addApiSpecificHeaders(apiId, env, fetchOpts);
 
     let urlToFetch = targetUrl.toString();
-    // Specific fix for TASE API trailing slash issue. It must be ...trade-securities-list/2025/12/30
     if (apiId === 'tase_list_stocks' || apiId === 'tase_index_comp') {
-      if (urlToFetch.endsWith('/')) {
-        urlToFetch = urlToFetch.slice(0, -1);
-      }
-      if (urlToFetch.includes('/?')) {
-        urlToFetch = urlToFetch.replace('/?', '?');
-      }
+      urlToFetch = urlToFetch.replace(/\/$/, '').replace('/?', '?');
     }
 
     console.log(`Fetching URL for ${apiId}: ${urlToFetch}`);
-    let response = await fetch(urlToFetch, fetchOpts);
+    response = await fetch(urlToFetch, fetchOpts);
 
-    // Check for blocking or other errors before caching
     if (!response.ok || response.status === 403 || response.status === 429) {
-      console.log(`Origin fetch not OK for ${apiId} - ${targetUrl.toString()}: ${response.status}`);
-      // Return without Cloudflare caching headers
-      const newResponse = new Response(response.body, response);
-      Object.keys(corsHeaders).forEach(key => {
-        newResponse.headers.set(key, corsHeaders[key]);
-      });
-      return newResponse;
+      const errResponse = new Response(response.body, response);
+      Object.keys(corsHeaders).forEach(key => errResponse.headers.set(key, corsHeaders[key]));
+      return errResponse;
     }
 
+    // Retrying logic for TASE API when it returns empty results for the current date
     if (apiId === 'tase_list_stocks' || apiId === 'tase_index_comp') {
-      const clonedResponse = response.clone();
-      const data = await clonedResponse.json();
-      const resultsCount = data?.tradeSecuritiesList?.result?.length || 0;
-      if (data && resultsCount === 0) {
-        console.log(`TASE API no results on date ${taseFetchDate.toISOString().slice(0,10)}, retrying with previous date`);
-        params.set('taseFetchDate', formatDate(new Date(taseFetchDate.getTime() - 2 * 24 * 60 * 60 * 1000))); // Go back 2 days
-        return await invokeApi(apiId, params, env);
+      const data = await response.clone().json();
+      if (data?.tradeSecuritiesList?.result?.length === 0) {
+        params.set('taseFetchDate', formatDate(new Date(taseFetchDate.getTime() - 2 * 24 * 60 * 60 * 1000)));
+        return await invokeApi(apiId, params, env, ctx);
       }
     }
-    const newResponse = new Response(response.body, response);
-    newResponse.headers.set("X-Proxy-Cache-TTL", "12 hours");
 
-    // Add CORS headers to the actual response
-    Object.keys(corsHeaders).forEach(key => {
-      newResponse.headers.set(key, corsHeaders[key]);
-    });
+    const newResponse = new Response(response.body, response);
+    // Explicitly set cache headers for Cloudflare Cache API
+    newResponse.headers.set("Cache-Control", "public, max-age=43200"); // 12 hours
+    newResponse.headers.set("X-Proxy-Cache", "MISS");
+    Object.keys(corsHeaders).forEach(key => newResponse.headers.set(key, corsHeaders[key]));
+
+    // Use waitUntil to avoid delaying the response while updating the cache
+    ctx.waitUntil(cache.put(cacheKey, newResponse.clone()));
 
     return newResponse;
   } catch (err) {
@@ -257,21 +271,22 @@ async function invokeApi(apiId, params, env) {
   }
 }
 
-
 const worker = {
   async fetch(request, env, ctx) {
-    // Handle CORS preflight requests
     if (request.method === "OPTIONS") {
-      return new Response(null, {
-        headers: corsHeaders,
-      });
+      return new Response(null, { headers: corsHeaders });
+    }
+
+    const ip = request.headers.get('cf-connecting-ip');
+    if (isRateLimited(ip)) {
+      return new Response("Too Many Requests", { status: 429, headers: corsHeaders });
     }
 
     const url = new URL(request.url);
     const params = url.searchParams;
     const apiId = params.get("apiId");
 
-    return invokeApi(apiId, params, env);
+    return invokeApi(apiId, params, env, ctx);
   }
 };
 
