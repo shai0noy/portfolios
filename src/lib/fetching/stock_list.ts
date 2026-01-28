@@ -332,10 +332,12 @@ async function fetchTaseTickers(
           console.log(`[fetchTaseTickers] Found ${underlyingAssets.length} assets for fund ${id}:`, underlyingAssets);
       }
 
+      const parsedId = parseInt(id, 10);
+
       allTickers.push({
           symbol,
           exchange: Exchange.TASE,
-          securityId: id,
+          securityId: !isNaN(parsedId) ? parsedId : undefined,
           name,
           nameHe,
           type: classification,
@@ -343,7 +345,7 @@ async function fetchTaseTickers(
           subSector,
           meta: {
               type: 'TASE',
-              securityId: parseInt(id, 10),
+              securityId: !isNaN(parsedId) ? parsedId : 0, // Fallback to 0 if NaN, though should be valid here
               isin: security?.isin || fund?.isin,
               superSector,
               shortName: fund?.fundName || security?.securityName,

@@ -66,7 +66,7 @@ async function performSearch(
 
     // Search Logic: Match Symbol, Name (En/He), or Security ID
     const matchesSymbol = profile.symbol.toUpperCase().includes(termUC);
-    const matchesId = profile.securityId?.toString().includes(termUC);
+    const matchesId = profile.securityId !== undefined && profile.securityId.toString().includes(termUC);
     const matchesNameEn = (profile.name || '').toUpperCase().includes(termUC);
     const matchesNameHe = (profile.nameHe || '').toUpperCase().includes(termUC);
 
@@ -82,6 +82,7 @@ async function performSearch(
   });
 
   const uniqueResults = Array.from(resultsMap.values());
+  const termNum = isNumeric ? parseInt(termUC, 10) : NaN;
 
   // Sorting Logic
   return uniqueResults.sort((a, b) => {
@@ -89,8 +90,8 @@ async function performSearch(
     const pB = b.profile;
     
     // 1. Exact Match Priority (Symbol or ID)
-    const aExact = pA.symbol.toUpperCase() === termUC || pA.securityId === termUC;
-    const bExact = pB.symbol.toUpperCase() === termUC || pB.securityId === termUC;
+    const aExact = pA.symbol.toUpperCase() === termUC || (!isNaN(termNum) && pA.securityId === termNum);
+    const bExact = pB.symbol.toUpperCase() === termUC || (!isNaN(termNum) && pB.securityId === termNum);
     if (aExact && !bExact) return -1;
     if (!aExact && bExact) return 1;
 
@@ -397,8 +398,9 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
                         secondaryTypographyProps={{ component: 'div' }} 
                         secondary={
                           <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mt: 0.5 }}>
-                            <Chip
-                              label={`${profile.exchange}:${profile.symbol}${profile.securityId && profile.securityId !== profile.symbol ? ` (${profile.securityId})` : ''}`} size="small" variant="outlined" />
+                                                      <Chip
+                                                        label={`${profile.exchange}:${profile.symbol}${profile.securityId !== undefined && profile.securityId.toString() !== profile.symbol ? ` (${profile.securityId})` : ''}`} size="small" variant="outlined" />
+                            
                             {displayType && <Chip label={displayType} size="small" color="primary" variant="outlined" />}
                             {profile.sector && <Chip label={profile.sector} size="small" variant="outlined" />}  
                             {option.ownedInPortfolios && option.ownedInPortfolios.length > 0 && (

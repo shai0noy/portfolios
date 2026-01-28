@@ -142,7 +142,7 @@ function decompressTickers(compact: CompactTicker[]): TickerProfile[] {
   return compact.map(c => ({
     symbol: String(c.i),
     exchange: Exchange.PENSION,
-    securityId: String(c.i),
+    securityId: c.i,
     name: c.n,
     nameHe: c.n,
     type: new InstrumentClassification(InstrumentType.SAVING_PENSION, c.ft),
@@ -201,7 +201,7 @@ export async function fetchPensyanetTickers(signal?: AbortSignal, forceRefresh =
         tickersMap.set(id, {
           symbol: idStr,
           exchange: Exchange.PENSION,
-          securityId: idStr,
+          securityId: id,
           name: name,
           nameHe: name,
           type: new InstrumentClassification(InstrumentType.SAVING_PENSION, getText('SUG_KRN')),

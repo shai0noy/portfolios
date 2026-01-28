@@ -9,7 +9,7 @@ import { InstrumentClassification } from './instrument';
 export interface TickerId {
   symbol: string;       // Human readable symbol (e.g. "AAPL", "1159250")
   exchange: Exchange;   // Canonical exchange enum
-  securityId?: string;  // Normalized internal numeric ID (as string) for TASE/Gemel
+  securityId?: number;  // Numeric ID from Globes/TASE/Gemel
 }
 
 /**

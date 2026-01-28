@@ -252,19 +252,20 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
         console.log(`Numeric ID missing for ${ticker} on ${exchange}. Fetching dataset to find it.`);
         const dataset = await getTickersDataset();
         let foundItem: TickerProfile | undefined;
+        const tickerNum = parseInt(ticker, 10);
         // Search through all groups in the dataset record
         for (const key in dataset) {
           foundItem = dataset[key].find(item => 
             item.exchange === exchange && 
-            (item.symbol === ticker || item.securityId === ticker)
+            (item.symbol === ticker || (!isNaN(tickerNum) && item.securityId === tickerNum))
           );
           if (foundItem) break;
         }
         
         if (foundItem) {
-            if (foundItem.securityId) {
+            if (foundItem.securityId !== undefined) {
                 console.log(`Found numeric ID: ${foundItem.securityId}`);
-                currentNumericId = foundItem.securityId;
+                currentNumericId = foundItem.securityId.toString();
                 setDerivedNumericId(currentNumericId);
             }
             

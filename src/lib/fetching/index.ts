@@ -105,7 +105,7 @@ export async function getTickerData(
     for (const list of Object.values(dataset)) {
       const found = list.find(t => 
         t.exchange === parsedExchange && 
-        (t.symbol === ticker || (secId && t.securityId === String(secId)))
+        (t.symbol === ticker || (secId && t.securityId === secId))
       );
       if (found) return found;
     }
@@ -174,8 +174,8 @@ export async function getTickerData(
     if (secId) {
       globesPromise = fetchGlobesStockQuote(ticker, secId, parsedExchange, signal, forceRefresh);
     } else {
-      // If we don't have securityId, we try to find it from the dataset
-      const sid = profile?.securityId ? Number(profile.securityId) : undefined;
+      // If we don't have securityId, we try to find it from the profile
+      const sid = profile?.securityId;
       if (sid) {
           globesPromise = fetchGlobesStockQuote(ticker, sid, parsedExchange, signal, forceRefresh);
       } else {
@@ -212,7 +212,7 @@ export async function getTickerData(
       return {
         ticker: taseProfile.symbol,
         exchange: Exchange.TASE,
-        numericId: taseProfile.securityId ? parseInt(taseProfile.securityId, 10) : null,
+        numericId: taseProfile.securityId ?? null,
         name: taseProfile.name,
         nameHe: taseProfile.nameHe,
         type: taseProfile.type,
@@ -325,10 +325,11 @@ export async function fetchTickerHistory(
 
   // Lookup profile to determine group for smart fetching
   const profile = await getTickersDataset(signal).then(dataset => {
+    const tickerNum = parseInt(ticker, 10);
     for (const list of Object.values(dataset)) {
         const found = list.find(t => 
             t.exchange === exchange && 
-            (t.symbol === ticker || t.securityId === ticker)
+            (t.symbol === ticker || (!isNaN(tickerNum) && t.securityId === tickerNum))
         );
         if (found) return found;
     }

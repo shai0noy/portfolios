@@ -20,7 +20,6 @@ export function getCommodityTickers(): TickerProfile[] {
   return COMMODITIES.map(c => ({
     symbol: c.symbol,
     exchange: Exchange.CBS,
-    securityId: c.symbol,
     name: c.name,
     nameHe: c.nameHe,
     type: new InstrumentClassification(InstrumentType.COMMODITY),

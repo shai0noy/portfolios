@@ -1,12 +1,12 @@
 ### Pleae be carful not to override entire file when updating tasks ###
 
-toYahooSymbol method should prefix index tickers - but some symbols have none, so maybe we need to try both in parallel, same for currencies maybe? with =X suffix
+DONE: toYahooSymbol method should prefix index tickers - but some symbols have none, so maybe we need to try both in parallel, same for currencies maybe? with =X suffix
 In details of gemel funds, handle gains display/calc - and cost basis!
 Show ticker type dash
 Show holdings of funds
 Comperasion chars + allow metrics: r^2, beta
 דמי ניהול - לחשב בגמל וכו'
-securityId is populated with non numeric IDs - should be changed to number and only filled form globes/tase numeric IDs
+DONE: securityId is populated with non numeric IDs - should be changed to number and only filled form globes/tase numeric IDs
 remove casts to any
 refactor code....
 move currency selector and "back to all" buttons in dashbaord 

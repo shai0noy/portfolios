@@ -68,7 +68,6 @@ export function getCbsTickers(): TickerProfile[] {
   return Object.entries(CBS_INDICES).map(([id, info]) => ({
     symbol: id,
     exchange: Exchange.CBS,
-    securityId: id,
     name: info.nameEn,
     nameHe: info.nameHe,
     type: new InstrumentClassification(InstrumentType.CPI, undefined, { en: 'CPI' })

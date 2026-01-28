@@ -135,23 +135,26 @@ export async function fetchGlobesTickersByType(type: string, exchange: Exchange,
       const classification = new InstrumentClassification(type, undefined, { he: common.instrumentTypeHe });
       
       let symbol = common.symbol;
-      let securityId = common.symbol;
+      let rawSecurityId: string | undefined = common.symbol;
 
       const isIndex = common.rawType?.toLowerCase() === 'index' || classification.type === 'INDEX';
 
       if (isIndex && common.indexNumber) {
         symbol = common.indexNumber;
-        securityId = common.indexNumber;
+        rawSecurityId = common.indexNumber;
       }
 
       if (exchange === Exchange.FOREX) {
         symbol = formatForexSymbol(symbol);
+        rawSecurityId = undefined; // Forex doesn't have numeric security IDs in this context
       }
+
+      const securityId = rawSecurityId ? parseInt(rawSecurityId, 10) : undefined;
 
       return {
         symbol,
         exchange,
-        securityId, 
+        securityId: (securityId && !isNaN(securityId)) ? securityId : undefined, 
         name: common.nameEn,
         nameHe: common.nameHe,
         type: classification,
@@ -195,11 +198,7 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
     // Since fetchGlobesTickersByType returns TickerProfile with GLOBES meta:
     let rawGlobesId: string | undefined;
     if (match?.meta && match.meta.type === 'GLOBES') {
-        rawGlobesId = match.securityId; // or match.meta.instrumentId depending on what we want.
-        // Wait, identifier for fetchGlobesStockQuote API call is usually the security ID (symbol in list) or instrumentId?
-        // Looking at previous code: `identifier = match.globesRawSymbol;` which was mapped to `numericSecurityId`.
-        // So `match.securityId` (from TickerProfile) should be correct.
-        rawGlobesId = match.securityId; 
+        rawGlobesId = match.securityId?.toString(); 
     }
 
     if (rawGlobesId) {

@@ -151,7 +151,7 @@ function decompressTickers(compact: CompactTicker[]): TickerProfile[] {
   return compact.map(c => ({
     symbol: String(c.i),
     exchange: Exchange.GEMEL,
-    securityId: String(c.i),
+    securityId: c.i,
     name: c.n,
     nameHe: c.n,
     type: new InstrumentClassification(InstrumentType.SAVING_PROVIDENT, c.ft),
@@ -212,7 +212,7 @@ export async function fetchGemelnetTickers(signal?: AbortSignal, forceRefresh = 
         tickersMap.set(id, {
           symbol: idStr,
           exchange: Exchange.GEMEL,
-          securityId: idStr,
+          securityId: id,
           name: name,
           nameHe: name,
           type: new InstrumentClassification(InstrumentType.SAVING_PROVIDENT, getText('SUG_KUPA')),
