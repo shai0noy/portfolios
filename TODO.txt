@@ -14,7 +14,7 @@ Mobile viewing is all over the placed
 Check crypto 1d change?...
 
 Discovery/selling points splash page
-maybe store type in sheet
+DONE: maybe store type in sheet
 tase types vs globes types??
 If there is no sheet document ID, do not show the "create first portfolio" screen, rather, you should send the user to exisitng the screen to enter an existing sheet ID or create one
 If exposure porfile (e.g. 4D, 03) is avilable in ticker details, show two chips according to its parsing:

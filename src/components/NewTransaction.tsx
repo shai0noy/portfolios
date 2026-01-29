@@ -120,29 +120,58 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     });
   }, [sheetId, refreshTrigger]);
 
-  const handleTickerSelect = (selected: TickerData & { symbol: string }) => {
-    setSelectedTicker(selected);
-    setTicker(selected.symbol);
-    setExchange(selected.exchange || '');
-    setShowForm(true); // Show form immediately
-    setPriceError('');
-    if (selected.price) {
-      setPrice(parseFloat(selected.price.toFixed(6)).toString());
-      setTickerCurrency(normalizeCurrency(selected.currency || ''));
+  const handleTickerSelect = async (profile: TickerProfile) => {
+    setLoading(true);
+    // Hide TickerSearch and show loading indicator
+    setSelectedTicker({ ...profile, price: undefined, currency: undefined, source: undefined, exchange: profile.exchange });
+    setShowForm(false); 
+    
+    const data = await getTickerData(profile.symbol, profile.exchange, profile.securityId ? Number(profile.securityId) : undefined);
+    setLoading(false);
+
+    if (data) {
+        // Sync dividends if from a fresh fetch (not from cache)
+        if (data.dividends && data.dividends.length > 0 && !data.fromCacheMax) {
+            syncDividends(sheetId, profile.symbol, profile.exchange, data.dividends, data.source || 'API');
+        }
+
+        const combinedData: TickerData & { symbol: string } = {
+            ...data,
+            symbol: profile.symbol,
+            exchange: data.exchange || profile.exchange,
+            numericId: profile.securityId || data.numericId,
+            name: data.name || profile.name,
+            nameHe: data.nameHe || profile.nameHe,
+        };
+        
+        setSelectedTicker(combinedData);
+        setTicker(combinedData.symbol);
+        setExchange(combinedData.exchange || '');
+        setShowForm(true); // Show form with data
+        setPriceError('');
+        if (combinedData.price) {
+            setPrice(parseFloat(combinedData.price.toFixed(6)).toString());
+            setTickerCurrency(normalizeCurrency(combinedData.currency || ''));
+        } else {
+            setPrice('');
+            setTickerCurrency(Currency.USD);
+        }
+        setQty('');
+        setTotal('');
+        setComment('');
+        setCommission('');
+        setCommissionPct('');
+        setTax('');
+        setVestDate('');
+        setType('BUY');
+        setDate(new Date().toISOString().split('T')[0]);
+        setSaveSuccess(false);
+
     } else {
-      setPrice('');
-      setTickerCurrency(Currency.USD);
+        setPriceError(`${t('Could not fetch data for', 'לא ניתן היה לטעון מידע עבור')} ${profile.symbol}`);
+        setSelectedTicker(null); // This will cause TickerSearch to reappear.
+        setShowForm(false);
     }
-    setQty(''); // Clear form fields for new entry
-    setTotal('');
-    setComment('');
-    setCommission('');
-    setCommissionPct('');
-    setTax('');
-    setVestDate('');
-    setType('BUY');
-    setDate(new Date().toISOString().split('T')[0]);
-    setSaveSuccess(false);
   };
 
   useEffect(() => {

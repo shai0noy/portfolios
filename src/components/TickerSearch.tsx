@@ -14,7 +14,7 @@ import { useLanguage } from '../lib/i18n';
 import { getOwnedInPortfolios } from '../lib/portfolioUtils';
 
 interface TickerSearchProps {
-  onTickerSelect: (ticker: TickerData & { symbol: string; numeric_id?: number }) => void;
+  onTickerSelect: (profile: TickerProfile) => void;
   prefilledTicker?: string;
   prefilledExchange?: string;
   portfolios: Portfolio[];
@@ -256,27 +256,9 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
     }));
   }, [t]);
 
-  const handleOptionSelect = async (result: SearchResult) => {
+  const handleOptionSelect = (result: SearchResult) => {
     const { profile } = result;
-    setIsLoading(true);
-    
-    // Fetch full TickerData (quote) to get price
-    const numericId = profile.securityId ? Number(profile.securityId) : null;
-    const data = await getTickerData(profile.symbol, profile.exchange, numericId);
-    
-    setIsLoading(false);
-    if (data) {
-      // Sync dividends if from a fresh fetch (not from cache)
-      if (data.dividends && data.dividends.length > 0 && !data.fromCacheMax) {
-          syncDividends(sheetId, profile.symbol, profile.exchange, data.dividends, data.source || 'API');
-      }
-
-      onTickerSelect({ 
-        ...data,
-        symbol: profile.symbol, // Ensure symbol is explicit
-        numeric_id: numericId || undefined 
-      });
-    }
+    onTickerSelect(profile);
     setSearchResults([]);
     setInputValue('');
     setIsFocused(false);

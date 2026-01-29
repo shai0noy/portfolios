@@ -11,6 +11,7 @@ const API_MAP = {
   "tase_list_funds": "https://datawise.tase.co.il/v1/fund/fund-list?listingStatusId=1",
   "tase_list_indices": "https://datawise.tase.co.il/v1/basic-indices/indices-list",
   "tase_index_comp": "https://datawise.tase.co.il/v1/basic-indices/index-components-basic/{raw:taseFetchDate}",
+  "gemelnet_fund": "https://gemelnet.cma.gov.il/tsuot/ui/tsuotHodXML.aspx?miTkfDivuach={startYear}{startMonth}&adTkfDivuach={endYear}{endMonth}&kupot={fundId}&Dochot=1&sug=3",
   "gemelnet_list": "https://gemelnet.cma.gov.il/tsuot/ui/tsuotHodXML.aspx?miTkfDivuach={startYear}{startMonth}&adTkfDivuach={endYear}{endMonth}&kupot=0000&Dochot=1&sug=1",
   "pensyanet_fund": "https://pensyanet.cma.gov.il/Parameters/ExportToXML",
   "pensyanet_list": "https://pensyanet.cma.gov.il/Parameters/ExportToXML",

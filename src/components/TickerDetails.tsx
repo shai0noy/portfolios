@@ -893,39 +893,47 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
         )}
 
         {(ticker || displayData) && (
-          <>
-            <Typography variant="subtitle2" gutterBottom>{t('External Links', 'קישורים חיצוניים')}</Typography>
+          (() => {
+            const externalLinks = getExternalLinks();
+            return (
+              <>
+                {externalLinks.length > 0 && (
+                  <>
+                    <Typography variant="subtitle2" gutterBottom>{t('External Links', 'קישורים חיצוניים')}</Typography>
+                    <Box display="flex" flexWrap="wrap" gap={1}>
+                      {externalLinks.map(link => (
+                        <Button
+                          key={link.name}
+                          variant="outlined"
+                          size="small"
+                          href={link.url}
+                          target="_blank"
+                          endIcon={<OpenInNewIcon />}
+                        >
+                          {link.name}
+                        </Button>
+                      ))}
+                    </Box>
+                  </>
+                )}
 
-            <Box display="flex" flexWrap="wrap" gap={1}>
-              {getExternalLinks().map(link => (
-                <Button
-                  key={link.name}
-                  variant="outlined"
-                  size="small"
-                  href={link.url}
-                  target="_blank"
-                  endIcon={<OpenInNewIcon />}
-                >
-                  {link.name}
-                </Button>
-              ))}
-            </Box>
-
-            <Box mt={2} display="flex" justifyContent="flex-end" alignItems="center" gap={1}>
-              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
-                {data
-                  ? `${t('Data source:', 'מקור המידע:')} ${data.source || 'API'}, ${data.timestamp ? formatTimestamp(data.timestamp) : 'N/A'}`
-                  : sheetRebuildTime
-                    ? `${t('Data from Google Sheets', 'מידע מ- Google Sheets')}, ${formatTimestamp(sheetRebuildTime)}`
-                    : t('Freshness N/A', 'אין מידע על עדכון')}
-              </Typography>
-              <Tooltip title={t("Refresh Data", "רענן נתונים")}>
-                <IconButton onClick={handleRefresh} disabled={refreshing} size="small">
-                  {refreshing ? <CircularProgress size={16} /> : <RefreshIcon fontSize="small" />}
-                </IconButton>
-              </Tooltip>
-            </Box>
-          </>
+                <Box mt={2} display="flex" justifyContent="flex-end" alignItems="center" gap={1}>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
+                    {data
+                      ? `${t('Data source:', 'מקור המידע:')} ${data.source || 'API'}, ${data.timestamp ? formatTimestamp(data.timestamp) : 'N/A'}`
+                      : sheetRebuildTime
+                        ? `${t('Data from Google Sheets', 'מידע מ- Google Sheets')}, ${formatTimestamp(sheetRebuildTime)}`
+                        : t('Freshness N/A', 'אין מידע על עדכון')}
+                  </Typography>
+                  <Tooltip title={t("Refresh Data", "רענן נתונים")}>
+                    <IconButton onClick={handleRefresh} disabled={refreshing} size="small">
+                      {refreshing ? <CircularProgress size={16} /> : <RefreshIcon fontSize="small" />}
+                    </IconButton>
+                  </Tooltip>
+                </Box>
+              </>
+            );
+          })()
         )}
       </DialogContent>
 
