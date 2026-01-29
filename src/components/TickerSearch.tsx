@@ -3,11 +3,10 @@ import {
   TextField, Grid, Typography, CircularProgress, MenuItem, Select, FormControl, InputLabel,
   List, ListItemButton, ListItemText, Paper, Box, Divider, Chip, Tooltip, InputAdornment
 } from '@mui/material';
-import { getTickersDataset, getTickerData, type TickerData } from '../lib/fetching';
+import { getTickersDataset } from '../lib/fetching';
 import type { TickerProfile } from '../lib/types/ticker';
 import { InstrumentGroup, INSTRUMENT_METADATA } from '../lib/types/instrument';
 import { type Portfolio, Exchange } from '../lib/types';
-import { syncDividends } from '../lib/sheets';
 import SearchIcon from '@mui/icons-material/Search';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
 import { useLanguage } from '../lib/i18n';
@@ -19,7 +18,6 @@ interface TickerSearchProps {
   prefilledExchange?: string;
   portfolios: Portfolio[];
   isPortfoliosLoading: boolean;
-  sheetId: string;
   collapsible?: boolean;
   sx?: any;
 }
@@ -149,7 +147,7 @@ async function performSearch(
   });
 }
 
-export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchange, portfolios, isPortfoliosLoading, sheetId, collapsible, sx }: TickerSearchProps) {
+export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchange, portfolios, isPortfoliosLoading, collapsible, sx }: TickerSearchProps) {
   // Dataset is Record<string, TickerProfile[]>
   const [dataset, setDataset] = useState<Record<string, TickerProfile[]>>({});
   const [isDatasetLoading, setIsDatasetLoading] = useState(false);

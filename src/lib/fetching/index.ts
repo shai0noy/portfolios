@@ -5,6 +5,7 @@ import { fetchAllTickers } from './stock_list';
 import { fetchGemelnetQuote } from './gemelnet';
 import { fetchPensyanetQuote } from './pensyanet';
 import { fetchCpi, getCbsTickers } from './cbs';
+import { getPredefinedYahooTickers } from './yahoo_tickers';
 import type { TickerData } from './types';
 import { Exchange, parseExchange } from '../types';
 import type { TickerProfile } from '../types/ticker';
@@ -13,6 +14,7 @@ export * from './types';
 export * from './stock_list';
 export * from './cbs';
 export * from './yahoo';
+export * from './yahoo_tickers';
 export * from './globes';
 export * from './gemelnet';
 export * from './pensyanet';
@@ -48,6 +50,14 @@ export function getTickersDataset(signal?: AbortSignal, forceRefresh = false): P
         if (!combined['Index']) combined['Index'] = [];
         combined['Index'] = combined['Index'].concat(cbsTickers);
       }
+
+      // Add Predefined Yahoo Tickers (Futures, Commodities)
+      const yahooTickers = getPredefinedYahooTickers();
+      yahooTickers.forEach((t: TickerProfile) => {
+          const groupName = t.type.nameEn; // Use the English name of the classification as group
+          if (!combined[groupName]) combined[groupName] = [];
+          combined[groupName].push(t);
+      });
 
       tickersDataset = combined;
       return combined;

@@ -255,7 +255,6 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         
         <Box sx={{ flexGrow: 1 }}>
           <TickerSearch 
-            sheetId={sheetId}
             portfolios={portfolios}
             isPortfoliosLoading={loading}
             collapsible={true}
@@ -265,7 +264,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
                 state: {
                   from: '/dashboard',
                   background: location,
-                  numericId: ticker.numeric_id?.toString(),
+                  numericId: ticker.securityId?.toString(),
                   initialName: ticker.name,
                   initialNameHe: ticker.nameHe
                 }

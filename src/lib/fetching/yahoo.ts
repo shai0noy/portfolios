@@ -86,7 +86,17 @@ export function getYahooTickerCandidates(ticker: string, exchange: Exchange, gro
       if (u.startsWith('^')) candidates.push(u.substring(1));
     }
   } 
-  // 4. Standard / Stocks
+  // 4. Commodities & Futures
+  else if (group === InstrumentGroup.COMMODITY || (group === InstrumentGroup.DERIVATIVE && exchange !== Exchange.TASE) || u.endsWith('=F')) {
+    if (u.endsWith('=F')) {
+      candidates.push(u);
+      candidates.push(u.substring(0, u.length - 2));
+    } else {
+      candidates.push(`${u}=F`);
+      candidates.push(u);
+    }
+  }
+  // 5. Standard / Stocks
   else {
     const suffix = EXCHANGE_SETTINGS[exchange]?.yahooFinanceSuffix || '';
     candidates.push(`${u}${suffix}`);

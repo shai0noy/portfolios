@@ -10,6 +10,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import { parseExchange, type Portfolio, type Transaction, Exchange } from '../lib/types';
+import type { TickerProfile } from '../lib/types/ticker';
 import { addTransaction, fetchPortfolios, addExternalPrice, syncDividends, addDividendEvent } from '../lib/sheets/index';
 import { getTickerData, type TickerData } from '../lib/fetching';
 import { TickerSearch } from './TickerSearch';
@@ -123,10 +124,17 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   const handleTickerSelect = async (profile: TickerProfile) => {
     setLoading(true);
     // Hide TickerSearch and show loading indicator
-    setSelectedTicker({ ...profile, price: undefined, currency: undefined, source: undefined, exchange: profile.exchange });
+    setSelectedTicker({ 
+        ...profile, 
+        price: 0, 
+        currency: '', 
+        exchange: profile.exchange, 
+        ticker: profile.symbol, 
+        numericId: profile.securityId ?? null 
+    });
     setShowForm(false); 
     
-    const data = await getTickerData(profile.symbol, profile.exchange, profile.securityId ? Number(profile.securityId) : undefined);
+    const data = await getTickerData(profile.symbol, profile.exchange, profile.securityId ?? null);
     setLoading(false);
 
     if (data) {
@@ -419,7 +427,6 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
               onTickerSelect={handleTickerSelect}
               portfolios={portfolios}
               isPortfoliosLoading={isPortfoliosLoading}
-              sheetId={sheetId}
               collapsible={false}
             />
           </Grid>
