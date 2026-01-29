@@ -177,11 +177,11 @@ export function calculateDashboardSummary(data: DashboardHolding[], displayCurre
     const aumForPeriod = s[`aumFor_${key}`];
     const prevValue = aumForPeriod - totalChange;
     const finalKey = key as keyof DashboardSummaryData;
-    (summaryResult as any)[finalKey] = prevValue > 0 ? totalChange / prevValue : 0;
+    (summaryResult as Record<string, any>)[finalKey] = prevValue > 0 ? totalChange / prevValue : 0;
 
     const holdingsForPeriod = s[`holdingsFor_${key}`];
     const incompleteKey = `${key}_incomplete` as keyof DashboardSummaryData;
-    (summaryResult as any)[incompleteKey] = holdingsForPeriod > 0 && holdingsForPeriod < totalHoldings;
+    (summaryResult as Record<string, any>)[incompleteKey] = holdingsForPeriod > 0 && holdingsForPeriod < totalHoldings;
   }
 
   return summaryResult;

@@ -204,7 +204,9 @@ export async function getTickerData(
         meta: taseProfile?.meta || yahooData.meta,
         type: taseProfile?.type || yahooData.type,
         name: taseProfile?.name || yahooData.name,
-        nameHe: taseProfile?.nameHe || yahooData.nameHe
+        nameHe: taseProfile?.nameHe || yahooData.nameHe,
+        sector: taseProfile?.sector || yahooData.sector,
+        subSector: taseProfile?.subSector || yahooData.subSector,
       };
     }
     // No data from Globes or Yahoo, but maybe we have TASE profile info
