@@ -15,6 +15,7 @@ interface TickerChartProps {
     series: ChartSeries[];
     currency: string;
     mode?: 'percent' | 'price';
+    height?: number | string;
 }
 
 interface ChartPoint {
@@ -274,7 +275,7 @@ const SelectionSummary = ({ startPoint, endPoint, currency, t, isComparison, ser
     );
 };
 
-export function TickerChart({ series, currency, mode = 'percent' }: TickerChartProps) {
+export function TickerChart({ series, currency, mode = 'percent', height = 300 }: TickerChartProps) {
     const FADE_MS = 170;          // Speed of the opacity transition
     const TRANSFORM_MS = 360;     // Speed of the line movement (Very fast)
     const BUFFER_MS = 30;        // Safety window for browser paint
@@ -339,7 +340,7 @@ export function TickerChart({ series, currency, mode = 'percent' }: TickerChartP
         }, FADE_MS);
 
         return () => clearTimeout(swapTimer);
-    }, [series, displaySeries, FADE_MS, FADE_IN_DELAY]);
+    }, [series, displaySeries]);
 
     // Move hooks above the conditional return
     const chartData = useMemo<ChartPoint[]>(() => {
@@ -548,7 +549,7 @@ export function TickerChart({ series, currency, mode = 'percent' }: TickerChartP
         return (
             <Box sx={{
                 width: '100%',
-                height: 300,
+                height,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -585,7 +586,7 @@ export function TickerChart({ series, currency, mode = 'percent' }: TickerChartP
     return (
         <Box sx={{
             width: '100%',
-            height: 300,
+            height,
             minWidth: 0,
             position: 'relative',
             userSelect: 'none',

@@ -1,12 +1,17 @@
-import { Box, Paper, Typography, Grid, Tooltip, ToggleButton, ToggleButtonGroup, IconButton } from '@mui/material';
+import { Box, Paper, Typography, Grid, Tooltip, ToggleButton, ToggleButtonGroup, IconButton, CircularProgress, Button, Menu, MenuItem, Chip } from '@mui/material';
 import { formatPercent, formatValue, calculatePerformanceInDisplayCurrency } from '../lib/currency';
 import { logIfFalsy } from '../lib/utils';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import AddIcon from '@mui/icons-material/Add';
 import type { ExchangeRates, DashboardHolding } from '../lib/types';
 import { useLanguage } from '../lib/i18n';
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { TickerChart, type ChartSeries } from './TickerChart';
+import { calculatePortfolioPerformance, type PerformancePoint } from '../lib/performance';
+import { fetchTransactions } from '../lib/sheets';
+import { useChartComparison, COMPARISON_OPTIONS, RANGES } from '../lib/hooks/useChartComparison';
 
 // Time constants for auto-stepping
 const AUTO_STEP_DELAY = 2 * 60 * 1000; // 2 minutes
@@ -47,6 +52,7 @@ interface SummaryProps {
   displayCurrency: string;
   exchangeRates: ExchangeRates;
   selectedPortfolio: string | null;
+  sheetId: string;
 }
 
 interface StatProps {
@@ -249,11 +255,26 @@ const TopMovers = ({ holdings, displayCurrency, exchangeRates }: { holdings: Das
   );
 };
 
-export function DashboardSummary({ summary, holdings, displayCurrency, exchangeRates, selectedPortfolio }: SummaryProps) {
+export function DashboardSummary({ summary, holdings, displayCurrency, exchangeRates, selectedPortfolio, sheetId }: SummaryProps & { sheetId: string }) {
   logIfFalsy(exchangeRates, "DashboardSummary: exchangeRates missing");
   const { t } = useLanguage();
   
   const [activeStep, setActiveStep] = useState(0);
+  const [perfData, setPerfData] = useState<PerformancePoint[]>([]);
+  const [isPerfLoading, setIsPerfLoading] = useState(false);
+  const [chartView, setChartView] = useState<'holdings' | 'gains'>('holdings');
+  const [chartMetric, setChartMetric] = useState<'price' | 'percent'>('price');
+  
+  const {
+      chartRange, setChartRange,
+      comparisonSeries, setComparisonSeries,
+      comparisonLoading,
+      handleSelectComparison,
+      getClampedData
+  } = useChartComparison();
+
+  const [compareMenuAnchor, setCompareMenuAnchor] = useState<null | HTMLElement>(null);
+
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isManualRef = useRef(false);
 
@@ -272,6 +293,19 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
   }, [activeStep, startTimer]);
 
+  useEffect(() => {
+      if (activeStep === 1 && perfData.length === 0 && !isPerfLoading) {
+          setIsPerfLoading(true);
+          fetchTransactions(sheetId).then(txns => {
+              calculatePortfolioPerformance(holdings, txns, displayCurrency, exchangeRates)
+                  .then(data => {
+                      setPerfData(data);
+                      setIsPerfLoading(false);
+                  });
+          }).catch(() => setIsPerfLoading(false));
+      }
+  }, [activeStep, holdings, displayCurrency, exchangeRates, sheetId]);
+
   const handleManualStep = (direction: 'next' | 'prev') => {
     isManualRef.current = true;
     setActiveStep(prev => {
@@ -284,6 +318,41 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
     // Reset timer to long delay without changing step
     startTimer(INTERACTION_STEP_DELAY);
   };
+
+  const getClampedDataCallback = useCallback((data: any[] | null, range: string) => {
+      // Use the hook's logic but adapt for performance points
+      return getClampedData(data, range);
+  }, [getClampedData]);
+
+  const portfolioSeries = useMemo<ChartSeries[]>(() => {
+      if (perfData.length === 0) return [];
+      
+      const clampedData = getClampedDataCallback(perfData, chartRange);
+      if (clampedData.length === 0) return [];
+
+      const mainData = clampedData.map(p => ({
+          date: p.date,
+          price: chartView === 'holdings' ? p.holdingsValue : p.gainsValue
+      }));
+
+      const series: ChartSeries[] = [{
+          name: chartView === 'holdings' ? t('Total Holdings', 'שווי החזקות') : t('Total Gains', 'רווח מצטבר'),
+          data: mainData
+      }];
+
+      comparisonSeries.forEach(s => {
+          series.push({
+              ...s,
+              data: getClampedData(s.data, chartRange)
+          });
+      });
+
+      return series;
+  }, [perfData, chartView, chartRange, comparisonSeries, getClampedDataCallback, getClampedData, t]);
+
+  const ranges = RANGES;
+  const isComparison = comparisonSeries.length > 0;
+  const effectiveChartMetric = isComparison ? 'percent' : chartMetric;
 
   return (
     <Paper 
@@ -369,8 +438,106 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
           </Grid>
         )}
         {activeStep === 1 && (
-            <Box height={150} display="flex" alignItems="center" justifyContent="center">
-                <Typography variant="h6" color="text.secondary">Screen 2 Placeholder</Typography>
+            <Box sx={{ height: 210, position: 'relative' }}>
+                {isPerfLoading ? (
+                    <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" height="100%" gap={1}>
+                        <CircularProgress size={30} />
+                        <Typography variant="caption" color="text.secondary">{t('Calculating Portfolio Performance...', 'מחשב ביצועי תיק...')}</Typography>
+                    </Box>
+                ) : portfolioSeries.length > 0 ? (
+                    <Box sx={{ height: '100%', mt: -1 }}>
+                        <Box display="flex" justifyContent="space-between" alignItems="center" sx={{ mb: 1, px: 2, flexWrap: 'wrap', gap: 1 }}>
+                            <Box display="flex" gap={1} alignItems="center">
+                                <ToggleButtonGroup
+                                    value={chartView}
+                                    exclusive
+                                    onChange={(_, val) => val && setChartView(val)}
+                                    size="small"
+                                    sx={{ height: 26 }}
+                                >
+                                    <ToggleButton value="holdings" sx={{ px: 1, fontSize: '0.65rem' }}>{t('Holdings', 'החזקות')}</ToggleButton>
+                                    <ToggleButton value="gains" sx={{ px: 1, fontSize: '0.65rem' }}>{t('Gains', 'רווחים')}</ToggleButton>
+                                </ToggleButtonGroup>
+
+                                <ToggleButtonGroup
+                                    value={chartMetric}
+                                    exclusive
+                                    onChange={(_, val) => val && setChartMetric(val)}
+                                    size="small"
+                                    sx={{ height: 26 }}
+                                    disabled={isComparison}
+                                >
+                                    <ToggleButton value="price" sx={{ px: 1, fontSize: '0.65rem' }}>$</ToggleButton>
+                                    <ToggleButton value="percent" sx={{ px: 1, fontSize: '0.65rem' }}>%</ToggleButton>
+                                </ToggleButtonGroup>
+                            </Box>
+
+                            <ToggleButtonGroup
+                                value={chartRange}
+                                exclusive
+                                onChange={(_, val) => val && setChartRange(val)}
+                                size="small"
+                                sx={{ height: 26 }}
+                            >
+                                {ranges.map(r => (
+                                    <ToggleButton key={r} value={r} sx={{ px: 0.8, fontSize: '0.65rem' }}>{r === 'ALL' ? 'Max' : r}</ToggleButton>
+                                ))}
+                            </ToggleButtonGroup>
+
+                            <Box>
+                                <Button
+                                    size="small"
+                                    variant="outlined"
+                                    startIcon={<AddIcon sx={{ fontSize: '1rem !important' }} />}
+                                    onClick={(e) => setCompareMenuAnchor(e.currentTarget)}
+                                    sx={{ height: 26, fontSize: '0.65rem', textTransform: 'none' }}
+                                >
+                                    {t('Compare', 'השווה')}
+                                </Button>
+                                <Menu
+                                    anchorEl={compareMenuAnchor}
+                                    open={Boolean(compareMenuAnchor)}
+                                    onClose={() => setCompareMenuAnchor(null)}
+                                >
+                                    {COMPARISON_OPTIONS.map((opt) => (
+                                        <MenuItem 
+                                            key={opt.name} 
+                                            onClick={() => handleSelectComparison(opt)} 
+                                            disabled={comparisonSeries.some(s => s.name === opt.name) || comparisonLoading[opt.name]}
+                                            sx={{ fontSize: '0.8rem' }}
+                                        >
+                                            {opt.name}
+                                            {comparisonLoading[opt.name] && <CircularProgress size={12} sx={{ ml: 1 }} />}
+                                        </MenuItem>
+                                    ))}
+                                </Menu>
+                            </Box>
+                        </Box>
+                        
+                        {isComparison && (
+                            <Box display="flex" flexWrap="wrap" gap={0.5} sx={{ px: 2, mb: 1 }}>
+                                {comparisonSeries.map(s => (
+                                    <Chip 
+                                        key={s.name} 
+                                        label={s.name} 
+                                        size="small" 
+                                        onDelete={() => setComparisonSeries(prev => prev.filter(x => x.name !== s.name))}
+                                        sx={{ height: 18, fontSize: '0.6rem', color: s.color, borderColor: s.color }}
+                                        variant="outlined"
+                                    />
+                                ))}
+                            </Box>
+                        )}
+
+                        <Box sx={{ height: isComparison ? 120 : 140 }}>
+                            <TickerChart series={portfolioSeries} currency={displayCurrency} mode={effectiveChartMetric} height="100%" />
+                        </Box>
+                    </Box>
+                ) : (
+                    <Box display="flex" alignItems="center" justifyContent="center" height="100%">
+                        <Typography variant="body2" color="text.secondary">{t('No historical data available for these holdings.', 'אין מידע היסטורי זמין עבור החזקות אלו.')}</Typography>
+                    </Box>
+                )}
             </Box>
         )}
         {activeStep === 2 && (
