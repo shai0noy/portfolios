@@ -12,7 +12,7 @@ fetch mgmt fee from tase and also show
 CPI data parsing, solve issue where values before 1985 are weird - 200x too large
 Mobile viewing is all over the placed
 Check crypto 1d change?...
-
+Theres still chart-related code duplication between TickerDetails and other places like useChartComparison.ts
 Discovery/selling points splash page
 DONE: maybe store type in sheet
 tase types vs globes types??

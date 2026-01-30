@@ -286,6 +286,8 @@ export function TickerChart({ series, currency, mode = 'percent', height = 300 }
     const { t } = useLanguage();
     const theme = useTheme();
 
+    const gradientId = useMemo(() => `splitGradient-${Math.random().toString(36).substring(2, 9)}`, []);
+
     const [displaySeries, setDisplaySeries] = useState(series);
     const [shadeOpacity, setShadeOpacity] = useState(1);
     
@@ -390,23 +392,34 @@ export function TickerChart({ series, currency, mode = 'percent', height = 300 }
         });
     }, [displaySeries, mode, mainSeries]);
 
-    const { yMin, yMax } = useMemo(() => {
-        if (!chartData || chartData.length === 0) return { yMin: 0, yMax: 0 };
+    const { yMin, yMax, dataMin, dataMax } = useMemo(() => {
+        if (!chartData || chartData.length === 0) return { yMin: 0, yMax: 0, dataMin: 0, dataMax: 0 };
         let min = Infinity;
         let max = -Infinity;
+        
+        const updateMinMax = (val: any) => {
+            if (typeof val === 'number' && !isNaN(val)) {
+                if (val < min) min = val;
+                if (val > max) max = val;
+            }
+        };
+
         chartData.forEach((p) => {
-            if (p.yValue < min) min = p.yValue;
-            if (p.yValue > max) max = p.yValue;
-            // Check others
+            updateMinMax(p.yValue);
             Object.keys(p).forEach(k => {
                 if (k.startsWith('series_')) {
-                    const v = p[k] as number;
-                    if (v < min) min = v;
-                    if (v > max) max = v;
+                    updateMinMax(p[k]);
                 }
             });
         });
-        return { yMin: min, yMax: max };
+        
+        if (min === Infinity || max === -Infinity) return { yMin: 0, yMax: 0, dataMin: 0, dataMax: 0 };
+
+        // Add padding to the domain so the line doesn't touch the edges
+        const padding = (max - min) * 0.05;
+        const effectivePadding = padding === 0 ? (Math.abs(max) * 0.05 || 0.01) : padding;
+
+        return { yMin: min - effectivePadding, yMax: max + effectivePadding, dataMin: min, dataMax: max };
     }, [chartData]);
 
     const formatYAxis = useCallback((tick: number) => {
@@ -566,22 +579,30 @@ export function TickerChart({ series, currency, mode = 'percent', height = 300 }
     const last = mainSeries.data[mainSeries.data.length - 1];
     const lastPrice = last.adjClose || last.price;
     const isUp = lastPrice >= basePrice;
-    const chartColor = isUp ? theme.palette.success.main : theme.palette.error.main;    const mainLineColor = isComparison ? theme.palette.text.primary : chartColor;
+    const successColor = theme.palette.success.main || '#4caf50';
+    const errorColor = theme.palette.error.main || '#f44336';
+    const chartColor = isUp ? successColor : errorColor;
+    const mainLineColor = isComparison ? theme.palette.text.primary : chartColor;
 
     // Determine the split threshold
     const threshold = mode === 'price' ? basePrice : 0;
 
-    let offset;
-    if (yMin >= threshold) {
-        // Entirely positive
-        offset = 1; 
-    } else if (yMax <= threshold) {
-        // Entirely negative
-        offset = 0;
-    } else {
-        // Split
-        offset = Math.max(0, Math.min(1, (yMax - threshold) / (yMax - yMin)));
+    // Calculate the offset for the gradient. This value represents the position
+    // of the threshold on the Y-axis, where 0 is the top of the chart (yMax)
+    // and 1 is the bottom (yMin).
+    // We use the bounding box of the area (defined by data range and threshold)
+    const areaMax = Math.max(dataMax, threshold);
+    const areaMin = Math.min(dataMin, threshold);
+    const gradientRange = areaMax - areaMin;
+    let offset = 0;
+
+    if (gradientRange !== 0) {
+        offset = (areaMax - threshold) / gradientRange;
     }
+
+    // Clamp the offset between 0 and 1 to handle cases where the threshold
+    // is outside the visible range.
+    const clampedOffset = Math.max(0, Math.min(1, offset));
 
     return (
         <Box sx={{
@@ -603,10 +624,10 @@ export function TickerChart({ series, currency, mode = 'percent', height = 300 }
                     margin={{ top: 10, right: 5, left: 0, bottom: 0 }}
                 >
                     <defs>
-                        <linearGradient id="splitGradient" x1="0" y1="0" x2="0" y2="1">
+                        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
                             <stop offset="0" stopColor={theme.palette.success.main} stopOpacity={0.4} />
-                            <stop offset={offset} stopColor={theme.palette.success.main} stopOpacity={0.02} />
-                            <stop offset={offset} stopColor={theme.palette.error.main} stopOpacity={0.02} />
+                            <stop offset={clampedOffset} stopColor={theme.palette.success.main} stopOpacity={0.05} />
+                            <stop offset={clampedOffset} stopColor={theme.palette.error.main} stopOpacity={0.05} />
                             <stop offset="1" stopColor={theme.palette.error.main} stopOpacity={0.4} />
                         </linearGradient>
                     </defs>
@@ -652,7 +673,8 @@ export function TickerChart({ series, currency, mode = 'percent', height = 300 }
                         dataKey="yValue" 
                         stroke={mainLineColor} 
                         strokeWidth={2} 
-                        fill={isComparison ? "none" : "url(#splitGradient)"}
+                        fill={isComparison ? "none" : `url(#${gradientId})`}
+                        baseValue={threshold}
                         fillOpacity={shadeOpacity}
                         isAnimationActive={true}
                         animationDuration={TRANSFORM_MS}

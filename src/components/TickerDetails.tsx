@@ -15,6 +15,7 @@ import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
 import { getOwnedInPortfolios } from '../lib/portfolioUtils';import { TickerChart, type ChartSeries } from './TickerChart';
 import { Currency } from '../lib/types';
 import type { Dividend } from '../lib/fetching/types';
+import { COMPARISON_OPTIONS } from '../lib/hooks/useChartComparison';
 
 interface TickerDetailsProps {
   sheetId: string;
@@ -149,15 +150,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
       return `Max (${diffDays}D)`;
   }, [oldestDate]);
 
-  const comparisonOptions = [
-    { ticker: '^SPX', exchange: Exchange.NYSE, name: 'S&P 500' },
-    { ticker: '^NDX', exchange: Exchange.NASDAQ, name: 'NASDAQ 100' },
-    { ticker: 'TA35', exchange: Exchange.TASE, name: 'Tel Aviv 35' },
-    { ticker: '137', exchange: Exchange.TASE, name: 'Tel Aviv 125' },
-    { ticker: '120010', exchange: Exchange.CBS, name: 'Israel Consumer Price Index'}
-  ];
-
-  const handleSelectComparison = async (option: typeof comparisonOptions[0]) => {
+  const handleSelectComparison = async (option: typeof COMPARISON_OPTIONS[0]) => {
     setCompareMenuAnchor(null);
     if (comparisonSeries.some(s => s.name === option.name)) return;
 
@@ -802,7 +795,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                       open={Boolean(compareMenuAnchor)}
                       onClose={() => setCompareMenuAnchor(null)}
                   >
-                      {comparisonOptions.map((opt) => (
+                      {COMPARISON_OPTIONS.map((opt) => (
                           <MenuItem key={opt.name} onClick={() => handleSelectComparison(opt)} disabled={comparisonSeries.some(s => s.name === opt.name) || comparisonLoading[opt.name]}>
                               {opt.name}
                               {comparisonLoading[opt.name] && <CircularProgress size={16} sx={{ ml: 1 }} />}
