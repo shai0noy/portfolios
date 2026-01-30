@@ -20,21 +20,22 @@ const YAHOO_EXCHANGE_MAP: Record<string, string> = (() => {
 })();
 
 export const ISRAEL_TICKER_OVERRIDES: Record<string, string> = {
-  '147': 'MIDCAP50.TA',
-  '163': 'MIDCAP120.TA',
-  '143': 'TA90.TA',
-  '137': '^TA125.TA',
-  '142': 'TA35.TA',
-  '707': 'TELBOND20.TA',
-  '709': 'TELBOND60.TA',
-  '170': 'TA-OG.TA',
-  '148': 'TA-FIN.TA',
-  '145': 'TEL-TECH.TA',
-  '169': 'TA-TECH.TA',
-  '167': 'TASEBM.TA',
-  '164': 'TA-BANKS.TA',
-  '168': 'TA-COMP.TA',
-  '149': 'ESTATE15.TA'
+  // Corrected to use Yahoo's index symbols (prefixed with ^) instead of ETF tickers.
+  '147': '^TAMC50',      // TA MidCap-50
+  // '163': 'MIDCAP120.TA', // Cannot verify on Yahoo Finance
+  '143': '^TA90',        // TA-90
+  '137': '^TA125',       // TA-125
+  '142': '^TA35',        // TA-35
+  '707': '^TELBOND20',   // Tel Bond 20
+  '709': '^TELBOND60',   // Tel Bond 60
+  '170': '^TA-OILGAS',   // TA Oil & Gas
+  '148': '^TA-FINANCE',  // TA Finance
+  '145': '^TA-TECH-ELITE',// TA Tech-Elite
+  '169': '^TA-TECHNOLOGY',// TA Technology
+  '167': '^TA-BLUETECH', // TA BlueTech
+  '164': '^TA-BANK5',    // TA Banks-5
+  '168': '^TA-ALLSHARE', // TA All-Share
+  '149': '^TARE-15',     // TA Real-Estate 15
 };
 
 /**
@@ -44,69 +45,65 @@ export const ISRAEL_TICKER_OVERRIDES: Record<string, string> = {
 export function getYahooTickerCandidates(ticker: string, exchange: Exchange, group?: InstrumentGroup): string[] {
   const u = ticker.toUpperCase();
 
-  // 1. Authoritative Overrides
+  // 1. Handle overrides first. These are considered final.
   if (exchange === Exchange.TASE && u in ISRAEL_TICKER_OVERRIDES) {
     return [ISRAEL_TICKER_OVERRIDES[u]];
   }
 
-  const candidates: string[] = [];
-
-  // 2. Forex & Crypto
-  if (exchange === Exchange.FOREX || group === InstrumentGroup.FOREX) {
-    const clean = u.replace(/-/g, '').replace(/=X$/g, '');
-    
-    if (clean.length === 6) {
-        const base = clean.substring(0, 3);
-        const quote = clean.substring(3);
-        
-        if (base === 'USD') {
-            // USD first -> try ILS=X then ILS-USD
-            candidates.push(`${quote}=X`);
-            candidates.push(`${quote}-USD`);
-        } else if (quote === 'USD') {
-            // USD second -> try BTC-USD then BTCUSD=X
-            candidates.push(`${base}-USD`);
-            candidates.push(`${clean}=X`);
-            candidates.push(`${base}=X`); // Fallback if just base exists
-        } else {
-            candidates.push(`${clean}=X`);
-            candidates.push(`${base}=X`);
-        }
-    } else {
-        candidates.push(u.endsWith('=X') ? u : `${u}=X`);
-        candidates.push(u);
-    }
-  } 
-  // 3. Indices
-  else if (group === InstrumentGroup.INDEX || u.startsWith('^')) {
-    if (/^\d+$/.test(u)) {
-      candidates.push(u); // Numeric indices usually don't have prefixes
-    } else {
-      candidates.push(u.startsWith('^') ? u : `^${u}`);
-      if (u.startsWith('^')) candidates.push(u.substring(1));
-    }
-  } 
-  // 4. Commodities & Futures
-  else if (group === InstrumentGroup.COMMODITY || (group === InstrumentGroup.DERIVATIVE && exchange !== Exchange.TASE) || u.endsWith('=F')) {
-    if (u.endsWith('=F')) {
-      candidates.push(u);
-      candidates.push(u.substring(0, u.length - 2));
-    } else {
-      candidates.push(`${u}=F`);
-      candidates.push(u);
-    }
-  }
-  // 5. Standard / Stocks
-  else {
-    const suffix = EXCHANGE_SETTINGS[exchange]?.yahooFinanceSuffix || '';
-    candidates.push(`${u}${suffix}`);
-    // Fallback for indices entered as symbols in US exchanges
-    if ((exchange === Exchange.NYSE || exchange === Exchange.NASDAQ) && !u.startsWith('^')) {
-      candidates.push(`^${u}`);
-    }
+  // 2. Handle symbols that are already in a specific Yahoo format.
+  // This includes special prefixes/suffixes and exchange suffixes.
+  if (u.startsWith('^') || u.endsWith('=X') || u.endsWith('=F')) {
+    return [u];
   }
 
-  return Array.from(new Set(candidates));
+  // 3. Reject numeric-only symbols for stocks early.
+  const isNumeric = /^\d+$/.test(u);
+  if (exchange === Exchange.CBS && isNumeric) {
+    return [u];
+  }
+
+  // 4. Generate a set of "base" candidates from the clean symbol.
+  const baseCandidates = new Set<string>();
+  baseCandidates.add(u); // Always include the raw symbol
+
+  if (group === InstrumentGroup.INDEX) {
+    if (!isNumeric) baseCandidates.add(`^${u}`);
+  }
+  else if (group === InstrumentGroup.FOREX || exchange === Exchange.FOREX) {
+    // Forex is special: it doesn't get exchange suffixes, so handle and return.
+    const candidates = new Set<string>([u]);
+    if (u.length === 6) {
+      const base = u.substring(0, 3);
+      const quote = u.substring(3, 6);
+      if (quote === 'USD') candidates.add(`${base}-USD`);
+      candidates.add(`${u}=X`);
+    } else {
+      candidates.add(`${u}=X`);
+    }
+    return Array.from(candidates);
+  }
+  else if (group === InstrumentGroup.COMMODITY) {
+    baseCandidates.add(`${u}=F`);
+  }
+
+  // 5. Apply exchange suffix to all generated candidates.
+  const suffix = EXCHANGE_SETTINGS[exchange]?.yahooFinanceSuffix || '';
+
+  if (!suffix) return Array.from(baseCandidates);
+
+  const finalCandidates = new Set<string>();
+
+  // Add suffixed candidates first for priority
+  baseCandidates.forEach(c => {
+    finalCandidates.add(`${c}${suffix}`);
+  });
+
+  // Add non-suffixed candidates as fallbacks, as Yahoo sometimes recognizes them without it
+  baseCandidates.forEach(c => {
+    finalCandidates.add(c);
+  });
+
+  return Array.from(finalCandidates);
 }
 
 /**
@@ -129,22 +126,22 @@ export function getVerifiedYahooSymbol(ticker: string, exchange: Exchange): stri
 }
 
 export async function fetchYahooTickerData(
-  ticker: string, 
-  exchange: Exchange, 
-  signal?: AbortSignal, 
-  forceRefresh = false, 
+  ticker: string,
+  exchange: Exchange,
+  signal?: AbortSignal,
+  forceRefresh = false,
   range: '1y' | '5y' | 'max' = '5y',
   group?: InstrumentGroup
 ): Promise<TickerData | null> {
   if (exchange === Exchange.GEMEL || exchange === Exchange.PENSION || exchange === Exchange.CBS) {
     return null;
   }
-  
+
   const now = Date.now();
   const cacheKey = `yahoo:quote:v3:${exchange}:${ticker}:${range}`;
   const successKey = `${exchange}:${ticker.toUpperCase()}`;
   const knownSymbol = symbolSuccessMap.get(successKey);
-  
+
   if (!forceRefresh) {
     const cached = await loadFromCache<TickerData>(cacheKey);
     if (cached?.timestamp && (now - new Date(cached.timestamp).getTime() < CACHE_TTL)) {
@@ -190,7 +187,7 @@ export async function fetchYahooTickerData(
       const openPrice = openPrices.length > 0 ? openPrices[openPrices.length - 1] : null;
       const currency = meta.currency;
       const exchangeCode = meta.exchangeName || 'OTHER';
-      
+
       let mappedExchange: Exchange;
       try {
         mappedExchange = parseExchange(YAHOO_EXCHANGE_MAP[exchangeCode.toUpperCase()] || exchangeCode);
@@ -240,16 +237,16 @@ export async function fetchYahooTickerData(
       }
 
       if (closes.length > 0 && timestamps.length === closes.length) {
-        const points = timestamps.map((t: number, i: number) => ({ 
-            time: t, 
-            close: closes[i],
-            adjClose: adjCloses[i] 
+        const points = timestamps.map((t: number, i: number) => ({
+          time: t,
+          close: closes[i],
+          adjClose: adjCloses[i]
         })).filter((p: any) => p.close != null && p.time != null);
 
-        historical = points.map((p: any) => ({ 
-            date: new Date(p.time * 1000), 
-            price: p.close,
-            adjClose: p.adjClose
+        historical = points.map((p: any) => ({
+          date: new Date(p.time * 1000),
+          price: p.close,
+          adjClose: p.adjClose
         }));
 
         if (points.length > 0) {
@@ -275,13 +272,13 @@ export async function fetchYahooTickerData(
           const calcChange = (p: any) => (!p ? { pct: undefined, date: undefined } : { pct: (currentClose - p.close) / p.close, date: new Date(p.time * 1000) });
 
           const m1 = findClosestPoint(getDateAgo(1, 'months')), m3 = findClosestPoint(getDateAgo(3, 'months')), y1 = findClosestPoint(getDateAgo(1, 'years')), y3 = findClosestPoint(getDateAgo(3, 'years')), y5 = findClosestPoint(getDateAgo(5, 'years'));
-          
+
           const res1m = calcChange(m1); changePct1m = res1m.pct; changeDate1m = res1m.date;
           const res3m = calcChange(m3); changePct3m = res3m.pct; changeDate3m = res3m.date;
           const res1y = calcChange(y1); changePct1y = res1y.pct; changeDate1y = res1y.date;
           const res3y = calcChange(y3); changePct3y = res3y.pct; changeDate3y = res3y.date;
           const res5y = calcChange(y5); changePct5y = res5y.pct; changeDate5y = res5y.date;
-          
+
           const targetYtd = new Date(lastPoint.time * 1000); targetYtd.setMonth(0); targetYtd.setDate(0);
           const resYtd = calcChange(findClosestPoint(targetYtd.getTime() / 1000)); changePctYtd = resYtd.pct; changeDateYtd = resYtd.date;
           const resMax = calcChange(points[0]); changePctMax = resMax.pct; changeDateMax = resMax.date;

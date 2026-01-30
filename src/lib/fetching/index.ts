@@ -19,7 +19,6 @@ export * from './globes';
 export * from './gemelnet';
 export * from './pensyanet';
 
-
 let tickersDataset: Record<string, TickerProfile[]> | null = null;
 let tickersDatasetLoading: Promise<Record<string, TickerProfile[]>> | null = null;
 
@@ -104,7 +103,7 @@ export async function getTickerData(
   } catch (e) {
     console.warn(`getTickerData: Invalid exchange '${exchange}', defaulting to NASDAQ for Yahoo fallback logic.`, e);
     // For invalid exchange, we can only try yahoo.
-    return fetchYahooTickerData(ticker, Exchange.NASDAQ, signal, forceRefresh, '5y');
+    return fetchYahooTickerData(ticker, Exchange.NASDAQ, signal, forceRefresh, 'max');
   }
 
   const secId = numericSecurityId ? Number(numericSecurityId) : undefined;
@@ -297,45 +296,27 @@ export async function getTickerData(
 }
 
 export async function fetchTickerHistory(
-
   ticker: string,
-
   exchange: Exchange,
-
   signal?: AbortSignal,
-
   forceRefresh = false
-
 ): Promise<Pick<TickerData, 'historical' | 'dividends' | 'splits' | 'fromCache' | 'fromCacheMax'>> {
-
   const tickerNum = Number(ticker);
 
-
-
   if (exchange === Exchange.GEMEL) {
-
     const data = await fetchGemelnetQuote(tickerNum, signal, forceRefresh);
-
     return { historical: data?.historical, dividends: data?.dividends, splits: data?.splits, fromCache: data?.fromCache, fromCacheMax: data?.fromCacheMax };
-
   }
-
-
 
   if (exchange === Exchange.PENSION) {
-
     const data = await fetchPensyanetQuote(tickerNum, signal, forceRefresh);
-
     return { historical: data?.historical, dividends: data?.dividends, splits: data?.splits, fromCache: data?.fromCache, fromCacheMax: data?.fromCacheMax };
-
   }
-
 
   if (exchange === Exchange.CBS) {
     const data = await fetchCpi(tickerNum, signal);
     return { historical: data?.historical, fromCache: data?.fromCache, fromCacheMax: data?.fromCacheMax };
   }
-
 
   // Lookup profile to determine group for smart fetching
   const profile = await getTickersDataset(signal).then(dataset => {
@@ -352,29 +333,16 @@ export async function fetchTickerHistory(
 
   const group = profile?.type.group;
 
-
   const [yahooData5y, yahooDataMax] = await Promise.all([
-
     fetchYahooTickerData(ticker, exchange, signal, forceRefresh, '5y', group),
-
     fetchYahooTickerData(ticker, exchange, signal, false, 'max', group)
-
   ]);
 
-
-
   return {
-
     historical: combineHistory(yahooData5y?.historical, yahooDataMax?.historical),
-
     dividends: yahooDataMax?.dividends,
-
     splits: yahooDataMax?.splits,
-
     fromCache: yahooData5y?.fromCache,
-
     fromCacheMax: yahooDataMax?.fromCache
-
   };
-
 }
