@@ -328,10 +328,6 @@ async function fetchTaseTickers(
           };
       }).filter((a: any) => a.name && a.weight != null);
 
-      if (underlyingAssets && underlyingAssets.length > 0) {
-          console.log(`[fetchTaseTickers] Found ${underlyingAssets.length} assets for fund ${id}:`, underlyingAssets);
-      }
-
       const parsedId = parseInt(id, 10);
 
       allTickers.push({

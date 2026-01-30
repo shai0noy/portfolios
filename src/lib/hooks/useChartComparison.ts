@@ -8,7 +8,8 @@ export const COMPARISON_OPTIONS = [
     { ticker: '^NDX', exchange: Exchange.NASDAQ, name: 'NASDAQ 100' },
     { ticker: 'TA35', exchange: Exchange.TASE, name: 'Tel Aviv 35' },
     { ticker: '137', exchange: Exchange.TASE, name: 'Tel Aviv 125' },
-    { ticker: '120010', exchange: Exchange.CBS, name: 'Israel Consumer Price Index'}
+    { ticker: '120010', exchange: Exchange.CBS, name: 'Israel Consumer Price Index'},
+    { ticker: 'GC=F', exchange: Exchange.TASE, name: 'Gold Futures'}
 ];
 
 export const EXTRA_COLORS = [

@@ -142,7 +142,7 @@ export const ensureSchema = withAuthHandling(async (spreadsheetId: string) => {
     // Pairs: Direct USD pairs + Major Crosses + Inverses for Robustness
     // New List: USDILS, ILSUSD, USDEUR, EURUSD, USDGBP, GBPUSD, EURILS, ILSEUR, GBPILS, ILSGBP
     const createCurrencyRow = (currencyPair: string) => {
-        const getFormula = (dateExpr: string) => getHistoricalPriceFormula(currencyPair, dateExpr, true);
+        const getFormula = (dateExpr: string) => '=' + getHistoricalPriceFormula(currencyPair, dateExpr, true);
         
         // We use simple GOOGLEFINANCE formulas. Robustness (fallback to inverted/chain) is handled in the app code.
         return [
