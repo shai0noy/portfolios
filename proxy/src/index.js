@@ -19,10 +19,10 @@ const API_MAP = {
 
 // Rate limiting state (in-memory, per-isolate)
 const IP_LIMITS = new Map();
-const SHORT_LIMIT = 50;
+const SHORT_LIMIT = 75;
 const SHORT_WINDOW = 5 * 60 * 1000; // 5 minutes
-const LONG_LIMIT = 150;
-const LONG_WINDOW = 24 * 60 * 60 * 1000; // 24 hours
+const LONG_LIMIT = 200;
+const LONG_WINDOW = 12 * 60 * 60 * 1000; // 12 hours
 
 function isRateLimited(ip) {
   if (!ip) return false;
