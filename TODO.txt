@@ -13,6 +13,10 @@ CPI data parsing, solve issue where values before 1985 are weird - 200x too larg
 Mobile viewing is all over the placed
 Check crypto 1d change?...
 Theres still chart-related code duplication between TickerDetails and other places like useChartComparison.ts
+The create first portfolio message should not appear when loggin failed. Instead should perform login.
+In total holdings chart - holdings mode should be mutualy exclusive with comperission mode.
+In total holdings chart - hide range options with insuffcient data
+In total holdings chart - Fix gains pct chart and calc. Need to think exactly what base to use
 Discovery/selling points splash page
 DONE: maybe store type in sheet
 tase types vs globes types??
