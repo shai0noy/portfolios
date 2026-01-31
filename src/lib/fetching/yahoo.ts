@@ -58,8 +58,8 @@ export function getYahooTickerCandidates(ticker: string, exchange: Exchange, gro
 
   // 3. Reject numeric-only symbols for stocks early.
   const isNumeric = /^\d+$/.test(u);
-  if (exchange === Exchange.CBS && isNumeric) {
-    return [u];
+  if (isNumeric && (exchange !== Exchange.TASE || group !== InstrumentGroup.INDEX)) {
+      return [];
   }
 
   // 4. Generate a set of "base" candidates from the clean symbol.
@@ -95,12 +95,11 @@ export function getYahooTickerCandidates(ticker: string, exchange: Exchange, gro
 
   // Add suffixed candidates first for priority
   baseCandidates.forEach(c => {
-    finalCandidates.add(`${c}${suffix}`);
-  });
-
-  // Add non-suffixed candidates as fallbacks, as Yahoo sometimes recognizes them without it
-  baseCandidates.forEach(c => {
-    finalCandidates.add(c);
+    if (c.endsWith(suffix)) {
+      finalCandidates.add(c);
+    } else {
+      finalCandidates.add(`${c}${suffix}`);
+    }
   });
 
   return Array.from(finalCandidates);
