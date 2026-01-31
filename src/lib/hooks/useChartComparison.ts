@@ -18,6 +18,27 @@ export const EXTRA_COLORS = [
 
 export const RANGES = ['1M', '3M', '6M', 'YTD', '1Y', '3Y', '5Y', 'ALL'];
 
+export function getAvailableRanges(startDate: Date | undefined): string[] {
+    if (!startDate) return ['ALL'];
+    const now = new Date();
+    const diffTime = Math.abs(now.getTime() - startDate.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    const diffMonths = diffDays / 30;
+    const diffYears = diffDays / 365;
+
+    const ranges: string[] = [];
+    if (diffMonths >= 1) ranges.push('1M');
+    if (diffMonths >= 3) ranges.push('3M');
+    if (diffMonths >= 6) ranges.push('6M');
+    if (startDate.getFullYear() < now.getFullYear()) ranges.push('YTD');
+    if (diffYears >= 1) ranges.push('1Y');
+    if (diffYears >= 3) ranges.push('3Y');
+    if (diffYears >= 5) ranges.push('5Y');
+    ranges.push('ALL');
+    return ranges;
+}
+
 export function useChartComparison() {
     const [chartRange, setChartRange] = useState('1Y');
     const [comparisonSeries, setComparisonSeries] = useState<ChartSeries[]>([]);

@@ -15,7 +15,7 @@ import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
 import { getOwnedInPortfolios } from '../lib/portfolioUtils';import { TickerChart, type ChartSeries } from './TickerChart';
 import { Currency } from '../lib/types';
 import type { Dividend } from '../lib/fetching/types';
-import { COMPARISON_OPTIONS } from '../lib/hooks/useChartComparison';
+import { COMPARISON_OPTIONS, getAvailableRanges } from '../lib/hooks/useChartComparison';
 
 interface TickerDetailsProps {
   sheetId: string;
@@ -116,26 +116,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   const now = new Date();
   
   const availableRanges = useMemo(() => {
-    if (!oldestDate) return ['ALL'];
-    const diffTime = Math.abs(now.getTime() - oldestDate.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
-    const diffMonths = diffDays / 30;
-    const diffYears = diffDays / 365;
-
-    const ranges = [];
-    if (diffMonths >= 1) ranges.push('1M');
-    if (diffMonths >= 3) ranges.push('3M');
-    if (diffMonths >= 6) ranges.push('6M');
-    
-    // YTD is special: show if data starts before Jan 1st of this year
-    if (oldestDate.getFullYear() < now.getFullYear()) ranges.push('YTD');
-
-    if (diffYears >= 1) ranges.push('1Y');
-    if (diffYears >= 3) ranges.push('3Y');
-    if (diffYears >= 5) ranges.push('5Y');
-    
-    ranges.push('ALL');
-    return ranges;
+    return getAvailableRanges(oldestDate);
   }, [oldestDate]);
 
   const maxLabel = useMemo(() => {

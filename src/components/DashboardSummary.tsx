@@ -11,7 +11,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { TickerChart, type ChartSeries } from './TickerChart';
 import { calculatePortfolioPerformance, type PerformancePoint } from '../lib/performance';
 import { fetchTransactions } from '../lib/sheets';
-import { useChartComparison, COMPARISON_OPTIONS, RANGES } from '../lib/hooks/useChartComparison';
+import { useChartComparison, COMPARISON_OPTIONS, getAvailableRanges } from '../lib/hooks/useChartComparison';
 
 // Time constants for auto-stepping
 const AUTO_STEP_DELAY = 2 * 60 * 1000; // 2 minutes
@@ -350,7 +350,8 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
       return series;
   }, [perfData, chartView, chartRange, comparisonSeries, getClampedDataCallback, getClampedData, t]);
 
-  const ranges = RANGES;
+  const oldestDate = useMemo(() => perfData.length > 0 ? perfData[0].date : undefined, [perfData]);
+  const availableRanges = useMemo(() => getAvailableRanges(oldestDate), [oldestDate]);
   const isComparison = comparisonSeries.length > 0;
   const effectiveChartMetric = isComparison ? 'percent' : chartMetric;
 
@@ -479,7 +480,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                                 size="small"
                                 sx={{ height: 26 }}
                             >
-                                {ranges.map(r => (
+                                {availableRanges.map(r => (
                                     <ToggleButton key={r} value={r} sx={{ px: 0.8, fontSize: '0.65rem' }}>{r === 'ALL' ? 'Max' : r}</ToggleButton>
                                 ))}
                             </ToggleButtonGroup>
