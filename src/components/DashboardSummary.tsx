@@ -1,17 +1,20 @@
-import { Box, Paper, Typography, Grid, Tooltip, ToggleButton, ToggleButtonGroup, IconButton, CircularProgress, Button, Menu, MenuItem, Chip } from '@mui/material';
+import { Box, Paper, Typography, Grid, Tooltip, ToggleButton, ToggleButtonGroup, IconButton, CircularProgress, Button, Menu, MenuItem, Chip, ListItemIcon, Dialog, DialogTitle, DialogContent } from '@mui/material';
 import { formatPercent, formatValue, calculatePerformanceInDisplayCurrency } from '../lib/currency';
 import { logIfFalsy } from '../lib/utils';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import AddIcon from '@mui/icons-material/Add';
-import type { ExchangeRates, DashboardHolding } from '../lib/types';
+import SearchIcon from '@mui/icons-material/Search';
+import type { ExchangeRates, DashboardHolding, Portfolio } from '../lib/types';
 import { useLanguage } from '../lib/i18n';
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { TickerChart, type ChartSeries } from './TickerChart';
 import { calculatePortfolioPerformance, type PerformancePoint } from '../lib/performance';
 import { fetchTransactions } from '../lib/sheets';
-import { useChartComparison, COMPARISON_OPTIONS, getAvailableRanges } from '../lib/hooks/useChartComparison';
+import { useChartComparison, getAvailableRanges } from '../lib/hooks/useChartComparison';
+import { TickerSearch } from './TickerSearch';
+import type { TickerProfile } from '../lib/types/ticker';
 
 // Time constants for auto-stepping
 const AUTO_STEP_DELAY = 2 * 60 * 1000; // 2 minutes
@@ -53,6 +56,8 @@ interface SummaryProps {
   exchangeRates: ExchangeRates;
   selectedPortfolio: string | null;
   sheetId: string;
+  portfolios: Portfolio[];
+  isPortfoliosLoading: boolean;
 }
 
 interface StatProps {
@@ -255,7 +260,7 @@ const TopMovers = ({ holdings, displayCurrency, exchangeRates }: { holdings: Das
   );
 };
 
-export function DashboardSummary({ summary, holdings, displayCurrency, exchangeRates, selectedPortfolio, sheetId }: SummaryProps & { sheetId: string }) {
+export function DashboardSummary({ summary, holdings, displayCurrency, exchangeRates, selectedPortfolio, sheetId, portfolios, isPortfoliosLoading }: SummaryProps) {
   logIfFalsy(exchangeRates, "DashboardSummary: exchangeRates missing");
   const { t } = useLanguage();
   
@@ -268,9 +273,11 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
   const {
       chartRange, setChartRange,
       comparisonSeries, setComparisonSeries,
+      comparisonOptions,
       comparisonLoading,
       handleSelectComparison,
-      getClampedData
+      getClampedData,
+      isSearchOpen, setIsSearchOpen
   } = useChartComparison();
 
   const [compareMenuAnchor, setCompareMenuAnchor] = useState<null | HTMLElement>(null);
@@ -285,6 +292,15 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
         setActiveStep(prev => (prev + 1) % 3);
     }, delay);
   }, []);
+
+  const handleTickerSearchSelect = (ticker: TickerProfile) => {
+    handleSelectComparison({
+      ticker: ticker.symbol,
+      exchange: ticker.exchange,
+      name: ticker.name,
+    });
+    setIsSearchOpen(false);
+  };
 
   useEffect(() => {
     const delay = isManualRef.current ? INTERACTION_STEP_DELAY : AUTO_STEP_DELAY;
@@ -356,6 +372,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
   const effectiveChartMetric = isComparison ? 'percent' : chartMetric;
 
   return (
+    <>
     <Paper 
         variant="outlined" 
         sx={{ p: 3, mb: 4, position: 'relative' }} 
@@ -500,15 +517,23 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                                     open={Boolean(compareMenuAnchor)}
                                     onClose={() => setCompareMenuAnchor(null)}
                                 >
-                                    {COMPARISON_OPTIONS.map((opt) => (
+                                    {comparisonOptions.map((opt) => (
                                         <MenuItem 
                                             key={opt.name} 
-                                            onClick={() => handleSelectComparison(opt)} 
+                                            onClick={() => {
+                                                handleSelectComparison(opt);
+                                                setCompareMenuAnchor(null);
+                                            }}
                                             disabled={comparisonSeries.some(s => s.name === opt.name) || comparisonLoading[opt.name]}
-                                            sx={{ fontSize: '0.8rem' }}
+                                            sx={{ fontSize: '0.8rem', minWidth: 120 }}
                                         >
+                                            {opt.icon === 'search' && (
+                                                <ListItemIcon>
+                                                    <SearchIcon fontSize="small" />
+                                                </ListItemIcon>
+                                            )}
                                             {opt.name}
-                                            {comparisonLoading[opt.name] && <CircularProgress size={12} sx={{ ml: 1 }} />}
+                                            {comparisonLoading[opt.name] && <CircularProgress size={12} sx={{ ml: 'auto', pl: 1 }} />}
                                         </MenuItem>
                                     ))}
                                 </Menu>
@@ -546,5 +571,17 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
         )}
       </Box>
     </Paper>
+    <Dialog open={isSearchOpen} onClose={() => setIsSearchOpen(false)} maxWidth="md" fullWidth>
+      <DialogTitle>{t('Search to Compare', 'חפש להשוואה')}</DialogTitle>
+      <DialogContent>
+        <TickerSearch
+          portfolios={portfolios}
+          isPortfoliosLoading={isPortfoliosLoading}
+          onTickerSelect={handleTickerSearchSelect}
+          sx={{ mt: 0, mb: 0 }}
+        />
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }

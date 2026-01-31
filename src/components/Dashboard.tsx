@@ -234,6 +234,8 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         exchangeRates={exchangeRates}
         selectedPortfolio={portMap.get(selectedPortfolioId || '')?.name || null}
         sheetId={sheetId}
+        portfolios={portfolios}
+        isPortfoliosLoading={loading}
       />
       {hasFutureTxns && (
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'right', mt: 0.5, mb: 1, fontSize: '0.7rem' }}>

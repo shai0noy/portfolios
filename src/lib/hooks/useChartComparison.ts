@@ -3,13 +3,23 @@ import { Exchange } from '../types';
 import { fetchTickerHistory } from '../fetching';
 import type { ChartSeries } from '../../components/TickerChart';
 
-export const COMPARISON_OPTIONS = [
+export const SEARCH_OPTION_TICKER = 'SEARCH_ACTION';
+
+export interface ComparisonOption {
+    ticker: string;
+    exchange: Exchange;
+    name: string;
+    icon?: string;
+}
+
+export const INITIAL_COMPARISON_OPTIONS: ComparisonOption[] = [
+    { ticker: SEARCH_OPTION_TICKER, exchange: Exchange.NYSE, name: 'Search...', icon: 'search' },
     { ticker: '^SPX', exchange: Exchange.NYSE, name: 'S&P 500' },
     { ticker: '^NDX', exchange: Exchange.NASDAQ, name: 'NASDAQ 100' },
     { ticker: 'TA35', exchange: Exchange.TASE, name: 'Tel Aviv 35' },
     { ticker: '137', exchange: Exchange.TASE, name: 'Tel Aviv 125' },
     { ticker: '120010', exchange: Exchange.CBS, name: 'Israel Consumer Price Index'},
-    { ticker: 'GC=F', exchange: Exchange.TASE, name: 'Gold Futures'}
+    { ticker: 'GC=F', exchange: Exchange.NYSE, name: 'Gold Futures'}
 ];
 
 export const EXTRA_COLORS = [
@@ -42,11 +52,30 @@ export function getAvailableRanges(startDate: Date | undefined): string[] {
 export function useChartComparison() {
     const [chartRange, setChartRange] = useState('1Y');
     const [comparisonSeries, setComparisonSeries] = useState<ChartSeries[]>([]);
+    const [comparisonOptions, setComparisonOptions] = useState<ComparisonOption[]>(INITIAL_COMPARISON_OPTIONS);
     const [comparisonLoading, setComparisonLoading] = useState<Record<string, boolean>>({});
+    const [isSearchOpen, setIsSearchOpen] = useState(false);
 
-    const handleSelectComparison = useCallback(async (option: typeof COMPARISON_OPTIONS[0]) => {
+    const handleSelectComparison = useCallback(async (option: ComparisonOption) => {
+        if (option.ticker === SEARCH_OPTION_TICKER) {
+            setIsSearchOpen(true);
+            return;
+        }
+
         if (comparisonSeries.some(s => s.name === option.name)) return;
 
+        // Add to comparison options if it's not already there
+        if (!comparisonOptions.some(o => o.ticker === option.ticker && o.exchange === option.exchange)) {
+            // Insert after the "Search..." option
+            setComparisonOptions(prev => {
+                const searchIndex = prev.findIndex(o => o.ticker === SEARCH_OPTION_TICKER);
+                const newOptions = [...prev];
+                const insertionIndex = searchIndex !== -1 ? searchIndex + 1 : 1;
+                newOptions.splice(insertionIndex, 0, option);
+                return newOptions;
+            });
+        }
+        
         setComparisonLoading(prev => ({ ...prev, [option.name]: true }));
         try {
             const historyResponse = await fetchTickerHistory(option.ticker, option.exchange);
@@ -62,7 +91,7 @@ export function useChartComparison() {
         } finally {
             setComparisonLoading(prev => ({ ...prev, [option.name]: false }));
         }
-    }, [comparisonSeries]);
+    }, [comparisonSeries, comparisonOptions]);
 
     const handleRemoveComparison = useCallback((name: string) => {
         setComparisonSeries(prev => prev.filter(s => s.name !== name));
@@ -94,9 +123,12 @@ export function useChartComparison() {
         setChartRange,
         comparisonSeries,
         setComparisonSeries, // Exposed in case manual manipulation needed
+        comparisonOptions,
         comparisonLoading,
         handleSelectComparison,
         handleRemoveComparison,
-        getClampedData
+        getClampedData,
+        isSearchOpen,
+        setIsSearchOpen
     };
 }
