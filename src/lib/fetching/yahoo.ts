@@ -20,22 +20,21 @@ const YAHOO_EXCHANGE_MAP: Record<string, string> = (() => {
 })();
 
 export const ISRAEL_TICKER_OVERRIDES: Record<string, string> = {
-  // Corrected to use Yahoo's index symbols (prefixed with ^) instead of ETF tickers.
-  '147': '^TAMC50',      // TA MidCap-50
-  // '163': 'MIDCAP120.TA', // Cannot verify on Yahoo Finance
-  '143': '^TA90',        // TA-90
-  '137': '^TA125',       // TA-125
-  '142': '^TA35',        // TA-35
-  '707': '^TELBOND20',   // Tel Bond 20
-  '709': '^TELBOND60',   // Tel Bond 60
-  '170': '^TA-OILGAS',   // TA Oil & Gas
-  '148': '^TA-FINANCE',  // TA Finance
-  '145': '^TA-TECH-ELITE',// TA Tech-Elite
-  '169': '^TA-TECHNOLOGY',// TA Technology
-  '167': '^TA-BLUETECH', // TA BlueTech
-  '164': '^TA-BANK5',    // TA Banks-5
-  '168': '^TA-ALLSHARE', // TA All-Share
-  '149': '^TARE-15',     // TA Real-Estate 15
+  '147': 'MIDCAP50.TA',
+  '163': 'MIDCAP120.TA',
+  '143': 'TA90.TA',
+  '137': '^TA125.TA',
+  '142': 'TA35.TA',
+  '707': 'TELBOND20.TA',
+  '709': 'TELBOND60.TA',
+  '170': 'TA-OG.TA',
+  '148': 'TA-FIN.TA',
+  '145': 'TEL-TECH.TA',
+  '169': 'TA-TECH.TA',
+  '167': 'TASEBM.TA',
+  '164': 'TA-BANKS.TA',
+  '168': 'TA-COMP.TA',
+  '149': 'ESTATE15.TA'
 };
 
 /**
