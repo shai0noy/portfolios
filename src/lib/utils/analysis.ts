@@ -3,11 +3,12 @@
  */
 
 export interface AnalysisMetrics {
-    alpha: number;
+    alpha: number; // Jensen's Alpha
     beta: number;
-    downsideBeta: number;
+    downsideBeta: number; // Beta calculated only on downside periods
+    downsideAlpha: number; // Jensen's Alpha using downsideBeta
     rSquared: number;
-    correlation: number;
+    correlation: number; // Pearson correlation coefficient
 }
 
 export interface DataPoint {
@@ -25,7 +26,7 @@ export function synchronizeSeries(datasetX: DataPoint[], datasetY: DataPoint[]):
     if (datasetX.length === 0 || datasetY.length === 0) return [];
 
     const mapY = new Map<string, number>();
-    
+
     // Helper to get YYYY-MM-DD key using UTC to avoid timezone shifts
     const getDateKey = (ts: number) => {
         const d = new Date(ts);
@@ -35,7 +36,7 @@ export function synchronizeSeries(datasetX: DataPoint[], datasetY: DataPoint[]):
     datasetY.forEach(p => mapY.set(getDateKey(p.timestamp), p.value));
 
     const pairs: { x: number; y: number }[] = [];
-    
+
     datasetX.forEach(pX => {
         const key = getDateKey(pX.timestamp);
         if (mapY.has(key)) {
@@ -81,7 +82,7 @@ export function computeAnalysisMetrics(pairs: { x: number; y: number }[]): Analy
         sumXY += x * y;
         sumX2 += x * x;
         sumY2 += y * y;
-        
+
         // Downside is defined as Benchmark (X) Returns < 0
         if (x < 0) downsidePairs.push(p);
     }
@@ -93,7 +94,7 @@ export function computeAnalysisMetrics(pairs: { x: number; y: number }[]): Analy
     const numerator = n * sumXY - sumX * sumY;
     const termX = n * sumX2 - sumX ** 2;
     const termY = n * sumY2 - sumY ** 2;
-    
+
     const denomCorr = Math.sqrt(termX * termY);
     const correlation = denomCorr === 0 ? 0 : numerator / denomCorr;
 
@@ -105,12 +106,14 @@ export function computeAnalysisMetrics(pairs: { x: number; y: number }[]): Analy
 
     // R-Squared (r^2)
     const rSquared = correlation ** 2;
-    
+
     // Downside Beta
     // If fewer than 2 downside points, fallback to overall Beta
     const downsideBeta = downsidePairs.length < 2 ? beta : computeSlope(downsidePairs);
 
-    return { alpha, beta, rSquared, correlation, downsideBeta };
+    const downsideAlpha = avgY - downsideBeta * avgX;
+
+    return { alpha, beta, rSquared, correlation, downsideBeta, downsideAlpha };
 }
 
 /**
@@ -123,13 +126,13 @@ export function calculateReturns(pairs: { x: number; y: number }[]): { x: number
     for (let i = 1; i < pairs.length; i++) {
         const prev = pairs[i - 1];
         const curr = pairs[i];
-        
+
         // Avoid division by zero
         if (prev.x === 0 || prev.y === 0) continue;
 
         const retX = (curr.x - prev.x) / prev.x;
         const retY = (curr.y - prev.y) / prev.y;
-        
+
         returns.push({ x: retX, y: retY });
     }
     return returns;

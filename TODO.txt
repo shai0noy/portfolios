@@ -15,6 +15,7 @@ Check crypto 1d change?...
 Discovery/selling points splash page
 tase types vs globes types??
 If there is no sheet document ID, do not show the "create first portfolio" screen, rather, you should send the user to exisitng the screen to enter an existing sheet ID or create one
+Allow choosing between IL and US tbills and pass to alpha calc. Also add sharpe calc. Add toggle to choose in analysis window. Default IL.
 
 dsahboard summary:
 - chart

@@ -163,6 +163,29 @@ function testCalculateReturns() {
     assertClose(returns[1].x, -0.10, 0.0001, 'Return 2 X correct');
 }
 
+function testDownsideAlpha() {
+    console.log('\n--- Test: Downside Alpha ---');
+    // Scenario: When market is down (X < 0), asset consistently beats it by a fixed amount.
+    // Y = 1.0 * X + 0.01  (when X is negative)
+    // Downside Beta should be 1.0, Downside Alpha should be 0.01
+    const pairs = [
+        { x: 0.02,  y: 0.02 },    // Market Up, follows market
+        { x: 0.03,  y: 0.03 },    // Market Up, follows market
+        { x: -0.01, y: 0.00 },     // Market Down, Y = -0.01 + 0.01
+        { x: -0.02, y: -0.01 },    // Market Down, Y = -0.02 + 0.01
+        { x: -0.03, y: -0.02 },    // Market Down, Y = -0.03 + 0.01
+    ];
+
+    const metrics = computeAnalysisMetrics(pairs);
+    if (!metrics) throw new Error('Metrics failed for downside alpha test');
+    
+    // Downside Alpha (per user's definition) = Avg(Y) - DownsideBeta * Avg(X)
+    // Avg(Y) = 0.004, Avg(X) = -0.002, DownsideBeta = 1.0
+    // 0.004 - (1.0 * -0.002) = 0.006
+    assertClose(metrics.downsideBeta, 1.0, 0.0001, 'Downside Beta for alpha test should be 1.0');
+    assertClose(metrics.downsideAlpha, 0.006, 0.0001, 'Downside Alpha should be 0.006');
+}
+
 export function runTests() {
     try {
         testSynchronizeSeries();
@@ -172,6 +195,7 @@ export function runTests() {
         testNormalizeToStart();
         testCalculateReturns();
         testDownsideBeta();
+        testDownsideAlpha();
         console.log('\n🎉 All analysis tests passed!');
     } catch (e) {
         console.error('\n💥 Analysis tests failed.');

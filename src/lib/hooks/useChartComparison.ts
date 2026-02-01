@@ -29,7 +29,7 @@ export const INITIAL_COMPARISON_OPTIONS: ComparisonOption[] = [
     { ticker: 'ILSUSD=X', exchange: Exchange.NYSE, name: 'ILS/USD' },
 ];
 
-const DARK_COLORS = [
+export const DARK_COLORS = [
     '#5E9EFF',
     '#FF922B',
     '#69DB7C',
@@ -42,7 +42,7 @@ const DARK_COLORS = [
     '#94D82D',
 ];
 
-const LIGHT_COLORS = [
+export const LIGHT_COLORS = [
     '#1864AB',
     '#D9480F',
     '#2B8A3E',

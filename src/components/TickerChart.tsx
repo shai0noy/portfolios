@@ -45,7 +45,7 @@ const CustomTooltip = ({ active, payload, currency, t, basePrice, isComparison, 
         const dateStr = date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 
         if (isComparison) {
-            const mainValue = point.yValue;
+            const mainPct = point.pctValue;
             // The `payload` array can be sparse if some series have null data at this point.
             // Instead, we iterate over all `series` and look up their values in the `point` object.
             // The `point` object (`payload[0].payload`) contains the complete data for the hovered x-axis value.
@@ -59,6 +59,7 @@ const CustomTooltip = ({ active, payload, currency, t, basePrice, isComparison, 
                             const seriesName = s.name;
                             let value: number | undefined | null;
                             let color: string | undefined;
+                            let seriesPct: number | undefined | null;
 
                             if (index === 0) {
                                 // Main series
@@ -70,16 +71,13 @@ const CustomTooltip = ({ active, payload, currency, t, basePrice, isComparison, 
                                 // Comparison series
                                 const dataKey = `series_${index - 1}`;
                                 value = point[dataKey];
+                                seriesPct = point[`${dataKey}_pct`];
                                 color = s.color; // Color is stored in the series object for comparisons.
                             }
 
                             let diff: number | undefined;
-                            if (index !== 0 && value !== null && value !== undefined && mainValue !== null && mainValue !== undefined) {
-                                if (mode === 'percent') {
-                                    diff = (1 + value) / (1 + mainValue) - 1;
-                                } else {
-                                    diff = (mainValue !== 0) ? (value / mainValue - 1) : 0;
-                                }
+                            if (index !== 0 && seriesPct !== null && seriesPct !== undefined && mainPct !== null && mainPct !== undefined) {
+                                diff = (1 + seriesPct) / (1 + mainPct) - 1;
                             }
 
                             return (
@@ -354,9 +352,11 @@ export function TickerChart({ series, currency, mode = 'percent', height = 300 }
         
         const processedMain = mainSeries.data.map(p => {
             const val = p.adjClose || p.price;
+            const pct = basePrice > 0 ? (val / basePrice - 1) : 0;
             return {
                 ...p,
-                yValue: mode === 'percent' ? (basePrice > 0 ? (val / basePrice - 1) : 0) : val,
+                yValue: mode === 'percent' ? pct : val,
+                pctValue: pct,
             };
         });
 
@@ -385,7 +385,9 @@ export function TickerChart({ series, currency, mode = 'percent', height = 300 }
                     // Normalize other series to its own start in the visible range
                     const sFirst = s.data[0];
                     const sBase = sFirst.adjClose || sFirst.price;
-                    point[`series_${i}`] = mode === 'percent' ? (sBase > 0 ? (val / sBase - 1) : 0) : val;
+                    const pct = sBase > 0 ? (val / sBase - 1) : 0;
+                    point[`series_${i}`] = mode === 'percent' ? pct : val;
+                    point[`series_${i}_pct`] = pct;
                 }
             });
             return point;
