@@ -2,7 +2,6 @@ import { Box, Paper, Typography, Grid, Tooltip, ToggleButton, ToggleButtonGroup,
 import { formatPercent, formatValue, calculatePerformanceInDisplayCurrency } from '../lib/currency';
 import { logIfFalsy } from '../lib/utils';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
-import AnalyticsIcon from '@mui/icons-material/Analytics';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import AddIcon from '@mui/icons-material/Add';
@@ -10,6 +9,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import type { ExchangeRates, DashboardHolding, Portfolio } from '../lib/types';
 import { useLanguage } from '../lib/i18n';
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { TickerChart, type ChartSeries } from './TickerChart';
 import { calculatePortfolioPerformance, type PerformancePoint } from '../lib/performance';
 import { fetchTransactions } from '../lib/sheets';
@@ -137,10 +137,13 @@ interface Mover {
   ticker: string;
   change: number;
   pct: number;
+  exchange: string;
+  holding: DashboardHolding;
 }
 
 const TopMovers = ({ holdings, displayCurrency, exchangeRates }: { holdings: DashboardHolding[], displayCurrency: string, exchangeRates: ExchangeRates }) => {
   const { t } = useLanguage();
+  const navigate = useNavigate();
   const [sortBy, setSortBy] = useState<'change' | 'pct'>('change');
 
   const allMovers = useMemo(() => {
@@ -181,7 +184,9 @@ const TopMovers = ({ holdings, displayCurrency, exchangeRates }: { holdings: Das
                 name: h.displayName,
                 ticker: h.ticker,
                 change: getChange(h, period),
-                pct: getPct(h, period)
+                pct: getPct(h, period),
+                exchange: h.exchange,
+                holding: h
             }))
             .filter(h => h.change !== 0 && !isNaN(h.change))
             .sort((a, b) => {
@@ -203,7 +208,18 @@ const TopMovers = ({ holdings, displayCurrency, exchangeRates }: { holdings: Das
   };
 
   const MoverItem = ({mover}: {mover: Mover}) => (
-    <Box sx={{ px: 1, py: 0.5, border: '1px solid', borderColor: 'divider', borderRadius: 2, mr: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+    <Box 
+      onClick={() => navigate(`/ticker/${mover.exchange.toUpperCase()}/${mover.ticker}`, { state: { holding: mover.holding, from: '/dashboard' } })}
+      sx={{ 
+        px: 1, py: 0.25, 
+        border: '1px solid', borderColor: 'divider', borderRadius: 2, 
+        mr: 0.5, 
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        cursor: 'pointer',
+        transition: 'background-color 0.2s',
+        '&:hover': { bgcolor: 'action.hover' }
+      }}
+    >
         <Tooltip title={mover.name}>
             <Typography variant="body2" fontWeight="500" noWrap>
                 {mover.ticker}
@@ -221,14 +237,14 @@ const TopMovers = ({ holdings, displayCurrency, exchangeRates }: { holdings: Das
   );
 
   const MoversRow = ({period, isLast}: {period: TimePeriod, isLast: boolean}) => (
-      <Box sx={{ display: 'flex', alignItems: 'center', py: 0.5, borderBottom: isLast ? 'none' : '1px solid', borderColor: 'divider' }}>
-          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 'bold', textTransform: 'uppercase', minWidth: 70, mr: 1 }}>{periodLabels[period]}</Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', py: 0.25, borderBottom: isLast ? 'none' : '1px solid', borderColor: 'divider' }}>
+          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 'bold', textTransform: 'uppercase', minWidth: 60, mr: 0.5 }}>{periodLabels[period]}</Typography>
           {allMovers[period].length === 0 ? (
               <Box sx={{textAlign: 'left', color: 'text.secondary', pl: 1}}>
                    <Typography variant="caption">{t('No significant movers.', 'אין תנודות משמעותיות.')}</Typography>
               </Box>
           ) : (
-            <Box sx={{ display: 'flex', overflowX: 'auto', py: 1, flex: 1 }}>
+            <Box sx={{ display: 'flex', overflowX: 'auto', py: 0.5, flex: 1 }}>
                 {allMovers[period].map(mover => <MoverItem key={mover.key} mover={mover} />)}
             </Box>
           )}
@@ -236,8 +252,8 @@ const TopMovers = ({ holdings, displayCurrency, exchangeRates }: { holdings: Das
   );
 
   return (
-    <Box sx={{ p: 1 }}>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={1} px={1}>
+    <Box sx={{ p: 0.5 }}>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={0.5} px={0.5}>
         <Typography variant="subtitle2" color="text.secondary">{t('Top Movers', 'המניות הבולטות')}</Typography>
         <Box display="flex" alignItems="center">
           <Typography variant="caption" color="text.secondary" sx={{ mr: 1, display: { xs: 'none', sm: 'block' } }}>{t('Sort by:', 'מיין לפי:')}</Typography>
@@ -437,7 +453,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
           <Grid container spacing={2} alignItems="center">
             <Grid item xs={12} md={3}>
               {!selectedPortfolio && (
-                <Typography variant="subtitle2" color="text.secondary">{t('TOTAL AUM', 'שווי כולל')}</Typography>
+                <Typography variant="subtitle2" color="text.secondary">{t('TOTAL VALUE', 'שווי כולל')}</Typography>
               )}
               {selectedPortfolio && (
                 <Typography variant="h5" fontWeight="bold" color="primary">{selectedPortfolio}</Typography>
@@ -581,11 +597,14 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                                         </MenuItem>
                                     ))}
                                 </Menu>
-                                <Tooltip title={t('Analysis', 'ניתוח')}>
-                                    <IconButton onClick={() => setAnalysisOpen(true)} size="small" sx={{ ml: 1, color: 'primary.main' }}>
-                                        <AnalyticsIcon fontSize="small" />
-                                    </IconButton>
-                                </Tooltip>
+                                <Button 
+                                    onClick={() => setAnalysisOpen(true)} 
+                                    size="small" 
+                                    variant="outlined"
+                                    sx={{ height: 26, fontSize: '0.65rem', textTransform: 'none', ml: 0.5 }}
+                                >
+                                    {t('Analysis', 'ניתוח')}
+                                </Button>
                             </Box>
                         </Box>
                         

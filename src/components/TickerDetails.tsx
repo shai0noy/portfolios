@@ -4,7 +4,6 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
-import AnalyticsIcon from '@mui/icons-material/Analytics';
 import { useState, useMemo } from 'react';
 import { useLanguage } from '../lib/i18n';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
@@ -264,11 +263,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                                         </MenuItem>
                                     ))}
                                 </Menu>
-                                <Tooltip title={t('Analysis', 'ניתוח')}>
-                                    <IconButton onClick={() => setAnalysisOpen(true)} size="small" sx={{ ml: 1, color: 'primary.main' }}>
-                                        <AnalyticsIcon fontSize="small" />
-                                    </IconButton>
-                                </Tooltip>
+                                <Button onClick={() => setAnalysisOpen(true)}>{t('Analysis', 'ניתוח')}</Button>
                             </Box>
                             {comparisonSeries.length > 0 && <Box display="flex" flexWrap="wrap" gap={1} sx={{ mt: 1, mb: 1 }}>{comparisonSeries.map(s => <Chip key={s.name} label={s.name} onDelete={() => handleRemoveComparison(s.name)} variant="outlined" size="small" sx={{ color: s.color, borderColor: s.color }} />)}</Box>}
                             <TickerChart series={[{ name: resolvedName || ticker || 'Main', data: displayHistory }, ...displayComparisonSeries]} currency={displayData?.currency || 'USD'} mode={effectiveChartMetric} />
