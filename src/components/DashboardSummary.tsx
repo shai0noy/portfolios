@@ -2,6 +2,7 @@ import { Box, Paper, Typography, Grid, Tooltip, ToggleButton, ToggleButtonGroup,
 import { formatPercent, formatValue, calculatePerformanceInDisplayCurrency } from '../lib/currency';
 import { logIfFalsy } from '../lib/utils';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import AnalyticsIcon from '@mui/icons-material/Analytics';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import AddIcon from '@mui/icons-material/Add';
@@ -15,6 +16,7 @@ import { fetchTransactions } from '../lib/sheets';
 import { useChartComparison, getAvailableRanges, getMaxLabel } from '../lib/hooks/useChartComparison';
 import { TickerSearch } from './TickerSearch';
 import type { TickerProfile } from '../lib/types/ticker';
+import { AnalysisDialog } from './AnalysisDialog';
 
 // Time constants for auto-stepping
 const AUTO_STEP_DELAY = 2 * 60 * 1000; // 2 minutes
@@ -281,6 +283,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
   } = useChartComparison();
 
   const [compareMenuAnchor, setCompareMenuAnchor] = useState<null | HTMLElement>(null);
+  const [analysisOpen, setAnalysisOpen] = useState(false);
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isManualRef = useRef(false);
@@ -558,6 +561,13 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                                         </MenuItem>
                                     ))}
                                 </Menu>
+                                {isComparison && (
+                                    <Tooltip title={t('Analysis', 'ניתוח')}>
+                                        <IconButton onClick={() => setAnalysisOpen(true)} size="small" sx={{ ml: 1, color: 'primary.main' }}>
+                                            <AnalyticsIcon fontSize="small" />
+                                        </IconButton>
+                                    </Tooltip>
+                                )}
                             </Box>
                         </Box>
                         
@@ -603,6 +613,11 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
         />
       </DialogContent>
     </Dialog>
+    <AnalysisDialog 
+        open={analysisOpen} 
+        onClose={() => setAnalysisOpen(false)} 
+        comparisonSeries={comparisonSeries} 
+    />
     </>
   );
 }

@@ -12,25 +12,14 @@ fetch mgmt fee from tase and also show
 CPI data parsing, solve issue where values before 1985 are weird - 200x too large
 Mobile viewing is all over the placed
 Check crypto 1d change?...
-DONE: Theres still chart-related code duplication between TickerDetails and other places like useChartComparison.ts
-DONE?: The create first portfolio message should not appear when loggin failed. Instead should perform login.
-DONE: In total holdings chart - holdings mode should be mutualy exclusive with comperission mode.
-DONE: In total holdings chart - hide range options with insuffcient data
-DONE: In total holdings chart - Fix gains pct chart and calc. Need to think exactly what base to use
 Discovery/selling points splash page
-DONE: maybe store type in sheet
 tase types vs globes types??
 If there is no sheet document ID, do not show the "create first portfolio" screen, rather, you should send the user to exisitng the screen to enter an existing sheet ID or create one
-If exposure porfile (e.g. 4D, 03) is avilable in ticker details, show two chips according to its parsing:
- - The numeric part is stock exposure 0-6 maps to (0%, <10%, <30%, <50%, <120%, <200%, >200%)
- - The letter part (which can be a 0) is foreign currency exposure 0,A-F maps to (0%, <10%, <30%, <50%, <120%, <200%, >200%)
- - parse this early and show in the ticker details UI
 
 dsahboard summary:
 - chart
 - market comperission (compare gains to sp500, ta, etc)
 
-DONE: Keep track of dividands since purchase! Add to sheet
 ON HOLD: Handle splits, etc, name changes
 ON HOLD: Support mobile screen sizes
 ON HOLD: Use Finhub or marketstack over yahoo if possible or in addition (will reuqire to guide use rto create API key and add it to spreadsheet as part of setup)
@@ -47,6 +36,17 @@ Low priority:
 - ON HOLD: Use Gemini for anlysis and insight
 - ON HOLD: Forcast mode, where future txns, vesting are taken into account, and growth of holding is predicted based on custom uesr input or recent trends. Should also include taxes
 
+DONE: Theres still chart-related code duplication between TickerDetails and other places like useChartComparison.ts
+DONE?: The create first portfolio message should not appear when loggin failed. Instead should perform login.
+DONE: In total holdings chart - holdings mode should be mutualy exclusive with comperission mode.
+DONE: In total holdings chart - hide range options with insuffcient data
+DONE: In total holdings chart - Fix gains pct chart and calc. Need to think exactly what base to use
+DONE: maybe store type in sheet
+DONE: Keep track of dividands since purchase! Add to sheet
+DONE: If exposure porfile (e.g. 4D, 03) is avilable in ticker details, show two chips according to its parsing:
+ - The numeric part is stock exposure 0-6 maps to (0%, <10%, <30%, <50%, <120%, <200%, >200%)
+ - The letter part (which can be a 0) is foreign currency exposure 0,A-F maps to (0%, <10%, <30%, <50%, <120%, <200%, >200%)
+ - parse this early and show in the ticker details UI
 DONE: Show ticker type in dash
 DONE: Allow fetching Israeli price indices (eg CPI) - https://api.cbs.gov.il/index/data/price?id=120010&format=json&download=false&PageSize=1000
 DONE: toYahooSymbol method should prefix index tickers - but some symbols have none, so maybe we need to try both in parallel, same for currencies maybe? with =X suffix
