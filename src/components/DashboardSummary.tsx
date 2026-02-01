@@ -12,7 +12,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { TickerChart, type ChartSeries } from './TickerChart';
 import { calculatePortfolioPerformance, type PerformancePoint } from '../lib/performance';
 import { fetchTransactions } from '../lib/sheets';
-import { useChartComparison, getAvailableRanges } from '../lib/hooks/useChartComparison';
+import { useChartComparison, getAvailableRanges, getMaxLabel } from '../lib/hooks/useChartComparison';
 import { TickerSearch } from './TickerSearch';
 import type { TickerProfile } from '../lib/types/ticker';
 
@@ -345,17 +345,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
   
   const oldestDate = useMemo(() => perfData.length > 0 ? perfData[0].date : undefined, [perfData]);
   const availableRanges = useMemo(() => getAvailableRanges(oldestDate), [oldestDate]);
-
-  const maxLabel = useMemo(() => {
-      if (!oldestDate) return 'Max';
-      const now = new Date();
-      const diffYears = Math.abs(now.getTime() - oldestDate.getTime()) / (1000 * 60 * 60 * 24 * 365);
-      if (diffYears >= 1) return `Max (${diffYears.toFixed(1)}Y)`;
-      const diffMonths = diffYears * 12;
-      if (diffMonths >= 1) return `Max (${diffMonths.toFixed(1)}M)`;
-      const diffDays = diffYears * 365;
-      return `Max (${Math.ceil(diffDays)}D)`;
-  }, [oldestDate]);
+  const maxLabel = useMemo(() => getMaxLabel(oldestDate), [oldestDate]);
 
   const portfolioSeries = useMemo<ChartSeries[]>(() => {
       if (perfData.length === 0) return [];
@@ -579,7 +569,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                                         label={s.name} 
                                         size="small" 
                                         onDelete={() => setComparisonSeries(prev => prev.filter(x => x.name !== s.name))}
-                                        sx={{ height: 18, fontSize: '0.6rem', color: s.color, borderColor: s.color }}
+                                        sx={{ fontSize: '0.65rem', color: s.color, borderColor: s.color }}
                                         variant="outlined"
                                     />
                                 ))}

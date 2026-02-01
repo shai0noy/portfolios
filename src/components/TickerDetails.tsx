@@ -8,7 +8,7 @@ import { useLanguage } from '../lib/i18n';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
 import { TickerChart } from './TickerChart';
 import type { TickerProfile } from '../lib/types/ticker';
-import { useChartComparison, getAvailableRanges, SEARCH_OPTION_TICKER } from '../lib/hooks/useChartComparison';
+import { useChartComparison, getAvailableRanges, getMaxLabel, SEARCH_OPTION_TICKER } from '../lib/hooks/useChartComparison';
 import { useTickerDetails, type TickerDetailsProps } from '../lib/hooks/useTickerDetails';
 import { TickerSearch } from './TickerSearch';
 import { Exchange } from '../lib/types';
@@ -56,19 +56,9 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
     };
 
     const oldestDate = historicalData?.[0]?.date;
-    const now = new Date();
     
     const availableRanges = useMemo(() => getAvailableRanges(oldestDate), [oldestDate]);
-
-    const maxLabel = useMemo(() => {
-        if (!oldestDate) return 'Max';
-        const diffYears = Math.abs(now.getTime() - oldestDate.getTime()) / (1000 * 60 * 60 * 24 * 365);
-        if (diffYears >= 1) return `Max (${diffYears.toFixed(1)}Y)`;
-        const diffMonths = diffYears * 12;
-        if (diffMonths >= 1) return `Max (${diffMonths.toFixed(1)}M)`;
-        const diffDays = diffYears * 365;
-        return `Max (${Math.ceil(diffDays)}D)`;
-    }, [oldestDate, now]);
+    const maxLabel = useMemo(() => getMaxLabel(oldestDate), [oldestDate]);
 
     const displayHistory = useMemo(() => getClampedData(historicalData, chartRange), [historicalData, chartRange, getClampedData]);
     const displayComparisonSeries = useMemo(() => comparisonSeries.map(series => ({ ...series, data: getClampedData(series.data, chartRange) })), [comparisonSeries, chartRange, getClampedData]);
@@ -226,22 +216,26 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                             <TickerChart series={[{ name: resolvedName || ticker || 'Main', data: displayHistory }, ...displayComparisonSeries]} currency={displayData?.currency || 'USD'} mode={effectiveChartMetric} />
                           </>
                         )}
-                        {/* Other sections like Dividend Gains, Underlying Assets etc. can be added here as components */}
+
+                        {externalLinks.length > 0 && (
+                          <>
+                            <Typography variant="subtitle2" gutterBottom sx={{ mt: 3 }}>{t('External Links', 'קישורים חיצוניים')}</Typography>
+                            <Box display="flex" flexWrap="wrap" gap={1}>
+                                {externalLinks.map(link => (
+                                    <Button key={link.name} variant="outlined" size="small" href={link.url} target="_blank" endIcon={<OpenInNewIcon />} sx={{ borderRadius: 2, textTransform: 'none' }}>{link.name}</Button>
+                                ))}
+                            </Box>
+                          </>
+                        )}
                      </>}
                 </DialogContent>
-                <DialogActions sx={{ p: 1, justifyContent: 'space-between' }}>
-                  <Box>
-                    <Button onClick={handleAddTransaction} startIcon={<AddIcon />}>{t('Add Transaction', 'הוסף עסקה')}</Button>
-                  </Box>
-                  <Box>
-                    {externalLinks.length > 0 && externalLinks.map(link => (
-                        <Button key={link.name} variant="text" size="small" href={link.url} target="_blank" endIcon={<OpenInNewIcon />}>{link.name}</Button>
-                    ))}
-                    <Tooltip title={t("Refresh Data", "רענן נתונים")}>
-                      <IconButton onClick={handleRefresh} disabled={refreshing} size="small">{refreshing ? <CircularProgress size={16} /> : <RefreshIcon fontSize="small" />}</IconButton>
-                    </Tooltip>
-                    <Button onClick={handleClose}>{t('Close', 'סגור')}</Button>
-                  </Box>
+                <DialogActions sx={{ p: 2, px: 3, gap: 1 }}>
+                  <Tooltip title={t("Refresh Data", "רענן נתונים")}>
+                    <IconButton onClick={handleRefresh} disabled={refreshing} size="small">{refreshing ? <CircularProgress size={16} /> : <RefreshIcon fontSize="small" />}</IconButton>
+                  </Tooltip>
+                  <Box sx={{ flexGrow: 1 }} />
+                  <Button onClick={handleClose} color="inherit" sx={{ textTransform: 'none' }}>{t('Close', 'סגור')}</Button>
+                  <Button variant="contained" onClick={handleAddTransaction} startIcon={<AddIcon />} sx={{ borderRadius: 2, textTransform: 'none' }}>{t('Add Transaction', 'הוסף עסקה')}</Button>
                 </DialogActions>
             </Dialog>
             <Dialog open={isSearchOpen} onClose={() => setIsSearchOpen(false)} maxWidth="md" fullWidth>

@@ -659,7 +659,7 @@ export function TickerChart({ series, currency, mode = 'percent', height = 300 }
                             type="monotone" 
                             dataKey={`series_${i}`} 
                             stroke={s.color} 
-                            strokeWidth={2} 
+                            strokeWidth={1.2} 
                             dot={false}
                             isAnimationActive={true}
                             connectNulls

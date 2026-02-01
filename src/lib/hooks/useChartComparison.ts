@@ -49,6 +49,21 @@ export function getAvailableRanges(startDate: Date | undefined): string[] {
     return ranges;
 }
 
+export function getMaxLabel(startDate: Date | undefined): string {
+    if (!startDate) return 'Max';
+    const now = new Date();
+    const diffTime = Math.abs(now.getTime() - startDate.getTime());
+    const diffYears = diffTime / (1000 * 60 * 60 * 24 * 365);
+    
+    if (diffYears >= 1) return `Max (${diffYears.toFixed(1)}Y)`;
+    
+    const diffMonths = diffYears * 12;
+    if (diffMonths >= 1) return `Max (${diffMonths.toFixed(1)}M)`;
+    
+    const diffDays = diffYears * 365;
+    return `Max (${Math.ceil(diffDays)}D)`;
+}
+
 export function useChartComparison() {
     const [chartRange, setChartRange] = useState('1Y');
     const [comparisonSeries, setComparisonSeries] = useState<ChartSeries[]>([]);

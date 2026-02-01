@@ -247,9 +247,14 @@ export const useTickerDetails = ({ sheetId, ticker: propTicker, exchange: propEx
             effectiveCurrency = Currency.ILS;
         }
         const suffixes = language === 'he' ? { K: " א'", M: " מ'", B: " B" } : { K: 'K', M: 'M', B: 'B' };
-        const tier = Math.floor(Math.log10(effectiveVal) / 3);
+        let tier = Math.floor(Math.log10(effectiveVal) / 3);
         if (tier < 1) return { text: effectiveVal.toLocaleString(), currency: '' };
-        const [suffix, _] = Object.entries(suffixes)[tier - 1];
+        
+        // Clamp tier to max available suffix (Billions currently)
+        const suffixEntries = Object.entries(suffixes);
+        if (tier > suffixEntries.length) tier = suffixEntries.length;
+
+        const [suffix, _] = suffixEntries[tier - 1];
         const formattedNum = (effectiveVal / Math.pow(1000, tier)).toLocaleString(undefined, { maximumFractionDigits: 1 });
         const currencyStr = effectiveCurrency ? formatPrice(0, effectiveCurrency, 0, t).replace(/[0-9.,-]+/g, '').trim() : '';
         return { text: `${formattedNum}${suffix}`, currency: currencyStr };
