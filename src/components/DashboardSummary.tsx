@@ -388,6 +388,26 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
       return series;
   }, [perfData, chartView, chartRange, comparisonSeries, getClampedDataCallback, getClampedData, t, effectiveChartMetric, oldestDate]);
 
+  const fullPortfolioSeries = useMemo<ChartSeries | null>(() => {
+      if (perfData.length === 0) return null;
+      const data = perfData.map(p => {
+          let val = 0;
+          if (chartView === 'holdings') {
+              val = p.holdingsValue;
+          } else {
+              // For Gains analysis, we usually care about the return, so TWR is appropriate if we want to compare performance.
+              // However, user might be in Price mode.
+              // But for "Analysis" (Alpha/Beta), we generally compare % returns, so TWR is the correct metric to compare against a benchmark index.
+              val = p.twr;
+          }
+          return { date: p.date, price: val };
+      });
+      return {
+          name: chartView === 'holdings' ? t('Total Holdings', 'שווי החזקות') : t('Total Gains', 'רווח מצטבר'),
+          data
+      };
+  }, [perfData, chartView, t]);
+
   return (
     <>
     <Paper 
@@ -616,8 +636,9 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
     <AnalysisDialog 
         open={analysisOpen} 
         onClose={() => setAnalysisOpen(false)} 
-        mainSeries={portfolioSeries.length > 0 ? portfolioSeries[0] : null}
+        mainSeries={fullPortfolioSeries}
         comparisonSeries={comparisonSeries} 
+        title={`${t('Analysis', 'ניתוח')}: ${selectedPortfolio || t('Total Portfolio', 'כל התיקים')}`}
     />
     </>
   );

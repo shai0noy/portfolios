@@ -142,9 +142,8 @@ export const ensureGapi = async (): Promise<typeof gapi> => {
         await refreshPromise;
         return gapiInstance!;
     } catch (error: any) {
-        console.log("Caught error from silent refresh promise:", error);
         if (error instanceof SessionExpiredError) {
-            console.warn("SessionExpiredError caught, propagating to caller...");
+            console.log("Session expired, requires user interaction.");
             throw error;
         } else {
             console.error("Unhandled error during token refresh:", error);

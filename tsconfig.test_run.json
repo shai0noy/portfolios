@@ -7,5 +7,14 @@
     "skipLibCheck": true,
     "outDir": "./dist-test"
   },
-  "include": ["src/lib/performance.test.ts", "src/lib/performance.ts", "src/lib/currency.ts", "src/lib/types.ts", "src/lib/fetching/index.ts"]
+  "include": [
+    "src/lib/performance.test.ts", 
+    "src/lib/performance.ts", 
+    "src/lib/currency.ts", 
+    "src/lib/types.ts", 
+    "src/lib/fetching/index.ts", 
+    "dist-test/mock-deps.ts",
+    "src/lib/utils/analysis.test.ts",
+    "src/lib/utils/analysis.ts"
+  ]
 }

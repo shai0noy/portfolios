@@ -23,43 +23,35 @@ function assertClose(actual: number, expected: number, tolerance = 0.001, messag
 // --- TESTS ---
 
 function testSynchronizeSeries() {
-    console.log('
---- Test: Synchronize Series ---');
+    console.log('\n--- Test: Synchronize Series (Strict Date Matching) ---');
     
-    // Dataset X: Daily
+    // Dataset X: Daily (Jan 1, 2, 3)
     const x: DataPoint[] = [
-        { timestamp: 100, value: 10 },
-        { timestamp: 200, value: 20 },
-        { timestamp: 300, value: 30 },
+        { timestamp: Date.UTC(2024, 0, 1), value: 10 },
+        { timestamp: Date.UTC(2024, 0, 2), value: 20 },
+        { timestamp: Date.UTC(2024, 0, 3), value: 30 },
     ];
 
-    // Dataset Y: Missing day 2, has day 1.5
+    // Dataset Y: Missing Jan 2 (Holiday?)
     const y: DataPoint[] = [
-        { timestamp: 100, value: 5 },
-        { timestamp: 150, value: 7 }, // Close to 200? 150 is 50 away from 100 and 200.
-        { timestamp: 300, value: 15 },
+        { timestamp: Date.UTC(2024, 0, 1), value: 5 },
+        { timestamp: Date.UTC(2024, 0, 3), value: 15 },
     ];
 
     const synced = synchronizeSeries(x, y);
     
-    // Expect length 3 (matches X)
-    assert(synced.length === 3, 'Synced series length matches X');
+    // Expect length 2 (Intersection)
+    assert(synced.length === 2, 'Synced series length matches intersection');
 
-    // 100 -> 100
+    // Jan 1
     assert(synced[0].x === 10 && synced[0].y === 5, 'Pair 1 correct');
 
-    // 200 -> 150 (since 150 is the closest available point that is <= or >=, checking logic)
-    // My nearest neighbor logic finds closest absolute difference.
-    // |200 - 150| = 50. |200 - 300| = 100. 150 is closest.
-    assert(synced[1].x === 20 && synced[1].y === 7, 'Pair 2 correct (Nearest Neighbor)');
-
-    // 300 -> 300
-    assert(synced[2].x === 30 && synced[2].y === 15, 'Pair 3 correct');
+    // Jan 3
+    assert(synced[1].x === 30 && synced[1].y === 15, 'Pair 2 correct');
 }
 
 function testPerfectCorrelation() {
-    console.log('
---- Test: Perfect Correlation ---');
+    console.log('\n--- Test: Perfect Correlation ---');
     // Y = 2 * X + 5
     const pairs = [
         { x: 1, y: 7 },
@@ -79,8 +71,7 @@ function testPerfectCorrelation() {
 }
 
 function testInverseCorrelation() {
-    console.log('
---- Test: Inverse Correlation ---');
+    console.log('\n--- Test: Inverse Correlation ---');
     // Y = -1 * X + 10
     const pairs = [
         { x: 1, y: 9 },
@@ -96,8 +87,7 @@ function testInverseCorrelation() {
 }
 
 function testNoCorrelation() {
-    console.log('
---- Test: No Correlation (Flat Y) ---');
+    console.log('\n--- Test: No Correlation (Flat Y) ---');
     // Y is constant, X moves.
     const pairs = [
         { x: 1, y: 5 },
@@ -117,8 +107,7 @@ function testNoCorrelation() {
 }
 
 function testNormalizeToStart() {
-    console.log('
---- Test: Normalize to Start ---');
+    console.log('\n--- Test: Normalize to Start ---');
     const data = [
         { date: new Date(100), price: 50 },
         { date: new Date(200), price: 100 },
@@ -140,11 +129,9 @@ export function runTests() {
         testInverseCorrelation();
         testNoCorrelation();
         testNormalizeToStart();
-        console.log('
-🎉 All analysis tests passed!');
+        console.log('\n🎉 All analysis tests passed!');
     } catch (e) {
-        console.error('
-💥 Analysis tests failed.');
+        console.error('\n💥 Analysis tests failed.');
         console.error(e);
     }
 }

@@ -5,6 +5,7 @@
 export interface AnalysisMetrics {
     alpha: number;
     beta: number;
+    downsideBeta: number;
     rSquared: number;
     correlation: number;
 }
@@ -15,34 +16,49 @@ export interface DataPoint {
 }
 
 /**
- * Synchronizes two mismatched time series using Nearest Neighbor matching.
+ * Synchronizes two time series by matching dates (YYYY-MM-DD).
+ * Only returns pairs where both series have data for the same day.
  * datasetX is usually the Independent variable (Benchmark).
  * datasetY is usually the Dependent variable (Portfolio).
  */
 export function synchronizeSeries(datasetX: DataPoint[], datasetY: DataPoint[]): { x: number; y: number }[] {
     if (datasetX.length === 0 || datasetY.length === 0) return [];
 
-    // Sort by timestamp just in case
-    const sortedY = [...datasetY].sort((a, b) => a.timestamp - b.timestamp);
+    const mapY = new Map<string, number>();
+    
+    // Helper to get YYYY-MM-DD key
+    const getDateKey = (ts: number) => {
+        const d = new Date(ts);
+        return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    };
 
-    return datasetX.map(pX => {
-        // Find the closest point in Y to pX.timestamp
-        // Optimization: since both are sorted, we could use a pointer or binary search.
-        // For simplicity and matching user prompt:
-        let closestY = sortedY[0];
-        let minDiff = Math.abs(pX.timestamp - closestY.timestamp);
+    datasetY.forEach(p => mapY.set(getDateKey(p.timestamp), p.value));
 
-        for (const pY of sortedY) {
-            const diff = Math.abs(pX.timestamp - pY.timestamp);
-            if (diff < minDiff) {
-                minDiff = diff;
-                closestY = pY;
-            } else if (diff > minDiff) {
-                break; // Diff starts increasing, stop
-            }
+    const pairs: { x: number; y: number }[] = [];
+    
+    datasetX.forEach(pX => {
+        const key = getDateKey(pX.timestamp);
+        if (mapY.has(key)) {
+            pairs.push({ x: pX.value, y: mapY.get(key)! });
         }
-        return { x: pX.value, y: closestY.value };
     });
+
+    return pairs;
+}
+
+export function computeSlope(pairs: { x: number; y: number }[]): number {
+    const n = pairs.length;
+    if (n < 2) return 0;
+
+    let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+    for (const { x, y } of pairs) {
+        sumX += x;
+        sumY += y;
+        sumXY += x * y;
+        sumX2 += x * x;
+    }
+    const denom = n * sumX2 - sumX ** 2;
+    return denom === 0 ? 0 : (n * sumXY - sumX * sumY) / denom;
 }
 
 /**
@@ -55,12 +71,17 @@ export function computeAnalysisMetrics(pairs: { x: number; y: number }[]): Analy
 
     let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0, sumY2 = 0;
 
-    for (const { x, y } of pairs) {
+    const downsidePairs = [];
+
+    for (const p of pairs) {
+        const { x, y } = p;
         sumX += x;
         sumY += y;
         sumXY += x * y;
         sumX2 += x * x;
         sumY2 += y * y;
+        
+        if (x < 0) downsidePairs.push(p);
     }
 
     const avgX = sumX / n;
@@ -80,8 +101,33 @@ export function computeAnalysisMetrics(pairs: { x: number; y: number }[]): Analy
 
     // R-Squared (r^2)
     const rSquared = correlation ** 2;
+    
+    // Downside Beta
+    const downsideBeta = computeSlope(downsidePairs);
 
-    return { alpha, beta, rSquared, correlation };
+    return { alpha, beta, rSquared, correlation, downsideBeta };
+}
+
+/**
+ * Calculates percentage returns from price pairs.
+ * Input: Synchronized price pairs [{ x: PriceX, y: PriceY }...]
+ * Output: Return pairs [{ x: ReturnX, y: ReturnY }...]
+ */
+export function calculateReturns(pairs: { x: number; y: number }[]): { x: number; y: number }[] {
+    const returns: { x: number; y: number }[] = [];
+    for (let i = 1; i < pairs.length; i++) {
+        const prev = pairs[i - 1];
+        const curr = pairs[i];
+        
+        // Avoid division by zero
+        if (prev.x === 0 || prev.y === 0) continue;
+
+        const retX = (curr.x - prev.x) / prev.x;
+        const retY = (curr.y - prev.y) / prev.y;
+        
+        returns.push({ x: retX, y: retY });
+    }
+    return returns;
 }
 
 /**

@@ -8,7 +8,7 @@ import { ImportCSV } from './components/ImportCSV';
 import { TickerDetails } from './components/TickerDetails';
 import { ensureSchema, populateTestData, fetchTransactions, rebuildHoldingsSheet, getMetadataValue, SHEET_STRUCTURE_VERSION_DATE } from './lib/sheets/index';
 import { initializeGapi, signOut, signIn } from './lib/google';
-import { Box, AppBar, Toolbar, Typography, Container, Tabs, Tab, IconButton, CircularProgress, ThemeProvider, CssBaseline, Menu, MenuItem, Snackbar, Alert, ListItemIcon, ListItemText, Button, Modal, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions } from '@mui/material';
+import { Box, AppBar, Toolbar, Typography, Container, Tabs, Tab, IconButton, CircularProgress, ThemeProvider, CssBaseline, Menu, MenuItem, Snackbar, Alert, ListItemIcon, ListItemText, Button, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions } from '@mui/material';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
@@ -532,27 +532,19 @@ function AppContent() {
           </Alert>
         </Snackbar>
 
-        <Modal open={isSessionExpired}>
-          <Box sx={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            width: 400,
-            bgcolor: 'background.paper',
-            border: '2px solid #000',
-            boxShadow: 24,
-            p: 4,
-          }}>
-            <Typography variant="h6" component="h2">
-              {t('Session Expired', 'הפעלתך פגה')}
-            </Typography>
-            <Typography sx={{ mt: 2 }}>
+        <Dialog open={isSessionExpired} onClose={() => {}}>
+          <DialogTitle>{t('Session Expired', 'הפעלתך פגה')}</DialogTitle>
+          <DialogContent>
+            <DialogContentText>
               {t('Your session has expired. Please sign in again to continue.', 'הפעלתך פגה. אנא התחבר מחדש כדי להמשיך.')}
-            </Typography>
-            <Button onClick={handleReconnect} variant="contained" sx={{ mt: 2 }}>{t('Sign In', 'התחבר')}</Button>
-          </Box>
-        </Modal>
+            </DialogContentText>
+          </DialogContent>
+          <DialogActions>
+             <Button onClick={handleReconnect} variant="contained" color="primary" autoFocus>
+                {t('Sign In', 'התחבר')}
+             </Button>
+          </DialogActions>
+        </Dialog>
 
         {/* Schema Version Dialog */}
         <Dialog open={!!schemaVersionMismatch} onClose={() => {}}>
