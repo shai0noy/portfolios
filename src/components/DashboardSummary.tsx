@@ -340,16 +340,34 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
       return getClampedData(data, range);
   }, [getClampedData]);
 
+  const isComparison = comparisonSeries.length > 0;
+  const effectiveChartMetric = isComparison ? 'percent' : chartMetric;
+  
+  const oldestDate = useMemo(() => perfData.length > 0 ? perfData[0].date : undefined, [perfData]);
+  const availableRanges = useMemo(() => getAvailableRanges(oldestDate), [oldestDate]);
+
   const portfolioSeries = useMemo<ChartSeries[]>(() => {
       if (perfData.length === 0) return [];
       
       const clampedData = getClampedDataCallback(perfData, chartRange);
       if (clampedData.length === 0) return [];
 
-      const mainData = clampedData.map(p => ({
-          date: p.date,
-          price: chartView === 'holdings' ? p.holdingsValue : p.gainsValue
-      }));
+      const mainData = clampedData.map(p => {
+          let val = 0;
+          if (chartView === 'holdings') {
+              val = p.holdingsValue;
+          } else {
+              // For Gains view:
+              // If metric is percent (effectiveChartMetric), use TWR index.
+              // TickerChart in percent mode normalizes relative to start, so TWR works perfectly.
+              // If metric is price ($), use absolute gainsValue.
+              val = effectiveChartMetric === 'percent' ? p.twr : p.gainsValue;
+          }
+          return {
+              date: p.date,
+              price: val
+          };
+      });
 
       const series: ChartSeries[] = [{
           name: chartView === 'holdings' ? t('Total Holdings', 'שווי החזקות') : t('Total Gains', 'רווח מצטבר'),
@@ -364,12 +382,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
       });
 
       return series;
-  }, [perfData, chartView, chartRange, comparisonSeries, getClampedDataCallback, getClampedData, t]);
-
-  const oldestDate = useMemo(() => perfData.length > 0 ? perfData[0].date : undefined, [perfData]);
-  const availableRanges = useMemo(() => getAvailableRanges(oldestDate), [oldestDate]);
-  const isComparison = comparisonSeries.length > 0;
-  const effectiveChartMetric = isComparison ? 'percent' : chartMetric;
+  }, [perfData, chartView, chartRange, comparisonSeries, getClampedDataCallback, getClampedData, t, effectiveChartMetric]);
 
   return (
     <>
@@ -476,6 +489,13 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                                     <ToggleButton value="holdings" sx={{ px: 1, fontSize: '0.65rem' }}>{t('Holdings', 'החזקות')}</ToggleButton>
                                     <ToggleButton value="gains" sx={{ px: 1, fontSize: '0.65rem' }}>{t('Gains', 'רווחים')}</ToggleButton>
                                 </ToggleButtonGroup>
+                                
+                                <Tooltip title={chartView === 'holdings' 
+                                    ? t("Market Value over time. Tracks the total worth of your portfolio assets.", "שווי שוק לאורך זמן. עוקב אחר השווי הכולל של הנכסים בתיק.")
+                                    : t("Total Return over time. Tracks Realized + Unrealized Gains, Dividends, and Fees. Uses TWR (Time-Weighted Return) for percentage mode to filter out deposits/withdrawals.", "תשואה כוללת לאורך זמן. עוקב אחר רווחים ממומשים + לא ממומשים, דיבידנדים ועמלות. משתמש ב-TWR (תשואה משוקללת זמן) במצב אחוזים לנטרול הפקדות/משיכות.")}
+                                >
+                                    <InfoOutlinedIcon sx={{ fontSize: '0.9rem', color: 'text.secondary', cursor: 'help' }} />
+                                </Tooltip>
 
                                 <ToggleButtonGroup
                                     value={chartMetric}

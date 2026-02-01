@@ -8,6 +8,7 @@ export interface PerformancePoint {
     holdingsValue: number;
     gainsValue: number;
     costBasis: number;
+    twr: number;
 }
 
 /**
@@ -69,6 +70,10 @@ export async function calculatePortfolioPerformance(
     let otherGains = 0; // Cumulative dividends, fees, realized gains
     let txnIdx = 0;
 
+    // TWR State
+    let prevHoldingsValue = 0;
+    let twrIndex = 1.0;
+
     // Pre-calculate indices for historical prices and map current holdings metadata
     const historyPointers = new Map<string, number>();
     histories.forEach(h => historyPointers.set(h.key, 0));
@@ -78,13 +83,21 @@ export async function calculatePortfolioPerformance(
 
     for (const ts of activeTimestamps) {
         const currentDate = new Date(ts);
+        
+        let dayNetFlow = 0;
+        let dayDividends = 0;
+        let dayFees = 0;
 
         // Apply all transactions that happened ON or BEFORE this date
         while (txnIdx < sortedTxns.length && new Date(sortedTxns[txnIdx].date).getTime() <= ts) {
             const t = sortedTxns[txnIdx];
             const tickerKey = `${t.exchange}:${t.ticker}`;
             const stateKey = `${t.portfolioId}:${tickerKey}`; 
-            const state = currentHoldings.get(stateKey) || { qty: 0, costBasis: 0, stockCurrency: t.currency || Currency.USD };
+            // Resolve stock currency from holdings map first, then transaction
+            const holding = holdingsMap.get(tickerKey);
+            const resolvedStockCurrency = holding?.stockCurrency || t.currency || Currency.USD;
+
+            const state = currentHoldings.get(stateKey) || { qty: 0, costBasis: 0, stockCurrency: resolvedStockCurrency };
             
             const tQty = t.qty || 0;
             const tPrice = t.price || 0;
@@ -97,6 +110,8 @@ export async function calculatePortfolioPerformance(
             if (t.type === 'BUY') {
                 state.qty += tQty;
                 state.costBasis += costToAdd;
+                const flowValDisplay = convertCurrency(tValue, t.currency || Currency.USD, displayCurrency, exchangeRates);
+                dayNetFlow += flowValDisplay;
             } else if (t.type === 'SELL') {
                 const avgCost = state.qty > 0 ? state.costBasis / state.qty : 0;
                 state.qty -= tQty;
@@ -106,10 +121,15 @@ export async function calculatePortfolioPerformance(
                 const costOfSoldDisplay = convertCurrency(tQty * avgCost, stockCurrency, displayCurrency, exchangeRates);
                 
                 otherGains += (proceedsDisplay - costOfSoldDisplay);
+                dayNetFlow -= proceedsDisplay; // Money leaving the portfolio
             } else if (t.type === 'DIVIDEND') {
-                otherGains += convertCurrency(tValue, t.currency || Currency.USD, displayCurrency, exchangeRates);
+                const divVal = convertCurrency(tValue, t.currency || Currency.USD, displayCurrency, exchangeRates);
+                otherGains += divVal;
+                dayDividends += divVal;
             } else if (t.type === 'FEE') {
-                otherGains -= convertCurrency(tValue, t.currency || Currency.USD, displayCurrency, exchangeRates);
+                const feeVal = convertCurrency(tValue, t.currency || Currency.USD, displayCurrency, exchangeRates);
+                otherGains -= feeVal;
+                dayFees += feeVal;
             }
             
             if (state.qty > 1e-9) {
@@ -142,7 +162,10 @@ export async function calculatePortfolioPerformance(
             if (point && new Date(point.date).getTime() <= ts) {
                 const price = point.adjClose || point.price;
                 if (price > 0) {
-                    const valDisplay = convertCurrency(state.qty * price, state.stockCurrency, displayCurrency, exchangeRates);
+                    // Use history currency for price conversion (e.g. ILA vs ILS)
+                    const priceCurrency = history.currency || state.stockCurrency;
+                    
+                    const valDisplay = convertCurrency(state.qty * price, priceCurrency, displayCurrency, exchangeRates);
                     const costDisplay = convertCurrency(state.costBasis, state.stockCurrency, displayCurrency, exchangeRates);
                     
                     totalHoldingsValue += valDisplay;
@@ -151,13 +174,70 @@ export async function calculatePortfolioPerformance(
             }
         });
 
-        points.push({
-            date: currentDate,
-            holdingsValue: totalHoldingsValue,
-            costBasis: totalCostBasis,
-            gainsValue: (totalHoldingsValue - totalCostBasis) + otherGains
-        });
-    }
+                        // TWR Calculation
 
-    return points;
-}
+                        // Start Value (adjusted for flows): prevHoldingsValue + dayNetFlow
+
+                        // End Value: totalHoldingsValue
+
+                        // Income: dayDividends - dayFees
+
+                        // Gain: (End - Start) + Income
+
+                        
+
+                        // Denominator: We assume flows happen at the start of the period for simplicity in this daily resolution.
+
+                        // Denom = prevHoldingsValue + dayNetFlow.
+
+                        const denom = prevHoldingsValue + dayNetFlow;
+
+                        let dayReturn = 0;
+
+                        
+
+                        if (denom > 1e-6) {
+
+                            // Market Gain = (totalHoldingsValue - denom)
+
+                            // Total Return = Market Gain + Income
+
+                            const gain = (totalHoldingsValue - denom) + dayDividends - dayFees;
+
+                            dayReturn = gain / denom;
+
+                        }
+
+                
+
+                        twrIndex *= (1 + dayReturn);
+
+                        prevHoldingsValue = totalHoldingsValue;
+
+                
+
+                        points.push({
+
+                            date: currentDate,
+
+                            holdingsValue: totalHoldingsValue,
+
+                            costBasis: totalCostBasis,
+
+                            gainsValue: (totalHoldingsValue - totalCostBasis) + otherGains,
+
+                            twr: twrIndex
+
+                        });
+
+                    }
+
+                
+
+                    return points;
+
+                }
+
+                
+
+        

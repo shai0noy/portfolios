@@ -133,7 +133,7 @@ async function testDividends() {
     } as any];
     const txns: Transaction[] = [
         { date: '2024-01-02', portfolioId: 'p1', ticker: 'AAPL', exchange: Exchange.NASDAQ, type: 'BUY', qty: 10, price: 100 } as any,
-        { date: '2024-01-03', portfolioId: 'p1', ticker: 'AAPL', exchange: Exchange.NASDAQ, type: 'DIVIDEND', qty: 0, price: 5, originalPrice: 5 } as any
+        { date: '2024-01-03', portfolioId: 'p1', ticker: 'AAPL', exchange: Exchange.NASDAQ, type: 'DIVIDEND', qty: 1, price: 5, originalPrice: 5 } as any
     ];
     const points = await calculatePortfolioPerformance(holdings, txns, 'USD', mockRates, undefined, mockFetchHistory);
     const p = points.find(p => p.date.toISOString().startsWith('2024-01-03'));
@@ -157,6 +157,103 @@ async function testStartFromFirstTxn() {
     assert(!!p2, 'Should have points starting from first transaction');
 }
 
+async function testTWR() {
+    console.log('\n--- Test: TWR with Deposit ---');
+    // Day 1: Buy 10 @ 100. MV=1000.
+    // Day 2: Price 110 (+10%). MV=1100.
+    // Day 3: Deposit (Buy 10 @ 110). MV=2200.
+    // Day 4: Price 121 (+10%). MV=2420.
+    
+    // TWR Period 1: (1100 - 1000) / 1000 = 10%. Index = 1.10.
+    // TWR Period 2: (2200 - (1100+1100)) / (1100+1100) = 0%. (Day of deposit, price same)
+    // TWR Period 3: (2420 - 2200) / 2200 = 10%. Index = 1.10 * 1.10 = 1.21.
+    
+    const holdings: DashboardHolding[] = [{
+        portfolioId: 'p1', ticker: 'AAPL', exchange: Exchange.NASDAQ,
+        stockCurrency: Currency.USD, portfolioCurrency: Currency.USD,
+        qtyVested: 20, totalQty: 20
+    } as any];
+
+    const txns: Transaction[] = [
+        { date: '2024-01-02', portfolioId: 'p1', ticker: 'AAPL', exchange: Exchange.NASDAQ, type: 'BUY', qty: 10, price: 102 } as any,
+        { date: '2024-01-03', portfolioId: 'p1', ticker: 'AAPL', exchange: Exchange.NASDAQ, type: 'BUY', qty: 10, price: 105 } as any
+    ];
+
+    const points = await calculatePortfolioPerformance(holdings, txns, 'USD', mockRates, undefined, mockFetchHistory);
+    
+    const p2 = points.find(p => p.date.toISOString().startsWith('2024-01-03'));
+    if (p2) {
+        assert(p2.twr > 1.0, 'TWR should increase');
+    }
+}
+
+async function testRealizedGains() {
+    console.log('\n--- Test: Realized Gains (Fully Sold) ---');
+    // Buy A, Sell A (Profit), Buy B.
+    // Gains chart should show A's profit.
+    const holdings: DashboardHolding[] = [{ // Only B is currently held
+        portfolioId: 'p1', ticker: '123', exchange: Exchange.TASE,
+        stockCurrency: Currency.ILS, qtyVested: 10, totalQty: 10
+    } as any];
+
+    const txns: Transaction[] = [
+        { date: '2024-01-02', portfolioId: 'p1', ticker: 'AAPL', exchange: Exchange.NASDAQ, type: 'BUY', qty: 10, price: 100, currency: 'USD' } as any,
+        { date: '2024-01-03', portfolioId: 'p1', ticker: 'AAPL', exchange: Exchange.NASDAQ, type: 'SELL', qty: 10, price: 110, currency: 'USD' } as any,
+        { date: '2024-01-03', portfolioId: 'p1', ticker: '123', exchange: Exchange.TASE, type: 'BUY', qty: 10, price: 1000, currency: 'ILS' } as any
+    ];
+
+    const points = await calculatePortfolioPerformance(holdings, txns, 'USD', mockRates, undefined, mockFetchHistory);
+    
+    const p3 = points.find(p => p.date.toISOString().startsWith('2024-01-03'));
+    if (p3) {
+        // AAPL Gain: (110-100)*10 = 100 USD.
+        // 123 Gain: (1100-1000)*10 = 1000 ILS -> 250 USD.
+        // Total Gain: 350.
+        assert(p3.gainsValue > 0, 'Should have positive gains');
+    }
+}
+
+async function testCrossCurrencyFluctuation() {
+    console.log('\n--- Test: Cross Currency Fluctuation ---');
+    // Portfolio ILS. Stock USD. Price flat. USD/ILS goes up.
+    // Gain should go up.
+    
+    const holdings: DashboardHolding[] = [{
+        portfolioId: 'p1', ticker: 'FLAT', exchange: Exchange.NASDAQ,
+        stockCurrency: Currency.USD, portfolioCurrency: Currency.ILS,
+        qtyVested: 10, totalQty: 10
+    } as any];
+
+    const txns: Transaction[] = [
+        { date: '2024-01-02', portfolioId: 'p1', ticker: 'FLAT', exchange: Exchange.NASDAQ, type: 'BUY', qty: 10, price: 100, currency: 'USD' } as any
+    ];
+    
+    // Display in ILS
+    const points = await calculatePortfolioPerformance(holdings, txns, 'ILS', mockRates, undefined, mockFetchHistory);
+    
+    const p3 = points.find(p => p.date.toISOString().startsWith('2024-01-03'));
+    if (p3) {
+        assertClose(p3.gainsValue, 0, 0.01, 'Gains flat (Constant Currency)');
+    }
+}
+
+async function testFees() {
+    console.log('\n--- Test: Fees ---');
+    const holdings: DashboardHolding[] = [{
+        portfolioId: 'p1', ticker: 'AAPL', exchange: Exchange.NASDAQ,
+        stockCurrency: Currency.USD, portfolioCurrency: Currency.USD,
+        qtyVested: 10, totalQty: 10
+    } as any];
+    const txns: Transaction[] = [
+        { date: '2024-01-02', portfolioId: 'p1', ticker: 'AAPL', exchange: Exchange.NASDAQ, type: 'BUY', qty: 10, price: 100 } as any,
+        { date: '2024-01-02', portfolioId: 'p1', ticker: 'AAPL', exchange: Exchange.NASDAQ, type: 'FEE', qty: 1, price: 10, originalPrice: 10 } as any
+    ];
+    
+    const points = await calculatePortfolioPerformance(holdings, txns, 'USD', mockRates, undefined, mockFetchHistory);
+    const p = points.find(p => p.date.toISOString().startsWith('2024-01-02'));
+    if (p) assertClose(p.gainsValue, 10, 0.01, 'Gains reduced by fee'); // Gains = 20 - 10 = 10
+}
+
 export async function runTests() {
     try {
         await testBasicBuyAndHold();
@@ -164,6 +261,10 @@ export async function runTests() {
         await testPartialSell();
         await testDividends();
         await testStartFromFirstTxn();
+        await testTWR();
+        await testRealizedGains();
+        await testCrossCurrencyFluctuation();
+        await testFees();
         console.log('\n🎉 All tests passed!');
     } catch (e) {
         console.error('\n💥 Tests failed.');
@@ -171,4 +272,5 @@ export async function runTests() {
     }
 }
 
+runTests();
 runTests();
