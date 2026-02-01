@@ -3,6 +3,7 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { useState, useMemo } from 'react';
 import { useLanguage } from '../lib/i18n';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
@@ -118,6 +119,30 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
     const volData = formatVolume(displayData?.volume, displayData?.currency);
     const volumeDisplay = volData ? `${volData.text} ${volData.currency}` : null;
 
+    const parseExposureProfile = (profile: string | undefined) => {
+        if (!profile || profile.length < 2) return null;
+        
+        const stockChar = profile[0];
+        const forexChar = profile[1].toUpperCase();
+
+        const stockMap: Record<string, string> = {
+            '0': '0%', '1': '<10%', '2': '<30%', '3': '<50%', '4': '<120%', '5': '<200%', '6': '>200%'
+        };
+        const forexMap: Record<string, string> = {
+            '0': '0%', 
+            'A': '<10%', 'B': '<30%', 'C': '<50%', 'D': '<120%', 'E': '<200%', 'F': '>200%',
+        };
+
+        const stockExp = stockMap[stockChar];
+        const forexExp = forexMap[forexChar]; // Ensure case-insensitive for letters
+
+        if (!stockExp && !forexExp) return null;
+
+        return { stock: stockExp, forex: forexExp };
+    };
+
+    const exposure = displayData?.meta && 'exposureProfile' in displayData.meta ? parseExposureProfile(displayData.meta.exposureProfile) : null;
+
     return (
         <>
             <Dialog open={true} onClose={handleClose} maxWidth={false} fullWidth PaperProps={{ sx: { width: 'min(900px, 96%)', m: 1 } }}>
@@ -138,6 +163,31 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                                 {(() => {
                                     const displayType = displayData?.type ? t(displayData.type.nameEn, displayData.type.nameHe) : (displayData?.taseType || displayData?.globesTypeHe);
                                     return displayType ? <Chip label={displayType} size="small" variant="outlined" /> : null;
+                                })()}
+                                {(() => {
+                                    if (!exposure || !displayData?.meta || !('exposureProfile' in displayData.meta)) return null;
+                                    const profileCode = displayData.meta.exposureProfile;
+                                    
+                                    const tooltipParts = [];
+                                    if (exposure.stock) tooltipParts.push(`${t('Stocks', 'מניות')}: ${exposure.stock}`);
+                                    if (exposure.forex) tooltipParts.push(`${t('Forex', 'מט"ח')}: ${exposure.forex}`);
+                                    
+                                    if (tooltipParts.length === 0) return null;
+
+                                    return (
+                                        <Tooltip title={tooltipParts.join(' | ')} arrow>
+                                            <Chip 
+                                                label={
+                                                    <Box display="flex" alignItems="center">
+                                                        {t('Exposure', 'חשיפה')}: {profileCode}
+                                                        <InfoOutlinedIcon sx={{ fontSize: '0.9rem', ml: 0.5, opacity: 0.7 }} />
+                                                    </Box>
+                                                } 
+                                                size="small" 
+                                                variant="outlined" 
+                                            />
+                                        </Tooltip>
+                                    );
                                 })()}
                                 {displayData?.providentInfo?.managementFee !== undefined && <Chip label={`${t('Mgmt fee:', 'דמי ניהול:')} ${displayData.providentInfo.managementFee}%`} size="small" variant="outlined" />}
                                 {displayData?.providentInfo?.depositFee !== undefined && <Chip label={`${t('Deposit fee:', 'דמי הפקדה:')} ${displayData.providentInfo.depositFee}%`} size="small" variant="outlined" />}

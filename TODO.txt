@@ -12,7 +12,7 @@ fetch mgmt fee from tase and also show
 CPI data parsing, solve issue where values before 1985 are weird - 200x too large
 Mobile viewing is all over the placed
 Check crypto 1d change?...
-Theres still chart-related code duplication between TickerDetails and other places like useChartComparison.ts
+DONE: Theres still chart-related code duplication between TickerDetails and other places like useChartComparison.ts
 DONE?: The create first portfolio message should not appear when loggin failed. Instead should perform login.
 DONE: In total holdings chart - holdings mode should be mutualy exclusive with comperission mode.
 DONE: In total holdings chart - hide range options with insuffcient data
