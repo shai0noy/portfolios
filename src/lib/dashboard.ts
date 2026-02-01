@@ -199,6 +199,7 @@ export function useDashboardData(sheetId: string, options: { includeUnvested: bo
   useEffect(() => {
     getExchangeRates(sheetId).then(setExchangeRates).catch(e => {
       if (e instanceof SessionExpiredError) {
+        setError('session_expired');
         showLoginModal();
       } else {
         setError(e);
@@ -443,6 +444,7 @@ export function useDashboardData(sheetId: string, options: { includeUnvested: bo
     } catch (e) {
       console.error('loadData error:', e);
       if (e instanceof SessionExpiredError) {
+        setError('session_expired');
         showLoginModal();
       } else {
         setError(e);

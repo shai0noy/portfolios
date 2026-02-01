@@ -15,6 +15,7 @@ import { DashboardTable } from './DashboardTable';
 import { useLanguage } from '../lib/i18n';
 import { useDashboardData, calculateDashboardSummary, INITIAL_SUMMARY } from '../lib/dashboard';
 import { TickerSearch } from './TickerSearch';
+import { useSession } from '../lib/SessionContext';
 
 interface DashboardProps {
   sheetId: string;
@@ -37,6 +38,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
   const { t, isRtl } = useLanguage();
 
   const { holdings, loading, error, portfolios, exchangeRates, hasFutureTxns, refresh } = useDashboardData(sheetId, { includeUnvested });
+  const { showLoginModal } = useSession();
 
   const handleClickColSelector = (event: React.MouseEvent<HTMLButtonElement>) => {
     setAnchorEl(event.currentTarget);
@@ -164,6 +166,38 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
   }, [holdings, groupByPortfolio, selectedPortfolioId, portfolios]);
 
   if (loading) return <Box display="flex" justifyContent="center" p={5}><CircularProgress /></Box>;
+
+  if (error === 'session_expired') {
+    return (
+      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', textAlign: 'center', p: 3 }}>
+        <Typography variant="h6" gutterBottom>
+          {t('Login Required', 'נדרשת התחברות')}
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
+          {t('Your session has expired. Please log in again to access your portfolio.', 'החיבור שלך פג. אנא התחבר שנית כדי לגשת לתיק ההשקעות שלך.')}
+        </Typography>
+        <Button variant="contained" onClick={() => showLoginModal()} startIcon={<AddIcon />}>
+          {t('Log In', 'התחברות')}
+        </Button>
+      </Box>
+    );
+  }
+
+  if (error) {
+    return (
+      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', textAlign: 'center', p: 3 }}>
+        <Typography variant="h6" color="error" gutterBottom>
+          {t('Failed to load portfolio data.', 'שגיאה בטעינת נתוני התיק.')}
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          {String(error)}
+        </Typography>
+        <Button variant="outlined" onClick={() => refresh()} startIcon={<RefreshIcon />}>
+          {t('Retry', 'נסה שנית')}
+        </Button>
+      </Box>
+    );
+  }
 
   if (portfolios.length === 0) {
     return (
