@@ -1,9 +1,12 @@
 import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Table, TableBody, TableCell, TableHead, TableRow, Box, Typography, ToggleButton, ToggleButtonGroup, Tooltip } from '@mui/material';
 import { useLanguage } from '../lib/i18n';
 import type { ChartSeries } from './TickerChart';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { synchronizeSeries, computeAnalysisMetrics, normalizeToStart, calculateReturns, type AnalysisMetrics } from '../lib/utils/analysis';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import { fetchTickerHistory } from '../lib/fetching';
+import { Exchange } from '../lib/types';
+import { EXTRA_COLORS } from '../lib/hooks/useChartComparison';
 
 interface AnalysisDialogProps {
     open: boolean;
@@ -11,7 +14,13 @@ interface AnalysisDialogProps {
     mainSeries: ChartSeries | null;
     comparisonSeries: ChartSeries[];
     title?: string;
+    subjectName?: string;
 }
+
+const DEFAULT_BENCHMARKS = [
+    { ticker: '^SPX', exchange: Exchange.NYSE, name: 'S&P 500' },
+    { ticker: '137', exchange: Exchange.TASE, name: 'Tel Aviv 125' }
+];
 
 function filterDataByRange(data: { date: Date, price: number }[], range: string, minDate?: Date) {
     if (!data || data.length === 0) return [];
@@ -41,10 +50,64 @@ function filterDataByRange(data: { date: Date, price: number }[], range: string,
     return data.filter(d => d.date.getTime() >= startDate.getTime());
 }
 
-export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, title }: AnalysisDialogProps) {
+interface ExtendedAnalysisMetrics extends AnalysisMetrics {
+    activeReturn: number;
+}
+
+export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, title, subjectName }: AnalysisDialogProps) {
     const { t } = useLanguage();
     const [range, setRange] = useState('1Y');
+    const [extraSeries, setExtraSeries] = useState<ChartSeries[]>([]);
 
+    useEffect(() => {
+        if (!open) return;
+
+        const loadDefaults = async () => {
+            const newExtras: ChartSeries[] = [];
+            const existingNames = new Set(comparisonSeries.map(s => s.name));
+            const loadedNames = new Set(extraSeries.map(s => s.name));
+
+            for (const bench of DEFAULT_BENCHMARKS) {
+                if (!existingNames.has(bench.name) && !loadedNames.has(bench.name)) {
+                    try {
+                        const historyResponse = await fetchTickerHistory(bench.ticker, bench.exchange);
+                        if (historyResponse?.historical) {
+                            const usedColors = new Set(comparisonSeries.map(s => s.color).filter(Boolean));
+                            newExtras.forEach(s => { if (s.color) usedColors.add(s.color); });
+                            extraSeries.forEach(s => { if (s.color) usedColors.add(s.color); });
+
+                            let color = EXTRA_COLORS.find(c => !usedColors.has(c));
+                            if (!color) {
+                                const totalCount = comparisonSeries.length + extraSeries.length + newExtras.length;
+                                color = EXTRA_COLORS[totalCount % EXTRA_COLORS.length];
+                            }
+
+                            newExtras.push({
+                                name: bench.name,
+                                data: historyResponse.historical,
+                                color: color
+                            });
+                        }
+                    } catch (e) {
+                        console.warn(`Failed to fetch default benchmark ${bench.name}`, e);
+                    }
+                }
+            }
+            if (newExtras.length > 0) setExtraSeries(prev => [...prev, ...newExtras]);
+        };
+
+        loadDefaults();
+    }, [open, comparisonSeries]);
+
+    const allSeries = useMemo(() => {
+        const combined = [...comparisonSeries];
+        extraSeries.forEach(s => {
+            if (!combined.some(c => c.name === s.name)) combined.push(s);
+        });
+        return combined;
+    }, [comparisonSeries, extraSeries]);
+
+    const effectiveSubjectName = subjectName || t('Portfolio', 'תיק');
     const oldestDate = mainSeries?.data?.[0]?.date;
     
     const availableRanges = useMemo(() => {
@@ -68,62 +131,61 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
     }, [oldestDate]);
 
     const results = useMemo(() => {
-        if (!mainSeries || mainSeries.data.length < 2 || comparisonSeries.length === 0) return new Map<string, AnalysisMetrics>();
+        if (!mainSeries || mainSeries.data.length < 2 || allSeries.length === 0) return new Map<string, ExtendedAnalysisMetrics>();
         
-        // Filter main series by range.
         const mainFiltered = filterDataByRange(mainSeries.data, range);
-        if (mainFiltered.length < 2) return new Map<string, AnalysisMetrics>();
+        if (mainFiltered.length < 2) return new Map<string, ExtendedAnalysisMetrics>();
 
-        // For comparison series, we MUST clamp them to the main series start date
         const analysisStartDate = mainFiltered[0].date;
-
-        // Use normalizeToStart to convert to DataPoint[] (timestamp, value). 
-        // Normalization doesn't affect returns calculation (ratio preserved).
         const mainPoints = normalizeToStart(mainFiltered);
-        const metricsMap = new Map<string, AnalysisMetrics>();
+        const metricsMap = new Map<string, ExtendedAnalysisMetrics>();
 
-        comparisonSeries.forEach(s => {
+        allSeries.forEach(s => {
             const benchFiltered = filterDataByRange(s.data, 'ALL', analysisStartDate);
-            const benchPoints = normalizeToStart(benchFiltered);
-            
-            // X = Benchmark (Independent), Y = Portfolio (Dependent)
-            // 1. Sync Prices
-            const pricePairs = synchronizeSeries(benchPoints, mainPoints);
-            
-            // 2. Calc Returns
-            const returnPairs = calculateReturns(pricePairs);
+            if (benchFiltered.length < 2) return;
 
-            // 3. Compute Metrics on Returns
+            const benchPoints = normalizeToStart(benchFiltered);
+            const pricePairs = synchronizeSeries(benchPoints, mainPoints);
+            if (pricePairs.length < 2) return;
+
+            const startPair = pricePairs[0];
+            const endPair = pricePairs[pricePairs.length - 1];
+            const benchTotalReturn = (endPair.x / startPair.x) - 1;
+            const mainTotalReturn = (endPair.y / startPair.y) - 1;
+            const returnPairs = calculateReturns(pricePairs);
             const metrics = computeAnalysisMetrics(returnPairs);
             
             if (metrics) {
-                // Annualize Alpha (Daily Alpha * 252)
-                // Note: This assumes daily data. If data is sparse, 252 might be high, but standard convention.
                 metricsMap.set(s.name, {
                     ...metrics,
-                    alpha: metrics.alpha * 252
+                    alpha: metrics.alpha * returnPairs.length,
+                    activeReturn: mainTotalReturn - benchTotalReturn
                 });
             }
         });
-
         return metricsMap;
-    }, [mainSeries, comparisonSeries, range]);
+    }, [mainSeries, allSeries, range]);
 
     const formatNum = (val: number | undefined, dec = 2) => {
         if (val === undefined || isNaN(val)) return '-';
         return val.toLocaleString(undefined, { minimumFractionDigits: dec, maximumFractionDigits: dec });
     };
 
-    const getMetricColor = (val: number | undefined, type: 'alpha' | 'beta' | 'downsideBeta') => {
+    const formatPct = (val: number | undefined, dec = 1) => {
+        if (val === undefined || isNaN(val)) return '-';
+        return (val * 100).toLocaleString(undefined, { minimumFractionDigits: dec, maximumFractionDigits: dec }) + '%';
+    };
+
+    const getMetricColor = (val: number | undefined, type: 'alpha' | 'beta' | 'downsideBeta' | 'activeReturn') => {
         if (val === undefined || isNaN(val)) return 'text.primary';
-        if (type === 'alpha') {
-            if (val > 0.001) return 'success.main';
-            if (val < -0.001) return 'error.main';
-            return 'text.primary';
+        if (type === 'alpha' || type === 'activeReturn') {
+            if (val > -0.001) return 'success.main';
+            return 'error.main';
         }
         if (type === 'downsideBeta') {
-             if (val > 1.05) return 'error.main'; // Significant crash sensitivity
-             if (val < 0.95) return 'success.main'; // Significant defensive quality
+             if (val > 1.05) return 'error.main';
+             if (val < 0) return 'error.main';
+             if (val < 0.95) return 'success.main';
              return 'text.primary';
         }
         return 'text.primary';
@@ -141,13 +203,7 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
             </DialogTitle>
             <DialogContent>
                 <Box display="flex" justifyContent="center" mb={2}>
-                    <ToggleButtonGroup
-                        value={range}
-                        exclusive
-                        onChange={(_, v) => v && setRange(v)}
-                        size="small"
-                        sx={{ height: 26 }}
-                    >
+                    <ToggleButtonGroup value={range} exclusive onChange={(_, v) => v && setRange(v)} size="small" sx={{ height: 26 }}>
                         {availableRanges.map(r => (
                             <ToggleButton key={r} value={r} sx={{ px: 1, fontSize: '0.7rem' }}>
                                 {r === 'ALL' ? 'Max' : r}
@@ -160,22 +216,27 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
                         <TableRow>
                             <TableCell>{t('Benchmark', 'מדד יחוס')}</TableCell>
                             <TableCell align="left" sx={{ width: 90 }}>
-                                <Tooltip title={t("Excess return relative to the benchmark.", "תשואה עודפת ביחס למדד הייחוס.")}>
+                                <Tooltip title={t(`Difference in total return (${effectiveSubjectName} - Benchmark).`, `הפרש בתשואה הכוללת (${effectiveSubjectName} - מדד).`)}>
+                                    <Box component="span" sx={{ cursor: 'help', borderBottom: '1px dotted' }}>Active Ret.</Box>
+                                </Tooltip>
+                            </TableCell>
+                            <TableCell align="left" sx={{ width: 90 }}>
+                                <Tooltip title={t(`Cumulative risk-adjusted excess return for the selected period.`, `תשואה עודפת מתוקננת סיכון מצטברת לתקופה שנבחרה.`)}>
                                     <Box component="span" sx={{ cursor: 'help', borderBottom: '1px dotted' }}>Alpha</Box>
                                 </Tooltip>
                             </TableCell>
                             <TableCell align="left" sx={{ width: 90 }}>
-                                <Tooltip title={t("Volatility vs Benchmark (1.0 = Match).", "תנודתיות מול המדד (1.0 = תואם).")}>
+                                <Tooltip title={t(`Volatility vs Benchmark (1.0 = Match).`, `תנודתיות מול המדד (1.0 = תואם).`)}>
                                     <Box component="span" sx={{ cursor: 'help', borderBottom: '1px dotted' }}>Beta</Box>
                                 </Tooltip>
                             </TableCell>
                             <TableCell align="left" sx={{ width: 120 }}>
-                                <Tooltip title={t("Sensitivity to Drops (< 1.0 = Defensive).", "רגישות לירידות (קטן מ-1.0 = דפנסיבי).")}>
+                                <Tooltip title={t(`Sensitivity to Drops (< 1.0 = Defensive).`, `רגישות לירידות (קטן מ-1.0 = דפנסיבי).`)}>
                                     <Box component="span" sx={{ cursor: 'help', borderBottom: '1px dotted' }}>Downside β</Box>
                                 </Tooltip>
                             </TableCell>
                             <TableCell align="left" sx={{ width: 80 }}>
-                                <Tooltip title={t("Percentage of portfolio movement explained by the benchmark (0-1).", "אחוז תנודת התיק המוסבר על ידי המדד (0-1).")}>
+                                <Tooltip title={t(`Percentage of ${effectiveSubjectName} movement explained by the benchmark (0-1).`, `אחוז תנודת ה-${effectiveSubjectName} המוסבר על ידי המדד (0-1).`)}>
                                     <Box component="span" sx={{ cursor: 'help', borderBottom: '1px dotted' }}>R²</Box>
                                 </Tooltip>
                             </TableCell>
@@ -187,11 +248,11 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {comparisonSeries.map((s) => {
+                        {allSeries.map((s) => {
                             const m = results.get(s.name);
                             const alphaColor = getMetricColor(m?.alpha, 'alpha');
                             const downsideColor = getMetricColor(m?.downsideBeta, 'downsideBeta');
-
+                            const activeReturnColor = getMetricColor(m?.activeReturn, 'activeReturn');
                             return (
                                 <TableRow key={s.name}>
                                     <TableCell component="th" scope="row">
@@ -199,6 +260,9 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
                                             <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: s.color }} />
                                             <Typography variant="body2" noWrap sx={{ maxWidth: 150 }}>{s.name}</Typography>
                                         </Box>
+                                    </TableCell>
+                                    <TableCell align="left" sx={{ color: activeReturnColor, fontWeight: activeReturnColor !== 'text.primary' ? 'bold' : 'normal' }}>
+                                        {formatPct(m?.activeReturn)}
                                     </TableCell>
                                     <TableCell align="left" sx={{ color: alphaColor, fontWeight: alphaColor !== 'text.primary' ? 'bold' : 'normal' }}>
                                         {formatNum(m?.alpha, 3)}
@@ -220,7 +284,7 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
                         })}
                     </TableBody>
                 </Table>
-                {comparisonSeries.length === 0 && (
+                {allSeries.length === 0 && (
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 2, textAlign: 'center' }}>
                         {t('Add benchmarks to see comparative analysis.', 'הוסף מדדי ייחוס כדי לראות ניתוח השוואתי.')}
                     </Typography>

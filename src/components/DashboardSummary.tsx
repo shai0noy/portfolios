@@ -581,13 +581,11 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                                         </MenuItem>
                                     ))}
                                 </Menu>
-                                {isComparison && (
-                                    <Tooltip title={t('Analysis', 'ניתוח')}>
-                                        <IconButton onClick={() => setAnalysisOpen(true)} size="small" sx={{ ml: 1, color: 'primary.main' }}>
-                                            <AnalyticsIcon fontSize="small" />
-                                        </IconButton>
-                                    </Tooltip>
-                                )}
+                                <Tooltip title={t('Analysis', 'ניתוח')}>
+                                    <IconButton onClick={() => setAnalysisOpen(true)} size="small" sx={{ ml: 1, color: 'primary.main' }}>
+                                        <AnalyticsIcon fontSize="small" />
+                                    </IconButton>
+                                </Tooltip>
                             </Box>
                         </Box>
                         
@@ -639,6 +637,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
         mainSeries={fullPortfolioSeries}
         comparisonSeries={comparisonSeries} 
         title={`${t('Analysis', 'ניתוח')}: ${selectedPortfolio || t('Total Portfolio', 'כל התיקים')}`}
+        subjectName={selectedPortfolio ? t('Portfolio', 'תיק') : t('All Portfolios', 'כל התיקים')}
     />
     </>
   );

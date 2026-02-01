@@ -264,13 +264,11 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                                         </MenuItem>
                                     ))}
                                 </Menu>
-                                {isComparison && (
-                                    <Tooltip title={t('Analysis', 'ניתוח')}>
-                                        <IconButton onClick={() => setAnalysisOpen(true)} size="small" sx={{ ml: 1, color: 'primary.main' }}>
-                                            <AnalyticsIcon fontSize="small" />
-                                        </IconButton>
-                                    </Tooltip>
-                                )}
+                                <Tooltip title={t('Analysis', 'ניתוח')}>
+                                    <IconButton onClick={() => setAnalysisOpen(true)} size="small" sx={{ ml: 1, color: 'primary.main' }}>
+                                        <AnalyticsIcon fontSize="small" />
+                                    </IconButton>
+                                </Tooltip>
                             </Box>
                             {comparisonSeries.length > 0 && <Box display="flex" flexWrap="wrap" gap={1} sx={{ mt: 1, mb: 1 }}>{comparisonSeries.map(s => <Chip key={s.name} label={s.name} onDelete={() => handleRemoveComparison(s.name)} variant="outlined" size="small" sx={{ color: s.color, borderColor: s.color }} />)}</Box>}
                             <TickerChart series={[{ name: resolvedName || ticker || 'Main', data: displayHistory }, ...displayComparisonSeries]} currency={displayData?.currency || 'USD'} mode={effectiveChartMetric} />
@@ -310,6 +308,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                 mainSeries={historicalData ? { name: resolvedName || ticker || 'Main', data: historicalData } : null}
                 comparisonSeries={comparisonSeries} 
                 title={`${t('Analysis', 'ניתוח')}: ${tTry(resolvedName || ticker || '', resolvedNameHe)}`}
+                subjectName={t('Ticker', 'נייר ערך')}
             />
         </>
     );

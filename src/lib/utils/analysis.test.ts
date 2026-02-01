@@ -1,4 +1,4 @@
-import { synchronizeSeries, computeAnalysisMetrics, normalizeToStart, DataPoint } from './analysis';
+import { synchronizeSeries, computeAnalysisMetrics, normalizeToStart, calculateReturns, DataPoint } from './analysis';
 
 // --- HELPERS ---
 
@@ -122,6 +122,47 @@ function testNormalizeToStart() {
     assertClose(normalized[2].value, 0.5, 0.0001, 'Point 3 is 0.5'); // 25/50
 }
 
+function testDownsideBeta() {
+    console.log('\n--- Test: Downside Beta ---');
+    // Scenario: Asset moves with market when market is UP, 
+    // but resists drop when market is DOWN.
+    const pairs = [
+        { x: 0.01,  y: 0.02 }, // Market Up, Asset Up 2x
+        { x: 0.02,  y: 0.04 }, // Market Up, Asset Up 2x
+        { x: -0.01, y: -0.005 }, // Market Down, Asset Down 0.5x (Resilient)
+        { x: -0.02, y: -0.01 },  // Market Down, Asset Down 0.5x (Resilient)
+    ];
+
+    const metrics = computeAnalysisMetrics(pairs);
+    if (!metrics) throw new Error('Metrics failed');
+
+    // Overall Beta should be somewhere between 0.5 and 2.0
+    console.log(`Overall Beta: ${metrics.beta.toFixed(2)}`);
+
+    // Downside Beta should be exactly 0.5 (calculated only from negative X)
+    assertClose(metrics.downsideBeta, 0.5, 0.0001, 'Downside Beta should be 0.5');
+}
+
+function testCalculateReturns() {
+    console.log('\n--- Test: Calculate Returns ---');
+    // Price: 100 -> 110 (+10%) -> 99 (-10%)
+    const pairs = [
+        { x: 100, y: 100 },
+        { x: 110, y: 110 },
+        { x: 99,  y: 99 } 
+    ];
+    
+    const returns = calculateReturns(pairs);
+    
+    assert(returns.length === 2, 'Should have 2 return periods');
+    
+    // 100 -> 110 is +0.10
+    assertClose(returns[0].x, 0.10, 0.0001, 'Return 1 X correct');
+    
+    // 110 -> 99 is -0.10  (11 * 0.1 = 1.1, wait. 110 - 11 = 99. Correct.)
+    assertClose(returns[1].x, -0.10, 0.0001, 'Return 2 X correct');
+}
+
 export function runTests() {
     try {
         testSynchronizeSeries();
@@ -129,6 +170,8 @@ export function runTests() {
         testInverseCorrelation();
         testNoCorrelation();
         testNormalizeToStart();
+        testCalculateReturns();
+        testDownsideBeta();
         console.log('\n🎉 All analysis tests passed!');
     } catch (e) {
         console.error('\n💥 Analysis tests failed.');
