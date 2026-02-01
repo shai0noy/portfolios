@@ -346,6 +346,17 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
   const oldestDate = useMemo(() => perfData.length > 0 ? perfData[0].date : undefined, [perfData]);
   const availableRanges = useMemo(() => getAvailableRanges(oldestDate), [oldestDate]);
 
+  const maxLabel = useMemo(() => {
+      if (!oldestDate) return 'Max';
+      const now = new Date();
+      const diffYears = Math.abs(now.getTime() - oldestDate.getTime()) / (1000 * 60 * 60 * 24 * 365);
+      if (diffYears >= 1) return `Max (${diffYears.toFixed(1)}Y)`;
+      const diffMonths = diffYears * 12;
+      if (diffMonths >= 1) return `Max (${diffMonths.toFixed(1)}M)`;
+      const diffDays = diffYears * 365;
+      return `Max (${Math.ceil(diffDays)}D)`;
+  }, [oldestDate]);
+
   const portfolioSeries = useMemo<ChartSeries[]>(() => {
       if (perfData.length === 0) return [];
       
@@ -377,12 +388,12 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
       comparisonSeries.forEach(s => {
           series.push({
               ...s,
-              data: getClampedData(s.data, chartRange)
+              data: getClampedData(s.data, chartRange, oldestDate)
           });
       });
 
       return series;
-  }, [perfData, chartView, chartRange, comparisonSeries, getClampedDataCallback, getClampedData, t, effectiveChartMetric]);
+  }, [perfData, chartView, chartRange, comparisonSeries, getClampedDataCallback, getClampedData, t, effectiveChartMetric, oldestDate]);
 
   return (
     <>
@@ -498,7 +509,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                                 </Tooltip>
 
                                 <ToggleButtonGroup
-                                    value={chartMetric}
+                                    value={effectiveChartMetric}
                                     exclusive
                                     onChange={(_, val) => val && setChartMetric(val)}
                                     size="small"
@@ -518,7 +529,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                                 sx={{ height: 26 }}
                             >
                                 {availableRanges.map(r => (
-                                    <ToggleButton key={r} value={r} sx={{ px: 0.8, fontSize: '0.65rem' }}>{r === 'ALL' ? 'Max' : r}</ToggleButton>
+                                    <ToggleButton key={r} value={r} sx={{ px: 0.8, fontSize: '0.65rem' }}>{r === 'ALL' ? maxLabel : r}</ToggleButton>
                                 ))}
                             </ToggleButtonGroup>
 

@@ -1,10 +1,9 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { getTickerData, getTickersDataset, fetchTickerHistory, getVerifiedYahooSymbol, type TickerData } from '../fetching';
-import type { TickerProfile } from '../types/ticker';
 import { fetchHolding, getMetadataValue, syncDividends, fetchDividends } from '../sheets';
 import { Exchange, parseExchange, toGoogleFinanceExchangeCode, type Holding, type Portfolio } from '../types';
-import { formatPrice, formatPercent, toILS, normalizeCurrency } from '../currency';
+import { formatPrice, toILS, normalizeCurrency } from '../currency';
 import { useLanguage } from '../i18n';
 import { getOwnedInPortfolios } from '../portfolioUtils';
 import type { Dividend } from '../fetching/types';
@@ -17,6 +16,7 @@ export interface TickerDetailsProps {
     numericId?: string;
     initialName?: string;
     initialNameHe?: string;
+    onClose?: () => void;
     portfolios?: Portfolio[];
     isPortfoliosLoading?: boolean;
 }
@@ -107,7 +107,15 @@ export const useTickerDetails = ({ sheetId, ticker: propTicker, exchange: propEx
             ]);
 
             setHoldingData(holding);
-            setData(prev => ({ ...prev, ...tickerData, dividends: mergeDividends(tickerData?.dividends, sheetDividends), splits: tickerData?.splits || prev?.splits }));
+            setData(prev => {
+                if (!tickerData) return prev;
+                return {
+                    ...prev,
+                    ...tickerData,
+                    dividends: mergeDividends(tickerData.dividends, sheetDividends),
+                    splits: tickerData.splits || prev?.splits
+                } as TickerData;
+            });
             setSheetRebuildTime(sheetRebuild);
 
             if (tickerData?.dividends && !tickerData.fromCacheMax) {
@@ -129,7 +137,14 @@ export const useTickerDetails = ({ sheetId, ticker: propTicker, exchange: propEx
             await fetchData(true);
             const historyResponse = await fetchTickerHistory(ticker, exchange, undefined, true);
             setHistoricalData(historyResponse?.historical || []);
-            setData(prev => ({ ...prev, dividends: mergeDividends(historyResponse?.dividends, prev?.dividends), splits: historyResponse?.splits }));
+            setData(prev => {
+                if (!prev) return null;
+                return {
+                    ...prev,
+                    dividends: mergeDividends(historyResponse?.dividends, prev.dividends),
+                    splits: historyResponse?.splits || prev.splits
+                } as TickerData;
+            });
         }
         setRefreshing(false);
     }, [ticker, exchange, fetchData, mergeDividends]);
@@ -143,7 +158,15 @@ export const useTickerDetails = ({ sheetId, ticker: propTicker, exchange: propEx
                 fetchDividends(sheetId, ticker, exchange)
             ]).then(([historyResponse, sheetDividends]) => {
                 setHistoricalData(historyResponse?.historical || []);
-                setData(prev => ({ ...prev, dividends: mergeDividends(historyResponse?.dividends, sheetDividends), splits: historyResponse?.splits }));
+                setData(prev => {
+                    if (!prev && !historyResponse) return null;
+                    return {
+                        ...prev,
+                        ...historyResponse,
+                        dividends: mergeDividends(historyResponse?.dividends, sheetDividends),
+                        splits: historyResponse?.splits || prev?.splits
+                    } as TickerData;
+                });
                 if (historyResponse?.dividends && !historyResponse.fromCacheMax) {
                     syncDividends(sheetId, ticker, exchange, historyResponse.dividends, 'Yahoo History');
                 }
@@ -192,7 +215,13 @@ export const useTickerDetails = ({ sheetId, ticker: propTicker, exchange: propEx
     }, [ticker, exchange, data, holdingData, numericId, resolvedNameHe]);
     
     const dividendGains = useMemo<Record<string, { amount: number, pct: number }>>(() => {
-        if (!data?.dividends || !displayData?.currency || !historicalData?.length) return {};
+        const empty = {
+            'YTD': { amount: 0, pct: 0 },
+            '1Y': { amount: 0, pct: 0 },
+            '5Y': { amount: 0, pct: 0 },
+            'Max': { amount: 0, pct: 0 },
+        };
+        if (!data?.dividends || !displayData?.currency || !historicalData?.length) return empty;
         const findPriceAtDate = (date: Date) => historicalData.reduce((closest, current) => Math.abs(current.date.getTime() - date.getTime()) < Math.abs(closest.date.getTime() - date.getTime()) ? current : closest).price;
         const calculateDividendsForRange = (startDate: Date) => {
             const basePrice = findPriceAtDate(startDate);
@@ -220,7 +249,7 @@ export const useTickerDetails = ({ sheetId, ticker: propTicker, exchange: propEx
         const suffixes = language === 'he' ? { K: " א'", M: " מ'", B: " B" } : { K: 'K', M: 'M', B: 'B' };
         const tier = Math.floor(Math.log10(effectiveVal) / 3);
         if (tier < 1) return { text: effectiveVal.toLocaleString(), currency: '' };
-        const [suffix, div] = Object.entries(suffixes)[tier - 1];
+        const [suffix, _] = Object.entries(suffixes)[tier - 1];
         const formattedNum = (effectiveVal / Math.pow(1000, tier)).toLocaleString(undefined, { maximumFractionDigits: 1 });
         const currencyStr = effectiveCurrency ? formatPrice(0, effectiveCurrency, 0, t).replace(/[0-9.,-]+/g, '').trim() : '';
         return { text: `${formattedNum}${suffix}`, currency: currencyStr };

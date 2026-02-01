@@ -97,24 +97,31 @@ export function useChartComparison() {
         setComparisonSeries(prev => prev.filter(s => s.name !== name));
     }, []);
 
-    const getClampedData = useCallback((data: any[] | null, range: string) => {
+    const getClampedData = useCallback((data: any[] | null, range: string, minDate?: Date) => {
         if (!data) return [];
-        if (range === 'ALL') return data;
-
+        
+        let startDate: Date;
         const now = new Date();
-        const startDate = new Date();
-        startDate.setHours(0, 0, 0, 0);
 
-        switch (range) {
-            case '1M': startDate.setMonth(now.getMonth() - 1); break;
-            case '3M': startDate.setMonth(now.getMonth() - 3); break;
-            case '6M': startDate.setMonth(now.getMonth() - 6); break;
-            case 'YTD': startDate.setFullYear(now.getFullYear(), 0, 1); break;
-            case '1Y': startDate.setFullYear(now.getFullYear() - 1); break;
-            case '3Y': startDate.setFullYear(now.getFullYear() - 3); break;
-            case '5Y': startDate.setFullYear(now.getFullYear() - 5); break;
-            default: return data;
+        if (range === 'ALL') {
+            if (!minDate) return data;
+            startDate = new Date(minDate);
+        } else {
+            startDate = new Date();
+            startDate.setHours(0, 0, 0, 0);
+
+            switch (range) {
+                case '1M': startDate.setMonth(now.getMonth() - 1); break;
+                case '3M': startDate.setMonth(now.getMonth() - 3); break;
+                case '6M': startDate.setMonth(now.getMonth() - 6); break;
+                case 'YTD': startDate.setFullYear(now.getFullYear(), 0, 1); break;
+                case '1Y': startDate.setFullYear(now.getFullYear() - 1); break;
+                case '3Y': startDate.setFullYear(now.getFullYear() - 3); break;
+                case '5Y': startDate.setFullYear(now.getFullYear() - 5); break;
+                default: return data;
+            }
         }
+        
         return data.filter(d => d.date.getTime() >= startDate.getTime());
     }, []);
 

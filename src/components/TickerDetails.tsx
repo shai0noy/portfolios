@@ -1,4 +1,4 @@
-import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, Box, Chip, CircularProgress, Tooltip, IconButton, ToggleButtonGroup, ToggleButton, Menu, MenuItem, Table, TableBody, TableCell, TableHead, TableRow, Paper, ListItemIcon } from '@mui/material';
+import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, Box, Chip, CircularProgress, Tooltip, IconButton, ToggleButtonGroup, ToggleButton, Menu, MenuItem, ListItemIcon } from '@mui/material';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AddIcon from '@mui/icons-material/Add';
@@ -14,13 +14,13 @@ import { TickerSearch } from './TickerSearch';
 import { Exchange } from '../lib/types';
 import { formatPrice, formatPercent } from '../lib/currency';
 
-const formatDate = (timestamp?: Date | string | number) => {
+const formatDate = (timestamp?: Date | string | number | null) => {
   if (!timestamp) return 'N/A';
   const date = (timestamp instanceof Date) ? timestamp : new Date(timestamp);
   return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
 };
 
-const formatTimestamp = (timestamp?: Date | string | number) => {
+const formatTimestamp = (timestamp?: Date | string | number | null) => {
     if (!timestamp) return 'N/A';
     const date = (timestamp instanceof Date) ? timestamp : new Date(timestamp);
     const today = new Date();
@@ -30,11 +30,11 @@ const formatTimestamp = (timestamp?: Date | string | number) => {
 };
 
 export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExchange, numericId: propNumericId, initialName: propInitialName, initialNameHe: propInitialNameHe, onClose, portfolios = [], isPortfoliosLoading = false }: TickerDetailsProps) {
-    const { t, tTry, language } = useLanguage();
+    const { t, tTry } = useLanguage();
     const {
-        ticker, exchange, numericId, data, holdingData, historicalData, loading, error, refreshing,
+        ticker, exchange, data, holdingData, historicalData, loading, error, refreshing,
         sheetRebuildTime, handleRefresh, displayData, resolvedName, resolvedNameHe,
-        ownedInPortfolios, externalLinks, dividendGains, formatVolume, state, navigate
+        ownedInPortfolios, externalLinks, formatVolume, state, navigate
     } = useTickerDetails({ sheetId, ticker: propTicker, exchange: propExchange, numericId: propNumericId, initialName: propInitialName, initialNameHe: propInitialNameHe, portfolios, isPortfoliosLoading });
 
     const {
@@ -207,7 +207,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                                 <ToggleButtonGroup value={chartRange} exclusive onChange={(_, v) => v && setChartRange(v)} size="small">
                                     {availableRanges.map(r => <ToggleButton key={r} value={r}>{r === 'ALL' ? maxLabel : r}</ToggleButton>)}
                                 </ToggleButtonGroup>
-                                <ToggleButtonGroup value={chartMetric} exclusive onChange={(_, v) => v && setChartMetric(v)} size="small" disabled={isComparison}>
+                                <ToggleButtonGroup value={effectiveChartMetric} exclusive onChange={(_, v) => v && setChartMetric(v)} size="small" disabled={isComparison}>
                                     <ToggleButton value="percent">%</ToggleButton>
                                     <ToggleButton value="price">$</ToggleButton>
                                 </ToggleButtonGroup>
