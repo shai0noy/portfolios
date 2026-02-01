@@ -65,7 +65,7 @@ function replacePlaceholder(urlString, key, value) {
     .replaceAll(`{${key}}`, encodeURIComponent(value));
 }
 
-const VALID_VALUE_REGEX = /^[a-zA-Z0-9\u05D0-\u05EA,.:\-^ /_]+$/;
+const VALID_VALUE_REGEX = /^[a-zA-Z0-9\u05D0-\u05EA,.:\-^ /_=]+$/;
 
 function formatDate(date) {
   const y = date.getFullYear();
