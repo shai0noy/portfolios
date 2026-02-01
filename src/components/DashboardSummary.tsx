@@ -616,6 +616,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
     <AnalysisDialog 
         open={analysisOpen} 
         onClose={() => setAnalysisOpen(false)} 
+        mainSeries={portfolioSeries.length > 0 ? portfolioSeries[0] : null}
         comparisonSeries={comparisonSeries} 
     />
     </>

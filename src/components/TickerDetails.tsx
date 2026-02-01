@@ -307,7 +307,8 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
             <AnalysisDialog 
                 open={analysisOpen} 
                 onClose={() => setAnalysisOpen(false)} 
-                comparisonSeries={comparisonSeries} 
+                mainSeries={{ name: resolvedName || ticker || 'Main', data: displayHistory }}
+                comparisonSeries={displayComparisonSeries} 
             />
         </>
     );

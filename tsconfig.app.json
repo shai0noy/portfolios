@@ -32,13 +32,13 @@
     "noUnusedParameters": true,
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true,
-        "noUncheckedSideEffectImports": true,
-      },
-      "include": [
-        "src"
-      ],
-      "exclude": [
-        "src/lib/performance.test.ts"
-      ]
-    }
-    
+            "noUncheckedSideEffectImports": true,
+          },
+          "include": [
+            "src"
+          ],
+          "exclude": [
+            "src/**/*.test.ts"
+          ]
+        }
+        
