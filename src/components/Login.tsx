@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Box, Button, Typography, CircularProgress, Paper, Container, TextField, Stack } from '@mui/material';
 import GoogleIcon from '@mui/icons-material/Google';
-import { initializeGapi, signIn, checkSheetExists, hasValidToken } from '../lib/google';
-import { createPortfolioSpreadsheet } from '../lib/sheets/index';
+import { initializeGapi, signIn, checkSheetExists, hasValidToken, findSpreadsheetByName } from '../lib/google';
+import { createPortfolioSpreadsheet, DEFAULT_SHEET_NAME } from '../lib/sheets/index';
 import { useLanguage } from '../lib/i18n';
 
 function extractSheetIdFromUrl(url: string): string | null {
@@ -24,16 +24,27 @@ export function Login({ onLogin }: { onLogin: (sheetId: string) => void }) {
       setIsSignedIn(valid);
       const savedSheetId = localStorage.getItem('g_sheet_id');
       
-      if (valid && savedSheetId && savedSheetId !== 'null') {
-        setLoading(true);
-        const exists = await checkSheetExists(savedSheetId);
-        if (exists) {
-          onLogin(savedSheetId);
-          return; // Already logged in and sheet is valid
-        } else {
-          localStorage.removeItem('g_sheet_id');
-          setError('Stored spreadsheet not found. Please create a new one or enter an existing ID.');
+      if (valid) {
+        if (savedSheetId && savedSheetId !== 'null') {
+          setLoading(true);
+          const exists = await checkSheetExists(savedSheetId);
+          if (exists) {
+            onLogin(savedSheetId);
+            return; // Already logged in and sheet is valid
+          } else {
+            localStorage.removeItem('g_sheet_id');
+          }
         }
+        
+        // If no valid saved sheet, try to find it automatically
+        setLoading(true);
+        const foundSheetId = await findSpreadsheetByName(DEFAULT_SHEET_NAME);
+        if (foundSheetId) {
+          localStorage.setItem('g_sheet_id', foundSheetId);
+          onLogin(foundSheetId);
+          return;
+        }
+
       } else {
         if (savedSheetId === 'null') {
           localStorage.removeItem('g_sheet_id');
@@ -104,6 +115,17 @@ export function Login({ onLogin }: { onLogin: (sheetId: string) => void }) {
     try {
       await signIn();
       setIsSignedIn(true);
+      
+      // After sign-in, immediately try to find the sheet.
+      const foundSheetId = await findSpreadsheetByName(DEFAULT_SHEET_NAME);
+      if (foundSheetId) {
+          localStorage.setItem('g_sheet_id', foundSheetId);
+          onLogin(foundSheetId);
+          setLoading(false);
+          return;
+      }
+      
+      // Fallback to old behavior if not found
       const savedSheetId = localStorage.getItem('g_sheet_id');
       if (savedSheetId && savedSheetId !== 'null') {
         const exists = await checkSheetExists(savedSheetId);
