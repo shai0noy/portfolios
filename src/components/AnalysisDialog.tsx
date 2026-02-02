@@ -2,7 +2,7 @@ import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Table, Table
 import { useLanguage } from '../lib/i18n';
 import type { ChartSeries } from './TickerChart';
 import { useMemo, useState, useEffect } from 'react';
-import { synchronizeSeries, synchronizeThreeSeries, computeAnalysisMetrics, normalizeToStart, calculateReturns, type AnalysisMetrics } from '../lib/utils/analysis';
+import { synchronizeSeries, synchronizeThreeSeries, computeAnalysisMetrics, normalizeToStart, calculateReturns, getAnnualizationFactor, type AnalysisMetrics } from '../lib/utils/analysis';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { fetchTickerHistory } from '../lib/fetching';
 import { Exchange } from '../lib/types';
@@ -186,32 +186,32 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
         return ranges;
     }, [oldestDate]);
 
-    const { results, subjectStdDev } = useMemo(() => {
+    const { results, subjectStdDev, portfolioSharpe } = useMemo(() => {
         const resultsMap = new Map<string, ExtendedAnalysisMetrics>();
         if (!mainSeries || mainSeries.data.length < 2) {
-            return { results: resultsMap, subjectStdDev: null };
+            return { results: resultsMap, subjectStdDev: null, portfolioSharpe: null };
         }
 
         const mainFiltered = filterDataByRange(mainSeries.data, range);
         if (mainFiltered.length < 2) {
-            return { results: resultsMap, subjectStdDev: null };
+            return { results: resultsMap, subjectStdDev: null, portfolioSharpe: null };
         }
 
         // Calculate std dev for the main series
         const mainPricePoints = normalizeToStart(mainFiltered);
         const mainReturnPairs = calculateReturns(mainPricePoints.map(p => ({ x: p.value, y: p.value, timestamp: p.timestamp })));
         const mainReturns = mainReturnPairs.map(p => p.y);
+        
+        // Determine Annualization Factor
+        const annualFactor = getAnnualizationFactor(mainFiltered.map(d => d.date));
+
         let calculatedStdDev: number | null = null;
         if (mainReturns.length >= 2) {
             const n = mainReturns.length;
             const mean = mainReturns.reduce((a, b) => a + b, 0) / n;
             const variance = mainReturns.reduce((acc, val) => acc + (val - mean) ** 2, 0) / (n - 1);
             const dailyStdDev = Math.sqrt(variance);
-            calculatedStdDev = dailyStdDev * Math.sqrt(252);
-        }
-
-        if (allSeries.length === 0) {
-            return { results: resultsMap, subjectStdDev: calculatedStdDev };
+            calculatedStdDev = dailyStdDev * Math.sqrt(annualFactor);
         }
 
         const analysisStartDate = mainFiltered[0].date;
@@ -229,6 +229,43 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
                      riskFreePoints = rfFiltered.map(p => ({ timestamp: p.date.getTime(), value: p.price }));
                  }
              }
+        }
+
+        // Calculate Portfolio Sharpe Ratio (Independent of Benchmark)
+        let calcSharpe: number | null = null;
+        if (riskFreePoints.length > 0) {
+             // Sync Main vs RF
+             const pairs = synchronizeSeries(riskFreePoints, mainPoints); // x=RF, y=Main
+             if (pairs.length >= 2) {
+                 // Convert to returns
+                 const tempReturns: { x: number; y: number }[] = []; // y is portfolio return
+                 const rfReturnsArr: number[] = [];
+                 
+                 for (let i = 1; i < pairs.length; i++) {
+                     const prev = pairs[i-1];
+                     const curr = pairs[i];
+                     if (prev.y === 0 || prev.x === 0) continue;
+                     
+                     const ry = (curr.y - prev.y) / prev.y;
+                     let rz = 0; // RF Return
+                     if (riskFreeType === 'IL') {
+                         rz = (curr.x - prev.x) / prev.x;
+                     } else {
+                         // US ^IRX is yield. Daily return approx = yield / 100 / 365
+                         rz = curr.x / 100 / 365;
+                     }
+                     tempReturns.push({ x: ry, y: ry }); // Dummy X=Y so we can reuse computeAnalysisMetrics if needed
+                     rfReturnsArr.push(rz);
+                 }
+                 
+                 // Use utility to calc Sharpe
+                 const m = computeAnalysisMetrics(tempReturns, rfReturnsArr, annualFactor);
+                 if (m) calcSharpe = m.sharpeRatio;
+             }
+        }
+
+        if (allSeries.length === 0) {
+            return { results: resultsMap, subjectStdDev: calculatedStdDev, portfolioSharpe: calcSharpe };
         }
 
         allSeries.forEach(s => {
@@ -252,20 +289,20 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
                     const prev = triples[i - 1];
                     const curr = triples[i];
                     
-                    if (prev.x === 0 || prev.y === 0) continue;
+                    if (prev.x === 0 || prev.y === 0 || prev.z === 0) continue;
                     const rx = (curr.x - prev.x) / prev.x;
                     const ry = (curr.y - prev.y) / prev.y;
                     
-                    let rz = 0;
+                    // Same RF logic as above
+                    let rfVal = 0;
                     if (riskFreeType === 'IL') {
-                        if (prev.z !== 0) rz = (curr.z - prev.z) / prev.z;
+                        if (prev.z !== 0) rfVal = (curr.z - prev.z) / prev.z;
                     } else {
-                        // US ^IRX is yield. Daily return approx = yield / 100 / 365
-                        rz = curr.z / 100 / 365;
+                        rfVal = curr.z / 100 / 365;
                     }
                     
                     tempReturns.push({ x: rx, y: ry });
-                    tempRfReturns.push(rz);
+                    tempRfReturns.push(rfVal);
                 }
                 
                 if (tempReturns.length < 2) return;
@@ -276,8 +313,8 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
                 const benchTotalReturn = (endPair.x / startPair.x) - 1;
                 const mainTotalReturn = (endPair.y / startPair.y) - 1;
                 
-                // Pass to compute
-                const metrics = computeAnalysisMetrics(tempReturns, tempRfReturns);
+                // Pass to compute with Annualization Factor
+                const metrics = computeAnalysisMetrics(tempReturns, tempRfReturns, annualFactor);
                 if (metrics) {
                     resultsMap.set(s.name, {
                         ...metrics,
@@ -298,7 +335,8 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
             const benchTotalReturn = (endPair.x / startPair.x) - 1;
             const mainTotalReturn = (endPair.y / startPair.y) - 1;
             const returnPairs = calculateReturns(pricePairs);
-            const metrics = computeAnalysisMetrics(returnPairs);
+            // Pass annualFactor even if no RF (affects Sharpe if we calculate it there, though meaningless without RF)
+            const metrics = computeAnalysisMetrics(returnPairs, undefined, annualFactor);
             
             if (metrics) {
                 resultsMap.set(s.name, {
@@ -309,8 +347,8 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
                 });
             }
         });
-        return { results: resultsMap, subjectStdDev: calculatedStdDev };
-    }, [mainSeries, allSeries, range, riskFreeSeries]);
+        return { results: resultsMap, subjectStdDev: calculatedStdDev, portfolioSharpe: calcSharpe };
+    }, [mainSeries, allSeries, range, riskFreeSeries, riskFreeType]);
 
     const formatNum = (val: number | undefined, dec = 2) => {
         if (val === undefined || isNaN(val)) return '-';
@@ -375,6 +413,8 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
         return { color, fontWeight };
     };
 
+    const sharpeStyle = getMetricStyle(portfolioSharpe ?? undefined, 'sharpeRatio' as any);
+
     return (
         <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
             <DialogTitle>
@@ -403,16 +443,31 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
                             onChange={(e) => setRiskFreeType(e.target.value as 'US' | 'IL')}
                             sx={{ height: 32 }}
                         >
-                            <MenuItem value="US">US T-Bills</MenuItem>
-                            <MenuItem value="IL">IL Gov Bonds</MenuItem>
+                            <MenuItem value="US">{t('US T-Bills', 'אגרות חוב ארה"ב')}</MenuItem>
+                            <MenuItem value="IL">{t('IL Gov MAKAM', 'מק"מ ממשלתי')}</MenuItem>
                         </Select>
                     </FormControl>
                 </Box>
-                {subjectStdDev !== null && (
-                    <Typography variant="caption" display="block" align="left" sx={{ mb: 1, ml: 1 }}>
-                        {t('Annualized St. Dev', 'סטיית תקן שנתית')}: <strong>{formatPct(subjectStdDev)}</strong>
-                    </Typography>
-                )}
+                <Box display="flex" gap={2} mb={1} ml={1}>
+                    {subjectStdDev !== null && (
+                        <Typography variant="caption" display="block">
+                            <Tooltip title={t("Annualized standard deviation of daily returns, representing the investment's historical volatility or risk.", "סטיית תקן שנתית של התשואות היומיות, המייצגת את התנודתיות ההיסטורית או הסיכון של ההשקעה.")}>
+                                <span style={{ cursor: 'help', borderBottom: '1px dotted' }}>{t('Annualized St. Dev', 'סטיית תקן שנתית')}:</span>
+                            </Tooltip> 
+                            <strong style={{ marginLeft: '4px' }}>{formatPct(subjectStdDev)}</strong>
+                        </Typography>
+                    )}
+                    {portfolioSharpe !== null && (
+                        <Typography variant="caption" display="block">
+                            <Tooltip title={t("The Sharpe Ratio evaluates return relative to risk (volatility). Calculated as (Portfolio Return - Risk Free Rate) / StdDev. > 1.0 is good, > 2.0 is very good.", "מדד שארפ מעריך תשואה ביחס לסיכון (תנודתיות). מחושב כ-(תשואת תיק - ריבית חסרת סיכון) / סטיית תקן. מעל 1.0 נחשב טוב, מעל 2.0 טוב מאוד.")}>
+                                <span style={{ cursor: 'help', borderBottom: '1px dotted' }}>Sharpe Ratio:</span>
+                            </Tooltip> 
+                            <strong style={{ color: sharpeStyle.color !== 'text.primary' ? ((theme.palette as any)[sharpeStyle.color.split('.')[0]][sharpeStyle.color.split('.')[1]]) : 'inherit', marginLeft: '4px' }}>
+                                {formatNum(portfolioSharpe, 2)}
+                            </strong>
+                        </Typography>
+                    )}
+                </Box>
                 <Table size="small">
                     <TableHead>
                         <TableRow>
@@ -425,11 +480,6 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
                             <TableCell align="left" sx={{ width: 90 }}>
                                 <Tooltip title={t(`Jensen's Alpha represents ${effectiveSubjectName}'s excess return over what would be expected given its risk (Beta) relative to the market. A positive alpha indicates value added by active management.`, `אלפא של ג'נסן מייצגת את התשואה העודפת של ${effectiveSubjectName} מעבר למצופה בהינתן הסיכון (בטא) שלו ביחס לשוק. אלפא חיובית מצביעה על ערך מוסף בניהול אקטיבי.`)}>
                                     <Box component="span" sx={{ cursor: 'help', borderBottom: '1px dotted' }}>α<sub style={{ fontSize: '0.7em' }}>J</sub></Box>
-                                </Tooltip>
-                            </TableCell>
-                            <TableCell align="left" sx={{ width: 90 }}>
-                                <Tooltip title={t("The Sharpe Ratio evaluates return relative to risk (volatility). Calculated as (Portfolio Return - Risk Free Rate) / StdDev. > 1.0 is good, > 2.0 is very good.", "מדד שארפ מעריך תשואה ביחס לסיכון (תנודתיות). מחושב כ-(תשואת תיק - ריבית חסרת סיכון) / סטיית תקן. מעל 1.0 נחשב טוב, מעל 2.0 טוב מאוד.")}>
-                                    <Box component="span" sx={{ cursor: 'help', borderBottom: '1px dotted' }}>Sharpe</Box>
                                 </Tooltip>
                             </TableCell>
                             <TableCell align="left" sx={{ width: 90 }}>
@@ -463,7 +513,6 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
                         {allSeries.map((s) => {
                             const m = results.get(s.name);
                             const alphaStyle = getMetricStyle(m?.alpha, 'alpha');
-                            const sharpeStyle = getMetricStyle(m?.sharpeRatio, 'sharpeRatio' as any);
                             const dsBetaStyle = getMetricStyle(m?.downsideBeta, 'downsideBeta');
                             const dsAlphaStyle = getMetricStyle(m?.downsideAlpha, 'downsideAlpha' as any);
                             const actRetStyle = getMetricStyle(m?.activeReturn, 'activeReturn');
@@ -484,9 +533,6 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
                                     </TableCell>
                                     <TableCell align="left" sx={{ ...alphaStyle }}>
                                         {formatNum(m?.alpha, 3)}
-                                    </TableCell>
-                                    <TableCell align="left" sx={{ ...sharpeStyle }}>
-                                        {formatNum(m?.sharpeRatio, 2)}
                                     </TableCell>
                                     <TableCell align="left" sx={{ ...betaStyle }}>
                                         {formatNum(m?.beta, 2)}

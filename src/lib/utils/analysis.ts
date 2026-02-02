@@ -98,7 +98,7 @@ export function computeSlope(pairs: { x: number; y: number }[]): number {
  * Optional riskFree returns (same length) to calculate Excess Returns for Alpha.
  * IMPORTANT: Input pairs must be RETURNS (percentage changes), not PRICES.
  */
-export function computeAnalysisMetrics(pairs: { x: number; y: number }[], riskFreeReturns?: number[]): AnalysisMetrics | null {
+export function computeAnalysisMetrics(pairs: { x: number; y: number }[], riskFreeReturns?: number[], annualizationFactor: number = 252): AnalysisMetrics | null {
     const n = pairs.length;
     if (n < 2) return null;
     if (riskFreeReturns && riskFreeReturns.length !== n) {
@@ -142,7 +142,7 @@ export function computeAnalysisMetrics(pairs: { x: number; y: number }[], riskFr
     // StdDev of Excess Returns (Sample Standard Deviation)
     const varianceExcessY = (sumExcessY2 - n * avgExcessY * avgExcessY) / (n - 1);
     const stdDevExcessY = Math.sqrt(varianceExcessY);
-    const sharpeRatio = stdDevExcessY === 0 ? 0 : (avgExcessY / stdDevExcessY) * Math.sqrt(252);
+    const sharpeRatio = stdDevExcessY === 0 ? 0 : (avgExcessY / stdDevExcessY) * Math.sqrt(annualizationFactor);
 
     // Correlation (r) - based on raw returns (standard convention)
     const numerator = n * sumXY - sumX * sumY;
@@ -219,4 +219,23 @@ export function normalizeToStart(data: { date: Date, price: number, adjClose?: n
         timestamp: p.date.getTime(),
         value: (p.adjClose || p.price) / base
     }));
+}
+
+/**
+ * Determines the annualization factor based on the frequency of data points.
+ * - < 4 days avg gap -> Daily (252)
+ * - < 20 days avg gap -> Weekly (52)
+ * - Otherwise -> Monthly (12)
+ */
+export function getAnnualizationFactor(dates: Date[]): number {
+    if (dates.length < 2) return 252;
+    
+    const start = dates[0].getTime();
+    const end = dates[dates.length - 1].getTime();
+    const avgGap = (end - start) / (dates.length - 1);
+    const day = 1000 * 60 * 60 * 24;
+
+    if (avgGap < 4 * day) return 252;
+    if (avgGap < 20 * day) return 52;
+    return 12;
 }

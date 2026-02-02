@@ -106,7 +106,7 @@ export const INSTRUMENT_METADATA: Record<InstrumentType, InstrumentMetadata> = {
   [InstrumentType.BOND_GOV]: { group: InstrumentGroup.BOND, nameEn: 'Gov Bond', nameHe: 'אג"ח מדינה', globesTypes: ['gov_generic'] },
   [InstrumentType.BOND_CORP]: { group: InstrumentGroup.BOND, nameEn: 'Corporate Bond', nameHe: 'אג"ח חברות', globesTypes: ['bond_ta'] },
   [InstrumentType.BOND_CONVERTIBLE]: { group: InstrumentGroup.BOND, nameEn: 'Convertible Bond', nameHe: 'אג"ח להמרה', globesTypes: ['bond_conversion'] },
-  [InstrumentType.BOND_MAKAM]: { group: InstrumentGroup.BOND, nameEn: 'Makam (T-Bill)', nameHe: 'מק"מ', globesTypes: ['makam'] },
+  [InstrumentType.BOND_MAKAM]: { group: InstrumentGroup.BOND, nameEn: 'Gov Bond - Makam', nameHe: 'מק"מ', globesTypes: ['makam'] },
   
   // Derivative
   [InstrumentType.OPTION_TASE]: { group: InstrumentGroup.DERIVATIVE, nameEn: 'Option (TA)', nameHe: 'אופציה (ת"א)', globesTypes: ['option_ta'] },
