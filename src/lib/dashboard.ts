@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { InstrumentType } from './types/instrument';
 import { fetchPortfolios, fetchTransactions, getExternalPrices, fetchAllDividends } from './sheets/index';
 import { getTickerData } from './fetching';
+import { fetchCpi } from './fetching/cbs';
+import type { TickerData } from './fetching/types';
 import { getExchangeRates, convertCurrency, calculatePerformanceInDisplayCurrency, calculateHoldingDisplayValues, normalizeCurrency, toILS } from './currency';
 import { logIfFalsy } from './utils';
 import { toGoogleSheetDateFormat } from './date';
@@ -12,11 +14,45 @@ import { useSession } from './SessionContext';
 /**
  * Data structure representing the aggregate performance of a portfolio or group of portfolios.
  */
-const getMockCPI = (date: Date) => {
-    // Simple 2% annual inflation from 2020 base
-    const base = 100;
-    const months = (date.getFullYear() - 2020) * 12 + date.getMonth();
-    return base * Math.pow(1.00165, months); // 1.00165^12 ~= 1.02
+const getCPI = (date: Date, cpiData: TickerData | null) => {
+    if (!cpiData?.historical || cpiData.historical.length === 0) return 100;
+    
+    // Find nearest point
+    // Data is sorted descending usually (from TickerData structure), but let's check.
+    // TickerData.historical is usually sorted Date Descending (Newest first).
+    // Let's assume Descending.
+    
+    const timestamp = date.getTime();
+    const history = cpiData.historical;
+    
+    // Exact match or interpolation
+    // Simple logic: Find first point <= date (which is the "next" point in descending list? No, previous in time).
+    // Descending: [2024, 2023, 2022...]
+    // If date = 2023.5.
+    // We iterate. 2024 > 2023.5. 2023 <= 2023.5.
+    // So 2023 is the "floor" (start point). 2024 is "ceiling" (end point).
+    // Interpolate.
+    
+    for (let i = 0; i < history.length - 1; i++) {
+        const h1 = history[i]; // Newer
+        const h2 = history[i+1]; // Older
+        
+        if (h1.date.getTime() >= timestamp && h2.date.getTime() <= timestamp) {
+            // Found bracket
+            const t1 = h1.date.getTime();
+            const t2 = h2.date.getTime();
+            const v1 = h1.price;
+            const v2 = h2.price;
+            
+            // Linear Interpolation
+            const ratio = (timestamp - t2) / (t1 - t2);
+            return v2 + (v1 - v2) * ratio;
+        }
+    }
+    
+    // Out of bounds
+    if (timestamp > history[0].date.getTime()) return history[0].price; // Future -> Use latest
+    return history[history.length - 1].price; // Past -> Use oldest
 };
 
 export interface DashboardSummaryData {
@@ -349,11 +385,12 @@ export function useDashboardData(sheetId: string, options: { includeUnvested: bo
     setLoading(true);
     setError(null);
     try {
-      const [ports, txns, extPrices, sheetDividends] = await Promise.all([
+      const [ports, txns, extPrices, sheetDividends, realCpi] = await Promise.all([
         fetchPortfolios(sheetId),
         fetchTransactions(sheetId),
         getExternalPrices(sheetId),
-        fetchAllDividends(sheetId)
+        fetchAllDividends(sheetId),
+        fetchCpi(120010)
       ]);
 
       setPortfolios(ports);
@@ -513,7 +550,7 @@ export function useDashboardData(sheetId: string, options: { includeUnvested: bo
 
         h.totalFeesPortfolioCurrency += txnFeePC;
 
-        const currentCPI = getMockCPI(new Date(t.date));
+        const currentCPI = getCPI(new Date(t.date), realCpi);
 
         if (t.type === 'BUY') {
           // Update Weighted Average CPI for ILS Real Gain calculation
@@ -669,7 +706,7 @@ export function useDashboardData(sheetId: string, options: { includeUnvested: bo
         let taxableUnrealized = h.unrealizedGainPortfolioCurrency;
         
         if (h.portfolioCurrency === Currency.ILS && h.stockCurrency === Currency.ILS) {
-            const currentCPI = getMockCPI(new Date()); // Today
+            const currentCPI = getCPI(new Date(), realCpi); // Today
             const baseCPI = h.weightedAvgCPI || currentCPI;
             const inflationRate = (currentCPI / baseCPI) - 1;
             const inflationAdj = Math.max(0, h.costBasisPortfolioCurrency * inflationRate);
@@ -683,7 +720,7 @@ export function useDashboardData(sheetId: string, options: { includeUnvested: bo
         let taxableUnrealizedILS = mvILS - h.costBasisILS;
         
         if (h.stockCurrency === Currency.ILS) {
-            const currentCPI = getMockCPI(new Date());
+            const currentCPI = getCPI(new Date(), realCpi);
             const baseCPI = h.weightedAvgCPI || currentCPI;
             const inflationRate = (currentCPI / baseCPI) - 1;
             const inflationAdjILS = Math.max(0, h.costBasisILS * inflationRate);

@@ -140,7 +140,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
     unrealizedGainPct: t('Unrealized Gain %', '% רווח לא ממומש'),
     realizedGain: t('Realized Gain', 'רווח ממומש'),
     realizedGainPct: t('Realized Gain %', '% רווח ממומש'),
-    realizedGainAfterTax: t('Realized Gain After Tax', 'רווח ממומש נטו'),
+    realizedGainAfterTax: t('Realized Gain After Tax', 'רווח ממומש לאחר מס'),
     totalGain: t('Total Gain', 'רווח כולל'),
     totalGainPct: t('Total Gain %', '% רווח כולל'),
     valueAfterTax: t('Value After Tax', 'שווי אחרי מס'),

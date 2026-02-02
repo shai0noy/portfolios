@@ -8,7 +8,7 @@ import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
 import type { ExchangeRates, DashboardHolding, Portfolio } from '../lib/types';
 import { useLanguage } from '../lib/i18n';
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TickerChart, type ChartSeries } from './TickerChart';
 import { calculatePortfolioPerformance, type PerformancePoint } from '../lib/performance';
@@ -67,7 +67,7 @@ interface StatProps {
   value: number;
   pct?: number;
   color?: string;
-  tooltip?: string;
+  tooltip?: ReactNode;
   isMain?: boolean;
   size?: 'normal' | 'small';
   displayCurrency: string;
@@ -482,7 +482,13 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                         value={summary.totalRealized + summary.totalDividends}
                         pct={(summary.totalRealized + summary.totalDividends) / (summary.totalCostOfSold > 0 ? summary.totalCostOfSold : 1)}
                         color={(summary.totalRealized + summary.totalDividends) >= 0 ? 'success.main' : 'error.main'}
-                        tooltip={`${t("Trading", "מסחר")}: ${formatValue(summary.totalRealized, displayCurrency, 0)}\n${t("Dividends", "דיבידנדים")}: ${formatValue(summary.totalDividends, displayCurrency, 0)}\n${t("Realized gains after tax", "רווח ממומש נטו")}: ${formatValue(summary.realizedGainAfterTax, displayCurrency, 0)}`}
+                        tooltip={
+                          <>
+                            {t("Trading", "מסחר")}: {formatValue(summary.totalRealized, displayCurrency, 0)}<br/>
+                            {t("Dividends", "דיבידנדים")}: {formatValue(summary.totalDividends, displayCurrency, 0)}<br/>
+                            {t("Realized gains after tax", "רווח ממומש נטו")}: {formatValue(summary.realizedGainAfterTax, displayCurrency, 0)}
+                          </>
+                        }
                         displayCurrency={displayCurrency}
                     />
                   </Box>
