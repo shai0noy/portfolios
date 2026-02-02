@@ -205,16 +205,17 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
         return (val * 100).toLocaleString(undefined, { minimumFractionDigits: dec, maximumFractionDigits: dec }) + '%';
     };
 
-    const getMetricColor = (val: number | undefined, posIsGood: boolean) => {
+    const getMetricColor = (val: number | undefined, type: 'zero-based' | 'beta-based', threshold = 0.001) => {
         if (val === undefined || isNaN(val)) return 'text.primary';
 
-        if (val < 0.01 && val > -0.01) return 'text.primary';
-        if (posIsGood) {
-            if (val > 0.0) return 'success.main';
-            return 'error.main';
+        if (type === 'zero-based') {
+            if (val > threshold) return 'success.main';
+            if (val < -threshold) return 'error.main';
+            return 'text.primary';
         } else {
-            if (val < 0) return 'success.main';
-            return 'error.main';
+            if (val < 1 - threshold) return 'success.main';
+            if (val > 1 + threshold) return 'error.main';
+            return 'text.primary';
         }
     };
 
@@ -287,10 +288,13 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
                     <TableBody>
                         {allSeries.map((s) => {
                             const m = results.get(s.name);
-                            const alphaColor = getMetricColor(m?.alpha, /*posIsGood=*/true);
-                            const downsideBColor = getMetricColor(m?.downsideBeta, /*posIsGood=*/false);
-                            const downsideAColor = getMetricColor(m?.downsideAlpha, /*posIsGood=*/true);
-                            const activeReturnColor = getMetricColor(m?.activeReturn, /*posIsGood=*/true);
+                            const alphaColor = getMetricColor(m?.alpha, 'zero-based', 0.1);
+                            const downsideBColor = getMetricColor(m?.downsideBeta, 'beta-based', 0.1);
+                            const downsideAColor = getMetricColor(m?.downsideAlpha, 'zero-based', 0.1);
+                            const activeReturnColor = getMetricColor(m?.activeReturn, 'zero-based');
+                            const betaColor = (m?.beta !== undefined && m.beta <= -0.1) ? 'error.main' : 'text.primary';
+                            const corrBold = (m?.correlation !== undefined && (m.correlation > 0.8 || m.correlation < -0.5)) ? 'bold' : 'normal';
+                            const r2Bold = (m?.rSquared !== undefined && m.rSquared > 0.8) ? 'bold' : 'normal';
                             return (
                                 <TableRow key={s.name}>
                                     <TableCell component="th" scope="row">
@@ -305,7 +309,7 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
                                     <TableCell align="left" sx={{ color: alphaColor, fontWeight: alphaColor !== 'text.primary' ? 'bold' : 'normal' }}>
                                         {formatNum(m?.alpha, 3)}
                                     </TableCell>
-                                    <TableCell align="left" sx={{ color: 'text.primary', fontWeight: 'normal' }}>
+                                    <TableCell align="left" sx={{ color: betaColor, fontWeight: betaColor !== 'text.primary' ? 'bold' : 'normal' }}>
                                         {formatNum(m?.beta, 2)}
                                     </TableCell>
                                     <TableCell align="left" sx={{ color: downsideAColor, fontWeight: downsideAColor !== 'text.primary' ? 'bold' : 'normal' }}>
@@ -314,10 +318,10 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
                                     <TableCell align="left" sx={{ color: downsideBColor, fontWeight: downsideBColor !== 'text.primary' ? 'bold' : 'normal' }}>
                                         {formatNum(m?.downsideBeta, 2)}
                                     </TableCell>
-                                    <TableCell align="left" sx={{ color: 'text.primary', fontWeight: 'normal' }}>
+                                    <TableCell align="left" sx={{ color: 'text.primary', fontWeight: r2Bold }}>
                                         {formatNum(m?.rSquared, 2)}
                                     </TableCell>
-                                    <TableCell align="left" sx={{ color: 'text.primary', fontWeight: 'normal' }}>
+                                    <TableCell align="left" sx={{ color: 'text.primary', fontWeight: corrBold }}>
                                         {formatNum(m?.correlation, 2)}
                                     </TableCell>
                                 </TableRow>
