@@ -479,9 +479,10 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                     />
                     <Stat 
                         label={t("Realized Gain", "רווח ממומש")}
-                        value={summary.totalRealized}
-                        pct={summary.totalRealizedGainPct}
-                        color={summary.totalRealized >= 0 ? 'success.main' : 'error.main'}
+                        value={summary.totalRealized + summary.totalDividends}
+                        pct={(summary.totalRealized + summary.totalDividends) / (summary.totalCostOfSold > 0 ? summary.totalCostOfSold : 1)}
+                        color={(summary.totalRealized + summary.totalDividends) >= 0 ? 'success.main' : 'error.main'}
+                        tooltip={`${t("Trading", "מסחר")}: ${formatValue(summary.totalRealized, displayCurrency, 0)}\n${t("Dividends", "דיבידנדים")}: ${formatValue(summary.totalDividends, displayCurrency, 0)}\n${t("Realized gains after tax", "רווח ממומש נטו")}: ${formatValue(summary.realizedGainAfterTax, displayCurrency, 0)}`}
                         displayCurrency={displayCurrency}
                     />
                   </Box>

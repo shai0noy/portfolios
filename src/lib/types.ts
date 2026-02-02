@@ -212,6 +212,8 @@ export interface DashboardHolding {
   proceedsILS: number;
   dividendsILS: number;
   realizedGainILS: number;
+  realizedTaxableGainILS: number; // For ILS-based Tax Calculation
+  unrealizedTaxableGainILS: number; // For ILS-based Tax Calculation
 
   // Display fields
   avgCost: number;
@@ -219,15 +221,18 @@ export interface DashboardHolding {
   mvUnvested: number;
   totalMV: number;
   realizedGain: number;
+  realizedTaxableGain: number; // For REAL_GAIN policy
   realizedGainPct: number;
   realizedGainAfterTax: number;
   dividends: number;
   unrealizedGain: number;
+  unrealizedTaxableGain: number; // For REAL_GAIN policy
   unrealizedGainPct: number;
   totalGain: number;
   totalGainPct: number;
   valueAfterTax: number;
   dayChangeVal: number;
+  weightedAvgCPI?: number; // For ILS real gain calc
 
   sector: string;
   dayChangePct: number;

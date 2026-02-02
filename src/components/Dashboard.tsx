@@ -88,11 +88,11 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
     if (loading) return;
 
     if (selectedPortfolioId) {
-      setSummary(calculateDashboardSummary(holdings.filter(h => h.portfolioId === selectedPortfolioId), displayCurrency, exchangeRates));
+      setSummary(calculateDashboardSummary(holdings.filter(h => h.portfolioId === selectedPortfolioId), displayCurrency, exchangeRates, portMap));
     } else {
-      setSummary(calculateDashboardSummary(holdings, displayCurrency, exchangeRates));
+      setSummary(calculateDashboardSummary(holdings, displayCurrency, exchangeRates, portMap));
     }
-  }, [selectedPortfolioId, holdings, exchangeRates, displayCurrency, loading, error]);
+  }, [selectedPortfolioId, holdings, exchangeRates, displayCurrency, loading, error, portMap]);
 
   // Default Columns
   const defaultColumns = {
