@@ -424,6 +424,9 @@ export const createEmptySpreadsheet = withAuthHandling(async (title: string): Pr
 });
 
 export const addTransaction = withAuthHandling(async (spreadsheetId: string, t: Transaction) => {
+    if (t.type === 'DIVIDEND') {
+        throw new Error("Dividend transactions are no longer supported in the Transaction Log. Please use the Dividends sheet.");
+    }
     await batchAddTransactions(spreadsheetId, [t]);
 });
 
@@ -587,6 +590,44 @@ export const fetchDividends = withAuthHandling(async (spreadsheetId: string, tic
                 };
             })
             .filter(div => !isNaN(div.date.getTime()) && !isNaN(div.amount));
+    } catch (error: any) {
+        if (error.result?.error?.code === 400) {
+            return [];
+        }
+        throw error;
+    }
+});
+
+export const fetchAllDividends = withAuthHandling(async (spreadsheetId: string): Promise<{ ticker: string, exchange: Exchange, date: Date, amount: number }[]> => {
+    const gapi = await ensureGapi();
+    try {
+        const res = await gapi.client.sheets.spreadsheets.values.get({
+            spreadsheetId,
+            range: DIVIDENDS_RANGE,
+            valueRenderOption: 'UNFORMATTED_VALUE',
+        });
+        const rows = res.result.values || [];
+        
+        return rows.map(row => {
+                let date: Date;
+                const rawDate = row[2];
+                if (typeof rawDate === 'number') {
+                    date = new Date((rawDate - 25569) * 86400 * 1000);
+                } else {
+                    date = new Date(rawDate);
+                }
+                
+                let exchange: Exchange | undefined;
+                try { exchange = parseExchange(String(row[0])); } catch {}
+
+                return {
+                    exchange,
+                    ticker: String(row[1]).toUpperCase(),
+                    date,
+                    amount: Number(row[3])
+                };
+            })
+            .filter(div => div.exchange && !isNaN(div.date.getTime()) && !isNaN(div.amount)) as { ticker: string, exchange: Exchange, date: Date, amount: number }[];
     } catch (error: any) {
         if (error.result?.error?.code === 400) {
             return [];
