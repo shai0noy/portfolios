@@ -342,6 +342,13 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
                 if (Math.abs(val) > 0.02) fontWeight = 'bold';
                 break;
 
+            case 'sharpeRatio' as any:
+                if (val > 1.0) color = 'success.main';
+                else if (val < 0.0) color = 'error.main';
+                
+                if (val > 2.0 || val < -1.0) fontWeight = 'bold';
+                break;
+
             case 'beta':
                 if (val < 0.95) color = 'success.main';
                 else if (val > 1.05) color = 'error.main';
@@ -421,6 +428,11 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
                                 </Tooltip>
                             </TableCell>
                             <TableCell align="left" sx={{ width: 90 }}>
+                                <Tooltip title={t("The Sharpe Ratio evaluates return relative to risk (volatility). Calculated as (Portfolio Return - Risk Free Rate) / StdDev. > 1.0 is good, > 2.0 is very good.", "מדד שארפ מעריך תשואה ביחס לסיכון (תנודתיות). מחושב כ-(תשואת תיק - ריבית חסרת סיכון) / סטיית תקן. מעל 1.0 נחשב טוב, מעל 2.0 טוב מאוד.")}>
+                                    <Box component="span" sx={{ cursor: 'help', borderBottom: '1px dotted' }}>Sharpe</Box>
+                                </Tooltip>
+                            </TableCell>
+                            <TableCell align="left" sx={{ width: 90 }}>
                                 <Tooltip title={t(`Measures the volatility of ${effectiveSubjectName} in relation to the benchmark. A beta > 1.0 implies higher volatility than the market, while < 1.0 implies lower volatility.`, `מודד את תנודתיות ה-${effectiveSubjectName} ביחס למדד. בטא גדולה מ-1.0 מצביעה על תנודתיות גבוהה מהשוק, בעוד שמתחת ל-1.0 מצביעה על תנודתיות נמוכה יותר.`)}>
                                     <Box component="span" sx={{ cursor: 'help', borderBottom: '1px dotted' }}>β</Box>
                                 </Tooltip>
@@ -451,6 +463,7 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
                         {allSeries.map((s) => {
                             const m = results.get(s.name);
                             const alphaStyle = getMetricStyle(m?.alpha, 'alpha');
+                            const sharpeStyle = getMetricStyle(m?.sharpeRatio, 'sharpeRatio' as any);
                             const dsBetaStyle = getMetricStyle(m?.downsideBeta, 'downsideBeta');
                             const dsAlphaStyle = getMetricStyle(m?.downsideAlpha, 'downsideAlpha' as any);
                             const actRetStyle = getMetricStyle(m?.activeReturn, 'activeReturn');
@@ -471,6 +484,9 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
                                     </TableCell>
                                     <TableCell align="left" sx={{ ...alphaStyle }}>
                                         {formatNum(m?.alpha, 3)}
+                                    </TableCell>
+                                    <TableCell align="left" sx={{ ...sharpeStyle }}>
+                                        {formatNum(m?.sharpeRatio, 2)}
                                     </TableCell>
                                     <TableCell align="left" sx={{ ...betaStyle }}>
                                         {formatNum(m?.beta, 2)}

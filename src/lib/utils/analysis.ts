@@ -7,6 +7,7 @@ export interface AnalysisMetrics {
     beta: number;
     downsideBeta: number; // Beta calculated only on downside periods
     downsideAlpha: number; // Jensen's Alpha using downsideBeta
+    sharpeRatio: number; // Annualized Sharpe Ratio
     rSquared: number;
     correlation: number; // Pearson correlation coefficient
 }
@@ -107,6 +108,7 @@ export function computeAnalysisMetrics(pairs: { x: number; y: number }[], riskFr
 
     let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0, sumY2 = 0;
     let sumExcessX = 0, sumExcessY = 0, sumExcessXY = 0, sumExcessX2 = 0;
+    let sumExcessY2 = 0;
 
     const downsidePairs: { x: number; y: number }[] = [];
 
@@ -127,6 +129,7 @@ export function computeAnalysisMetrics(pairs: { x: number; y: number }[], riskFr
         sumExcessY += exY;
         sumExcessXY += exX * exY;
         sumExcessX2 += exX * exX;
+        sumExcessY2 += exY * exY;
 
         // Downside is defined as Benchmark (X) Returns < 0
         if (x < 0) downsidePairs.push(pairs[i]);
@@ -134,6 +137,12 @@ export function computeAnalysisMetrics(pairs: { x: number; y: number }[], riskFr
 
     const avgExcessX = sumExcessX / n;
     const avgExcessY = sumExcessY / n;
+
+    // Sharpe Ratio (Annualized)
+    // StdDev of Excess Returns (Sample Standard Deviation)
+    const varianceExcessY = (sumExcessY2 - n * avgExcessY * avgExcessY) / (n - 1);
+    const stdDevExcessY = Math.sqrt(varianceExcessY);
+    const sharpeRatio = stdDevExcessY === 0 ? 0 : (avgExcessY / stdDevExcessY) * Math.sqrt(252);
 
     // Correlation (r) - based on raw returns (standard convention)
     const numerator = n * sumXY - sumX * sumY;
@@ -172,7 +181,7 @@ export function computeAnalysisMetrics(pairs: { x: number; y: number }[], riskFr
     // We use the same Excess Return logic but swap beta for downsideBeta
     const downsideAlpha = avgExcessY - downsideBeta * avgExcessX;
 
-    return { alpha, beta: rawBeta, rSquared, correlation, downsideBeta, downsideAlpha };
+    return { alpha, beta: rawBeta, rSquared, correlation, downsideBeta, downsideAlpha, sharpeRatio };
 }
 
 /**
