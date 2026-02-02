@@ -96,10 +96,10 @@ export function computeSlope(pairs: { x: number; y: number }[]): number {
  * Computes statistical metrics using Ordinary Least Squares (OLS) regression.
  * X = Independent (Benchmark), Y = Dependent (Portfolio).
  * Optional riskFree returns (same length) to calculate Excess Returns for Alpha.
- * IMPORTANT: Input pairs must be RETURNS (percentage changes), not PRICES.
+ * IMPORTANT: Input returnPairs must be RETURNS (percentage changes), not PRICES.
  */
-export function computeAnalysisMetrics(pairs: { x: number; y: number }[], riskFreeReturns?: number[], annualizationFactor: number = 252): AnalysisMetrics | null {
-    const n = pairs.length;
+export function computeAnalysisMetrics(returnPairs: { x: number; y: number }[], riskFreeReturns?: number[], annualizationFactor: number = 252): AnalysisMetrics | null {
+    const n = returnPairs.length;
     if (n < 2) return null;
     if (riskFreeReturns && riskFreeReturns.length !== n) {
         console.warn("Risk-free returns length mismatch");
@@ -113,7 +113,7 @@ export function computeAnalysisMetrics(pairs: { x: number; y: number }[], riskFr
     const downsidePairs: { x: number; y: number }[] = [];
 
     for (let i = 0; i < n; i++) {
-        const { x, y } = pairs[i];
+        const { x, y } = returnPairs[i];
         const rf = riskFreeReturns ? riskFreeReturns[i] : 0;
         
         const exX = x - rf;
@@ -132,7 +132,7 @@ export function computeAnalysisMetrics(pairs: { x: number; y: number }[], riskFr
         sumExcessY2 += exY * exY;
 
         // Downside is defined as Benchmark (X) Returns < 0
-        if (x < 0) downsidePairs.push(pairs[i]);
+        if (x < 0) downsidePairs.push(returnPairs[i]);
     }
 
     const avgExcessX = sumExcessX / n;

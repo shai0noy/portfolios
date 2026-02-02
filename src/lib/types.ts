@@ -193,6 +193,7 @@ export interface DashboardHolding {
   totalGainPortfolioCurrency: number;
   marketValuePortfolioCurrency: number;
   dayChangeValuePortfolioCurrency: number;
+  totalFeesPortfolioCurrency: number;
 
   // Values in Stock Currency (Major Unit)
   costBasisStockCurrency: number;
@@ -374,7 +375,7 @@ export const PORTFOLIO_TEMPLATES: Record<string, Partial<Portfolio>> = {
     mgmtType: 'percentage',
     mgmtFreq: 'yearly',
     divCommRate: 0,
-    taxPolicy: 'NOMINAL_GAIN'
+    taxPolicy: 'REAL_GAIN'
   },
   'hishtalmut': {
     cgt: 0,

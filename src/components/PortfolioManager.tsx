@@ -401,10 +401,10 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                     </Grid>
                     <Grid item xs={12} sm={6}>
                       <PercentageField 
-                        label={t('Div Tax/Fee Rate', 'מס/עמלת דיבידנד')}
+                        label={t('Cashed Div Fee Rate', 'עמלת דיבידנד ממומש')}
                         field="divCommRate" 
-                        tooltip={t("Tax or fee rate on cash dividends", "שיעור מס או עמלה על דיבידנד במזומן")}
-                        disabled={p.taxPolicy === 'TAX_FREE' || p.divPolicy !== 'cash_taxed'}
+                        tooltip={t("Fee rate on cashed dividends", "שיעור עמלה על דיבידנד ממומש")}
+                        disabled={p.taxPolicy === 'TAX_FREE' || p.divPolicy === 'accumulate_tax_free'}
                       />
                     </Grid>
                   </Grid>
