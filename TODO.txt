@@ -2,7 +2,6 @@
 
 In details of gemel funds, handle gains display/calc - and cost basis!
 Show holdings of funds
-Comperasion chars + allow metrics: r^2, beta
 דמי ניהול - לחשב בגמל וכו'
 refactor code....
 Consider if request deduping is needed in places (cuurently in yahoo, globes)
@@ -15,11 +14,6 @@ Check crypto 1d change?...
 Discovery/selling points splash page
 tase types vs globes types??
 If there is no sheet document ID, do not show the "create first portfolio" screen, rather, you should send the user to exisitng the screen to enter an existing sheet ID or create one
-Allow choosing between IL and US tbills and pass to alpha calc. Also add sharpe calc. Add toggle to choose in analysis window. Default IL.
-
-dsahboard summary:
-- chart
-- market comperission (compare gains to sp500, ta, etc)
 
 ON HOLD: Handle splits, etc, name changes
 ON HOLD: Support mobile screen sizes
@@ -37,6 +31,8 @@ Low priority:
 - ON HOLD: Use Gemini for anlysis and insight
 - ON HOLD: Forcast mode, where future txns, vesting are taken into account, and growth of holding is predicted based on custom uesr input or recent trends. Should also include taxes
 
+DONE: Comperasion chars + allow metrics: r^2, beta
+DONE: Allow choosing between IL and US tbills and pass to alpha calc. Also add sharpe calc. Add toggle to choose in analysis window. Default IL.
 DONE: Theres still chart-related code duplication between TickerDetails and other places like useChartComparison.ts
 DONE?: The create first portfolio message should not appear when loggin failed. Instead should perform login.
 DONE: In total holdings chart - holdings mode should be mutualy exclusive with comperission mode.

@@ -1,4 +1,4 @@
-import { synchronizeSeries, computeAnalysisMetrics, normalizeToStart, calculateReturns, DataPoint } from './analysis';
+import { synchronizeSeries, synchronizeThreeSeries, computeAnalysisMetrics, normalizeToStart, calculateReturns, DataPoint } from './analysis';
 
 // --- HELPERS ---
 
@@ -48,6 +48,37 @@ function testSynchronizeSeries() {
 
     // Jan 3
     assert(synced[1].x === 30 && synced[1].y === 15, 'Pair 2 correct');
+}
+
+function testSynchronizeThreeSeries() {
+    console.log('\n--- Test: Synchronize Three Series ---');
+    
+    // X: 1, 2, 3
+    const x: DataPoint[] = [
+        { timestamp: Date.UTC(2024, 0, 1), value: 10 },
+        { timestamp: Date.UTC(2024, 0, 2), value: 20 },
+        { timestamp: Date.UTC(2024, 0, 3), value: 30 },
+    ];
+
+    // Y: 1, 3 (Missing 2)
+    const y: DataPoint[] = [
+        { timestamp: Date.UTC(2024, 0, 1), value: 5 },
+        { timestamp: Date.UTC(2024, 0, 3), value: 15 },
+    ];
+
+    // Z: 2, 3 (Missing 1)
+    const z: DataPoint[] = [
+        { timestamp: Date.UTC(2024, 0, 2), value: 100 },
+        { timestamp: Date.UTC(2024, 0, 3), value: 200 },
+    ];
+
+    const synced = synchronizeThreeSeries(x, y, z);
+    
+    // Intersection: Only Jan 3 exists in all three
+    assert(synced.length === 1, 'Synced series length should be 1');
+
+    // Jan 3 check
+    assert(synced[0].x === 30 && synced[0].y === 15 && synced[0].z === 200, 'Triple values correct');
 }
 
 function testPerfectCorrelation() {
@@ -186,9 +217,55 @@ function testDownsideAlpha() {
     assertClose(metrics.downsideAlpha, 0.006, 0.0001, 'Downside Alpha should be 0.006');
 }
 
+function testSharpeRatio() {
+    console.log('\n--- Test: Sharpe Ratio ---');
+    
+    // Scenario: 3 return periods
+    // Portfolio: +1%, +2%, -0.5%
+    const portfolioReturns = [0.01, 0.02, -0.005];
+    
+    // Benchmark (needed for function signature but not used for Sharpe): 0%
+    const benchmarkReturns = [0, 0, 0];
+    
+    // Risk Free Rate: +0.1% constant
+    const riskFreeReturns = [0.001, 0.001, 0.001];
+    
+    // Prepare pairs
+    const pairs = portfolioReturns.map((y, i) => ({ x: benchmarkReturns[i], y }));
+    
+    const metrics = computeAnalysisMetrics(pairs, riskFreeReturns);
+    if (!metrics) throw new Error('Metrics failed for sharpe test');
+    
+    // Manual Calc:
+    // Excess Returns:
+    // 1. 0.01 - 0.001 = 0.009
+    // 2. 0.02 - 0.001 = 0.019
+    // 3. -0.005 - 0.001 = -0.006
+    // Sum Excess = 0.022
+    // Avg Excess = 0.007333333333333333
+    
+    const excess = [0.009, 0.019, -0.006];
+    const mean = 0.022 / 3;
+    
+    // Variance (Sample, n-1 = 2)
+    // (0.009 - mean)^2 = (0.00166667)^2 = 0.0000027778
+    // (0.019 - mean)^2 = (0.01166667)^2 = 0.0001361111
+    // (-0.006 - mean)^2 = (-0.01333333)^2 = 0.0001777778
+    // Sum Squares = 0.0003166667
+    // Variance = 0.0001583333
+    // StdDev = sqrt(0.0001583333) = 0.01258305739
+    
+    // Sharpe = (0.00733333... / 0.01258305...) * sqrt(252)
+    // Sharpe = 0.582794 * 15.8745
+    // Sharpe ≈ 9.2515
+    
+    assertClose(metrics.sharpeRatio, 9.2515, 0.01, 'Sharpe Ratio Calculation');
+}
+
 export function runTests() {
     try {
         testSynchronizeSeries();
+        testSynchronizeThreeSeries();
         testPerfectCorrelation();
         testInverseCorrelation();
         testNoCorrelation();
@@ -196,11 +273,10 @@ export function runTests() {
         testCalculateReturns();
         testDownsideBeta();
         testDownsideAlpha();
+        testSharpeRatio();
         console.log('\n🎉 All analysis tests passed!');
     } catch (e) {
         console.error('\n💥 Analysis tests failed.');
         console.error(e);
     }
-}
-
-runTests();
+}runTests();
