@@ -1,8 +1,8 @@
-import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Table, TableBody, TableCell, TableHead, TableRow, Box, Typography, ToggleButton, ToggleButtonGroup, Tooltip } from '@mui/material';
+import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Table, TableBody, TableCell, TableHead, TableRow, Box, Typography, ToggleButton, ToggleButtonGroup, Tooltip, Select, MenuItem, FormControl, InputLabel } from '@mui/material';
 import { useLanguage } from '../lib/i18n';
 import type { ChartSeries } from './TickerChart';
 import { useMemo, useState, useEffect } from 'react';
-import { synchronizeSeries, computeAnalysisMetrics, normalizeToStart, calculateReturns, type AnalysisMetrics } from '../lib/utils/analysis';
+import { synchronizeSeries, synchronizeThreeSeries, computeAnalysisMetrics, normalizeToStart, calculateReturns, type AnalysisMetrics } from '../lib/utils/analysis';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { fetchTickerHistory } from '../lib/fetching';
 import { Exchange } from '../lib/types';
@@ -23,9 +23,14 @@ const DEFAULT_BENCHMARKS = [
     { ticker: '137', exchange: Exchange.TASE, name: 'Tel Aviv 125' }
 ];
 
+const RISK_FREE_TICKERS = {
+    US: { ticker: 'BIL', exchange: Exchange.NYSE, name: 'US T-Bills (1-3M)' },
+    IL: { ticker: '5111199', exchange: Exchange.TASE, name: 'IL Gov Bonds (2-5Y)' } // Placeholder index
+};
+
 function filterDataByRange(data: { date: Date, price: number }[], range: string, minDate?: Date) {
     if (!data || data.length === 0) return [];
-
+    
     let startDate: Date;
     const now = new Date();
 
@@ -47,7 +52,7 @@ function filterDataByRange(data: { date: Date, price: number }[], range: string,
             default: return data;
         }
     }
-
+    
     return data.filter(d => d.date.getTime() >= startDate.getTime());
 }
 
@@ -55,15 +60,38 @@ interface ExtendedAnalysisMetrics extends AnalysisMetrics {
     activeReturn: number;
 }
 
-export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, title, subjectName }: AnalysisDialogProps) {
+export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, title }: AnalysisDialogProps) {
     const { t } = useLanguage();
     const theme = useTheme();
     const [range, setRange] = useState('1Y');
     const [extraSeries, setExtraSeries] = useState<ChartSeries[]>([]);
+    const [riskFreeType, setRiskFreeType] = useState<'US' | 'IL'>('US');
+    const [riskFreeSeries, setRiskFreeSeries] = useState<ChartSeries | null>(null);
 
     const EXTRA_COLORS = useMemo(() => {
         return theme.palette.mode === 'dark' ? DARK_COLORS : LIGHT_COLORS;
     }, [theme.palette.mode]);
+
+    // Fetch Risk Free Series
+    useEffect(() => {
+        if (!open) return;
+        const fetchRF = async () => {
+            const rf = RISK_FREE_TICKERS[riskFreeType];
+            try {
+                const historyResponse = await fetchTickerHistory(rf.ticker, rf.exchange);
+                if (historyResponse?.historical) {
+                    setRiskFreeSeries({
+                        name: rf.name,
+                        data: historyResponse.historical,
+                        color: '#000000' // Unused
+                    });
+                }
+            } catch (e) {
+                console.warn('Failed to fetch Risk Free', e);
+            }
+        };
+        fetchRF();
+    }, [open, riskFreeType]);
 
     useEffect(() => {
         if (!open) return;
@@ -113,9 +141,8 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
         return combined;
     }, [comparisonSeries, extraSeries]);
 
-    const effectiveSubjectName = subjectName || t('Portfolio', 'תיק');
     const oldestDate = mainSeries?.data?.[0]?.date;
-
+    
     const availableRanges = useMemo(() => {
         if (!oldestDate) return ['ALL'];
         const now = new Date();
@@ -149,7 +176,7 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
 
         // Calculate std dev for the main series
         const mainPricePoints = normalizeToStart(mainFiltered);
-        const mainReturnPairs = calculateReturns(mainPricePoints.map(p => ({ x: p.value, y: p.value })));
+        const mainReturnPairs = calculateReturns(mainPricePoints.map(p => ({ x: p.value, y: p.value, timestamp: p.timestamp })));
         const mainReturns = mainReturnPairs.map(p => p.y);
         let calculatedStdDev: number | null = null;
         if (mainReturns.length >= 2) {
@@ -163,16 +190,72 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
         if (allSeries.length === 0) {
             return { results: resultsMap, subjectStdDev: calculatedStdDev };
         }
-        
+
         const analysisStartDate = mainFiltered[0].date;
         const mainPoints = normalizeToStart(mainFiltered);
+
+        // Risk Free Setup
+        let riskFreePoints: { timestamp: number, value: number }[] = [];
+        if (riskFreeSeries) {
+             const rfFiltered = filterDataByRange(riskFreeSeries.data, 'ALL', analysisStartDate);
+             if (rfFiltered.length > 1) {
+                 riskFreePoints = normalizeToStart(rfFiltered);
+             }
+        }
 
         allSeries.forEach(s => {
             const benchFiltered = filterDataByRange(s.data, 'ALL', analysisStartDate);
             if (benchFiltered.length < 2) return;
 
             const benchPoints = normalizeToStart(benchFiltered);
-            const pricePairs = synchronizeSeries(benchPoints, mainPoints);
+            let pricePairs: { x: number; y: number; timestamp?: number }[] = [];
+
+            if (riskFreePoints.length > 0) {
+                // 3-Way Sync
+                const triples = synchronizeThreeSeries(benchPoints, mainPoints, riskFreePoints);
+                if (triples.length < 2) return;
+
+                // Calc Returns for all 3
+                // x=Bench, y=Main, z=RiskFree
+                const tempReturns: { x: number; y: number }[] = [];
+                const tempRfReturns: number[] = [];
+
+                for (let i = 1; i < triples.length; i++) {
+                    const prev = triples[i - 1];
+                    const curr = triples[i];
+                    
+                    if (prev.x === 0 || prev.y === 0 || prev.z === 0) continue;
+                    const rx = (curr.x - prev.x) / prev.x;
+                    const ry = (curr.y - prev.y) / prev.y;
+                    const rz = (curr.z - prev.z) / prev.z;
+                    
+                    tempReturns.push({ x: rx, y: ry });
+                    tempRfReturns.push(rz);
+                }
+                
+                if (tempReturns.length < 2) return;
+                
+                // For Active Return (Total), use the synchronized End/Start from triples
+                const startPair = triples[0];
+                const endPair = triples[triples.length - 1];
+                const benchTotalReturn = (endPair.x / startPair.x) - 1;
+                const mainTotalReturn = (endPair.y / startPair.y) - 1;
+                
+                // Pass to compute
+                const metrics = computeAnalysisMetrics(tempReturns, tempRfReturns);
+                if (metrics) {
+                    resultsMap.set(s.name, {
+                        ...metrics,
+                        alpha: metrics.alpha * tempReturns.length, // Cumulative Alpha
+                        downsideAlpha: metrics.downsideAlpha * tempReturns.length,
+                        activeReturn: mainTotalReturn - benchTotalReturn
+                    });
+                }
+                return; // Done for this series (using RF path)
+            }
+
+            // Fallback (No RF)
+            pricePairs = synchronizeSeries(benchPoints, mainPoints);
             if (pricePairs.length < 2) return;
 
             const startPair = pricePairs[0];
@@ -181,7 +264,7 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
             const mainTotalReturn = (endPair.y / startPair.y) - 1;
             const returnPairs = calculateReturns(pricePairs);
             const metrics = computeAnalysisMetrics(returnPairs);
-
+            
             if (metrics) {
                 resultsMap.set(s.name, {
                     ...metrics,
@@ -191,9 +274,8 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
                 });
             }
         });
-
         return { results: resultsMap, subjectStdDev: calculatedStdDev };
-    }, [mainSeries, allSeries, range]);
+    }, [mainSeries, allSeries, range, riskFreeSeries]);
 
     const formatNum = (val: number | undefined, dec = 2) => {
         if (val === undefined || isNaN(val)) return '-';
@@ -223,14 +305,14 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
         <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
             <DialogTitle>
                 <Box display="flex" justifyContent="space-between" alignItems="center">
-                    {title || t('Analysis', 'ניתוח')}
+                    {title || t('Portfolio Analysis', 'ניתוח תיק')}
                     <Tooltip title={t("Metrics calculated based on daily returns relative to the benchmark.", "המדדים מחושבים על בסיס תשואות יומיות ביחס למדד הייחוס.")}>
                         <InfoOutlinedIcon color="action" fontSize="small" />
                     </Tooltip>
                 </Box>
             </DialogTitle>
             <DialogContent>
-                <Box display="flex" justifyContent="center" mb={2}>
+                <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
                     <ToggleButtonGroup value={range} exclusive onChange={(_, v) => v && setRange(v)} size="small" sx={{ height: 26 }}>
                         {availableRanges.map(r => (
                             <ToggleButton key={r} value={r} sx={{ px: 1, fontSize: '0.7rem' }}>
@@ -238,6 +320,19 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
                             </ToggleButton>
                         ))}
                     </ToggleButtonGroup>
+                    
+                    <FormControl size="small" sx={{ minWidth: 150 }}>
+                        <InputLabel>{t('Risk-Free Rate', 'ריבית חסרת סיכון')}</InputLabel>
+                        <Select
+                            value={riskFreeType}
+                            label={t('Risk-Free Rate', 'ריבית חסרת סיכון')}
+                            onChange={(e) => setRiskFreeType(e.target.value as 'US' | 'IL')}
+                            sx={{ height: 32 }}
+                        >
+                            <MenuItem value="US">US T-Bills</MenuItem>
+                            <MenuItem value="IL">IL Gov Bonds</MenuItem>
+                        </Select>
+                    </FormControl>
                 </Box>
                 {subjectStdDev !== null && (
                     <Typography variant="caption" display="block" align="left" sx={{ mb: 1, ml: 1 }}>
@@ -249,17 +344,17 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
                         <TableRow>
                             <TableCell>{t('Benchmark', 'מדד יחוס')}</TableCell>
                             <TableCell align="left" sx={{ width: 90 }}>
-                                <Tooltip title={t('The simple difference between the portfolio\'s total return and the benchmark\'s total return over the period.', 'ההפרש בתשואה הכוללת בין התיק למדד הייחוס לאורך התקופה.')}>
+                                <Tooltip title={t("The simple difference between the portfolio's total return and the benchmark's total return over the period. A positive value indicates the portfolio beat the benchmark.", "ההפרש הפשוט בין התשואה הכוללת של התיק לתשואת המדד לאורך התקופה. ערך חיובי מציין שהתיק הכה את המדד.")}>
                                     <Box component="span" sx={{ cursor: 'help', borderBottom: '1px dotted' }}>Active Ret.</Box>
                                 </Tooltip>
                             </TableCell>
                             <TableCell align="left" sx={{ width: 90 }}>
-                                <Tooltip title={t('Jensen\'s Alpha represents the portfolio\'s return over what would be expected based on its beta and the benchmark\'s return. A positive alpha suggests outperformance on a risk-adjusted basis.', 'אלפא של ג\'נסן מייצגת את תשואת התיק מעבר למצופה בהתבסס על הבטא שלו ותשואת המדד. אלפא חיובית מצביעה על ביצועי יתר בהתאמה לסיכון.')}>
+                                <Tooltip title={t("Jensen's Alpha represents the portfolio's excess return over what would be expected given its risk (Beta) relative to the market. A positive alpha indicates value added by active management.", "אלפא של ג'נסן מייצגת את התשואה העודפת של התיק מעבר למצופה בהינתן הסיכון (בטא) שלו ביחס לשוק. אלפא חיובית מצביעה על ערך מוסף בניהול אקטיבי.")}>
                                     <Box component="span" sx={{ cursor: 'help', borderBottom: '1px dotted' }}>α<sub style={{ fontSize: '0.7em' }}>J</sub></Box>
                                 </Tooltip>
                             </TableCell>
                             <TableCell align="left" sx={{ width: 90 }}>
-                                <Tooltip title={t('Measures the portfolio\'s volatility in relation to the benchmark. A beta above 1.0 indicates higher volatility than the benchmark, while below 1.0 indicates lower volatility.', 'מודד את תנודתיות התיק ביחס למדד. בטא מעל 1.0 מצביעה על תנודתיות גבוהה יותר מהמדד, ומתחת ל-1.0 על תנודתיות נמוכה יותר.')}>
+                                <Tooltip title={t("Measures the volatility of the portfolio in relation to the benchmark. A beta > 1.0 implies higher volatility than the market, while < 1.0 implies lower volatility.", "מודד את תנודתיות התיק ביחס למדד. בטא גדולה מ-1.0 מצביעה על תנודתיות גבוהה מהשוק, בעוד שמתחת ל-1.0 מצביעה על תנודתיות נמוכה יותר.")}>
                                     <Box component="span" sx={{ cursor: 'help', borderBottom: '1px dotted' }}>β</Box>
                                 </Tooltip>
                             </TableCell>
@@ -269,17 +364,17 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
                                 </Tooltip>
                             </TableCell>
                             <TableCell align="left" sx={{ width: 120 }}>
-                                <Tooltip title={t('Measures the portfolio\'s volatility only during periods where the benchmark had a negative return. A downside beta below 1.0 suggests the portfolio has been defensive and captured less of the market\'s losses.', 'מודד את תנודתיות התיק רק בתקופות בהן המדד הציג תשואה שלילית. בטא ירידות מתחת ל-1.0 מצביעה על כך שהתיק היה דפנסיבי וספג פחות מהפסדי השוק.')}>
+                                <Tooltip title={t("Measures the portfolio's downside volatility relative to the benchmark during market declines. A value < 1.0 indicates the portfolio tends to lose less than the market when the market falls.", "מודד את תנודתיות התיק כלפי מטה ביחס למדד בזמן ירידות שוק. ערך נמוך מ-1.0 מצביע על כך שהתיק נוטה להפסיד פחות מהשוק כשהשוק יורד.")}>
                                     <Box component="span" sx={{ cursor: 'help', borderBottom: '1px dotted' }}>Downside β</Box>
                                 </Tooltip>
                             </TableCell>
                             <TableCell align="left" sx={{ width: 80 }}>
-                                <Tooltip title={t('R-Squared indicates the percentage of the portfolio\'s price movements that can be explained by movements in the benchmark index. A higher value means a closer correlation.', 'R-Squared מציין את אחוז תנועות המחירים של התיק שניתן להסביר על ידי תנועות במדד הייחוס. ערך גבוה יותר פירושו מתאם קרוב יותר.')}>
+                                <Tooltip title={t("Indicates the percentage of the portfolio's movements that can be explained by movements in the benchmark. A high R² (85-100%) means the portfolio's performance patterns are closely aligned with the index.", "מציין את אחוז תנועות התיק שניתן להסביר על ידי תנועות במדד הייחוס. R² גבוה (85-100%) פירושו שדפוסי הביצועים של התיק תואמים בקירוב למדד.")}>
                                     <Box component="span" sx={{ cursor: 'help', borderBottom: '1px dotted' }}>R²</Box>
                                 </Tooltip>
                             </TableCell>
                             <TableCell align="left" sx={{ width: 80 }}>
-                                <Tooltip title={t('The correlation coefficient measures the strength and direction of a linear relationship between the portfolio and the benchmark. 1 is a perfect positive correlation, -1 is a perfect negative correlation, and 0 is no linear correlation.', 'מקדם המתאם מודד את העוצמה והכיוון של הקשר הליניארי בין התיק למדד. 1 הוא מתאם חיובי מושלם, -1 הוא מתאם שלילי מושלם, ו-0 הוא חוסר קשר ליניארי.')}>
+                                <Tooltip title={t("Measures the strength and direction of the linear relationship between the portfolio and the benchmark. 1.0 is perfect positive correlation, 0 is no correlation, and -1.0 is perfect negative correlation.", "מודד את העוצמה והכיוון של הקשר הליניארי בין התיק למדד. 1.0 הוא מתאם חיובי מושלם, 0 הוא חוסר מתאם, ו-1.0- הוא מתאם שלילי מושלם.")}>
                                     <Box component="span" sx={{ cursor: 'help', borderBottom: '1px dotted' }}>Corr</Box>
                                 </Tooltip>
                             </TableCell>
