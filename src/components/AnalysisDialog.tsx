@@ -24,8 +24,8 @@ const DEFAULT_BENCHMARKS = [
 ];
 
 const RISK_FREE_TICKERS = {
-    US: { ticker: 'BIL', exchange: Exchange.NYSE, name: 'US T-Bills (1-3M)' },
-    IL: { ticker: '5111199', exchange: Exchange.TASE, name: 'IL Gov Bonds (2-5Y)' } // Placeholder index
+    US: { ticker: '^IRX', exchange: Exchange.NYSE, name: 'US T-Bills (13W Yield)' },
+    IL: { ticker: 'TCH-F91.TA', exchange: Exchange.TASE, name: 'IL Makam (Treasury Bill)' }
 };
 
 function filterDataByRange(data: { date: Date, price: number }[], range: string, minDate?: Date) {
@@ -199,7 +199,12 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
         if (riskFreeSeries) {
              const rfFiltered = filterDataByRange(riskFreeSeries.data, 'ALL', analysisStartDate);
              if (rfFiltered.length > 1) {
-                 riskFreePoints = normalizeToStart(rfFiltered);
+                 if (riskFreeType === 'IL') {
+                     riskFreePoints = normalizeToStart(rfFiltered);
+                 } else {
+                     // US ^IRX is yield, don't normalize
+                     riskFreePoints = rfFiltered.map(p => ({ timestamp: p.date.getTime(), value: p.price }));
+                 }
              }
         }
 
@@ -224,10 +229,17 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
                     const prev = triples[i - 1];
                     const curr = triples[i];
                     
-                    if (prev.x === 0 || prev.y === 0 || prev.z === 0) continue;
+                    if (prev.x === 0 || prev.y === 0) continue;
                     const rx = (curr.x - prev.x) / prev.x;
                     const ry = (curr.y - prev.y) / prev.y;
-                    const rz = (curr.z - prev.z) / prev.z;
+                    
+                    let rz = 0;
+                    if (riskFreeType === 'IL') {
+                        if (prev.z !== 0) rz = (curr.z - prev.z) / prev.z;
+                    } else {
+                        // US ^IRX is yield. Daily return approx = yield / 100 / 365
+                        rz = curr.z / 100 / 365;
+                    }
                     
                     tempReturns.push({ x: rx, y: ry });
                     tempRfReturns.push(rz);
@@ -287,18 +299,50 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
         return (val * 100).toLocaleString(undefined, { minimumFractionDigits: dec, maximumFractionDigits: dec }) + '%';
     };
 
-    const getMetricColor = (val: number | undefined, type: 'zero-based' | 'beta-based', threshold = 0.001) => {
-        if (val === undefined || isNaN(val)) return 'text.primary';
+    const getMetricStyle = (val: number | undefined, type: 'alpha' | 'beta' | 'downsideBeta' | 'rSquared' | 'correlation' | 'activeReturn') => {
+        if (val === undefined || isNaN(val)) return { color: 'text.primary', fontWeight: 'normal' };
+        
+        let color = 'text.primary';
+        let fontWeight = 'normal';
 
-        if (type === 'zero-based') {
-            if (val > threshold) return 'success.main';
-            if (val < -threshold) return 'error.main';
-            return 'text.primary';
-        } else {
-            if (val < 1 - threshold) return 'success.main';
-            if (val > 1 + threshold) return 'error.main';
-            return 'text.primary';
+        switch (type) {
+            case 'activeReturn':
+            case 'alpha':
+                // Treat downsideAlpha same as alpha for styling purposes if passed as 'alpha' type, 
+                // but caller should use 'alpha' for it or we add a case. 
+                // Let's rely on caller passing 'alpha' for downsideAlpha too or add case.
+                // Adding case below.
+            case 'downsideAlpha' as any: 
+                if (val > 0.001) color = 'success.main';
+                else if (val < -0.001) color = 'error.main';
+                
+                if (Math.abs(val) > 0.02) fontWeight = 'bold';
+                break;
+
+            case 'beta':
+                if (val < 0.95) color = 'success.main';
+                else if (val > 1.05) color = 'error.main';
+                
+                if (val < 0.6 || val > 1.4) fontWeight = 'bold';
+                break;
+
+            case 'downsideBeta':
+                if (val < 0.95) color = 'success.main';
+                else if (val > 1.05) color = 'error.main';
+                
+                if (val < 0.8 || val > 1.2) fontWeight = 'bold';
+                break;
+
+            case 'rSquared':
+                if (val > 0.8) fontWeight = 'bold';
+                break;
+
+            case 'correlation':
+                if (val > 0.8 || val < 0.2) fontWeight = 'bold';
+                break;
         }
+
+        return { color, fontWeight };
     };
 
     return (
@@ -312,7 +356,7 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
                 </Box>
             </DialogTitle>
             <DialogContent>
-                <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                <Box display="flex" justifyContent="space-between" alignItems="center" mb={2} sx={{ pt: 1 }}>
                     <ToggleButtonGroup value={range} exclusive onChange={(_, v) => v && setRange(v)} size="small" sx={{ height: 26 }}>
                         {availableRanges.map(r => (
                             <ToggleButton key={r} value={r} sx={{ px: 1, fontSize: '0.7rem' }}>
@@ -321,7 +365,7 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
                         ))}
                     </ToggleButtonGroup>
                     
-                    <FormControl size="small" sx={{ minWidth: 150 }}>
+                    <FormControl size="small" sx={{ minWidth: 150, mt: 1 }}>
                         <InputLabel>{t('Risk-Free Rate', 'ריבית חסרת סיכון')}</InputLabel>
                         <Select
                             value={riskFreeType}
@@ -383,13 +427,14 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
                     <TableBody>
                         {allSeries.map((s) => {
                             const m = results.get(s.name);
-                            const alphaColor = getMetricColor(m?.alpha, 'zero-based', 0.1);
-                            const downsideBColor = getMetricColor(m?.downsideBeta, 'beta-based', 0.1);
-                            const downsideAColor = getMetricColor(m?.downsideAlpha, 'zero-based', 0.1);
-                            const activeReturnColor = getMetricColor(m?.activeReturn, 'zero-based');
-                            const betaColor = (m?.beta !== undefined && m.beta <= -0.1) ? 'error.main' : 'text.primary';
-                            const corrBold = (m?.correlation !== undefined && (m.correlation > 0.8 || m.correlation < -0.5)) ? 'bold' : 'normal';
-                            const r2Bold = (m?.rSquared !== undefined && m.rSquared > 0.8) ? 'bold' : 'normal';
+                            const alphaStyle = getMetricStyle(m?.alpha, 'alpha');
+                            const dsBetaStyle = getMetricStyle(m?.downsideBeta, 'downsideBeta');
+                            const dsAlphaStyle = getMetricStyle(m?.downsideAlpha, 'downsideAlpha' as any);
+                            const actRetStyle = getMetricStyle(m?.activeReturn, 'activeReturn');
+                            const betaStyle = getMetricStyle(m?.beta, 'beta');
+                            const r2Style = getMetricStyle(m?.rSquared, 'rSquared');
+                            const corrStyle = getMetricStyle(m?.correlation, 'correlation');
+
                             return (
                                 <TableRow key={s.name}>
                                     <TableCell component="th" scope="row">
@@ -398,25 +443,25 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
                                             <Typography variant="body2" noWrap sx={{ maxWidth: 150 }}>{s.name}</Typography>
                                         </Box>
                                     </TableCell>
-                                    <TableCell align="left" sx={{ color: activeReturnColor, fontWeight: activeReturnColor !== 'text.primary' ? 'bold' : 'normal' }}>
+                                    <TableCell align="left" sx={{ ...actRetStyle }}>
                                         {formatPct(m?.activeReturn)}
                                     </TableCell>
-                                    <TableCell align="left" sx={{ color: alphaColor, fontWeight: alphaColor !== 'text.primary' ? 'bold' : 'normal' }}>
+                                    <TableCell align="left" sx={{ ...alphaStyle }}>
                                         {formatNum(m?.alpha, 3)}
                                     </TableCell>
-                                    <TableCell align="left" sx={{ color: betaColor, fontWeight: betaColor !== 'text.primary' ? 'bold' : 'normal' }}>
+                                    <TableCell align="left" sx={{ ...betaStyle }}>
                                         {formatNum(m?.beta, 2)}
                                     </TableCell>
-                                    <TableCell align="left" sx={{ color: downsideAColor, fontWeight: downsideAColor !== 'text.primary' ? 'bold' : 'normal' }}>
+                                    <TableCell align="left" sx={{ ...dsAlphaStyle }}>
                                         {formatNum(m?.downsideAlpha, 3)}
                                     </TableCell>
-                                    <TableCell align="left" sx={{ color: downsideBColor, fontWeight: downsideBColor !== 'text.primary' ? 'bold' : 'normal' }}>
+                                    <TableCell align="left" sx={{ ...dsBetaStyle }}>
                                         {formatNum(m?.downsideBeta, 2)}
                                     </TableCell>
-                                    <TableCell align="left" sx={{ color: 'text.primary', fontWeight: r2Bold }}>
+                                    <TableCell align="left" sx={{ ...r2Style }}>
                                         {formatNum(m?.rSquared, 2)}
                                     </TableCell>
-                                    <TableCell align="left" sx={{ color: 'text.primary', fontWeight: corrBold }}>
+                                    <TableCell align="left" sx={{ ...corrStyle }}>
                                         {formatNum(m?.correlation, 2)}
                                     </TableCell>
                                 </TableRow>
