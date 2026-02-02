@@ -303,7 +303,9 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                 mainSeries={historicalData ? { name: resolvedName || ticker || 'Main', data: historicalData } : null}
                 comparisonSeries={comparisonSeries} 
                 title={`${t('Analysis', 'ניתוח')}: ${tTry(resolvedName || ticker || '', resolvedNameHe)}`}
-                subjectName={t('Ticker', 'נייר ערך')}
+                initialRange={chartRange}
+                currency={data?.currency || 'USD'}
+                subjectName={ticker}
             />
         </>
     );

@@ -15,6 +15,8 @@ interface AnalysisDialogProps {
     mainSeries: ChartSeries | null;
     comparisonSeries: ChartSeries[];
     title?: string;
+    initialRange?: string;
+    currency?: string;
     subjectName?: string;
 }
 
@@ -60,17 +62,38 @@ interface ExtendedAnalysisMetrics extends AnalysisMetrics {
     activeReturn: number;
 }
 
-export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, title }: AnalysisDialogProps) {
+export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, title, initialRange, currency, subjectName }: AnalysisDialogProps) {
     const { t } = useLanguage();
     const theme = useTheme();
-    const [range, setRange] = useState('1Y');
+    const [range, setRange] = useState(initialRange || '1Y');
     const [extraSeries, setExtraSeries] = useState<ChartSeries[]>([]);
-    const [riskFreeType, setRiskFreeType] = useState<'US' | 'IL'>('US');
+    
+    // Initialize risk free type based on currency
+    const [riskFreeType, setRiskFreeType] = useState<'US' | 'IL'>(() => {
+        if (!currency) return 'US';
+        const cur = currency.toUpperCase();
+        return (cur === 'ILS' || cur === 'ILA') ? 'IL' : 'US';
+    });
+    
     const [riskFreeSeries, setRiskFreeSeries] = useState<ChartSeries | null>(null);
+
+    const effectiveSubjectName = subjectName || t('Portfolio', 'תיק');
 
     const EXTRA_COLORS = useMemo(() => {
         return theme.palette.mode === 'dark' ? DARK_COLORS : LIGHT_COLORS;
     }, [theme.palette.mode]);
+
+    // Update state when props change
+    useEffect(() => {
+        if (initialRange) setRange(initialRange);
+    }, [initialRange]);
+
+    useEffect(() => {
+        if (currency) {
+            const cur = currency.toUpperCase();
+            setRiskFreeType((cur === 'ILS' || cur === 'ILA') ? 'IL' : 'US');
+        }
+    }, [currency]);
 
     // Fetch Risk Free Series
     useEffect(() => {
@@ -388,37 +411,37 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
                         <TableRow>
                             <TableCell>{t('Benchmark', 'מדד יחוס')}</TableCell>
                             <TableCell align="left" sx={{ width: 90 }}>
-                                <Tooltip title={t("The simple difference between the portfolio's total return and the benchmark's total return over the period. A positive value indicates the portfolio beat the benchmark.", "ההפרש הפשוט בין התשואה הכוללת של התיק לתשואת המדד לאורך התקופה. ערך חיובי מציין שהתיק הכה את המדד.")}>
+                                <Tooltip title={t(`The simple difference between ${effectiveSubjectName}'s total return and the benchmark's total return over the period. A positive value indicates ${effectiveSubjectName} beat the benchmark.`, `ההפרש הפשוט בין התשואה הכוללת של ${effectiveSubjectName} לתשואת המדד לאורך התקופה. ערך חיובי מציין ש-${effectiveSubjectName} הכה את המדד.`)}>
                                     <Box component="span" sx={{ cursor: 'help', borderBottom: '1px dotted' }}>Active Ret.</Box>
                                 </Tooltip>
                             </TableCell>
                             <TableCell align="left" sx={{ width: 90 }}>
-                                <Tooltip title={t("Jensen's Alpha represents the portfolio's excess return over what would be expected given its risk (Beta) relative to the market. A positive alpha indicates value added by active management.", "אלפא של ג'נסן מייצגת את התשואה העודפת של התיק מעבר למצופה בהינתן הסיכון (בטא) שלו ביחס לשוק. אלפא חיובית מצביעה על ערך מוסף בניהול אקטיבי.")}>
+                                <Tooltip title={t(`Jensen's Alpha represents ${effectiveSubjectName}'s excess return over what would be expected given its risk (Beta) relative to the market. A positive alpha indicates value added by active management.`, `אלפא של ג'נסן מייצגת את התשואה העודפת של ${effectiveSubjectName} מעבר למצופה בהינתן הסיכון (בטא) שלו ביחס לשוק. אלפא חיובית מצביעה על ערך מוסף בניהול אקטיבי.`)}>
                                     <Box component="span" sx={{ cursor: 'help', borderBottom: '1px dotted' }}>α<sub style={{ fontSize: '0.7em' }}>J</sub></Box>
                                 </Tooltip>
                             </TableCell>
                             <TableCell align="left" sx={{ width: 90 }}>
-                                <Tooltip title={t("Measures the volatility of the portfolio in relation to the benchmark. A beta > 1.0 implies higher volatility than the market, while < 1.0 implies lower volatility.", "מודד את תנודתיות התיק ביחס למדד. בטא גדולה מ-1.0 מצביעה על תנודתיות גבוהה מהשוק, בעוד שמתחת ל-1.0 מצביעה על תנודתיות נמוכה יותר.")}>
+                                <Tooltip title={t(`Measures the volatility of ${effectiveSubjectName} in relation to the benchmark. A beta > 1.0 implies higher volatility than the market, while < 1.0 implies lower volatility.`, `מודד את תנודתיות ה-${effectiveSubjectName} ביחס למדד. בטא גדולה מ-1.0 מצביעה על תנודתיות גבוהה מהשוק, בעוד שמתחת ל-1.0 מצביעה על תנודתיות נמוכה יותר.`)}>
                                     <Box component="span" sx={{ cursor: 'help', borderBottom: '1px dotted' }}>β</Box>
                                 </Tooltip>
                             </TableCell>
                             <TableCell align="left" sx={{ width: 90 }}>
-                                <Tooltip title={t("A variation of Jensen's Alpha that uses Downside Beta instead of the standard Beta. It measures the portfolio's performance on a risk-adjusted basis, where the 'risk' is defined only by the asset's volatility during market downturns.", "וריאציה של אלפא של ג'נסן המשתמשת בבטא לתקופות ירידה במקום בבטא הרגילה. היא מודדת את ביצועי התיק בהתאמה לסיכון, כאשר 'הסיכון' מוגדר רק על ידי תנודתיות הנכס בתקופות של ירידות שוק.")}>
+                                <Tooltip title={t(`A variation of Jensen's Alpha that uses Downside Beta instead of the standard Beta. It measures ${effectiveSubjectName}'s performance on a risk-adjusted basis, where the 'risk' is defined only by the asset's volatility during market downturns.`, `וריאציה של אלפא של ג'נסן המשתמשת בבטא לתקופות ירידה במקום בבטא הרגילה. היא מודדת את ביצועי ה-${effectiveSubjectName} בהתאמה לסיכון, כאשר 'הסיכון' מוגדר רק על ידי תנודתיות הנכס בתקופות של ירידות שוק.`)}>
                                     <Box component="span" sx={{ cursor: 'help', borderBottom: '1px dotted' }}>Downside α<sub style={{ fontSize: '0.7em' }}>J</sub></Box>
                                 </Tooltip>
                             </TableCell>
                             <TableCell align="left" sx={{ width: 120 }}>
-                                <Tooltip title={t("Measures the portfolio's downside volatility relative to the benchmark during market declines. A value < 1.0 indicates the portfolio tends to lose less than the market when the market falls.", "מודד את תנודתיות התיק כלפי מטה ביחס למדד בזמן ירידות שוק. ערך נמוך מ-1.0 מצביע על כך שהתיק נוטה להפסיד פחות מהשוק כשהשוק יורד.")}>
+                                <Tooltip title={t(`Measures ${effectiveSubjectName}'s downside volatility relative to the benchmark during market declines. A value < 1.0 indicates ${effectiveSubjectName} tends to lose less than the market when the market falls.`, `מודד את תנודתיות ה-${effectiveSubjectName} כלפי מטה ביחס למדד בזמן ירידות שוק. ערך נמוך מ-1.0 מצביע על כך ש-${effectiveSubjectName} נוטה להפסיד פחות מהשוק כשהשוק יורד.`)}>
                                     <Box component="span" sx={{ cursor: 'help', borderBottom: '1px dotted' }}>Downside β</Box>
                                 </Tooltip>
                             </TableCell>
                             <TableCell align="left" sx={{ width: 80 }}>
-                                <Tooltip title={t("Indicates the percentage of the portfolio's movements that can be explained by movements in the benchmark. A high R² (85-100%) means the portfolio's performance patterns are closely aligned with the index.", "מציין את אחוז תנועות התיק שניתן להסביר על ידי תנועות במדד הייחוס. R² גבוה (85-100%) פירושו שדפוסי הביצועים של התיק תואמים בקירוב למדד.")}>
+                                <Tooltip title={t(`Indicates the percentage of ${effectiveSubjectName}'s movements that can be explained by movements in the benchmark. A high R² (85-100%) means ${effectiveSubjectName}'s performance patterns are closely aligned with the index.`, `מציין את אחוז תנועות ה-${effectiveSubjectName} שניתן להסביר על ידי תנועות במדד הייחוס. R² גבוה (85-100%) פירושו שדפוסי הביצועים של ה-${effectiveSubjectName} תואמים בקירוב למדד.`)}>
                                     <Box component="span" sx={{ cursor: 'help', borderBottom: '1px dotted' }}>R²</Box>
                                 </Tooltip>
                             </TableCell>
                             <TableCell align="left" sx={{ width: 80 }}>
-                                <Tooltip title={t("Measures the strength and direction of the linear relationship between the portfolio and the benchmark. 1.0 is perfect positive correlation, 0 is no correlation, and -1.0 is perfect negative correlation.", "מודד את העוצמה והכיוון של הקשר הליניארי בין התיק למדד. 1.0 הוא מתאם חיובי מושלם, 0 הוא חוסר מתאם, ו-1.0- הוא מתאם שלילי מושלם.")}>
+                                <Tooltip title={t(`Measures the strength and direction of the linear relationship between ${effectiveSubjectName} and the benchmark. 1.0 is perfect positive correlation, 0 is no correlation, and -1.0 is perfect negative correlation.`, `מודד את העוצמה והכיוון של הקשר הליניארי בין ${effectiveSubjectName} למדד. 1.0 הוא מתאם חיובי מושלם, 0 הוא חוסר מתאם, ו-1.0- הוא מתאם שלילי מושלם.`)}>
                                     <Box component="span" sx={{ cursor: 'help', borderBottom: '1px dotted' }}>Corr</Box>
                                 </Tooltip>
                             </TableCell>

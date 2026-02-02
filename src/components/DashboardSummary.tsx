@@ -656,7 +656,9 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
         mainSeries={fullPortfolioSeries}
         comparisonSeries={comparisonSeries} 
         title={`${t('Analysis', 'ניתוח')}: ${selectedPortfolio || t('Total Portfolio', 'כל התיקים')}`}
-        subjectName={selectedPortfolio ? t('Portfolio', 'תיק') : t('All Portfolios', 'כל התיקים')}
+        initialRange={chartRange}
+        currency={displayCurrency}
+        subjectName={selectedPortfolio ? t('Portfolio', 'התיק') : t('All Portfolios', 'כל התיקים')}
     />
     </>
   );
