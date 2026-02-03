@@ -12,29 +12,60 @@ import { SessionExpiredError } from './errors';
 import { useSession } from './SessionContext';
 
 /**
+
  * Helper to interpolate CPI from historical data.
+
  * Used for Israeli 'REAL_GAIN' tax policy where gains are adjusted for inflation.
+
  */
+
 const getCPI = (date: Date, cpiData: TickerData | null) => {
+
     if (!cpiData?.historical || cpiData.historical.length === 0) return 100;
+
     const timestamp = date.getTime();
-    const history = cpiData.historical;
+
+    const history = cpiData.historical; // Assumed Date Descending
+
     
+
+    // If date is NEWER than history, use the latest known value
+
+    if (timestamp >= history[0].date.getTime()) return history[0].price;
+
+
+
     for (let i = 0; i < history.length - 1; i++) {
+
         const h1 = history[i]; // Newer
+
         const h2 = history[i+1]; // Older
-        if (h1.date.getTime() >= timestamp && h2.date.getTime() <= timestamp) {
+
+        
+
+        if (timestamp <= h1.date.getTime() && timestamp >= h2.date.getTime()) {
+
             const t1 = h1.date.getTime();
+
             const t2 = h2.date.getTime();
-            const v1 = h1.price;
-            const v2 = h2.price;
-            const ratio = (timestamp - t2) / (t1 - t2);
-            return v2 + (v1 - v2) * ratio;
+
+            const ratio = (t1 === t2) ? 0 : (timestamp - t2) / (t1 - t2);
+
+            return h2.price + (h1.price - h2.price) * ratio;
+
         }
+
     }
-    if (timestamp > history[0].date.getTime()) return history[0].price;
+
+    
+
+    // If date is OLDER than history, use the oldest known value
+
     return history[history.length - 1].price;
+
 };
+
+
 
 /**
  * Data structure representing the aggregate performance of a portfolio or group of portfolios.
@@ -464,6 +495,16 @@ export function useDashboardData(sheetId: string, options: { includeUnvested: bo
           let q = tQty;
           if (isVested) { const canSell = Math.min(q, h.qtyVested); h.qtyVested -= canSell; q -= canSell; }
           if (q > 0) h.qtyUnvested -= q;
+
+          // Fix Floating Point Drift (Ghost Holding protection)
+          if (h.qtyVested < 1e-9) h.qtyVested = 0;
+          if (h.qtyUnvested < 1e-9) h.qtyUnvested = 0;
+          if (Math.abs(h.costBasisPortfolioCurrency) < 0.01 && h.qtyVested + h.qtyUnvested === 0) {
+              h.costBasisPortfolioCurrency = 0;
+              h.costBasisILS = 0;
+              h.costBasisUSD = 0;
+              h.costBasisStockCurrency = 0;
+          }
         } else if (t.type === 'DIVIDEND') {
           h.dividendsPortfolioCurrency += txnValuePC; h.dividendsStockCurrency += txnValueSC; h.dividendsUSD += tQty * priceInUSD; h.dividendsILS += tQty * priceInILS;
         } else if (t.type === 'FEE') {
