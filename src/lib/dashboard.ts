@@ -144,19 +144,19 @@ interface SummaryAcc {
 export function calculateDashboardSummary(data: DashboardHolding[], displayCurrency: string, exchangeRates: ExchangeRates, portfolios: Map<string, Portfolio>): DashboardSummaryData {
   // 1. Accumulate Per-Portfolio Data for Tax Offsetting
   const portfolioAcc: Record<string, {
-      costBasisTotal: number;
-      fees: number; // Total Deductible Fees (Commission + Transaction Fees)
+      costBasisTotalILS: number;
+      feesILS: number; // Total Deductible Fees (Commission + Transaction Fees) in ILS
       
+      // ILS Buckets for Tax Calculation (Source of Truth for Tax)
       // Standard Bucket (Taxed at CGT)
       std: {
           unrealizedGain: number;
-          realizedGain: number; // Trading + Dividends
+          realizedGain: number; // Trading Gains (and Standard Dividends)
       },
       
       // REIT Income Bucket (Taxed at Income Tax, if configured)
       reit: {
-          unrealizedGain: number;
-          realizedGain: number;
+          realizedGain: number; // REIT Dividends Only
       }
   }> = {};
 
@@ -181,10 +181,10 @@ export function calculateDashboardSummary(data: DashboardHolding[], displayCurre
   });
 
   data.forEach(h => {
-    // Standardize Values
+    // Standardize Values (Display Currency) - For User View
     const vals = calculateHoldingDisplayValues(h, displayCurrency, exchangeRates);
 
-    // Update Global Totals
+    // Update Global Totals (Display)
     globalAcc.aum += vals.marketValue;
     globalAcc.totalUnrealizedDisplay += vals.unrealizedGain;
     globalAcc.totalRealizedDisplay += vals.realizedGain;
@@ -192,51 +192,61 @@ export function calculateDashboardSummary(data: DashboardHolding[], displayCurre
     globalAcc.totalDividendsDisplay += vals.dividends;
     globalAcc.totalReturnDisplay += vals.totalGain;
 
-    // Determine Tax Bucket
+    // Accumulate ILS Values for Tax Calculation
     const p = portfolios.get(h.portfolioId);
     if (!portfolioAcc[h.portfolioId]) {
         portfolioAcc[h.portfolioId] = { 
-            costBasisTotal: 0,
-            fees: 0,
+            costBasisTotalILS: 0,
+            feesILS: 0,
             std: { unrealizedGain: 0, realizedGain: 0 },
-            reit: { unrealizedGain: 0, realizedGain: 0 }
+            reit: { realizedGain: 0 }
         };
     }
     const pAcc = portfolioAcc[h.portfolioId];
     
-    // Add to Total Basis (for Wealth Tax / Base Tax)
-    pAcc.costBasisTotal += vals.costBasis;
+    // Cost Basis Total in ILS (Wealth Tax Base)
+    pAcc.costBasisTotalILS += h.costBasisILS;
     
-    // Add Fees (Aggregated at Portfolio Level)
-    const feeDisplay = convertCurrency(h.totalFeesPortfolioCurrency, h.portfolioCurrency, displayCurrency, exchangeRates);
-    pAcc.fees += feeDisplay;
+    // Fees (Convert PC -> ILS)
+    pAcc.feesILS += convertCurrency(h.totalFeesPortfolioCurrency, h.portfolioCurrency, Currency.ILS, exchangeRates);
 
-    // Check if REIT and if Income Tax > 0 (otherwise fallback to Standard CGT)
-    const isReit = h.type?.type === InstrumentType.STOCK_REIT;
-    const incTax = p?.incTax || 0;
-    const useReitBucket = isReit && incTax > 0;
-
-    const targetBucket = useReitBucket ? pAcc.reit : pAcc.std;
-    
-    // Select Taxable Base (Nominal vs Real)
-    // If REAL_GAIN policy, use the calculated Real Gains (CPI/Forex adjusted).
-    // Otherwise use Nominal Gains.
-    // Note: h.realizedTaxableGain / h.unrealizedTaxableGain are in Portfolio Currency.
-    let taxableUnrealized = vals.unrealizedGain;
-    let taxableRealized = vals.realizedGain;
+    // Calculate/Select Taxable Gains in ILS
+    let taxableUnrealizedILS = 0;
+    let taxableRealizedILS = 0;
 
     if (p?.taxPolicy === 'REAL_GAIN') {
-        // Convert Real Gains from Portfolio Currency to Display Currency
-        // Note: 'vals.unrealizedGain' is already standardized to Display Currency.
-        // We assume 'h.unrealizedTaxableGain' is correctly calculated in PC.
-        taxableUnrealized = convertCurrency(h.unrealizedTaxableGain, h.portfolioCurrency, displayCurrency, exchangeRates);
-        taxableRealized = convertCurrency(h.realizedTaxableGain, h.portfolioCurrency, displayCurrency, exchangeRates);
+        // Use pre-calculated Real Gains (Inflation Adjusted for ILS, or Nominal for Foreign which approximates Real)
+        taxableRealizedILS = h.realizedTaxableGainILS;
+        taxableUnrealizedILS = h.unrealizedTaxableGainILS;
+    } else {
+        // Nominal Gain (ILS)
+        // Realized:
+        taxableRealizedILS = h.realizedGainILS; // Nominal
+        
+        // Unrealized: Calculate Nominal ILS Gain
+        const priceInILS = convertCurrency(h.currentPrice, h.stockCurrency, Currency.ILS, exchangeRates);
+        const mvILS = h.totalQty * priceInILS;
+        taxableUnrealizedILS = mvILS - h.costBasisILS;
     }
 
-    targetBucket.unrealizedGain += taxableUnrealized;
-    targetBucket.realizedGain += taxableRealized + vals.dividends; // Dividends are always nominal income
+    // Allocation Logic:
+    // 1. Capital Gains (Realized/Unrealized) -> Always Standard Bucket (CGT)
+    pAcc.std.unrealizedGain += taxableUnrealizedILS;
+    pAcc.std.realizedGain += taxableRealizedILS;
 
-    // Performance Aggregation
+    // 2. Dividends
+    const isReit = h.type?.type === InstrumentType.STOCK_REIT;
+    const incTax = p?.incTax || 0;
+    
+    if (isReit && incTax > 0) {
+        // REIT Dividends -> Income Tax Bucket
+        pAcc.reit.realizedGain += h.dividendsILS;
+    } else {
+        // Standard Dividends -> Standard Bucket (CGT)
+        pAcc.std.realizedGain += h.dividendsILS;
+    }
+
+    // Performance Aggregation (Display)
     if (h.dayChangePct !== 0 && isFinite(h.dayChangePct)) {
       const marketValueDisplay = vals.marketValue;
       const changeValDisplay = marketValueDisplay * h.dayChangePct / (1 + h.dayChangePct);
@@ -264,7 +274,7 @@ export function calculateDashboardSummary(data: DashboardHolding[], displayCurre
     }
   });
 
-  // 2. Calculate Tax Per Portfolio (With Offsetting/Kizuz)
+  // 2. Calculate Tax Per Portfolio (In ILS)
   Object.keys(portfolioAcc).forEach(pid => {
       const pData = portfolioAcc[pid];
       const p = portfolios.get(pid);
@@ -277,38 +287,32 @@ export function calculateDashboardSummary(data: DashboardHolding[], displayCurre
           incTax = 0;
       }
 
-      // Deductible Fees Logic
-      // Only applies if policy is REAL_GAIN.
-      // TODO: Include periodic management fees (mgmtVal) which are not yet tracked in transactions.
-      let deductibleFees = 0;
+      // Deductible Fees (ILS)
+      let deductibleFeesILS = 0;
       if (p?.taxPolicy === 'REAL_GAIN') {
-          deductibleFees = pData.fees;
+          deductibleFeesILS = pData.feesILS;
       }
 
-      // Apply fees to Standard Bucket Realized Gain (Capital Gains)
-      // If fees > gains, we have a net realized loss (which can offset future gains, but here results in 0 tax).
-      // We do NOT offset REIT Income Tax with these fees (as per "cannot לקזז from income tax").
-      const netStdRealizedGain = pData.std.realizedGain - deductibleFees;
+      // Offset Fees against Standard Realized Gain (ILS)
+      // Fees only offset Capital Gains (Standard Bucket)
+      const netStdRealizedGainILS = pData.std.realizedGain - deductibleFeesILS;
 
-      // Standard Bucket: Taxed at CGT
-      const stdUnrealizedTax = pData.std.unrealizedGain > 0 ? pData.std.unrealizedGain * cgt : 0;
-      const stdRealizedTax = netStdRealizedGain > 0 ? netStdRealizedGain * cgt : 0;
+      // Calculate Tax Liability (ILS)
+      const stdUnrealizedTaxILS = pData.std.unrealizedGain > 0 ? pData.std.unrealizedGain * cgt : 0;
+      const stdRealizedTaxILS = netStdRealizedGainILS > 0 ? netStdRealizedGainILS * cgt : 0;
 
-      // REIT Bucket: Taxed at Income Tax
-      const reitUnrealizedTax = pData.reit.unrealizedGain > 0 ? pData.reit.unrealizedGain * incTax : 0;
-      const reitRealizedTax = pData.reit.realizedGain > 0 ? pData.reit.realizedGain * incTax : 0;
+      // REIT Bucket: Taxed at Income Tax (Dividends only)
+      // No unrealized gain in this bucket now.
+      const reitRealizedTaxILS = pData.reit.realizedGain > 0 ? pData.reit.realizedGain * incTax : 0;
 
-      // Income Tax on Base (Wealth Tax)
-      // "income tax cannot end up negative" -> Base is always positive.
-      const incomeTaxOnBase = pData.costBasisTotal * incTax;
+      const incomeTaxOnBaseILS = pData.costBasisTotalILS * incTax;
 
-      // Aggregation:
-      // Realized Tax (Actual) -> Affects 'Realized Gain After Tax'
-      globalAcc.totalRealizedTaxDisplay += stdRealizedTax + reitRealizedTax;
+      const totalRealizedTaxILS = stdRealizedTaxILS + reitRealizedTaxILS;
+      const totalUnrealizedTaxILS = stdUnrealizedTaxILS + incomeTaxOnBaseILS; // No REIT unrealized tax
 
-      // Unrealized Tax (Potential) + Income Tax -> Affects 'Value After Tax'
-      // We group Income Tax with Unrealized Tax for the Value After Tax subtraction logic.
-      globalAcc.totalUnrealizedTaxDisplay += stdUnrealizedTax + reitUnrealizedTax + incomeTaxOnBase;
+      // Convert Tax Liability to Display Currency
+      globalAcc.totalRealizedTaxDisplay += convertCurrency(totalRealizedTaxILS, Currency.ILS, displayCurrency, exchangeRates);
+      globalAcc.totalUnrealizedTaxDisplay += convertCurrency(totalUnrealizedTaxILS, Currency.ILS, displayCurrency, exchangeRates);
   });
 
   const summaryResult: DashboardSummaryData = {
@@ -323,12 +327,8 @@ export function calculateDashboardSummary(data: DashboardHolding[], displayCurre
     totalRealizedGainPct: globalAcc.totalCostOfSoldDisplay > 0 ? globalAcc.totalRealizedDisplay / globalAcc.totalCostOfSoldDisplay : 0,
     totalDayChange: globalAcc.totalDayChange,
     
-    // Net Values
-    // Realized Gain After Tax = (Trading Gain + Dividends) - Realized Tax
-    // Note: globalAcc.totalRealizedDisplay is Trading Gain only. globalAcc.totalDividendsDisplay is Dividends.
+    // Net Values (Gross Gain - Tax Liability)
     realizedGainAfterTax: (globalAcc.totalRealizedDisplay + globalAcc.totalDividendsDisplay) - globalAcc.totalRealizedTaxDisplay,
-    
-    // Value After Tax = AUM - (Unrealized CGT + Income Tax on Base)
     valueAfterTax: globalAcc.aum - globalAcc.totalUnrealizedTaxDisplay,
     
     totalDayChangePct: 0, perf1d: 0

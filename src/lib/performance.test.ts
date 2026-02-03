@@ -273,4 +273,3 @@ export async function runTests() {
 }
 
 runTests();
-runTests();
