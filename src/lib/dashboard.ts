@@ -104,6 +104,30 @@ export interface DashboardSummaryData {
   divYield: number;
 }
 
+export interface DashboardHoldingDisplay {
+    marketValue: number;
+    unrealizedGain: number;
+    unrealizedGainPct: number;
+    realizedGain: number;
+    realizedGainPct: number;
+    realizedGainAfterTax: number;
+    totalGain: number;
+    totalGainPct: number;
+    valueAfterTax: number;
+    dayChangeVal: number;
+    dayChangePct: number;
+    costBasis: number;
+    costOfSold: number;
+    proceeds: number;
+    dividends: number;
+    currentPrice: number;
+    avgCost: number;
+}
+
+export interface EnrichedDashboardHolding extends DashboardHolding {
+    display: DashboardHoldingDisplay;
+}
+
 export const INITIAL_SUMMARY: DashboardSummaryData = {
   aum: 0,
   totalUnrealized: 0,
@@ -157,8 +181,9 @@ interface SummaryAcc {
 /**
  * Aggregates holding-level data into a global summary.
  * Implements sophisticated taxation logic calculated in ILS and converted back to display currency.
+ * Returns both the summary and the enriched holdings with pre-calculated display values.
  */
-export function calculateDashboardSummary(data: DashboardHolding[], displayCurrency: string, exchangeRates: ExchangeRates, portfolios: Map<string, Portfolio>): DashboardSummaryData {
+export function calculateDashboardSummary(data: DashboardHolding[], displayCurrency: string, exchangeRates: ExchangeRates, portfolios: Map<string, Portfolio>): { summary: DashboardSummaryData, holdings: EnrichedDashboardHolding[] } {
   // 1. Accumulate Per-Portfolio Data for Tax Offsetting (Kizuz)
   const portfolioAcc: Record<string, {
       costBasisTotalILS: number;
@@ -189,8 +214,25 @@ export function calculateDashboardSummary(data: DashboardHolding[], displayCurre
     globalAcc[`holdingsFor_${p}`] = 0;
   });
 
+  const enrichedHoldings: EnrichedDashboardHolding[] = [];
+
   data.forEach(h => {
     const vals = calculateHoldingDisplayValues(h, displayCurrency, exchangeRates);
+    
+    // Calculate Day Change in Display Currency
+    const { changeVal: dayChangeVal, changePct1d: dayChangePct } = calculatePerformanceInDisplayCurrency(h.currentPrice, h.stockCurrency, h.dayChangePct, displayCurrency, exchangeRates);
+    const dayChangeTotal = dayChangeVal * h.totalQty;
+
+    const displayVals: DashboardHoldingDisplay = {
+        ...vals,
+        dayChangeVal: dayChangeTotal,
+        dayChangePct: dayChangePct,
+        currentPrice: convertCurrency(h.currentPrice, h.stockCurrency, displayCurrency, exchangeRates),
+        avgCost: convertCurrency(h.avgCost, h.stockCurrency, displayCurrency, exchangeRates)
+    };
+
+    enrichedHoldings.push({ ...h, display: displayVals });
+
     globalAcc.aum += vals.marketValue;
     globalAcc.totalUnrealizedDisplay += vals.unrealizedGain;
     globalAcc.totalRealizedDisplay += vals.realizedGain;
@@ -238,7 +280,7 @@ export function calculateDashboardSummary(data: DashboardHolding[], displayCurre
     }
 
     if (h.dayChangePct !== 0 && isFinite(h.dayChangePct)) {
-      globalAcc.totalDayChange += vals.marketValue * h.dayChangePct / (1 + h.dayChangePct);
+      globalAcc.totalDayChange += dayChangeTotal;
       globalAcc.aumWithDayChangeData += vals.marketValue;
       globalAcc.holdingsWithDayChange++;
     }
@@ -311,7 +353,7 @@ export function calculateDashboardSummary(data: DashboardHolding[], displayCurre
     (summaryResult as any)[key] = prevValue > 0 ? totalChange / prevValue : 0;
     (summaryResult as any)[`${key}_incomplete`] = globalAcc[`holdingsFor_${key}`] > 0 && globalAcc[`holdingsFor_${key}`] < totalHoldings;
   }
-  return summaryResult;
+  return { summary: summaryResult, holdings: enrichedHoldings };
 }
 
 /**
@@ -546,6 +588,8 @@ export function useDashboardData(sheetId: string, options: { includeUnvested: bo
 
       holdingMap.forEach(h => {
         h.totalQty = h.qtyVested + h.qtyUnvested;
+        h.avgCost = h.totalQty > 1e-9 ? h.costBasisStockCurrency / h.totalQty : 0;
+        
         const currentPricePC = convertCurrency(h.currentPrice, h.stockCurrency, h.portfolioCurrency, exchangeRates);
         h.marketValuePortfolioCurrency = h.totalQty * currentPricePC;
         h.unrealizedGainPortfolioCurrency = h.marketValuePortfolioCurrency - h.costBasisPortfolioCurrency;

@@ -13,7 +13,7 @@ import { normalizeCurrency } from '../lib/currency';
 import { DashboardSummary } from './DashboardSummary';
 import { DashboardTable } from './DashboardTable';
 import { useLanguage } from '../lib/i18n';
-import { useDashboardData, calculateDashboardSummary, INITIAL_SUMMARY } from '../lib/dashboard';
+import { useDashboardData, calculateDashboardSummary, INITIAL_SUMMARY, type EnrichedDashboardHolding } from '../lib/dashboard';
 import { TickerSearch } from './TickerSearch';
 import { useSession } from '../lib/SessionContext';
 
@@ -32,7 +32,6 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
   
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<string | null>(searchParams.get('portfolioId'));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [portMap, setPortMap] = useState<Map<string, any>>(new Map());
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const openColSelector = Boolean(anchorEl);
   const { t, isRtl } = useLanguage();
@@ -53,21 +52,17 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
   }, [displayCurrency]);
 
   useEffect(() => {
-    const newPortMap = new Map(portfolios.map(p => [p.id, p]));
-    setPortMap(newPortMap);
-  }, [portfolios]);
-
-  useEffect(() => {
     const portId = searchParams.get('portfolioId');
     setSelectedPortfolioId(portId);
-    const selectedPort = portMap.get(portId || '');
+    // Helper to find portfolio
+    const selectedPort = portfolios.find(p => p.id === portId);
     if (selectedPort) {
       setDisplayCurrency(normalizeCurrency(selectedPort.currency));
     } else if (!portId) {
       // Reset to default if no portfolio is selected
       setDisplayCurrency(normalizeCurrency(localStorage.getItem('displayCurrency') || 'USD'));
     }
-  }, [searchParams, portMap]);
+  }, [searchParams, portfolios]);
 
   const handleSelectPortfolio = (portfolioId: string | null) => {
     if (portfolioId) {
@@ -77,22 +72,27 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
     }
   };
 
-  const [summary, setSummary] = useState(INITIAL_SUMMARY);
+  const { summary, holdings: enrichedHoldings } = useMemo(() => {
+    // Default empty return
+    const emptyResult = { summary: INITIAL_SUMMARY, holdings: [] as EnrichedDashboardHolding[] };
 
-  useEffect(() => {
-    // If error occurs, we might want to handle it or show error state.
+    if (!holdings || holdings.length === 0 || !exchangeRates || !exchangeRates.current || loading) {
+        return emptyResult;
+    }
+
     if (error) {
         console.error("Dashboard error state:", error);
+        return emptyResult;
     }
 
-    if (loading) return;
+    // Filter holdings based on selected portfolio
+    const filteredHoldings = selectedPortfolioId 
+        ? holdings.filter(h => h.portfolioId === selectedPortfolioId)
+        : holdings;
 
-    if (selectedPortfolioId) {
-      setSummary(calculateDashboardSummary(holdings.filter(h => h.portfolioId === selectedPortfolioId), displayCurrency, exchangeRates, portMap));
-    } else {
-      setSummary(calculateDashboardSummary(holdings, displayCurrency, exchangeRates, portMap));
-    }
-  }, [selectedPortfolioId, holdings, exchangeRates, displayCurrency, loading, error, portMap]);
+    const newPortMap = new Map(portfolios.map(p => [p.id, p]));
+    return calculateDashboardSummary(filteredHoldings, displayCurrency, exchangeRates, newPortMap);
+  }, [holdings, displayCurrency, exchangeRates, selectedPortfolioId, portfolios, loading, error]);
 
   // Default Columns
   const defaultColumns = {
@@ -148,22 +148,26 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
 
   // Grouping Logic
   const groupedData = useMemo(() => {
-    const filteredHoldings = selectedPortfolioId ? holdings.filter(h => h.portfolioId === selectedPortfolioId) : holdings;
+    if (!enrichedHoldings || enrichedHoldings.length === 0) {
+        // Fallback for empty state or loading
+        return { 'All Holdings': [] as EnrichedDashboardHolding[] };
+    }
 
     if (selectedPortfolioId) {
       const p = portfolios.find(p => p.id === selectedPortfolioId);
-      const name = p ? p.name : (filteredHoldings.length > 0 ? filteredHoldings[0].portfolioName : 'Portfolio');
-      return { [name]: filteredHoldings };
+      const name = p ? p.name : (enrichedHoldings[0]?.portfolioName || 'Portfolio');
+      return { [name]: enrichedHoldings };
     }
 
-    if (!groupByPortfolio || filteredHoldings.length === 0) return { 'All Holdings': filteredHoldings };
-    const groups: Record<string, import('../lib/types').DashboardHolding[]> = {};
-    filteredHoldings.forEach(h => {
+    if (!groupByPortfolio) return { 'All Holdings': enrichedHoldings };
+    
+    const groups: Record<string, EnrichedDashboardHolding[]> = {};
+    enrichedHoldings.forEach(h => {
       if (!groups[h.portfolioName]) groups[h.portfolioName] = [];
       groups[h.portfolioName].push(h);
     });
     return groups;
-  }, [holdings, groupByPortfolio, selectedPortfolioId, portfolios]);
+  }, [enrichedHoldings, groupByPortfolio, selectedPortfolioId, portfolios]);
 
   if (loading) return <Box display="flex" justifyContent="center" p={5}><CircularProgress /></Box>;
 
@@ -266,7 +270,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         holdings={selectedPortfolioId ? holdings.filter(h => h.portfolioId === selectedPortfolioId) : holdings}
         displayCurrency={displayCurrency}
         exchangeRates={exchangeRates}
-        selectedPortfolio={portMap.get(selectedPortfolioId || '')?.name || null}
+        selectedPortfolio={portfolios.find(p => p.id === (selectedPortfolioId || ''))?.name || null}
         sheetId={sheetId}
         portfolios={portfolios}
         isPortfoliosLoading={loading}
@@ -373,11 +377,17 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         </Box>
       </Box>
 
-      <DashboardTable 
-        holdings={holdings} 
-        groupedData={groupedData}
-        groupByPortfolio={groupByPortfolio}
-        displayCurrency={displayCurrency}
+            <DashboardTable 
+
+              holdings={enrichedHoldings}
+
+              groupedData={groupedData}
+
+              groupByPortfolio={groupByPortfolio}
+
+              displayCurrency={displayCurrency}
+
+      
         exchangeRates={exchangeRates}
         includeUnvested={includeUnvested}
         onSelectPortfolio={handleSelectPortfolio} // Updated prop
