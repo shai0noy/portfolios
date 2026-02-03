@@ -486,7 +486,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                           <>
                             {t("Trading", "מסחר")}: {formatValue(summary.totalRealized, displayCurrency, 0)}<br/>
                             {t("Dividends", "דיבידנדים")}: {formatValue(summary.totalDividends, displayCurrency, 0)}<br/>
-                            {t("Realized gains after tax", "רווח ממומש נטו")}: {formatValue(summary.realizedGainAfterTax, displayCurrency, 0)}
+                            {t("Realized gains after tax", "רווח ממומש לאחר מיסוי")}: {formatValue(summary.realizedGainAfterTax, displayCurrency, 0)}
                           </>
                         }
                         displayCurrency={displayCurrency}
