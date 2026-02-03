@@ -81,7 +81,7 @@ const Stat = ({ label, value, pct, color, tooltip, isMain = false, size = 'norma
           <Box display="flex" alignItems="center">
               <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', fontSize: isSmall ? '0.7rem' : '0.75rem' }}>{label}</Typography>
               {tooltip && (
-                  <Tooltip title={tooltip}>
+                  <Tooltip title={tooltip} enterTouchDelay={0} leaveTouchDelay={3000}>
                       <InfoOutlinedIcon sx={{ fontSize: '0.9rem', ml: 0.5, color: 'text.secondary' }} />
                   </Tooltip>
               )}
@@ -220,7 +220,7 @@ const TopMovers = ({ holdings, displayCurrency, exchangeRates }: { holdings: Das
         '&:hover': { bgcolor: 'action.hover' }
       }}
     >
-        <Tooltip title={mover.name}>
+        <Tooltip title={mover.name} enterTouchDelay={0} leaveTouchDelay={3000}>
             <Typography variant="body2" fontWeight="500" noWrap>
                 {mover.ticker}
             </Typography>
@@ -537,7 +537,10 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                                     <ToggleButton value="gains" sx={{ px: 1, fontSize: '0.65rem' }}>{t('Gains', 'רווחים')}</ToggleButton>
                                 </ToggleButtonGroup>
                                 
-                                <Tooltip title={chartView === 'holdings' 
+                                <Tooltip 
+                                    enterTouchDelay={0} 
+                                    leaveTouchDelay={3000}
+                                    title={chartView === 'holdings' 
                                     ? t("Market Value over time. Tracks the total worth of your portfolio assets.", "שווי שוק לאורך זמן. עוקב אחר השווי הכולל של הנכסים בתיק.")
                                     : t("Total Return over time. Tracks Realized + Unrealized Gains, Dividends, and Fees. Uses TWR (Time-Weighted Return) for percentage mode to filter out deposits/withdrawals.", "תשואה כוללת לאורך זמן. עוקב אחר רווחים ממומשים + לא ממומשים, דיבידנדים ועמלות. משתמש ב-TWR (תשואה משוקללת זמן) במצב אחוזים לנטרול הפקדות/משיכות.")}
                                 >

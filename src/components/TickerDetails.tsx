@@ -152,11 +152,11 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                     <Box display="flex" justifyContent="space-between" alignItems="flex-start">
                         <Box sx={{ flex: 1, minWidth: 0, pr: 2 }}>
                             <Box display="flex" alignItems="center" gap={1}>
-                                <Tooltip title={tTry(resolvedName || ticker, resolvedNameHe)} arrow>
+                                <Tooltip title={tTry(resolvedName || ticker, resolvedNameHe)} arrow enterTouchDelay={0} leaveTouchDelay={3000}>
                                     <Typography variant={(resolvedName || '').length > 30 ? 'h5' : 'h4'} component="div" fontWeight="bold" noWrap>{tTry(resolvedName || ticker, resolvedNameHe)}</Typography>
                                 </Tooltip>
                                 {ownedInPortfolios && ownedInPortfolios.length > 0 && (
-                                    <Tooltip title={`${t('Owned in', 'מוחזק ב')}: ${ownedInPortfolios.join(', ')}`}><BusinessCenterIcon color="action" /></Tooltip>
+                                    <Tooltip title={`${t('Owned in', 'מוחזק ב')}: ${ownedInPortfolios.join(', ')}`} enterTouchDelay={0} leaveTouchDelay={3000}><BusinessCenterIcon color="action" /></Tooltip>
                                 )}
                             </Box>
                             <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
@@ -177,7 +177,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                                     if (tooltipParts.length === 0) return null;
 
                                     return (
-                                        <Tooltip title={tooltipParts.join(' | ')} arrow>
+                                        <Tooltip title={tooltipParts.join(' | ')} arrow enterTouchDelay={0} leaveTouchDelay={3000}>
                                             <Chip 
                                                 label={
                                                     <Box display="flex" alignItems="center">
@@ -201,7 +201,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                                     <>
                                         <Box display="flex" alignItems="baseline" justifyContent="flex-end" gap={1.5}>
                                             <Typography variant="h6" component="div" fontWeight={600}>{formatPrice(price || 0, isTase ? 'ILA' : (displayData?.currency || 'USD'), maxDecimals, t)}</Typography>
-                                            <Tooltip title={`${t('Day change', 'שינוי יומי')} (${lastUpdated})`} placement="top">
+                                            <Tooltip title={`${t('Day change', 'שינוי יומי')} (${lastUpdated})`} placement="top" enterTouchDelay={0} leaveTouchDelay={3000}>
                                                 <Typography variant="h6" sx={{ fontWeight: 700, color: dayChange >= 0 ? 'success.main' : 'error.main' }}>{formatPercent(dayChange)}</Typography>
                                             </Tooltip>
                                         </Box>
@@ -211,7 +211,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                                                 {openPrice != null && openPrice !== 0 && (data?.tradeTimeStatus || volumeDisplay) && <Typography variant="caption" color="text.secondary">|</Typography>}
                                                 {volumeDisplay && (
                                                     <>
-                                                        <Tooltip title={t('Average daily trading volume (quarterly avg, in ticker currency)', 'מחזור מסחר יומי ממוצע (ממוצע רבעוני, במטבע הנייר)')} arrow>
+                                                        <Tooltip title={t('Average daily trading volume (quarterly avg, in ticker currency)', 'מחזור מסחר יומי ממוצע (ממוצע רבעוני, במטבע הנייר)')} arrow enterTouchDelay={0} leaveTouchDelay={3000}>
                                                             <Typography variant="caption" color="text.secondary" sx={{ cursor: 'help' }}>{t('Vol:', 'מחזור:')} {volumeDisplay}</Typography>
                                                         </Tooltip>
                                                         {data?.tradeTimeStatus && <Typography variant="caption" color="text.secondary">|</Typography>}
@@ -235,7 +235,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                         <Typography variant="subtitle2" gutterBottom>{t('Performance', 'ביצועים')}</Typography>
                         <Box display="flex" flexWrap="wrap" gap={1} sx={{ mb: 2 }}>
                             {Object.entries(perfData).map(([range, item]) => item && (
-                                <Tooltip key={range} title={item.date ? `Since ${formatDate(item.date)}` : ''} arrow>
+                                <Tooltip key={range} title={item.date ? `Since ${formatDate(item.date)}` : ''} arrow enterTouchDelay={0} leaveTouchDelay={3000}>
                                     <Chip variant="outlined" size="small" sx={{ minWidth: 78, py: 0.5, px: 0.75, height: 'auto', color: item.val > 0 ? 'success.main' : item.val < 0 ? 'error.main' : 'text.primary', '& .MuiChip-label': { display: 'flex', flexDirection: 'column', alignItems: 'center' } }}
                                         label={<><Typography variant="caption" color="text.secondary">{translateRange(range)}</Typography><Typography variant="body2" sx={{ fontWeight: 600 }}>{formatPercent(item.val)}</Typography></>}
                                     />
@@ -283,7 +283,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                      </>}
                 </DialogContent>
                 <DialogActions sx={{ p: 2, px: 3, gap: 1 }}>
-                  <Tooltip title={t("Refresh Data", "רענן נתונים")}>
+                  <Tooltip title={t("Refresh Data", "רענן נתונים")} enterTouchDelay={0} leaveTouchDelay={3000}>
                     <IconButton onClick={handleRefresh} disabled={refreshing} size="small">{refreshing ? <CircularProgress size={16} /> : <RefreshIcon fontSize="small" />}</IconButton>
                   </Tooltip>
                   <Box sx={{ flexGrow: 1 }} />
