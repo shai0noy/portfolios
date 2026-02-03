@@ -255,18 +255,15 @@ export function formatNumber(n: number | undefined | null): string {
 /**
  * Formats a monetary value (like total market value). Includes thousand separators.
  * This is distinct from `formatPrice`, which is for individual unit prices.
- * For 'ILA' currency, it formats as Agorot.
- * e.g., (12345, 'ILA') -> "12,345 ag."
- * e.g., (12345.67, 'USD') -> "$12,345.67"
+ * For 'ILA' currency, it converts to ILS.
  */
 export function formatValue(n: number, currency: string | Currency, decimals = 2, t?: (key: string, fallback: string) => string): string {
   if (n === undefined || n === null || isNaN(n)) return '-';
-  const norm = normalizeCurrency(currency as string);
+  let norm = normalizeCurrency(currency as string);
 
   if (norm === Currency.ILA) {
-    const val = n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: decimals, useGrouping: true });
-    const agorotText = t ? t('ag.', "א'") : 'ag.';
-    return `${LTR_MARK}${val} ${agorotText}`;
+    norm = Currency.ILS;
+    n = toILS(n, Currency.ILA);
   }
   
   // Use Intl.NumberFormat for proper currency formatting

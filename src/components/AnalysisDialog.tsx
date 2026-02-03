@@ -251,7 +251,7 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
                      if (riskFreeType === 'IL') {
                          rz = (curr.x - prev.x) / prev.x;
                      } else {
-                         // US ^IRX is yield. Daily return approx = yield / 100 / 365
+                         // US ^IRX is yield pct. Daily return approx = yield / 100 / 365
                          rz = curr.x / 100 / 365;
                      }
                      tempReturns.push({ x: ry, y: ry }); // Dummy X=Y so we can reuse computeAnalysisMetrics if needed

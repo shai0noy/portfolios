@@ -1,4 +1,4 @@
-import { Box, Typography, Paper, Table, TableBody, TableCell, TableHead, TableRow, Grid, Chip, Divider, Tabs, Tab, Tooltip, Link } from '@mui/material';
+import { Box, Typography, Paper, Table, TableBody, TableCell, TableHead, TableRow, Grid, Chip, Divider, Tabs, Tab, Tooltip, Link, Stack } from '@mui/material';
 import { formatValue, formatNumber, formatPrice, convertCurrency, formatPercent } from '../lib/currency';
 import { useLanguage } from '../lib/i18n';
 import type { DashboardHolding, Transaction, ExchangeRates, Holding } from '../lib/types';
@@ -23,6 +23,17 @@ interface HoldingDetailsProps {
     holdingsWeights: HoldingWeight[];
     onPortfolioClick: (id: string) => void;
 }
+
+const formatDate = (dateInput: string | Date | number) => {
+    if (!dateInput) return '';
+    // If it's a simple YYYY-MM-DD string, split it to avoid timezone shifts
+    if (typeof dateInput === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
+        const [y, m, d] = dateInput.split('-');
+        return `${d}/${m}/${y}`;
+    }
+    const date = new Date(dateInput);
+    return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
+};
 
 export function HoldingDetails({ holding, transactions, dividends, displayCurrency, exchangeRates, holdingsWeights, onPortfolioClick }: HoldingDetailsProps) {
     const { t } = useLanguage();
@@ -85,7 +96,14 @@ export function HoldingDetails({ holding, transactions, dividends, displayCurren
 
     const stockCurrency = (holding as DashboardHolding).stockCurrency || (holding as Holding).currency || 'USD';
     const totalQty = (holding as DashboardHolding).totalQty ?? (holding as Holding).qty ?? 0;
-    const totalFeesDisplay = convertCurrency(totalFeesPC, (holding as Holding).currency || stockCurrency, displayCurrency, exchangeRates);
+    
+    const totalFeesDisplay = useMemo(() => {
+        return convertCurrency(totalFeesPC, (holding as Holding).currency || stockCurrency, displayCurrency, exchangeRates);
+    }, [totalFeesPC, holding, stockCurrency, displayCurrency, exchangeRates]);
+
+    const totalGlobalWeight = useMemo(() => {
+        return holdingsWeights.reduce((sum, w) => sum + w.weightInGlobal, 0);
+    }, [holdingsWeights]);
 
     if (!vals) {
         return (
@@ -116,43 +134,43 @@ export function HoldingDetails({ holding, transactions, dividends, displayCurren
                     <Grid container spacing={2} sx={{ mb: 3 }}>
                         <Grid item xs={12} md={8}>
                             <Paper variant="outlined" sx={{ p: 2, height: '100%' }}>
-                                <Grid container spacing={2}>
-                                    <Grid item xs={6} sm={3}>
-                                        <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase' }}>{t('Value', 'שווי')}</Typography>
-                                        <Typography variant="h5" fontWeight="700">{formatValue(vals.marketValue, displayCurrency)}</Typography>
-                                    </Grid>
-                                    <Grid item xs={6} sm={3}>
-                                        <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase' }}>{t('Total Gain', 'רווח כולל')}</Typography>
-                                        <Typography variant="h5" fontWeight="700" color={vals.totalGain >= 0 ? 'success.main' : 'error.main'}>
+                                <Stack direction="row" spacing={2} divider={<Divider orientation="vertical" flexItem />} justifyContent="space-around" sx={{ mb: 2 }}>
+                                    <Box>
+                                        <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', display: 'block' }}>{t('Value', 'שווי')}</Typography>
+                                        <Typography variant="h6" fontWeight="700">{formatValue(vals.marketValue, displayCurrency)}</Typography>
+                                    </Box>
+                                    <Box>
+                                        <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', display: 'block' }}>{t('Total Gain', 'רווח כולל')}</Typography>
+                                        <Typography variant="h6" fontWeight="700" color={vals.totalGain >= 0 ? 'success.main' : 'error.main'}>
                                             {formatValue(vals.totalGain, displayCurrency)}
                                         </Typography>
                                         <Typography variant="caption" sx={{ display: 'block', mt: -0.5 }} color={vals.totalGain >= 0 ? 'success.main' : 'error.main'}>
-                                            {vals.totalGainPct > 0 ? '+' : ''}{(vals.totalGainPct * 100).toFixed(2)}%
+                                            {vals.totalGainPct > 0 ? '+' : ''}{formatPercent(vals.totalGainPct)}
                                         </Typography>
-                                    </Grid>
-                                    <Grid item xs={6} sm={3}>
-                                        <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase' }}>{t('Net Realized', 'מימוש נטו')}</Typography>
-                                        <Typography variant="h5" fontWeight="700" color={vals.realizedGainAfterTax >= 0 ? 'success.main' : 'error.main'}>
+                                    </Box>
+                                    <Box>
+                                        <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', display: 'block' }}>{t('Net Realized', 'מימוש נטו')}</Typography>
+                                        <Typography variant="h6" fontWeight="700" color={vals.realizedGainAfterTax >= 0 ? 'success.main' : 'error.main'}>
                                             {formatValue(vals.realizedGainAfterTax, displayCurrency)}
                                         </Typography>
-                                    </Grid>
-                                    <Grid item xs={6} sm={3}>
-                                        <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase' }}>{t('Unrealized', 'לא ממומש')}</Typography>
-                                        <Typography variant="h5" fontWeight="700" color={vals.unrealizedGain >= 0 ? 'success.main' : 'error.main'}>
+                                    </Box>
+                                    <Box>
+                                        <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', display: 'block' }}>{t('Unrealized', 'לא ממומש')}</Typography>
+                                        <Typography variant="h6" fontWeight="700" color={vals.unrealizedGain >= 0 ? 'success.main' : 'error.main'}>
                                             {formatValue(vals.unrealizedGain, displayCurrency)}
                                         </Typography>
                                         <Typography variant="caption" sx={{ display: 'block', mt: -0.5 }} color={vals.unrealizedGain >= 0 ? 'success.main' : 'error.main'}>
-                                            {vals.unrealizedGainPct > 0 ? '+' : ''}{(vals.unrealizedGainPct * 100).toFixed(2)}%
+                                            {vals.unrealizedGainPct > 0 ? '+' : ''}{formatPercent(vals.unrealizedGainPct)}
                                         </Typography>
-                                    </Grid>
-                                </Grid>
+                                    </Box>
+                                </Stack>
                                 
                                 <Divider sx={{ my: 2 }} />
                                 
                                 <Grid container spacing={2}>
                                     <Grid item xs={6} sm={3}>
                                         <Typography variant="caption" color="text.secondary">{t('Avg Cost', 'מחיר ממוצע')}</Typography>
-                                        <Typography variant="body1" fontWeight="500">{formatPrice(vals.avgCost, displayCurrency)}</Typography>
+                                        <Typography variant="body2" fontWeight="500">{formatPrice(vals.avgCost, displayCurrency)}</Typography>
                                     </Grid>
                                     <Grid item xs={6} sm={3}>
                                         <Typography variant="caption" color="text.secondary">{t('Quantity', 'כמות')}</Typography>
@@ -160,46 +178,61 @@ export function HoldingDetails({ holding, transactions, dividends, displayCurren
                                     </Grid>
                                     <Grid item xs={6} sm={3}>
                                         <Typography variant="caption" color="text.secondary">{t('Total Cost', 'עלות מקורית')}</Typography>
-                                        <Typography variant="body1" fontWeight="500">{formatValue(vals.costBasis, displayCurrency)}</Typography>
+                                        <Typography variant="body2" fontWeight="500">{formatValue(vals.costBasis, displayCurrency)}</Typography>
                                     </Grid>
                                     <Grid item xs={6} sm={3}>
                                         <Typography variant="caption" color="text.secondary">{t('Total Fees', 'סה"כ עמלות')}</Typography>
-                                        <Typography variant="body1" fontWeight="500">{formatValue(totalFeesDisplay, displayCurrency)}</Typography>
+                                        <Typography variant="body2" fontWeight="500">{formatValue(totalFeesDisplay, displayCurrency)}</Typography>
                                     </Grid>
                                 </Grid>
                             </Paper>
                         </Grid>
                         <Grid item xs={12} md={4}>
-                            <Paper variant="outlined" sx={{ p: 2, height: '100%', bgcolor: 'action.hover' }}>
-                                <Typography variant="subtitle2" gutterBottom fontWeight="bold">{t('Portfolio Info', 'פרטי תיק')}</Typography>
-                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                    {holdingsWeights.map(w => (
-                                        <Box key={w.portfolioId} sx={{ p: 1, border: '1px solid', borderColor: 'divider', borderRadius: 1, bgcolor: 'background.paper' }}>
-                                            <Link 
-                                                component="button" 
-                                                variant="body2" 
-                                                underline="hover" 
-                                                onClick={() => onPortfolioClick(w.portfolioId)}
-                                                sx={{ fontWeight: 'bold', mb: 0.5, textAlign: 'left' }}
-                                            >
-                                                {w.portfolioName}
-                                            </Link>
-                                            <Grid container spacing={1}>
-                                                <Grid item xs={6}>
-                                                    <Typography variant="caption" color="text.secondary" display="block">{t('Weight (Port.)', 'משקל (תיק)')}</Typography>
-                                                    <Typography variant="caption" fontWeight="bold">{formatPercent(w.weightInPortfolio)}</Typography>
-                                                </Grid>
-                                                <Grid item xs={6}>
-                                                    <Typography variant="caption" color="text.secondary" display="block">{t('Weight (Global)', 'משקל (כללי)')}</Typography>
-                                                    <Typography variant="caption" fontWeight="bold">{formatPercent(w.weightInGlobal)}</Typography>
-                                                </Grid>
-                                            </Grid>
+                            <Paper variant="outlined" sx={{ p: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
+                                <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 'bold', textTransform: 'uppercase', color: 'text.secondary' }}>
+                                    {t('Portfolio Distribution', 'התפלגות בתיקים')}
+                                </Typography>
+                                
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1, px: 1 }}>
+                                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 'bold' }}>{t('Portfolio', 'תיק')}</Typography>
+                                    <Box sx={{ display: 'flex', gap: 2 }}>
+                                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 'bold', minWidth: 90, textAlign: 'right' }}>{t('Value', 'שווי')}</Typography>
+                                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 'bold', minWidth: 110, textAlign: 'right' }}>{t('Weight in Portfolio', 'משקל בתיק')}</Typography>
+                                    </Box>
+                                </Box>
+                                <Divider sx={{ mb: 2 }} />
+
+                                <Stack spacing={1.5} sx={{ flex: 1, overflowY: 'auto' }}>
+                                    {holdingsWeights.map((w) => (
+                                        <Box key={w.portfolioId} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 1 }}>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, overflow: 'hidden', mr: 1 }}>
+                                                <Link
+                                                    component="button"
+                                                    variant="body2"
+                                                    underline="hover"
+                                                    onClick={() => onPortfolioClick(w.portfolioId)}
+                                                    sx={{ fontWeight: '600', textAlign: 'left', color: 'text.primary', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                                                >
+                                                    {w.portfolioName}
+                                                </Link>
+                                            </Box>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+                                                <Typography variant="body2" sx={{ minWidth: 90, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                                                    {formatValue(w.value, displayCurrency)}
+                                                </Typography>
+                                                <Box sx={{ minWidth: 110, textAlign: 'right' }}>
+                                                    <Typography variant="body2" fontWeight="bold" color="text.primary">
+                                                        {formatPercent(w.weightInPortfolio)}
+                                                    </Typography>
+                                                </Box>
+                                            </Box>
                                         </Box>
                                     ))}
-                                </Box>
-                                <Box sx={{ mt: 2 }}>
-                                    <Typography variant="caption" color="text.secondary">{t('Tax Policy', 'מדיניות מס')}</Typography>
-                                    <Typography variant="body2">{holding.exchange === 'TASE' ? t('Real Gain (Index linked)', 'רווח ריאלי (צמוד מדד)') : t('Nominal Gain', 'רווח נומינלי')}</Typography>
+                                </Stack>
+                                <Divider sx={{ my: 2 }} />
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 1 }}>
+                                    <Typography variant="body2" fontWeight="bold">{t('All portfolios', 'כל התיקים')}</Typography>
+                                    <Typography variant="body2" fontWeight="bold" color="primary.main">{formatPercent(totalGlobalWeight)}</Typography>
                                 </Box>
                             </Paper>
                         </Grid>
@@ -218,9 +251,12 @@ export function HoldingDetails({ holding, transactions, dividends, displayCurren
                                 </TableRow>
                             </TableHead>
                             <TableBody>
+                                {layers.length === 0 && (
+                                    <TableRow><TableCell colSpan={4} align="center" sx={{ py: 3, color: 'text.secondary' }}>{t('No buy transactions found.', 'לא נמצאו עסקאות קנייה.')}</TableCell></TableRow>
+                                )}
                                 {layers.map((layer, i) => (
                                     <TableRow key={i}>
-                                        <TableCell>{layer.date}</TableCell>
+                                        <TableCell>{formatDate(layer.date)}</TableCell>
                                         <TableCell align="right">{formatNumber(layer.qty)}</TableCell>
                                         <TableCell align="right">{formatPrice(layer.price || 0, layer.currency || 'USD')}</TableCell>
                                         <TableCell align="right">{formatValue((layer.qty || 0) * (layer.price || 0), layer.currency || 'USD')}</TableCell>
@@ -247,27 +283,25 @@ export function HoldingDetails({ holding, transactions, dividends, displayCurren
                                     <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>{t('Price', 'מחיר')}</TableCell>
                                     <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>{t('Value', 'שווי')}</TableCell>
                                     <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>{t('Fees', 'עמלות')}</TableCell>
-                                    <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>{t('Net Amount', 'סה"כ נטו')}</TableCell>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
                                 {txnHistory.map((txn, i) => {
                                     const rawValue = (txn.qty || 0) * (txn.price || 0);
                                     const fees = txn.commission || 0;
-                                    const netValue = txn.type === 'BUY' ? rawValue + fees : rawValue - fees;
-                                    const currency = txn.currency || 'USD';
+                                    const tickerCurrency = txn.currency || 'USD';
                                     
                                     return (
                                         <TableRow key={i} hover>
-                                            <TableCell>{txn.date}</TableCell>
+                                            <TableCell>{formatDate(txn.date)}</TableCell>
                                             <TableCell>
-                                                <Chip 
-                                                    label={t(txn.type, txn.type)} 
-                                                    size="small" 
-                                                    variant="outlined" 
-                                                    color={txn.type === 'BUY' ? 'primary' : txn.type === 'SELL' ? 'secondary' : 'default'}
-                                                    sx={{ fontSize: '0.65rem', height: 20 }}
-                                                />
+                                                <Typography 
+                                                    variant="caption" 
+                                                    fontWeight="bold"
+                                                    sx={{ color: txn.type === 'BUY' ? 'primary.main' : txn.type === 'SELL' ? 'secondary.main' : 'text.secondary' }}
+                                                >
+                                                    {t(txn.type, txn.type)}
+                                                </Typography>
                                             </TableCell>
                                             <TableCell sx={{ maxWidth: 100, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                                 <Tooltip title={enriched?.portfolioName || ''} enterTouchDelay={0} leaveTouchDelay={3000}>
@@ -275,13 +309,15 @@ export function HoldingDetails({ holding, transactions, dividends, displayCurren
                                                 </Tooltip>
                                             </TableCell>
                                             <TableCell align="right">{formatNumber(txn.qty)}</TableCell>
-                                            <TableCell align="right">{formatPrice(txn.price || 0, currency)}</TableCell>
-                                            <TableCell align="right">{formatValue(rawValue, currency)}</TableCell>
-                                            <TableCell align="right" sx={{ color: 'text.secondary' }}>{fees > 0 ? formatValue(fees, currency) : '-'}</TableCell>
-                                            <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatValue(netValue, currency)}</TableCell>
+                                            <TableCell align="right">{formatPrice(txn.price || 0, tickerCurrency)}</TableCell>
+                                            <TableCell align="right">{formatValue(rawValue, tickerCurrency)}</TableCell>
+                                            <TableCell align="right" sx={{ color: 'text.secondary' }}>{fees > 0 ? formatValue(fees, tickerCurrency) : '-'}</TableCell>
                                         </TableRow>
                                     );
                                 })}
+                                {txnHistory.length === 0 && (
+                                    <TableRow><TableCell colSpan={7} align="center" sx={{ py: 3, color: 'text.secondary' }}>{t('No transactions found.', 'לא נמצאו עסקאות.')}</TableCell></TableRow>
+                                )}
                             </TableBody>
                         </Table>
                     </Paper>
@@ -306,7 +342,7 @@ export function HoldingDetails({ holding, transactions, dividends, displayCurren
                             <TableBody>
                                 {divHistory.map((div, i) => (
                                     <TableRow key={i} hover>
-                                        <TableCell>{new Date(div.date).toLocaleDateString()}</TableCell>
+                                        <TableCell>{formatDate(div.date)}</TableCell>
                                         <TableCell align="right">{formatPrice(div.amount, stockCurrency)}</TableCell>
                                         <TableCell align="right">{formatNumber(div.heldQty)}</TableCell>
                                         <TableCell align="right" sx={{ fontWeight: 'bold', color: 'success.main' }}>
