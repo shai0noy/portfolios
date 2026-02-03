@@ -216,12 +216,12 @@ export const calculateHoldingDisplayValues = (h: DashboardHolding, displayCurren
     
     const realizedGain = proceeds - costOfSold;
     const realizedGainPct = costOfSold > 1e-6 ? realizedGain / costOfSold : 0;
-    const realizedGainAfterTax = realizedGain * 0.75; // Approx
+    const realizedGainAfterTax = convert(h.realizedGainAfterTax, h.portfolioCurrency);
 
     const totalGain = unrealizedGain + realizedGain + dividends;
     const totalGainPct = (costBasis + costOfSold) > 1e-6 ? totalGain / (costBasis + costOfSold) : 0;
     
-    const valueAfterTax = marketValue - (unrealizedGain > 0 ? unrealizedGain * 0.25 : 0);
+    const valueAfterTax = convert(h.valueAfterTax, h.portfolioCurrency);
 
     return {
         costBasis,

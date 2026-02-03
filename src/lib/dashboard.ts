@@ -12,60 +12,62 @@ import { SessionExpiredError } from './errors';
 import { useSession } from './SessionContext';
 
 /**
-
  * Helper to interpolate CPI from historical data.
-
  * Used for Israeli 'REAL_GAIN' tax policy where gains are adjusted for inflation.
-
  */
-
 const getCPI = (date: Date, cpiData: TickerData | null) => {
-
     if (!cpiData?.historical || cpiData.historical.length === 0) return 100;
-
     const timestamp = date.getTime();
-
     const history = cpiData.historical; // Assumed Date Descending
-
     
-
     // If date is NEWER than history, use the latest known value
-
     if (timestamp >= history[0].date.getTime()) return history[0].price;
 
-
-
     for (let i = 0; i < history.length - 1; i++) {
-
         const h1 = history[i]; // Newer
-
         const h2 = history[i+1]; // Older
-
-        
-
         if (timestamp <= h1.date.getTime() && timestamp >= h2.date.getTime()) {
-
             const t1 = h1.date.getTime();
-
             const t2 = h2.date.getTime();
-
             const ratio = (t1 === t2) ? 0 : (timestamp - t2) / (t1 - t2);
-
             return h2.price + (h1.price - h2.price) * ratio;
-
         }
-
     }
-
-    
-
     // If date is OLDER than history, use the oldest known value
-
     return history[history.length - 1].price;
-
 };
 
+/**
+ * Calculates the Taxable Gain under the 'REAL_GAIN' policy.
+ * Handles both:
+ * 1. ILS Assets: Adjusts for Inflation (CPI).
+ * 2. Foreign Assets: Adjusts for Exchange Rate (Taxable Gain = Min(Nominal, Real in Source Currency)).
+ */
+function computeRealTaxableGain(
+    nominalGainPC: number,
+    gainSC: number,
+    costBasisPC: number,
+    stockCurrency: Currency,
+    portfolioCurrency: Currency,
+    cpiStart: number,
+    cpiEnd: number,
+    exchangeRates: ExchangeRates
+): number {
+    let taxableGain = nominalGainPC;
 
+    if (portfolioCurrency === Currency.ILS && stockCurrency === Currency.ILS) {
+        // ILS Asset: Adjust for Inflation
+        const inflationRate = (cpiStart > 0) ? (cpiEnd / cpiStart) - 1 : 0;
+        const inflationAdj = Math.max(0, costBasisPC * inflationRate);
+        taxableGain -= inflationAdj;
+    } else if (portfolioCurrency !== stockCurrency) {
+        // Foreign Asset: Taxable Gain cannot exceed the Real Gain in the asset's base currency (converted to PC)
+        // This prevents paying tax on purely FX-driven "gains".
+        const realGainPC = convertCurrency(gainSC, stockCurrency, portfolioCurrency, exchangeRates);
+        taxableGain = Math.min(taxableGain, realGainPC);
+    }
+    return taxableGain;
+}
 
 /**
  * Data structure representing the aggregate performance of a portfolio or group of portfolios.
@@ -458,32 +460,32 @@ export function useDashboardData(sheetId: string, options: { includeUnvested: bo
           
           h.costOfSoldPortfolioCurrency += costOfSoldPC; h.proceedsPortfolioCurrency += txnValuePC; h.costBasisPortfolioCurrency -= costOfSoldPC;
           
+          const baseCPI = h.weightedAvgCPI || currentCPI;
+          const gainInSC = txnValueSC - (totalQty > 0 ? h.costBasisStockCurrency / totalQty : 0) * tQty;
+
           // REAL_GAIN Logic (Portfolio Currency Version)
-          let taxableGain = txnValuePC - costOfSoldPC;
-          if (h.portfolioCurrency === Currency.ILS && h.stockCurrency === Currency.ILS) {
-              const inflationAdj = Math.max(0, costOfSoldPC * ((currentCPI / (h.weightedAvgCPI || currentCPI)) - 1));
-              taxableGain -= inflationAdj;
-          } else if (h.portfolioCurrency !== h.stockCurrency) {
-              const avgCostSC = totalQty > 0 ? h.costBasisStockCurrency / totalQty : 0;
-              const costOfSoldSC = avgCostSC * tQty;
-              const gainInBase = txnValueSC - costOfSoldSC;
-              const taxableILSBase = convertCurrency(gainInBase, h.stockCurrency, h.portfolioCurrency, exchangeRates);
-              taxableGain = Math.min(taxableGain, taxableILSBase);
-          }
-          h.realizedTaxableGain += taxableGain;
+          h.realizedTaxableGain += computeRealTaxableGain(
+              txnValuePC - costOfSoldPC, // Nominal Gain PC
+              gainInSC,
+              costOfSoldPC,
+              h.stockCurrency,
+              h.portfolioCurrency,
+              baseCPI,
+              currentCPI,
+              exchangeRates
+          );
 
           // REAL_GAIN Logic (ILS Specific Version for Summary Tax Calc)
-          let taxableGainILS = (tQty * curPriceILS) - currentCostOfSoldILS;
-          if (h.stockCurrency === Currency.ILS) {
-              const inflationAdjILS = Math.max(0, currentCostOfSoldILS * ((currentCPI / (h.weightedAvgCPI || currentCPI)) - 1));
-              taxableGainILS -= inflationAdjILS;
-          } else {
-              const costOfSoldSC = (totalQty > 0 ? h.costBasisStockCurrency / totalQty : 0) * tQty;
-              const gainInSC = (tQty * (t.price || 0)) - costOfSoldSC;
-              const realGainILS = convertCurrency(gainInSC, h.stockCurrency, Currency.ILS, exchangeRates);
-              taxableGainILS = Math.min(taxableGainILS, realGainILS);
-          }
-          h.realizedTaxableGainILS += taxableGainILS;
+          h.realizedTaxableGainILS += computeRealTaxableGain(
+              (tQty * curPriceILS) - currentCostOfSoldILS, // Nominal Gain ILS
+              gainInSC,
+              currentCostOfSoldILS, // Cost Basis ILS
+              h.stockCurrency,
+              Currency.ILS,
+              baseCPI,
+              currentCPI,
+              exchangeRates
+          );
 
           h.costOfSoldStockCurrency += (totalQty > 0 ? h.costBasisStockCurrency / totalQty : 0) * tQty;
           h.costBasisStockCurrency -= (totalQty > 0 ? h.costBasisStockCurrency / totalQty : 0) * tQty;
@@ -551,27 +553,72 @@ export function useDashboardData(sheetId: string, options: { includeUnvested: bo
         h.totalGainPortfolioCurrency = h.unrealizedGainPortfolioCurrency + h.realizedGainPortfolioCurrency + h.dividendsPortfolioCurrency;
         
         const currentCPI = getCPI(new Date(), realCpi);
-        let taxableUnrealized = h.unrealizedGainPortfolioCurrency;
-        if (h.portfolioCurrency === Currency.ILS && h.stockCurrency === Currency.ILS) {
-            taxableUnrealized -= Math.max(0, h.costBasisPortfolioCurrency * ((currentCPI / (h.weightedAvgCPI || currentCPI)) - 1));
-        } else if (h.portfolioCurrency !== h.stockCurrency) {
-            const gainInSC = (h.totalQty * h.currentPrice) - h.costBasisStockCurrency;
-            const realGainPC = convertCurrency(gainInSC, h.stockCurrency, h.portfolioCurrency, exchangeRates);
-            taxableUnrealized = Math.min(taxableUnrealized, realGainPC);
-        }
-        h.unrealizedTaxableGain = taxableUnrealized;
+        const baseCPI = h.weightedAvgCPI || currentCPI;
+        const gainInSC = (h.totalQty * h.currentPrice) - h.costBasisStockCurrency;
 
+        // Calculate Unrealized Taxable Gain (Real Gain Policy)
+        h.unrealizedTaxableGain = computeRealTaxableGain(
+            h.unrealizedGainPortfolioCurrency, // Nominal Gain PC
+            gainInSC,
+            h.costBasisPortfolioCurrency,
+            h.stockCurrency,
+            h.portfolioCurrency,
+            baseCPI,
+            currentCPI,
+            exchangeRates
+        );
+
+        // Calculate Unrealized Taxable Gain in ILS (For Tax Calc)
         const priceInILS = convertCurrency(h.currentPrice, h.stockCurrency, Currency.ILS, exchangeRates);
-        let taxableUnrealizedILS = (h.totalQty * priceInILS) - h.costBasisILS;
-        if (h.stockCurrency === Currency.ILS) {
-            taxableUnrealizedILS -= Math.max(0, h.costBasisILS * ((currentCPI / (h.weightedAvgCPI || currentCPI)) - 1));
-        } else {
-            const gainInSC = (h.totalQty * h.currentPrice) - h.costBasisStockCurrency;
-            const realGainILS = convertCurrency(gainInSC, h.stockCurrency, Currency.ILS, exchangeRates);
-            taxableUnrealizedILS = Math.min(taxableUnrealizedILS, realGainILS);
-        }
-        h.unrealizedTaxableGainILS = taxableUnrealizedILS;
+        const mvILS = h.totalQty * priceInILS;
+        h.unrealizedTaxableGainILS = computeRealTaxableGain(
+            mvILS - h.costBasisILS, // Nominal Gain ILS
+            gainInSC,
+            h.costBasisILS,
+            h.stockCurrency,
+            Currency.ILS,
+            baseCPI,
+            currentCPI,
+            exchangeRates
+        );
+
         h.totalMV = h.marketValuePortfolioCurrency;
+
+        // Per-Holding Independent Tax Calculation
+        const p = newPortMap.get(h.portfolioId);
+        let cgt = p?.cgt ?? 0.25;
+        let incTax = p?.incTax ?? 0;
+        if (p?.taxPolicy === 'TAX_FREE') { cgt = 0; incTax = 0; }
+
+        const isReit = h.type?.type === InstrumentType.STOCK_REIT;
+        
+        // 1. Realized Tax (on Gains + Dividends)
+        // Capital Gains (Always Standard Bucket)
+        const cgtLiabilityILS = Math.max(0, h.realizedTaxableGainILS) * cgt; 
+        
+        // Dividend Tax
+        let divTaxILS = 0;
+        if (isReit && incTax > 0) divTaxILS = h.dividendsILS * incTax;
+        else divTaxILS = h.dividendsILS * cgt;
+
+        const totalRealizedTaxILS = cgtLiabilityILS + divTaxILS;
+        const totalRealizedTaxPC = convertCurrency(totalRealizedTaxILS, Currency.ILS, h.portfolioCurrency, exchangeRates);
+        
+        // Net Realized Return = (Trading Gain + Dividends) - Tax
+        h.realizedGainAfterTax = (h.realizedGainPortfolioCurrency + h.dividendsPortfolioCurrency) - totalRealizedTaxPC;
+
+        // 2. Unrealized Tax (Latent Liability)
+        // CGT on Unrealized
+        const unrealizedTaxILS = Math.max(0, h.unrealizedTaxableGainILS) * cgt;
+        
+        // Wealth Tax (Income Tax on Base)
+        const wealthTaxILS = h.costBasisILS * incTax; // Assumes incTax applies to base
+
+        const totalUnrealizedLiabilityILS = unrealizedTaxILS + wealthTaxILS;
+        const totalUnrealizedLiabilityPC = convertCurrency(totalUnrealizedLiabilityILS, Currency.ILS, h.portfolioCurrency, exchangeRates);
+
+        // Net Value = Market Value - Latent Tax
+        h.valueAfterTax = h.marketValuePortfolioCurrency - totalUnrealizedLiabilityPC;
       });
       setHoldings(Array.from(holdingMap.values()));
     } catch (e) {
