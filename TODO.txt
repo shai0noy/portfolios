@@ -14,7 +14,6 @@ Check crypto 1d change?...
 Discovery/selling points splash page
 tase types vs globes types??
 If there is no sheet document ID, do not show the "create first portfolio" screen, rather, you should send the user to exisitng the screen to enter an existing sheet ID or create one
-Make sure that div sheet rebuilding handles duplicates well.
 Handle RSU style and Gemmel/Pension style div policy 
 Support IRS/Gemmel/Pension sell/reassign model
 ON HOLD: Handle splits, etc, name changes
@@ -24,6 +23,7 @@ When changing fields in "Add portfolio", it is very slow and laggy. Need a way t
 Refine set of defaults columns shown
 Check why seeing negative realized reutrn in LUMI
 Update test data (no more divs there) need DIV test data too
+Add all potfolios + "total" portfolio as comperission options to tickers and to the analysis table. Make sure not to allow comperission of portfolio to itself in the summary component
 
 Low priority:
 - Smart layer based tax calc (FIFO selling and per layer taxing)
@@ -32,6 +32,7 @@ Low priority:
 - ON HOLD: Use Gemini for anlysis and insight
 - ON HOLD: Forcast mode, where future txns, vesting are taken into account, and growth of holding is predicted based on custom uesr input or recent trends. Should also include taxes
 
+DONE: Make sure that div sheet rebuilding handles duplicates well.
 DONE: Use taxetion. real gains, etc logic from summary in the dashboard table
 DONE: Handle Reit taxing
 DONE: Dashbaord header - portfolio pct grow should take into account the the amount of stock and buy date etc

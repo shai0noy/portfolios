@@ -403,11 +403,7 @@ export function useDashboardData(sheetId: string, options: { includeUnvested: bo
 
       sheetDividends.forEach(d => {
           const dateKey = d.date.toISOString().split('T')[0];
-          // Deduplicate: Manual DIVIDEND transactions take precedence over external/auto-synced ones.
-          const hasManual = txns.some(t => t.ticker === d.ticker && t.type === 'DIVIDEND' && t.date.startsWith(dateKey) && Math.abs((t.price || 0) - d.amount) < 0.001);
-          if (!hasManual) {
-              combinedEvents.push({ kind: 'DIV_EVENT', date: dateKey, ticker: d.ticker, exchange: d.exchange, amountPerShare: d.amount });
-          }
+          combinedEvents.push({ kind: 'DIV_EVENT', date: dateKey, ticker: d.ticker, exchange: d.exchange, amountPerShare: d.amount });
       });
 
       combinedEvents.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -549,8 +545,6 @@ export function useDashboardData(sheetId: string, options: { includeUnvested: bo
               h.costBasisUSD = 0;
               h.costBasisStockCurrency = 0;
           }
-        } else if (t.type === 'DIVIDEND') {
-          h.dividendsPortfolioCurrency += txnValuePC; h.dividendsStockCurrency += txnValueSC; h.dividendsUSD += tQty * priceInUSD; h.dividendsILS += tQty * priceInILS;
         } else if (t.type === 'FEE') {
             const feePC = convertCurrency((h.stockCurrency === Currency.ILA ? t.price! / 100 : t.price!) * (t.qty || 1), h.stockCurrency === Currency.ILA ? Currency.ILS : h.stockCurrency, h.portfolioCurrency, exchangeRates);
             h.totalFeesPortfolioCurrency += feePC;

@@ -648,7 +648,7 @@ export const syncDividends = withAuthHandling(async (spreadsheetId: string, tick
 
     const gapi = await ensureGapi();
     try {
-        // 1. Fetch existing dividends for this ticker to avoid duplicates
+        // 1. Fetch existing dividends for this ticker from the DIVIDENDS sheet
         const res = await gapi.client.sheets.spreadsheets.values.get({
             spreadsheetId,
             range: DIVIDENDS_RANGE,
@@ -656,11 +656,13 @@ export const syncDividends = withAuthHandling(async (spreadsheetId: string, tick
         });
         const rows = res.result.values || [];
         
-        // Use a set of keys for efficient lookup: "EXCHANGE:TICKER:DATE:AMOUNT"
-        const existingKeys = new Set(rows.map(row => {
+        const manualDates = new Set<string>();
+        const exactMatches = new Set<string>();
+
+        rows.forEach(row => {
             const rowEx = String(row[0]);
             const rowTicker = String(row[1]);
-            // Date might be number (OADate) or string
+            
             let rowDate: string;
             if (typeof row[2] === 'number') {
                 const date = new Date((row[2] - 25569) * 86400 * 1000);
@@ -668,16 +670,30 @@ export const syncDividends = withAuthHandling(async (spreadsheetId: string, tick
             } else {
                 rowDate = new Date(row[2]).toISOString().split('T')[0];
             }
+            
             const rowAmount = Number(row[3]).toFixed(6);
-            return `${rowEx}:${rowTicker}:${rowDate}:${rowAmount}`;
-        }));
+            const rowSource = String(row[4] || '').toUpperCase();
+
+            const commonPrefix = `${rowEx}:${rowTicker}:${rowDate}`;
+            
+            if (rowSource === 'MANUAL') {
+                manualDates.add(commonPrefix);
+            }
+            exactMatches.add(`${commonPrefix}:${rowAmount}`);
+        });
 
         const newRows = dividends
             .map(div => {
                 const dateStr = div.date.toISOString().split('T')[0];
                 const amountStr = div.amount.toFixed(6);
-                const key = `${exchange}:${ticker}:${dateStr}:${amountStr}`;
-                if (existingKeys.has(key)) return null;
+                const prefix = `${toGoogleSheetsExchangeCode(exchange)}:${ticker.toUpperCase()}:${dateStr}`;
+                
+                // Rule 1: If a MANUAL entry exists for this date, ignore the incoming auto-dividend.
+                // This allows users to "override" Yahoo data by entering a manual row.
+                if (manualDates.has(prefix)) return null;
+
+                // Rule 2: If an exact match exists (same amount), ignore to prevent duplicates.
+                if (exactMatches.has(`${prefix}:${amountStr}`)) return null;
                 
                 return [
                     toGoogleSheetsExchangeCode(exchange),
