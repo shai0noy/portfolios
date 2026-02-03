@@ -1,10 +1,11 @@
-import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, Box, Chip, CircularProgress, Tooltip, IconButton, ToggleButtonGroup, ToggleButton, Menu, MenuItem, ListItemIcon } from '@mui/material';
+import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, Box, Chip, CircularProgress, Tooltip, IconButton, ToggleButtonGroup, ToggleButton, Menu, MenuItem, ListItemIcon, Divider } from '@mui/material';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useLanguage } from '../lib/i18n';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
 import { TickerChart } from './TickerChart';
@@ -12,9 +13,12 @@ import type { TickerProfile } from '../lib/types/ticker';
 import { useChartComparison, getAvailableRanges, getMaxLabel, SEARCH_OPTION_TICKER } from '../lib/hooks/useChartComparison';
 import { useTickerDetails, type TickerDetailsProps } from '../lib/hooks/useTickerDetails';
 import { TickerSearch } from './TickerSearch';
-import { Exchange } from '../lib/types';
-import { formatPrice, formatPercent } from '../lib/currency';
+import { Exchange, type Transaction, type ExchangeRates } from '../lib/types';
+import { formatPrice, formatPercent, getExchangeRates, normalizeCurrency } from '../lib/currency';
 import { AnalysisDialog } from './AnalysisDialog';
+import { HoldingDetails } from './HoldingDetails';
+import { fetchTransactions, fetchAllDividends } from '../lib/sheets';
+import type { EnrichedDashboardHolding } from '../lib/dashboard';
 
 const formatDate = (timestamp?: Date | string | number | null) => {
   if (!timestamp) return 'N/A';
@@ -33,6 +37,7 @@ const formatTimestamp = (timestamp?: Date | string | number | null) => {
 
 export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExchange, numericId: propNumericId, initialName: propInitialName, initialNameHe: propInitialNameHe, onClose, portfolios = [], isPortfoliosLoading = false }: TickerDetailsProps) {
     const { t, tTry } = useLanguage();
+    const location = useLocation() as any;
     const {
         ticker, exchange, data, holdingData, historicalData, loading, error, refreshing,
         sheetRebuildTime, handleRefresh, displayData, resolvedName, resolvedNameHe,
@@ -49,6 +54,77 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
     const [compareMenuAnchor, setCompareMenuAnchor] = useState<null | HTMLElement>(null);
     const [analysisOpen, setAnalysisOpen] = useState(false);
 
+    // Holding Details Data
+    const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
+    const [allDividends, setAllDividends] = useState<any[]>([]); 
+    const [exchangeRates, setExchangeRates] = useState<ExchangeRates | null>(null);
+    const [contextLoading, setContextLoading] = useState(false);
+
+    // Resolve the "Active Holding" - from navigation state (enriched) or hook
+    const enrichedHolding = useMemo(() => {
+        const stateHolding = location.state?.holding;
+        if (stateHolding && stateHolding.ticker === ticker) return stateHolding as EnrichedDashboardHolding;
+        
+        // Note: If missing from state, we show HoldingDetails with raw holdingData.
+        // It will display "Calculating..." if enriched fields are missing.
+        return holdingData as any;
+    }, [location.state, ticker, holdingData]);
+
+    useEffect(() => {
+        if (holdingData || location.state?.holding) {
+            setContextLoading(true);
+            const fetchContext = async () => {
+                try {
+                    const [txns, rates, divs] = await Promise.all([
+                        fetchTransactions(sheetId),
+                        getExchangeRates(sheetId),
+                        fetchAllDividends(sheetId)
+                    ]);
+                    setAllTransactions(txns);
+                    setExchangeRates(rates);
+                    setAllDividends(divs);
+                } catch (e) {
+                    console.error("Failed to load holding context:", e);
+                } finally {
+                    setContextLoading(false);
+                }
+            };
+            fetchContext();
+        }
+    }, [holdingData, sheetId]);
+
+    // Calculate Weights across all portfolios
+    const holdingsWeights = useMemo(() => {
+        if (!portfolios || portfolios.length === 0) return [];
+        
+        let totalAum = 0;
+        portfolios.forEach(p => {
+             const pValue = p.holdings?.reduce((sum, h) => sum + (h.totalValue || 0), 0) || 0;
+             totalAum += pValue;
+        });
+
+        const results: any[] = [];
+        portfolios.forEach(p => {
+            const h = p.holdings?.find(h => h.ticker === ticker && h.exchange === exchange);
+            if (h) {
+                const pValue = p.holdings?.reduce((sum, h) => sum + (h.totalValue || 0), 0) || 0;
+                results.push({
+                    portfolioId: p.id,
+                    portfolioName: p.name,
+                    weightInPortfolio: pValue > 0 ? (h.totalValue || 0) / pValue : 0,
+                    weightInGlobal: totalAum > 0 ? (h.totalValue || 0) / totalAum : 0,
+                    value: h.totalValue
+                });
+            }
+        });
+        return results;
+    }, [portfolios, ticker, exchange]);
+
+    const handlePortfolioClick = (id: string) => {
+        onClose?.(); // Close dialog
+        navigate(`/portfolios/${id}`);
+    };
+
     const handleTickerSearchSelect = (tickerProfile: TickerProfile) => {
         handleSelectComparison({
             ticker: tickerProfile.symbol,
@@ -59,7 +135,6 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
     };
 
     const oldestDate = historicalData?.[0]?.date;
-    
     const availableRanges = useMemo(() => getAvailableRanges(oldestDate), [oldestDate]);
     const maxLabel = useMemo(() => getMaxLabel(oldestDate), [oldestDate]);
 
@@ -123,23 +198,13 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
 
     const parseExposureProfile = (profile: string | undefined) => {
         if (!profile || profile.length < 2) return null;
-        
         const stockChar = profile[0];
         const forexChar = profile[1].toUpperCase();
-
-        const stockMap: Record<string, string> = {
-            '0': '0%', '1': '<10%', '2': '<30%', '3': '<50%', '4': '<120%', '5': '<200%', '6': '>200%'
-        };
-        const forexMap: Record<string, string> = {
-            '0': '0%', 
-            'A': '<10%', 'B': '<30%', 'C': '<50%', 'D': '<120%', 'E': '<200%', 'F': '>200%',
-        };
-
+        const stockMap: Record<string, string> = { '0': '0%', '1': '<10%', '2': '<30%', '3': '<50%', '4': '<120%', '5': '<200%', '6': '>200%' };
+        const forexMap: Record<string, string> = { '0': '0%', 'A': '<10%', 'B': '<30%', 'C': '<50%', 'D': '<120%', 'E': '<200%', 'F': '>200%', };
         const stockExp = stockMap[stockChar];
-        const forexExp = forexMap[forexChar]; // Ensure case-insensitive for letters
-
+        const forexExp = forexMap[forexChar];
         if (!stockExp && !forexExp) return null;
-
         return { stock: stockExp, forex: forexExp };
     };
 
@@ -148,7 +213,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
     return (
         <>
             <Dialog open={true} onClose={handleClose} maxWidth={false} fullWidth PaperProps={{ sx: { width: 'min(900px, 96%)', m: 1 } }}>
-            <DialogTitle sx={{ p: 2 }}>
+                <DialogTitle sx={{ p: 2 }}>
                     <Box display="flex" justifyContent="space-between" alignItems="flex-start">
                         <Box sx={{ flex: 1, minWidth: 0, pr: 2 }}>
                             <Box display="flex" alignItems="center" gap={1}>
@@ -169,25 +234,13 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                                 {(() => {
                                     if (!exposure || !displayData?.meta || !('exposureProfile' in displayData.meta)) return null;
                                     const profileCode = displayData.meta.exposureProfile;
-                                    
                                     const tooltipParts = [];
                                     if (exposure.stock) tooltipParts.push(`${t('Stocks', 'מניות')}: ${exposure.stock}`);
                                     if (exposure.forex) tooltipParts.push(`${t('Forex', 'מט"ח')}: ${exposure.forex}`);
-                                    
                                     if (tooltipParts.length === 0) return null;
-
                                     return (
                                         <Tooltip title={tooltipParts.join(' | ')} arrow enterTouchDelay={0} leaveTouchDelay={3000}>
-                                            <Chip 
-                                                label={
-                                                    <Box display="flex" alignItems="center">
-                                                        {t('Exposure', 'חשיפה')}: {profileCode}
-                                                        <InfoOutlinedIcon sx={{ fontSize: '0.9rem', ml: 0.5, opacity: 0.7 }} />
-                                                    </Box>
-                                                } 
-                                                size="small" 
-                                                variant="outlined" 
-                                            />
+                                            <Chip label={<Box display="flex" alignItems="center">{t('Exposure', 'חשיפה')}: {profileCode}<InfoOutlinedIcon sx={{ fontSize: '0.9rem', ml: 0.5, opacity: 0.7 }} /></Box>} size="small" variant="outlined" />
                                         </Tooltip>
                                     );
                                 })()}
@@ -279,6 +332,25 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                                 ))}
                             </Box>
                           </>
+                        )}
+
+                        {enrichedHolding && (
+                            <Box sx={{ mt: 4 }}>
+                                <Divider sx={{ mb: 3 }} />
+                                {contextLoading ? (
+                                    <Box display="flex" justifyContent="center" p={4}><CircularProgress size={30} /></Box>
+                                ) : exchangeRates ? (
+                                    <HoldingDetails 
+                                        holding={enrichedHolding || holdingData} 
+                                        transactions={allTransactions} 
+                                        dividends={allDividends}
+                                        displayCurrency={normalizeCurrency(localStorage.getItem('displayCurrency') || 'USD')} 
+                                        exchangeRates={exchangeRates}
+                                        holdingsWeights={holdingsWeights}
+                                        onPortfolioClick={handlePortfolioClick}
+                                    />
+                                ) : null}
+                            </Box>
                         )}
                      </>}
                 </DialogContent>

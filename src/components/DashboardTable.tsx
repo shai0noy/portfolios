@@ -94,6 +94,7 @@ export function DashboardTable(props: TableProps) {
       case 'avgCost': return h.display.avgCost;
       case 'costBasis': return h.display.costBasis;
       case 'currentPrice': return h.display.currentPrice;
+      case 'weight': return h.display.weightInPortfolio;
       case 'dayChangePct': return h.display.dayChangePct;
       case 'dayChangeVal': return h.display.dayChangeVal;
       case 'marketValue': return h.display.marketValue;
@@ -163,6 +164,7 @@ export function DashboardTable(props: TableProps) {
                 {columnVisibility.avgCost ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'avgCost')} align="right"><TableSortLabel active={sortBy === 'avgCost'} direction={sortDir} onClick={() => handleSort('avgCost')}>{t('Avg Cost', 'עלות ממוצעת')}</TableSortLabel></TableCell> : null}
                 {columnVisibility.costBasis ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'costBasis')} align="right"><TableSortLabel active={sortBy === 'costBasis'} direction={sortDir} onClick={() => handleSort('costBasis')}>{t('Cost Basis', 'עלות מקורית')}</TableSortLabel></TableCell> : null}
                 {columnVisibility.currentPrice ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'currentPrice')} align="right"><TableSortLabel active={sortBy === 'currentPrice'} direction={sortDir} onClick={() => handleSort('currentPrice')}>{t('Current Price', 'מחיר נוכחי')}</TableSortLabel></TableCell> : null}
+                {columnVisibility.weight ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'weight')} align="right"><TableSortLabel active={sortBy === 'weight'} direction={sortDir} onClick={() => handleSort('weight')}>{t('Weight', 'משקל')}</TableSortLabel></TableCell> : null}
                 
                 {/* Split Day Change Columns */}
                 {columnVisibility.dayChangeVal ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'dayChangeVal')} align="right"><TableSortLabel active={sortBy === 'dayChangeVal'} direction={sortDir} onClick={() => handleSort('dayChangeVal')}>{t('Day Change $', 'שינוי יומי')}</TableSortLabel></TableCell> : null}
@@ -204,6 +206,7 @@ export function DashboardTable(props: TableProps) {
                     {columnVisibility.avgCost ? <TableCell align="right">{formatPrice(convertCurrency(vals.avgCost, displayCurrency, priceDisplayCurrency, exchangeRates), priceDisplayCurrency, 2, t)}</TableCell> : null}
                     {columnVisibility.costBasis ? <TableCell align="right">{formatValue(vals.costBasis, displayCurrency, 2, t)}</TableCell> : null}
                     {columnVisibility.currentPrice ? <TableCell align="right">{formatPrice(convertCurrency(vals.currentPrice, displayCurrency, priceDisplayCurrency, exchangeRates), priceDisplayCurrency, 2, t)}</TableCell> : null}
+                    {columnVisibility.weight ? <TableCell align="right" sx={{ color: 'text.secondary' }}>{formatPct(groupByPortfolio ? vals.weightInPortfolio : vals.weightInGlobal)}</TableCell> : null}
                     {columnVisibility.dayChangeVal ? <TableCell align="right" sx={{ color: vals.dayChangePct >= 0 ? theme.palette.success.main : theme.palette.error.main }}>{formatValue(vals.dayChangeVal, displayCurrency, 2, t)}</TableCell> : null}
                     {columnVisibility.dayChangePct ? <TableCell align="right" sx={{ color: vals.dayChangePct >= 0 ? theme.palette.success.main : theme.palette.error.main }}>{formatPct(vals.dayChangePct)}</TableCell> : null}
                     {columnVisibility.mv ? <TableCell align="right">{formatValue(vals.marketValue, displayCurrency, 2, t)}</TableCell> : null}

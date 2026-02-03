@@ -122,6 +122,8 @@ export interface DashboardHoldingDisplay {
     dividends: number;
     currentPrice: number;
     avgCost: number;
+    weightInPortfolio: number;
+    weightInGlobal: number;
 }
 
 export interface EnrichedDashboardHolding extends DashboardHolding {
@@ -188,6 +190,7 @@ export function calculateDashboardSummary(data: DashboardHolding[], displayCurre
   const portfolioAcc: Record<string, {
       costBasisTotalILS: number;
       feesILS: number;
+      aum: number;
       ils: {
           std: { unrealized: number; realized: number; },
           reit: { realized: number; }
@@ -228,7 +231,9 @@ export function calculateDashboardSummary(data: DashboardHolding[], displayCurre
         dayChangeVal: dayChangeTotal,
         dayChangePct: dayChangePct,
         currentPrice: convertCurrency(h.currentPrice, h.stockCurrency, displayCurrency, exchangeRates),
-        avgCost: convertCurrency(h.avgCost, h.stockCurrency, displayCurrency, exchangeRates)
+        avgCost: convertCurrency(h.avgCost, h.stockCurrency, displayCurrency, exchangeRates),
+        weightInPortfolio: 0,
+        weightInGlobal: 0
     };
 
     enrichedHoldings.push({ ...h, display: displayVals });
@@ -245,6 +250,7 @@ export function calculateDashboardSummary(data: DashboardHolding[], displayCurre
         portfolioAcc[h.portfolioId] = { 
             costBasisTotalILS: 0,
             feesILS: 0,
+            aum: 0,
             ils: { 
                 std: { unrealized: 0, realized: 0 },
                 reit: { realized: 0 }
@@ -254,6 +260,7 @@ export function calculateDashboardSummary(data: DashboardHolding[], displayCurre
     const pAcc = portfolioAcc[h.portfolioId];
     pAcc.costBasisTotalILS += h.costBasisILS;
     pAcc.feesILS += convertCurrency(h.totalFeesPortfolioCurrency, h.portfolioCurrency, Currency.ILS, exchangeRates);
+    pAcc.aum += vals.marketValue;
 
     let taxableUnrealizedILS = 0;
     let taxableRealizedILS = 0;
@@ -294,6 +301,13 @@ export function calculateDashboardSummary(data: DashboardHolding[], displayCurre
         globalAcc[`holdingsFor_${key}`]++;
       }
     }
+  });
+
+  // Calculate Weights (Pass 2)
+  enrichedHoldings.forEach(h => {
+      const pAum = portfolioAcc[h.portfolioId]?.aum || 0;
+      h.display.weightInPortfolio = pAum > 0 ? h.display.marketValue / pAum : 0;
+      h.display.weightInGlobal = globalAcc.aum > 0 ? h.display.marketValue / globalAcc.aum : 0;
   });
 
   // 2. Calculate Final Tax Liability (In ILS) and apply to Display Summary
