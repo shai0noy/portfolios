@@ -5,7 +5,7 @@ import {
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'; 
-import { formatNumber, formatValue, convertCurrency } from '../lib/currency';
+import { formatNumber, formatValue, convertCurrency, formatPrice } from '../lib/currency';
 import { logIfFalsy } from '../lib/utils';
 import { useNavigate } from 'react-router-dom';
 import type { ExchangeRates } from '../lib/types';
@@ -92,6 +92,7 @@ export function DashboardTable(props: TableProps) {
       case 'type': return h.type ? t(h.type.nameEn, h.type.nameHe) : '';
       case 'qty': return h.totalQty;
       case 'avgCost': return h.display.avgCost;
+      case 'costBasis': return h.display.costBasis;
       case 'currentPrice': return h.display.currentPrice;
       case 'dayChangePct': return h.display.dayChangePct;
       case 'dayChangeVal': return h.display.dayChangeVal;
@@ -160,6 +161,7 @@ export function DashboardTable(props: TableProps) {
                 {columnVisibility.sector ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'sector')}><TableSortLabel active={sortBy === 'sector'} direction={sortDir} onClick={() => handleSort('sector')}>{t('Sector', 'סקטור')}</TableSortLabel></TableCell> : null}
                 {columnVisibility.qty ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'qty')} align="right"><TableSortLabel active={sortBy === 'qty'} direction={sortDir} onClick={() => handleSort('qty')}>{t('Quantity', 'כמות')}</TableSortLabel></TableCell> : null}
                 {columnVisibility.avgCost ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'avgCost')} align="right"><TableSortLabel active={sortBy === 'avgCost'} direction={sortDir} onClick={() => handleSort('avgCost')}>{t('Avg Cost', 'עלות ממוצעת')}</TableSortLabel></TableCell> : null}
+                {columnVisibility.costBasis ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'costBasis')} align="right"><TableSortLabel active={sortBy === 'costBasis'} direction={sortDir} onClick={() => handleSort('costBasis')}>{t('Cost Basis', 'עלות מקורית')}</TableSortLabel></TableCell> : null}
                 {columnVisibility.currentPrice ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'currentPrice')} align="right"><TableSortLabel active={sortBy === 'currentPrice'} direction={sortDir} onClick={() => handleSort('currentPrice')}>{t('Current Price', 'מחיר נוכחי')}</TableSortLabel></TableCell> : null}
                 
                 {/* Split Day Change Columns */}
@@ -185,6 +187,10 @@ export function DashboardTable(props: TableProps) {
                 const displayedUnvestedValue = h.mvUnvested;
                 
                 const vals = h.display;
+                
+                // Special display logic for ILS: Show unit prices in Agorot (ILA) ONLY if the stock is natively ILS/ILA
+                const showInILA = displayCurrency === 'ILS' && (h.stockCurrency === 'ILS' || h.stockCurrency === 'ILA');
+                const priceDisplayCurrency = showInILA ? 'ILA' : displayCurrency;
 
                 return (
                   <TableRow key={h.key} hover onClick={() => navigate(`/ticker/${h.exchange.toUpperCase()}/${h.ticker}`, { state: { holding: h, from: '/dashboard' } })} sx={{ cursor: 'pointer' }}>
@@ -195,8 +201,9 @@ export function DashboardTable(props: TableProps) {
                     </TableCell> : null}
                     {columnVisibility.sector ? <TableCell>{h.sector}</TableCell> : null}
                     {columnVisibility.qty ? <TableCell align="right">{formatNumber(h.totalQty)}</TableCell> : null}
-                    {columnVisibility.avgCost ? <TableCell align="right">{formatValue(vals.avgCost, displayCurrency, 2, t)}</TableCell> : null}
-                    {columnVisibility.currentPrice ? <TableCell align="right">{formatValue(vals.currentPrice, displayCurrency, 2, t)}</TableCell> : null}
+                    {columnVisibility.avgCost ? <TableCell align="right">{formatPrice(convertCurrency(vals.avgCost, displayCurrency, priceDisplayCurrency, exchangeRates), priceDisplayCurrency, 2, t)}</TableCell> : null}
+                    {columnVisibility.costBasis ? <TableCell align="right">{formatValue(vals.costBasis, displayCurrency, 2, t)}</TableCell> : null}
+                    {columnVisibility.currentPrice ? <TableCell align="right">{formatPrice(convertCurrency(vals.currentPrice, displayCurrency, priceDisplayCurrency, exchangeRates), priceDisplayCurrency, 2, t)}</TableCell> : null}
                     {columnVisibility.dayChangeVal ? <TableCell align="right" sx={{ color: vals.dayChangePct >= 0 ? theme.palette.success.main : theme.palette.error.main }}>{formatValue(vals.dayChangeVal, displayCurrency, 2, t)}</TableCell> : null}
                     {columnVisibility.dayChangePct ? <TableCell align="right" sx={{ color: vals.dayChangePct >= 0 ? theme.palette.success.main : theme.palette.error.main }}>{formatPct(vals.dayChangePct)}</TableCell> : null}
                     {columnVisibility.mv ? <TableCell align="right">{formatValue(vals.marketValue, displayCurrency, 2, t)}</TableCell> : null}
