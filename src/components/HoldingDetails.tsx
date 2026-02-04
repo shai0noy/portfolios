@@ -1,4 +1,4 @@
-import { Box, Typography, Paper, Table, TableBody, TableCell, TableHead, TableRow, Grid, Chip, Divider, Tabs, Tab, Tooltip, Link, Stack } from '@mui/material';
+import { Box, Typography, Paper, Table, TableBody, TableCell, TableHead, TableRow, Grid, Divider, Tabs, Tab, Tooltip, Link, Stack } from '@mui/material';
 import { formatValue, formatNumber, formatPrice, convertCurrency, formatPercent } from '../lib/currency';
 import { useLanguage } from '../lib/i18n';
 import type { DashboardHolding, Transaction, ExchangeRates, Holding } from '../lib/types';
@@ -105,13 +105,7 @@ export function HoldingDetails({ holding, transactions, dividends, displayCurren
         return holdingsWeights.reduce((sum, w) => sum + w.weightInGlobal, 0);
     }, [holdingsWeights]);
 
-    if (!vals) {
-        return (
-            <Box sx={{ p: 2, textAlign: 'center' }}>
-                <Typography color="text.secondary">{t('Calculating holding details...', 'מחשב פרטי החזקה...')}</Typography>
-            </Box>
-        );
-    }
+    const portfolioName = enriched?.portfolioName || holdingsWeights.find(w => w.portfolioId === holding.portfolioId)?.portfolioName || '';
 
     return (
         <Box sx={{ mt: 2 }}>
@@ -126,68 +120,103 @@ export function HoldingDetails({ holding, transactions, dividends, displayCurren
             {/* TAB 0: OVERVIEW */}
             {tabValue === 0 && (
                 <Box>
+                  {!vals ? (
+                     <Box sx={{ p: 2, textAlign: 'center' }}>
+                         <Typography color="text.secondary">{t('Calculating holding details...', 'מחשב פרטי החזקה...')}</Typography>
+                     </Box>
+                  ) : (
+                    <>
                     {/* 1. Key Metrics */}
                     <Typography variant="h6" gutterBottom color="primary" sx={{ fontWeight: 'bold' }}>
                         {t('My Position', 'הפוזיציה שלי')}
                     </Typography>
                     
+                    <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
+                        <Stack direction="row" spacing={2} divider={<Divider orientation="vertical" flexItem />} justifyContent="space-around" sx={{ mb: 2 }}>
+                            <Box>
+                                <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', display: 'block' }}>{t('Value', 'שווי')}</Typography>
+                                <Typography variant="h6" fontWeight="700">{formatValue(vals.marketValue, displayCurrency)}</Typography>
+                            </Box>
+                            <Box>
+                                <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', display: 'block' }}>{t('Total Gain', 'רווח כולל')}</Typography>
+                                <Typography variant="h6" fontWeight="700" color={vals.totalGain >= 0 ? 'success.main' : 'error.main'}>
+                                    {formatValue(vals.totalGain, displayCurrency)}
+                                </Typography>
+                                <Typography variant="caption" sx={{ display: 'block', mt: -0.5 }} color={vals.totalGain >= 0 ? 'success.main' : 'error.main'}>
+                                    {vals.totalGainPct > 0 ? '+' : ''}{formatPercent(vals.totalGainPct)}
+                                </Typography>
+                            </Box>
+                            <Box>
+                                <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', display: 'block' }}>{t('Net Realized', 'מימוש נטו')}</Typography>
+                                <Typography variant="h6" fontWeight="700" color={vals.realizedGainAfterTax >= 0 ? 'success.main' : 'error.main'}>
+                                    {formatValue(vals.realizedGainAfterTax, displayCurrency)}
+                                </Typography>
+                            </Box>
+                            <Box>
+                                <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', display: 'block' }}>{t('Unrealized', 'לא ממומש')}</Typography>
+                                <Typography variant="h6" fontWeight="700" color={vals.unrealizedGain >= 0 ? 'success.main' : 'error.main'}>
+                                    {formatValue(vals.unrealizedGain, displayCurrency)}
+                                </Typography>
+                                <Typography variant="caption" sx={{ display: 'block', mt: -0.5 }} color={vals.unrealizedGain >= 0 ? 'success.main' : 'error.main'}>
+                                    {vals.unrealizedGainPct > 0 ? '+' : ''}{formatPercent(vals.unrealizedGainPct)}
+                                </Typography>
+                            </Box>
+                        </Stack>
+                        
+                        <Divider sx={{ my: 2 }} />
+                        
+                        <Grid container spacing={2}>
+                            <Grid item xs={6} sm={3}>
+                                <Typography variant="caption" color="text.secondary">{t('Avg Cost', 'מחיר ממוצע')}</Typography>
+                                <Typography variant="body2" fontWeight="500">{formatPrice(vals.avgCost, displayCurrency)}</Typography>
+                            </Grid>
+                            <Grid item xs={6} sm={3}>
+                                <Typography variant="caption" color="text.secondary">{t('Quantity', 'כמות')}</Typography>
+                                <Typography variant="body1" fontWeight="500">{formatNumber(totalQty)}</Typography>
+                            </Grid>
+                            <Grid item xs={6} sm={3}>
+                                <Typography variant="caption" color="text.secondary">{t('Total Cost', 'עלות מקורית')}</Typography>
+                                <Typography variant="body2" fontWeight="500">{formatValue(vals.costBasis, displayCurrency)}</Typography>
+                            </Grid>
+                            <Grid item xs={6} sm={3}>
+                                <Typography variant="caption" color="text.secondary">{t('Total Fees', 'סה"כ עמלות')}</Typography>
+                                <Typography variant="body2" fontWeight="500">{formatValue(totalFeesDisplay, displayCurrency)}</Typography>
+                            </Grid>
+                        </Grid>
+                    </Paper>
+
                     <Grid container spacing={2} sx={{ mb: 3 }}>
-                        <Grid item xs={12} md={8}>
-                            <Paper variant="outlined" sx={{ p: 2, height: '100%' }}>
-                                <Stack direction="row" spacing={2} divider={<Divider orientation="vertical" flexItem />} justifyContent="space-around" sx={{ mb: 2 }}>
-                                    <Box>
-                                        <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', display: 'block' }}>{t('Value', 'שווי')}</Typography>
-                                        <Typography variant="h6" fontWeight="700">{formatValue(vals.marketValue, displayCurrency)}</Typography>
-                                    </Box>
-                                    <Box>
-                                        <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', display: 'block' }}>{t('Total Gain', 'רווח כולל')}</Typography>
-                                        <Typography variant="h6" fontWeight="700" color={vals.totalGain >= 0 ? 'success.main' : 'error.main'}>
-                                            {formatValue(vals.totalGain, displayCurrency)}
-                                        </Typography>
-                                        <Typography variant="caption" sx={{ display: 'block', mt: -0.5 }} color={vals.totalGain >= 0 ? 'success.main' : 'error.main'}>
-                                            {vals.totalGainPct > 0 ? '+' : ''}{formatPercent(vals.totalGainPct)}
-                                        </Typography>
-                                    </Box>
-                                    <Box>
-                                        <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', display: 'block' }}>{t('Net Realized', 'מימוש נטו')}</Typography>
-                                        <Typography variant="h6" fontWeight="700" color={vals.realizedGainAfterTax >= 0 ? 'success.main' : 'error.main'}>
-                                            {formatValue(vals.realizedGainAfterTax, displayCurrency)}
-                                        </Typography>
-                                    </Box>
-                                    <Box>
-                                        <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', display: 'block' }}>{t('Unrealized', 'לא ממומש')}</Typography>
-                                        <Typography variant="h6" fontWeight="700" color={vals.unrealizedGain >= 0 ? 'success.main' : 'error.main'}>
-                                            {formatValue(vals.unrealizedGain, displayCurrency)}
-                                        </Typography>
-                                        <Typography variant="caption" sx={{ display: 'block', mt: -0.5 }} color={vals.unrealizedGain >= 0 ? 'success.main' : 'error.main'}>
-                                            {vals.unrealizedGainPct > 0 ? '+' : ''}{formatPercent(vals.unrealizedGainPct)}
-                                        </Typography>
-                                    </Box>
-                                </Stack>
-                                
-                                <Divider sx={{ my: 2 }} />
-                                
-                                <Grid container spacing={2}>
-                                    <Grid item xs={6} sm={3}>
-                                        <Typography variant="caption" color="text.secondary">{t('Avg Cost', 'מחיר ממוצע')}</Typography>
-                                        <Typography variant="body2" fontWeight="500">{formatPrice(vals.avgCost, displayCurrency)}</Typography>
-                                    </Grid>
-                                    <Grid item xs={6} sm={3}>
-                                        <Typography variant="caption" color="text.secondary">{t('Quantity', 'כמות')}</Typography>
-                                        <Typography variant="body1" fontWeight="500">{formatNumber(totalQty)}</Typography>
-                                    </Grid>
-                                    <Grid item xs={6} sm={3}>
-                                        <Typography variant="caption" color="text.secondary">{t('Total Cost', 'עלות מקורית')}</Typography>
-                                        <Typography variant="body2" fontWeight="500">{formatValue(vals.costBasis, displayCurrency)}</Typography>
-                                    </Grid>
-                                    <Grid item xs={6} sm={3}>
-                                        <Typography variant="caption" color="text.secondary">{t('Total Fees', 'סה"כ עמלות')}</Typography>
-                                        <Typography variant="body2" fontWeight="500">{formatValue(totalFeesDisplay, displayCurrency)}</Typography>
-                                    </Grid>
-                                </Grid>
+                        {/* 2. Buy Layers */}
+                        <Grid item xs={12} md={7}>
+                            <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'bold' }}>{t('Buy Lots / Layers', 'שכבות רכישה')}</Typography>
+                            <Paper variant="outlined" sx={{ maxHeight: 300, overflowY: 'auto' }}>
+                                <Table size="small" stickyHeader>
+                                    <TableHead>
+                                        <TableRow>
+                                            <TableCell sx={{ bgcolor: 'background.paper' }}>{t('Date', 'תאריך')}</TableCell>
+                                            <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>{t('Qty', 'כמות')}</TableCell>
+                                            <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>{t('Price', 'מחיר')}</TableCell>
+                                            <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>{t('Total', 'סה"כ')}</TableCell>
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {layers.length === 0 && (
+                                            <TableRow><TableCell colSpan={4} align="center" sx={{ py: 3, color: 'text.secondary' }}>{t('No buy transactions found.', 'לא נמצאו עסקאות קנייה.')}</TableCell></TableRow>
+                                        )}
+                                        {layers.map((layer, i) => (
+                                            <TableRow key={i}>
+                                                <TableCell>{formatDate(layer.date)}</TableCell>
+                                                <TableCell align="right">{formatNumber(layer.qty)}</TableCell>
+                                                <TableCell align="right">{formatPrice(layer.price || 0, layer.currency || 'USD')}</TableCell>
+                                                <TableCell align="right">{formatValue((layer.qty || 0) * (layer.price || 0), layer.currency || 'USD')}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
                             </Paper>
                         </Grid>
-                        <Grid item xs={12} md={4}>
+
+                        <Grid item xs={12} md={5}>
                             <Paper variant="outlined" sx={{ p: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
                                 <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 'bold', textTransform: 'uppercase', color: 'text.secondary' }}>
                                     {t('Portfolio Distribution', 'התפלגות בתיקים')}
@@ -237,34 +266,8 @@ export function HoldingDetails({ holding, transactions, dividends, displayCurren
                             </Paper>
                         </Grid>
                     </Grid>
-
-                    {/* 2. Buy Layers */}
-                    <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'bold', mt: 3 }}>{t('Buy Lots / Layers', 'שכבות רכישה')}</Typography>
-                    <Paper variant="outlined" sx={{ mb: 3, maxHeight: 300, overflowY: 'auto' }}>
-                        <Table size="small" stickyHeader>
-                            <TableHead>
-                                <TableRow>
-                                    <TableCell sx={{ bgcolor: 'background.paper' }}>{t('Date', 'תאריך')}</TableCell>
-                                    <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>{t('Qty', 'כמות')}</TableCell>
-                                    <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>{t('Price', 'מחיר')}</TableCell>
-                                    <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>{t('Total', 'סה"כ')}</TableCell>
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {layers.length === 0 && (
-                                    <TableRow><TableCell colSpan={4} align="center" sx={{ py: 3, color: 'text.secondary' }}>{t('No buy transactions found.', 'לא נמצאו עסקאות קנייה.')}</TableCell></TableRow>
-                                )}
-                                {layers.map((layer, i) => (
-                                    <TableRow key={i}>
-                                        <TableCell>{formatDate(layer.date)}</TableCell>
-                                        <TableCell align="right">{formatNumber(layer.qty)}</TableCell>
-                                        <TableCell align="right">{formatPrice(layer.price || 0, layer.currency || 'USD')}</TableCell>
-                                        <TableCell align="right">{formatValue((layer.qty || 0) * (layer.price || 0), layer.currency || 'USD')}</TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </Paper>
+                    </>
+                  )}
                 </Box>
             )}
 
@@ -304,8 +307,8 @@ export function HoldingDetails({ holding, transactions, dividends, displayCurren
                                                 </Typography>
                                             </TableCell>
                                             <TableCell sx={{ maxWidth: 100, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                <Tooltip title={enriched?.portfolioName || ''} enterTouchDelay={0} leaveTouchDelay={3000}>
-                                                    <span>{enriched?.portfolioName || ''}</span>
+                                                <Tooltip title={portfolioName} enterTouchDelay={0} leaveTouchDelay={3000}>
+                                                    <span>{portfolioName}</span>
                                                 </Tooltip>
                                             </TableCell>
                                             <TableCell align="right">{formatNumber(txn.qty)}</TableCell>

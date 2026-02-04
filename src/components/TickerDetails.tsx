@@ -95,31 +95,35 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
 
   // Calculate Weights across all portfolios
   const holdingsWeights = useMemo(() => {
+    const displayCurrency = normalizeCurrency(localStorage.getItem('displayCurrency') || 'USD');
     if (!portfolios || portfolios.length === 0) return [];
 
     let totalAum = 0;
+    const portfolioValues: Record<string, number> = {};
+
     portfolios.forEach(p => {
-      const pValue = p.holdings?.reduce((sum, h) => sum + (
-        convertCurrency(h.totalValue || 0, h.currency, displayCurrency, exchangeRates), 0)) || 0;
+      const pValue = p.holdings?.reduce((sum, h) => sum + convertCurrency(h.totalValue || 0, h.currency || 'USD', displayCurrency, exchangeRates || undefined), 0) || 0;
+      portfolioValues[p.id] = pValue;
       totalAum += pValue;
     });
-    1
+    
     const results: any[] = [];
     portfolios.forEach(p => {
       const h = p.holdings?.find(h => h.ticker === ticker && h.exchange === exchange);
       if (h) {
-        const pValue = p.holdings?.reduce((sum, h) => sum + (h.totalValue || 0), 0) || 0;
+        const pValue = portfolioValues[p.id] || 0;
+        const hValue = convertCurrency(h.totalValue || 0, h.currency || 'USD', displayCurrency, exchangeRates || undefined);
         results.push({
           portfolioId: p.id,
           portfolioName: p.name,
-          weightInPortfolio: pValue > 0 ? (h.totalValue || 0) / pValue : 0,
-          weightInGlobal: totalAum > 0 ? (h.totalValue || 0) / totalAum : 0,
-          value: convertCurrency(h.totalValue || 0, h.currency, displayCurrency, exchangeRates) 
+          weightInPortfolio: pValue > 0 ? hValue / pValue : 0,
+          weightInGlobal: totalAum > 0 ? hValue / totalAum : 0,
+          value: hValue 
         });
       }
     });
     return results;
-  }, [portfolios, ticker, exchange]);
+  }, [portfolios, ticker, exchange, exchangeRates]);
 
   const handlePortfolioClick = (id: string) => {
     onClose?.(); // Close dialog

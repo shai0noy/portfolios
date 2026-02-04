@@ -257,7 +257,7 @@ export function formatNumber(n: number | undefined | null): string {
  * This is distinct from `formatPrice`, which is for individual unit prices.
  * For 'ILA' currency, it converts to ILS.
  */
-export function formatValue(n: number, currency: string | Currency, decimals = 2, t?: (key: string, fallback: string) => string): string {
+export function formatValue(n: number, currency: string | Currency, decimals = 2, _t?: (key: string, fallback: string) => string): string {
   if (n === undefined || n === null || isNaN(n)) return '-';
   let norm = normalizeCurrency(currency as string);
 
