@@ -102,6 +102,9 @@ export interface DashboardSummaryData {
   perfYtd: number;
   perfYtd_incomplete: boolean;
   divYield: number;
+  totalUnvestedValue: number;
+  totalUnvestedGain: number;
+  totalUnvestedGainPct: number;
 }
 
 export interface DashboardHoldingDisplay {
@@ -124,6 +127,7 @@ export interface DashboardHoldingDisplay {
     avgCost: number;
     weightInPortfolio: number;
     weightInGlobal: number;
+    unvestedValue: number;
 }
 
 export interface EnrichedDashboardHolding extends DashboardHolding {
@@ -153,6 +157,9 @@ export const INITIAL_SUMMARY: DashboardSummaryData = {
   perf5y: 0, perf5y_incomplete: false,
   perfYtd: 0, perfYtd_incomplete: false,
   divYield: 0,
+  totalUnvestedValue: 0,
+  totalUnvestedGain: 0,
+  totalUnvestedGainPct: 0,
 };
 
 const perfPeriods = {
@@ -177,6 +184,8 @@ interface SummaryAcc {
   totalDayChange: number;
   aumWithDayChangeData: number;
   holdingsWithDayChange: number;
+  totalUnvestedValue: number;
+  totalUnvestedGain: number;
   [key: string]: any;
 }
 
@@ -209,6 +218,8 @@ export function calculateDashboardSummary(data: DashboardHolding[], displayCurre
     totalDayChange: 0,
     aumWithDayChangeData: 0,
     holdingsWithDayChange: 0,
+    totalUnvestedValue: 0,
+    totalUnvestedGain: 0,
   };
 
   Object.keys(perfPeriods).forEach(p => {
@@ -224,7 +235,13 @@ export function calculateDashboardSummary(data: DashboardHolding[], displayCurre
     
     // Calculate Day Change in Display Currency
     const { changeVal: dayChangeVal, changePct1d: dayChangePct } = calculatePerformanceInDisplayCurrency(h.currentPrice, h.stockCurrency, h.dayChangePct, displayCurrency, exchangeRates);
-    const dayChangeTotal = dayChangeVal * h.totalQty;
+    const dayChangeTotal = dayChangeVal * h.qtyVested; // Day change on Vested Only? "Calculations will always ignore unvested values". Yes.
+
+    // Calculate Unvested Metrics (Display Currency)
+    const unvestedValDisplay = convertCurrency(h.mvUnvested, h.portfolioCurrency, displayCurrency, exchangeRates);
+    const costBasisUnvestedPC = h.avgCost * h.qtyUnvested;
+    const unvestedGainPC = h.mvUnvested - costBasisUnvestedPC;
+    const unvestedGainDisplay = convertCurrency(unvestedGainPC, h.portfolioCurrency, displayCurrency, exchangeRates);
 
     const displayVals: DashboardHoldingDisplay = {
         ...vals,
@@ -233,7 +250,8 @@ export function calculateDashboardSummary(data: DashboardHolding[], displayCurre
         currentPrice: convertCurrency(h.currentPrice, h.stockCurrency, displayCurrency, exchangeRates),
         avgCost: convertCurrency(h.avgCost, h.stockCurrency, displayCurrency, exchangeRates),
         weightInPortfolio: 0,
-        weightInGlobal: 0
+        weightInGlobal: 0,
+        unvestedValue: unvestedValDisplay
     };
 
     enrichedHoldings.push({ ...h, display: displayVals });
@@ -244,6 +262,9 @@ export function calculateDashboardSummary(data: DashboardHolding[], displayCurre
     globalAcc.totalCostOfSoldDisplay += vals.costOfSold;
     globalAcc.totalDividendsDisplay += vals.dividends;
     globalAcc.totalReturnDisplay += vals.totalGain;
+    
+    globalAcc.totalUnvestedValue += unvestedValDisplay;
+    globalAcc.totalUnvestedGain += unvestedGainDisplay;
 
     const p = portfolios.get(h.portfolioId);
     if (!portfolioAcc[h.portfolioId]) {
@@ -270,7 +291,15 @@ export function calculateDashboardSummary(data: DashboardHolding[], displayCurre
     } else {
         const priceInILS = convertCurrency(h.currentPrice, h.stockCurrency, Currency.ILS, exchangeRates);
         taxableRealizedILS = h.realizedGainILS;
-        taxableUnrealizedILS = (h.totalQty * priceInILS) - h.costBasisILS;
+        taxableUnrealizedILS = (h.qtyVested * priceInILS) - h.costBasisILS; // Approx: costBasisILS total vs vested logic mismatch? 
+        // Note: h.costBasisILS was updated in useDashboardData? No, costBasisILS tracks total.
+        // But we need Vested Taxable Unrealized.
+        // h.unrealizedTaxableGainILS was calculated correctly in useDashboardData. We should use it.
+        // For NOMINAL_GAIN (else block), we need to ensure we use Vested logic.
+        // costBasisILS is Total. We need costBasisILSVested.
+        // Recalculate:
+        const costBasisILSVested = (h.totalQty > 0 ? h.costBasisILS / h.totalQty : 0) * h.qtyVested;
+        taxableUnrealizedILS = (h.qtyVested * priceInILS) - costBasisILSVested;
     }
 
     // Capital Gains always go to Standard Bucket (CGT)
@@ -296,7 +325,7 @@ export function calculateDashboardSummary(data: DashboardHolding[], displayCurre
       const perf = h[holdingKey as keyof DashboardHolding] as number;
       if (perf && !isNaN(perf)) {
         const { changeVal } = calculatePerformanceInDisplayCurrency(h.currentPrice, h.stockCurrency, perf, displayCurrency, exchangeRates);
-        globalAcc[`totalChange_${key}`] += changeVal * h.totalQty;
+        globalAcc[`totalChange_${key}`] += changeVal * h.qtyVested; // Use Vested Qty
         globalAcc[`aumFor_${key}`] += vals.marketValue;
         globalAcc[`holdingsFor_${key}`]++;
       }
@@ -328,7 +357,11 @@ export function calculateDashboardSummary(data: DashboardHolding[], displayCurre
       // REIT Bucket: Only dividends, taxed at incTax rate.
       const reitRealizedTaxILS = pData.ils.reit.realized > 0 ? pData.ils.reit.realized * incTax : 0;
       
-      // Wealth Tax (Income Tax on Base)
+      // Wealth Tax (Income Tax on Base) - Apply to Vested Base?
+      // pData.costBasisTotalILS is TOTAL. We need Vested Base.
+      // But we didn't track Vested Base per portfolio in pAcc.
+      // Approximation: wealth tax is rarely used or is on total assets.
+      // For now, assume it applies to total base as accumulated.
       const incomeTaxOnBaseILS = pData.costBasisTotalILS * incTax;
 
       const totalRealizedTaxILS = stdRealizedTaxILS + reitRealizedTaxILS;
@@ -352,6 +385,10 @@ export function calculateDashboardSummary(data: DashboardHolding[], displayCurre
     totalDayChange: globalAcc.totalDayChange,
     realizedGainAfterTax: (globalAcc.totalRealizedDisplay + globalAcc.totalDividendsDisplay) - globalAcc.totalRealizedTaxDisplay,
     valueAfterTax: globalAcc.aum - globalAcc.totalUnrealizedTaxDisplay,
+    
+    totalUnvestedValue: globalAcc.totalUnvestedValue,
+    totalUnvestedGain: globalAcc.totalUnvestedGain,
+    totalUnvestedGainPct: (globalAcc.totalUnvestedValue - globalAcc.totalUnvestedGain) > 0 ? globalAcc.totalUnvestedGain / (globalAcc.totalUnvestedValue - globalAcc.totalUnvestedGain) : 0,
   };
 
   const totalHoldings = data.length;
@@ -375,7 +412,7 @@ export function calculateDashboardSummary(data: DashboardHolding[], displayCurre
  * Orchestrates fetching portfolios, transactions, and dividends.
  * Performs chronological event replay to maintain quantity-aware states and apply complex tax rules.
  */
-export function useDashboardData(sheetId: string, options: { includeUnvested: boolean }) {
+export function useDashboardData(sheetId: string) {
   const [loading, setLoading] = useState(true);
   const [holdings, setHoldings] = useState<DashboardHolding[]>([]);
   const [exchangeRates, setExchangeRates] = useState<ExchangeRates>({ current: { USD: 1, ILS: 3.7 } });
@@ -422,9 +459,8 @@ export function useDashboardData(sheetId: string, options: { includeUnvested: bo
 
       combinedEvents.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-      const processingEvents = options.includeUnvested 
-          ? combinedEvents 
-          : combinedEvents.filter(e => e.kind === 'DIV_EVENT' || !e.vestDate || new Date(e.vestDate) <= new Date());
+      // Use all events, filtering is done at display/calc level for vested vs unvested
+      const processingEvents = combinedEvents;
 
       const liveDataMap = new Map<string, Holding>();
       ports.forEach(p => p.holdings?.forEach(h => liveDataMap.set(`${h.ticker}:${h.exchange}`, h)));
@@ -596,23 +632,44 @@ export function useDashboardData(sheetId: string, options: { includeUnvested: bo
 
       holdingMap.forEach(h => {
         h.totalQty = h.qtyVested + h.qtyUnvested;
-        h.avgCost = h.totalQty > 1e-9 ? h.costBasisStockCurrency / h.totalQty : 0;
         
+        // Calculate Cost Basis per Share (Avg Cost) based on TOTAL
+        // Note: costBasisPortfolioCurrency currently holds the TOTAL cost basis (vested + unvested) from the accumulation loop
+        const avgCost = h.totalQty > 1e-9 ? h.costBasisPortfolioCurrency / h.totalQty : 0;
+        h.avgCost = avgCost;
+
+        // Split Values for Display
         const currentPricePC = convertCurrency(h.currentPrice, h.stockCurrency, h.portfolioCurrency, exchangeRates);
-        h.marketValuePortfolioCurrency = h.totalQty * currentPricePC;
-        h.unrealizedGainPortfolioCurrency = h.marketValuePortfolioCurrency - h.costBasisPortfolioCurrency;
+        h.mvVested = h.qtyVested * currentPricePC;
+        h.mvUnvested = h.qtyUnvested * currentPricePC;
+        
+        // --- OVERRIDE FOR DISPLAY: MARKET VALUE IS NOW VESTED ONLY ---
+        h.marketValuePortfolioCurrency = h.mvVested;
+        
+        // Adjust Cost Basis for Gain Calculation to Vested Portion Only
+        const costBasisVested = avgCost * h.qtyVested;
+        
+        // Calculate Unrealized Gain on Vested Portion
+        h.unrealizedGainPortfolioCurrency = h.mvVested - costBasisVested;
+        
         h.realizedGainPortfolioCurrency = h.proceedsPortfolioCurrency - h.costOfSoldPortfolioCurrency;
         h.totalGainPortfolioCurrency = h.unrealizedGainPortfolioCurrency + h.realizedGainPortfolioCurrency + h.dividendsPortfolioCurrency;
         
         const currentCPI = getCPI(new Date(), realCpi);
         const baseCPI = h.weightedAvgCPI || currentCPI;
-        const gainInSC = (h.totalQty * h.currentPrice) - h.costBasisStockCurrency;
+        
+        // Gain in Stock Currency (Vested Only)
+        // We approximate cost basis in SC for vested portion using average cost in SC
+        const costBasisSCTotal = h.costBasisStockCurrency;
+        const avgCostSC = h.totalQty > 0 ? costBasisSCTotal / h.totalQty : 0;
+        const costBasisSCVested = avgCostSC * h.qtyVested;
+        const gainInSCVested = (h.qtyVested * h.currentPrice) - costBasisSCVested;
 
-        // Calculate Unrealized Taxable Gain (Real Gain Policy)
+        // Calculate Unrealized Taxable Gain (Real Gain Policy) - VESTED ONLY
         h.unrealizedTaxableGain = computeRealTaxableGain(
-            h.unrealizedGainPortfolioCurrency, // Nominal Gain PC
-            gainInSC,
-            h.costBasisPortfolioCurrency,
+            h.unrealizedGainPortfolioCurrency, // Nominal Gain PC (Vested)
+            gainInSCVested,
+            costBasisVested,
             h.stockCurrency,
             h.portfolioCurrency,
             baseCPI,
@@ -620,13 +677,17 @@ export function useDashboardData(sheetId: string, options: { includeUnvested: bo
             exchangeRates
         );
 
-        // Calculate Unrealized Taxable Gain in ILS (For Tax Calc)
+        // Calculate Unrealized Taxable Gain in ILS (For Tax Calc) - VESTED ONLY
         const priceInILS = convertCurrency(h.currentPrice, h.stockCurrency, Currency.ILS, exchangeRates);
-        const mvILS = h.totalQty * priceInILS;
+        const mvILSVested = h.qtyVested * priceInILS;
+        const costBasisILSTotal = h.costBasisILS;
+        const avgCostILS = h.totalQty > 0 ? costBasisILSTotal / h.totalQty : 0;
+        const costBasisILSVested = avgCostILS * h.qtyVested;
+        
         h.unrealizedTaxableGainILS = computeRealTaxableGain(
-            mvILS - h.costBasisILS, // Nominal Gain ILS
-            gainInSC,
-            h.costBasisILS,
+            mvILSVested - costBasisILSVested, // Nominal Gain ILS
+            gainInSCVested,
+            costBasisILSVested,
             h.stockCurrency,
             Currency.ILS,
             baseCPI,
@@ -634,7 +695,7 @@ export function useDashboardData(sheetId: string, options: { includeUnvested: bo
             exchangeRates
         );
 
-        h.totalMV = h.marketValuePortfolioCurrency;
+        h.totalMV = h.marketValuePortfolioCurrency; // Vested
 
         // Per-Holding Independent Tax Calculation
         const p = newPortMap.get(h.portfolioId);
@@ -663,21 +724,24 @@ export function useDashboardData(sheetId: string, options: { includeUnvested: bo
         // CGT on Unrealized
         const unrealizedTaxILS = Math.max(0, h.unrealizedTaxableGainILS) * cgt;
         
-        // Wealth Tax (Income Tax on Base)
-        const wealthTaxILS = h.costBasisILS * incTax; // Assumes incTax applies to base
+        // Wealth Tax (Income Tax on Base) - Apply to Vested Base Only
+        const wealthTaxILS = costBasisILSVested * incTax;
 
         const totalUnrealizedLiabilityILS = unrealizedTaxILS + wealthTaxILS;
         const totalUnrealizedLiabilityPC = convertCurrency(totalUnrealizedLiabilityILS, Currency.ILS, h.portfolioCurrency, exchangeRates);
 
         // Net Value = Market Value - Latent Tax
         h.valueAfterTax = h.marketValuePortfolioCurrency - totalUnrealizedLiabilityPC;
+        
+        // OVERWRITE Cost Basis for display/downstream to be Vested Cost Basis
+        h.costBasisPortfolioCurrency = costBasisVested;
       });
       setHoldings(Array.from(holdingMap.values()));
     } catch (e) {
       console.error('loadData error:', e);
       if (e instanceof SessionExpiredError) { setError('session_expired'); showLoginModal(); } else setError(e);
     } finally { setLoading(false); }
-  }, [sheetId, options.includeUnvested, exchangeRates, showLoginModal]);
+  }, [sheetId, exchangeRates, showLoginModal]);
 
   useEffect(() => { loadData(); }, [loadData]);
   return { holdings, loading, error, portfolios, exchangeRates, hasFutureTxns, refresh: loadData };

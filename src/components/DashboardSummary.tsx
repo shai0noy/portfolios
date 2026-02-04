@@ -17,42 +17,14 @@ import { useChartComparison, getAvailableRanges, getMaxLabel } from '../lib/hook
 import { TickerSearch } from './TickerSearch';
 import type { TickerProfile } from '../lib/types/ticker';
 import { AnalysisDialog } from './AnalysisDialog';
+import type { DashboardSummaryData } from '../lib/dashboard';
 
 // Time constants for auto-stepping
 const AUTO_STEP_DELAY = 2 * 60 * 1000; // 2 minutes
 const INTERACTION_STEP_DELAY = 8 * 60 * 1000; // 8 minutes
 
 interface SummaryProps {
-  summary: {
-    aum: number;
-    totalUnrealized: number;
-    totalUnrealizedGainPct: number;
-    totalRealized: number;
-    totalRealizedGainPct: number;
-    totalCostOfSold: number;
-    totalDividends: number;
-    totalReturn: number;
-    realizedGainAfterTax: number;
-    valueAfterTax: number;
-
-    totalDayChange: number;
-    totalDayChangePct: number;
-    totalDayChangeIsIncomplete: boolean;
-    perf1w: number;
-    perf1w_incomplete: boolean;
-    perf1m: number;
-    perf1m_incomplete: boolean;
-    perf3m: number;
-    perf3m_incomplete: boolean;
-    perf1y: number;
-    perf1y_incomplete: boolean;
-    perf3y: number;
-    perf3y_incomplete: boolean;
-    perf5y: number;
-    perf5y_incomplete: boolean;
-    perfYtd: number;
-    perfYtd_incomplete: boolean;
-  };
+  summary: DashboardSummaryData;
   holdings: DashboardHolding[];
   displayCurrency: string;
   exchangeRates: ExchangeRates;
@@ -66,6 +38,8 @@ interface StatProps {
   label: string;
   value: number;
   pct?: number;
+  gainValue?: number; // Added
+  gainLabel?: string; // Added
   color?: string;
   tooltip?: ReactNode;
   isMain?: boolean;
@@ -73,7 +47,7 @@ interface StatProps {
   displayCurrency: string;
 }
 
-const Stat = ({ label, value, pct, color, tooltip, isMain = false, size = 'normal', displayCurrency }: StatProps) => {
+const Stat = ({ label, value, pct, gainValue, gainLabel, color, tooltip, isMain = false, size = 'normal', displayCurrency }: StatProps) => {
   const isSmall = size === 'small';
   
   return (
@@ -100,7 +74,14 @@ const Stat = ({ label, value, pct, color, tooltip, isMain = false, size = 'norma
                   color={color || 'text.secondary'} 
                   sx={{ opacity: color ? 1 : 0.7, fontSize: isSmall ? '0.7rem' : '0.75rem' }}
               >
-                  {pct > 0 ? '+' : ''}{formatPercent(pct)}
+                  {gainValue !== undefined ? (
+                      <>
+                        {gainLabel && <span>{gainLabel}: </span>}
+                        {formatValue(gainValue, displayCurrency, 0)} ({pct > 0 ? '+' : ''}{formatPercent(pct)})
+                      </>
+                  ) : (
+                      <>{pct > 0 ? '+' : ''}{formatPercent(pct)}</>
+                  )}
               </Typography>
           )}
       </Box>
@@ -491,6 +472,16 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                         }
                         displayCurrency={displayCurrency}
                     />
+                    {summary.totalUnvestedValue > 0.01 && (
+                        <Stat 
+                            label={t("Unvested Value", "שווי לא מובשל")}
+                            value={summary.totalUnvestedValue}
+                            pct={summary.totalUnvestedGainPct}
+                            gainValue={summary.totalUnvestedGain}
+                            gainLabel={t("Unvested Gain", "רווח לא מובשל")}
+                            displayCurrency={displayCurrency}
+                        />
+                    )}
                   </Box>
 
                   {/* Performance / Detail Row */}

@@ -18,14 +18,13 @@ interface TableProps {
   groupByPortfolio: boolean;
   displayCurrency: string;
   exchangeRates: ExchangeRates;
-  includeUnvested: boolean;
   onSelectPortfolio: (id: string | null) => void;
   columnVisibility: Record<string, boolean>;
   onHideColumn: (column: string) => void;
 }
 
 export function DashboardTable(props: TableProps) {
-    const { groupedData, groupByPortfolio, displayCurrency, exchangeRates, includeUnvested, onSelectPortfolio, columnVisibility, onHideColumn } = props;
+    const { groupedData, groupByPortfolio, displayCurrency, exchangeRates, onSelectPortfolio, columnVisibility, onHideColumn } = props;
     const theme = useTheme();
     const navigate = useNavigate();
     const { t, tTry, isRtl } = useLanguage();
@@ -108,7 +107,6 @@ export function DashboardTable(props: TableProps) {
 
   const renderGroup = ([groupName, groupHoldings]: [string, EnrichedDashboardHolding[]]) => {
     const isExpanded = expandedGroups[groupName] ?? true;
-    const hasUnvested = groupHoldings.some(h => h.qtyUnvested > 0);
 
     const groupSummary = groupHoldings.reduce((acc, h) => {
       acc.totalMV += h.display.marketValue;
@@ -171,8 +169,8 @@ export function DashboardTable(props: TableProps) {
                 {columnVisibility.dayChangePct ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'dayChangePct')} align="right"><TableSortLabel active={sortBy === 'dayChangePct'} direction={sortDir} onClick={() => handleSort('dayChangePct')}>{t('Day Change %', '% שינוי יומי')}</TableSortLabel></TableCell> : null}
 
                 {columnVisibility.mv ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'mv')} align="right"><TableSortLabel active={sortBy === 'marketValue'} direction={sortDir} onClick={() => handleSort('marketValue')}>{t('Market Value', 'שווי שוק')}</TableSortLabel></TableCell> : null}
-                {includeUnvested ? <TableCell align="right"><TableSortLabel active={sortBy === 'mvVested'} direction={sortDir} onClick={() => handleSort('mvVested')}>{t('Vested Value', 'שווי מובשל')}</TableSortLabel></TableCell> : null}
-                {hasUnvested ? <TableCell align="right"><TableSortLabel active={sortBy === 'mvUnvested'} direction={sortDir} onClick={() => handleSort('mvUnvested')}>{t('Unvested Value', 'שווי לא מובשל')}</TableSortLabel></TableCell> : null}
+                {columnVisibility.unvestedValue ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'unvestedValue')} align="right"><TableSortLabel active={sortBy === 'mvUnvested'} direction={sortDir} onClick={() => handleSort('mvUnvested')}>{t('Unvested Value', 'שווי לא מובשל')}</TableSortLabel></TableCell> : null}
+                
                 {columnVisibility.unrealizedGain ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'unrealizedGain')} align="right"><TableSortLabel active={sortBy === 'unrealizedGain'} direction={sortDir} onClick={() => handleSort('unrealizedGain')}>{t('Unrealized Gain', 'רווח לא ממומש')}</TableSortLabel></TableCell> : null}
                 {columnVisibility.unrealizedGainPct ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'unrealizedGainPct')} align="right"><TableSortLabel active={sortBy === 'unrealizedGainPct'} direction={sortDir} onClick={() => handleSort('unrealizedGainPct')}>{t('Unrealized Gain %', '% רווח לא ממומש')}</TableSortLabel></TableCell> : null}
                 {columnVisibility.realizedGain ? <TableCell onContextMenu={(e) => handleContextMenu(e, 'realizedGain')} align="right"><TableSortLabel active={sortBy === 'realizedGain'} direction={sortDir} onClick={() => handleSort('realizedGain')}>{t('Realized Gain', 'רווח ממומש')}</TableSortLabel></TableCell> : null}
@@ -185,9 +183,6 @@ export function DashboardTable(props: TableProps) {
             </TableHead>
             <TableBody>
               {sortedHoldings.map(h => {
-                const displayedVestedValue = h.mvVested; // TODO: Adjust if needed but usually ratio is same
-                const displayedUnvestedValue = h.mvUnvested;
-                
                 const vals = h.display;
                 
                 // Special display logic for ILS: Show unit prices in Agorot (ILA) ONLY if the stock is natively ILS/ILA
@@ -210,8 +205,8 @@ export function DashboardTable(props: TableProps) {
                     {columnVisibility.dayChangeVal ? <TableCell align="right" sx={{ color: vals.dayChangePct >= 0 ? theme.palette.success.main : theme.palette.error.main }}>{formatValue(vals.dayChangeVal, displayCurrency, 2, t)}</TableCell> : null}
                     {columnVisibility.dayChangePct ? <TableCell align="right" sx={{ color: vals.dayChangePct >= 0 ? theme.palette.success.main : theme.palette.error.main }}>{formatPct(vals.dayChangePct)}</TableCell> : null}
                     {columnVisibility.mv ? <TableCell align="right">{formatValue(vals.marketValue, displayCurrency, 2, t)}</TableCell> : null}
-                    {includeUnvested ? <TableCell align="right">{formatConverted(displayedVestedValue, h.portfolioCurrency)}</TableCell> : null}
-                    {hasUnvested && displayedUnvestedValue > 0 ? <TableCell align="right" sx={{ color: 'text.secondary' }}>{formatConverted(displayedUnvestedValue, h.portfolioCurrency)}</TableCell> : hasUnvested ? <TableCell align="right" sx={{ color: 'text.secondary' }}>-</TableCell> : null}
+                    {columnVisibility.unvestedValue ? <TableCell align="right" sx={{ color: 'text.secondary' }}>{h.mvUnvested > 0 ? formatConverted(h.mvUnvested, h.portfolioCurrency) : '-'}</TableCell> : null}
+                    
                     {columnVisibility.unrealizedGain ? <TableCell align="right"><Typography variant="body2" color={vals.unrealizedGain >= 0 ? theme.palette.success.main : theme.palette.error.main}>{formatValue(vals.unrealizedGain, displayCurrency, 2, t)}</Typography></TableCell> : null}
                     {columnVisibility.unrealizedGainPct ? <TableCell align="right" sx={{ color: 'text.secondary' }}>{formatPct(vals.unrealizedGainPct)}</TableCell> : null}
                     {columnVisibility.realizedGain ? <TableCell align="right">{formatValue(vals.realizedGain, displayCurrency, 2, t)}</TableCell> : null}

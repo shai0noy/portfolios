@@ -26,7 +26,6 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [groupByPortfolio, setGroupByPortfolio] = useState(true);
-  const [includeUnvested, setIncludeUnvested] = useState<boolean>(false);
   // Persist Currency - normalize initial value
   const [displayCurrency, setDisplayCurrency] = useState<string>(() => normalizeCurrency(localStorage.getItem('displayCurrency') || 'USD'));
   
@@ -36,7 +35,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
   const openColSelector = Boolean(anchorEl);
   const { t, isRtl } = useLanguage();
 
-  const { holdings, loading, error, portfolios, exchangeRates, hasFutureTxns, refresh } = useDashboardData(sheetId, { includeUnvested });
+  const { holdings, loading, error, portfolios, exchangeRates, hasFutureTxns, refresh } = useDashboardData(sheetId);
   const { showLoginModal } = useSession();
 
   const handleClickColSelector = (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -348,16 +347,6 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         </Box>
         <Box display="flex" alignItems="center">
           <ToggleButton
-            value="unvested"
-            selected={includeUnvested}
-            onChange={() => setIncludeUnvested(!includeUnvested)}
-            size="small"
-            color="primary"
-            sx={{ borderRadius: 2, textTransform: 'none', px: 2, py: 0.5, mr: 1, border: 1, borderColor: 'divider' }}
-          >
-            {t('Include Unvested', 'כלול לא מובשל')}
-          </ToggleButton>
-          <ToggleButton
             value="grouped"
             selected={groupByPortfolio}
             onChange={() => setGroupByPortfolio(!groupByPortfolio)}
@@ -393,7 +382,6 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
 
       
         exchangeRates={exchangeRates}
-        includeUnvested={includeUnvested}
         onSelectPortfolio={handleSelectPortfolio} // Updated prop
         columnVisibility={columnVisibility}
         onHideColumn={(col) => setColumnVisibility((prev: any) => ({ ...prev, [col]: false }))}
