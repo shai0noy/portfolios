@@ -5,7 +5,7 @@ import react from '@vitejs/plugin-react'
 export default defineConfig(() => {
 
   return {
-    base: '/portfolios',
+    base: '/portfolios/',
     plugins: [react()],
     server: {
       headers: {
