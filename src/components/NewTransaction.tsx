@@ -82,6 +82,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   }, [sheetId]);
 
   useEffect(() => {
+    setSaveSuccess(false);
     const editTxn = locationState?.editTransaction;
     const editDiv = locationState?.editDividend;
     const prefilledTicker = locationState?.prefilledTicker || editTxn?.ticker || editDiv?.ticker;
@@ -557,7 +558,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
             {t('Dashboard', 'דאשבורד')}
           </Button>
         }>
-          {t('Transaction for', 'עסקה עבור')} {ticker} {t('saved!', 'נשמרה!')}
+          {t('Transaction for', 'עסקה עבור')} {ticker} {(locationState?.editTransaction || locationState?.editDividend) ? t('updated!', 'עודכנה!') : t('saved!', 'נשמרה!')}
         </Alert>
       )}
 
@@ -789,7 +790,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                           </Button>
                       )}
                       <Button variant="contained" size="large" fullWidth startIcon={<AddCircleOutlineIcon />} onClick={handleSubmit} disabled={loading} sx={{ flex: 2 }}>
-                        {loading ? t('Saving...', 'שומר...') : (type === 'DIV_EVENT' ? t('Record Dividend', 'שמור דיבידנד') : (locationState?.editTransaction ? t('Update Transaction', 'עדכן עסקה') : t('Save Transaction', 'שמור עסקה')))}
+                        {loading ? t('Saving...', 'שומר...') : (type === 'DIV_EVENT' ? (locationState?.editDividend ? t('Update Dividend', 'עדכן דיבידנד') : t('Record Dividend', 'שמור דיבידנד')) : (locationState?.editTransaction ? t('Update Transaction', 'עדכן עסקה') : t('Save Transaction', 'שמור עסקה')))}
                       </Button>
                     </Box>
                   </>
