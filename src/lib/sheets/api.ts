@@ -598,7 +598,7 @@ export const fetchDividends = withAuthHandling(async (spreadsheetId: string, tic
     }
 });
 
-export const fetchAllDividends = withAuthHandling(async (spreadsheetId: string): Promise<{ ticker: string, exchange: Exchange, date: Date, amount: number }[]> => {
+export const fetchAllDividends = withAuthHandling(async (spreadsheetId: string): Promise<{ ticker: string, exchange: Exchange, date: Date, amount: number, source: string }[]> => {
     const gapi = await ensureGapi();
     try {
         const res = await gapi.client.sheets.spreadsheets.values.get({
@@ -624,10 +624,11 @@ export const fetchAllDividends = withAuthHandling(async (spreadsheetId: string):
                     exchange,
                     ticker: String(row[1]).toUpperCase(),
                     date,
-                    amount: Number(row[3])
+                    amount: Number(row[3]),
+                    source: String(row[4] || '')
                 };
             })
-            .filter(div => div.exchange && !isNaN(div.date.getTime()) && !isNaN(div.amount)) as { ticker: string, exchange: Exchange, date: Date, amount: number }[];
+            .filter(div => div.exchange && !isNaN(div.date.getTime()) && !isNaN(div.amount)) as { ticker: string, exchange: Exchange, date: Date, amount: number, source: string }[];
     } catch (error: any) {
         if (error.result?.error?.code === 400) {
             return [];

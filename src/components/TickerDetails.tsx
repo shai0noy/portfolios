@@ -14,7 +14,7 @@ import { useChartComparison, getAvailableRanges, getMaxLabel, SEARCH_OPTION_TICK
 import { useTickerDetails, type TickerDetailsProps } from '../lib/hooks/useTickerDetails';
 import { TickerSearch } from './TickerSearch';
 import { Exchange } from '../lib/types';
-import { formatPrice, formatPercent, normalizeCurrency } from '../lib/currency';
+import { formatPrice, formatPercent, normalizeCurrency, formatValue } from '../lib/currency';
 import { AnalysisDialog } from './AnalysisDialog';
 import { HoldingDetails } from './HoldingDetails';
 import type { EnrichedDashboardHolding } from '../lib/dashboard';
@@ -161,9 +161,39 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
 
   const exposure = displayData?.meta && 'exposureProfile' in displayData.meta ? parseExposureProfile(displayData.meta.exposureProfile) : null;
 
+  const dividendGains = useMemo(() => {
+    if (!data?.dividends || !displayData?.price) return {};
+    
+    const now = new Date();
+    const result: Record<string, { pct: number, amount: number }> = {};
+    const ranges = {
+        '1Y': new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()),
+        '3Y': new Date(now.getFullYear() - 3, now.getMonth(), now.getDate()),
+        '5Y': new Date(now.getFullYear() - 5, now.getMonth(), now.getDate()),
+        'Max': new Date(0)
+    };
+
+    const sortedDivs = [...data.dividends].sort((a, b) => b.date.getTime() - a.date.getTime());
+    const currentPrice = displayData.price;
+
+    Object.entries(ranges).forEach(([range, cutoff]) => {
+        const divsInRange = sortedDivs.filter(d => d.date >= cutoff);
+        if (divsInRange.length === 0) return;
+        
+        const totalAmount = divsInRange.reduce((sum, d) => sum + d.amount, 0);
+        if (currentPrice && currentPrice > 0) {
+            result[range] = { pct: totalAmount / currentPrice, amount: totalAmount };
+        }
+    });
+    
+    return result;
+  }, [data?.dividends, displayData?.price]);
+
   return (
     <>
-      <Dialog open={true} onClose={handleClose} maxWidth={false} fullWidth PaperProps={{ sx: { width: 'min(900px, 96%)', m: 1, minHeight: '80vh', display: 'flex', flexDirection: 'column' } }}>
+      <Dialog open={true} onClose={handleClose} maxWidth="lg" fullWidth 
+        sx={{ '& .MuiDialog-container': { alignItems: { xs: 'flex-start', md: 'center' }, pt: { xs: 4, md: 0 } } }}
+        PaperProps={{ sx: { width: 'min(900px, 96%)', m: 1, maxHeight: '90vh', minHeight: { xs: 'auto', md: '600px' }, display: 'flex', flexDirection: 'column' } }}>
         <DialogTitle sx={{ p: 2 }}>
           <Box display="flex" justifyContent="space-between" alignItems="flex-start">
             <Box sx={{ flex: 1, minWidth: 0, pr: 2 }}>
@@ -178,6 +208,11 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
               <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
                 <Typography variant="subtitle1" component="div" color="text.secondary">{resolvedName ? `${exchange?.toUpperCase()}: ${ticker}` : exchange?.toUpperCase()}</Typography>
                 {displayData?.sector && <Chip label={displayData.subSector ? (displayData.sector.includes(displayData.subSector) || displayData.subSector.includes(displayData.sector) ? displayData.subSector : `${displayData.sector} • ${displayData.subSector}`) : displayData.sector} size="small" variant="outlined" />}
+                {displayData && 'dividendYield' in displayData && displayData.dividendYield !== undefined && displayData.dividendYield > 0 && (
+                  <Tooltip title={t('Dividend Yield', 'תשואת דיבידנד')} arrow enterTouchDelay={0} leaveTouchDelay={3000}>
+                    <Chip label={`${t('Yield', 'תשואה')}: ${formatPercent(displayData.dividendYield as number)}`} size="small" variant="outlined" />
+                  </Tooltip>
+                )}
                 {(() => {
                   const displayType = displayData?.type ? t(displayData.type.nameEn, displayData.type.nameHe) : (displayData?.taseType || displayData?.globesTypeHe);
                   return displayType ? <Chip label={displayType} size="small" variant="outlined" /> : null;
@@ -256,11 +291,10 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                                 label={<><Typography variant="caption" color="text.secondary">{translateRange(range)}</Typography><Typography variant="body2" sx={{ fontWeight: 600 }}>{formatPercent(item.val)}</Typography></>}
                                 />
                             </Tooltip>
-                            ))}
-                        </Box>
-
-                        {historicalData && historicalData.length > 0 && (
-                            <>
+                                                                            ))}
+                                                                        </Box>
+                                                
+                                                                        {historicalData && historicalData.length > 0 && (                            <>
                             <Box display="flex" justifyContent="flex-start" alignItems="center" gap={1} flexWrap="wrap">
                                 <ToggleButtonGroup value={chartRange} exclusive onChange={(_, v) => v && setChartRange(v)} size="small">
                                 {availableRanges.map(r => <ToggleButton key={r} value={r}>{r === 'ALL' ? maxLabel : r}</ToggleButton>)}
@@ -286,6 +320,44 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                                 <TickerChart series={[{ name: resolvedName || ticker || 'Main', data: displayHistory }, ...displayComparisonSeries]} currency={displayData?.currency || 'USD'} mode={effectiveChartMetric} />
                             </Box>
                             </>
+                        )}
+
+                        {data?.dividends && data.dividends.length > 0 && (
+                          <>
+                            <Typography variant="subtitle2" gutterBottom sx={{ mt: 1 }}>{t('Dividend Gains', 'רווחי דיבידנד')}</Typography>
+                            <Box display="flex" flexWrap="wrap" gap={1} sx={{ mb: 2 }}>
+                              {Object.entries(dividendGains).map(([range, info]) => {
+                                const value = info.pct;
+                                if (value === undefined || value === null || isNaN(value) || value === 0) {
+                                  return null;
+                                }
+                                const isPositive = value > 0;
+                                const textColor = isPositive ? 'success.main' : 'error.main';
+                                return (
+                                  <Chip
+                                    key={range}
+                                    variant="outlined"
+                                    size="small"
+                                    sx={{
+                                      minWidth: 80,
+                                      py: 0.5,
+                                      px: 0.75,
+                                      height: 'auto',
+                                      '& .MuiChip-label': { display: 'flex', flexDirection: 'column', alignItems: 'center', overflow: 'hidden' },
+                                      '& .MuiTypography-caption, & .MuiTypography-body2': { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 84 }
+                                    }}
+                                    label={
+                                      <>
+                                        <Typography variant="caption" color="text.secondary">{translateRange(range)}</Typography>
+                                        <Typography variant="body2" sx={{ fontWeight: 600, color: textColor }}>{formatPercent(value)}</Typography>
+                                        <Typography variant="caption" sx={{ fontSize: '0.7rem', opacity: 0.8 }}>{formatValue(info.amount, displayData?.currency || 'USD', 2)}</Typography>
+                                      </>
+                                    }
+                                  />
+                                );
+                              })}
+                            </Box>
+                          </>
                         )}
 
                         {externalLinks.length > 0 && (

@@ -56,6 +56,7 @@ export interface TickerData {
   tradeTimeStatus?: string;
   globesTypeHe?: string;
   volume?: number;
+  dividendYield?: number;
   providentInfo?: ProvidentInfo;
   fromCache?: boolean;
   fromCacheMax?: boolean;
