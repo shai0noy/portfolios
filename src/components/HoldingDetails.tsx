@@ -1,10 +1,13 @@
-import { Box, Typography, Paper, Table, TableBody, TableCell, TableHead, TableRow, Grid, Divider, Tabs, Tab, Tooltip, Link, Stack } from '@mui/material';
-import { formatValue, formatNumber, formatPrice, convertCurrency, formatPercent } from '../lib/currency';
+import { Box, Typography, Paper, Table, TableBody, TableCell, TableHead, TableRow, Grid, Divider, Tooltip, Link, Stack, CircularProgress } from '@mui/material';
+import { formatValue, formatNumber, formatPrice, convertCurrency, formatPercent, getExchangeRates, normalizeCurrency } from '../lib/currency';
 import { useLanguage } from '../lib/i18n';
-import type { DashboardHolding, Transaction, ExchangeRates, Holding } from '../lib/types';
+import type { DashboardHolding, Transaction, ExchangeRates, Holding, Portfolio } from '../lib/types';
 import type { EnrichedDashboardHolding } from '../lib/dashboard';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import EditIcon from '@mui/icons-material/Edit';
+import { fetchTransactions, fetchAllDividends } from '../lib/sheets';
+
+export type HoldingSection = 'overview' | 'transactions' | 'dividends';
 
 export interface HoldingWeight {
     portfolioId: string;
@@ -15,13 +18,12 @@ export interface HoldingWeight {
 }
 
 interface HoldingDetailsProps {
+    sheetId: string;
     holding: DashboardHolding | Holding;
-    transactions: Transaction[];
-    dividends: any[]; // From Dividends sheet
     displayCurrency: string;
-    exchangeRates: ExchangeRates;
-    holdingsWeights: HoldingWeight[];
+    portfolios: Portfolio[];
     onPortfolioClick: (id: string) => void;
+    section?: HoldingSection;
 }
 
 const formatDate = (dateInput: string | Date | number) => {
@@ -35,9 +37,77 @@ const formatDate = (dateInput: string | Date | number) => {
     return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
 };
 
-export function HoldingDetails({ holding, transactions, dividends, displayCurrency, exchangeRates, holdingsWeights, onPortfolioClick }: HoldingDetailsProps) {
+export function HoldingDetails({ sheetId, holding, displayCurrency, portfolios, onPortfolioClick, section = 'overview' }: HoldingDetailsProps) {
     const { t } = useLanguage();
-    const [tabValue, setTabValue] = useState(0);
+    
+    // Internal state for fetched data
+    const [transactions, setTransactions] = useState<Transaction[]>([]);
+    const [dividends, setDividends] = useState<any[]>([]);
+    const [exchangeRates, setExchangeRates] = useState<ExchangeRates | null>(null);
+    const [loading, setLoading] = useState(true);
+
+    // Fetch data on mount
+    useEffect(() => {
+        let mounted = true;
+        const loadData = async () => {
+            try {
+                setLoading(true);
+                const [txns, divs, rates] = await Promise.all([
+                    fetchTransactions(sheetId),
+                    fetchAllDividends(sheetId),
+                    getExchangeRates(sheetId)
+                ]);
+                
+                if (mounted) {
+                    setTransactions(txns);
+                    setDividends(divs);
+                    setExchangeRates(rates);
+                }
+            } catch (err) {
+                console.error("Failed to fetch holding details:", err);
+            } finally {
+                if (mounted) setLoading(false);
+            }
+        };
+        loadData();
+        return () => { mounted = false; };
+    }, [sheetId]);
+
+    // Calculate Weights across all portfolios
+    const holdingsWeights = useMemo(() => {
+        if (!portfolios || portfolios.length === 0 || !exchangeRates) return [];
+        
+        // Ensure displayCurrency is available or fallback
+        const targetCurrency = normalizeCurrency(displayCurrency || 'USD');
+
+        let totalAum = 0;
+        const portfolioValues: Record<string, number> = {};
+
+        portfolios.forEach(p => {
+          const pValue = p.holdings?.reduce((sum, h) => sum + convertCurrency(h.totalValue || 0, h.currency || 'USD', targetCurrency, exchangeRates), 0) || 0;
+          portfolioValues[p.id] = pValue;
+          totalAum += pValue;
+        });
+        
+        const results: any[] = [];
+        portfolios.forEach(p => {
+          // Find holding in this portfolio matching our ticker
+          const h = p.holdings?.find(h => h.ticker === holding.ticker && (h.exchange === (holding as any).exchange || !h.exchange)); // Loose match on exchange if needed
+          
+          if (h) {
+            const pValue = portfolioValues[p.id] || 0;
+            const hValue = convertCurrency(h.totalValue || 0, h.currency || 'USD', targetCurrency, exchangeRates);
+            results.push({
+              portfolioId: p.id,
+              portfolioName: p.name,
+              weightInPortfolio: pValue > 0 ? hValue / pValue : 0,
+              weightInGlobal: totalAum > 0 ? hValue / totalAum : 0,
+              value: hValue 
+            });
+          }
+        });
+        return results;
+    }, [portfolios, holding, exchangeRates, displayCurrency]);
 
     // Check if it's an Enriched holding (from Dashboard) or raw (from TickerDetails hook)
     const enriched = (holding as any).display ? (holding as EnrichedDashboardHolding) : null;
@@ -98,7 +168,7 @@ export function HoldingDetails({ holding, transactions, dividends, displayCurren
     const totalQty = (holding as DashboardHolding).totalQty ?? (holding as Holding).qty ?? 0;
     
     const totalFeesDisplay = useMemo(() => {
-        return convertCurrency(totalFeesPC, (holding as Holding).currency || stockCurrency, displayCurrency, exchangeRates);
+        return convertCurrency(totalFeesPC, (holding as Holding).currency || stockCurrency, displayCurrency, exchangeRates || undefined);
     }, [totalFeesPC, holding, stockCurrency, displayCurrency, exchangeRates]);
 
     const totalGlobalWeight = useMemo(() => {
@@ -107,18 +177,14 @@ export function HoldingDetails({ holding, transactions, dividends, displayCurren
 
     const portfolioName = enriched?.portfolioName || holdingsWeights.find(w => w.portfolioId === holding.portfolioId)?.portfolioName || '';
 
+    if (loading) {
+        return <Box sx={{ p: 4, display: 'flex', justifyContent: 'center' }}><CircularProgress /></Box>;
+    }
+
     return (
         <Box sx={{ mt: 2 }}>
-            <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
-                <Tabs value={tabValue} onChange={(_, v) => setTabValue(v)}>
-                    <Tab label={t('Overview', 'סקירה כללית')} />
-                    <Tab label={t('Transactions', 'עסקאות')} />
-                    {divHistory.length > 0 && <Tab label={t('Dividends', 'דיבידנדים')} />}
-                </Tabs>
-            </Box>
-
-            {/* TAB 0: OVERVIEW */}
-            {tabValue === 0 && (
+            {/* SECTION: OVERVIEW */}
+            {section === 'overview' && (
                 <Box>
                   {!vals ? (
                      <Box sx={{ p: 2, textAlign: 'center' }}>
@@ -271,8 +337,8 @@ export function HoldingDetails({ holding, transactions, dividends, displayCurren
                 </Box>
             )}
 
-            {/* TAB 1: TRANSACTIONS */}
-            {tabValue === 1 && (
+            {/* SECTION: TRANSACTIONS */}
+            {section === 'transactions' && (
                 <Box>
                     <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'bold' }}>{t('Transaction History', 'היסטוריית עסקאות')}</Typography>
                     <Paper variant="outlined" sx={{ maxHeight: 500, overflowY: 'auto' }}>
@@ -327,8 +393,8 @@ export function HoldingDetails({ holding, transactions, dividends, displayCurren
                 </Box>
             )}
 
-            {/* TAB 2: DIVIDENDS */}
-            {tabValue === 2 && divHistory.length > 0 && (
+            {/* SECTION: DIVIDENDS */}
+            {section === 'dividends' && (
                 <Box>
                     <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'bold' }}>{t('Dividends Received', 'דיבידנדים שהתקבלו')}</Typography>
                     <Paper variant="outlined" sx={{ maxHeight: 500, overflowY: 'auto' }}>

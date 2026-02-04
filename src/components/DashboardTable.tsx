@@ -77,7 +77,7 @@ export function DashboardTable(props: TableProps) {
   const formatConverted = (n: number, fromCurrency: string, decimals = 0) => {
     const safeFrom = (fromCurrency === '#N/A' || !fromCurrency) ? 'ILS' : fromCurrency;
     const converted = convertCurrency(n, safeFrom, displayCurrency, exchangeRates);
-    return formatValue(converted, displayCurrency, decimals, t);
+    return formatValue(converted, displayCurrency, decimals);
   };
 
   const formatPct = (n: number) => {

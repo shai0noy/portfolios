@@ -1,10 +1,10 @@
-import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, Box, Chip, CircularProgress, Tooltip, IconButton, ToggleButtonGroup, ToggleButton, Menu, MenuItem, ListItemIcon, Divider } from '@mui/material';
+import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, Box, Chip, CircularProgress, Tooltip, IconButton, ToggleButtonGroup, ToggleButton, Menu, MenuItem, ListItemIcon, Tabs, Tab } from '@mui/material';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useLanguage } from '../lib/i18n';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
@@ -13,11 +13,10 @@ import type { TickerProfile } from '../lib/types/ticker';
 import { useChartComparison, getAvailableRanges, getMaxLabel, SEARCH_OPTION_TICKER } from '../lib/hooks/useChartComparison';
 import { useTickerDetails, type TickerDetailsProps } from '../lib/hooks/useTickerDetails';
 import { TickerSearch } from './TickerSearch';
-import { Exchange, type Transaction, type ExchangeRates } from '../lib/types';
-import { formatPrice, formatPercent, getExchangeRates, normalizeCurrency, convertCurrency } from '../lib/currency';
+import { Exchange } from '../lib/types';
+import { formatPrice, formatPercent, normalizeCurrency } from '../lib/currency';
 import { AnalysisDialog } from './AnalysisDialog';
 import { HoldingDetails } from './HoldingDetails';
-import { fetchTransactions, fetchAllDividends } from '../lib/sheets';
 import type { EnrichedDashboardHolding } from '../lib/dashboard';
 
 const formatDate = (timestamp?: Date | string | number | null) => {
@@ -53,12 +52,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   const [chartMetric, setChartMetric] = useState<'percent' | 'price'>('percent');
   const [compareMenuAnchor, setCompareMenuAnchor] = useState<null | HTMLElement>(null);
   const [analysisOpen, setAnalysisOpen] = useState(false);
-
-  // Holding Details Data
-  const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
-  const [allDividends, setAllDividends] = useState<any[]>([]);
-  const [exchangeRates, setExchangeRates] = useState<ExchangeRates | null>(null);
-  const [contextLoading, setContextLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState(0);
 
   // Resolve the "Active Holding" - from navigation state (enriched) or hook
   const enrichedHolding = useMemo(() => {
@@ -70,60 +64,12 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
     return holdingData as any;
   }, [location.state, ticker, holdingData]);
 
-  useEffect(() => {
-    if (holdingData || location.state?.holding) {
-      setContextLoading(true);
-      const fetchContext = async () => {
-        try {
-          const [txns, rates, divs] = await Promise.all([
-            fetchTransactions(sheetId),
-            getExchangeRates(sheetId),
-            fetchAllDividends(sheetId)
-          ]);
-          setAllTransactions(txns);
-          setExchangeRates(rates);
-          setAllDividends(divs);
-        } catch (e) {
-          console.error("Failed to load holding context:", e);
-        } finally {
-          setContextLoading(false);
-        }
-      };
-      fetchContext();
-    }
-  }, [holdingData, sheetId]);
+  const hasHolding = useMemo(() => {
+    return !!(enrichedHolding || (ownedInPortfolios && ownedInPortfolios.length > 0));
+  }, [enrichedHolding, ownedInPortfolios]);
 
-  // Calculate Weights across all portfolios
-  const holdingsWeights = useMemo(() => {
-    const displayCurrency = normalizeCurrency(localStorage.getItem('displayCurrency') || 'USD');
-    if (!portfolios || portfolios.length === 0) return [];
-
-    let totalAum = 0;
-    const portfolioValues: Record<string, number> = {};
-
-    portfolios.forEach(p => {
-      const pValue = p.holdings?.reduce((sum, h) => sum + convertCurrency(h.totalValue || 0, h.currency || 'USD', displayCurrency, exchangeRates || undefined), 0) || 0;
-      portfolioValues[p.id] = pValue;
-      totalAum += pValue;
-    });
-    
-    const results: any[] = [];
-    portfolios.forEach(p => {
-      const h = p.holdings?.find(h => h.ticker === ticker && h.exchange === exchange);
-      if (h) {
-        const pValue = portfolioValues[p.id] || 0;
-        const hValue = convertCurrency(h.totalValue || 0, h.currency || 'USD', displayCurrency, exchangeRates || undefined);
-        results.push({
-          portfolioId: p.id,
-          portfolioName: p.name,
-          weightInPortfolio: pValue > 0 ? hValue / pValue : 0,
-          weightInGlobal: totalAum > 0 ? hValue / totalAum : 0,
-          value: hValue 
-        });
-      }
-    });
-    return results;
-  }, [portfolios, ticker, exchange, exchangeRates]);
+  // Sync tab selection: if user clicked "My Holdings" elsewhere, default to that tab?
+  // For now, default to 0 (Analysis) unless requested.
 
   const handlePortfolioClick = (id: string) => {
     onClose?.(); // Close dialog
@@ -217,7 +163,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
 
   return (
     <>
-      <Dialog open={true} onClose={handleClose} maxWidth={false} fullWidth PaperProps={{ sx: { width: 'min(900px, 96%)', m: 1 } }}>
+      <Dialog open={true} onClose={handleClose} maxWidth={false} fullWidth PaperProps={{ sx: { width: 'min(900px, 96%)', m: 1, minHeight: '80vh', display: 'flex', flexDirection: 'column' } }}>
         <DialogTitle sx={{ p: 2 }}>
           <Box display="flex" justifyContent="space-between" alignItems="flex-start">
             <Box sx={{ flex: 1, minWidth: 0, pr: 2 }}>
@@ -284,77 +230,87 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
             )}
           </Box>
         </DialogTitle>
-        <DialogContent sx={{ p: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+
+        <Box sx={{ borderBottom: 1, borderColor: 'divider', px: 2 }}>
+          <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)}>
+            <Tab label={t('Analysis', 'ניתוח')} />
+            {hasHolding && <Tab label={t('Overview', 'סקירה כללית')} />}
+            {hasHolding && <Tab label={t('Transactions', 'עסקאות')} />}
+            {hasHolding && <Tab label={t('Dividends', 'דיבידנדים')} />}
+          </Tabs>
+        </Box>
+
+        <DialogContent sx={{ p: 2, display: 'flex', flexDirection: 'column', flex: 1 }}>
           {loading ? <Box display="flex" justifyContent="center" p={5}><CircularProgress /></Box> :
             error ? <Typography color="error">{error}</Typography> :
               !displayData && !resolvedName ? <Typography>{t('No data available.', 'אין נתונים זמינים.')}</Typography> :
                 <>
-                  {isStale && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>{t('Data is from', 'הנתונים מתאריך')}: {formatDate(dataTimestamp)}</Typography>}
-                  <Typography variant="subtitle2" gutterBottom>{t('Performance', 'ביצועים')}</Typography>
-                  <Box display="flex" flexWrap="wrap" gap={1} sx={{ mb: 2 }}>
-                    {Object.entries(perfData).map(([range, item]) => item && (
-                      <Tooltip key={range} title={item.date ? `Since ${formatDate(item.date)}` : ''} arrow enterTouchDelay={0} leaveTouchDelay={3000}>
-                        <Chip variant="outlined" size="small" sx={{ minWidth: 78, py: 0.5, px: 0.75, height: 'auto', color: item.val > 0 ? 'success.main' : item.val < 0 ? 'error.main' : 'text.primary', '& .MuiChip-label': { display: 'flex', flexDirection: 'column', alignItems: 'center' } }}
-                          label={<><Typography variant="caption" color="text.secondary">{translateRange(range)}</Typography><Typography variant="body2" sx={{ fontWeight: 600 }}>{formatPercent(item.val)}</Typography></>}
-                        />
-                      </Tooltip>
-                    ))}
-                  </Box>
+                  {activeTab === 0 && (
+                    <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                        {isStale && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>{t('Data is from', 'הנתונים מתאריך')}: {formatDate(dataTimestamp)}</Typography>}
+                        <Typography variant="subtitle2" gutterBottom>{t('Performance', 'ביצועים')}</Typography>
+                        <Box display="flex" flexWrap="wrap" gap={1} sx={{ mb: 2 }}>
+                            {Object.entries(perfData).map(([range, item]) => item && (
+                            <Tooltip key={range} title={item.date ? `Since ${formatDate(item.date)}` : ''} arrow enterTouchDelay={0} leaveTouchDelay={3000}>
+                                <Chip variant="outlined" size="small" sx={{ minWidth: 78, py: 0.5, px: 0.75, height: 'auto', color: item.val > 0 ? 'success.main' : item.val < 0 ? 'error.main' : 'text.primary', '& .MuiChip-label': { display: 'flex', flexDirection: 'column', alignItems: 'center' } }}
+                                label={<><Typography variant="caption" color="text.secondary">{translateRange(range)}</Typography><Typography variant="body2" sx={{ fontWeight: 600 }}>{formatPercent(item.val)}</Typography></>}
+                                />
+                            </Tooltip>
+                            ))}
+                        </Box>
 
-                  {historicalData && historicalData.length > 0 && (
-                    <>
-                      <Box display="flex" justifyContent="flex-start" alignItems="center" gap={1} flexWrap="wrap">
-                        <ToggleButtonGroup value={chartRange} exclusive onChange={(_, v) => v && setChartRange(v)} size="small">
-                          {availableRanges.map(r => <ToggleButton key={r} value={r}>{r === 'ALL' ? maxLabel : r}</ToggleButton>)}
-                        </ToggleButtonGroup>
-                        <ToggleButtonGroup value={effectiveChartMetric} exclusive onChange={(_, v) => v && setChartMetric(v)} size="small" disabled={isComparison}>
-                          <ToggleButton value="percent">%</ToggleButton>
-                          <ToggleButton value="price">$</ToggleButton>
-                        </ToggleButtonGroup>
-                        <Button onClick={(e) => setCompareMenuAnchor(e.currentTarget)}>{t('Compare', 'השווה')}</Button>
-                        <Menu anchorEl={compareMenuAnchor} open={Boolean(compareMenuAnchor)} onClose={() => setCompareMenuAnchor(null)}>
-                          {comparisonOptions.map((opt) => (
-                            <MenuItem key={opt.name} onClick={() => { handleSelectComparison(opt); setCompareMenuAnchor(null); }} disabled={comparisonSeries.some(s => s.name === opt.name) || comparisonLoading[opt.name]}>
-                              {opt.ticker === SEARCH_OPTION_TICKER && <ListItemIcon><SearchIcon fontSize="small" /></ListItemIcon>}
-                              {opt.name}
-                              {comparisonLoading[opt.name] && <CircularProgress size={16} sx={{ ml: 1 }} />}
-                            </MenuItem>
-                          ))}
-                        </Menu>
-                        <Button onClick={() => setAnalysisOpen(true)}>{t('Analysis', 'ניתוח')}</Button>
-                      </Box>
-                      {comparisonSeries.length > 0 && <Box display="flex" flexWrap="wrap" gap={1} sx={{ mt: 1, mb: 1 }}>{comparisonSeries.map(s => <Chip key={s.name} label={s.name} onDelete={() => handleRemoveComparison(s.name)} variant="outlined" size="small" sx={{ color: s.color, borderColor: s.color }} />)}</Box>}
-                      <TickerChart series={[{ name: resolvedName || ticker || 'Main', data: displayHistory }, ...displayComparisonSeries]} currency={displayData?.currency || 'USD'} mode={effectiveChartMetric} />
-                    </>
+                        {historicalData && historicalData.length > 0 && (
+                            <>
+                            <Box display="flex" justifyContent="flex-start" alignItems="center" gap={1} flexWrap="wrap">
+                                <ToggleButtonGroup value={chartRange} exclusive onChange={(_, v) => v && setChartRange(v)} size="small">
+                                {availableRanges.map(r => <ToggleButton key={r} value={r}>{r === 'ALL' ? maxLabel : r}</ToggleButton>)}
+                                </ToggleButtonGroup>
+                                <ToggleButtonGroup value={effectiveChartMetric} exclusive onChange={(_, v) => v && setChartMetric(v)} size="small" disabled={isComparison}>
+                                <ToggleButton value="percent">%</ToggleButton>
+                                <ToggleButton value="price">$</ToggleButton>
+                                </ToggleButtonGroup>
+                                <Button onClick={(e) => setCompareMenuAnchor(e.currentTarget)}>{t('Compare', 'השווה')}</Button>
+                                <Menu anchorEl={compareMenuAnchor} open={Boolean(compareMenuAnchor)} onClose={() => setCompareMenuAnchor(null)}>
+                                {comparisonOptions.map((opt) => (
+                                    <MenuItem key={opt.name} onClick={() => { handleSelectComparison(opt); setCompareMenuAnchor(null); }} disabled={comparisonSeries.some(s => s.name === opt.name) || comparisonLoading[opt.name]}>
+                                    {opt.ticker === SEARCH_OPTION_TICKER && <ListItemIcon><SearchIcon fontSize="small" /></ListItemIcon>}
+                                    {opt.name}
+                                    {comparisonLoading[opt.name] && <CircularProgress size={16} sx={{ ml: 1 }} />}
+                                    </MenuItem>
+                                ))}
+                                </Menu>
+                                <Button onClick={() => setAnalysisOpen(true)}>{t('Analysis', 'ניתוח')}</Button>
+                            </Box>
+                            {comparisonSeries.length > 0 && <Box display="flex" flexWrap="wrap" gap={1} sx={{ mt: 1, mb: 1 }}>{comparisonSeries.map(s => <Chip key={s.name} label={s.name} onDelete={() => handleRemoveComparison(s.name)} variant="outlined" size="small" sx={{ color: s.color, borderColor: s.color }} />)}</Box>}
+                            <Box sx={{ flex: 1, minHeight: 400 }}>
+                                <TickerChart series={[{ name: resolvedName || ticker || 'Main', data: displayHistory }, ...displayComparisonSeries]} currency={displayData?.currency || 'USD'} mode={effectiveChartMetric} />
+                            </Box>
+                            </>
+                        )}
+
+                        {externalLinks.length > 0 && (
+                            <>
+                            <Typography variant="subtitle2" gutterBottom sx={{ mt: 3 }}>{t('External Links', 'קישורים חיצוניים')}</Typography>
+                            <Box display="flex" flexWrap="wrap" gap={1}>
+                                {externalLinks.map(link => (
+                                <Button key={link.name} variant="outlined" size="small" href={link.url} target="_blank" endIcon={<OpenInNewIcon />} sx={{ borderRadius: 2, textTransform: 'none' }}>{link.name}</Button>
+                                ))}
+                            </Box>
+                            </>
+                        )}
+                    </Box>
                   )}
 
-                  {externalLinks.length > 0 && (
-                    <>
-                      <Typography variant="subtitle2" gutterBottom sx={{ mt: 3 }}>{t('External Links', 'קישורים חיצוניים')}</Typography>
-                      <Box display="flex" flexWrap="wrap" gap={1}>
-                        {externalLinks.map(link => (
-                          <Button key={link.name} variant="outlined" size="small" href={link.url} target="_blank" endIcon={<OpenInNewIcon />} sx={{ borderRadius: 2, textTransform: 'none' }}>{link.name}</Button>
-                        ))}
-                      </Box>
-                    </>
-                  )}
-
-                  {enrichedHolding && (
-                    <Box sx={{ mt: 4 }}>
-                      <Divider sx={{ mb: 3 }} />
-                      {contextLoading ? (
-                        <Box display="flex" justifyContent="center" p={4}><CircularProgress size={30} /></Box>
-                      ) : exchangeRates ? (
+                  {activeTab > 0 && hasHolding && (
+                    <Box sx={{ mt: 2, flex: 1, overflow: 'auto' }}>
                         <HoldingDetails
+                          sheetId={sheetId}
                           holding={enrichedHolding || holdingData}
-                          transactions={allTransactions}
-                          dividends={allDividends}
                           displayCurrency={normalizeCurrency(localStorage.getItem('displayCurrency') || 'USD')}
-                          exchangeRates={exchangeRates}
-                          holdingsWeights={holdingsWeights}
+                          portfolios={portfolios}
                           onPortfolioClick={handlePortfolioClick}
+                          section={activeTab === 1 ? 'overview' : activeTab === 2 ? 'transactions' : 'dividends'}
                         />
-                      ) : null}
                     </Box>
                   )}
                 </>}
