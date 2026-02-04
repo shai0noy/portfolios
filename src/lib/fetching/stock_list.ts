@@ -98,7 +98,7 @@ taseTypeIds.securitiesTypes.result.forEach(type => {
  * @returns A promise that resolves to an array of TASE securities. Returns an empty array on failure.
  */
 async function fetchTaseSecurities(signal?: AbortSignal): Promise<TaseSecurity[]> {
-    const url = `https://portfolios.noy-shai.workers.dev/?apiId=tase_list_stocks`;
+    const url = `${WORKER_URL}/?apiId=tase_list_stocks`;
     try {
         console.log(`Fetching TASE securities...`);
         const response = await fetch(url, { signal });
@@ -121,7 +121,7 @@ async function fetchTaseSecurities(signal?: AbortSignal): Promise<TaseSecurity[]
  * Fetches the list of mutual funds from the TASE API.
  */
 async function fetchTaseFunds(signal?: AbortSignal): Promise<any[]> {
-    const url = `https://portfolios.noy-shai.workers.dev/?apiId=tase_list_funds`;
+    const url = `${WORKER_URL}/?apiId=tase_list_funds`;
     try {
         console.log(`Fetching TASE funds...`);
         const response = await fetch(url, { signal });

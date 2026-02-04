@@ -1,5 +1,6 @@
 // src/lib/fetching/cbs.ts
 import { CACHE_TTL, saveToCache, loadFromCache } from './utils/cache';
+import { WORKER_URL } from '../../config';
 import { Exchange } from '../types';
 import { InstrumentClassification, InstrumentType } from '../types/instrument';
 import type { TickerProfile } from '../types/ticker';
@@ -167,7 +168,7 @@ export async function fetchCpi(
   let name = '';
   try {
     while (morePages) {
-      const url = `https://portfolios.noy-shai.workers.dev/?apiId=cbs_price_index&id=${id}&page=${currentPage}`;
+      const url = `${WORKER_URL}/?apiId=cbs_price_index&id=${id}&page=${currentPage}`;
       
       const res = await fetch(url, { signal });
       if (!res.ok) {

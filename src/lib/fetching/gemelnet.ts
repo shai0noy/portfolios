@@ -60,7 +60,7 @@ export async function fetchGemelnetFund(
   }
 
   // 2. Fetch Data
-  const url = `https://portfolios.noy-shai.workers.dev/?apiId=gemelnet_fund&startYear=${sParts.year}&startMonth=${sParts.month}&endYear=${eParts.year}&endMonth=${eParts.month}&fundId=${fundId}`;
+  const url = `${WORKER_URL}/?apiId=gemelnet_fund&startYear=${sParts.year}&startMonth=${sParts.month}&endYear=${eParts.year}&endMonth=${eParts.month}&fundId=${fundId}`;
   
   console.log(`[Gemelnet] Fetching data for fund ${fundId}...`);
   
@@ -191,7 +191,7 @@ export async function fetchGemelnetTickers(signal?: AbortSignal, forceRefresh = 
 
   const sParts = getDateParts(startDate);
   const eParts = getDateParts(endDate);
-  const url = `https://portfolios.noy-shai.workers.dev/?apiId=gemelnet_list&startYear=${sParts.year}&startMonth=${sParts.month}&endYear=${eParts.year}&endMonth=${eParts.month}`;
+  const url = `${WORKER_URL}/?apiId=gemelnet_list&startYear=${sParts.year}&startMonth=${sParts.month}&endYear=${eParts.year}&endMonth=${eParts.month}`;
 
   console.log('[Gemelnet] Fetching tickers list...');
   try {

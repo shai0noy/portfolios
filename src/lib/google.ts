@@ -4,10 +4,9 @@ import { SessionExpiredError } from './errors';
 
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const SCOPES = 'https://www.googleapis.com/auth/drive.file';
-
+const WORKER_URL = import.meta.env.VITE_WORKER_URL || '';
 
 let gapiInstance: typeof gapi | null = null;
-let tokenClient: google.accounts.oauth2.TokenClient | null = null;
 let signInPromise: Promise<void> | null = null;
 let refreshPromise: Promise<void> | null = null;
 
@@ -23,17 +22,35 @@ export async function initializeGapi(): Promise<typeof gapi> {
     return gapiInstance;
 }
 
-function storeToken(response: google.accounts.oauth2.TokenResponse) {
-    localStorage.setItem('g_access_token', response.access_token!);
-    localStorage.setItem('g_expires', (Date.now() + (Number(response.expires_in!) - 60) * 1000).toString());
+function storeToken(response: any) {
+    if (!response.access_token) return;
+    localStorage.setItem('g_access_token', response.access_token);
+    // expires_in is in seconds
+    const expiresAt = Date.now() + (Number(response.expires_in) - 60) * 1000;
+    localStorage.setItem('g_expires', expiresAt.toString());
     gapiInstance!.client.setToken({ access_token: response.access_token });
-    console.log("Token stored and set in gapi client.");
+    console.log("Token refreshed and stored.");
 }
 
 export function hasValidToken(): boolean {
     const storedToken = localStorage.getItem('g_access_token');
     const storedExpiry = localStorage.getItem('g_expires');
     return !!(storedToken && storedExpiry && Date.now() < parseInt(storedExpiry));
+}
+
+async function refreshAccessToken(): Promise<void> {
+    try {
+        const res = await fetch(`${WORKER_URL}/auth/token`);
+        if (!res.ok) {
+            if (res.status === 401) throw new SessionExpiredError("Session expired");
+            throw new Error("Failed to refresh token");
+        }
+        const data = await res.json();
+        storeToken(data);
+    } catch (e) {
+        console.error("Refresh failed:", e);
+        throw e;
+    }
 }
 
 export function signIn(): Promise<void> {
@@ -45,27 +62,40 @@ export function signIn(): Promise<void> {
             }
             try {
                 await initializeGapi();
-                tokenClient = google.accounts.oauth2.initTokenClient({
+                const client = google.accounts.oauth2.initCodeClient({
                     client_id: CLIENT_ID,
                     scope: SCOPES,
-                    prompt: 'consent',
-                    callback: (response: google.accounts.oauth2.TokenResponse) => {
-                        if (response.error) {
-                            console.error("Token Client Error:", response);
+                    ux_mode: 'popup',
+                    callback: async (response: any) => {
+                        if (response.code) {
+                            try {
+                                const res = await fetch(`${WORKER_URL}/auth/google`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ code: response.code })
+                                });
+                                
+                                if (!res.ok) {
+                                    const err = await res.json();
+                                    throw new Error(err.error || 'Failed to exchange code');
+                                }
+                                
+                                // After cookie is set, get the access token
+                                await refreshAccessToken();
+                                resolve();
+                            } catch (err) {
+                                console.error("Auth exchange failed:", err);
+                                reject(err);
+                            } finally {
+                                signInPromise = null;
+                            }
+                        } else {
                             signInPromise = null;
-                            return reject(new Error(response.error_description || 'Failed to get token'));
+                            reject(new Error(response.error_description || 'Login failed'));
                         }
-                        storeToken(response);
-                        signInPromise = null;
-                        resolve();
-                    },
-                    error_callback: (error: any) => {
-                        console.error("Token Client Error Callback:", error);
-                        signInPromise = null;
-                        reject(new Error(error.message || 'Google sign-in failed'));
                     },
                 });
-                tokenClient.requestAccessToken({ prompt: '' });
+                client.requestCode();
             } catch (e) {
                 console.error("Error in signIn:", e);
                 signInPromise = null;
@@ -83,6 +113,7 @@ export function signOut() {
     if (gapiInstance) {
         gapiInstance.client.setToken(null);
     }
+    // Also hit worker to clear cookie? (Optional but good practice)
     console.log('User signed out');
     window.location.reload();
 }
@@ -91,7 +122,6 @@ export const ensureGapi = async (): Promise<typeof gapi> => {
     await initializeGapi();
 
     if (hasValidToken()) {
-        // Set token if not already set (e.g., after page load)
         if (!gapiInstance!.client.getToken()) {
             const storedToken = localStorage.getItem('g_access_token');
             gapiInstance!.client.setToken({ access_token: storedToken! });
@@ -99,58 +129,26 @@ export const ensureGapi = async (): Promise<typeof gapi> => {
         return gapiInstance!;
     }
 
-    console.log('Token missing or expired, attempting silent refresh...');
+    console.log('Token missing or expired, attempting refresh via worker...');
 
     if (refreshPromise) {
-        console.log('Silent refresh already in progress, waiting...');
-        try {
-            await refreshPromise;
-            return gapiInstance!;
-        } catch (error) {
-            throw error;
-        }
+        await refreshPromise;
+        return gapiInstance!;
     }
 
-    refreshPromise = new Promise((resolve, reject) => {
-        try {
-            tokenClient = google.accounts.oauth2.initTokenClient({
-                client_id: CLIENT_ID,
-                scope: SCOPES,
-                prompt: 'none',
-                callback: (response: google.accounts.oauth2.TokenResponse) => {
-                    if (response.error) {
-                        console.warn("Silent refresh failed callback:", response);
-                        // Pass the whole response to the reject
-                        return reject(new SessionExpiredError(response.error_description || response.error));
-                    }
-                    storeToken(response);
-                    console.log("Silent refresh successful.");
-                    resolve();
-                },
-                error_callback: (error: any) => {
-                    console.warn("Silent refresh error callback:", error);
-                    reject(new SessionExpiredError(error.message || 'Session Expired'));
-                },
-            });
-            tokenClient.requestAccessToken({ prompt: 'none' });
-        } catch (e) {
-            reject(e);
-        }
-    });
-
+    refreshPromise = refreshAccessToken().finally(() => { refreshPromise = null; });
+    
     try {
         await refreshPromise;
         return gapiInstance!;
-    } catch (error: any) {
+    } catch (error) {
         if (error instanceof SessionExpiredError) {
             console.log("Session expired, requires user interaction.");
             throw error;
         } else {
             console.error("Unhandled error during token refresh:", error);
-            throw error;
+            throw new SessionExpiredError("Session expired");
         }
-    } finally {
-        refreshPromise = null;
     }
 };
 
@@ -168,7 +166,7 @@ export async function checkSheetExists(spreadsheetId: string): Promise<boolean> 
             return false;
         }
         console.error("Error checking sheet existence:", error);
-        throw error; // Re-throw other errors
+        throw error;
     }
 }
 

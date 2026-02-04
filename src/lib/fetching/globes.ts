@@ -1,5 +1,6 @@
 // src/lib/fetching/globes.ts
 import { CACHE_TTL, saveToCache, loadFromCache, TASE_CACHE_TTL } from './utils/cache';
+import { WORKER_URL } from '../../config';
 import { deduplicateRequest } from './utils/request_deduplicator';
 import { fetchXml, parseXmlString, extractDataFromXmlNS } from './utils/xml_parser';
 import type { TickerData } from './types';
@@ -122,7 +123,7 @@ export async function fetchGlobesTickersByType(type: string, exchange: Exchange,
       }
   } catch (e) { console.warn('Globes tickers cache read failed', e); }
 
-  const globesApiUrl = `https://portfolios.noy-shai.workers.dev/?apiId=globes_list&exchange=${exchangeCode}&type=${type}`;
+  const globesApiUrl = `${WORKER_URL}/?apiId=globes_list&exchange=${exchangeCode}&type=${type}`;
   const xmlString = await fetchXml(globesApiUrl, signal);
   const xmlDoc = parseXmlString(xmlString);
   
@@ -217,7 +218,7 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
     }
   }
 
-  const globesApiUrl = `https://portfolios.noy-shai.workers.dev/?apiId=globes_data&exchange=${requestedExchangeCode}&ticker=${identifier}`;
+  const globesApiUrl = `${WORKER_URL}/?apiId=globes_data&exchange=${requestedExchangeCode}&ticker=${identifier}`;
 
   return deduplicateRequest(cacheKey, async () => {
     let text;

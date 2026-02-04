@@ -60,7 +60,7 @@ export async function fetchPensyanetFund(
   }
 
   // 2. Fetch Data
-  const url = `https://portfolios.noy-shai.workers.dev/?apiId=pensyanet_fund&startYear=${sParts.year}&startMonth=${sParts.month}&endYear=${eParts.year}&endMonth=${eParts.month}&fundId=${fundId}`;
+  const url = `${WORKER_URL}/?apiId=pensyanet_fund&startYear=${sParts.year}&startMonth=${sParts.month}&endYear=${eParts.year}&endMonth=${eParts.month}&fundId=${fundId}`;
   
   console.log(`[Pensyanet] Fetching data for fund ${fundId}...`);
   
@@ -180,7 +180,7 @@ export async function fetchPensyanetTickers(signal?: AbortSignal, forceRefresh =
 
   const sParts = getDateParts(startDate);
   const eParts = getDateParts(endDate);
-  const url = `https://portfolios.noy-shai.workers.dev/?apiId=pensyanet_list&startYear=${sParts.year}&startMonth=${sParts.month}&endYear=${eParts.year}&endMonth=${eParts.month}`;
+  const url = `${WORKER_URL}/?apiId=pensyanet_list&startYear=${sParts.year}&startMonth=${sParts.month}&endYear=${eParts.year}&endMonth=${eParts.month}`;
 
   console.log('[Pensyanet] Fetching tickers list...');
   try {
