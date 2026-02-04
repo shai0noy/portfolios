@@ -14,6 +14,7 @@ import {
   GEMEL_CACHE_TTL,
   GEMEL_LIST_CACHE_TTL
 } from './utils/cache';
+import { WORKER_URL } from '../../config';
 import type { 
   FundData, 
   FundDataPoint 

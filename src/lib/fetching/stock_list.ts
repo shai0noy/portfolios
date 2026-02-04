@@ -11,6 +11,7 @@ import { fetchPensyanetTickers } from './pensyanet';
 import taseTypeIds from './tase_type_ids.json';
 import { Exchange } from '../types';
 import { fetchGlobesTickersByType } from './globes';
+import { WORKER_URL } from '../../config';
 
 // Pattern matching for TASE main type to our canonical InstrumentType
 const taseTypePatterns: [RegExp, InstrumentType][] = [
