@@ -324,7 +324,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
 
                         {data?.dividends && data.dividends.length > 0 && (
                           <>
-                            <Typography variant="subtitle2" gutterBottom sx={{ mt: 1 }}>{t('Dividend Gains', 'רווחי דיבידנד')}</Typography>
+                            <Typography variant="subtitle2" gutterBottom sx={{ mt: 0.5 }}>{t('Dividend Gains', 'רווחי דיבידנד')}</Typography>
                             <Box display="flex" flexWrap="wrap" gap={1} sx={{ mb: 2 }}>
                               {Object.entries(dividendGains).map(([range, info]) => {
                                 const value = info.pct;
