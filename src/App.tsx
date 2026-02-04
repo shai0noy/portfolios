@@ -243,6 +243,7 @@ function AppContent() {
         await initializeGapi();
         if (mounted) setGoogleReady(true);
       } catch (e) {
+        console.warn("GAPI init failed or timed out", e);
         if (mounted) setGoogleReady(false);
         setSheetId(null);
       }

@@ -10,17 +10,30 @@ let gapiInstance: typeof gapi | null = null;
 let signInPromise: Promise<void> | null = null;
 let refreshPromise: Promise<void> | null = null;
 let refreshTimeout: ReturnType<typeof setTimeout> | null = null;
+let initPromise: Promise<typeof gapi> | null = null;
 
 export async function initializeGapi(): Promise<typeof gapi> {
     if (gapiInstance) return gapiInstance;
-    gapiInstance = await ensureGoogleApis();
-    await gapiInstance.client.init({
-        discoveryDocs: [
-            'https://sheets.googleapis.com/$discovery/rest?version=v4',
-            'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest',
-        ],
+    if (initPromise) return initPromise;
+
+    initPromise = (async () => {
+        const gapi = await ensureGoogleApis();
+
+        await gapi.client.init({
+            discoveryDocs: [
+                'https://sheets.googleapis.com/$discovery/rest?version=v4',
+                'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest',
+            ],
+        });
+
+        gapiInstance = gapi;
+        return gapi;
+    })();
+
+    return initPromise.catch(err => {
+        initPromise = null;
+        throw err;
     });
-    return gapiInstance;
 }
 
 function scheduleRefresh(expiresInSeconds: number) {

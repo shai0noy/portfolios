@@ -10,6 +10,13 @@ interface LoadedScriptElement extends HTMLScriptElement {
 
 function loadScript(src: string): Promise<void> {
   return new Promise((resolve, reject) => {
+    if (src.includes('api.js') && typeof gapi !== 'undefined') {
+      return resolve();
+    }
+    if (src.includes('gsi/client') && (window as any).google?.accounts) {
+      return resolve();
+    }
+
     const existingScript = document.querySelector(`script[src="${src}"]`) as LoadedScriptElement;
 
     if (existingScript) {
@@ -75,6 +82,7 @@ function loadScript(src: string): Promise<void> {
 }
 
 async function loadGapiScript(): Promise<void> {
+  if (typeof gapi !== 'undefined') return;
   if (!gapiScriptLoaded) {
     gapiScriptLoaded = loadScript('https://apis.google.com/js/api.js');
   }
@@ -82,22 +90,20 @@ async function loadGapiScript(): Promise<void> {
 }
 
 async function loadGapiClient(): Promise<typeof gapi> {
-  if (!gapiClientLoaded) {
-    await loadGapiScript();
-    const gapiObj = (window as any).gapi;
-    if (!gapiObj) {
-      throw new Error('GAPI object not found after script load');
-    }
-    gapiClientLoaded = new Promise((resolve, reject) => {
-      gapiObj.load('client:picker', {
-        callback: () => resolve(gapiObj),
-        onerror: reject,
-        timeout: 5000,
-        ontimeout: reject,
+  if (gapiClientLoaded) return gapiClientLoaded;
+
+  gapiClientLoaded = (async () => {
+      await loadGapiScript();
+      const gapiObj = (window as any).gapi;
+      if (!gapiObj) throw new Error('GAPI object not found after script load');
+      
+      if (gapiObj.client) return gapiObj;
+      return new Promise<typeof gapi>((resolve) => {
+        gapiObj.load('client:picker', () => resolve(gapiObj));
       });
-    });
-  }
-  return gapiClientLoaded!;
+  })();
+
+  return gapiClientLoaded;
 }
 
 export async function loadGis(): Promise<void> {

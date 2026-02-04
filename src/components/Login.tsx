@@ -50,9 +50,9 @@ export function Login({ onLogin }: { onLogin: (sheetId: string) => void }) {
           localStorage.removeItem('g_sheet_id');
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setError('Failed to initialize Google API');
+      setError(`Failed to initialize Google API: ${err.message || err}`);
     } finally {
       setLoading(false);
     }
