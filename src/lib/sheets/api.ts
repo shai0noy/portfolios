@@ -358,7 +358,11 @@ export const fetchTransactions = withAuthHandling(async (spreadsheetId: string):
     await ensureGapi();
     const transactionsRaw = await fetchSheetData(
         spreadsheetId, TX_FETCH_RANGE,
-        (row) => mapRowToTransaction<Omit<Transaction, 'grossValue'>>(row, transactionMapping, transactionNumericKeys),
+        (row, index) => {
+            const t = mapRowToTransaction<Omit<Transaction, 'grossValue'>>(row, transactionMapping, transactionNumericKeys) as any;
+            t.rowIndex = index + 2;
+            return t;
+        },
         'FORMATTED_VALUE' // Fetch formulas to get the raw formulas for calculation
     );
     return transactionsRaw.map(t_raw => {
@@ -598,7 +602,7 @@ export const fetchDividends = withAuthHandling(async (spreadsheetId: string, tic
     }
 });
 
-export const fetchAllDividends = withAuthHandling(async (spreadsheetId: string): Promise<{ ticker: string, exchange: Exchange, date: Date, amount: number, source: string }[]> => {
+export const fetchAllDividends = withAuthHandling(async (spreadsheetId: string): Promise<{ ticker: string, exchange: Exchange, date: Date, amount: number, source: string, rowIndex: number }[]> => {
     const gapi = await ensureGapi();
     try {
         const res = await gapi.client.sheets.spreadsheets.values.get({
@@ -608,7 +612,7 @@ export const fetchAllDividends = withAuthHandling(async (spreadsheetId: string):
         });
         const rows = res.result.values || [];
         
-        return rows.map(row => {
+        return rows.map((row, index) => {
                 let date: Date;
                 const rawDate = row[2];
                 if (typeof rawDate === 'number') {
@@ -625,10 +629,11 @@ export const fetchAllDividends = withAuthHandling(async (spreadsheetId: string):
                     ticker: String(row[1]).toUpperCase(),
                     date,
                     amount: Number(row[3]),
-                    source: String(row[4] || '')
+                    source: String(row[4] || ''),
+                    rowIndex: index + 2
                 };
             })
-            .filter(div => div.exchange && !isNaN(div.date.getTime()) && !isNaN(div.amount)) as { ticker: string, exchange: Exchange, date: Date, amount: number, source: string }[];
+            .filter(div => div.exchange && !isNaN(div.date.getTime()) && !isNaN(div.amount)) as { ticker: string, exchange: Exchange, date: Date, amount: number, source: string, rowIndex: number }[];
     } catch (error: any) {
         if (error.result?.error?.code === 400) {
             return [];
@@ -730,6 +735,217 @@ export const addDividendEvent = withAuthHandling(async (spreadsheetId: string, t
     dividendSyncLock.delete(lockKey);
 
     await syncDividends(spreadsheetId, ticker, exchange, [{ date, amount }], 'MANUAL');
+});
+
+export const updateTransaction = withAuthHandling(async (spreadsheetId: string, t: Transaction, originalTxn: Transaction) => {
+    if (!t.rowIndex) throw new Error("Transaction missing rowIndex for update");
+    const gapi = await ensureGapi();
+
+    // Verification: Fetch row to check consistency before update
+    const rowIndex = t.rowIndex;
+    const rangeVerify = `${TX_SHEET_NAME}!A${rowIndex}:G${rowIndex}`; // Fetch up to Price
+    const resVerify = await gapi.client.sheets.spreadsheets.values.get({
+        spreadsheetId, range: rangeVerify, valueRenderOption: 'UNFORMATTED_VALUE'
+    });
+    const rowVerify = resVerify.result.values?.[0];
+    
+    if (!rowVerify) throw new Error("Row not found for update verification.");
+
+    const sheetTicker = String(rowVerify[2]).toUpperCase();
+    const origTicker = originalTxn.ticker.toUpperCase();
+    
+    if (sheetTicker !== origTicker) {
+        throw new Error(`Verification failed: Ticker mismatch. Expected ${origTicker}, found ${sheetTicker}. The sheet may have been modified externally.`);
+    }
+
+    const sheetQty = Number(rowVerify[5]);
+    const origQty = Number(originalTxn.originalQty);
+    if (Math.abs(sheetQty - origQty) > 0.0001) {
+         throw new Error(`Verification failed: Quantity mismatch. Expected ${origQty}, found ${sheetQty}.`);
+    }
+
+    // Prepare row data (same logic as batchAddTransactions)
+    const rowData: Record<string, string | number | null | undefined> = { ...t as any };
+    rowData.date = t.date ? toGoogleSheetDateFormat(new Date(t.date)) : '';
+    rowData.ticker = String(logIfFalsy(t.ticker, `Transaction ticker missing`, t)).toUpperCase();
+    rowData.exchange = toGoogleSheetsExchangeCode(t.exchange!);
+    rowData.vestDate = t.vestDate ? toGoogleSheetDateFormat(new Date(t.vestDate)) : '';
+    rowData.comment = t.comment || '';
+    rowData.source = t.source || '';
+    rowData.tax = t.tax || 0;
+    
+    const comm = t.commission || 0;
+    const isILA = (t.currency || '').toUpperCase() === 'ILA';
+    rowData.commission = isILA ? comm * 100 : comm;
+
+    const cDate = t.creationDate ? new Date(t.creationDate) : new Date();
+    rowData.creationDate = toGoogleSheetDateFormat(cDate);
+    rowData.numeric_id = t.numericId;
+
+    const rowValues = Object.values(TXN_COLS).map(colDef => {
+        if (colDef.formula) return null; 
+        const key = colDef.key;
+        const val = rowData[key] ?? (t as any)[key];
+        return (val === undefined) ? null : (val as string | number | null);
+    });
+
+    // Update the row
+    const range = `${TX_SHEET_NAME}!A${t.rowIndex}`;
+    await gapi.client.sheets.spreadsheets.values.update({
+        spreadsheetId, range, valueInputOption: 'USER_ENTERED',
+        resource: { values: [rowValues] }
+    });
+
+    // Re-apply formulas for this row
+    const formulaColDefs = Object.values(TXN_COLS).filter(colDef => !!colDef.formula);
+    const txSheetId = await getSheetId(spreadsheetId, TX_SHEET_NAME);
+    const requests = formulaColDefs.map((colDef) => {
+        const formula = colDef.formula!(t.rowIndex!, TXN_COLS);
+        const colIndex = Object.values(TXN_COLS).indexOf(colDef);
+        return {
+            updateCells: {
+                range: { sheetId: txSheetId, startRowIndex: t.rowIndex! - 1, endRowIndex: t.rowIndex!, startColumnIndex: colIndex, endColumnIndex: colIndex + 1 },
+                rows: [{ values: [{ userEnteredValue: { formulaValue: formula } }] }],
+                fields: 'userEnteredValue.formulaValue'
+            }
+        };
+    });
+
+    if (requests.length > 0) {
+        await gapi.client.sheets.spreadsheets.batchUpdate({ spreadsheetId, resource: { requests } });
+    }
+
+    await rebuildHoldingsSheet(spreadsheetId);
+});
+
+export const updateDividend = withAuthHandling(async (spreadsheetId: string, rowIndex: number, ticker: string, exchange: Exchange, date: Date, amount: number, source: string, originalDiv: { ticker: string, amount: number }) => {
+    const gapi = await ensureGapi();
+    
+    // Verification
+    const rangeVerify = `${DIV_SHEET_NAME}!A${rowIndex}:D${rowIndex}`;
+    const resVerify = await gapi.client.sheets.spreadsheets.values.get({
+        spreadsheetId, range: rangeVerify, valueRenderOption: 'UNFORMATTED_VALUE'
+    });
+    const rowVerify = resVerify.result.values?.[0];
+    if (!rowVerify) throw new Error("Row not found for update verification.");
+
+    const sheetTicker = String(rowVerify[1]).toUpperCase();
+    const origTicker = originalDiv.ticker.toUpperCase();
+    
+    if (sheetTicker !== origTicker) {
+        throw new Error(`Verification failed: Ticker mismatch. Expected ${origTicker}, found ${sheetTicker}.`);
+    }
+    
+    const sheetAmount = Number(rowVerify[3]);
+    if (Math.abs(sheetAmount - originalDiv.amount) > 0.000001) {
+         throw new Error(`Verification failed: Amount mismatch. Expected ${originalDiv.amount}, found ${sheetAmount}.`);
+    }
+
+    const dateStr = toGoogleSheetDateFormat(date);
+    const row = [
+        toGoogleSheetsExchangeCode(exchange),
+        ticker.toUpperCase(),
+        dateStr,
+        amount,
+        source
+    ];
+    
+    const range = `${DIV_SHEET_NAME}!A${rowIndex}:E${rowIndex}`;
+    await gapi.client.sheets.spreadsheets.values.update({
+        spreadsheetId, range, valueInputOption: 'USER_ENTERED',
+        resource: { values: [row] }
+    });
+});
+
+export const deleteTransaction = withAuthHandling(async (spreadsheetId: string, rowIndex: number, originalTxn: Transaction) => {
+    const gapi = await ensureGapi();
+    
+    // Verification: Fetch row to check consistency
+    const range = `${TX_SHEET_NAME}!A${rowIndex}:G${rowIndex}`; // Fetch up to Price
+    // Use FORMATTED_VALUE to easily compare date string if possible, or UNFORMATTED for numbers.
+    // Let's use UNFORMATTED and fuzzy compare numbers.
+    const res = await gapi.client.sheets.spreadsheets.values.get({
+        spreadsheetId, range, valueRenderOption: 'UNFORMATTED_VALUE'
+    });
+    const row = res.result.values?.[0];
+    
+    if (!row) throw new Error("Row not found for deletion verification.");
+
+    // Row Indices (A=0): A=Date, B=Portfolio, C=Ticker, D=Exchange, E=Type, F=Qty, G=Price
+    const sheetTicker = String(row[2]).toUpperCase();
+    const origTicker = originalTxn.ticker.toUpperCase();
+    
+    if (sheetTicker !== origTicker) {
+        throw new Error(`Verification failed: Ticker mismatch. Expected ${origTicker}, found ${sheetTicker}. The sheet may have been modified externally.`);
+    }
+
+    const sheetQty = Number(row[5]);
+    const origQty = Number(originalTxn.originalQty);
+    if (Math.abs(sheetQty - origQty) > 0.0001) {
+         throw new Error(`Verification failed: Quantity mismatch. Expected ${origQty}, found ${sheetQty}.`);
+    }
+
+    const txSheetId = await getSheetId(spreadsheetId, TX_SHEET_NAME);
+    
+    await gapi.client.sheets.spreadsheets.batchUpdate({
+        spreadsheetId,
+        resource: {
+            requests: [{
+                deleteDimension: {
+                    range: {
+                        sheetId: txSheetId,
+                        dimension: 'ROWS',
+                        startIndex: rowIndex - 1,
+                        endIndex: rowIndex
+                    }
+                }
+            }]
+        }
+    });
+
+    await rebuildHoldingsSheet(spreadsheetId);
+});
+
+export const deleteDividend = withAuthHandling(async (spreadsheetId: string, rowIndex: number, originalDiv: { ticker: string, amount: number }) => {
+    const gapi = await ensureGapi();
+    
+    // Verification
+    const range = `${DIV_SHEET_NAME}!A${rowIndex}:D${rowIndex}`; // Exchange(A), Ticker(B), Date(C), Amount(D)
+    const res = await gapi.client.sheets.spreadsheets.values.get({
+        spreadsheetId, range, valueRenderOption: 'UNFORMATTED_VALUE'
+    });
+    const row = res.result.values?.[0];
+    if (!row) throw new Error("Row not found for deletion verification.");
+
+    const sheetTicker = String(row[1]).toUpperCase();
+    const origTicker = originalDiv.ticker.toUpperCase();
+    
+    if (sheetTicker !== origTicker) {
+        throw new Error(`Verification failed: Ticker mismatch. Expected ${origTicker}, found ${sheetTicker}.`);
+    }
+    
+    const sheetAmount = Number(row[3]);
+    if (Math.abs(sheetAmount - originalDiv.amount) > 0.000001) {
+         throw new Error(`Verification failed: Amount mismatch. Expected ${originalDiv.amount}, found ${sheetAmount}.`);
+    }
+
+    const divSheetId = await getSheetId(spreadsheetId, DIV_SHEET_NAME);
+    
+    await gapi.client.sheets.spreadsheets.batchUpdate({
+        spreadsheetId,
+        resource: {
+            requests: [{
+                deleteDimension: {
+                    range: {
+                        sheetId: divSheetId,
+                        dimension: 'ROWS',
+                        startIndex: rowIndex - 1,
+                        endIndex: rowIndex
+                    }
+                }
+            }]
+        }
+    });
 });
 
 export const rebuildHoldingsSheet = withAuthHandling(async (spreadsheetId: string) => {

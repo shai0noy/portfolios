@@ -337,6 +337,7 @@ export interface Transaction {
   numericId?: number;
   valueAfterTax?: number;
   nominalValue?: number;
+  rowIndex?: number;
 }
 
 // Templates for quick setup

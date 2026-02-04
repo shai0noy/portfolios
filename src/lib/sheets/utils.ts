@@ -152,7 +152,7 @@ export function createHeaderUpdateRequest(sheetId: number, headers: Headers) {
 export async function fetchSheetData<T>(
     spreadsheetId: string,
     range: string,
-    rowMapper: (row: any[]) => T,
+    rowMapper: (row: any[], index: number) => T,
     valueRenderOption = 'FORMATTED_VALUE'
 ): Promise<T[]> {
     await ensureGapi();

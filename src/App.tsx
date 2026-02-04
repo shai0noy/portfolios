@@ -496,10 +496,15 @@ function AppContent() {
                 <TransactionForm 
                   sheetId={sheetId} 
                   refreshTrigger={refreshKey}
-                  onSaveSuccess={() => {
+                  onSaveSuccess={(msg, undoCb) => {
                     setRefreshKey(k => k + 1);
-                    setSnackbarMessage('Transaction saved! Dashboard is refreshing...');
+                    setSnackbarMessage(msg || t('Transaction saved!', 'העסקה נשמרה!'));
                     setSnackbarSeverity('success');
+                    setSnackbarAction(undoCb ? (
+                        <Button color="inherit" size="small" onClick={() => { undoCb(); setSnackbarOpen(false); }}>
+                            {t('Undo', 'בטל')}
+                        </Button>
+                    ) : null);
                     setSnackbarOpen(true);
                   }} 
                 />

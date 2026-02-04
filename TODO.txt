@@ -9,7 +9,7 @@ verify adj price of results from sheet and globes? is it adj or not? need to kno
 Include mgmt fee in gemel calc
 fetch mgmt fee from tase and also show
 CPI data parsing, solve issue where values before 1985 are weird - 200x too large
-Mobile viewing is all over the placed
+Mobile viewing is all over the place
 Check crypto 1d change?...
 Discovery/selling points splash page
 tase types vs globes types??

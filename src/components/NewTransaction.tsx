@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useTheme } from '@mui/material/styles';
 import {
   Box, TextField, Button, MenuItem, Select, InputLabel, FormControl,
   Typography, Alert, InputAdornment, Grid, Card, CardContent, Divider, Tooltip, Chip
@@ -9,9 +10,10 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import SearchIcon from '@mui/icons-material/Search';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
 import DashboardIcon from '@mui/icons-material/Dashboard';
+import DeleteIcon from '@mui/icons-material/Delete';
 import { parseExchange, type Portfolio, type Transaction, Exchange } from '../lib/types';
 import type { TickerProfile } from '../lib/types/ticker';
-import { addTransaction, fetchPortfolios, addExternalPrice, syncDividends, addDividendEvent } from '../lib/sheets/index';
+import { addTransaction, fetchPortfolios, addExternalPrice, syncDividends, addDividendEvent, updateTransaction, updateDividend, deleteTransaction, deleteDividend } from '../lib/sheets/index';
 import { getTickerData, type TickerData } from '../lib/fetching';
 import { TickerSearch } from './TickerSearch';
 import { convertCurrency, formatPrice, getExchangeRates, normalizeCurrency } from '../lib/currency';
@@ -20,14 +22,19 @@ import { useLanguage } from '../lib/i18n';
 
 interface Props {
   sheetId: string;
-  onSaveSuccess?: () => void;
+  onSaveSuccess?: (message?: string, undoCallback?: () => void) => void;
   refreshTrigger?: number;
 }
 
 export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Props) => {
+  const theme = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
-  const locationState = location.state as { prefilledTicker?: string, prefilledExchange?: string, initialPrice?: string, initialCurrency?: string, numericId?: number, initialName?: string, initialNameHe?: string } | null;
+  const locationState = location.state as { 
+      prefilledTicker?: string, prefilledExchange?: string, initialPrice?: string, 
+      initialCurrency?: string, numericId?: number, initialName?: string, initialNameHe?: string,
+      editTransaction?: Transaction, editDividend?: { ticker: string, exchange: Exchange, date: Date, amount: number, source: string, rowIndex: number }
+  } | null;
 
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [isPortfoliosLoading, setIsPortfoliosLoading] = useState(true);
@@ -40,8 +47,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   // Form State
   const [selectedTicker, setSelectedTicker] = useState<(TickerData & { symbol: string }) | null>(null);
   const [showForm, setShowForm] = useState(!!locationState?.prefilledTicker);
-  // The date state is stored in 'yyyy-MM-dd' format, which is required by the <input type="date"> element.
-  // The conversion to Google Sheets format ('dd/MM/yyyy') happens in `addTransaction` on submission.
+  
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [portId, setPortId] = useState('');
   const [ticker, setTicker] = useState(locationState?.prefilledTicker || '');
@@ -62,43 +68,93 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   const [tickerCurrency, setTickerCurrency] = useState<Currency>(normalizeCurrency(locationState?.initialCurrency || ''));
   const [validationErrors, setValidationErrors] = useState<{ [key: string]: boolean }>({});
   const [commissionPct, setCommissionPct] = useState<string>('');
+  
+  // Undo State
+  const [undoData, setUndoData] = useState<{ type: 'txn' | 'div', action: 'update' | 'delete' | 'add', data: any, originalData?: any } | null>(null);
+  const undoDataRef = useRef<{ type: 'txn' | 'div', action: 'update' | 'delete' | 'add', data: any, originalData?: any } | null>(null);
+
+  useEffect(() => {
+      undoDataRef.current = undoData;
+  }, [undoData]);
 
   useEffect(() => {
     getExchangeRates(sheetId).then(setExchangeRates);
   }, [sheetId]);
 
   useEffect(() => {
-    if (locationState?.prefilledTicker) {
+    const editTxn = locationState?.editTransaction;
+    const editDiv = locationState?.editDividend;
+    const prefilledTicker = locationState?.prefilledTicker || editTxn?.ticker || editDiv?.ticker;
+    const prefilledExchange = locationState?.prefilledExchange || (editTxn?.exchange as string) || (editDiv?.exchange as string);
+
+    if (prefilledTicker) {
       const fetchData = async () => {
         setLoading(true);
-        const data = await getTickerData(locationState.prefilledTicker!, locationState.prefilledExchange || '',
-          locationState.numericId || null, undefined, false);
-
-        console.log('NewTransaction data:', data);
-        console.log('NewTransaction locationState:', locationState);
+        const data = await getTickerData(prefilledTicker!, prefilledExchange || '',
+          locationState?.numericId || editTxn?.numericId || null, undefined, false);
 
         if (data) {
           const combinedData: TickerData & { symbol: string } = {
             ...data,
-            symbol: locationState.prefilledTicker!,
-            exchange: data.exchange || parseExchange(locationState.prefilledExchange || ''),
-            numericId: locationState.numericId || data.numericId,
-            name: data.name || locationState.initialName,
-            nameHe: data.nameHe || locationState.initialNameHe
+            symbol: prefilledTicker!,
+            exchange: data.exchange || parseExchange(prefilledExchange || ''),
+            numericId: locationState?.numericId || data.numericId,
+            name: data.name || locationState?.initialName,
+            nameHe: data.nameHe || locationState?.initialNameHe
           };
           setSelectedTicker(combinedData);
-          setPrice(data.price ? parseFloat(data.price.toFixed(6)).toString() : '');
-          setTickerCurrency(normalizeCurrency(data.currency || ''));
-          setExchange(data.exchange || locationState.prefilledExchange || '');
-          setTicker(locationState.prefilledTicker!)
+          setExchange(data.exchange || prefilledExchange || '');
+          setTicker(prefilledTicker!)
           setShowForm(true);
 
+          if (editTxn) {
+              setPortId(editTxn.portfolioId);
+              setType(editTxn.type as any); // BUY/SELL/FEE/DIVIDEND
+              setDate(editTxn.date); // Assuming stored as ISO string YYYY-MM-DD or readable? toGoogleSheetDateFormat converts to DD/MM/YYYY. 
+              // Wait, `fetchTransactions` returns `date` as string from sheet. If it's DD/MM/YYYY, input type=date needs YYYY-MM-DD.
+              // I need to parse it.
+              // `Transaction` object from `api.ts` has `date` as string. If fetched from sheet, it might be formatted.
+              // `fetchTransactions` uses `FORMATTED_VALUE`. If sheet is `DD/MM/YYYY`, we get that.
+              // I need a helper to convert sheet date to input date.
+              // Simple heuristic: if contains '/', split.
+              const parseSheetDate = (d: string) => {
+                  if (d.match(/^\d{4}-\d{2}-\d{2}$/)) return d;
+                  if (d.includes('/')) {
+                      const [day, month, year] = d.split('/');
+                      return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+                  }
+                  return d;
+              };
+              setDate(parseSheetDate(editTxn.date));
+              setQty(editTxn.originalQty?.toString() || '');
+              setPrice(editTxn.originalPrice?.toString() || '');
+              // Calculate total?
+              if (editTxn.originalQty && editTxn.originalPrice) {
+                  setTotal((editTxn.originalQty * editTxn.originalPrice).toFixed(2)); // Approx
+              }
+              setVestDate(editTxn.vestDate ? parseSheetDate(editTxn.vestDate) : '');
+              setComment(editTxn.comment || '');
+              setCommission(editTxn.commission?.toString() || '');
+              setTax(editTxn.tax?.toString() || '');
+              setTickerCurrency(normalizeCurrency(editTxn.currency || data.currency || ''));
+          } else if (editDiv) {
+              setType('DIV_EVENT');
+              const d = new Date(editDiv.date);
+              setDate(d.toISOString().split('T')[0]);
+              setPrice(editDiv.amount.toString());
+              setTickerCurrency(normalizeCurrency(data.currency || '')); // Dividends usually in stock currency
+          } else {
+              // New Entry defaults
+              setPrice(data.price ? parseFloat(data.price.toFixed(6)).toString() : '');
+              setTickerCurrency(normalizeCurrency(data.currency || ''));
+          }
+
           // Sync dividends if from a fresh fetch (not from cache)
-          if (data.dividends && data.dividends.length > 0 && !data.fromCacheMax) {
-            syncDividends(sheetId, locationState.prefilledTicker!, parseExchange(data.exchange || locationState.prefilledExchange || ''), data.dividends, 'YAHOO');
+          if (!editTxn && !editDiv && data.dividends && data.dividends.length > 0 && !data.fromCacheMax) {
+            syncDividends(sheetId, prefilledTicker!, parseExchange(data.exchange || prefilledExchange || ''), data.dividends, 'YAHOO');
           }
         } else {
-          setPriceError(`${t('Ticker not found on', 'הנייר לא נמצא ב-')}${locationState.prefilledExchange}`);
+          setPriceError(`${t('Ticker not found on', 'הנייר לא נמצא ב-')}${prefilledExchange}`);
           setSelectedTicker(null);
           setShowForm(false);
         }
@@ -274,6 +330,68 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     }
   };
 
+  const handleDelete = async () => {
+    if (!confirm(t("Are you sure you want to delete this transaction?", "האם אתה בטוח שברצונך למחוק עסקה זו?"))) return;
+    
+    setLoading(true);
+    const editTxn = locationState?.editTransaction;
+    const editDiv = locationState?.editDividend;
+
+    try {
+        if (editTxn && editTxn.rowIndex) {
+            await deleteTransaction(sheetId, editTxn.rowIndex, editTxn);
+            setUndoData({ type: 'txn', action: 'delete', data: editTxn });
+            if (onSaveSuccess) onSaveSuccess(t('Transaction deleted', 'העסקה נמחקה'), handleUndo);
+        } else if (editDiv) {
+            await deleteDividend(sheetId, editDiv.rowIndex, editDiv);
+            setUndoData({ type: 'div', action: 'delete', data: editDiv });
+            if (onSaveSuccess) onSaveSuccess(t('Dividend deleted', 'הדיבידנד נמחק'), handleUndo);
+        }
+        
+        setTimeout(() => navigate(-1), 500); // Quick navigate back
+    } catch (e) {
+        console.error(e);
+        alert(t("Error deleting: ", "שגיאה במחיקה: ") + (e instanceof Error ? e.message : String(e)));
+    } finally {
+        setLoading(false);
+    }
+  };
+
+  const handleUndo = async () => {
+      const data = undoDataRef.current;
+      if (!data) return;
+      setLoading(true);
+      
+      try {
+          if (data.action === 'delete') {
+              if (data.type === 'txn') {
+                  const { rowIndex, ...rest } = data.data;
+                  await addTransaction(sheetId, rest);
+              } else {
+                  await addDividendEvent(sheetId, data.data.ticker, data.data.exchange, data.data.date, data.data.amount);
+              }
+              if (onSaveSuccess) onSaveSuccess(t("Restored successfully.", "שוחזר בהצלחה."));
+          } else if (data.action === 'update') {
+              if (data.type === 'txn') {
+                  const original = { ...data.originalData, rowIndex: data.data.rowIndex };
+                  // Verify against the current state (data.data) before reverting to original
+                  await updateTransaction(sheetId, original, data.data);
+              } else {
+                   const d = data.originalData;
+                   // Verify against current state (data.data)
+                   await updateDividend(sheetId, data.data.rowIndex, d.ticker, d.exchange, d.date, d.amount, d.source, data.data);
+              }
+              if (onSaveSuccess) onSaveSuccess(t("Update reverted.", "העדכון בוטל."));
+          }
+          setUndoData(null);
+      } catch (e) {
+          console.error(e);
+          alert(t("Error undoing: ", "שגיאה בביטול: ") + (e instanceof Error ? e.message : String(e)));
+      } finally {
+          setLoading(false);
+      }
+  };
+
   const handleSubmit = async () => {
     const errors: { [key: string]: boolean } = {};
     
@@ -298,9 +416,20 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     try {
       const q = parseFloat(qty);
       const p = parseFloat(price);
+      
+      const editTxn = locationState?.editTransaction;
+      const editDiv = locationState?.editDividend;
 
       if (type === 'DIV_EVENT') {
-          await addDividendEvent(sheetId, ticker, parseExchange(exchange), new Date(date), p);
+          if (editDiv) {
+              await updateDividend(sheetId, editDiv.rowIndex, ticker, parseExchange(exchange), new Date(date), p, editDiv.source, editDiv);
+              const newState = { ticker, amount: p, rowIndex: editDiv.rowIndex };
+              setUndoData({ type: 'div', action: 'update', data: newState, originalData: editDiv });
+              if (onSaveSuccess) onSaveSuccess(t('Dividend updated', 'הדיבידנד עודכן'), handleUndo);
+          } else {
+              await addDividendEvent(sheetId, ticker, parseExchange(exchange), new Date(date), p);
+              if (onSaveSuccess) onSaveSuccess(t('Dividend added', 'הדיבידנד נוסף'));
+          }
       } else {
           const txn: Transaction = {
             date,
@@ -317,12 +446,20 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
             comment,
             commission: parseFloat(commission) || 0,
             tax: parseFloat(tax) || 0,
+            rowIndex: editTxn?.rowIndex // Pass row index if updating
           };
 
-          await addTransaction(sheetId, txn);
+          if (editTxn && editTxn.rowIndex) {
+              await updateTransaction(sheetId, txn, editTxn);
+              setUndoData({ type: 'txn', action: 'update', data: txn, originalData: editTxn });
+              if (onSaveSuccess) onSaveSuccess(t('Transaction updated', 'העסקה עודכנה'), handleUndo);
+          } else {
+              await addTransaction(sheetId, txn);
+              if (onSaveSuccess) onSaveSuccess(t('Transaction added', 'העסקה נוספה'));
+          }
 
           // If GEMEL or PENSION, also save the fetched price to external holdings for history
-          if ((parseExchange(exchange) === Exchange.GEMEL || parseExchange(exchange) === Exchange.PENSION) && selectedTicker?.price && selectedTicker?.timestamp) {
+          if (!editTxn && (parseExchange(exchange) === Exchange.GEMEL || parseExchange(exchange) === Exchange.PENSION) && selectedTicker?.price && selectedTicker?.timestamp) {
             try {
               // Note: We use the fetched price/date, NOT the transaction price/date
               await addExternalPrice(
@@ -340,20 +477,22 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
       }
 
       setSaveSuccess(true);
-      if (onSaveSuccess) {
-        onSaveSuccess();
+      
+      if (editTxn || editDiv) {
+          setTimeout(() => navigate(-1), 500);
+      } else {
+          // Clear form for next entry of the SAME ticker
+          setQty('');
+          setTotal('');
+          setCommission('');
+          setCommissionPct('');
+          setTax('');
+          setComment('');
+          setVestDate('');
+          setType('BUY');
+          setDate(new Date().toISOString().split('T')[0]);
+          setShowForm(false); // Hide form, show summary card again
       }
-      // Clear form for next entry of the SAME ticker
-      setQty('');
-      setTotal('');
-      setCommission('');
-      setCommissionPct('');
-      setTax('');
-      setComment('');
-      setVestDate('');
-      setType('BUY');
-      setDate(new Date().toISOString().split('T')[0]);
-      setShowForm(false); // Hide form, show summary card again
       setValidationErrors({});
     } catch (e) {
       console.error(e);
@@ -401,7 +540,9 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   return (
     <Box sx={{ maxWidth: 800, mx: 'auto' }}>
       <Typography variant="h5" gutterBottom sx={{ fontWeight: 600, color: 'text.primary', mb: 2 }}>
-        {t('New Transaction', 'הוסף עסקה חדשה')}
+        {locationState?.editTransaction || locationState?.editDividend 
+            ? t('Edit Transaction', 'ערוך עסקה') 
+            : t('New Transaction', 'הוסף עסקה חדשה')}
       </Typography>
 
       {selectedTicker && (
@@ -524,6 +665,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                           type="date" label="Date" size="small" fullWidth
                           value={date} onChange={e => setDate(e.target.value)}
                           InputLabelProps={{ shrink: true }}
+                          sx={{ '& .MuiInputBase-input': { colorScheme: theme.palette.mode } }}
                         />
                       </Grid>
                       <Grid item xs={12} sm={4}>
@@ -626,7 +768,12 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                           )}
                           <Grid item xs={12} sm={(type === 'SELL' || type === 'DIVIDEND') ? 6 : 9}>
                             <Tooltip title="Date when these shares vest (if applicable for RSUs/Options).">
-                              <TextField label="Vesting Date" type="date" size="small" fullWidth value={vestDate} onChange={e => setVestDate(e.target.value)} InputLabelProps={{ shrink: true }} />
+                              <TextField
+                                label="Vesting Date" type="date" size="small" fullWidth
+                                value={vestDate} onChange={e => setVestDate(e.target.value)}
+                                InputLabelProps={{ shrink: true }}
+                                sx={{ '& .MuiInputBase-input': { colorScheme: theme.palette.mode } }}
+                              />
                             </Tooltip>
                           </Grid>
                         </>
@@ -635,9 +782,14 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                         <TextField label="Comment" size="small" fullWidth value={comment} onChange={e => setComment(e.target.value)} />
                       </Grid>
                     </Grid>
-                    <Box mt={2}>
-                      <Button variant="contained" size="large" fullWidth startIcon={<AddCircleOutlineIcon />} onClick={handleSubmit} disabled={loading}>
-                        {loading ? 'Saving...' : (type === 'DIV_EVENT' ? 'Record Dividend' : 'Save Transaction')}
+                    <Box mt={2} display="flex" gap={2}>
+                      {(locationState?.editTransaction || locationState?.editDividend) && (
+                          <Button variant="outlined" color="error" size="large" startIcon={<DeleteIcon />} onClick={handleDelete} disabled={loading} sx={{ flex: 1 }}>
+                            {t('Delete', 'מחק')}
+                          </Button>
+                      )}
+                      <Button variant="contained" size="large" fullWidth startIcon={<AddCircleOutlineIcon />} onClick={handleSubmit} disabled={loading} sx={{ flex: 2 }}>
+                        {loading ? t('Saving...', 'שומר...') : (type === 'DIV_EVENT' ? t('Record Dividend', 'שמור דיבידנד') : (locationState?.editTransaction ? t('Update Transaction', 'עדכן עסקה') : t('Save Transaction', 'שמור עסקה')))}
                       </Button>
                     </Box>
                   </>

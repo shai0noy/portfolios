@@ -1,4 +1,4 @@
-import { Box, Typography, Paper, Table, TableBody, TableCell, TableHead, TableRow, Grid, Divider, Tooltip, Link, Stack, CircularProgress } from '@mui/material';
+import { Box, Typography, Paper, Table, TableBody, TableCell, TableHead, TableRow, Grid, Divider, Tooltip, Link, Stack, CircularProgress, IconButton } from '@mui/material';
 import { formatValue, formatNumber, formatPrice, convertCurrency, formatPercent, getExchangeRates, normalizeCurrency } from '../lib/currency';
 import { useLanguage } from '../lib/i18n';
 import type { DashboardHolding, Transaction, ExchangeRates, Holding, Portfolio } from '../lib/types';
@@ -6,6 +6,7 @@ import type { EnrichedDashboardHolding } from '../lib/dashboard';
 import { useMemo, useState, useEffect } from 'react';
 import EditIcon from '@mui/icons-material/Edit';
 import { fetchTransactions, fetchAllDividends } from '../lib/sheets';
+import { useNavigate } from 'react-router-dom';
 
 export type HoldingSection = 'overview' | 'transactions' | 'dividends';
 
@@ -39,6 +40,7 @@ const formatDate = (dateInput: string | Date | number) => {
 
 export function HoldingDetails({ sheetId, holding, displayCurrency, portfolios, onPortfolioClick, section = 'overview' }: HoldingDetailsProps) {
     const { t } = useLanguage();
+    const navigate = useNavigate();
     
     // Internal state for fetched data
     const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -273,6 +275,33 @@ export function HoldingDetails({ sheetId, holding, displayCurrency, portfolios, 
         }, {} as Record<string, string>);
     }, [portfolios]);
 
+    const handleEditTransaction = (txn: Transaction) => {
+        navigate('/transaction', {
+            state: {
+                editTransaction: txn,
+                initialName: enriched?.displayName || (holding as any).displayName,
+                initialNameHe: enriched?.nameHe || (holding as any).nameHe
+            }
+        });
+    };
+
+    const handleEditDividend = (div: any) => {
+        navigate('/transaction', {
+            state: {
+                editDividend: {
+                    ticker: holding.ticker,
+                    exchange: holding.exchange,
+                    date: div.date,
+                    amount: div.amount,
+                    source: div.source,
+                    rowIndex: div.rowIndex
+                },
+                initialName: enriched?.displayName || (holding as any).displayName,
+                initialNameHe: enriched?.nameHe || (holding as any).nameHe
+            }
+        });
+    };
+
     if (loading) {
         return <Box sx={{ p: 4, display: 'flex', justifyContent: 'center' }}><CircularProgress /></Box>;
     }
@@ -500,6 +529,7 @@ export function HoldingDetails({ sheetId, holding, displayCurrency, portfolios, 
                                     <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>{t('Price', 'מחיר')}</TableCell>
                                     <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>{t('Value', 'שווי')}</TableCell>
                                     <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>{t('Fees', 'עמלות')}</TableCell>
+                                    <TableCell align="center" sx={{ bgcolor: 'background.paper' }}></TableCell>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
@@ -532,11 +562,18 @@ export function HoldingDetails({ sheetId, holding, displayCurrency, portfolios, 
                                             <TableCell align="right">{formatPrice(txn.price || 0, tickerCurrency)}</TableCell>
                                             <TableCell align="right">{formatValue(rawValue, tickerCurrency)}</TableCell>
                                             <TableCell align="right" sx={{ color: 'text.secondary' }}>{fees > 0 ? formatValue(fees, tickerCurrency) : '-'}</TableCell>
+                                            <TableCell align="center">
+                                                <Tooltip title={t('Edit Transaction', 'ערוך עסקה')}>
+                                                    <IconButton size="small" onClick={() => handleEditTransaction(txn)}>
+                                                        <EditIcon fontSize="small" sx={{ fontSize: '0.9rem', opacity: 0.7 }} />
+                                                    </IconButton>
+                                                </Tooltip>
+                                            </TableCell>
                                         </TableRow>
                                     );
                                 })}
                                 {txnHistory.length === 0 && (
-                                    <TableRow><TableCell colSpan={7} align="center" sx={{ py: 3, color: 'text.secondary' }}>{t('No transactions found.', 'לא נמצאו עסקאות.')}</TableCell></TableRow>
+                                    <TableRow><TableCell colSpan={8} align="center" sx={{ py: 3, color: 'text.secondary' }}>{t('No transactions found.', 'לא נמצאו עסקאות.')}</TableCell></TableRow>
                                 )}
                             </TableBody>
                         </Table>
@@ -585,8 +622,10 @@ export function HoldingDetails({ sheetId, holding, displayCurrency, portfolios, 
                                         </TableCell>
                                         <TableCell align="center">
                                             {div.source && div.source.toUpperCase().includes('MANUAL') && (
-                                                <Tooltip title={t('Manually entered', 'הוזן ידנית')} arrow placement="top">
-                                                    <EditIcon fontSize="small" color="action" sx={{ fontSize: '0.9rem', opacity: 0.7 }} />
+                                                <Tooltip title={t('Manually entered. Click to edit.', 'הוזן ידנית. לחץ לעריכה.')} arrow placement="top">
+                                                    <IconButton size="small" onClick={() => handleEditDividend(div)}>
+                                                        <EditIcon fontSize="small" color="action" sx={{ fontSize: '0.9rem', opacity: 0.7 }} />
+                                                    </IconButton>
                                                 </Tooltip>
                                             )}
                                         </TableCell>
