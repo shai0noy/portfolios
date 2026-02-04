@@ -9,6 +9,7 @@ const WORKER_URL = import.meta.env.VITE_WORKER_URL || '';
 let gapiInstance: typeof gapi | null = null;
 let signInPromise: Promise<void> | null = null;
 let refreshPromise: Promise<void> | null = null;
+let refreshTimeout: ReturnType<typeof setTimeout> | null = null;
 
 export async function initializeGapi(): Promise<typeof gapi> {
     if (gapiInstance) return gapiInstance;
@@ -22,14 +23,31 @@ export async function initializeGapi(): Promise<typeof gapi> {
     return gapiInstance;
 }
 
+function scheduleRefresh(expiresInSeconds: number) {
+    if (refreshTimeout) clearTimeout(refreshTimeout);
+    // Refresh 5 minutes before expiry
+    const refreshBuffer = 5 * 60; 
+    let delayMs = (expiresInSeconds - refreshBuffer) * 1000;
+    if (delayMs < 0) delayMs = 0; // Refresh immediately if buffer exceeded
+
+    console.log(`Scheduling background token refresh in ${Math.round(delayMs/1000)}s`);
+    refreshTimeout = setTimeout(() => {
+        console.log("Triggering background token refresh...");
+        refreshAccessToken().catch(e => console.warn("Background refresh failed", e));
+    }, delayMs);
+}
+
 function storeToken(response: any) {
     if (!response.access_token) return;
     localStorage.setItem('g_access_token', response.access_token);
     // expires_in is in seconds
-    const expiresAt = Date.now() + (Number(response.expires_in) - 60) * 1000;
+    const expiresIn = Number(response.expires_in);
+    const expiresAt = Date.now() + (expiresIn - 60) * 1000;
     localStorage.setItem('g_expires', expiresAt.toString());
     gapiInstance!.client.setToken({ access_token: response.access_token });
     console.log("Token refreshed and stored.");
+    
+    scheduleRefresh(expiresIn);
 }
 
 export function hasValidToken(): boolean {
@@ -107,6 +125,8 @@ export function signIn(): Promise<void> {
 }
 
 export function signOut() {
+    if (refreshTimeout) clearTimeout(refreshTimeout);
+    refreshTimeout = null;
     localStorage.removeItem('g_access_token');
     localStorage.removeItem('g_expires');
     localStorage.removeItem('g_sheet_id');
@@ -126,6 +146,30 @@ export const ensureGapi = async (): Promise<typeof gapi> => {
             const storedToken = localStorage.getItem('g_access_token');
             gapiInstance!.client.setToken({ access_token: storedToken! });
         }
+        
+        // Ensure background refresh is scheduled on load
+        if (!refreshTimeout) {
+             const storedExpiry = localStorage.getItem('g_expires');
+             if (storedExpiry) {
+                 const now = Date.now();
+                 const validUntil = parseInt(storedExpiry);
+                 // We added -60s buffer in storeToken.
+                 // Real expiry ~= validUntil + 60s.
+                 // We want to refresh 5 mins (300s) before REAL expiry.
+                 // So target time = validUntil + 60s - 300s = validUntil - 240s.
+                 const msUntilRefresh = (validUntil - 240000) - now;
+                 
+                 // If less than 0, refresh immediately.
+                 const delayMs = Math.max(0, msUntilRefresh);
+                 
+                 console.log(`Restoring background refresh schedule. Refresh in ${Math.round(delayMs/1000)}s`);
+                 refreshTimeout = setTimeout(() => {
+                    console.log("Triggering restored background token refresh...");
+                    refreshAccessToken().catch(e => console.warn("Background refresh failed", e));
+                 }, delayMs);
+             }
+        }
+
         return gapiInstance!;
     }
 
