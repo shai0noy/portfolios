@@ -59,61 +59,60 @@ export const TXN_COLS: TransactionColumns = {
     },
     vestDate: { key: 'vestDate', colName: 'Vesting_Date', colId: 'K' },
     comment: { key: 'comment', colName: 'Comments', colId: 'L' },
-    // Renamed to Commission_In_Txn_Currency
     commission: { key: 'commission', colName: 'Commission', colId: 'M', numeric: true },
-    // Removed tax column
-    source: { key: 'source', colName: 'Source', colId: 'O' },
-    creationDate: { key: 'creationDate', colName: 'Creation_Date', colId: 'P' },
-    origOpenPriceAtCreationDate: { key: 'origOpenPriceAtCreationDate', colName: 'Orig_Open_Price_At_Creation_Date', colId: 'Q', numeric: true },
+    source: { key: 'source', colName: 'Source', colId: 'N' },
+    creationDate: { key: 'creationDate', colName: 'Creation_Date', colId: 'O' },
+    origOpenPriceAtCreationDate: { key: 'origOpenPriceAtCreationDate', colName: 'Orig_Open_Price_At_Creation_Date', colId: 'P', numeric: true },
     splitAdjOpenPrice: {
         key: 'splitAdjOpenPrice',
         colName: 'Split_Adj_Open_Price',
-        colId: 'R',
+        colId: 'Q',
         numeric: true,
         formula: (rowNum, cols) => `=INDEX(GOOGLEFINANCE(${cols.exchange.colId}${rowNum}&":"&${cols.ticker.colId}${rowNum}, "open", ${cols.creationDate.colId}${rowNum}), 2, 2)`
     },
     splitRatio: {
         key: 'splitRatio',
         colName: 'Split_Ratio',
-        colId: 'S',
+        colId: 'R',
         numeric: true,
         formula: (rowNum, cols) => `=ROUND(IFERROR(IF(OR(ISBLANK(${cols.splitAdjOpenPrice.colId}${rowNum}), ${cols.splitAdjOpenPrice.colId}${rowNum}=0, ISBLANK(${cols.origOpenPriceAtCreationDate.colId}${rowNum})), 1, ${cols.origOpenPriceAtCreationDate.colId}${rowNum} / ${cols.splitAdjOpenPrice.colId}${rowNum}), 1), 2)`
     },
     splitAdjustedPrice: {
         key: 'splitAdjustedPrice',
         colName: 'Split_Adjusted_Price',
-        colId: 'T',
+        colId: 'S',
         numeric: true,
         formula: (rowNum, cols) => `=IFERROR(${cols.originalPrice.colId}${rowNum} / ${cols.splitRatio.colId}${rowNum}, ${cols.originalPrice.colId}${rowNum})`
     },
     splitAdjustedQty: {
         key: 'splitAdjustedQty',
         colName: 'Split_Adjusted_Qty',
-        colId: 'U',
+        colId: 'T',
         numeric: true,
         formula: (rowNum, cols) => `=IFERROR(${cols.originalQty.colId}${rowNum} * ${cols.splitRatio.colId}${rowNum}, ${cols.originalQty.colId}${rowNum})`
     },
     numericId: {
         key: 'numericId',
         colName: 'Numeric_ID',
-        colId: 'V',
+        colId: 'U',
         numeric: true
     },
     grossValue: {
         key: 'grossValue',
         colName: 'Gross_Value',
-        colId: 'W',
+        colId: 'V',
         numeric: true,
-        formula: (rowNum, cols) => {
-            const exchange = `${cols.exchange.colId}${rowNum}`;
-            const ticker = `${cols.ticker.colId}${rowNum}`;
-            return `=IFERROR(GOOGLEFINANCE(${exchange}&":"&${ticker}")*${cols.splitAdjustedQty.colId}${rowNum})`;
-        }
+        formula: (rowNum, cols) => `=${cols.splitAdjustedQty.colId}${rowNum} * ${cols.splitAdjustedPrice.colId}${rowNum}`
     },
     // Removed valueAfterTax
 };
 
-export const transactionHeaders = Object.values(TXN_COLS).map(c => c.colName) as unknown as readonly string[];
+export const transactionHeaders = Object.values(TXN_COLS)
+    .sort((a, b) => {
+        const lenDiff = a.colId.length - b.colId.length;
+        return lenDiff !== 0 ? lenDiff : a.colId.localeCompare(b.colId);
+    })
+    .map(c => c.colName) as unknown as readonly string[];
 export const transactionMapping: Record<keyof Omit<Transaction, 'grossValue'>, string> =
     Object.keys(TXN_COLS).reduce((acc, key) => {
         const k = key as import('./types').TxnKey;
