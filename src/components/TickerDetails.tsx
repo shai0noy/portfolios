@@ -280,7 +280,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
         <Box sx={{ borderBottom: 1, borderColor: 'divider', px: 2 }}>
           <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)}>
             <Tab label={t('Analysis', 'ניתוח')} />
-            {hasHolding && <Tab label={t('Overview', 'סקירה כללית')} />}
+            {hasHolding && <Tab label={t('Holdings', 'אחזקות')} />}
             {hasHolding && <Tab label={t('Transactions', 'עסקאות')} />}
             {hasHolding && <Tab label={t('Dividends', 'דיבידנדים')} />}
           </Tabs>
@@ -394,7 +394,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                             displayCurrency={normalizeCurrency(localStorage.getItem('displayCurrency') || 'USD')}
                             portfolios={portfolios}
                             onPortfolioClick={handlePortfolioClick}
-                            section={activeTab === 1 ? 'overview' : activeTab === 2 ? 'transactions' : 'dividends'}
+                            section={activeTab === 1 ? 'holdings' : activeTab === 2 ? 'transactions' : 'dividends'}
                             />
                         ) : (
                             <Box display="flex" justifyContent="center" p={5}><CircularProgress /></Box>
@@ -423,7 +423,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
         onClose={() => setAnalysisOpen(false)}
         mainSeries={historicalData ? { name: resolvedName || ticker || 'Main', data: historicalData } : null}
         comparisonSeries={comparisonSeries}
-        title={`${t('Analysis', 'ניתוח')}: ${tTry(resolvedName || ticker || '', resolvedNameHe)}`}
+        title={`${t('Overview', 'סקירה')}: ${tTry(resolvedName || ticker || '', resolvedNameHe)}`}
         initialRange={chartRange}
         currency={data?.currency || 'USD'}
         subjectName={ticker}

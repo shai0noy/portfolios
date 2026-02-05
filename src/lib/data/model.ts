@@ -1,5 +1,5 @@
-import { Exchange, Currency, InstrumentType } from '../types';
-import type { Transaction } from '../types';
+import { Exchange, Currency } from '../types';
+import type { Transaction, InstrumentClassification, ProvidentInfo } from '../types';
 
 export interface DividendEvent {
     ticker: string;
@@ -60,8 +60,14 @@ export interface UnifiedHolding {
     currentPrice: number;
     dayChangePct: number;
     displayName: string;
+    nameHe?: string;
     sector: string;
-    type?: InstrumentType;
+    subSector?: string;
+    taseType?: string;
+    globesTypeHe?: string;
+    providentInfo?: ProvidentInfo;
+    type?: InstrumentClassification;
+    numericId: number | null;
 
     // Quantity State
     qtyVested: number;

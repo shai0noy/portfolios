@@ -126,8 +126,14 @@ export class FinanceEngine {
                 currentPrice: holdingOnPortfolio?.price || 0,
                 dayChangePct: holdingOnPortfolio?.changePct1d || 0,
                 displayName: holdingOnPortfolio?.name || ticker,
+                nameHe: holdingOnPortfolio?.nameHe || '',
                 sector: holdingOnPortfolio?.sector || '',
-                type: holdingOnPortfolio?.type?.type,
+                subSector: holdingOnPortfolio?.subSector || '',
+                taseType: holdingOnPortfolio?.taseType || '',
+                globesTypeHe: holdingOnPortfolio?.globesTypeHe || '',
+                providentInfo: holdingOnPortfolio?.providentInfo,
+                type: holdingOnPortfolio?.type,
+                numericId: holdingOnPortfolio?.numericId || null,
                 qtyVested: 0,
                 qtyUnvested: 0,
                 totalQty: 0,
@@ -220,7 +226,7 @@ export class FinanceEngine {
                             let taxAmountPC = 0;
                             if (p) {
                                 const { cgt, incTax } = getTaxRatesForDate(p, d.date);
-                                const isReit = h.type === InstrumentType.STOCK_REIT;
+                                const isReit = h.type?.type === InstrumentType.STOCK_REIT;
                                 taxRate = (isReit && incTax > 0) ? incTax : cgt;
                                 const thisDivILS = convertCurrency(totalAmountSC, h.stockCurrency, Currency.ILS, this.exchangeRates);
                                 const thisDivTaxILS = thisDivILS * taxRate;
@@ -683,7 +689,7 @@ export class FinanceEngine {
             pAcc.ils.std.unrealized += taxableUnrealizedILS;
             pAcc.ils.std.taxLiability += h.realizedTaxLiabilityILS;
 
-            const isReit = h.type === InstrumentType.STOCK_REIT; 
+            const isReit = h.type?.type === InstrumentType.STOCK_REIT; 
             const incTax = p?.incTax || 0;
             if (isReit && incTax > 0) {
                 pAcc.ils.reit.realized += h.dividendsILS;

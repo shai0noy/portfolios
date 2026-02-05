@@ -8,7 +8,7 @@ import { useMemo, useState, useEffect } from 'react';
 import EditIcon from '@mui/icons-material/Edit';
 import { useNavigate } from 'react-router-dom';
 
-export type HoldingSection = 'overview' | 'transactions' | 'dividends';
+export type HoldingSection = 'holdings' | 'transactions' | 'dividends';
 
 export interface HoldingWeight {
     portfolioId: string;
@@ -38,7 +38,7 @@ const formatDate = (dateInput: string | Date | number) => {
     return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
 };
 
-export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, portfolios, onPortfolioClick, section = 'overview' }: HoldingDetailsProps) {
+export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, portfolios, onPortfolioClick, section = 'holdings' }: HoldingDetailsProps) {
     const { t } = useLanguage();
     const navigate = useNavigate();
     
@@ -241,8 +241,8 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
 
     return (
         <Box sx={{ mt: 2 }}>
-            {/* SECTION: OVERVIEW */}
-            {section === 'overview' && (
+            {/* SECTION: HOLDINGS */}
+            {section === 'holdings' && (
                 <Box>
                   {!vals ? (
                      <Box sx={{ p: 2, textAlign: 'center' }}>
