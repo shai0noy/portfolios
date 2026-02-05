@@ -27,7 +27,7 @@ export async function handleAuth(request, env, corsHeaders) {
       }
       
       // 2. Set the Refresh Token in a Secure, HttpOnly cookie
-      const cookie = `auth_refresh_token=${tokens.refresh_token}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=31536000`;
+      const cookie = `auth_refresh_token=${tokens.refresh_token}; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=31536000`;
 
       return new Response(JSON.stringify({ success: true }), {
         headers: {
