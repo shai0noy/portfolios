@@ -123,10 +123,11 @@ export class FinanceEngine {
                 exchange,
                 stockCurrency: normalizeCurrency(holdingOnPortfolio?.currency || currency),
                 portfolioCurrency: normalizeCurrency(p?.currency || 'USD'),
-                currentPrice: 0,
-                dayChangePct: 0,
+                currentPrice: holdingOnPortfolio?.price || 0,
+                dayChangePct: holdingOnPortfolio?.changePct1d || 0,
                 displayName: holdingOnPortfolio?.name || ticker,
                 sector: holdingOnPortfolio?.sector || '',
+                type: holdingOnPortfolio?.type?.type,
                 qtyVested: 0,
                 qtyUnvested: 0,
                 totalQty: 0,
@@ -159,7 +160,13 @@ export class FinanceEngine {
                 unrealizedGainVested: 0,
                 avgCost: 0,
                 returnPct: 0,
-                perf1w: 0, perf1m: 0, perf3m: 0, perfYtd: 0, perf1y: 0, perf3y: 0, perf5y: 0,
+                perf1w: holdingOnPortfolio?.changePctRecent || 0,
+                perf1m: holdingOnPortfolio?.changePct1m || 0,
+                perf3m: holdingOnPortfolio?.changePct3m || 0,
+                perfYtd: holdingOnPortfolio?.changePctYtd || 0,
+                perf1y: holdingOnPortfolio?.changePct1y || 0,
+                perf3y: holdingOnPortfolio?.changePct3y || 0,
+                perf5y: holdingOnPortfolio?.changePct5y || 0,
                 transactions: [], dividends: [], recurringFees: []
             });
         }
