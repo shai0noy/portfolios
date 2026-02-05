@@ -1,6 +1,10 @@
 import type { ExchangeMetadata } from './types/ticker';
 import type { InstrumentClassification } from './types/instrument';
+import { InstrumentType } from './types/instrument';
 import type { ProvidentInfo } from './fetching/types';
+
+export type { ExchangeMetadata, InstrumentClassification, ProvidentInfo };
+export { InstrumentType };
 
 export type PriceUnit = 'base' | 'agorot';
 
@@ -247,6 +251,41 @@ export interface DashboardHolding {
   type?: InstrumentClassification;
 }
 
+export interface DashboardSummaryData {
+  aum: number;
+  totalUnrealized: number;
+  totalUnrealizedGainPct: number;
+  totalRealized: number;
+  totalRealizedGainPct: number;
+  totalCostOfSold: number;
+  totalDividends: number;
+  totalReturn: number;
+  realizedGainAfterTax: number;
+  valueAfterTax: number;
+  totalDayChange: number;
+  totalDayChangePct: number;
+  totalDayChangeIsIncomplete: boolean;
+  perf1d: number;
+  perf1w: number;
+  perf1w_incomplete: boolean;
+  perf1m: number;
+  perf1m_incomplete: boolean;
+  perf3m: number;
+  perf3m_incomplete: boolean;
+  perf1y: number;
+  perf1y_incomplete: boolean;
+  perf3y: number;
+  perf3y_incomplete: boolean;
+  perf5y: number;
+  perf5y_incomplete: boolean;
+  perfYtd: number;
+  perfYtd_incomplete: boolean;
+  divYield: number;
+  totalUnvestedValue: number;
+  totalUnvestedGain: number;
+  totalUnvestedGainPct: number;
+}
+
 export interface TaxHistoryEntry {
   startDate: string; // YYYY-MM-DD
   cgt: number;
@@ -344,7 +383,6 @@ export interface Transaction {
   vestDate?: string;
   comment?: string;
   commission?: number;
-  tax?: number;
   source?: string;
   creationDate?: string;
   origOpenPriceAtCreationDate?: number;
@@ -355,7 +393,6 @@ export interface Transaction {
   originalPriceUSD?: number;
   originalPriceILA?: number;
   numericId?: number;
-  valueAfterTax?: number;
   nominalValue?: number;
   rowIndex?: number;
 }

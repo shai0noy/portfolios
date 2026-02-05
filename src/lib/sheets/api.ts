@@ -17,7 +17,7 @@ import { getHistoricalPriceFormula } from './formulas';
 import { logIfFalsy } from '../utils';
 import { createRowMapper, fetchSheetData, objectToRow, createHeaderUpdateRequest, getSheetId, ensureSheets } from './utils';
 import { PORTFOLIO_SHEET_NAME } from './config';
-import { fetchGlobesStockQuote } from '../fetching/globes';
+
 import type { Dividend } from '../fetching/types';
 import { InstrumentClassification } from '../types/instrument';
 
@@ -402,7 +402,7 @@ export const fetchTransactions = withAuthHandling(async (spreadsheetId: string):
             price: cleanNumber(t.splitAdjustedPrice || t.originalPrice),
             grossValue: cleanNumber(t.originalQty) * cleanNumber(t.originalPrice)
         } as Transaction;
-    });
+    }).filter(t => t.date && t.portfolioId && t.ticker);
 });
 
 export const getSpreadsheet = withAuthHandling(async (): Promise<string | null> => {
@@ -467,7 +467,6 @@ export const batchAddTransactions = withAuthHandling(async (spreadsheetId: strin
         rowData.vestDate = t.vestDate ? toGoogleSheetDateFormat(new Date(t.vestDate)) : '';
         rowData.comment = t.comment || '';
         rowData.source = t.source || '';
-        rowData.tax = t.tax || 0;
         
         // Commission handling: Convert to Agorot if currency is ILA
         const comm = t.commission || 0;
@@ -791,7 +790,6 @@ export const updateTransaction = withAuthHandling(async (spreadsheetId: string, 
     rowData.vestDate = t.vestDate ? toGoogleSheetDateFormat(new Date(t.vestDate)) : '';
     rowData.comment = t.comment || '';
     rowData.source = t.source || '';
-    rowData.tax = t.tax || 0;
     
     const comm = t.commission || 0;
     const isILA = (t.currency || '').toUpperCase() === 'ILA';
@@ -1231,36 +1229,15 @@ export const fetchSheetExchangeRates = withAuthHandling(async (spreadsheetId: st
         }
     }
 
-    // 4. External Fallback (Globes) for Critical Currencies
+    // 4. Validate Critical Currencies
     const currentRates = allRates['current'];
     const missing = ['ILS', 'EUR', 'GBP'].filter(c => !currentRates[c]);
 
     if (missing.length > 0) {
-        console.warn(`fetchSheetExchangeRates: Missing rates for ${missing.join(', ')}. Attempting Globes fallback.`);
-        const getRate = async (pair: string) => (await fetchGlobesStockQuote(pair, undefined, Exchange.FOREX))?.price;
-
-        // Recover ILS first (critical pivot)
-        if (!currentRates['ILS']) currentRates['ILS'] = await getRate('USDILS') || 0;
-
-        await Promise.all(missing.filter(c => c !== 'ILS').map(async c => {
-            // Try direct: USD -> Target
-            let r = await getRate(`USD${c}`);
-            if (r) { currentRates[c] = r; return; }
-
-            // Try inverted: Target -> USD
-            r = await getRate(`${c}USD`);
-            if (r) { currentRates[c] = 1 / r; return; }
-
-            // Try Cross via ILS: Target -> ILS
-            // Rate[Target] (Target/USD) = Rate[ILS] (ILS/USD) / (ILS/Target)
-            if (currentRates['ILS']) {
-                r = await getRate(`${c}ILS`);
-                if (r) currentRates[c] = currentRates['ILS'] / r;
-            }
-        }));
+        console.warn(`fetchSheetExchangeRates: Missing rates for ${missing.join(', ')}. Check 'Currency_Conversions' sheet.`);
     }
 
-    // Default missing major currencies to 0 to avoid crashes, but log warning
+    // Default missing major currencies to 0 to avoid crashes
     ['ILS', 'EUR', 'GBP'].forEach(curr => {
         for (const period in periodIndices) {
             if (!allRates[period][curr] || isNaN(allRates[period][curr])) {

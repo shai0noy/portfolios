@@ -182,7 +182,7 @@ export function DashboardTable(props: TableProps) {
               </TableRow>
             </TableHead>
             <TableBody>
-              {sortedHoldings.map(h => {
+              {sortedHoldings.map((h, index) => {
                 const vals = h.display;
                 
                 // Special display logic for ILS: Show unit prices in Agorot (ILA) ONLY if the stock is natively ILS/ILA
@@ -190,7 +190,7 @@ export function DashboardTable(props: TableProps) {
                 const priceDisplayCurrency = showInILA ? 'ILA' : displayCurrency;
 
                 return (
-                  <TableRow key={h.key} hover onClick={() => navigate(`/ticker/${h.exchange.toUpperCase()}/${h.ticker}`, { state: { holding: h, from: '/dashboard' } })} sx={{ cursor: 'pointer' }}>
+                  <TableRow key={h.key || `${h.portfolioId}-${h.ticker}-${index}`} hover onClick={() => navigate(`/ticker/${h.exchange.toUpperCase()}/${h.ticker}`, { state: { holding: h, from: '/dashboard' } })} sx={{ cursor: 'pointer' }}>
                     {columnVisibility.displayName ? <TableCell sx={{ fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 150 }}>{tTry(h.displayName, h.nameHe)}</TableCell> : null}
                     {columnVisibility.ticker ? <TableCell>{h.ticker}</TableCell> : null}
                     {columnVisibility.type ? <TableCell>

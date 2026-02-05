@@ -1,112 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
-import { InstrumentType } from './types/instrument';
-import { fetchPortfolios, fetchTransactions, getExternalPrices, fetchAllDividends } from './sheets/index';
-import { getTickerData } from './fetching';
-import { fetchCpi } from './fetching/cbs';
-import type { TickerData } from './fetching/types';
-import { getExchangeRates, convertCurrency, calculatePerformanceInDisplayCurrency, calculateHoldingDisplayValues, normalizeCurrency, toILS } from './currency';
-import { logIfFalsy } from './utils';
-import { getTaxRatesForDate } from './portfolioUtils';
-import { toGoogleSheetDateFormat } from './date';
-import { Currency, Exchange, type DashboardHolding, type Holding, type Portfolio, type ExchangeRates, type Transaction } from './types';
+import { loadFinanceEngine } from './data/loader';
 import { SessionExpiredError } from './errors';
 import { useSession } from './SessionContext';
+import { Currency } from './types';
+import type { DashboardHolding, DashboardSummaryData, Portfolio, ExchangeRates } from './types';
+import { convertCurrency, calculatePerformanceInDisplayCurrency } from './currency';
+import type { UnifiedHolding } from './data/model';
+import { INITIAL_SUMMARY, FinanceEngine } from './data/engine';
 
-/**
- * Helper to interpolate CPI from historical data.
- * Used for Israeli 'REAL_GAIN' tax policy where gains are adjusted for inflation.
- */
-const getCPI = (date: Date, cpiData: TickerData | null) => {
-    if (!cpiData?.historical || cpiData.historical.length === 0) return 100;
-    const timestamp = date.getTime();
-    const history = cpiData.historical; // Assumed Date Descending
-    
-    // If date is NEWER than history, use the latest known value
-    if (timestamp >= history[0].date.getTime()) return history[0].price;
-
-    for (let i = 0; i < history.length - 1; i++) {
-        const h1 = history[i]; // Newer
-        const h2 = history[i+1]; // Older
-        if (timestamp <= h1.date.getTime() && timestamp >= h2.date.getTime()) {
-            const t1 = h1.date.getTime();
-            const t2 = h2.date.getTime();
-            const ratio = (t1 === t2) ? 0 : (timestamp - t2) / (t1 - t2);
-            return h2.price + (h1.price - h2.price) * ratio;
-        }
-    }
-    // If date is OLDER than history, use the oldest known value
-    return history[history.length - 1].price;
-};
-
-/**
- * Calculates the Taxable Gain under the 'REAL_GAIN' policy.
- * Handles both:
- * 1. ILS Assets: Adjusts for Inflation (CPI).
- * 2. Foreign Assets: Adjusts for Exchange Rate (Taxable Gain = Min(Nominal, Real in Source Currency)).
- */
-function computeRealTaxableGain(
-    nominalGainPC: number,
-    gainSC: number,
-    costBasisPC: number,
-    stockCurrency: Currency,
-    portfolioCurrency: Currency,
-    cpiStart: number,
-    cpiEnd: number,
-    exchangeRates: ExchangeRates
-): number {
-    let taxableGain = nominalGainPC;
-
-    if (portfolioCurrency === Currency.ILS && stockCurrency === Currency.ILS) {
-        // ILS Asset: Adjust for Inflation
-        const inflationRate = (cpiStart > 0) ? (cpiEnd / cpiStart) - 1 : 0;
-        const inflationAdj = Math.max(0, costBasisPC * inflationRate);
-        taxableGain -= inflationAdj;
-    } else if (portfolioCurrency !== stockCurrency) {
-        // Foreign Asset: Taxable Gain cannot exceed the Real Gain in the asset's base currency (converted to PC)
-        // This prevents paying tax on purely FX-driven "gains".
-        const realGainPC = convertCurrency(gainSC, stockCurrency, portfolioCurrency, exchangeRates);
-        taxableGain = Math.min(taxableGain, realGainPC);
-    }
-    return taxableGain;
-}
-
-/**
- * Data structure representing the aggregate performance of a portfolio or group of portfolios.
- */
-export interface DashboardSummaryData {
-  aum: number;
-  totalUnrealized: number;
-  totalUnrealizedGainPct: number;
-  totalRealized: number;
-  totalRealizedGainPct: number;
-  totalCostOfSold: number;
-  totalDividends: number;
-  totalReturn: number;
-  realizedGainAfterTax: number;
-  valueAfterTax: number;
-  totalDayChange: number;
-  totalDayChangePct: number;
-  totalDayChangeIsIncomplete: boolean;
-  perf1d: number;
-  perf1w: number;
-  perf1w_incomplete: boolean;
-  perf1m: number;
-  perf1m_incomplete: boolean;
-  perf3m: number;
-  perf3m_incomplete: boolean;
-  perf1y: number;
-  perf1y_incomplete: boolean;
-  perf3y: number;
-  perf3y_incomplete: boolean;
-  perf5y: number;
-  perf5y_incomplete: boolean;
-  perfYtd: number;
-  perfYtd_incomplete: boolean;
-  divYield: number;
-  totalUnvestedValue: number;
-  totalUnvestedGain: number;
-  totalUnvestedGainPct: number;
-}
+export type { DashboardSummaryData };
 
 export interface DashboardHoldingDisplay {
     marketValue: number;
@@ -135,287 +37,9 @@ export interface EnrichedDashboardHolding extends DashboardHolding {
     display: DashboardHoldingDisplay;
 }
 
-export const INITIAL_SUMMARY: DashboardSummaryData = {
-  aum: 0,
-  totalUnrealized: 0,
-  totalUnrealizedGainPct: 0,
-  totalRealized: 0,
-  totalRealizedGainPct: 0,
-  totalCostOfSold: 0,
-  totalDividends: 0,
-  totalReturn: 0,
-  realizedGainAfterTax: 0,
-  valueAfterTax: 0,
-  totalDayChange: 0,
-  totalDayChangePct: 0,
-  totalDayChangeIsIncomplete: false,
-  perf1d: 0,
-  perf1w: 0, perf1w_incomplete: false,
-  perf1m: 0, perf1m_incomplete: false,
-  perf3m: 0, perf3m_incomplete: false,
-  perf1y: 0, perf1y_incomplete: false,
-  perf3y: 0, perf3y_incomplete: false,
-  perf5y: 0, perf5y_incomplete: false,
-  perfYtd: 0, perfYtd_incomplete: false,
-  divYield: 0,
-  totalUnvestedValue: 0,
-  totalUnvestedGain: 0,
-  totalUnvestedGainPct: 0,
-};
+// Re-export INITIAL_SUMMARY for consumers
+export { INITIAL_SUMMARY };
 
-const perfPeriods = {
-  perf1w: 'perf1w',
-  perf1m: 'perf1m',
-  perf3m: 'perf3m',
-  perfYtd: 'perfYtd',
-  perf1y: 'perf1y',
-  perf3y: 'perf3y',
-  perf5y: 'perf5y',
-} as const;
-
-interface SummaryAcc {
-  aum: number;
-  totalUnrealizedDisplay: number;
-  totalRealizedDisplay: number;
-  totalCostOfSoldDisplay: number;
-  totalDividendsDisplay: number;
-  totalReturnDisplay: number;
-  totalRealizedTaxDisplay: number;
-  totalUnrealizedTaxDisplay: number;
-  totalDayChange: number;
-  aumWithDayChangeData: number;
-  holdingsWithDayChange: number;
-  totalUnvestedValue: number;
-  totalUnvestedGain: number;
-  [key: string]: any;
-}
-
-/**
- * Aggregates holding-level data into a global summary.
- * Implements sophisticated taxation logic calculated in ILS and converted back to display currency.
- * Returns both the summary and the enriched holdings with pre-calculated display values.
- */
-export function calculateDashboardSummary(data: DashboardHolding[], displayCurrency: string, exchangeRates: ExchangeRates, portfolios: Map<string, Portfolio>): { summary: DashboardSummaryData, holdings: EnrichedDashboardHolding[] } {
-  // 1. Accumulate Per-Portfolio Data for Tax Offsetting (Kizuz)
-  const portfolioAcc: Record<string, {
-      costBasisTotalILS: number;
-      feesILS: number;
-      aum: number;
-      ils: {
-          std: { unrealized: number; realized: number; taxLiability: number; },
-          reit: { realized: number; }
-      }
-  }> = {};
-
-  const globalAcc: SummaryAcc = {
-    aum: 0,
-    totalUnrealizedDisplay: 0,
-    totalRealizedDisplay: 0,
-    totalCostOfSoldDisplay: 0,
-    totalDividendsDisplay: 0,
-    totalReturnDisplay: 0,
-    totalRealizedTaxDisplay: 0,
-    totalUnrealizedTaxDisplay: 0,
-    totalDayChange: 0,
-    aumWithDayChangeData: 0,
-    holdingsWithDayChange: 0,
-    totalUnvestedValue: 0,
-    totalUnvestedGain: 0,
-  };
-
-  Object.keys(perfPeriods).forEach(p => {
-    globalAcc[`totalChange_${p}`] = 0;
-    globalAcc[`aumFor_${p}`] = 0;
-    globalAcc[`holdingsFor_${p}`] = 0;
-  });
-
-  const enrichedHoldings: EnrichedDashboardHolding[] = [];
-
-  data.forEach(h => {
-    const vals = calculateHoldingDisplayValues(h, displayCurrency, exchangeRates);
-    
-    // Calculate Day Change in Display Currency
-    const { changeVal: dayChangeVal, changePct1d: dayChangePct } = calculatePerformanceInDisplayCurrency(h.currentPrice, h.stockCurrency, h.dayChangePct, displayCurrency, exchangeRates);
-    const dayChangeTotal = dayChangeVal * h.qtyVested; // Day change on Vested Only? "Calculations will always ignore unvested values". Yes.
-
-    // Calculate Unvested Metrics (Display Currency)
-    const unvestedValDisplay = convertCurrency(h.mvUnvested, h.portfolioCurrency, displayCurrency, exchangeRates);
-    const costBasisUnvestedPC = h.avgCost * h.qtyUnvested;
-    const unvestedGainPC = h.mvUnvested - costBasisUnvestedPC;
-    const unvestedGainDisplay = convertCurrency(unvestedGainPC, h.portfolioCurrency, displayCurrency, exchangeRates);
-
-    const displayVals: DashboardHoldingDisplay = {
-        ...vals,
-        dayChangeVal: dayChangeTotal,
-        dayChangePct: dayChangePct,
-        currentPrice: convertCurrency(h.currentPrice, h.stockCurrency, displayCurrency, exchangeRates),
-        avgCost: convertCurrency(h.avgCost, h.stockCurrency, displayCurrency, exchangeRates),
-        weightInPortfolio: 0,
-        weightInGlobal: 0,
-        unvestedValue: unvestedValDisplay
-    };
-
-    enrichedHoldings.push({ ...h, display: displayVals });
-
-    globalAcc.aum += vals.marketValue;
-    globalAcc.totalUnrealizedDisplay += vals.unrealizedGain;
-    globalAcc.totalRealizedDisplay += vals.realizedGain;
-    globalAcc.totalCostOfSoldDisplay += vals.costOfSold;
-    globalAcc.totalDividendsDisplay += vals.dividends;
-    globalAcc.totalReturnDisplay += vals.totalGain;
-    
-    globalAcc.totalUnvestedValue += unvestedValDisplay;
-    globalAcc.totalUnvestedGain += unvestedGainDisplay;
-
-    const p = portfolios.get(h.portfolioId);
-    if (!portfolioAcc[h.portfolioId]) {
-        portfolioAcc[h.portfolioId] = { 
-            costBasisTotalILS: 0,
-            feesILS: 0,
-            aum: 0,
-            ils: { 
-                std: { unrealized: 0, realized: 0, taxLiability: 0 },
-                reit: { realized: 0 }
-            }
-        };
-    }
-    const pAcc = portfolioAcc[h.portfolioId];
-    pAcc.costBasisTotalILS += h.costBasisILS;
-    pAcc.feesILS += convertCurrency(h.totalFeesPortfolioCurrency, h.portfolioCurrency, Currency.ILS, exchangeRates);
-    pAcc.aum += vals.marketValue;
-
-    let taxableUnrealizedILS = 0;
-    let taxableRealizedILS = 0;
-    if (p?.taxPolicy === 'REAL_GAIN') {
-        taxableRealizedILS = h.realizedTaxableGainILS;
-        taxableUnrealizedILS = h.unrealizedTaxableGainILS;
-    } else {
-        const priceInILS = convertCurrency(h.currentPrice, h.stockCurrency, Currency.ILS, exchangeRates);
-        taxableRealizedILS = h.realizedGainILS;
-        taxableUnrealizedILS = (h.qtyVested * priceInILS) - h.costBasisILS; // Approx: costBasisILS total vs vested logic mismatch? 
-        // Note: h.costBasisILS was updated in useDashboardData? No, costBasisILS tracks total.
-        // But we need Vested Taxable Unrealized.
-        // h.unrealizedTaxableGainILS was calculated correctly in useDashboardData. We should use it.
-        // For NOMINAL_GAIN (else block), we need to ensure we use Vested logic.
-        // costBasisILS is Total. We need costBasisILSVested.
-        // Recalculate:
-        const costBasisILSVested = (h.totalQty > 0 ? h.costBasisILS / h.totalQty : 0) * h.qtyVested;
-        taxableUnrealizedILS = (h.qtyVested * priceInILS) - costBasisILSVested;
-    }
-
-    // Capital Gains always go to Standard Bucket (CGT)
-    pAcc.ils.std.unrealized += taxableUnrealizedILS;
-    pAcc.ils.std.realized += taxableRealizedILS;
-    pAcc.ils.std.taxLiability += h.realizedTaxLiabilityILS;
-
-    // Dividends: REIT Dividends use Income Tax if configured, otherwise Standard Bucket
-    const isReit = h.type?.type === InstrumentType.STOCK_REIT;
-    const incTax = p?.incTax || 0;
-    if (isReit && incTax > 0) {
-        pAcc.ils.reit.realized += h.dividendsILS;
-    } else {
-        pAcc.ils.std.realized += h.dividendsILS;
-    }
-
-    if (h.dayChangePct !== 0 && isFinite(h.dayChangePct)) {
-      globalAcc.totalDayChange += dayChangeTotal;
-      globalAcc.aumWithDayChangeData += vals.marketValue;
-      globalAcc.holdingsWithDayChange++;
-    }
-
-    for (const [key, holdingKey] of Object.entries(perfPeriods)) {
-      const perf = h[holdingKey as keyof DashboardHolding] as number;
-      if (perf && !isNaN(perf)) {
-        const { changeVal } = calculatePerformanceInDisplayCurrency(h.currentPrice, h.stockCurrency, perf, displayCurrency, exchangeRates);
-        globalAcc[`totalChange_${key}`] += changeVal * h.qtyVested; // Use Vested Qty
-        globalAcc[`aumFor_${key}`] += vals.marketValue;
-        globalAcc[`holdingsFor_${key}`]++;
-      }
-    }
-  });
-
-  // Calculate Weights (Pass 2)
-  enrichedHoldings.forEach(h => {
-      const pAum = portfolioAcc[h.portfolioId]?.aum || 0;
-      h.display.weightInPortfolio = pAum > 0 ? h.display.marketValue / pAum : 0;
-      h.display.weightInGlobal = globalAcc.aum > 0 ? h.display.marketValue / globalAcc.aum : 0;
-  });
-
-  // 2. Calculate Final Tax Liability (In ILS) and apply to Display Summary
-  Object.keys(portfolioAcc).forEach(pid => {
-      const pData = portfolioAcc[pid];
-      const p = portfolios.get(pid);
-      let cgt = p?.cgt ?? 0.25;
-      let incTax = p?.incTax ?? 0;
-      if (p?.taxPolicy === 'TAX_FREE') { cgt = 0; incTax = 0; }
-
-      let deductibleFeesILS = (p?.taxPolicy === 'REAL_GAIN') ? pData.feesILS : 0;
-      
-      // Standard Bucket: Deduct fees, then apply CGT with offsetting.
-      // Use historical tax liability accumulation, offset by fees at current rate
-      const taxCreditFromFees = deductibleFeesILS * cgt;
-      const stdRealizedTaxILS = Math.max(0, pData.ils.std.taxLiability - taxCreditFromFees);
-      
-      const stdUnrealizedTaxILS = pData.ils.std.unrealized > 0 ? pData.ils.std.unrealized * cgt : 0;
-      
-      // REIT Bucket: Only dividends, taxed at incTax rate.
-      const reitRealizedTaxILS = pData.ils.reit.realized > 0 ? pData.ils.reit.realized * incTax : 0;
-      
-      // Wealth Tax (Income Tax on Base) - Apply to Vested Base?
-      // pData.costBasisTotalILS is TOTAL. We need Vested Base.
-      // But we didn't track Vested Base per portfolio in pAcc.
-      // Approximation: wealth tax is rarely used or is on total assets.
-      // For now, assume it applies to total base as accumulated.
-      const incomeTaxOnBaseILS = pData.costBasisTotalILS * incTax;
-
-      const totalRealizedTaxILS = stdRealizedTaxILS + reitRealizedTaxILS;
-      const totalUnrealizedTaxILS = stdUnrealizedTaxILS + incomeTaxOnBaseILS;
-
-      // Convert ILS tax liability to Display Currency
-      globalAcc.totalRealizedTaxDisplay += convertCurrency(totalRealizedTaxILS, Currency.ILS, displayCurrency, exchangeRates);
-      globalAcc.totalUnrealizedTaxDisplay += convertCurrency(totalUnrealizedTaxILS, Currency.ILS, displayCurrency, exchangeRates);
-  });
-
-  const summaryResult: DashboardSummaryData = {
-    ...INITIAL_SUMMARY,
-    aum: globalAcc.aum,
-    totalUnrealized: globalAcc.totalUnrealizedDisplay,
-    totalRealized: globalAcc.totalRealizedDisplay,
-    totalDividends: globalAcc.totalDividendsDisplay,
-    totalReturn: globalAcc.totalReturnDisplay,
-    totalCostOfSold: globalAcc.totalCostOfSoldDisplay,
-    totalUnrealizedGainPct: (globalAcc.aum - globalAcc.totalUnrealizedDisplay) > 0 ? globalAcc.totalUnrealizedDisplay / (globalAcc.aum - globalAcc.totalUnrealizedDisplay) : 0,
-    totalRealizedGainPct: globalAcc.totalCostOfSoldDisplay > 0 ? globalAcc.totalRealizedDisplay / globalAcc.totalCostOfSoldDisplay : 0,
-    totalDayChange: globalAcc.totalDayChange,
-    realizedGainAfterTax: (globalAcc.totalRealizedDisplay + globalAcc.totalDividendsDisplay) - globalAcc.totalRealizedTaxDisplay,
-    valueAfterTax: globalAcc.aum - globalAcc.totalUnrealizedTaxDisplay,
-    
-    totalUnvestedValue: globalAcc.totalUnvestedValue,
-    totalUnvestedGain: globalAcc.totalUnvestedGain,
-    totalUnvestedGainPct: (globalAcc.totalUnvestedValue - globalAcc.totalUnvestedGain) > 0 ? globalAcc.totalUnvestedGain / (globalAcc.totalUnvestedValue - globalAcc.totalUnvestedGain) : 0,
-  };
-
-  const totalHoldings = data.length;
-  const prevClose = globalAcc.aumWithDayChangeData - globalAcc.totalDayChange;
-  summaryResult.totalDayChangePct = prevClose > 0 ? globalAcc.totalDayChange / prevClose : 0;
-  summaryResult.perf1d = summaryResult.totalDayChangePct;
-  summaryResult.totalDayChangeIsIncomplete = globalAcc.holdingsWithDayChange > 0 && globalAcc.holdingsWithDayChange < totalHoldings;
-
-  for (const key of Object.keys(perfPeriods)) {
-    const totalChange = globalAcc[`totalChange_${key}`];
-    const aumForPeriod = globalAcc[`aumFor_${key}`];
-    const prevValue = aumForPeriod - totalChange;
-    (summaryResult as any)[key] = prevValue > 0 ? totalChange / prevValue : 0;
-    (summaryResult as any)[`${key}_incomplete`] = globalAcc[`holdingsFor_${key}`] > 0 && globalAcc[`holdingsFor_${key}`] < totalHoldings;
-  }
-  return { summary: summaryResult, holdings: enrichedHoldings };
-}
-
-/**
- * Main data fetching hook for the Dashboard.
- * Orchestrates fetching portfolios, transactions, and dividends.
- * Performs chronological event replay to maintain quantity-aware states and apply complex tax rules.
- */
 export function useDashboardData(sheetId: string) {
   const [loading, setLoading] = useState(true);
   const [holdings, setHoldings] = useState<DashboardHolding[]>([]);
@@ -424,338 +48,112 @@ export function useDashboardData(sheetId: string) {
   const [hasFutureTxns, setHasFutureTxns] = useState(false);
   const [error, setError] = useState<any>(null);
   const { showLoginModal } = useSession();
-
-  useEffect(() => {
-    getExchangeRates(sheetId).then(setExchangeRates).catch(e => {
-      if (e instanceof SessionExpiredError) { setError('session_expired'); showLoginModal(); } 
-      else setError(e);
-    });
-  }, [sheetId, showLoginModal]);
+  const [engine, setEngine] = useState<FinanceEngine | null>(null);
 
   const loadData = useCallback(async () => {
     if (!sheetId) return;
     setLoading(true);
     setError(null);
     try {
-      const [ports, txns, extPrices, sheetDividends, realCpi] = await Promise.all([
-        fetchPortfolios(sheetId),
-        fetchTransactions(sheetId),
-        getExternalPrices(sheetId),
-        fetchAllDividends(sheetId),
-        fetchCpi(120010)
-      ]);
-
-      setPortfolios(ports);
-      const newPortMap = new Map(ports.map(p => [p.id, p]));
-      const holdingMap = new Map<string, DashboardHolding>();
-      txns.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-      const today = new Date();
-      const pastTxns = txns.filter(t => new Date(t.date) <= today);
-      setHasFutureTxns(txns.length > pastTxns.length);
+      const eng = await loadFinanceEngine(sheetId);
+      setEngine(eng);
+      setPortfolios(Array.from(eng.portfolios.values()));
+      setExchangeRates(eng.exchangeRates);
       
-      const combinedEvents: (Transaction & { kind: 'TXN' } | { kind: 'DIV_EVENT', date: string, ticker: string, exchange: Exchange, amountPerShare: number })[] = 
-          pastTxns.map(t => ({ ...t, kind: 'TXN' }));
+      const today = new Date();
+      const future = eng.transactions.some(t => new Date(t.date) > today);
+      setHasFutureTxns(future);
 
-      sheetDividends.forEach(d => {
-          const dateKey = d.date.toISOString().split('T')[0];
-          combinedEvents.push({ kind: 'DIV_EVENT', date: dateKey, ticker: d.ticker, exchange: d.exchange, amountPerShare: d.amount });
-      });
-
-      combinedEvents.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-      // Use all events, filtering is done at display/calc level for vested vs unvested
-      const processingEvents = combinedEvents;
-
-      const liveDataMap = new Map<string, Holding>();
-      ports.forEach(p => p.holdings?.forEach(h => liveDataMap.set(`${h.ticker}:${h.exchange}`, h)));
-
-      processingEvents.forEach(e => {
-        if (e.kind === 'DIV_EVENT') {
-             holdingMap.forEach(h => {
-                 if (h.ticker === e.ticker && h.exchange === e.exchange) {
-                     const qty = h.qtyVested + h.qtyUnvested;
-                     if (qty > 0) {
-                         const totalAmountSC = qty * e.amountPerShare;
-                         h.dividendsPortfolioCurrency += convertCurrency(totalAmountSC, h.stockCurrency, h.portfolioCurrency, exchangeRates);
-                         h.dividendsStockCurrency += totalAmountSC;
-                         h.dividendsUSD += convertCurrency(totalAmountSC, h.stockCurrency, Currency.USD, exchangeRates);
-                         h.dividendsILS += convertCurrency(totalAmountSC, h.stockCurrency, Currency.ILS, exchangeRates);
-                     }
-                 }
-             });
-             return;
-        }
-
-        const t = e as Transaction;
-        const key = `${t.portfolioId}_${t.ticker}`;
-        const p = logIfFalsy(newPortMap.get(t.portfolioId), `Portfolio not found for ID ${t.portfolioId}`, t);
-        const portfolioCurrency = normalizeCurrency(p?.currency || 'USD');
-
-        if (!holdingMap.has(key)) {
-          const live = liveDataMap.get(`${t.ticker}:${t.exchange}`);
-          const exchange = t.exchange || live?.exchange;
-          if (!exchange) return;
-
-          holdingMap.set(key, {
-            key, portfolioId: t.portfolioId, portfolioName: p?.name || t.portfolioId, portfolioCurrency,
-            ticker: t.ticker, exchange, displayName: live?.name || t.ticker, nameHe: live?.nameHe,
-            qtyVested: 0, qtyUnvested: 0, totalQty: 0, currentPrice: live?.price || 0, stockCurrency: normalizeCurrency(live?.currency || t.currency || (exchange === Exchange.TASE ? Currency.ILA : Currency.USD)),
-            type: live?.type, costBasisPortfolioCurrency: 0, costOfSoldPortfolioCurrency: 0, proceedsPortfolioCurrency: 0, dividendsPortfolioCurrency: 0,
-            unrealizedGainPortfolioCurrency: 0, unrealizedTaxableGain: 0, realizedGainPortfolioCurrency: 0, realizedTaxableGain: 0, totalGainPortfolioCurrency: 0, marketValuePortfolioCurrency: 0,
-            dayChangeValuePortfolioCurrency: 0, totalFeesPortfolioCurrency: 0, costBasisStockCurrency: 0, costOfSoldStockCurrency: 0, proceedsStockCurrency: 0, dividendsStockCurrency: 0,
-            costBasisUSD: 0, costOfSoldUSD: 0, proceedsUSD: 0, dividendsUSD: 0, realizedGainUSD: 0,
-            costBasisILS: 0, costOfSoldILS: 0, proceedsILS: 0, dividendsILS: 0, realizedGainILS: 0, realizedTaxableGainILS: 0, realizedTaxLiabilityILS: 0, unrealizedTaxableGainILS: 0,
-            avgCost: 0, mvVested: 0, mvUnvested: 0, totalMV: 0, realizedGain: 0, realizedGainPct: 0, realizedGainAfterTax: 0, dividends: 0, unrealizedGain: 0, unrealizedGainPct: 0, totalGain: 0, totalGainPct: 0, valueAfterTax: 0, dayChangeVal: 0,
-            sector: live?.sector || '', dayChangePct: live?.changePct1d || 0,
-            perf1w: live?.changePctRecent || 0, perf1m: live?.changePct1m || 0, perf3m: live?.changePct3m || 0,
-            perfYtd: live?.changePctYtd || 0, perf1y: live?.changePct1y || 0, perf3y: live?.changePct3y || 0, perf5y: live?.changePct5y || 0,
-          });
-        }
-
-        const h = holdingMap.get(key)!;
-        const isVested = !t.vestDate || new Date(t.vestDate) <= new Date();
-        const tQty = t.qty || 0;
-        const priceInUSD = t.originalPriceUSD || 0;
-        const priceInAgorot = t.originalPriceILA || 0;
-        const priceInILS = toILS(priceInAgorot, Currency.ILA);
-        
-        let originalPricePC = (portfolioCurrency === Currency.ILS) ? priceInILS : convertCurrency(priceInUSD, Currency.USD, portfolioCurrency, exchangeRates);
-        const txnValuePC = tQty * originalPricePC;
-        let effectivePriceSC = t.price || 0;
-        if (h.stockCurrency === Currency.ILA) effectivePriceSC = priceInAgorot;
-        else if (h.stockCurrency === Currency.ILS) effectivePriceSC = priceInILS;
-        else if (h.stockCurrency === Currency.USD) effectivePriceSC = priceInUSD;
-        const txnValueSC = tQty * effectivePriceSC;
-
-        // Fees
-        let txnFeePC = 0;
-        if (t.commission && t.commission > 0) {
-            let commVal = (h.stockCurrency === Currency.ILA) ? t.commission / 100 : t.commission;
-            txnFeePC = convertCurrency(commVal, h.stockCurrency === Currency.ILA ? Currency.ILS : h.stockCurrency, h.portfolioCurrency, exchangeRates);
-        }
-        h.totalFeesPortfolioCurrency += txnFeePC;
-
-        const currentCPI = getCPI(new Date(t.date), realCpi);
-        if (t.type === 'BUY') {
-          if (h.weightedAvgCPI === undefined) h.weightedAvgCPI = currentCPI;
-          else h.weightedAvgCPI = ((h.qtyVested + h.qtyUnvested) * h.weightedAvgCPI + tQty * currentCPI) / (h.qtyVested + h.qtyUnvested + tQty);
-          
-          if (isVested) h.qtyVested += tQty; else h.qtyUnvested += tQty;
-          h.costBasisPortfolioCurrency += txnValuePC; h.costBasisStockCurrency += txnValueSC; h.costBasisUSD += tQty * priceInUSD; h.costBasisILS += tQty * priceInILS;
-        } else if (t.type === 'SELL') {
-          const totalQty = h.qtyVested + h.qtyUnvested;
-          const avgCostPC = totalQty > 0 ? h.costBasisPortfolioCurrency / totalQty : 0;
-          const costOfSoldPC = avgCostPC * tQty;
-          const avgCostILS = totalQty > 0 ? h.costBasisILS / totalQty : 0;
-          const currentCostOfSoldILS = avgCostILS * tQty;
-          const curPriceILS = convertCurrency(t.price || 0, t.currency || h.stockCurrency, Currency.ILS, exchangeRates);
-          
-          h.costOfSoldPortfolioCurrency += costOfSoldPC; h.proceedsPortfolioCurrency += txnValuePC; h.costBasisPortfolioCurrency -= costOfSoldPC;
-          
-          const baseCPI = h.weightedAvgCPI || currentCPI;
-          const gainInSC = txnValueSC - (totalQty > 0 ? h.costBasisStockCurrency / totalQty : 0) * tQty;
-
-          // REAL_GAIN Logic (Portfolio Currency Version)
-          h.realizedTaxableGain += computeRealTaxableGain(
-              txnValuePC - costOfSoldPC, // Nominal Gain PC
-              gainInSC,
-              costOfSoldPC,
-              h.stockCurrency,
-              h.portfolioCurrency,
-              baseCPI,
-              currentCPI,
-              exchangeRates
-          );
-
-          // REAL_GAIN Logic (ILS Specific Version for Summary Tax Calc)
-          const taxableGainILS = computeRealTaxableGain(
-              (tQty * curPriceILS) - currentCostOfSoldILS, // Nominal Gain ILS
-              gainInSC,
-              currentCostOfSoldILS, // Cost Basis ILS
-              h.stockCurrency,
-              Currency.ILS,
-              baseCPI,
-              currentCPI,
-              exchangeRates
-          );
-          
-          h.realizedTaxableGainILS += taxableGainILS;
-
-          // Calculate Tax Liability for this transaction using historical rate
-          const { cgt: historicalCgt } = getTaxRatesForDate(p!, t.date);
-          
-          if (taxableGainILS > 0) {
-              h.realizedTaxLiabilityILS += taxableGainILS * historicalCgt;
-          }
-
-          h.costOfSoldStockCurrency += (totalQty > 0 ? h.costBasisStockCurrency / totalQty : 0) * tQty;
-          h.costBasisStockCurrency -= (totalQty > 0 ? h.costBasisStockCurrency / totalQty : 0) * tQty;
-          h.costOfSoldUSD += (totalQty > 0 ? h.costBasisUSD / totalQty : 0) * tQty;
-          h.costBasisUSD -= (totalQty > 0 ? h.costBasisUSD / totalQty : 0) * tQty;
-          h.proceedsUSD += tQty * priceInUSD;
-          h.costOfSoldILS += currentCostOfSoldILS; h.costBasisILS -= currentCostOfSoldILS; h.proceedsILS += tQty * curPriceILS;
-
-          let q = tQty;
-          if (isVested) { const canSell = Math.min(q, h.qtyVested); h.qtyVested -= canSell; q -= canSell; }
-          if (q > 0) h.qtyUnvested -= q;
-
-          // Fix Floating Point Drift (Ghost Holding protection)
-          if (h.qtyVested < 1e-9) h.qtyVested = 0;
-          if (h.qtyUnvested < 1e-9) h.qtyUnvested = 0;
-          if (Math.abs(h.costBasisPortfolioCurrency) < 0.01 && h.qtyVested + h.qtyUnvested === 0) {
-              h.costBasisPortfolioCurrency = 0;
-              h.costBasisILS = 0;
-              h.costBasisUSD = 0;
-              h.costBasisStockCurrency = 0;
-          }
-        } else if (t.type === 'FEE') {
-            const feePC = convertCurrency((h.stockCurrency === Currency.ILA ? t.price! / 100 : t.price!) * (t.qty || 1), h.stockCurrency === Currency.ILA ? Currency.ILS : h.stockCurrency, h.portfolioCurrency, exchangeRates);
-            h.totalFeesPortfolioCurrency += feePC;
-        }
-      });
-
-      const holdingsList = Array.from(holdingMap.values());
-      const missingDataPromises = holdingsList.map(async (h) => {
-        if (!h.currentPrice || h.currentPrice === 0 || h.exchange === Exchange.GEMEL || h.exchange === Exchange.PENSION) {
-          try {
-            const live = await getTickerData(h.ticker, h.exchange, null);
-            if (live) {
-              if ((live.exchange === Exchange.GEMEL || live.exchange === Exchange.PENSION) && live.timestamp) {
-                const key = `${live.exchange}:${live.ticker}`;
-                const storedHistory = extPrices[key];
-                if (storedHistory) {
-                  const liveDate = new Date(live.timestamp); liveDate.setHours(0, 0, 0, 0);
-                  const match = storedHistory.find(item => { const itemDate = new Date(item.date); itemDate.setHours(0, 0, 0, 0); return itemDate.getTime() === liveDate.getTime(); });
-                  if (match) { if (Math.abs(match.price - (live.price || 0)) > 0.01) console.warn(`[Data Mismatch] ${live.ticker} at ${toGoogleSheetDateFormat(match.date)}: Live=${live.price}, Stored=${match.price}`); }
-                }
-              }
-              if (live.price) h.currentPrice = live.price;
-              if (live.changePct1d !== undefined) h.dayChangePct = live.changePct1d;
-              if (live.name) h.displayName = live.name;
-              if (live.type) h.type = live.type;
-              if (live.changePctRecent) h.perf1w = live.changePctRecent;
-              if (live.changePct1m) h.perf1m = live.changePct1m;
-              if (live.changePct1y) h.perf1y = live.changePct1y;
-            }
-          } catch (e) { console.warn(`Failed to hydrate ${h.ticker}`, e); }
-        }
-        return h;
-      });
-      await Promise.all(missingDataPromises);
-
-      holdingMap.forEach(h => {
-        h.totalQty = h.qtyVested + h.qtyUnvested;
-        
-        // Calculate Cost Basis per Share (Avg Cost) based on TOTAL
-        // Note: costBasisPortfolioCurrency currently holds the TOTAL cost basis (vested + unvested) from the accumulation loop
-        const avgCost = h.totalQty > 1e-9 ? h.costBasisPortfolioCurrency / h.totalQty : 0;
-        h.avgCost = avgCost;
-
-        // Split Values for Display
-        const currentPricePC = convertCurrency(h.currentPrice, h.stockCurrency, h.portfolioCurrency, exchangeRates);
-        h.mvVested = h.qtyVested * currentPricePC;
-        h.mvUnvested = h.qtyUnvested * currentPricePC;
-        
-        // --- OVERRIDE FOR DISPLAY: MARKET VALUE IS NOW VESTED ONLY ---
-        h.marketValuePortfolioCurrency = h.mvVested;
-        
-        // Adjust Cost Basis for Gain Calculation to Vested Portion Only
-        const costBasisVested = avgCost * h.qtyVested;
-        
-        // Calculate Unrealized Gain on Vested Portion
-        h.unrealizedGainPortfolioCurrency = h.mvVested - costBasisVested;
-        
-        h.realizedGainPortfolioCurrency = h.proceedsPortfolioCurrency - h.costOfSoldPortfolioCurrency;
-        h.totalGainPortfolioCurrency = h.unrealizedGainPortfolioCurrency + h.realizedGainPortfolioCurrency + h.dividendsPortfolioCurrency;
-        
-        const currentCPI = getCPI(new Date(), realCpi);
-        const baseCPI = h.weightedAvgCPI || currentCPI;
-        
-        // Gain in Stock Currency (Vested Only)
-        // We approximate cost basis in SC for vested portion using average cost in SC
-        const costBasisSCTotal = h.costBasisStockCurrency;
-        const avgCostSC = h.totalQty > 0 ? costBasisSCTotal / h.totalQty : 0;
-        const costBasisSCVested = avgCostSC * h.qtyVested;
-        const gainInSCVested = (h.qtyVested * h.currentPrice) - costBasisSCVested;
-
-        // Calculate Unrealized Taxable Gain (Real Gain Policy) - VESTED ONLY
-        h.unrealizedTaxableGain = computeRealTaxableGain(
-            h.unrealizedGainPortfolioCurrency, // Nominal Gain PC (Vested)
-            gainInSCVested,
-            costBasisVested,
-            h.stockCurrency,
-            h.portfolioCurrency,
-            baseCPI,
-            currentCPI,
-            exchangeRates
-        );
-
-        // Calculate Unrealized Taxable Gain in ILS (For Tax Calc) - VESTED ONLY
-        const priceInILS = convertCurrency(h.currentPrice, h.stockCurrency, Currency.ILS, exchangeRates);
-        const mvILSVested = h.qtyVested * priceInILS;
-        const costBasisILSTotal = h.costBasisILS;
-        const avgCostILS = h.totalQty > 0 ? costBasisILSTotal / h.totalQty : 0;
-        const costBasisILSVested = avgCostILS * h.qtyVested;
-        
-        h.unrealizedTaxableGainILS = computeRealTaxableGain(
-            mvILSVested - costBasisILSVested, // Nominal Gain ILS
-            gainInSCVested,
-            costBasisILSVested,
-            h.stockCurrency,
-            Currency.ILS,
-            baseCPI,
-            currentCPI,
-            exchangeRates
-        );
-
-        h.totalMV = h.marketValuePortfolioCurrency; // Vested
-
-        // Per-Holding Independent Tax Calculation
-        const p = newPortMap.get(h.portfolioId);
-        let cgt = p?.cgt ?? 0.25;
-        let incTax = p?.incTax ?? 0;
-        if (p?.taxPolicy === 'TAX_FREE') { cgt = 0; incTax = 0; }
-
-        const isReit = h.type?.type === InstrumentType.STOCK_REIT;
-        
-        // 1. Realized Tax (on Gains + Dividends)
-        // Capital Gains (Always Standard Bucket)
-        const cgtLiabilityILS = Math.max(0, h.realizedTaxableGainILS) * cgt; 
-        
-        // Dividend Tax
-        let divTaxILS = 0;
-        if (isReit && incTax > 0) divTaxILS = h.dividendsILS * incTax;
-        else divTaxILS = h.dividendsILS * cgt;
-
-        const totalRealizedTaxILS = cgtLiabilityILS + divTaxILS;
-        const totalRealizedTaxPC = convertCurrency(totalRealizedTaxILS, Currency.ILS, h.portfolioCurrency, exchangeRates);
-        
-        // Net Realized Return = (Trading Gain + Dividends) - Tax
-        h.realizedGainAfterTax = (h.realizedGainPortfolioCurrency + h.dividendsPortfolioCurrency) - totalRealizedTaxPC;
-
-        // 2. Unrealized Tax (Latent Liability)
-        // CGT on Unrealized
-        const unrealizedTaxILS = Math.max(0, h.unrealizedTaxableGainILS) * cgt;
-        
-        // Wealth Tax (Income Tax on Base) - Apply to Vested Base Only
-        const wealthTaxILS = costBasisILSVested * incTax;
-
-        const totalUnrealizedLiabilityILS = unrealizedTaxILS + wealthTaxILS;
-        const totalUnrealizedLiabilityPC = convertCurrency(totalUnrealizedLiabilityILS, Currency.ILS, h.portfolioCurrency, exchangeRates);
-
-        // Net Value = Market Value - Latent Tax
-        h.valueAfterTax = h.marketValuePortfolioCurrency - totalUnrealizedLiabilityPC;
-        
-        // OVERWRITE Cost Basis for display/downstream to be Vested Cost Basis
-        h.costBasisPortfolioCurrency = costBasisVested;
-      });
-      setHoldings(Array.from(holdingMap.values()));
+      setHoldings(Array.from(eng.holdings.values()) as unknown as DashboardHolding[]);
+      
+      return eng;
     } catch (e) {
       console.error('loadData error:', e);
       if (e instanceof SessionExpiredError) { setError('session_expired'); showLoginModal(); } else setError(e);
     } finally { setLoading(false); }
-  }, [sheetId, exchangeRates, showLoginModal]);
+  }, [sheetId, showLoginModal]);
 
   useEffect(() => { loadData(); }, [loadData]);
-  return { holdings, loading, error, portfolios, exchangeRates, hasFutureTxns, refresh: loadData };
+
+  return { holdings, loading, error, portfolios, exchangeRates, hasFutureTxns, refresh: loadData, engine };
+}
+
+export function calculateDashboardSummary(data: any[], displayCurrency: string, exchangeRates: ExchangeRates, portfoliosMap: Map<string, Portfolio>, engine?: FinanceEngine | null): { summary: DashboardSummaryData, holdings: EnrichedDashboardHolding[] } {
+    if (!engine) return { summary: INITIAL_SUMMARY, holdings: [] };
+
+    // Get summary filtered by the keys present in data
+    const dataKeys = new Set(data.map(d => d.key || (d as any).id));
+    const summary = engine.getGlobalSummary(displayCurrency, dataKeys);
+    
+    const unifiedHoldings = Array.from(engine.holdings.values()) as UnifiedHolding[];
+    const filteredUnified = unifiedHoldings.filter(h => dataKeys.has(h.id));
+    
+    const enrichedHoldings: EnrichedDashboardHolding[] = filteredUnified.map(h => {
+        const marketValue = convertCurrency(h.marketValueVested, h.portfolioCurrency, displayCurrency, exchangeRates);
+        const unrealizedGain = convertCurrency(h.unrealizedGainVested, h.portfolioCurrency, displayCurrency, exchangeRates);
+        const realizedGain = convertCurrency(h.realizedGainPortfolioCurrency, h.portfolioCurrency, displayCurrency, exchangeRates);
+        const dividends = convertCurrency(h.dividendsPortfolioCurrency, h.portfolioCurrency, displayCurrency, exchangeRates);
+        const costOfSold = convertCurrency(h.costOfSoldPortfolioCurrency, h.portfolioCurrency, displayCurrency, exchangeRates);
+        const totalFees = convertCurrency(h.totalFeesPortfolioCurrency, h.portfolioCurrency, displayCurrency, exchangeRates);
+        
+        // Total Gain (Net of Fees)
+        const totalGain = (unrealizedGain + realizedGain + dividends) - totalFees;
+        
+        const realizedTaxDisplay = convertCurrency(h.realizedTaxLiabilityILS, Currency.ILS, displayCurrency, exchangeRates);
+        const unrealizedTaxDisplay = convertCurrency(h.unrealizedTaxLiabilityILS, Currency.ILS, displayCurrency, exchangeRates);
+        
+        const valueAfterTax = marketValue - unrealizedTaxDisplay;
+        // Realized Gain After Tax = (Realized Gain + Dividends) - Realized Tax
+        const realizedGainAfterTax = (realizedGain + dividends) - realizedTaxDisplay;
+
+        const costBasis = convertCurrency(h.costBasisVestedPortfolioCurrency, h.portfolioCurrency, displayCurrency, exchangeRates); 
+        
+        const unvestedVal = convertCurrency(h.marketValueUnvested, h.portfolioCurrency, displayCurrency, exchangeRates);
+
+        // Day Change
+        let dayChangeVal = 0;
+        let dayChangePct = h.dayChangePct;
+        if (dayChangePct !== 0) {
+             const { changeVal } = calculatePerformanceInDisplayCurrency(h.currentPrice, h.stockCurrency, dayChangePct, displayCurrency, exchangeRates);
+             dayChangeVal = changeVal * h.qtyVested;
+        }
+
+        const display: DashboardHoldingDisplay = {
+            marketValue,
+            unrealizedGain,
+            unrealizedGainPct: costBasis > 0 ? unrealizedGain / costBasis : 0, 
+            realizedGain,
+            realizedGainPct: costOfSold > 0 ? realizedGain / costOfSold : 0,
+            realizedGainAfterTax,
+            totalGain,
+            totalGainPct: costBasis + costOfSold > 0 ? totalGain / (costBasis + costOfSold) : 0, 
+            valueAfterTax,
+            dayChangeVal,
+            dayChangePct,
+            costBasis,
+            costOfSold,
+            proceeds: convertCurrency(h.proceedsPortfolioCurrency, h.portfolioCurrency, displayCurrency, exchangeRates),
+            dividends,
+            currentPrice: convertCurrency(h.currentPrice, h.stockCurrency, displayCurrency, exchangeRates),
+            avgCost: convertCurrency(h.avgCost, h.portfolioCurrency, displayCurrency, exchangeRates),
+            weightInPortfolio: 0,
+            weightInGlobal: 0,
+            unvestedValue: unvestedVal
+        };
+        
+        const pName = portfoliosMap.get(h.portfolioId)?.name || h.portfolioId;
+
+        return { 
+            ...h, 
+            portfolioName: pName,
+            display 
+        } as unknown as EnrichedDashboardHolding;
+    });
+
+    // Weights
+    enrichedHoldings.forEach(h => {
+        h.display.weightInGlobal = summary.aum > 0 ? h.display.marketValue / summary.aum : 0;
+    });
+
+    return { summary, holdings: enrichedHoldings };
 }

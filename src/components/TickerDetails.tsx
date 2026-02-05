@@ -4,7 +4,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useLanguage } from '../lib/i18n';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
@@ -18,6 +18,8 @@ import { formatPrice, formatPercent, normalizeCurrency, formatValue } from '../l
 import { AnalysisDialog } from './AnalysisDialog';
 import { HoldingDetails } from './HoldingDetails';
 import type { EnrichedDashboardHolding } from '../lib/dashboard';
+import { loadFinanceEngine } from '../lib/data/loader';
+import type { UnifiedHolding } from '../lib/data/model';
 
 const formatDate = (timestamp?: Date | string | number | null) => {
   if (!timestamp) return 'N/A';
@@ -53,26 +55,35 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   const [compareMenuAnchor, setCompareMenuAnchor] = useState<null | HTMLElement>(null);
   const [analysisOpen, setAnalysisOpen] = useState(false);
   const [activeTab, setActiveTab] = useState(0);
+  const [engineHoldings, setEngineHoldings] = useState<UnifiedHolding[]>([]);
 
   // Resolve the "Active Holding" - from navigation state (enriched) or hook
   const enrichedHolding = useMemo(() => {
     const stateHolding = location.state?.holding;
     if (stateHolding && stateHolding.ticker === ticker) return stateHolding as EnrichedDashboardHolding;
+    return null;
+  }, [location.state, ticker]);
 
-    // Note: If missing from state, we show HoldingDetails with raw holdingData.
-    // It will display "Calculating..." if enriched fields are missing.
-    return holdingData as any;
-  }, [location.state, ticker, holdingData]);
+  useEffect(() => {
+    if (ownedInPortfolios && ownedInPortfolios.length > 0) {
+      loadFinanceEngine(sheetId).then(eng => {
+        const matches: UnifiedHolding[] = [];
+        eng.holdings.forEach(h => {
+          if (h.ticker === ticker && (h.exchange === exchange || !exchange)) {
+            matches.push(h);
+          }
+        });
+        setEngineHoldings(matches);
+      }).catch(console.error);
+    }
+  }, [sheetId, ownedInPortfolios, ticker, exchange]);
 
   const hasHolding = useMemo(() => {
     return !!(enrichedHolding || (ownedInPortfolios && ownedInPortfolios.length > 0));
   }, [enrichedHolding, ownedInPortfolios]);
 
-  // Sync tab selection: if user clicked "My Holdings" elsewhere, default to that tab?
-  // For now, default to 0 (Analysis) unless requested.
-
   const handlePortfolioClick = (id: string) => {
-    onClose?.(); // Close dialog
+    onClose?.(); 
     navigate(`/portfolios/${id}`);
   };
 
@@ -316,8 +327,8 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                                 <Button onClick={() => setAnalysisOpen(true)}>{t('Analysis', 'ניתוח')}</Button>
                             </Box>
                             {comparisonSeries.length > 0 && <Box display="flex" flexWrap="wrap" gap={1} sx={{ mt: 1, mb: 1 }}>{comparisonSeries.map(s => <Chip key={s.name} label={s.name} onDelete={() => handleRemoveComparison(s.name)} variant="outlined" size="small" sx={{ color: s.color, borderColor: s.color }} />)}</Box>}
-                            <Box sx={{ flex: 1, minHeight: 400 }}>
-                                <TickerChart series={[{ name: resolvedName || ticker || 'Main', data: displayHistory }, ...displayComparisonSeries]} currency={displayData?.currency || 'USD'} mode={effectiveChartMetric} />
+                            <Box sx={{ height: 400 }}>
+                                <TickerChart series={[{ name: resolvedName || ticker || 'Main', data: displayHistory }, ...displayComparisonSeries]} currency={displayData?.currency || 'USD'} mode={effectiveChartMetric} height="100%" />
                             </Box>
                             </>
                         )}
@@ -375,14 +386,19 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
 
                   {activeTab > 0 && hasHolding && (
                     <Box sx={{ mt: 2, flex: 1, overflow: 'auto' }}>
-                        <HoldingDetails
-                          sheetId={sheetId}
-                          holding={enrichedHolding || holdingData}
-                          displayCurrency={normalizeCurrency(localStorage.getItem('displayCurrency') || 'USD')}
-                          portfolios={portfolios}
-                          onPortfolioClick={handlePortfolioClick}
-                          section={activeTab === 1 ? 'overview' : activeTab === 2 ? 'transactions' : 'dividends'}
-                        />
+                        {(enrichedHolding || (engineHoldings && engineHoldings.length > 0) || holdingData) ? (
+                            <HoldingDetails
+                            sheetId={sheetId}
+                            holding={(enrichedHolding || (engineHoldings && engineHoldings[0]) || holdingData)! as any}
+                            holdings={engineHoldings && engineHoldings.length > 0 ? engineHoldings : (enrichedHolding ? [enrichedHolding as unknown as UnifiedHolding] : undefined)}
+                            displayCurrency={normalizeCurrency(localStorage.getItem('displayCurrency') || 'USD')}
+                            portfolios={portfolios}
+                            onPortfolioClick={handlePortfolioClick}
+                            section={activeTab === 1 ? 'overview' : activeTab === 2 ? 'transactions' : 'dividends'}
+                            />
+                        ) : (
+                            <Box display="flex" justifyContent="center" p={5}><CircularProgress /></Box>
+                        )}
                     </Box>
                   )}
                 </>}

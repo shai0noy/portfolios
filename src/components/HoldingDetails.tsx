@@ -3,9 +3,9 @@ import { formatValue, formatNumber, formatPrice, convertCurrency, formatPercent,
 import { useLanguage } from '../lib/i18n';
 import type { DashboardHolding, Transaction, ExchangeRates, Holding, Portfolio } from '../lib/types';
 import type { EnrichedDashboardHolding } from '../lib/dashboard';
+import type { UnifiedHolding, EnrichedTransaction, EnrichedDividend } from '../lib/data/model';
 import { useMemo, useState, useEffect } from 'react';
 import EditIcon from '@mui/icons-material/Edit';
-import { fetchTransactions, fetchAllDividends } from '../lib/sheets';
 import { useNavigate } from 'react-router-dom';
 
 export type HoldingSection = 'overview' | 'transactions' | 'dividends';
@@ -21,6 +21,7 @@ export interface HoldingWeight {
 interface HoldingDetailsProps {
     sheetId: string;
     holding: DashboardHolding | Holding;
+    holdings?: UnifiedHolding[];
     displayCurrency: string;
     portfolios: Portfolio[];
     onPortfolioClick: (id: string) => void;
@@ -29,7 +30,6 @@ interface HoldingDetailsProps {
 
 const formatDate = (dateInput: string | Date | number) => {
     if (!dateInput) return '';
-    // If it's a simple YYYY-MM-DD string, split it to avoid timezone shifts
     if (typeof dateInput === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
         const [y, m, d] = dateInput.split('-');
         return `${d}/${m}/${y}`;
@@ -38,48 +38,39 @@ const formatDate = (dateInput: string | Date | number) => {
     return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
 };
 
-export function HoldingDetails({ sheetId, holding, displayCurrency, portfolios, onPortfolioClick, section = 'overview' }: HoldingDetailsProps) {
+export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, portfolios, onPortfolioClick, section = 'overview' }: HoldingDetailsProps) {
     const { t } = useLanguage();
     const navigate = useNavigate();
     
-    // Internal state for fetched data
-    const [transactions, setTransactions] = useState<Transaction[]>([]);
-    const [dividends, setDividends] = useState<any[]>([]);
+    const transactions = useMemo(() => {
+        if (holdings && holdings.length > 0) {
+            return holdings.flatMap(h => h.transactions || []);
+        }
+        const unified = holding as unknown as UnifiedHolding;
+        return unified.transactions || [];
+    }, [holding, holdings]);
+
+    const dividends = useMemo(() => {
+        if (holdings && holdings.length > 0) {
+            return holdings.flatMap(h => h.dividends || []);
+        }
+        const unified = holding as unknown as UnifiedHolding;
+        return unified.dividends || [];
+    }, [holding, holdings]);
+    
     const [exchangeRates, setExchangeRates] = useState<ExchangeRates | null>(null);
     const [loading, setLoading] = useState(true);
-
-    // Fetch data on mount
+    
     useEffect(() => {
-        let mounted = true;
-        const loadData = async () => {
-            try {
-                setLoading(true);
-                const [txns, divs, rates] = await Promise.all([
-                    fetchTransactions(sheetId),
-                    fetchAllDividends(sheetId),
-                    getExchangeRates(sheetId)
-                ]);
-                
-                if (mounted) {
-                    setTransactions(txns);
-                    setDividends(divs);
-                    setExchangeRates(rates);
-                }
-            } catch (err) {
-                console.error("Failed to fetch holding details:", err);
-            } finally {
-                if (mounted) setLoading(false);
-            }
-        };
-        loadData();
-        return () => { mounted = false; };
+        getExchangeRates(sheetId)
+            .then(rates => { setExchangeRates(rates); setLoading(false); })
+            .catch(err => { console.error(err); setLoading(false); });
     }, [sheetId]);
 
     // Calculate Weights across all portfolios
     const holdingsWeights = useMemo(() => {
         if (!portfolios || portfolios.length === 0 || !exchangeRates) return [];
         
-        // Ensure displayCurrency is available or fallback
         const targetCurrency = normalizeCurrency(displayCurrency || 'USD');
 
         let totalAum = 0;
@@ -93,8 +84,7 @@ export function HoldingDetails({ sheetId, holding, displayCurrency, portfolios, 
         
         const results: any[] = [];
         portfolios.forEach(p => {
-          // Find holding in this portfolio matching our ticker
-          const h = p.holdings?.find(h => h.ticker === holding.ticker && (h.exchange === (holding as any).exchange || !h.exchange)); // Loose match on exchange if needed
+          const h = p.holdings?.find(h => h.ticker === holding.ticker && (h.exchange === (holding as any).exchange || !h.exchange));
           
           if (h) {
             const pValue = portfolioValues[p.id] || 0;
@@ -111,148 +101,91 @@ export function HoldingDetails({ sheetId, holding, displayCurrency, portfolios, 
         return results;
     }, [portfolios, holding, exchangeRates, displayCurrency]);
 
-    // Check if it's an Enriched holding (from Dashboard) or raw (from TickerDetails hook)
     const enriched = (holding as any).display ? (holding as EnrichedDashboardHolding) : null;
     
-    // If not enriched, we should still show what we can, or just wait for enrichment
-    // However, Dashboard usually passes enriched.
-    const vals = enriched?.display;
+    const vals = useMemo(() => {
+        if (enriched?.display) return enriched.display;
+        
+        const u = holding as unknown as UnifiedHolding;
+        if (typeof u.marketValueVested !== 'number' || !exchangeRates) return undefined;
 
-    // Filter transactions and dividends for this holding
+        const dc = normalizeCurrency(displayCurrency || 'USD');
+        const pc = u.portfolioCurrency;
+        
+        const marketValue = convertCurrency(u.marketValueVested, pc, dc, exchangeRates);
+        const unrealizedGain = convertCurrency(u.unrealizedGainVested, pc, dc, exchangeRates);
+        const realizedGain = convertCurrency(u.realizedGainPortfolioCurrency, pc, dc, exchangeRates);
+        const dividends = convertCurrency(u.dividendsPortfolioCurrency, pc, dc, exchangeRates);
+        const costOfSold = convertCurrency(u.costOfSoldPortfolioCurrency, pc, dc, exchangeRates);
+        const costBasis = convertCurrency(u.costBasisVestedPortfolioCurrency, pc, dc, exchangeRates);
+        
+        const realizedTaxDisplay = convertCurrency(u.realizedTaxLiabilityILS, 'ILS', dc, exchangeRates);
+        const unrealizedTaxDisplay = convertCurrency(u.unrealizedTaxLiabilityILS, 'ILS', dc, exchangeRates);
+
+        const totalGain = unrealizedGain + realizedGain + dividends;
+        const realizedGainAfterTax = (realizedGain + dividends) - realizedTaxDisplay;
+        const valueAfterTax = marketValue - unrealizedTaxDisplay;
+        
+        return {
+            marketValue,
+            unrealizedGain,
+            unrealizedGainPct: costBasis > 0 ? unrealizedGain / costBasis : 0,
+            realizedGain,
+            realizedGainPct: costOfSold > 0 ? realizedGain / costOfSold : 0,
+            realizedGainAfterTax,
+            totalGain,
+            totalGainPct: (costBasis + costOfSold) > 0 ? totalGain / (costBasis + costOfSold) : 0,
+            valueAfterTax,
+            dayChangeVal: 0,
+            dayChangePct: u.dayChangePct,
+            costBasis,
+            costOfSold,
+            proceeds: convertCurrency(u.proceedsPortfolioCurrency, pc, dc, exchangeRates),
+            dividends,
+            currentPrice: convertCurrency(u.currentPrice, u.stockCurrency, dc, exchangeRates),
+            avgCost: convertCurrency(u.avgCost, pc, dc, exchangeRates),
+            weightInPortfolio: 0,
+            weightInGlobal: 0,
+            unvestedValue: convertCurrency(u.marketValueUnvested, pc, dc, exchangeRates)
+        };
+    }, [holding, enriched, exchangeRates, displayCurrency]);
+
+    // Transactions are already filtered for this holding in UnifiedHolding
     const txnHistory = useMemo(() => {
-        return transactions
-            .filter(txn => txn.ticker === holding.ticker)
-            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    }, [transactions, holding]);
+        return [...transactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }, [transactions]);
 
     const divHistory = useMemo(() => {
-        // Reconstruct Qty History to calculate actual payouts and actions
-        // We need to simulate the state of holdings (lots) over time across all portfolios
-        
-        const sortedTxns = [...txnHistory].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-        const sortedDivs = [...dividends].filter(d => d.ticker === holding.ticker).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-        
-        const payouts: any[] = [];
-        
-        // State: PortfolioID -> List of Lots { date, qty, vestDate }
-        const portfolioLots: Record<string, { date: Date, qty: number, vestDate?: Date }[]> = {};
-        
-        // Initialize for known portfolios
-        portfolios.forEach(p => portfolioLots[p.id] = []);
+        return dividends.map(d => {
+            const ed = d as EnrichedDividend;
+            const p = portfolios.find(p => p.id === holding.portfolioId);
+            const policy = p?.divPolicy || 'cash_taxed';
+            const isReinvest = policy === 'accumulate_tax_free'; 
 
-        // Merge and sort all events by date
-        const events = [
-            ...sortedTxns.map(t => ({ type: 'TXN' as const, date: new Date(t.date), data: t })),
-            ...sortedDivs.map(d => ({ type: 'DIV' as const, date: new Date(d.date), data: d }))
-        ].sort((a, b) => a.date.getTime() - b.date.getTime());
-
-        for (const event of events) {
-            if (event.type === 'TXN') {
-                const t = event.data as Transaction;
-                const pId = t.portfolioId;
-                if (!portfolioLots[pId]) portfolioLots[pId] = [];
-
-                if (t.type === 'BUY') {
-                    portfolioLots[pId].push({
-                        date: new Date(t.date),
-                        qty: t.qty || 0,
-                        vestDate: t.vestDate ? new Date(t.vestDate) : undefined
-                    });
-                } else if (t.type === 'SELL') {
-                    let remaining = t.qty || 0;
-                    // FIFO removal
-                    while (remaining > 0 && portfolioLots[pId].length > 0) {
-                        const lot = portfolioLots[pId][0];
-                        if (lot.qty > remaining) {
-                            lot.qty -= remaining;
-                            remaining = 0;
-                        } else {
-                            remaining -= lot.qty;
-                            portfolioLots[pId].shift(); // Remove exhausted lot
-                        }
-                    }
-                }
-            } else {
-                // DIVIDEND
-                const d = event.data;
-                const divDate = event.date;
-                let totalHeld = 0;
-                const rawDetails: { action: 'Cashed' | 'Reinvested', amount: number }[] = [];
-
-                for (const p of portfolios) {
-                    const lots = portfolioLots[p.id] || [];
-                    if (lots.length === 0) continue;
-
-                    let vestedQty = 0;
-                    let unvestedQty = 0;
-
-                    for (const lot of lots) {
-                        // Vested if no vestDate or vestDate <= divDate
-                        if (!lot.vestDate || lot.vestDate <= divDate) {
-                            vestedQty += lot.qty;
-                        } else {
-                            unvestedQty += lot.qty;
-                        }
-                    }
-
-                    const totalPortQty = vestedQty + unvestedQty;
-                    if (totalPortQty === 0) continue;
-                    totalHeld += totalPortQty;
-
-                    // Apply Policy
-                    const policy = p.divPolicy || 'cash_taxed';
-                    const amountPerShare = d.amount;
-                    
-                    let cashAmt = 0;
-                    let reinvestAmt = 0;
-
-                    if (policy === 'cash_taxed') {
-                        cashAmt += totalPortQty * amountPerShare;
-                    } else if (policy === 'accumulate_tax_free') {
-                        reinvestAmt += totalPortQty * amountPerShare;
-                    } else if (policy === 'hybrid_rsu') {
-                        cashAmt += vestedQty * amountPerShare;
-                        reinvestAmt += unvestedQty * amountPerShare;
-                    }
-
-                    if (cashAmt > 0.001) rawDetails.push({ action: 'Cashed', amount: cashAmt });
-                    if (reinvestAmt > 0.001) rawDetails.push({ action: 'Reinvested', amount: reinvestAmt });
-                }
-
-                if (totalHeld > 0) {
-                    // Aggregate details
-                    const aggregatedDetails = rawDetails.reduce((acc, curr) => {
-                        const existing = acc.find(x => x.action === curr.action);
-                        if (existing) existing.amount += curr.amount;
-                        else acc.push({ ...curr });
-                        return acc;
-                    }, [] as { action: 'Cashed' | 'Reinvested', amount: number }[]);
-
-                    // Sort: Cashed first
-                    aggregatedDetails.sort((a, b) => {
-                        if (a.action === b.action) return 0;
-                        return a.action === 'Cashed' ? -1 : 1;
-                    });
-
-                    payouts.push({
-                        ...d,
-                        heldQty: totalHeld,
-                        totalValue: d.amount * totalHeld, // Total theoretical value
-                        payoutDetails: aggregatedDetails
-                    });
-                }
+            const details: { action: 'Cashed' | 'Reinvested', amount: number }[] = [];
+            if (ed.grossAmountSC > 0) {
+                details.push({
+                    action: isReinvest ? 'Reinvested' : 'Cashed',
+                    amount: ed.grossAmountSC
+                });
             }
-        }
 
-        return payouts.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    }, [dividends, txnHistory, holding, portfolios]);
+            return {
+                date: new Date(ed.date),
+                amount: ed.amount,
+                heldQty: ed.amount > 0 ? ed.grossAmountSC / ed.amount : 0,
+                totalValue: ed.grossAmountSC,
+                payoutDetails: details,
+                source: (ed as any).source,
+                rowIndex: (ed as any).rowIndex
+            };
+        }).sort((a, b) => b.date.getTime() - a.date.getTime());
+    }, [dividends, holding, portfolios]);
 
-    // Calculate Layers (Buy Lots)
     const layers = useMemo(() => {
         return txnHistory.filter(txn => txn.type === 'BUY');
     }, [txnHistory]);
 
-    // Calculate Fees
     const totalFeesPC = useMemo(() => {
         return txnHistory.reduce((sum, txn) => sum + (txn.commission || 0), 0);
     }, [txnHistory]);
@@ -317,19 +250,17 @@ export function HoldingDetails({ sheetId, holding, displayCurrency, portfolios, 
                      </Box>
                   ) : (
                     <>
-                    {/* 1. Key Metrics */}
                     <Typography variant="h6" gutterBottom color="primary" sx={{ fontWeight: 'bold' }}>
                         {t('My Position', 'הפוזיציה שלי')}
                     </Typography>
                     
                     {(() => {
-                        // Calculate unvested metrics
                         const hasGrants = layers.some(l => !!l.vestDate);
                         let unvestedVal = 0;
                         let unvestedGain = 0;
                         
                         if (hasGrants) {
-                            const currentPrice = (holding as DashboardHolding).currentPrice || 0; // In Stock Major Unit
+                            const currentPrice = (holding as DashboardHolding).currentPrice || 0;
                             layers.forEach(l => {
                                 if (l.vestDate && new Date(l.vestDate) > new Date()) {
                                     const qty = l.qty || 0;
@@ -341,14 +272,13 @@ export function HoldingDetails({ sheetId, holding, displayCurrency, portfolios, 
                             });
                         }
 
-                        // Convert to display currency
                         const unvestedValDisplay = convertCurrency(unvestedVal, stockCurrency, displayCurrency, exchangeRates || undefined);
                         const unvestedGainDisplay = convertCurrency(unvestedGain, stockCurrency, displayCurrency, exchangeRates || undefined);
                         const vestedValDisplay = hasGrants ? vals.marketValue - unvestedValDisplay : vals.marketValue;
 
                         return (
                             <>
-                            <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
+                            <Paper variant="outlined" sx={{ p: 2, mb: 6 }}>
                                 <Stack direction="row" spacing={2} divider={<Divider orientation="vertical" flexItem />} justifyContent="space-around" sx={{ mb: 2 }}>
                                     <Box>
                                         <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', display: 'block' }}>
@@ -413,53 +343,10 @@ export function HoldingDetails({ sheetId, holding, displayCurrency, portfolios, 
                                 </Grid>
                             </Paper>
 
-                            <Grid container spacing={2} sx={{ mb: 3 }}>
-                                {/* 2. Buy Layers */}
-                                <Grid item xs={12} md={7}>
-                                    <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'bold' }}>{t('Buy Lots / Layers', 'שכבות רכישה')}</Typography>
-                                    <Paper variant="outlined" sx={{ maxHeight: 300, overflowY: 'auto' }}>
-                                        <Table size="small" stickyHeader>
-                                            <TableHead>
-                                                <TableRow>
-                                                    <TableCell sx={{ bgcolor: 'background.paper' }}>{t('Date', 'תאריך')}</TableCell>
-                                                    <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>{t('Qty', 'כמות')}</TableCell>
-                                                    <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>{t('Price', 'מחיר')}</TableCell>
-                                                    <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>{t('Total', 'סה"כ')}</TableCell>
-                                                    <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>{t('Vesting Date', 'תאריך הבשלה')}</TableCell>
-                                                </TableRow>
-                                            </TableHead>
-                                            <TableBody>
-                                                {layers.length === 0 && (
-                                                    <TableRow><TableCell colSpan={5} align="center" sx={{ py: 3, color: 'text.secondary' }}>{t('No buy transactions found.', 'לא נמצאו עסקאות קנייה.')}</TableCell></TableRow>
-                                                )}
-                                                {layers.map((layer, i) => {
-                                                    const vestDate = layer.vestDate ? new Date(layer.vestDate) : null;
-                                                    const isVested = vestDate && vestDate <= new Date();
-                                                    const vestColor = vestDate ? (isVested ? 'success.main' : 'text.secondary') : 'inherit';
-                                                    
-                                                    return (
-                                                        <TableRow key={i}>
-                                                            <TableCell>{formatDate(layer.date)}</TableCell>
-                                                            <TableCell align="right">{formatNumber(layer.qty)}</TableCell>
-                                                            <TableCell align="right">{formatPrice(layer.price || 0, layer.currency || 'USD')}</TableCell>
-                                                            <TableCell align="right">{formatValue((layer.qty || 0) * (layer.price || 0), layer.currency || 'USD')}</TableCell>
-                                                            <TableCell align="right" sx={{ color: vestColor, fontWeight: isVested ? 'bold' : 'normal' }}>
-                                                                {vestDate ? formatDate(vestDate) : '-'}
-                                                            </TableCell>
-                                                        </TableRow>
-                                                    );
-                                                })}
-                                            </TableBody>
-                                        </Table>
-                                    </Paper>
-                                </Grid>
-
+                            <Grid container spacing={3} sx={{ mb: 3 }}>
                                 <Grid item xs={12} md={5}>
+                                    <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'bold' }}>{t('Portfolio Distribution', 'התפלגות בתיקים')}</Typography>
                                     <Paper variant="outlined" sx={{ p: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
-                                        <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 'bold', textTransform: 'uppercase', color: 'text.secondary' }}>
-                                            {t('Portfolio Distribution', 'התפלגות בתיקים')}
-                                        </Typography>
-                                        
                                         <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1, px: 1 }}>
                                             <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 'bold' }}>{t('Portfolio', 'תיק')}</Typography>
                                             <Box sx={{ display: 'flex', gap: 2 }}>
@@ -505,6 +392,45 @@ export function HoldingDetails({ sheetId, holding, displayCurrency, portfolios, 
                                         </Box>
                                     </Paper>
                                 </Grid>
+
+                                <Grid item xs={12} md={7}>
+                                    <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'bold' }}>{t('Buy Layers', 'שכבות רכישה')}</Typography>
+                                    <Paper variant="outlined" sx={{ maxHeight: 300, overflowY: 'auto' }}>
+                                        <Table size="small" stickyHeader>
+                                            <TableHead>
+                                                <TableRow>
+                                                    <TableCell sx={{ bgcolor: 'background.paper' }}>{t('Date', 'תאריך')}</TableCell>
+                                                    <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>{t('Qty', 'כמות')}</TableCell>
+                                                    <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>{t('Price', 'מחיר')}</TableCell>
+                                                    <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>{t('Total', 'סה"כ')}</TableCell>
+                                                    <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>{t('Vesting Date', 'תאריך הבשלה')}</TableCell>
+                                                </TableRow>
+                                            </TableHead>
+                                            <TableBody>
+                                                {layers.length === 0 && (
+                                                    <TableRow><TableCell colSpan={5} align="center" sx={{ py: 3, color: 'text.secondary' }}>{t('No buy transactions found.', 'לא נמצאו עסקאות קנייה.')}</TableCell></TableRow>
+                                                )}
+                                                {layers.map((layer, i) => {
+                                                    const vestDate = layer.vestDate ? new Date(layer.vestDate) : null;
+                                                    const isVested = vestDate && vestDate <= new Date();
+                                                    const vestColor = vestDate ? (isVested ? 'success.main' : 'text.secondary') : 'inherit';
+                                                    
+                                                    return (
+                                                        <TableRow key={i}>
+                                                            <TableCell>{formatDate(layer.date)}</TableCell>
+                                                            <TableCell align="right">{formatNumber(layer.qty)}</TableCell>
+                                                            <TableCell align="right">{formatPrice(layer.price || 0, layer.currency || 'USD')}</TableCell>
+                                                            <TableCell align="right">{formatValue((layer.qty || 0) * (layer.price || 0), layer.currency || 'USD')}</TableCell>
+                                                            <TableCell align="right" sx={{ color: vestColor, fontWeight: isVested ? 'bold' : 'normal' }}>
+                                                                {vestDate ? formatDate(vestDate) : '-'}
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    );
+                                                })}
+                                            </TableBody>
+                                        </Table>
+                                    </Paper>
+                                </Grid>
                             </Grid>
                             </>
                         );
@@ -529,14 +455,22 @@ export function HoldingDetails({ sheetId, holding, displayCurrency, portfolios, 
                                     <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>{t('Price', 'מחיר')}</TableCell>
                                     <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>{t('Value', 'שווי')}</TableCell>
                                     <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>{t('Fees', 'עמלות')}</TableCell>
+                                    <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>{t('Gain', 'רווח')}</TableCell>
+                                    <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>{t('Net Gain', 'רווח נטו')}</TableCell>
+                                    <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>{t('Tax', 'מס')}</TableCell>
                                     <TableCell align="center" sx={{ bgcolor: 'background.paper' }}></TableCell>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
                                 {txnHistory.map((txn, i) => {
+                                    const enriched = txn as EnrichedTransaction;
                                     const rawValue = (txn.qty || 0) * (txn.price || 0);
                                     const fees = txn.commission || 0;
                                     const tickerCurrency = txn.currency || 'USD';
+                                    
+                                    const p = portfolios.find(p => p.id === txn.portfolioId);
+                                    const txnPortfolioCurrency = normalizeCurrency(p?.currency || (holding as any).portfolioCurrency || 'USD');
+                                    
                                     const isGrant = !!txn.vestDate;
                                     const actionLabel = isGrant ? t('Grant', 'הענקה') : t(txn.type, txn.type);
                                     const txnPortfolioName = portfolioNameMap[txn.portfolioId] || txn.portfolioId;
@@ -562,6 +496,15 @@ export function HoldingDetails({ sheetId, holding, displayCurrency, portfolios, 
                                             <TableCell align="right">{formatPrice(txn.price || 0, tickerCurrency)}</TableCell>
                                             <TableCell align="right">{formatValue(rawValue, tickerCurrency)}</TableCell>
                                             <TableCell align="right" sx={{ color: 'text.secondary' }}>{fees > 0 ? formatValue(fees, tickerCurrency) : '-'}</TableCell>
+                                            <TableCell align="right" sx={{ color: enriched.realizedGainPC > 0 ? 'success.main' : enriched.realizedGainPC < 0 ? 'error.main' : 'text.secondary' }}>
+                                                {txn.type === 'SELL' ? formatValue(enriched.realizedGainPC, txnPortfolioCurrency) : '-'}
+                                            </TableCell>
+                                            <TableCell align="right" sx={{ fontWeight: 'bold', color: (enriched.realizedGainPC - enriched.feePC) > 0 ? 'success.main' : 'inherit' }}>
+                                                {txn.type === 'SELL' ? formatValue(enriched.realizedGainPC - enriched.feePC, txnPortfolioCurrency) : '-'}
+                                            </TableCell>
+                                            <TableCell align="right" sx={{ color: 'text.secondary' }}>
+                                                {enriched.taxLiabilityILS ? formatValue(enriched.taxLiabilityILS, 'ILS') : '-'}
+                                            </TableCell>
                                             <TableCell align="center">
                                                 <Tooltip title={t('Edit Transaction', 'ערוך עסקה')}>
                                                     <IconButton size="small" onClick={() => handleEditTransaction(txn)}>
@@ -573,7 +516,7 @@ export function HoldingDetails({ sheetId, holding, displayCurrency, portfolios, 
                                     );
                                 })}
                                 {txnHistory.length === 0 && (
-                                    <TableRow><TableCell colSpan={8} align="center" sx={{ py: 3, color: 'text.secondary' }}>{t('No transactions found.', 'לא נמצאו עסקאות.')}</TableCell></TableRow>
+                                    <TableRow><TableCell colSpan={11} align="center" sx={{ py: 3, color: 'text.secondary' }}>{t('No transactions found.', 'לא נמצאו עסקאות.')}</TableCell></TableRow>
                                 )}
                             </TableBody>
                         </Table>

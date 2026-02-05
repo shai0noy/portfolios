@@ -64,7 +64,6 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   const [vestDate, setVestDate] = useState('');
   const [comment, setComment] = useState('');
   const [commission, setCommission] = useState<string>('');
-  const [tax, setTax] = useState<string>('');
   const [tickerCurrency, setTickerCurrency] = useState<Currency>(normalizeCurrency(locationState?.initialCurrency || ''));
   const [validationErrors, setValidationErrors] = useState<{ [key: string]: boolean }>({});
   const [commissionPct, setCommissionPct] = useState<string>('');
@@ -112,12 +111,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
               setPortId(editTxn.portfolioId);
               setType(editTxn.type as any); // BUY/SELL/FEE/DIVIDEND
               setDate(editTxn.date); // Assuming stored as ISO string YYYY-MM-DD or readable? toGoogleSheetDateFormat converts to DD/MM/YYYY. 
-              // Wait, `fetchTransactions` returns `date` as string from sheet. If it's DD/MM/YYYY, input type=date needs YYYY-MM-DD.
-              // I need to parse it.
-              // `Transaction` object from `api.ts` has `date` as string. If fetched from sheet, it might be formatted.
-              // `fetchTransactions` uses `FORMATTED_VALUE`. If sheet is `DD/MM/YYYY`, we get that.
-              // I need a helper to convert sheet date to input date.
-              // Simple heuristic: if contains '/', split.
+              
               const parseSheetDate = (d: string) => {
                   if (d.match(/^\d{4}-\d{2}-\d{2}$/)) return d;
                   if (d.includes('/')) {
@@ -136,7 +130,6 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
               setVestDate(editTxn.vestDate ? parseSheetDate(editTxn.vestDate) : '');
               setComment(editTxn.comment || '');
               setCommission(editTxn.commission?.toString() || '');
-              setTax(editTxn.tax?.toString() || '');
               setTickerCurrency(normalizeCurrency(editTxn.currency || data.currency || ''));
           } else if (editDiv) {
               setType('DIV_EVENT');
@@ -226,7 +219,6 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
         setComment('');
         setCommission('');
         setCommissionPct('');
-        setTax('');
         setVestDate('');
         setType('BUY');
         setDate(new Date().toISOString().split('T')[0]);
@@ -440,13 +432,12 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
             type,
             originalQty: q,
             originalPrice: p,
-            origOpenPriceAtCreationDate: selectedTicker?.openPrice || 0,
+            origOpenPriceAtCreationDate: locationState?.editTransaction?.origOpenPriceAtCreationDate || selectedTicker?.openPrice || 0,
             currency: normalizeCurrency(tickerCurrency),
             numericId: selectedTicker?.numericId || undefined,
             vestDate,
             comment,
             commission: parseFloat(commission) || 0,
-            tax: parseFloat(tax) || 0,
             rowIndex: editTxn?.rowIndex // Pass row index if updating
           };
 
@@ -487,7 +478,6 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
           setTotal('');
           setCommission('');
           setCommissionPct('');
-          setTax('');
           setComment('');
           setVestDate('');
           setType('BUY');
@@ -760,14 +750,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                               InputLabelProps={{ shrink: true }}
                             />
                           </Grid>
-                          {(type === 'SELL' || type === 'DIVIDEND') && (
-                            <Grid item xs={4} sm={3}>
-                              <Tooltip title="Tax on transaction (if applicable).">
-                                <TextField label="Tax %" type="number" size="small" fullWidth value={tax} onChange={e => setTax(e.target.value)} InputLabelProps={{ shrink: true }} />
-                              </Tooltip>
-                            </Grid>
-                          )}
-                          <Grid item xs={12} sm={(type === 'SELL' || type === 'DIVIDEND') ? 6 : 9}>
+                          <Grid item xs={12} sm={6}>
                             <Tooltip title="Date when these shares vest (if applicable for RSUs/Options).">
                               <TextField
                                 label="Vesting Date" type="date" size="small" fullWidth

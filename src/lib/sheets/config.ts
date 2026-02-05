@@ -61,7 +61,7 @@ export const TXN_COLS: TransactionColumns = {
     comment: { key: 'comment', colName: 'Comments', colId: 'L' },
     // Renamed to Commission_In_Txn_Currency
     commission: { key: 'commission', colName: 'Commission', colId: 'M', numeric: true },
-    tax: { key: 'tax', colName: 'Tax %', colId: 'N', numeric: true },
+    // Removed tax column
     source: { key: 'source', colName: 'Source', colId: 'O' },
     creationDate: { key: 'creationDate', colName: 'Creation_Date', colId: 'P' },
     origOpenPriceAtCreationDate: { key: 'origOpenPriceAtCreationDate', colName: 'Orig_Open_Price_At_Creation_Date', colId: 'Q', numeric: true },
@@ -110,24 +110,7 @@ export const TXN_COLS: TransactionColumns = {
             return `=IFERROR(GOOGLEFINANCE(${exchange}&":"&${ticker}")*${cols.splitAdjustedQty.colId}${rowNum})`;
         }
     },
-    valueAfterTax: {
-        key: 'valueAfterTax',
-        colName: 'Value_After_Tax',
-        colId: 'X',
-        numeric: true,
-        formula: (rowNum, cols) => {
-            const type = `${cols.type.colId}${rowNum}`;
-            const portId = `${cols.portfolioId.colId}${rowNum}`;
-            const grossValue = `${cols.grossValue.colId}${rowNum}`;
-            const qty = `${cols.splitAdjustedQty.colId}${rowNum}`;
-            const price = `${cols.splitAdjustedPrice.colId}${rowNum}`;
-            return `=IF(${type}<>"BUY", "", ` +
-                `LET(baseValue, ${price}*${qty},`+
-                `cgt, IFERROR(VLOOKUP(${portId}, Portfolio_Options!A:Z, 3, FALSE), 0), ` +
-                `incTax, IFERROR(VLOOKUP(${portId}, Portfolio_Options!A:Z, 4, FALSE), 0), ` +
-                `(${grossValue} - baseValue) * (1 - cgt) + (baseValue * (1 - incTax))))`;
-        }
-    },
+    // Removed valueAfterTax
 };
 
 export const transactionHeaders = Object.values(TXN_COLS).map(c => c.colName) as unknown as readonly string[];
@@ -179,7 +162,7 @@ export const EXTERNAL_DATASETS_RANGE = `${EXTERNAL_DATASETS_SHEET_NAME}!A2:E`;
 
 // Manually update this date (YYYY-MM-DD) whenever the schema (columns, formulas) changes.
 // The app will verify if the sheet's last setup date is older than this.
-export const SHEET_STRUCTURE_VERSION_DATE = '2026-01-28';
+export const SHEET_STRUCTURE_VERSION_DATE = '2026-02-05';
 
 // --- Mappings from Sheet Headers to Typescript Object Keys ---
 

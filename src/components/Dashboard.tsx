@@ -35,7 +35,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
   const openColSelector = Boolean(anchorEl);
   const { t, isRtl } = useLanguage();
 
-  const { holdings, loading, error, portfolios, exchangeRates, hasFutureTxns, refresh } = useDashboardData(sheetId);
+  const { holdings, loading, error, portfolios, exchangeRates, hasFutureTxns, refresh, engine } = useDashboardData(sheetId);
   const { showLoginModal } = useSession();
 
   const handleClickColSelector = (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -90,8 +90,8 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         : holdings;
 
     const newPortMap = new Map(portfolios.map(p => [p.id, p]));
-    return calculateDashboardSummary(filteredHoldings, displayCurrency, exchangeRates, newPortMap);
-  }, [holdings, displayCurrency, exchangeRates, selectedPortfolioId, portfolios, loading, error]);
+    return calculateDashboardSummary(filteredHoldings, displayCurrency, exchangeRates, newPortMap, engine);
+  }, [holdings, displayCurrency, exchangeRates, selectedPortfolioId, portfolios, loading, error, engine]);
 
   // Default Columns
   const defaultColumns = {
