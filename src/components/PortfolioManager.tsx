@@ -43,6 +43,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
   const [editingPortfolio, setEditingPortfolio] = useState<Partial<Portfolio> | null>(null);
   const [showNewPortfolioForm, setShowNewPortfolioForm] = useState(!!portfolioId);
   const [showTaxHistory, setShowTaxHistory] = useState(false);
+  const [showFeeHistory, setShowFeeHistory] = useState(false);
   const { t } = useLanguage();
 
   // Form State
@@ -180,6 +181,49 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
       });
   };
 
+  const addFeeHistoryEntry = () => {
+      const today = new Date().toISOString().split('T')[0];
+      setP(prev => ({
+          ...prev,
+          feeHistory: [...(prev.feeHistory || []), { startDate: today, mgmtVal: 0, mgmtType: 'percentage', mgmtFreq: 'yearly', divCommRate: 0, commRate: 0, commMin: 0, commMax: 0 }]
+      }));
+  };
+
+  const removeFeeHistoryEntry = (index: number) => {
+      setP(prev => {
+          const newHistory = [...(prev.feeHistory || [])];
+          newHistory.splice(index, 1);
+          return { ...prev, feeHistory: newHistory };
+      });
+  };
+
+  const updateFeeHistoryEntry = (index: number, field: keyof import('../lib/types').FeeHistoryEntry, value: any) => {
+      if (field === 'startDate') {
+          const newDate = new Date(value);
+          const history = p.feeHistory || [];
+          if (index > 0) {
+              const prevDate = new Date(history[index - 1].startDate);
+              if (newDate <= prevDate) {
+                  alert(t('Date must be after the previous entry.', 'התאריך חייב להיות אחרי הרשומה הקודמת.'));
+                  return;
+              }
+          }
+          if (index < history.length - 1) {
+              const nextDate = new Date(history[index + 1].startDate);
+              if (newDate >= nextDate) {
+                  alert(t('Date must be before the next entry.', 'התאריך חייב להיות לפני הרשומה הבאה.'));
+                  return;
+              }
+          }
+      }
+
+      setP(prev => {
+          const newHistory = [...(prev.feeHistory || [])];
+          newHistory[index] = { ...newHistory[index], [field]: value };
+          return { ...prev, feeHistory: newHistory };
+      });
+  };
+
   const cancelEdit = () => {
     setEditMode(false);
     setEditingPortfolio(null);
@@ -207,7 +251,6 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
 
       if (editMode && editingPortfolio) {
         // Check for tax changes
-        // Use epsilon for float comparison just in case
         const cgtChanged = Math.abs((portToSave.cgt || 0) - (editingPortfolio.cgt || 0)) > 1e-6;
         const incTaxChanged = Math.abs((portToSave.incTax || 0) - (editingPortfolio.incTax || 0)) > 1e-6;
         
@@ -215,7 +258,6 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
             const today = new Date().toISOString().split('T')[0];
             const history = [...(editingPortfolio.taxHistory || [])];
             
-            // If history is empty, record the initial state as 'forever' (valid until now)
             if (history.length === 0) {
                 history.push({ 
                     startDate: '1970-01-01', 
@@ -224,7 +266,6 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                 });
             }
             
-            // Record the NEW state (effective from today)
             const existingTodayIndex = history.findIndex(h => h.startDate === today);
             if (existingTodayIndex >= 0) {
                 history[existingTodayIndex] = { startDate: today, cgt: portToSave.cgt, incTax: portToSave.incTax };
@@ -233,6 +274,53 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
             }
             
             portToSave.taxHistory = history;
+        }
+
+        // Check for fee changes
+        const valChanged = Math.abs((portToSave.mgmtVal || 0) - (editingPortfolio.mgmtVal || 0)) > 1e-6;
+        const typeChanged = portToSave.mgmtType !== editingPortfolio.mgmtType;
+        const freqChanged = portToSave.mgmtFreq !== editingPortfolio.mgmtFreq;
+        const divCommChanged = Math.abs((portToSave.divCommRate || 0) - (editingPortfolio.divCommRate || 0)) > 1e-6;
+        const commRateChanged = Math.abs((portToSave.commRate || 0) - (editingPortfolio.commRate || 0)) > 1e-6;
+        const commMinChanged = Math.abs((portToSave.commMin || 0) - (editingPortfolio.commMin || 0)) > 1e-6;
+        const commMaxChanged = Math.abs((portToSave.commMax || 0) - (editingPortfolio.commMax || 0)) > 1e-6;
+
+        if (valChanged || typeChanged || freqChanged || divCommChanged || commRateChanged || commMinChanged || commMaxChanged) {
+            const today = new Date().toISOString().split('T')[0];
+            const history = [...(editingPortfolio.feeHistory || [])];
+            
+            if (history.length === 0) {
+                history.push({ 
+                    startDate: '1970-01-01', 
+                    mgmtVal: editingPortfolio.mgmtVal || 0,
+                    mgmtType: editingPortfolio.mgmtType || 'percentage',
+                    mgmtFreq: editingPortfolio.mgmtFreq || 'yearly',
+                    divCommRate: editingPortfolio.divCommRate || 0,
+                    commRate: editingPortfolio.commRate || 0,
+                    commMin: editingPortfolio.commMin || 0,
+                    commMax: editingPortfolio.commMax || 0
+                });
+            }
+            
+            const newEntry: import('../lib/types').FeeHistoryEntry = { 
+                startDate: today, 
+                mgmtVal: portToSave.mgmtVal || 0,
+                mgmtType: portToSave.mgmtType || 'percentage',
+                mgmtFreq: portToSave.mgmtFreq || 'yearly',
+                divCommRate: portToSave.divCommRate || 0,
+                commRate: portToSave.commRate || 0,
+                commMin: portToSave.commMin || 0,
+                commMax: portToSave.commMax || 0
+            };
+
+            const existingTodayIndex = history.findIndex(h => h.startDate === today);
+            if (existingTodayIndex >= 0) {
+                history[existingTodayIndex] = newEntry;
+            } else {
+                history.push(newEntry);
+            }
+            
+            portToSave.feeHistory = history;
         }
       }
 
@@ -556,6 +644,9 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                             <Button startIcon={<AddIcon />} size="small" onClick={addTaxHistoryEntry}>
                                 {t('Add History Entry', 'הוסף רשומה')}
                             </Button>
+                            <Alert severity="warning" sx={{ mt: 2 }}>
+                                {t('Warning: Changing history does not automatically update past transactions tax calculations. Only new dashboard calculations will use this.', 'אזהרה: שינוי ההיסטוריה אינו מעדכן אוטומטית חישובי מס של עסקאות עבר. רק חישובי דאשבורד חדשים ישתמשו בזה.')}
+                            </Alert>
                         </Collapse>
                     </Grid>
                     <Grid item xs={12} sm={6}>
@@ -574,12 +665,13 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
               </Card>
             </Grid>
 
-            {/* COMMISSION */}
+            {/* FEES */}
             <Grid item xs={12} md={6}>
               <Card variant="outlined" sx={{ height: '100%' }}>
                 <CardContent>
+                  
                   <Typography variant="subtitle2" color="text.secondary" gutterBottom>{t('TRADING FESS', 'עמלות מסחר')}</Typography>
-                  <Grid container spacing={3} mt={2}>
+                  <Grid container spacing={3} mt={0.5} mb={3}>
                     <Grid item xs={12} sm={4}>
                       <PercentageField label={t('Rate', 'שיעור')} field="commRate" tooltip={t("Commission rate per trade", "שיעור עמלה לכל פעולה")} />
                     </Grid>
@@ -590,21 +682,14 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                       <NumericField label={t('Max Fee', 'עמלת מקסימום')} field="commMax" showCurrency />
                     </Grid>
                   </Grid>
-                </CardContent>
-              </Card>
-            </Grid>
 
-            {/* FEES */}
-            <Grid item xs={12} md={6}>
-              <Card variant="outlined" sx={{ height: '100%' }}>
-                <CardContent>
                   <Box display="flex" alignItems="center" gap={1} mb={1}>
-                     <Typography variant="subtitle2" color="text.secondary">{t('HOLDING COSTS & FEES', 'דמי ניהול והחזקה')}</Typography>
+                     <Typography variant="subtitle2" color="text.secondary">{t('HOLDING FEES', 'דמי ניהול והחזקה')}</Typography>
                      <Tooltip title={t("Recurring fees charged by the broker/manager (e.g. 0.7% Accumulation, or 15 ILS/month).", "עמלות חוזרות הנגבות על ידי הברוקר/מנהל (למשל 0.7% צבירה, או 15 ש\"ח לחודש).")}>
                        <InfoOutlinedIcon fontSize="inherit" color="action" />
                      </Tooltip>
                   </Box>
-                  <Grid container spacing={3} mt={2}>
+                  <Grid container spacing={3} mt={0}>
                     <Grid item xs={12} sm={6}>
                        {p.mgmtType === 'percentage' ? (
                          <PercentageField label={t('Value', 'ערך')} field="mgmtVal" />
@@ -638,6 +723,147 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                         tooltip={t("Fee rate on cashed dividends", "שיעור עמלה על דיבידנד ממומש")}
                         disabled={p.taxPolicy === 'TAX_FREE' || p.divPolicy === 'accumulate_tax_free'}
                       />
+                    </Grid>
+                    <Grid item xs={12}>
+                        <Button 
+                            size="small" 
+                            onClick={() => setShowFeeHistory(!showFeeHistory)} 
+                            endIcon={showFeeHistory ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                            sx={{ textTransform: 'none', color: 'text.secondary', mb: 1 }}
+                        >
+                            {t('Manage Fee History', 'ניהול היסטוריית דמי ניהול')}
+                        </Button>
+                        <Collapse in={showFeeHistory}>
+                            <Alert severity="error" sx={{ mb: 2 }}>
+                                {t('DANGER: Modifying fee history will require recalculating fees for ALL transactions in this portfolio. This logic is NOT YET IMPLEMENTED. Use with caution.', 'סכנה: שינוי היסטוריית העמלות ידרוש חישוב מחדש של עמלות לכל העסקאות בתיק זה. לוגיקה זו טרם יושמה. השתמש בזהירות.')}
+                            </Alert>
+                            <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 300, mb: 2 }}>
+                                <Table size="small" stickyHeader>
+                                    <TableHead>
+                                        <TableRow>
+                                            <TableCell>{t('Start', 'התחלה')}</TableCell>
+                                            <TableCell>{t('Mgmt', 'דמי ניהול')}</TableCell>
+                                            <TableCell>{t('Type', 'סוג')}</TableCell>
+                                            <TableCell>{t('Freq', 'תדירות')}</TableCell>
+                                            <TableCell>{t('Div%', 'דיב%')}</TableCell>
+                                            <TableCell>{t('Comm%', 'עמלה%')}</TableCell>
+                                            <TableCell>{t('Min Comm', 'עמלה מינ')}</TableCell>
+                                            <TableCell>{t('Max Comm', 'עמלה מקס')}</TableCell>
+                                            <TableCell align="center"></TableCell>
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {p.feeHistory && p.feeHistory.map((h, i) => (
+                                            <TableRow key={i}>
+                                                <TableCell>
+                                                    {i === 0 ? (
+                                                        <Typography variant="caption" color="text.secondary">
+                                                            {t('Always', 'תמיד')}
+                                                        </Typography>
+                                                    ) : (
+                                                        <TextField 
+                                                            type="date" 
+                                                            size="small" 
+                                                            value={h.startDate} 
+                                                            onChange={e => updateFeeHistoryEntry(i, 'startDate', e.target.value)}
+                                                            sx={{ width: 130, '& .MuiInputBase-input': { colorScheme: theme.palette.mode, fontSize: '0.8rem' } }}
+                                                        />
+                                                    )}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <TextField 
+                                                        type="number" 
+                                                        size="small" 
+                                                        value={h.mgmtType === 'percentage' ? parseFloat((h.mgmtVal * 100).toFixed(4)).toString() : h.mgmtVal} 
+                                                        onChange={e => updateFeeHistoryEntry(i, 'mgmtVal', h.mgmtType === 'percentage' ? parseFloat(e.target.value) / 100 : parseFloat(e.target.value))}
+                                                        sx={{ width: 70 }}
+                                                        InputProps={{ style: { fontSize: '0.8rem' } }}
+                                                    />
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Select
+                                                        size="small"
+                                                        value={h.mgmtType}
+                                                        onChange={e => updateFeeHistoryEntry(i, 'mgmtType', e.target.value)}
+                                                        sx={{ minWidth: 60, fontSize: '0.8rem' }}
+                                                    >
+                                                        <MenuItem value="percentage">%</MenuItem>
+                                                        <MenuItem value="fixed">Fixed</MenuItem>
+                                                    </Select>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Select
+                                                        size="small"
+                                                        value={h.mgmtFreq}
+                                                        onChange={e => updateFeeHistoryEntry(i, 'mgmtFreq', e.target.value)}
+                                                        sx={{ minWidth: 60, fontSize: '0.8rem' }}
+                                                    >
+                                                        <MenuItem value="monthly">M</MenuItem>
+                                                        <MenuItem value="quarterly">Q</MenuItem>
+                                                        <MenuItem value="yearly">Y</MenuItem>
+                                                    </Select>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <TextField 
+                                                        type="number" 
+                                                        size="small" 
+                                                        value={((h.divCommRate || 0) * 100).toFixed(4).replace(/\.?0+$/, '')} 
+                                                        onChange={e => updateFeeHistoryEntry(i, 'divCommRate', parseFloat(e.target.value) / 100)}
+                                                        sx={{ width: 70 }}
+                                                        InputProps={{ style: { fontSize: '0.8rem' } }}
+                                                    />
+                                                </TableCell>
+                                                <TableCell>
+                                                    <TextField 
+                                                        type="number" 
+                                                        size="small" 
+                                                        value={((h.commRate || 0) * 100).toFixed(4).replace(/\.?0+$/, '')} 
+                                                        onChange={e => updateFeeHistoryEntry(i, 'commRate', parseFloat(e.target.value) / 100)}
+                                                        sx={{ width: 70 }}
+                                                        InputProps={{ style: { fontSize: '0.8rem' } }}
+                                                    />
+                                                </TableCell>
+                                                <TableCell>
+                                                    <TextField 
+                                                        type="number" 
+                                                        size="small" 
+                                                        value={h.commMin || 0} 
+                                                        onChange={e => updateFeeHistoryEntry(i, 'commMin', parseFloat(e.target.value))}
+                                                        sx={{ width: 60 }}
+                                                        InputProps={{ style: { fontSize: '0.8rem' } }}
+                                                    />
+                                                </TableCell>
+                                                <TableCell>
+                                                    <TextField 
+                                                        type="number" 
+                                                        size="small" 
+                                                        value={h.commMax || 0} 
+                                                        onChange={e => updateFeeHistoryEntry(i, 'commMax', parseFloat(e.target.value))}
+                                                        sx={{ width: 60 }}
+                                                        InputProps={{ style: { fontSize: '0.8rem' } }}
+                                                    />
+                                                </TableCell>
+                                                <TableCell align="center">
+                                                    <IconButton size="small" color="error" onClick={() => removeFeeHistoryEntry(i)} disabled={i === 0}>
+                                                        <DeleteIcon fontSize="small" />
+                                                    </IconButton>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                        {(!p.feeHistory || p.feeHistory.length === 0) && (
+                                            <TableRow>
+                                                <TableCell colSpan={9} align="center" sx={{ color: 'text.secondary' }}>
+                                                    {t('No history records.', 'אין רשומות היסטוריה.')}
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </TableContainer>
+                            <Button startIcon={<AddIcon />} size="small" onClick={addFeeHistoryEntry}>
+                                {t('Add History Entry', 'הוסף רשומה')}
+                            </Button>
+                        </Collapse>
                     </Grid>
                   </Grid>
                 </CardContent>

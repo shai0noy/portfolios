@@ -253,6 +253,17 @@ export interface TaxHistoryEntry {
   incTax: number;
 }
 
+export interface FeeHistoryEntry {
+  startDate: string;
+  mgmtVal: number;
+  mgmtType: 'percentage' | 'fixed';
+  mgmtFreq: 'monthly' | 'quarterly' | 'yearly';
+  divCommRate: number;
+  commRate: number;
+  commMin: number;
+  commMax: number;
+}
+
 export interface Portfolio {
   id: string;
   name: string;
@@ -270,6 +281,7 @@ export interface Portfolio {
   taxPolicy: TaxPolicy;
   holdings?: Holding[];
   taxHistory?: TaxHistoryEntry[];
+  feeHistory?: FeeHistoryEntry[];
 }
 
 export type TaxPolicy = 'TAX_FREE' | 'REAL_GAIN' | 'NOMINAL_GAIN' | 'PENSION';

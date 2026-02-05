@@ -144,7 +144,7 @@ export const transactionNumericKeys = Object.keys(TXN_COLS).filter(key => TXN_CO
 
 // --- Canonical Headers & Ranges ---
 
-export const portfolioHeaders = ['Portfolio_ID', 'Display_Name', 'Cap_Gains_Tax_Rate', 'Income_Tax_Rate', 'Mgmt_Fee_Val', 'Mgmt_Type', 'Mgmt_Freq', 'Comm_Rate_%', 'Comm_Min', 'Comm_Max_Fee', 'Currency', 'Div_Policy', 'Div_Comm_Rate_%', 'Tax_Policy', 'Tax_History'] as const;
+export const portfolioHeaders = ['Portfolio_ID', 'Display_Name', 'Cap_Gains_Tax_Rate', 'Income_Tax_Rate', 'Mgmt_Fee_Val', 'Mgmt_Type', 'Mgmt_Freq', 'Comm_Rate_%', 'Comm_Min', 'Comm_Max_Fee', 'Currency', 'Div_Policy', 'Div_Comm_Rate_%', 'Tax_Policy', 'Tax_History', 'Fee_History'] as const;
 
 // Merged Price_Unit into Currency logic, removed explicit Price_Unit column
 export const holdingsHeaders = [
@@ -187,7 +187,7 @@ export const portfolioMapping: Record<keyof Omit<Portfolio, 'holdings'>, typeof 
     id: 'Portfolio_ID', name: 'Display_Name', cgt: 'Cap_Gains_Tax_Rate', incTax: 'Income_Tax_Rate',
     mgmtVal: 'Mgmt_Fee_Val', mgmtType: 'Mgmt_Type', mgmtFreq: 'Mgmt_Freq', commRate: 'Comm_Rate_%',
     commMin: 'Comm_Min', commMax: 'Comm_Max_Fee', currency: 'Currency', divPolicy: 'Div_Policy',
-    divCommRate: 'Div_Comm_Rate_%', taxPolicy: 'Tax_Policy', taxHistory: 'Tax_History'
+    divCommRate: 'Div_Comm_Rate_%', taxPolicy: 'Tax_Policy', taxHistory: 'Tax_History', feeHistory: 'Fee_History'
 };
 export const portfolioNumericKeys: (keyof Omit<Portfolio, 'holdings'>)[] = ['cgt', 'incTax', 'mgmtVal', 'commRate', 'commMin', 'commMax', 'divCommRate'];
 

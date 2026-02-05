@@ -265,6 +265,14 @@ export const fetchPortfolios = withAuthHandling(async (spreadsheetId: string): P
                 p.taxHistory = [];
             }
         }
+        if (p && (p as any).feeHistory && typeof (p as any).feeHistory === 'string') {
+            try {
+                p.feeHistory = JSON.parse((p as any).feeHistory);
+            } catch (e) {
+                console.warn(`Failed to parse feeHistory for portfolio ${p.id}`, e);
+                p.feeHistory = [];
+            }
+        }
         return p;
     }).filter(Boolean);
 
@@ -1016,6 +1024,9 @@ export const addPortfolio = withAuthHandling(async (spreadsheetId: string, p: Po
     if (pForSheet.taxHistory) {
         (pForSheet as any).taxHistory = JSON.stringify(pForSheet.taxHistory);
     }
+    if (pForSheet.feeHistory) {
+        (pForSheet as any).feeHistory = JSON.stringify(pForSheet.feeHistory);
+    }
     const row = objectToRow(pForSheet, portfolioHeaders, portfolioMapping as any);
     await gapi.client.sheets.spreadsheets.values.append({
         spreadsheetId, range: 'Portfolio_Options!A:A', valueInputOption: 'USER_ENTERED',
@@ -1043,6 +1054,9 @@ export const updatePortfolio = withAuthHandling(async (spreadsheetId: string, p:
     const pForSheet = { ...p };
     if (pForSheet.taxHistory) {
         (pForSheet as any).taxHistory = JSON.stringify(pForSheet.taxHistory);
+    }
+    if (pForSheet.feeHistory) {
+        (pForSheet as any).feeHistory = JSON.stringify(pForSheet.feeHistory);
     }
     const rowData = objectToRow(pForSheet, portfolioHeaders, portfolioMapping as any);
     await gapi.client.sheets.spreadsheets.values.update({
