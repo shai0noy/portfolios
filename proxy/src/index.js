@@ -1,14 +1,20 @@
 import { handleAuth } from './auth.js';
 import { handleProxy } from './proxy.js';
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, HEAD, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
-};
+function getCorsHeaders(request) {
+  const origin = request.headers.get("Origin");
+  return {
+    "Access-Control-Allow-Origin": origin || "*",
+    "Access-Control-Allow-Methods": "GET, HEAD, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, apiKey", 
+    "Access-Control-Allow-Credentials": "true",
+  };
+}
 
 export default {
   async fetch(request, env, ctx) {
+    const corsHeaders = getCorsHeaders(request);
+
     if (request.method === "OPTIONS") {
       return new Response(null, { headers: corsHeaders });
     }
