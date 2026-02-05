@@ -102,9 +102,12 @@ export const TXN_COLS: TransactionColumns = {
         colName: 'Gross_Value',
         colId: 'V',
         numeric: true,
-        formula: (rowNum, cols) => `=${cols.splitAdjustedQty.colId}${rowNum} * ${cols.splitAdjustedPrice.colId}${rowNum}`
+        formula: (rowNum, cols) => {
+            const exchange = `${cols.exchange.colId}${rowNum}`;
+            const ticker = `${cols.ticker.colId}${rowNum}`;
+            return `=IFERROR(GOOGLEFINANCE(${exchange}&":"&${ticker}")*${cols.splitAdjustedQty.colId}${rowNum})`;
+        }
     },
-    // Removed valueAfterTax
 };
 
 export const transactionHeaders = Object.values(TXN_COLS)

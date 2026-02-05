@@ -114,18 +114,19 @@ export class FinanceEngine {
         const key = `${portfolioId}_${ticker}`;
         if (!this.holdings.has(key)) {
             const p = this.portfolios.get(portfolioId);
+            const holdingOnPortfolio = p?.holdings?.find(h => h.ticker === ticker && h.exchange === exchange);
             this.holdings.set(key, {
                 id: key,
                 key: key,
                 portfolioId,
                 ticker,
                 exchange,
-                stockCurrency: normalizeCurrency(currency),
+                stockCurrency: normalizeCurrency(holdingOnPortfolio?.currency || currency),
                 portfolioCurrency: normalizeCurrency(p?.currency || 'USD'),
                 currentPrice: 0,
                 dayChangePct: 0,
-                displayName: ticker,
-                sector: '',
+                displayName: holdingOnPortfolio?.name || ticker,
+                sector: holdingOnPortfolio?.sector || '',
                 qtyVested: 0,
                 qtyUnvested: 0,
                 totalQty: 0,
@@ -262,7 +263,7 @@ export class FinanceEngine {
             const priceInAgorot = t.originalPriceILA || 0;
             const priceInILS = toILS(priceInAgorot, Currency.ILA);
             
-            let originalPricePC = (h.portfolioCurrency === Currency.ILS) ? priceInILS : convertCurrency(priceInUSD, Currency.USD, h.portfolioCurrency, this.exchangeRates);
+            const originalPricePC = (h.portfolioCurrency === Currency.ILS) ? priceInILS : convertCurrency(priceInUSD, Currency.USD, h.portfolioCurrency, this.exchangeRates);
             const txnValuePC = tQty * originalPricePC;
             
             let effectivePriceSC = t.price || 0;
@@ -283,7 +284,7 @@ export class FinanceEngine {
 
             if (isBuy) {
                 if (t.commission && t.commission > 0) {
-                    let commVal = (h.stockCurrency === Currency.ILA) ? t.commission / 100 : t.commission;
+                    const commVal = (h.stockCurrency === Currency.ILA) ? t.commission / 100 : t.commission;
                     feePC = convertCurrency(commVal, h.stockCurrency === Currency.ILA ? Currency.ILS : h.stockCurrency, h.portfolioCurrency, this.exchangeRates);
                     h.totalFeesPortfolioCurrency += feePC;
                     h.feesBuyPortfolioCurrency += feePC;
@@ -317,7 +318,7 @@ export class FinanceEngine {
                 const curPriceILS = convertCurrency(t.price || 0, t.currency || h.stockCurrency, Currency.ILS, this.exchangeRates);
 
                 if (t.commission && t.commission > 0) {
-                    let commVal = (h.stockCurrency === Currency.ILA) ? t.commission / 100 : t.commission;
+                    const commVal = (h.stockCurrency === Currency.ILA) ? t.commission / 100 : t.commission;
                     feePC = convertCurrency(commVal, h.stockCurrency === Currency.ILA ? Currency.ILS : h.stockCurrency, h.portfolioCurrency, this.exchangeRates);
                     h.totalFeesPortfolioCurrency += feePC;
                     h.feesSellPortfolioCurrency += feePC;
@@ -452,7 +453,7 @@ export class FinanceEngine {
             if (h.transactions.length === 0) return;
             
             const startDate = new Date(h.transactions[0].date);
-            let iter = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 1);
+            const iter = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 1);
             const limit = new Date();
             limit.setHours(23, 59, 59, 999);
 
@@ -692,7 +693,7 @@ export class FinanceEngine {
             let incTax = p?.incTax ?? 0;
             if (p?.taxPolicy === 'TAX_FREE') { cgt = 0; incTax = 0; }
 
-            let deductibleFeesILS = (p?.taxPolicy === 'REAL_GAIN') ? pData.feesILS : 0;
+            const deductibleFeesILS = (p?.taxPolicy === 'REAL_GAIN') ? pData.feesILS : 0;
             
             const taxCreditFromFees = deductibleFeesILS * cgt;
             const stdRealizedTaxILS = Math.max(0, pData.ils.std.taxLiability - taxCreditFromFees);
