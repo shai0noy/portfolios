@@ -27,7 +27,7 @@ export async function handleAuth(request, env, corsHeaders) {
       }
       
       // 2. Set the Refresh Token in a Secure, HttpOnly cookie
-      const cookie = `auth_refresh_token=${tokens.refresh_token}; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=31536000`;
+      const cookie = `auth_refresh_token=${tokens.refresh_token}; HttpOnly; Secure; SameSite=None; Partitioned; Path=/; Max-Age=31536000`;
 
       return new Response(JSON.stringify({ success: true }), {
         headers: {
@@ -44,10 +44,13 @@ export async function handleAuth(request, env, corsHeaders) {
   // Auth Flow: Get Access Token using Refresh Token from Cookie
   if (request.method === 'GET' && url.pathname === '/auth/token') {
     const cookieHeader = request.headers.get('Cookie');
+    if (!cookieHeader) {
+        return new Response(JSON.stringify({ error: 'No cookie header received. Ensure Third-Party Cookies are allowed or try a different browser.' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
     const refreshToken = cookieHeader?.match(/auth_refresh_token=([^;]+)/)?.[1];
 
     if (!refreshToken) {
-      return new Response(JSON.stringify({ error: 'No refresh token found' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ error: 'No refresh token found in cookie' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     try {
