@@ -71,7 +71,7 @@ export function hasValidToken(): boolean {
 
 async function refreshAccessToken(): Promise<void> {
     try {
-        const res = await fetch(`${WORKER_URL}/auth/token`);
+        const res = await fetch(`${WORKER_URL}/auth/token`, { credentials: 'include' });
         if (!res.ok) {
             if (res.status === 401) throw new SessionExpiredError("Session expired");
             throw new Error("Failed to refresh token");
@@ -103,7 +103,8 @@ export function signIn(): Promise<void> {
                                 const res = await fetch(`${WORKER_URL}/auth/google`, {
                                     method: 'POST',
                                     headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ code: response.code })
+                                    body: JSON.stringify({ code: response.code }),
+                                    credentials: 'include'
                                 });
                                 
                                 if (!res.ok) {
@@ -146,7 +147,6 @@ export function signOut() {
     if (gapiInstance) {
         gapiInstance.client.setToken(null);
     }
-    // Also hit worker to clear cookie? (Optional but good practice)
     console.log('User signed out');
     window.location.reload();
 }
