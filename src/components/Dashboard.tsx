@@ -268,23 +268,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
 
   return (
     <Box sx={{ maxWidth: 1400, mx: 'auto', mt: 4 }}>
-      <DashboardSummary
-        summary={summary}
-        holdings={selectedPortfolioId ? holdings.filter(h => h.portfolioId === selectedPortfolioId) : holdings}
-        displayCurrency={displayCurrency}
-        exchangeRates={exchangeRates}
-        selectedPortfolio={portfolios.find(p => p.id === (selectedPortfolioId || ''))?.name || null}
-        sheetId={sheetId}
-        portfolios={portfolios}
-        isPortfoliosLoading={loading}
-      />
-      {hasFutureTxns && (
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'right', mt: 0.5, mb: 1, fontSize: '0.7rem' }}>
-          {t('Note: Some transactions with future dates exist and are not included in the calculations.', 'הערה: קיימות עסקאות עם תאריך עתידי שאינן נכללות בחישובים.')}
-        </Typography>
-      )}
-
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1, mt: -1 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
         {selectedPortfolioId && (
           <Button 
             variant="text" 
@@ -328,6 +312,22 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
           <ToggleButton value="ILS" sx={{ px: 1.5, fontWeight: 600, fontSize: '0.75rem' }}>ILS</ToggleButton>
         </ToggleButtonGroup>
       </Box>
+
+      <DashboardSummary
+        summary={summary}
+        holdings={selectedPortfolioId ? holdings.filter(h => h.portfolioId === selectedPortfolioId) : holdings}
+        displayCurrency={displayCurrency}
+        exchangeRates={exchangeRates}
+        selectedPortfolio={portfolios.find(p => p.id === (selectedPortfolioId || ''))?.name || null}
+        sheetId={sheetId}
+        portfolios={portfolios}
+        isPortfoliosLoading={loading}
+      />
+      {hasFutureTxns && (
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'right', mt: 0.5, mb: 1, fontSize: '0.7rem' }}>
+          {t('Note: Some transactions with future dates exist and are not included in the calculations.', 'הערה: קיימות עסקאות עם תאריך עתידי שאינן נכללות בחישובים.')}
+        </Typography>
+      )}
 
       {/* CONTROLS */}
       <Box display="flex" justifyContent="space-between" mb={2} alignItems="center">

@@ -213,6 +213,7 @@ export interface DashboardHolding {
   dividendsILS: number;
   realizedGainILS: number;
   realizedTaxableGainILS: number; // For ILS-based Tax Calculation
+  realizedTaxLiabilityILS: number; // Accumulated tax liability
   unrealizedTaxableGainILS: number; // For ILS-based Tax Calculation
 
   // Display fields
@@ -246,6 +247,12 @@ export interface DashboardHolding {
   type?: InstrumentClassification;
 }
 
+export interface TaxHistoryEntry {
+  startDate: string; // YYYY-MM-DD
+  cgt: number;
+  incTax: number;
+}
+
 export interface Portfolio {
   id: string;
   name: string;
@@ -262,6 +269,7 @@ export interface Portfolio {
   divCommRate: number;
   taxPolicy: TaxPolicy;
   holdings?: Holding[];
+  taxHistory?: TaxHistoryEntry[];
 }
 
 export type TaxPolicy = 'TAX_FREE' | 'REAL_GAIN' | 'NOMINAL_GAIN' | 'PENSION';

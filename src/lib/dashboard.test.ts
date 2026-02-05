@@ -45,8 +45,7 @@ function assertClose(actual: number, expected: number, tolerance: number, messag
 // --- TESTS ---
 
 function testBasicSummary() {
-    console.log('
---- Test: Basic Summary Aggregation ---');
+    console.log('\n--- Test: Basic Summary Aggregation ---');
     const holdings: DashboardHolding[] = [{
         portfolioId: 'p1', ticker: 'AAPL', exchange: Exchange.NASDAQ,
         stockCurrency: Currency.USD, portfolioCurrency: Currency.USD,
@@ -57,18 +56,11 @@ function testBasicSummary() {
         realizedGainPortfolioCurrency: 0,
         dividendsPortfolioCurrency: 0,
         costBasisPortfolioCurrency: 900,
-        // ... (other fields not strictly needed for this test if calculateDashboardSummary re-calculates)
-        // Note: calculateDashboardSummary recalculates MOST display values from:
-        // currentPrice, stockCurrency, qtyVested, etc.
-        // It relies on holding fields like: currentPrice, stockCurrency, portfolioCurrency, costBasisILS, etc.
-        // But importantly, it calls `calculateHoldingDisplayValues` internally.
-        // So we just need to set up the raw fields correctly.
         costBasisILS: 3600, // 900 USD * 4
         unrealizedTaxableGainILS: 400, // 100 USD * 4
         realizedGainILS: 0,
         totalFeesPortfolioCurrency: 0,
         dayChangePct: 0.01,
-        // Mocking display values that useDashboardData would have set:
         mvVested: 1000, mvUnvested: 0,
     } as any];
 
@@ -81,22 +73,14 @@ function testBasicSummary() {
 }
 
 function testUnvestedExclusion() {
-    console.log('
---- Test: Unvested Exclusion from AUM ---');
+    console.log('\n--- Test: Unvested Exclusion from AUM ---');
     const holdings: DashboardHolding[] = [{
         portfolioId: 'p1', ticker: 'RSU', exchange: Exchange.NASDAQ,
         stockCurrency: Currency.USD, portfolioCurrency: Currency.USD,
         qtyVested: 5, qtyUnvested: 5, totalQty: 10, // 50% vested
         currentPrice: 100, avgCost: 50,
-        // Calculations in useDashboardData would set these:
         mvVested: 500, mvUnvested: 500,
-        costBasisPortfolioCurrency: 500, // 50 * 10 = 500 total? No avgCost is per share.
-        // useDashboardData loop:
-        // h.mvVested = h.qtyVested * price
-        // h.marketValuePortfolioCurrency = h.mvVested (OVERRIDE)
-        // So input holding to calculateDashboardSummary should already have these set if it comes from useDashboardData.
-        // But calculateDashboardSummary calls `calculateHoldingDisplayValues(h, ...)` which uses `h.marketValuePortfolioCurrency`.
-        // So we must ensure input `marketValuePortfolioCurrency` reflects VESTED only.
+        costBasisPortfolioCurrency: 500, // Vested Only
         marketValuePortfolioCurrency: 500, // Vested Only
         costBasisILS: 2000, // 500 USD * 4
         unrealizedTaxableGainILS: 0,
@@ -113,8 +97,7 @@ function testUnvestedExclusion() {
 }
 
 function testCurrencyConversionSummary() {
-    console.log('
---- Test: Currency Conversion (ILS Display) ---');
+    console.log('\n--- Test: Currency Conversion (ILS Display) ---');
     const holdings: DashboardHolding[] = [{
         portfolioId: 'p1', ticker: 'AAPL', exchange: Exchange.NASDAQ,
         stockCurrency: Currency.USD, portfolioCurrency: Currency.USD,
@@ -138,8 +121,7 @@ function testCurrencyConversionSummary() {
 }
 
 function testRealizedGainTax() {
-    console.log('
---- Test: Tax Calculation (Realized) ---');
+    console.log('\n--- Test: Tax Calculation (Realized) ---');
     // Portfolio p1 has 25% tax.
     // Holding has realized gain of 100 USD.
     // Taxable Gain ILS = 400.
@@ -159,6 +141,8 @@ function testRealizedGainTax() {
         costBasisILS: 0,
         realizedTaxableGainILS: 400, // 100 USD * 4
         unrealizedTaxableGainILS: 0,
+        // Mocking the liability calculation which normally happens in useDashboardData
+        realizedTaxLiabilityILS: 100, // 400 * 0.25 = 100
         realizedGainILS: 400,
         totalFeesPortfolioCurrency: 0,
         dayChangePct: 0,
@@ -171,17 +155,43 @@ function testRealizedGainTax() {
     assertClose(summary.realizedGainAfterTax, 75, 0.01, 'Realized After Tax (100 - 25)');
 }
 
+function testTaxLiabilityAggregation() {
+    console.log('\n--- Test: Tax Liability Aggregation (Historical) ---');
+    const holdings: DashboardHolding[] = [{
+        portfolioId: 'p1', ticker: 'HIST', exchange: Exchange.NASDAQ,
+        stockCurrency: Currency.USD, portfolioCurrency: Currency.USD,
+        qtyVested: 0, totalQty: 0,
+        realizedGainPortfolioCurrency: 100, // 100 USD gain
+        realizedTaxLiabilityILS: 80, // 80 ILS historical tax
+        costBasisILS: 0, realizedGainILS: 400, realizedTaxableGainILS: 400,
+        totalFeesPortfolioCurrency: 0,
+        dayChangePct: 0,
+        mvVested: 0, mvUnvested: 0,
+        unrealizedGainPortfolioCurrency: 0,
+    } as any];
+
+    const mockPortfoliosHist = new Map<string, Portfolio>();
+    mockPortfoliosHist.set('p1', {
+        id: 'p1', name: 'Zero Tax Now', currency: Currency.USD,
+        taxPolicy: 'REAL_GAIN', cgt: 0, incTax: 0,
+        commRate: 0, commMin: 0, commMax: 0, divCommRate: 0, holdings: []
+    });
+
+    const { summary } = calculateDashboardSummary(holdings, 'USD', mockRates, mockPortfoliosHist);
+
+    assertClose(summary.realizedGainAfterTax, 80, 0.01, 'Should deduct accumulated historical tax liability');
+}
+
 export function runDashboardTests() {
     try {
         testBasicSummary();
         testUnvestedExclusion();
         testCurrencyConversionSummary();
         testRealizedGainTax();
-        console.log('
-🎉 All Dashboard tests passed!');
+        testTaxLiabilityAggregation();
+        console.log('\n🎉 All Dashboard tests passed!');
     } catch (e) {
-        console.error('
-💥 Dashboard tests failed.');
+        console.error('\n💥 Dashboard tests failed.');
         console.error(e);
     }
 }

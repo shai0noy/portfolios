@@ -6,6 +6,7 @@ import { fetchCpi } from './fetching/cbs';
 import type { TickerData } from './fetching/types';
 import { getExchangeRates, convertCurrency, calculatePerformanceInDisplayCurrency, calculateHoldingDisplayValues, normalizeCurrency, toILS } from './currency';
 import { logIfFalsy } from './utils';
+import { getTaxRatesForDate } from './portfolioUtils';
 import { toGoogleSheetDateFormat } from './date';
 import { Currency, Exchange, type DashboardHolding, type Holding, type Portfolio, type ExchangeRates, type Transaction } from './types';
 import { SessionExpiredError } from './errors';
@@ -201,7 +202,7 @@ export function calculateDashboardSummary(data: DashboardHolding[], displayCurre
       feesILS: number;
       aum: number;
       ils: {
-          std: { unrealized: number; realized: number; },
+          std: { unrealized: number; realized: number; taxLiability: number; },
           reit: { realized: number; }
       }
   }> = {};
@@ -273,7 +274,7 @@ export function calculateDashboardSummary(data: DashboardHolding[], displayCurre
             feesILS: 0,
             aum: 0,
             ils: { 
-                std: { unrealized: 0, realized: 0 },
+                std: { unrealized: 0, realized: 0, taxLiability: 0 },
                 reit: { realized: 0 }
             }
         };
@@ -305,6 +306,7 @@ export function calculateDashboardSummary(data: DashboardHolding[], displayCurre
     // Capital Gains always go to Standard Bucket (CGT)
     pAcc.ils.std.unrealized += taxableUnrealizedILS;
     pAcc.ils.std.realized += taxableRealizedILS;
+    pAcc.ils.std.taxLiability += h.realizedTaxLiabilityILS;
 
     // Dividends: REIT Dividends use Income Tax if configured, otherwise Standard Bucket
     const isReit = h.type?.type === InstrumentType.STOCK_REIT;
@@ -350,9 +352,11 @@ export function calculateDashboardSummary(data: DashboardHolding[], displayCurre
       let deductibleFeesILS = (p?.taxPolicy === 'REAL_GAIN') ? pData.feesILS : 0;
       
       // Standard Bucket: Deduct fees, then apply CGT with offsetting.
-      const netStdRealizedGainILS = pData.ils.std.realized - deductibleFeesILS;
+      // Use historical tax liability accumulation, offset by fees at current rate
+      const taxCreditFromFees = deductibleFeesILS * cgt;
+      const stdRealizedTaxILS = Math.max(0, pData.ils.std.taxLiability - taxCreditFromFees);
+      
       const stdUnrealizedTaxILS = pData.ils.std.unrealized > 0 ? pData.ils.std.unrealized * cgt : 0;
-      const stdRealizedTaxILS = netStdRealizedGainILS > 0 ? netStdRealizedGainILS * cgt : 0;
       
       // REIT Bucket: Only dividends, taxed at incTax rate.
       const reitRealizedTaxILS = pData.ils.reit.realized > 0 ? pData.ils.reit.realized * incTax : 0;
@@ -500,7 +504,7 @@ export function useDashboardData(sheetId: string) {
             unrealizedGainPortfolioCurrency: 0, unrealizedTaxableGain: 0, realizedGainPortfolioCurrency: 0, realizedTaxableGain: 0, totalGainPortfolioCurrency: 0, marketValuePortfolioCurrency: 0,
             dayChangeValuePortfolioCurrency: 0, totalFeesPortfolioCurrency: 0, costBasisStockCurrency: 0, costOfSoldStockCurrency: 0, proceedsStockCurrency: 0, dividendsStockCurrency: 0,
             costBasisUSD: 0, costOfSoldUSD: 0, proceedsUSD: 0, dividendsUSD: 0, realizedGainUSD: 0,
-            costBasisILS: 0, costOfSoldILS: 0, proceedsILS: 0, dividendsILS: 0, realizedGainILS: 0, realizedTaxableGainILS: 0, unrealizedTaxableGainILS: 0,
+            costBasisILS: 0, costOfSoldILS: 0, proceedsILS: 0, dividendsILS: 0, realizedGainILS: 0, realizedTaxableGainILS: 0, realizedTaxLiabilityILS: 0, unrealizedTaxableGainILS: 0,
             avgCost: 0, mvVested: 0, mvUnvested: 0, totalMV: 0, realizedGain: 0, realizedGainPct: 0, realizedGainAfterTax: 0, dividends: 0, unrealizedGain: 0, unrealizedGainPct: 0, totalGain: 0, totalGainPct: 0, valueAfterTax: 0, dayChangeVal: 0,
             sector: live?.sector || '', dayChangePct: live?.changePct1d || 0,
             perf1w: live?.changePctRecent || 0, perf1m: live?.changePct1m || 0, perf3m: live?.changePct3m || 0,
@@ -564,7 +568,7 @@ export function useDashboardData(sheetId: string) {
           );
 
           // REAL_GAIN Logic (ILS Specific Version for Summary Tax Calc)
-          h.realizedTaxableGainILS += computeRealTaxableGain(
+          const taxableGainILS = computeRealTaxableGain(
               (tQty * curPriceILS) - currentCostOfSoldILS, // Nominal Gain ILS
               gainInSC,
               currentCostOfSoldILS, // Cost Basis ILS
@@ -574,6 +578,15 @@ export function useDashboardData(sheetId: string) {
               currentCPI,
               exchangeRates
           );
+          
+          h.realizedTaxableGainILS += taxableGainILS;
+
+          // Calculate Tax Liability for this transaction using historical rate
+          const { cgt: historicalCgt } = getTaxRatesForDate(p!, t.date);
+          
+          if (taxableGainILS > 0) {
+              h.realizedTaxLiabilityILS += taxableGainILS * historicalCgt;
+          }
 
           h.costOfSoldStockCurrency += (totalQty > 0 ? h.costBasisStockCurrency / totalQty : 0) * tQty;
           h.costBasisStockCurrency -= (totalQty > 0 ? h.costBasisStockCurrency / totalQty : 0) * tQty;

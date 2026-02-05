@@ -1,15 +1,20 @@
 // src/components/PortfolioManager.tsx
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useTheme } from '@mui/material/styles';
 import { 
   Box, TextField, Button, MenuItem, Select, InputLabel, FormControl, 
   Typography, Alert, Snackbar, Grid, Card, CardContent, Tooltip,
   InputAdornment,
   TableContainer, Table, TableHead, TableRow, TableCell, TableBody, Paper,
-  CircularProgress
+  CircularProgress, Collapse, IconButton
 } from '@mui/material';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import DeleteIcon from '@mui/icons-material/Delete';
+import AddIcon from '@mui/icons-material/Add';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import { type Portfolio, PORTFOLIO_TEMPLATES, Currency } from '../lib/types';
 import { addPortfolio, fetchPortfolios, updatePortfolio } from '../lib/sheets/index';
 import { useLanguage } from '../lib/i18n';
@@ -17,7 +22,7 @@ import { useLanguage } from '../lib/i18n';
 const taxPolicyNames: { [key: string]: string } = {
   REAL_GAIN: "Israel (Real Gain - Inflation Adjusted)",
   NOMINAL_GAIN: "Fixed (Nominal Gain)",
-  TAX_FREE: "Tax Free",
+  TAX_FREE: "Tax Free (Gemel/Hishtalmut)",
   PENSION: "Pension (Income Taxed)"
 };
 
@@ -27,6 +32,7 @@ interface Props {
 }
 
 export function PortfolioManager({ sheetId, onSuccess }: Props) {
+  const theme = useTheme();
   const { portfolioId } = useParams<{ portfolioId?: string }>();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
@@ -36,6 +42,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
   const [editMode, setEditMode] = useState<boolean>(!!portfolioId);
   const [editingPortfolio, setEditingPortfolio] = useState<Partial<Portfolio> | null>(null);
   const [showNewPortfolioForm, setShowNewPortfolioForm] = useState(!!portfolioId);
+  const [showTaxHistory, setShowTaxHistory] = useState(false);
   const { t } = useLanguage();
 
   // Form State
@@ -125,6 +132,54 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
 
 
 
+  const addTaxHistoryEntry = () => {
+      const today = new Date().toISOString().split('T')[0];
+      setP(prev => ({
+          ...prev,
+          taxHistory: [...(prev.taxHistory || []), { startDate: today, cgt: 0.25, incTax: 0 }]
+      }));
+  };
+
+  const removeTaxHistoryEntry = (index: number) => {
+      setP(prev => {
+          const newHistory = [...(prev.taxHistory || [])];
+          newHistory.splice(index, 1);
+          return { ...prev, taxHistory: newHistory };
+      });
+  };
+
+  const updateTaxHistoryEntry = (index: number, field: keyof import('../lib/types').TaxHistoryEntry, value: any) => {
+      // Validate Date Order
+      if (field === 'startDate') {
+          const newDate = new Date(value);
+          const history = p.taxHistory || [];
+          
+          // Check previous (must be later than previous)
+          if (index > 0) {
+              const prevDate = new Date(history[index - 1].startDate);
+              if (newDate <= prevDate) {
+                  alert(t('Date must be after the previous entry.', 'התאריך חייב להיות אחרי הרשומה הקודמת.'));
+                  return;
+              }
+          }
+          
+          // Check next (must be earlier than next)
+          if (index < history.length - 1) {
+              const nextDate = new Date(history[index + 1].startDate);
+              if (newDate >= nextDate) {
+                  alert(t('Date must be before the next entry.', 'התאריך חייב להיות לפני הרשומה הבאה.'));
+                  return;
+              }
+          }
+      }
+
+      setP(prev => {
+          const newHistory = [...(prev.taxHistory || [])];
+          newHistory[index] = { ...newHistory[index], [field]: value };
+          return { ...prev, taxHistory: newHistory };
+      });
+  };
+
   const cancelEdit = () => {
     setEditMode(false);
     setEditingPortfolio(null);
@@ -148,19 +203,52 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
     }
     setLoading(true);
     try {
+      const portToSave = { ...p } as Portfolio;
+
+      if (editMode && editingPortfolio) {
+        // Check for tax changes
+        // Use epsilon for float comparison just in case
+        const cgtChanged = Math.abs((portToSave.cgt || 0) - (editingPortfolio.cgt || 0)) > 1e-6;
+        const incTaxChanged = Math.abs((portToSave.incTax || 0) - (editingPortfolio.incTax || 0)) > 1e-6;
+        
+        if (cgtChanged || incTaxChanged) {
+            const today = new Date().toISOString().split('T')[0];
+            const history = [...(editingPortfolio.taxHistory || [])];
+            
+            // If history is empty, record the initial state as 'forever' (valid until now)
+            if (history.length === 0) {
+                history.push({ 
+                    startDate: '1970-01-01', 
+                    cgt: editingPortfolio.cgt || 0, 
+                    incTax: editingPortfolio.incTax || 0
+                });
+            }
+            
+            // Record the NEW state (effective from today)
+            const existingTodayIndex = history.findIndex(h => h.startDate === today);
+            if (existingTodayIndex >= 0) {
+                history[existingTodayIndex] = { startDate: today, cgt: portToSave.cgt, incTax: portToSave.incTax };
+            } else {
+                history.push({ startDate: today, cgt: portToSave.cgt, incTax: portToSave.incTax });
+            }
+            
+            portToSave.taxHistory = history;
+        }
+      }
+
       if (editMode) {
-        await updatePortfolio(sheetId, p as Portfolio);
+        await updatePortfolio(sheetId, portToSave);
         setMsg(t('Portfolio Updated!', 'התיק עודכן!'));
         setEditMode(false);
         setEditingPortfolio(null);
       } else {
-        await addPortfolio(sheetId, p as Portfolio);
+        await addPortfolio(sheetId, portToSave);
         setMsg(t('Portfolio Created!', 'התיק נוצר!'));
-        setShowNewPortfolioForm(false); // Hide form after creation
+        setShowNewPortfolioForm(false);
       }
-      setP({ id: '', name: '' }); // Reset form only after creation
+      setP({ id: '', name: '' }); 
       setIdDirty(false);
-      loadPortfolios(); // Reload the list
+      loadPortfolios(); 
       onSuccess();
     } catch (e) {
       console.error(e);
@@ -376,6 +464,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                           value={p.taxPolicy} 
                           label={t('Cap. Gain Tax Policy', 'מדיניות מס רווחי הון')}
                           onChange={e => set('taxPolicy', e.target.value)}
+                          disabled={editMode}
                         >
                           {Object.entries(taxPolicyNames).map(([key, name]) => (
                             <MenuItem key={key} value={key}>{name}</MenuItem>
@@ -389,24 +478,97 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                     <Grid item xs={12} sm={6}>
                        <PercentageField label={t('Tax on Base Price', 'מס הכנסה (בסיס)')} field="incTax" tooltip={t("Income Tax (for RSUs)", "מס הכנסה (עבור RSU)")} disabled={p.taxPolicy === 'TAX_FREE'} />
                     </Grid>
+                    <Grid item xs={12}>
+                        <Button 
+                            size="small" 
+                            onClick={() => setShowTaxHistory(!showTaxHistory)} 
+                            endIcon={showTaxHistory ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                            sx={{ textTransform: 'none', color: 'text.secondary', mb: 1 }}
+                        >
+                            {t('Manage Tax History', 'ניהול היסטוריית מס')}
+                        </Button>
+                        <Collapse in={showTaxHistory}>
+                            <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 300, mb: 2 }}>
+                                <Table size="small" stickyHeader>
+                                    <TableHead>
+                                        <TableRow>
+                                            <TableCell>{t('Start Date', 'תאריך התחלה')}</TableCell>
+                                            <TableCell>{t('CGT', 'מס רווח')}</TableCell>
+                                            <TableCell>{t('Inc Tax', 'מס הכנסה')}</TableCell>
+                                            <TableCell align="center">{t('Actions', 'פעולות')}</TableCell>
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {p.taxHistory && p.taxHistory.map((h, i) => (
+                                            <TableRow key={i}>
+                                                <TableCell>
+                                                    {i === 0 ? (
+                                                        <Typography variant="body2" color="text.secondary" sx={{ pl: 1 }}>
+                                                            {t('Creation / Always', 'יצירה / תמיד')}
+                                                        </Typography>
+                                                    ) : (
+                                                        <TextField 
+                                                            type="date" 
+                                                            size="small" 
+                                                            value={h.startDate} 
+                                                            onChange={e => updateTaxHistoryEntry(i, 'startDate', e.target.value)}
+                                                            sx={{ width: 150, '& .MuiInputBase-input': { colorScheme: theme.palette.mode } }}
+                                                        />
+                                                    )}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <TextField 
+                                                        type="number" 
+                                                        size="small" 
+                                                        value={(h.cgt * 100).toFixed(4).replace(/\.?0+$/, '')} 
+                                                        onChange={e => updateTaxHistoryEntry(i, 'cgt', parseFloat(e.target.value) / 100)}
+                                                        InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
+                                                        sx={{ width: 100 }}
+                                                    />
+                                                </TableCell>
+                                                <TableCell>
+                                                    <TextField 
+                                                        type="number" 
+                                                        size="small" 
+                                                        value={(h.incTax * 100).toFixed(4).replace(/\.?0+$/, '')} 
+                                                        onChange={e => updateTaxHistoryEntry(i, 'incTax', parseFloat(e.target.value) / 100)}
+                                                        InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
+                                                        sx={{ width: 100 }}
+                                                    />
+                                                </TableCell>
+                                                <TableCell align="center">
+                                                    <IconButton size="small" color="error" onClick={() => removeTaxHistoryEntry(i)} disabled={i === 0}>
+                                                        <DeleteIcon fontSize="small" />
+                                                    </IconButton>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                        {(!p.taxHistory || p.taxHistory.length === 0) && (
+                                            <TableRow>
+                                                <TableCell colSpan={4} align="center" sx={{ color: 'text.secondary' }}>
+                                                    {t('No history records.', 'אין רשומות היסטוריה.')}
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </TableContainer>
+                            <Button startIcon={<AddIcon />} size="small" onClick={addTaxHistoryEntry}>
+                                {t('Add History Entry', 'הוסף רשומה')}
+                            </Button>
+                        </Collapse>
+                    </Grid>
                     <Grid item xs={12} sm={6}>
                       <FormControl fullWidth size="small">
                         <InputLabel>{t('Dividend Policy', 'מדיניות דיבידנד')}</InputLabel>
-                        <Select value={p.divPolicy} label={t('Dividend Policy', 'מדיניות דיבידנד')} onChange={e => set('divPolicy', e.target.value)}>
+                        <Select value={p.divPolicy} label={t('Dividend Policy', 'מדיניות דיבידנד')} onChange={e => set('divPolicy', e.target.value)} disabled={editMode}>
                           <MenuItem value="cash_taxed">Cash (Taxed)</MenuItem>
                           <MenuItem value="accumulate_tax_free">Accumulate (Tax-Free)</MenuItem>
                           <MenuItem value="hybrid_rsu">Accumulate Unvested / Cash Vested</MenuItem>
                         </Select>
                       </FormControl>
                     </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <PercentageField 
-                        label={t('Cashed Div Fee Rate', 'עמלת דיבידנד ממומש')}
-                        field="divCommRate" 
-                        tooltip={t("Fee rate on cashed dividends", "שיעור עמלה על דיבידנד ממומש")}
-                        disabled={p.taxPolicy === 'TAX_FREE' || p.divPolicy === 'accumulate_tax_free'}
-                      />
-                    </Grid>
+
                   </Grid>
                 </CardContent>
               </Card>
@@ -416,7 +578,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
             <Grid item xs={12} md={6}>
               <Card variant="outlined" sx={{ height: '100%' }}>
                 <CardContent>
-                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>{t('TRADING COSTS', 'עלויות מסחר')}</Typography>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>{t('TRADING FESS', 'עמלות מסחר')}</Typography>
                   <Grid container spacing={3} mt={2}>
                     <Grid item xs={12} sm={4}>
                       <PercentageField label={t('Rate', 'שיעור')} field="commRate" tooltip={t("Commission rate per trade", "שיעור עמלה לכל פעולה")} />
@@ -443,14 +605,14 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                      </Tooltip>
                   </Box>
                   <Grid container spacing={3} mt={2}>
-                    <Grid item xs={12} sm={4}>
+                    <Grid item xs={12} sm={6}>
                        {p.mgmtType === 'percentage' ? (
                          <PercentageField label={t('Value', 'ערך')} field="mgmtVal" />
                        ) : (
                          <NumericField label={t('Value', 'ערך')} field="mgmtVal" showCurrency />
                        )}
                     </Grid>
-                    <Grid item xs={12} sm={4}>
+                    <Grid item xs={12} sm={6}>
                       <FormControl fullWidth size="small">
                         <InputLabel>{t('Type', 'סוג')}</InputLabel>
                         <Select value={p.mgmtType} label={t('Type', 'סוג')} onChange={e => set('mgmtType', e.target.value)}>
@@ -459,7 +621,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                         </Select>
                       </FormControl>
                     </Grid>
-                    <Grid item xs={12} sm={4}>
+                    <Grid item xs={12} sm={6}>
                       <FormControl fullWidth size="small">
                         <InputLabel>{t('Frequency', 'תדירות')}</InputLabel>
                         <Select value={p.mgmtFreq} label={t('Frequency', 'תדירות')} onChange={e => set('mgmtFreq', e.target.value)}>
@@ -468,6 +630,14 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                           <MenuItem value="yearly">Yearly</MenuItem>
                         </Select>
                       </FormControl>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <PercentageField 
+                        label={t('Cashed Div Fee Rate', 'עמלת דיבידנד ממומש')}
+                        field="divCommRate" 
+                        tooltip={t("Fee rate on cashed dividends", "שיעור עמלה על דיבידנד ממומש")}
+                        disabled={p.taxPolicy === 'TAX_FREE' || p.divPolicy === 'accumulate_tax_free'}
+                      />
                     </Grid>
                   </Grid>
                 </CardContent>

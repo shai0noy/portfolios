@@ -255,9 +255,18 @@ export const fetchPortfolios = withAuthHandling(async (spreadsheetId: string): P
     const holdingsRows = valueRanges[2].values || [];
 
     // 1. Process Portfolios
-    const portfolios = portfolioRows.map((row: any[]) => 
-        mapRowToPortfolio<Omit<Portfolio, 'holdings'>>(row, portfolioMapping, portfolioNumericKeys)
-    ).filter(Boolean);
+    const portfolios = portfolioRows.map((row: any[]) => {
+        const p = mapRowToPortfolio<Omit<Portfolio, 'holdings'>>(row, portfolioMapping, portfolioNumericKeys);
+        if (p && (p as any).taxHistory && typeof (p as any).taxHistory === 'string') {
+            try {
+                p.taxHistory = JSON.parse((p as any).taxHistory);
+            } catch (e) {
+                console.warn(`Failed to parse taxHistory for portfolio ${p.id}`, e);
+                p.taxHistory = [];
+            }
+        }
+        return p;
+    }).filter(Boolean);
 
     // 2. Process Transactions (Logic copied from fetchTransactions to avoid re-fetch, but reusing the mapper)
     const transactions = transactionRows.map((row: unknown[]) => 
@@ -718,6 +727,8 @@ export const syncDividends = withAuthHandling(async (spreadsheetId: string, tick
                 valueInputOption: 'USER_ENTERED',
                 resource: { values: newRows }
             });
+            // Update metadata
+            await setMetadataValue(spreadsheetId, 'dividends_rebuild', toGoogleSheetDateFormat(new Date()));
         }
     } catch (error: unknown) {
         const err = error as GapiError;
@@ -1001,7 +1012,11 @@ export const rebuildHoldingsSheet = withAuthHandling(async (spreadsheetId: strin
 
 export const addPortfolio = withAuthHandling(async (spreadsheetId: string, p: Portfolio) => {
     const gapi = await ensureGapi();
-    const row = objectToRow(p, portfolioHeaders, portfolioMapping as any);
+    const pForSheet = { ...p };
+    if (pForSheet.taxHistory) {
+        (pForSheet as any).taxHistory = JSON.stringify(pForSheet.taxHistory);
+    }
+    const row = objectToRow(pForSheet, portfolioHeaders, portfolioMapping as any);
     await gapi.client.sheets.spreadsheets.values.append({
         spreadsheetId, range: 'Portfolio_Options!A:A', valueInputOption: 'USER_ENTERED',
         resource: { values: [row] }
@@ -1025,7 +1040,11 @@ export const updatePortfolio = withAuthHandling(async (spreadsheetId: string, p:
     const rowNum = rowIndex + 2;
     const endColumn = String.fromCharCode(65 + portfolioHeaders.length - 1);
     const range = `Portfolio_Options!A${rowNum}:${endColumn}${rowNum}`;
-    const rowData = objectToRow(p, portfolioHeaders, portfolioMapping as any);
+    const pForSheet = { ...p };
+    if (pForSheet.taxHistory) {
+        (pForSheet as any).taxHistory = JSON.stringify(pForSheet.taxHistory);
+    }
+    const rowData = objectToRow(pForSheet, portfolioHeaders, portfolioMapping as any);
     await gapi.client.sheets.spreadsheets.values.update({
         spreadsheetId, range: range, valueInputOption: 'USER_ENTERED', resource: { values: [rowData] }
     });
