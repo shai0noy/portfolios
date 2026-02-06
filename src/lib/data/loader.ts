@@ -37,16 +37,16 @@ export const loadFinanceEngine = async (sheetId: string) => {
     // Load auxiliary data
     const rawDivs = await fetchAllDividends(sheetId);
     // rawDivs items have 'source' already from fetchAllDividends
-    const dividends: DividendEvent[] = rawDivs.map((d: any) => ({ 
+    const dividends: DividendEvent[] = rawDivs.map((d: any) => ({
         ticker: d.ticker,
         exchange: d.exchange,
         date: d.date.toISOString().split('T')[0], // Convert Date to YYYY-MM-DD string
         amount: d.amount,
         source: d.source || 'SHEET'
     }));
-    
+
     const cpiData = await fetchCPIData(sheetId);
-    
+
     // 2. Fetch Live Prices
     // Collect unique tickers
     const tickers = new Set<string>();
@@ -54,7 +54,7 @@ export const loadFinanceEngine = async (sheetId: string) => {
         const ex = t.exchange || Exchange.TASE;
         tickers.add(`${ex}:${t.ticker}`);
     });
-    
+
     console.log(`Loader: Fetching prices for ${tickers.size} tickers:`, Array.from(tickers));
     const livePrices = await fetchLivePrices(Array.from(tickers).map(t => {
         const [exchange, ticker] = t.split(':');
@@ -64,14 +64,14 @@ export const loadFinanceEngine = async (sheetId: string) => {
 
     // 3. Initialize Engine
     const exchangeRates = await fetchSheetExchangeRates(sheetId);
-    
+
     // Fill missing critical rates (Fallback)
     const currentRates = exchangeRates.current;
     const missing = ['ILS', 'EUR', 'GBP'].filter(c => !currentRates[c]);
 
     if (missing.length > 0) {
         console.warn(`Loader: Filling missing rates for ${missing.join(', ')} via external APIs.`);
-        
+
         const getRate = async (pair: string) => {
             let data = await fetchGlobesStockQuote(pair, undefined, Exchange.FOREX);
             if (!data?.price) {
@@ -85,25 +85,25 @@ export const loadFinanceEngine = async (sheetId: string) => {
         await Promise.all(missing.filter(c => c !== 'ILS').map(async c => {
             let r = await getRate(`USD${c}`);
             if (r) { currentRates[c] = r; return; }
-            
+
             r = await getRate(`${c}USD`);
             if (r) { currentRates[c] = 1 / r; return; }
-            
+
             if (currentRates['ILS']) {
                 r = await getRate(`${c}ILS`);
                 if (r) currentRates[c] = currentRates['ILS'] / r;
             }
         }));
     }
-    
+
     // Create Engine
     const engine = new FinanceEngine(portfolios, exchangeRates as unknown as ExchangeRates, cpiData);
 
-    // 4. Hydrate Prices
-    engine.hydrateLivePrices(livePrices);
-
     // 5. Process Events (Txns + Divs)
     engine.processEvents(transactions, dividends);
+
+    // 4. Hydrate Prices (Must be AFTER processEvents so holdings exist)
+    engine.hydrateLivePrices(livePrices);
 
     // 6. Generate Recurring Fees (Requires Historical Prices)
     const holdingsWithFees = Array.from(engine.holdings.values()).filter(h => {
