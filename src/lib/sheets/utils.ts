@@ -170,3 +170,13 @@ export async function fetchSheetData<T>(
         throw error; // Re-throw the error to be handled by the caller
     }
 }
+
+/**
+ * Escapes a string for use in a Google Sheets formula by doubling up double quotes.
+ * @param str The string to escape.
+ * @returns The escaped string, or an empty string if the input is null or undefined.
+ */
+export const escapeSheetString = (str: string | null | undefined): string => {
+    if (!str) return "";
+    return str.replace(/"/g, '""');
+};

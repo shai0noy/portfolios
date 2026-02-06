@@ -15,7 +15,7 @@ import {
 } from './config';
 import { getHistoricalPriceFormula } from './formulas';
 import { logIfFalsy } from '../utils';
-import { createRowMapper, fetchSheetData, objectToRow, createHeaderUpdateRequest, getSheetId, ensureSheets } from './utils';
+import { createRowMapper, fetchSheetData, objectToRow, createHeaderUpdateRequest, getSheetId, ensureSheets, escapeSheetString } from './utils';
 import { PORTFOLIO_SHEET_NAME } from './config';
 
 import type { Dividend } from '../fetching/types';
@@ -556,9 +556,9 @@ function createHoldingRow(h: HoldingNonGeneratedData, meta: TickerData | null, r
     row[2] = h.qty;
     row[3] = `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}))`;
     const defaultCurrency = meta?.currency || (isTASE ? 'ILA' : '');
-    row[4] = (`=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "currency"), "${defaultCurrency}")`);
+    row[4] = (`=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "currency"), "${escapeSheetString(defaultCurrency)}")`);
     row[5] = `=${qtyCell}*${priceCell}`;
-    row[6] = `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "name"), " ${meta?.name || ""}")`;
+    row[6] = `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "name"), " ${escapeSheetString(meta?.name)}")`;
     row[7] = meta?.nameHe || "";
     row[8] = meta?.sector || "";
     row[9] = meta?.type?.type || "";
