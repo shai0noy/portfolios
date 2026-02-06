@@ -91,20 +91,21 @@ export function calculateDashboardSummary(data: any[], displayCurrency: string, 
     const enrichedHoldings: EnrichedDashboardHolding[] = filteredUnified.map(h => {
         const marketValue = convertCurrency(h.marketValueVested, h.portfolioCurrency, displayCurrency, exchangeRates);
         const unrealizedGain = convertCurrency(h.unrealizedGainVested, h.portfolioCurrency, displayCurrency, exchangeRates);
-        const realizedGain = convertCurrency(h.realizedGainPortfolioCurrency, h.portfolioCurrency, displayCurrency, exchangeRates);
         const dividends = convertCurrency(h.dividendsPortfolioCurrency, h.portfolioCurrency, displayCurrency, exchangeRates);
+        const realizedGainFromSells = convertCurrency(h.realizedGainPortfolioCurrency, h.portfolioCurrency, displayCurrency, exchangeRates);
+        const realizedGain = realizedGainFromSells + dividends;
         const costOfSold = convertCurrency(h.costOfSoldPortfolioCurrency, h.portfolioCurrency, displayCurrency, exchangeRates);
         const totalFees = convertCurrency(h.totalFeesPortfolioCurrency, h.portfolioCurrency, displayCurrency, exchangeRates);
         
         // Total Gain (Net of Fees)
-        const totalGain = (unrealizedGain + realizedGain + dividends) - totalFees;
+        const totalGain = (unrealizedGain + realizedGain) - totalFees;
         
         const realizedTaxDisplay = convertCurrency(h.realizedTaxLiabilityILS, Currency.ILS, displayCurrency, exchangeRates);
         const unrealizedTaxDisplay = convertCurrency(h.unrealizedTaxLiabilityILS, Currency.ILS, displayCurrency, exchangeRates);
         
         const valueAfterTax = marketValue - unrealizedTaxDisplay;
-        // Realized Gain After Tax = (Realized Gain + Dividends) - Realized Tax
-        const realizedGainAfterTax = (realizedGain + dividends) - realizedTaxDisplay;
+        // Realized Gain After Tax = Realized Gain (which includes dividends) - Realized Tax
+        const realizedGainAfterTax = realizedGain - realizedTaxDisplay;
 
         const costBasis = convertCurrency(h.costBasisVestedPortfolioCurrency, h.portfolioCurrency, displayCurrency, exchangeRates); 
         
@@ -123,10 +124,10 @@ export function calculateDashboardSummary(data: any[], displayCurrency: string, 
             unrealizedGain,
             unrealizedGainPct: costBasis > 0 ? unrealizedGain / costBasis : 0, 
             realizedGain,
-            realizedGainPct: costOfSold > 0 ? realizedGain / costOfSold : 0,
+            realizedGainPct: costBasis > 0 ? realizedGain / costBasis : 0,
             realizedGainAfterTax,
             totalGain,
-            totalGainPct: costBasis + costOfSold > 0 ? totalGain / (costBasis + costOfSold) : 0, 
+            totalGainPct: costBasis > 0 ? totalGain / costBasis : 0, 
             valueAfterTax,
             dayChangeVal,
             dayChangePct,

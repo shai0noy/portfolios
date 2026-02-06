@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "outDir": "./dist-test"
+  },
+  "include": [
+    "src/lib/performance.test.ts", 
+    "src/lib/performance.ts", 
+    "src/lib/currency.ts", 
+    "src/lib/types.ts", 
+    "src/lib/fetching/index.ts", 
+    "dist-test/mock-deps.ts",
+    "src/lib/utils/analysis.test.ts",
+    "src/lib/utils/analysis.ts",
+    "src/lib/data/engine.test.ts",
+    "src/lib/data/engine.ts",
+    "src/config.ts",
+    "src/lib/google.ts"
+  ]
+}
