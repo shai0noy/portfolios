@@ -152,8 +152,19 @@ export function calculateDashboardSummary(data: any[], displayCurrency: string, 
     });
 
     // Weights
+  const portfolioAum = new Map<string, number>();
+
+  // 1. Calculate AUM per portfolio
+  enrichedHoldings.forEach(h => {
+    portfolioAum.set(h.portfolioId, (portfolioAum.get(h.portfolioId) || 0) + h.display.marketValue);
+  });
+
+  // 2. Assign weights
     enrichedHoldings.forEach(h => {
         h.display.weightInGlobal = summary.aum > 0 ? h.display.marketValue / summary.aum : 0;
+
+      const pAum = portfolioAum.get(h.portfolioId) || 0;
+      h.display.weightInPortfolio = pAum > 0 ? h.display.marketValue / pAum : 0;
     });
 
     return { summary, holdings: enrichedHoldings };

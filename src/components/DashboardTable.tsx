@@ -110,8 +110,7 @@ export function DashboardTable(props: TableProps) {
 
   const renderCell = (h: EnrichedDashboardHolding, key: string) => {
     const vals = h.display;
-    const showInILA = displayCurrency === 'ILS' && (h.stockCurrency === 'ILS' || h.stockCurrency === 'ILA');
-    const priceDisplayCurrency = showInILA ? 'ILA' : displayCurrency;
+
 
     switch (key) {
       case 'displayName':
@@ -125,11 +124,12 @@ export function DashboardTable(props: TableProps) {
       case 'qty':
         return <TableCell align="right">{formatNumber(h.totalQty)}</TableCell>;
       case 'avgCost':
-        return <TableCell align="right">{formatPrice(convertCurrency(vals.avgCost, displayCurrency, priceDisplayCurrency, exchangeRates), priceDisplayCurrency, 2, t)}</TableCell>;
+        // Display in stock currency (e.g. Agorot for ILA)
+        return <TableCell align="right">{formatPrice(h.avgCost, h.stockCurrency, 2, t)}</TableCell>;
       case 'costBasis':
         return <TableCell align="right">{formatValue(vals.costBasis, displayCurrency, 2, t)}</TableCell>;
       case 'currentPrice':
-        return <TableCell align="right">{formatPrice(convertCurrency(vals.currentPrice, displayCurrency, priceDisplayCurrency, exchangeRates), priceDisplayCurrency, 2, t)}</TableCell>;
+        return <TableCell align="right">{formatPrice(h.currentPrice, h.stockCurrency, 2, t)}</TableCell>;
       case 'weight':
         return <TableCell align="right" sx={{ color: 'text.secondary' }}>{formatPct(groupByPortfolio ? vals.weightInPortfolio : vals.weightInGlobal)}</TableCell>;
       case 'dayChangeVal':
