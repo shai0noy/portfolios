@@ -14,6 +14,7 @@ import { DashboardSummary } from './DashboardSummary';
 import { DashboardTable } from './DashboardTable';
 import { useLanguage } from '../lib/i18n';
 import { useDashboardData, calculateDashboardSummary, INITIAL_SUMMARY, type EnrichedDashboardHolding } from '../lib/dashboard';
+import { getDefaultColumnVisibility, getColumnDisplayNames } from '../lib/dashboardColumns';
 import { TickerSearch } from './TickerSearch';
 import { useSession } from '../lib/SessionContext';
 
@@ -93,61 +94,18 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
     return calculateDashboardSummary(filteredHoldings, displayCurrency, exchangeRates, newPortMap, engine);
   }, [holdings, displayCurrency, exchangeRates, selectedPortfolioId, portfolios, loading, error, engine]);
 
-  // Default Columns
-  const defaultColumns = {
-    displayName: true,
-    ticker: true,
-    type: true,
-    sector: true,
-    qty: true,
-    avgCost: true,
-    costBasis: true,
-    currentPrice: true,
-    weight: true,
-    dayChangePct: true,
-    dayChangeVal: true,
-    mv: true,
-    unrealizedGain: true,
-    unrealizedGainPct: true,
-    realizedGain: true,
-    realizedGainPct: true,
-    realizedGainAfterTax: true,
-    totalGain: true,
-    totalGainPct: true,
-    valueAfterTax: true,
-  };
-
+  // Column Configuration
   const [columnVisibility, setColumnVisibility] = useState(() => {
     const saved = localStorage.getItem('columnVisibility');
-    return saved ? { ...defaultColumns, ...JSON.parse(saved) } : defaultColumns;
+    const defaults = getDefaultColumnVisibility();
+    return saved ? { ...defaults, ...JSON.parse(saved) } : defaults;
   });
 
   useEffect(() => {
     localStorage.setItem('columnVisibility', JSON.stringify(columnVisibility));
   }, [columnVisibility]);
 
-  const columnDisplayNames: Record<string, string> = {
-    displayName: t('Display Name', 'שם תצוגה'),
-    ticker: t('Ticker', 'סימול'),
-    type: t('Type', 'סוג'),
-    sector: t('Sector', 'סקטור'),
-    qty: t('Quantity', 'כמות'),
-    avgCost: t('Avg Unit Cost', 'עלות ממוצעת ליחידה'),
-    costBasis: t('Cost Basis', 'עלות מקורית'),
-    currentPrice: t('Current Unit Price', 'מחיר נוכחי ליחידה'),
-    weight: t('Weight', 'משקל'),
-    dayChangePct: t('Day Change %', '% שינוי יומי'),
-    dayChangeVal: t('Day Change $', 'שינוי יומי'),
-    mv: t('Market Value', 'שווי שוק'),
-    unrealizedGain: t('Unrealized Gain', 'רווח לא ממומש'),
-    unrealizedGainPct: t('Unrealized Gain %', '% רווח לא ממומש'),
-    realizedGain: t('Realized Gain', 'רווח ממומש'),
-    realizedGainPct: t('Realized Gain %', '% רווח ממומש'),
-    realizedGainAfterTax: t('Realized Gain After Tax', 'רווח ממומש לאחר מס'),
-    totalGain: t('Total Gain', 'רווח כולל'),
-    totalGainPct: t('Total Gain %', '% רווח כולל'),
-    valueAfterTax: t('Value After Tax', 'שווי אחרי מס'),
-  };
+  const columnDisplayNames = useMemo(() => getColumnDisplayNames(t), [t]);
 
   // Grouping Logic
   const groupedData = useMemo(() => {
