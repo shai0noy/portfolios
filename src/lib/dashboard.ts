@@ -40,7 +40,7 @@ export interface EnrichedDashboardHolding extends DashboardHolding {
   activeLots: Lot[];
   realizedLots: Lot[];
   transactions: Transaction[];
-  dividendHistory: DividendRecord[];
+  dividends: DividendRecord[];
 }
 
 // Re-export INITIAL_SUMMARY for consumers
@@ -198,7 +198,7 @@ export function calculateDashboardSummary(data: any[], displayCurrency: string, 
           activeLots: h.activeLots,
           realizedLots: h.realizedLots,
           transactions: h.transactions as Transaction[],
-          dividendHistory: h.dividends as DividendRecord[],
+          dividends: h.dividends as DividendRecord[],
           totalQty: h.qtyTotal, // Mapped from getter
           display 
         } as unknown as EnrichedDashboardHolding;

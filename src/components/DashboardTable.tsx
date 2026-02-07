@@ -5,7 +5,7 @@ import {
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import { formatNumber, formatValue, convertCurrency, formatPrice } from '../lib/currency';
+import { formatNumber, formatMoneyValue, formatMoneyPrice, convertCurrency, normalizeCurrency } from '../lib/currency';
 import { logIfFalsy } from '../lib/utils';
 import { useNavigate } from 'react-router-dom';
 import type { ExchangeRates } from '../lib/types';
@@ -119,37 +119,37 @@ export function DashboardTable(props: TableProps) {
         // Display in stock currency (e.g. Agorot for ILA)
         // h.display.avgCost is in Display Currency, so we convert it back to stock currency for display
         const avgCostSC = convertCurrency(h.display.avgCost, displayCurrency, h.stockCurrency, exchangeRates);
-        return <TableCell align="right">{formatPrice(avgCostSC, h.stockCurrency, 2, t)}</TableCell>;
+        return <TableCell align="right">{formatMoneyPrice({ amount: avgCostSC, currency: h.stockCurrency }, t)}</TableCell>;
       case 'costBasis':
-        return <TableCell align="right">{formatValue(vals.costBasis, displayCurrency, 2, t)}</TableCell>;
+        return <TableCell align="right">{formatMoneyValue({ amount: vals.costBasis, currency: normalizeCurrency(displayCurrency) }, t)}</TableCell>;
       case 'currentPrice':
-        return <TableCell align="right">{formatPrice(h.currentPrice, h.stockCurrency, 2, t)}</TableCell>;
+        return <TableCell align="right">{formatMoneyPrice({ amount: h.currentPrice, currency: h.stockCurrency }, t)}</TableCell>;
       case 'weight':
         return <TableCell align="right" sx={{ color: 'text.secondary' }}>{formatPct(groupByPortfolio ? vals.weightInPortfolio : vals.weightInGlobal)}</TableCell>;
       case 'dayChangeVal':
-        return <TableCell align="right" sx={{ color: vals.dayChangePct >= 0 ? theme.palette.success.main : theme.palette.error.main }}>{formatValue(vals.dayChangeVal, displayCurrency, 2, t)}</TableCell>;
+        return <TableCell align="right" sx={{ color: vals.dayChangePct >= 0 ? theme.palette.success.main : theme.palette.error.main }}>{formatMoneyValue({ amount: vals.dayChangeVal, currency: normalizeCurrency(displayCurrency) }, t)}</TableCell>;
       case 'dayChangePct':
         return <TableCell align="right" sx={{ color: vals.dayChangePct >= 0 ? theme.palette.success.main : theme.palette.error.main }}>{formatPct(vals.dayChangePct)}</TableCell>;
       case 'mv':
-        return <TableCell align="right">{formatValue(vals.marketValue, displayCurrency, 2, t)}</TableCell>;
+        return <TableCell align="right">{formatMoneyValue({ amount: vals.marketValue, currency: normalizeCurrency(displayCurrency) }, t)}</TableCell>;
       case 'unvestedValue':
-        return <TableCell align="right" sx={{ color: 'text.secondary' }}>{h.display.unvestedValue > 0 ? formatValue(h.display.unvestedValue, displayCurrency, 2, t) : '-'}</TableCell>;
+        return <TableCell align="right" sx={{ color: 'text.secondary' }}>{h.display.unvestedValue > 0 ? formatMoneyValue({ amount: h.display.unvestedValue, currency: normalizeCurrency(displayCurrency) }, t) : '-'}</TableCell>;
       case 'unrealizedGain':
-        return <TableCell align="right"><Typography variant="body2" color={vals.unrealizedGain >= 0 ? theme.palette.success.main : theme.palette.error.main}>{formatValue(vals.unrealizedGain, displayCurrency, 2, t)}</Typography></TableCell>;
+        return <TableCell align="right"><Typography variant="body2" color={vals.unrealizedGain >= 0 ? theme.palette.success.main : theme.palette.error.main}>{formatMoneyValue({ amount: vals.unrealizedGain, currency: normalizeCurrency(displayCurrency) }, t)}</Typography></TableCell>;
       case 'unrealizedGainPct':
         return <TableCell align="right" sx={{ color: 'text.secondary' }}>{formatPct(vals.unrealizedGainPct)}</TableCell>;
       case 'realizedGain':
-        return <TableCell align="right">{formatValue(vals.realizedGain, displayCurrency, 2, t)}</TableCell>;
+        return <TableCell align="right">{formatMoneyValue({ amount: vals.realizedGain, currency: normalizeCurrency(displayCurrency) }, t)}</TableCell>;
       case 'realizedGainPct':
         return <TableCell align="right" sx={{ color: 'text.secondary' }}>{formatPct(vals.realizedGainPct)}</TableCell>;
       case 'realizedGainAfterTax':
-        return <TableCell align="right">{formatValue(vals.realizedGainAfterTax, displayCurrency, 2, t)}</TableCell>;
+        return <TableCell align="right">{formatMoneyValue({ amount: vals.realizedGainAfterTax, currency: normalizeCurrency(displayCurrency) }, t)}</TableCell>;
       case 'totalGain':
-        return <TableCell align="right" sx={{ fontWeight: 'bold', color: vals.totalGain >= 0 ? theme.palette.success.main : theme.palette.error.main }}>{formatValue(vals.totalGain, displayCurrency, 2, t)}</TableCell>;
+        return <TableCell align="right" sx={{ fontWeight: 'bold', color: vals.totalGain >= 0 ? theme.palette.success.main : theme.palette.error.main }}>{formatMoneyValue({ amount: vals.totalGain, currency: normalizeCurrency(displayCurrency) }, t)}</TableCell>;
       case 'totalGainPct':
         return <TableCell align="right" sx={{ color: 'text.secondary' }}>{formatPct(vals.totalGainPct)}</TableCell>;
       case 'valueAfterTax':
-        return <TableCell align="right">{formatValue(vals.valueAfterTax, displayCurrency, 2, t)}</TableCell>;
+        return <TableCell align="right">{formatMoneyValue({ amount: vals.valueAfterTax, currency: normalizeCurrency(displayCurrency) }, t)}</TableCell>;
       default:
         return null;
     }
@@ -189,13 +189,13 @@ export function DashboardTable(props: TableProps) {
             </Box>
             <Box display="flex" alignItems="center" gap={2} flexWrap="wrap" pr={1}>
               <Typography variant="body2">
-                {t('Total:', 'סה"כ:')} {formatValue(groupSummary.totalMV, displayCurrency, 0, t)}
+                {t('Total:', 'סה"כ:')} {formatMoneyValue({ amount: groupSummary.totalMV, currency: normalizeCurrency(displayCurrency) }, t)}
               </Typography>
               <Typography variant="body2" color={groupSummary.totalDayChange >= 0 ? 'success.main' : 'error.main'}>
-                {t('Day:', 'יומי:')} {formatValue(groupSummary.totalDayChange, displayCurrency, 0, t)} ({formatPct(groupDayChangePct)})
+                {t('Day:', 'יומי:')} {formatMoneyValue({ amount: groupSummary.totalDayChange, currency: normalizeCurrency(displayCurrency) }, t)} ({formatPct(groupDayChangePct)})
               </Typography>
               <Typography variant="body2" color={groupSummary.totalUnrealizedGain >= 0 ? 'success.main' : 'error.main'}>
-                {t('Unrealized:', 'לא ממומש:')} {formatValue(groupSummary.totalUnrealizedGain, displayCurrency, 0, t)}
+                {t('Unrealized:', 'לא ממומש:')} {formatMoneyValue({ amount: groupSummary.totalUnrealizedGain, currency: normalizeCurrency(displayCurrency) }, t)}
               </Typography>
             </Box>
           </Box>

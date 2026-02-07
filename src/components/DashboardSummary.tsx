@@ -1,5 +1,5 @@
 import { Box, Paper, Typography, Grid, Tooltip, ToggleButton, ToggleButtonGroup, IconButton, CircularProgress, Button, Menu, MenuItem, Chip, ListItemIcon, Dialog, DialogTitle, DialogContent } from '@mui/material';
-import { formatPercent, formatValue, calculatePerformanceInDisplayCurrency } from '../lib/currency';
+import { formatPercent, formatMoneyValue, normalizeCurrency, calculatePerformanceInDisplayCurrency } from '../lib/currency';
 import { logIfFalsy } from '../lib/utils';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
@@ -66,7 +66,7 @@ const Stat = ({ label, value, pct, gainValue, gainLabel, color, tooltip, isMain 
               color={color || 'text.primary'}
               lineHeight={isSmall ? 1.2 : undefined}
           >
-              {formatValue(value, displayCurrency, isMain ? 0 : 2)}
+              {formatMoneyValue({ amount: value, currency: normalizeCurrency(displayCurrency) }, undefined)}
           </Typography>
           {(pct !== undefined && !isNaN(pct)) && (
               <Typography 
@@ -77,7 +77,7 @@ const Stat = ({ label, value, pct, gainValue, gainLabel, color, tooltip, isMain 
                   {gainValue !== undefined ? (
                       <>
                         {gainLabel && <span>{gainLabel}: </span>}
-                        {formatValue(gainValue, displayCurrency, 0)} ({pct > 0 ? '+' : ''}{formatPercent(pct)})
+                          {formatMoneyValue({ amount: gainValue, currency: normalizeCurrency(displayCurrency) }, undefined)} ({pct > 0 ? '+' : ''}{formatPercent(pct)})
                       </>
                   ) : (
                       <>{pct > 0 ? '+' : ''}{formatPercent(pct)}</>
@@ -208,7 +208,7 @@ const TopMovers = ({ holdings, displayCurrency, exchangeRates }: { holdings: Das
         </Tooltip>
         <Box textAlign="right" sx={{ ml: 1 }}>
             <Typography variant="body2" color={mover.change >= 0 ? 'success.main' : 'error.main'} noWrap>
-                {formatValue(mover.change, displayCurrency, 0)}
+                  {formatMoneyValue({ amount: mover.change, currency: normalizeCurrency(displayCurrency) }, undefined)}
                 <span style={{ fontSize: '0.75rem', marginLeft: '4px', opacity: 0.8 }}>
                     ({mover.pct > 0 ? '+' : ''}{formatPercent(mover.pct)})
                 </span>
@@ -439,7 +439,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
               {selectedPortfolio && (
                 <Typography variant="h5" fontWeight="bold" color="primary">{selectedPortfolio}</Typography>
               )}
-              <Typography variant="h4" fontWeight="bold" color="primary">{formatValue(summary.aum, displayCurrency, 0)}</Typography>
+                              <Typography variant="h4" fontWeight="bold" color="primary">{formatMoneyValue({ amount: summary.aum, currency: normalizeCurrency(displayCurrency) }, undefined)}</Typography>
             </Grid>
             <Grid item xs={12} md={9}>
               <Box display="flex" flexDirection="column" gap={2} alignItems="flex-end">
@@ -465,9 +465,9 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                         color={(summary.totalRealized + summary.totalDividends) >= 0 ? 'success.main' : 'error.main'}
                         tooltip={
                           <>
-                            {t("Trading", "מסחר")}: {formatValue(summary.totalRealized, displayCurrency, 0)}<br/>
-                            {t("Dividends", "דיבידנדים")}: {formatValue(summary.totalDividends, displayCurrency, 0)}<br/>
-                            {t("Realized gains after tax", "רווח ממומש לאחר מיסוי")}: {formatValue(summary.realizedGainAfterTax, displayCurrency, 0)}
+                                {t("Trading", "מסחר")}: {formatMoneyValue({ amount: summary.totalRealized, currency: normalizeCurrency(displayCurrency) }, undefined)}<br />
+                                {t("Dividends", "דיבידנדים")}: {formatMoneyValue({ amount: summary.totalDividends, currency: normalizeCurrency(displayCurrency) }, undefined)}<br />
+                                {t("Realized gains after tax", "רווח ממומש לאחר מיסוי")}: {formatMoneyValue({ amount: summary.realizedGainAfterTax, currency: normalizeCurrency(displayCurrency) }, undefined)}
                           </>
                         }
                         displayCurrency={displayCurrency}

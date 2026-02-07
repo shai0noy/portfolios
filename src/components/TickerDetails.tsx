@@ -14,7 +14,7 @@ import { useChartComparison, getAvailableRanges, getMaxLabel, SEARCH_OPTION_TICK
 import { useTickerDetails, type TickerDetailsProps } from '../lib/hooks/useTickerDetails';
 import { TickerSearch } from './TickerSearch';
 import { Exchange } from '../lib/types';
-import { formatPrice, formatPercent, normalizeCurrency, formatValue } from '../lib/currency';
+import { formatMoneyPrice, formatPercent, normalizeCurrency, formatMoneyValue } from '../lib/currency';
 import { AnalysisDialog } from './AnalysisDialog';
 import { HoldingDetails } from './HoldingDetails';
 import type { EnrichedDashboardHolding } from '../lib/dashboard';
@@ -156,7 +156,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   const isProvident = exchange?.toUpperCase() === Exchange.GEMEL || displayData?.exchange === Exchange.GEMEL || exchange?.toUpperCase() === Exchange.PENSION || displayData?.exchange === Exchange.PENSION;
   const price = displayData?.price;
   const openPrice = displayData?.openPrice;
-  const maxDecimals = (price != null && price % 1 !== 0) || (openPrice != null && openPrice % 1 !== 0) ? 2 : 0;
+  // const maxDecimals = (price != null && price % 1 !== 0) || (openPrice != null && openPrice % 1 !== 0) ? 2 : 0;
   const dayChange = perfData['1D']?.val || 0;
   const volData = formatVolume(displayData?.volume, displayData?.currency);
   const volumeDisplay = volData ? `${volData.text} ${volData.currency}` : null;
@@ -253,14 +253,14 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                 {!isProvident && (
                   <>
                     <Box display="flex" alignItems="baseline" justifyContent="flex-end" gap={1.5}>
-                      <Typography variant="h6" component="div" fontWeight={600}>{formatPrice(price || 0, isTase ? 'ILA' : (displayData?.currency || 'USD'), maxDecimals, t)}</Typography>
+                      <Typography variant="h6" component="div" fontWeight={600}>{formatMoneyPrice({ amount: price || 0, currency: normalizeCurrency(isTase ? 'ILA' : (displayData?.currency || 'USD')) }, t)}</Typography>
                       <Tooltip title={`${t('Day change', 'שינוי יומי')} (${lastUpdated})`} placement="top" enterTouchDelay={0} leaveTouchDelay={3000}>
                         <Typography variant="h6" sx={{ fontWeight: 700, color: dayChange >= 0 ? 'success.main' : 'error.main' }}>{formatPercent(dayChange)}</Typography>
                       </Tooltip>
                     </Box>
                     {(openPrice != null && openPrice !== 0 || data?.tradeTimeStatus || volumeDisplay) && (
                       <Box display="flex" alignItems="baseline" justifyContent="flex-end" gap={1} mt={0.25}>
-                        {openPrice != null && openPrice !== 0 && <Typography variant="caption" color="text.secondary">{t('Open:', 'פתיחה:')} {formatPrice(openPrice, isTase ? 'ILA' : (displayData?.currency || 'USD'), maxDecimals, t)}</Typography>}
+                        {openPrice != null && openPrice !== 0 && <Typography variant="caption" color="text.secondary">{t('Open:', 'פתיחה:')} {formatMoneyPrice({ amount: openPrice, currency: normalizeCurrency(isTase ? 'ILA' : (displayData?.currency || 'USD')) }, t)}</Typography>}
                         {openPrice != null && openPrice !== 0 && (data?.tradeTimeStatus || volumeDisplay) && <Typography variant="caption" color="text.secondary">|</Typography>}
                         {volumeDisplay && (
                           <>
@@ -364,7 +364,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                                       <>
                                         <Typography variant="caption" color="text.secondary">{translateRange(range)}</Typography>
                                         <Typography variant="body2" sx={{ fontWeight: 600, color: textColor }}>{formatPercent(value)}</Typography>
-                                        <Typography variant="caption" sx={{ fontSize: '0.7rem', opacity: 0.8 }}>{formatValue(info.amount, displayData?.currency || 'USD', 2)}</Typography>
+                                        <Typography variant="caption" sx={{ fontSize: '0.7rem', opacity: 0.8 }}>{formatMoneyValue({ amount: info.amount, currency: normalizeCurrency(displayData?.currency || 'USD') })}</Typography>
                                       </>
                                     }
                                   />

@@ -48,6 +48,9 @@ export interface Lot {
     realizedGainNet?: number; // Cached calc (Portfolio Currency)
     realizedTax?: number; // Cached measure of tax liability
     realizedTaxableGainILS?: number; // Specific for tax reporting
+
+    // Unrealized Tax (Active Lots)
+    unrealizedTax?: number; // Estimated tax liability in Portfolio Currency
 }
 
 export interface DividendRecord {
@@ -57,6 +60,12 @@ export interface DividendRecord {
     taxAmountPC: number;
     feeAmountPC: number;
     isTaxable: boolean;
+    // New breakdown fields
+    unitsHeld: number;
+    pricePerUnit: number; // Gross Dividend per share
+    cashedAmount: number; // Net PC
+    reinvestedAmount: number; // Net PC
+    isReinvested: boolean;
 }
 
 // --- Helpers ---

@@ -131,6 +131,7 @@ export function formatNumber(n: number | undefined | null): string {
   return LTR_MARK + n.toLocaleString(undefined, options);
 }
 
+/** @deprecated Use formatMoneyValue instead to ensure type safety */
 export function formatValue(n: number, currency: string | Currency, decimals = 2, _t?: (key: string, fallback: string) => string): string {
   if (n === undefined || n === null || isNaN(n)) return '-';
   let norm = normalizeCurrency(currency as string);
@@ -164,6 +165,7 @@ export function formatPercent(n: number): string {
   return LTR_MARK + formatter.format(n);
 }
 
+/** @deprecated Use formatMoneyPrice instead to ensure type safety */
 export function formatPrice(n: number, currency: string | Currency, decimals = 2, t?: (key: string, fallback: string) => string): string {
     if (n === undefined || n === null || isNaN(n)) return '-';
     
@@ -192,6 +194,13 @@ export function formatPrice(n: number, currency: string | Currency, decimals = 2
 
 // Helpers for SimpleMoney
 import type { SimpleMoney } from './types';
+
+export function convertMoney(money: SimpleMoney | undefined, targetCurrency: string | Currency, rates: ExchangeRates | undefined): SimpleMoney {
+  const target = normalizeCurrency(targetCurrency as string);
+  if (!money) return { amount: 0, currency: target };
+  const amount = convertCurrency(money.amount, money.currency, target, rates);
+  return { amount, currency: target };
+}
 
 export function formatMoneyValue(m: SimpleMoney | undefined, t?: any): string {
   if (!m) return '-';

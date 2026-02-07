@@ -117,9 +117,12 @@ export class FinanceEngine {
                 // Apply to ALL holdings matching ticker/exchange that have quantity
                 this.holdings.forEach(h => {
                     if (h.ticker === d.ticker && h.exchange === d.exchange) {
-                        const qty = h.qtyTotal; // Vested + Unvested
-                        if (qty > 0) {
-                            const grossSC = qty * d.amount;
+                        // FIX: Calculate quantity breakdown at Date
+                        const { vested, unvested } = this.getQtyBreakdownAtDate(h, d.date);
+                        const totalQty = vested + unvested;
+
+                        if (totalQty > 0) {
+                            const grossSC = totalQty * d.amount;
                             const p = this.portfolios.get(h.portfolioId);
                             let divFeeRate = 0;
                             if (p) {
@@ -156,7 +159,13 @@ export class FinanceEngine {
                                 netAmountPC: netPC,
                                 taxAmountPC,
                                 feeAmountPC: feePC,
-                                isTaxable: true
+                                isTaxable: true,
+                                // New breakdown
+                                unitsHeld: totalQty,
+                                pricePerUnit: d.amount,
+                                cashedAmount: totalQty > 0 ? netPC * (vested / totalQty) : 0,
+                                reinvestedAmount: totalQty > 0 ? netPC * (unvested / totalQty) : 0,
+                                isReinvested: unvested > 0
                             };
 
                             h.addDividend(divRecord);
@@ -306,21 +315,30 @@ export class FinanceEngine {
     }
 
     private getQuantityAtDate(h: Holding, date: Date): number {
+        const { vested, unvested } = this.getQtyBreakdownAtDate(h, date);
+        return vested + unvested;
+    }
+
+    private getQtyBreakdownAtDate(h: Holding, date: Date): { vested: number, unvested: number } {
         const time = date.getTime();
-        // Since Holding stores original transactions in `transactions`, we can replay them.
-        let qty = 0;
-        // BUT `addTransaction` logic handles Splits/Vesting/etc.
-        // It's safer to use the simplifed transaction log which has `postTxnQty...`?
-        // Wait, `model.ts` `addTransaction` pushes RAW transactions. It DOES NOT enrich them with `postTxnQty`.
-        // So we can't easily query `postTxnQty`.
-        // We have to iterate raw txns and sum BUY/SELL.
+        let vested = 0;
+        let unvested = 0;
 
         for (const t of h.transactions) {
             if (new Date(t.date).getTime() > time) continue;
-            if (t.type === 'BUY') qty += (t.qty || 0);
-            if (t.type === 'SELL') qty -= (t.qty || 0);
+
+            if (t.type === 'BUY') {
+                const qty = t.qty || 0;
+                const isVested = !t.vestDate || new Date(t.vestDate).getTime() <= time;
+                if (isVested) vested += qty;
+                else unvested += qty;
+            }
+            if (t.type === 'SELL') {
+                // assume sells come from vested
+                vested -= (t.qty || 0);
+            }
         }
-        return Math.max(0, qty);
+        return { vested: Math.max(0, vested), unvested: Math.max(0, unvested) };
     }
 
     public calculateSnapshot() {
@@ -445,6 +463,10 @@ export class FinanceEngine {
                      }
                      totalTaxableGainILS += taxableILS;
                      totalWealthTaxILS += (costILS + feesILS) * incTax;
+
+                    // Per-Lot Tax Liability (stored in Portfolio Currency)
+                    const lotTaxLiabilityILS = Math.max(0, taxableILS) * cgt + ((costILS + feesILS) * incTax);
+                    lot.unrealizedTax = convertCurrency(lotTaxLiabilityILS, Currency.ILS, h.portfolioCurrency, this.exchangeRates);
                  });
 
                 h.unrealizedTaxableGainILS = totalTaxableGainILS;
