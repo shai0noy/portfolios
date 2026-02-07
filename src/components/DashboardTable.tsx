@@ -117,8 +117,8 @@ export function DashboardTable(props: TableProps) {
         return <TableCell align="right">{formatNumber(h.totalQty)}</TableCell>;
       case 'avgCost':
         // Display in stock currency (e.g. Agorot for ILA)
-        // h.avgCost is in Display Currency (converted in dashboard.ts), so we convert it back to stock currency for display
-        const avgCostSC = convertCurrency(h.avgCost, displayCurrency, h.stockCurrency, exchangeRates);
+        // h.display.avgCost is in Display Currency, so we convert it back to stock currency for display
+        const avgCostSC = convertCurrency(h.display.avgCost, displayCurrency, h.stockCurrency, exchangeRates);
         return <TableCell align="right">{formatPrice(avgCostSC, h.stockCurrency, 2, t)}</TableCell>;
       case 'costBasis':
         return <TableCell align="right">{formatValue(vals.costBasis, displayCurrency, 2, t)}</TableCell>;

@@ -179,6 +179,7 @@ export interface ExchangeRates {
 }
 
 export interface DashboardHolding {
+  id: string; // Added to match Holding
   key: string;
   portfolioId: string;
   portfolioName: string;
@@ -191,62 +192,52 @@ export interface DashboardHolding {
   qtyVested: number;
   qtyUnvested: number;
   totalQty: number;
-  currentPrice: number; // ALWAYS in Major Unit (e.g. ILS, USD)
+  currentPrice: number; // ALWAYS in Major Unit
   stockCurrency: Currency;
 
-  // Values in Portfolio Base Currency
-  costBasisPortfolioCurrency: number;
-  costOfSoldPortfolioCurrency: number;
-  proceedsPortfolioCurrency: number;
-  dividendsPortfolioCurrency: number;
-  unrealizedGainPortfolioCurrency: number;
-  realizedGainPortfolioCurrency: number;
-  totalGainPortfolioCurrency: number;
-  marketValuePortfolioCurrency: number;
-  dayChangeValuePortfolioCurrency: number;
-  totalFeesPortfolioCurrency: number;
+  // SimpleMoney Fields (Matching Holding where possible)
+  costBasisVested: SimpleMoney; // Portfolio Currency
+  costOfSoldTotal: SimpleMoney;
+  proceedsTotal: SimpleMoney;
+  dividendsTotal: SimpleMoney; // Net/Gross? Net usually.
+  unrealizedGain: SimpleMoney; // Gross, PC
+  realizedGainNet: SimpleMoney; // Net, PC
+  feesTotal: SimpleMoney;
 
-  // Values in Stock Currency (Major Unit)
-  costBasisStockCurrency: number;
-  costOfSoldStockCurrency: number;
-  proceedsStockCurrency: number;
-  dividendsStockCurrency: number;
+  // Market Value in Stock Currency (from Holding)
+  marketValueVested: SimpleMoney;
+  marketValueUnvested: SimpleMoney;
 
-  // Historical Accumulators
-  costBasisUSD: number;
-  costOfSoldUSD: number;
-  proceedsUSD: number;
-  dividendsUSD: number;
-  realizedGainUSD: number;
-  costBasisILS: number;
-  costOfSoldILS: number;
-  proceedsILS: number;
-  dividendsILS: number;
-  realizedGainILS: number;
-  realizedTaxableGainILS: number; // For ILS-based Tax Calculation
-  realizedTaxLiabilityILS: number; // Accumulated tax liability
-  unrealizedTaxableGainILS: number; // For ILS-based Tax Calculation
+  // Tax
+  realizedTax: number;
+  unrealizedTaxLiabilityILS: number;
+  unrealizedTaxableGainILS: number;
 
-  // Display fields
-  avgCost: number;
-  mvVested: number;
-  mvUnvested: number;
-  totalMV: number;
-  realizedGain: number;
-  realizedTaxableGain: number; // For REAL_GAIN policy
-  realizedGainPct: number;
-  realizedGainAfterTax: number;
-  dividends: number;
-  unrealizedGain: number;
-  unrealizedTaxableGain: number; // For REAL_GAIN policy
-  unrealizedGainPct: number;
-  totalGain: number;
-  totalGainPct: number;
-  valueAfterTax: number;
-  dayChangeVal: number;
-  weightedAvgCPI?: number; // For ILS real gain calc
+  // Display fields (Calculated in dashboard.ts)
+  display: {
+    marketValue: number;
+    unrealizedGain: number;
+    unrealizedGainPct: number;
+    realizedGain: number;
+    realizedGainPct: number;
+    realizedGainAfterTax: number;
+    totalGain: number;
+    totalGainPct: number;
+    valueAfterTax: number;
+    dayChangeVal: number; // Display Currency
+    dayChangePct: number;
+    costBasis: number;
+    costOfSold: number;
+    proceeds: number;
+    dividends: number;
+    currentPrice: number;
+    avgCost: number; // Display Currency
+    weightInPortfolio: number;
+    weightInGlobal: number;
+    unvestedValue: number;
+  };
 
-  sector: string;
+  sector?: string;
   dayChangePct: number;
   perf1w: number;
   perf1m: number;

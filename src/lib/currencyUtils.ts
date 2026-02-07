@@ -1,6 +1,6 @@
 
 import { Currency } from './types';
-import type { ExchangeRates, DashboardHolding } from './types';
+import type { ExchangeRates } from './types';
 
 // Unicode Left-to-Right Mark (LRM).
 const LTR_MARK = '\u200E';
@@ -118,69 +118,7 @@ export const calculatePerformanceInDisplayCurrency = (
   return { changeVal: changeValDisplay, changePct1d: changePctDisplay };
 };
 
-export const calculateHoldingDisplayValues = (h: DashboardHolding, displayCurrency: string, exchangeRates: ExchangeRates) => {
-    const normDisplay = normalizeCurrency(displayCurrency);
-    const convert = (val: number, from: Currency) => convertCurrency(val, from, normDisplay, exchangeRates);
-    
-    let costBasis = 0;
-    let costOfSold = 0;
-    let proceeds = 0;
-    let dividends = 0;
 
-    const normStock = h.stockCurrency; 
-
-    costBasis = convert(h.costBasisPortfolioCurrency, h.portfolioCurrency);
-    costOfSold = convert(h.costOfSoldPortfolioCurrency, h.portfolioCurrency);
-    proceeds = convert(h.proceedsPortfolioCurrency, h.portfolioCurrency);
-    dividends = convert(h.dividendsPortfolioCurrency, h.portfolioCurrency);
-
-    if (normDisplay === Currency.USD) {
-        if (h.portfolioCurrency === Currency.USD || h.costBasisUSD !== 0 || h.proceedsUSD !== 0 || h.dividendsUSD !== 0) {
-            costBasis = h.costBasisUSD;
-            costOfSold = h.costOfSoldUSD;
-            proceeds = h.proceedsUSD;
-            dividends = h.dividendsUSD;
-        }
-    } else if (normDisplay === Currency.ILS) {
-        if (h.portfolioCurrency === Currency.ILS || h.costBasisILS !== 0 || h.proceedsILS !== 0 || h.dividendsILS !== 0) {
-            costBasis = h.costBasisILS;
-            costOfSold = h.costOfSoldILS;
-            proceeds = h.proceedsILS;
-            dividends = h.dividendsILS;
-        }
-    } else if (normDisplay === normStock && (h.costBasisStockCurrency > 0 || h.qtyVested + h.qtyUnvested > 0)) {
-        costBasis = h.costBasisStockCurrency;
-        costOfSold = h.costOfSoldStockCurrency;
-        proceeds = h.proceedsStockCurrency;
-        dividends = h.dividendsStockCurrency;
-    }
-
-    const marketValue = convert(h.marketValuePortfolioCurrency, h.portfolioCurrency);
-    
-    const unrealizedGain = marketValue - costBasis;
-    const unrealizedGainPct = costBasis > 1e-6 ? unrealizedGain / costBasis : 0;
-    
-    const realizedGain = proceeds - costOfSold;
-    const realizedGainPct = costOfSold > 1e-6 ? realizedGain / costOfSold : 0;
-    const realizedGainAfterTax = convert(h.realizedGainAfterTax, h.portfolioCurrency);
-
-    const totalGain = unrealizedGain + realizedGain + dividends;
-    const totalGainPct = (costBasis + costOfSold) > 1e-6 ? totalGain / (costBasis + costOfSold) : 0;
-    
-    const valueAfterTax = convert(h.valueAfterTax, h.portfolioCurrency);
-
-    return {
-        costBasis,
-        costOfSold,
-        proceeds,
-        marketValue,
-        unrealizedGain, unrealizedGainPct,
-        realizedGain, realizedGainPct, realizedGainAfterTax,
-        totalGain, totalGainPct,
-        valueAfterTax,
-        dividends
-    };
-};
 
 export function formatNumber(n: number | undefined | null): string {
   if (n === undefined || n === null || isNaN(n)) return '-';
@@ -250,4 +188,18 @@ export function formatPrice(n: number, currency: string | Currency, decimals = 2
         const val = n.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals, useGrouping: false });
         return `${LTR_MARK}${val} ${norm}`;
     }
+}
+
+// Helpers for SimpleMoney
+import type { SimpleMoney } from './types';
+
+export function formatMoneyValue(m: SimpleMoney | undefined, t?: any): string {
+  if (!m) return '-';
+  // Use formatValue default
+  return formatValue(m.amount, m.currency, 2, t);
+}
+
+export function formatMoneyPrice(m: SimpleMoney | undefined, t?: any): string {
+  if (!m) return '-';
+  return formatPrice(m.amount, m.currency, 2, t);
 }

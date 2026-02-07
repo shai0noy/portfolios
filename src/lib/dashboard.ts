@@ -200,7 +200,6 @@ export function calculateDashboardSummary(data: any[], displayCurrency: string, 
           transactions: h.transactions as Transaction[],
           dividendHistory: h.dividends as DividendRecord[],
           totalQty: h.qtyTotal, // Mapped from getter
-          avgCost: h.qtyVested > 0 ? h.costBasisVested.amount / h.qtyVested : 0,   // Calculated
           display 
         } as unknown as EnrichedDashboardHolding;
     });

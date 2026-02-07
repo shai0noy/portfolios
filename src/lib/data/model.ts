@@ -141,6 +141,13 @@ export class Holding {
     // Market Data (Mutable)
     public currentPrice: number = 0;
     public dayChangePct: number = 0;
+    public perf1w: number = 0;
+    public perf1m: number = 0;
+    public perf3m: number = 0;
+    public perfYtd: number = 0;
+    public perf1y: number = 0;
+    public perf3y: number = 0;
+    public perf5y: number = 0;
 
     // Quantities
     public qtyVested: number;

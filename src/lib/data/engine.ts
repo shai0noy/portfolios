@@ -216,6 +216,13 @@ export class FinanceEngine {
                     h.currentPrice = finalPrice;
                 }
                 if (live.changePct1d !== undefined) h.dayChangePct = live.changePct1d;
+                if (live.perf1w !== undefined) h.perf1w = live.perf1w;
+                if (live.perf1m !== undefined) h.perf1m = live.perf1m;
+                if (live.perf3m !== undefined) h.perf3m = live.perf3m;
+                if (live.perfYtd !== undefined) h.perfYtd = live.perfYtd;
+                if (live.perf1y !== undefined) h.perf1y = live.perf1y;
+                if (live.perf3y !== undefined) h.perf3y = live.perf3y;
+                if (live.perf5y !== undefined) h.perf5y = live.perf5y;
                 if (live.name) {
                     h.marketName = live.name;
                     // Dont override name if customName exists?
