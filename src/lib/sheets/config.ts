@@ -1,4 +1,4 @@
-import type { Portfolio, Transaction, Holding } from '../types';
+import type { Portfolio, Transaction, SheetHolding as FullSheetHolding } from '../types';
 import type { TransactionColumns } from './types'; // Import from a new local types file
 import { getHistoricalPriceFormula } from './formulas';
 
@@ -177,7 +177,7 @@ export const portfolioMapping: Record<keyof Omit<Portfolio, 'holdings'>, typeof 
 export const portfolioNumericKeys: (keyof Omit<Portfolio, 'holdings'>)[] = ['cgt', 'incTax', 'mgmtVal', 'commRate', 'commMin', 'commMax', 'divCommRate'];
 
 // Define a type for the part of Holding that is mapped from the sheet
-export type SheetHolding = Omit<Holding, 'portfolioId' | 'changeDate1d' | 'changeDateRecent' | 'changeDate1m' | 'changeDate3m' | 'changeDateYtd' | 'changeDate1y' | 'changeDate3y' | 'changeDate5y' | 'changePctMax' | 'changeDateMax' | 'changeDate10y' | 'meta' | 'openPrice' | 'volume' | 'subSector' | 'taseType' | 'globesTypeHe' | 'providentInfo'>;
+export type SheetHolding = Omit<FullSheetHolding, 'portfolioId' | 'changeDate1d' | 'changeDateRecent' | 'changeDate1m' | 'changeDate3m' | 'changeDateYtd' | 'changeDate1y' | 'changeDate3y' | 'changeDate5y' | 'changePctMax' | 'changeDateMax' | 'changeDate10y' | 'meta' | 'openPrice' | 'volume' | 'subSector' | 'taseType' | 'globesTypeHe' | 'providentInfo'>;
 
 export const holdingMapping: Record<keyof SheetHolding, typeof holdingsHeaders[number]> = {
     ticker: 'Ticker', exchange: 'Exchange', qty: 'Quantity',

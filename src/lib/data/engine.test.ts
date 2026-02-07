@@ -30,6 +30,7 @@ const portfolio: Portfolio = {
 };
 
 describe('FinanceEngine', () => {
+
     it('calculates dividend fees based on history', () => {
         const engine = new FinanceEngine([portfolio], mockRates as any, mockCPI as any);
         
@@ -40,10 +41,10 @@ describe('FinanceEngine', () => {
         };
         
         // Div in 2023 (10% fee)
-        const div1: DividendEvent = { date: '2023-06-01', ticker: 'AAPL', exchange: Exchange.NASDAQ, amount: 1, source: 'TEST' };
+        const div1: DividendEvent = { date: new Date('2023-06-01'), ticker: 'AAPL', exchange: Exchange.NASDAQ, amount: 1, source: 'TEST' };
         
         // Div in 2024 (5% fee)
-        const div2: DividendEvent = { date: '2024-06-01', ticker: 'AAPL', exchange: Exchange.NASDAQ, amount: 1, source: 'TEST' };
+        const div2: DividendEvent = { date: new Date('2024-06-01'), ticker: 'AAPL', exchange: Exchange.NASDAQ, amount: 1, source: 'TEST' };
 
         engine.processEvents([buy], [div1, div2]);
         
@@ -53,8 +54,13 @@ describe('FinanceEngine', () => {
         // Div 1: 10 shares * $1 = $10. Fee 10% = $1.
         // Div 2: 10 shares * $1 = $10. Fee 5% = $0.5.
         // Total Fee: $1.5
-        expect(h!.totalFeesPortfolioCurrency).toBeCloseTo(1.5);
-        expect(h!.dividendsUSD).toBe(20); 
+        // Total Dividends (Net): (10 - 1 - 2.5) + (10 - 0.5 - 2.5) = 6.5 + 7.0 = 13.5
+
+        const totalDivFees = h!.dividends.reduce((acc, d) => acc + d.feeAmountPC, 0);
+        expect(totalDivFees).toBeCloseTo(1.5);
+
+        const totalDivsNet = h!.dividendsTotal;
+        expect(totalDivsNet).toBeCloseTo(13.5);
     });
 
     it('calculates real gain tax with inflation', () => {
@@ -84,9 +90,15 @@ describe('FinanceEngine', () => {
         
         const h = engine.holdings.get('p2_TA35');
         expect(h).toBeDefined();
-        expect(h!.realizedGainPortfolioCurrency).toBeCloseTo(10); // Nominal
-        expect(h!.realizedTaxableGain).toBeCloseTo(9); // Real
-        expect(h!.realizedTaxLiabilityILS).toBeCloseTo(2.25);
+        expect(h!.realizedGainNet).toBeCloseTo(10); // Nominal Net Gain (no fees) matches Nominal Gain here
+
+        // Verify via Realized Lots
+        expect(h!.realizedLots.length).toBe(1);
+        const lot = h!.realizedLots[0];
+
+        expect(lot.realizedTaxableGainILS).toBeCloseTo(9); // Real
+        expect(lot.realizedTax).toBeCloseTo(2.25);
+        expect(h!.realizedTax).toBeCloseTo(2.25);
     });
 
     it('allocates buy fees on sell and reduces unallocated fees', () => {
@@ -104,31 +116,93 @@ describe('FinanceEngine', () => {
             qty: 10, price: 100, originalQty: 10, originalPrice: 100, currency: Currency.USD, commission: 20
         };
         
-        // Total Qty: 20. Total Fees Paid: $30. Unallocated: $30.
-        // Avg Fee per share: $30 / 20 = $1.5.
+        // Total Qty: 20. Total Fees Paid: $30.
+        // Lots:
+        // L1: 10 units, Fee $10. ($1/unit)
+        // L2: 10 units, Fee $20. ($2/unit)
 
-        // Sell 5 shares.
+        // Sell 5 shares. FIFO -> Sold from L1.
         const sell: Transaction = {
             date: '2023-01-03', type: 'SELL', portfolioId: 'p1', ticker: 'FEE', exchange: Exchange.NASDAQ,
             qty: 5, price: 150, originalQty: 5, originalPrice: 150, currency: Currency.USD, commission: 5
         };
         // Sell Comm: $5.
-        // Allocated Buy Comm: 5 * $1.5 = $7.5.
-        // Total Transaction Cost: $5 (Sell) + $7.5 (Buy) = $12.5.
-        // Gross Gain: 5 * (150 - 100) = $250.
-        // Net Gain: 250 - 12.5 = $237.5.
+        // Allocated Buy Comm: 5 units from L1 * $1 = $5.
+        // Net Gain = (5 * 150) - (5 * 100) - 5 (BuyFee) - 5 (SellFee) = 750 - 500 - 10 = 240.
 
         engine.processEvents([buy1, buy2, sell], []);
         
         const h = engine.holdings.get('p1_FEE');
         expect(h).toBeDefined();
-        expect(h!.feesBuyPortfolioCurrency).toBe(30); // Total accumulated
-        expect(h!.feesSellPortfolioCurrency).toBe(5);
-        expect(h!.unallocatedBuyFeesPC).toBe(22.5); // 30 - 7.5
-        
-        const txn = engine.transactions.find(t => t.type === 'SELL');
-        expect(txn).toBeDefined();
-        expect(txn!.allocatedBuyFeePC).toBe(7.5);
-        expect(txn!.netGainPC).toBe(237.5);
+
+        // Total Fees on Holding (Active + Realized) = $10 + $20 + $5 = $35.
+        // Active Lots Fees:
+        // L1 Remainder (5 units): $5.
+        // L2 (10 units): $20.
+        // Total Active Buy Fees: $25.
+        // Realized Buy Fees: $5.
+        // Realized Sell Fees: $5.
+
+        const feesActive = h!.activeLots.reduce((acc, l) => acc + l.feesBuy.amount, 0);
+        expect(feesActive).toBe(25);
+
+        const feesRealized = h!.realizedFees; // Includes Buy Fees of realized lots + Sell Fees
+        // Realized Fees = 5 (Buy) + 5 (Sell) = 10.
+        expect(feesRealized).toBe(10);
+
+        expect(h!.feesTotal).toBe(35);
+
+        // Check specifics on the realized lot
+        expect(h!.realizedLots.length).toBe(1);
+        const l = h!.realizedLots[0];
+        expect(l.feesBuy.amount).toBe(5);
+        expect(l.soldFees!.amount).toBe(5);
+        expect(l.realizedGainNet).toBe(240);
+    });
+
+    it('handles standard lifecycle: Buy, Dividend, Partial Sell', () => {
+        const engine = new FinanceEngine([portfolio], mockRates as any, mockCPI as any);
+
+        const buy: Transaction = {
+            portfolioId: 'p1', date: '2023-01-01', type: 'BUY', ticker: 'AAPL', exchange: Exchange.NASDAQ,
+            originalQty: 10, qty: 10, originalPrice: 150, price: 150, currency: Currency.USD, commission: 5
+        };
+
+        const sell: Transaction = {
+            portfolioId: 'p1', date: '2023-06-01', type: 'SELL', ticker: 'AAPL', exchange: Exchange.NASDAQ,
+            originalQty: 5, qty: 5, originalPrice: 180, price: 180, currency: Currency.USD, commission: 5
+        };
+
+        const div: DividendEvent = {
+            ticker: 'AAPL', exchange: Exchange.NASDAQ, date: new Date('2023-03-01'), amount: 0.23, source: 'TEST'
+        };
+
+        engine.processEvents([buy, sell], [div]);
+
+        const h = engine.holdings.get('p1_AAPL');
+        expect(h).toBeDefined();
+
+        // 1. Check Active Lots
+        // Bought 10, Sold 5. Remaining 5.
+        expect(h!.activeLots.length).toBe(1);
+        expect(h!.activeLots[0].qty).toBe(5);
+
+        // 2. Check Realized Lots
+        // Sold 5.
+        expect(h!.realizedLots.length).toBe(1);
+        expect(h!.realizedLots[0].qty).toBe(5);
+
+        // 3. Check Dividend
+        // 10 shares held at dividend date. 10 * 0.23 = 2.3.
+        expect(h!.dividends.length).toBe(1);
+        expect(h!.dividends[0].grossAmount.amount).toBeCloseTo(2.3);
+
+        // 4. Check Realized Gain
+        // Proceeds: 5 * 180 = 900.
+        // Cost: 5 * 150 = 750.
+        // Buy Fee (Allocated): (5/10) * 5 = 2.5.
+        // Sell Fee: 5.
+        // Net Gain = 900 - 750 - 2.5 - 5 = 142.5.
+        expect(h!.realizedGainNet).toBeCloseTo(142.5);
     });
 });

@@ -19,7 +19,8 @@ import { AnalysisDialog } from './AnalysisDialog';
 import { HoldingDetails } from './HoldingDetails';
 import type { EnrichedDashboardHolding } from '../lib/dashboard';
 import { loadFinanceEngine } from '../lib/data/loader';
-import type { UnifiedHolding } from '../lib/data/model';
+import type { Holding } from '../lib/data/model';
+
 
 const formatDate = (timestamp?: Date | string | number | null) => {
   if (!timestamp) return 'N/A';
@@ -35,6 +36,8 @@ const formatTimestamp = (timestamp?: Date | string | number | null) => {
   const dateStr = formatDate(date);
   return isToday ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : `${dateStr} ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
 };
+
+
 
 export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExchange, numericId: propNumericId, initialName: propInitialName, initialNameHe: propInitialNameHe, onClose, portfolios = [], isPortfoliosLoading = false }: TickerDetailsProps) {
   const { t, tTry } = useLanguage();
@@ -55,7 +58,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   const [compareMenuAnchor, setCompareMenuAnchor] = useState<null | HTMLElement>(null);
   const [analysisOpen, setAnalysisOpen] = useState(false);
   const [activeTab, setActiveTab] = useState(0);
-  const [engineHoldings, setEngineHoldings] = useState<UnifiedHolding[]>([]);
+  const [engineHoldings, setEngineHoldings] = useState<Holding[]>([]);
 
   // Resolve the "Active Holding" - from navigation state (enriched) or hook
   const enrichedHolding = useMemo(() => {
@@ -67,8 +70,8 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   useEffect(() => {
     if (ownedInPortfolios && ownedInPortfolios.length > 0) {
       loadFinanceEngine(sheetId).then(eng => {
-        const matches: UnifiedHolding[] = [];
-        eng.holdings.forEach(h => {
+        const matches: Holding[] = []; // UnifiedHolding was Holding | SheetHolding, but Engine only has Holding
+        eng.holdings.forEach((h: Holding) => {
           if (h.ticker === ticker && (h.exchange === exchange || !exchange)) {
             matches.push(h);
           }
@@ -390,7 +393,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                             <HoldingDetails
                             sheetId={sheetId}
                             holding={(enrichedHolding || (engineHoldings && engineHoldings[0]) || holdingData)! as any}
-                            holdings={engineHoldings && engineHoldings.length > 0 ? engineHoldings : (enrichedHolding ? [enrichedHolding as unknown as UnifiedHolding] : undefined)}
+                          holdings={engineHoldings && engineHoldings.length > 0 ? engineHoldings as any[] : (enrichedHolding ? [enrichedHolding] : undefined)}
                             displayCurrency={normalizeCurrency(localStorage.getItem('displayCurrency') || 'USD')}
                             portfolios={portfolios}
                             onPortfolioClick={handlePortfolioClick}

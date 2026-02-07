@@ -2,12 +2,12 @@
 import { ensureGapi, findSpreadsheetByName } from '../google';
 import { getTickerData, type TickerData } from '../fetching';
 import { toGoogleSheetDateFormat } from '../date';
-import { type Portfolio, type Transaction, type Holding, Exchange, parseExchange, toGoogleSheetsExchangeCode, Currency } from '../types';
+import { type Portfolio, type Transaction, type SheetHolding, Exchange, parseExchange, toGoogleSheetsExchangeCode, Currency } from '../types';
 import { normalizeCurrency } from '../currency';
 import {
     TXN_COLS, transactionHeaders, transactionMapping, transactionNumericKeys,
     portfolioHeaders, holdingsHeaders, configHeaders, portfolioMapping, portfolioNumericKeys,
-    holdingMapping, holdingNumericKeys, type Headers, DEFAULT_SHEET_NAME, PORT_OPT_RANGE, type SheetHolding,
+    holdingMapping, holdingNumericKeys, type Headers, DEFAULT_SHEET_NAME, PORT_OPT_RANGE, type SheetHolding as MappedSheetHolding,
     TX_SHEET_NAME, TX_FETCH_RANGE, CONFIG_SHEET_NAME, CONFIG_RANGE, METADATA_SHEET, 
     metadataHeaders, METADATA_RANGE, HOLDINGS_SHEET, HOLDINGS_RANGE, SHEET_STRUCTURE_VERSION_DATE,
     EXTERNAL_DATASETS_SHEET_NAME, externalDatasetsHeaders, EXTERNAL_DATASETS_RANGE,
@@ -171,7 +171,7 @@ export const ensureSchema = withAuthHandling(async (spreadsheetId: string) => {
     await setMetadataValue(spreadsheetId, 'schema_created', SHEET_STRUCTURE_VERSION_DATE);
 });
 
-export const fetchHolding = withAuthHandling(async (spreadsheetId: string, ticker: string, exchange: string): Promise<Holding | null> => {
+export const fetchHolding = withAuthHandling(async (spreadsheetId: string, ticker: string, exchange: string): Promise<SheetHolding | null> => {
     const gapi = await ensureGapi();
     try {
         const res = await gapi.client.sheets.spreadsheets.values.get({
@@ -183,8 +183,8 @@ export const fetchHolding = withAuthHandling(async (spreadsheetId: string, ticke
 
         // Map all rows to objects, parsing the exchange string into our enum
         const allHoldings = rows.map(row => {
-            const holdingRaw = mapRowToHolding<SheetHolding>(row, holdingMapping, holdingNumericKeys);
-            const holding = holdingRaw as Holding;
+            const holdingRaw = mapRowToHolding<MappedSheetHolding>(row, holdingMapping, holdingNumericKeys);
+            const holding = holdingRaw as SheetHolding;
             try {
                 if (holding.exchange) {
                     holding.exchange = parseExchange(String(holding.exchange));
@@ -216,7 +216,7 @@ export const fetchHolding = withAuthHandling(async (spreadsheetId: string, ticke
 
         if (holding) {
             // Convert date fields from strings/numbers to Date objects
-            const dateKeys: (keyof Holding)[] = ['changeDate1d', 'changeDateRecent', 'changeDate1m', 'changeDate3m', 'changeDateYtd', 'changeDate1y', 'changeDate3y', 'changeDate5y', 'changeDate10y'];
+            const dateKeys: (keyof SheetHolding)[] = ['changeDate1d', 'changeDateRecent', 'changeDate1m', 'changeDate3m', 'changeDateYtd', 'changeDate1y', 'changeDate3y', 'changeDate5y', 'changeDate10y'];
             dateKeys.forEach(key => {
                 const val = holding![key];
                 if (val && !(val instanceof Date)) {
@@ -304,7 +304,7 @@ export const fetchPortfolios = withAuthHandling(async (spreadsheetId: string): P
     // 3. Process Holdings (for price map)
     const priceMap: Record<string, Omit<SheetHolding, 'qty'>> = {};
     const priceData = holdingsRows.map((row: unknown[]) =>
-        mapRowToHolding<Omit<SheetHolding, 'qty'>>(
+        mapRowToHolding<Omit<MappedSheetHolding, 'qty'>>(
             row as any[],
             holdingMapping,
             holdingNumericKeys.filter(k => k !== 'qty') as any
@@ -331,7 +331,7 @@ export const fetchPortfolios = withAuthHandling(async (spreadsheetId: string): P
     // NOTE: This logic for aggregating transactions into holdings MUST be kept in sync with the logic in 
     // Dashboard.tsx (loadData function) which performs a similar client-side aggregation for the UI.
     // Any changes to how transactions affect holdings (e.g. splits, new transaction types) must be applied in both places.
-    const holdingsByPortfolio: Record<string, Record<string, Holding>> = {};
+    const holdingsByPortfolio: Record<string, Record<string, SheetHolding>> = {};
     transactions.forEach(txn => {
         if (txn.type === 'BUY' || txn.type === 'SELL') {
             if (!holdingsByPortfolio[txn.portfolioId]) {
@@ -540,7 +540,7 @@ export const batchAddTransactions = withAuthHandling(async (spreadsheetId: strin
     await rebuildHoldingsSheet(spreadsheetId);
 });
 
-type HoldingNonGeneratedData = Omit<Holding, 'portfolioId' | 'totalValue' | 'price' | 'currency' | 'name' | 'nameHe' | 'sector' | 'changePct1d' | 'changePctRecent' | 'changePct1m' | 'changePct3m' | 'changePctYtd' | 'changePct1y' | 'changePct3y' | 'changePct5y' | 'changePct10y'>;
+type HoldingNonGeneratedData = Omit<SheetHolding, 'portfolioId' | 'totalValue' | 'price' | 'currency' | 'name' | 'nameHe' | 'sector' | 'changePct1d' | 'changePctRecent' | 'changePct1m' | 'changePct3m' | 'changePctYtd' | 'changePct1y' | 'changePct3y' | 'changePct5y' | 'changePct10y'>;
 function createHoldingRow(h: HoldingNonGeneratedData, meta: TickerData | null, rowNum: number): any[] {
     const tickerCell = `A${rowNum}`;
     const exchangeCell = `B${rowNum}`;
@@ -968,7 +968,7 @@ export const deleteDividend = withAuthHandling(async (spreadsheetId: string, row
 export const rebuildHoldingsSheet = withAuthHandling(async (spreadsheetId: string) => {
     const gapi = await ensureGapi();
     const transactions = await fetchTransactions(spreadsheetId);
-    const holdings: Record<string, Omit<Holding, 'portfolioId' | 'totalValue' | 'price' | 'currency' | 'name' | 'nameHe' | 'sector' | 'changePct1d' | 'changePctRecent' | 'changePct1m' | 'changePct3m' | 'changePctYtd' | 'changePct1y' | 'changePct3y' | 'changePct5y' | 'changePctMax' | 'changeDateMax' | 'changePct10y' | 'meta' | 'type'>> = {};
+    const holdings: Record<string, { ticker: string, exchange: Exchange, qty: number, numericId: number | null }> = {};
 
     // Sort transactions by date to ensure we get the latest numericId for a holding
     transactions.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());

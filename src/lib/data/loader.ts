@@ -40,7 +40,7 @@ export const loadFinanceEngine = async (sheetId: string) => {
     const dividends: DividendEvent[] = rawDivs.map((d: any) => ({
         ticker: d.ticker,
         exchange: d.exchange,
-        date: d.date.toISOString().split('T')[0], // Convert Date to YYYY-MM-DD string
+        date: new Date(d.date), // Ensure Date object
         amount: d.amount,
         source: d.source || 'SHEET'
     }));

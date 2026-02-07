@@ -72,14 +72,6 @@ export function DashboardTable(props: TableProps) {
     handleCloseContextMenu();
   };
 
-  // Converts a value from a base currency to the display currency, handling sub-units only if explicitly needed for display
-  // For standard monetary values (MV, Gains), we expect inputs in standard units (e.g. ILS, not Agorot)
-  const formatConverted = (n: number, fromCurrency: string, decimals = 0) => {
-    const safeFrom = (fromCurrency === '#N/A' || !fromCurrency) ? 'ILS' : fromCurrency;
-    const converted = convertCurrency(n, safeFrom, displayCurrency, exchangeRates);
-    return formatValue(converted, displayCurrency, decimals);
-  };
-
   const formatPct = (n: number) => {
     if (n === undefined || n === null || isNaN(n)) return '-';
     const val = (n * 100).toFixed(2);
@@ -103,7 +95,7 @@ export function DashboardTable(props: TableProps) {
       case 'realizedGain': return h.display.realizedGain;
       case 'totalGain': return h.display.totalGain;
       case 'valueAfterTax': return h.display.valueAfterTax;
-      case 'unvestedValue': return h.mvUnvested;
+      case 'unvestedValue': return h.display.unvestedValue;
       default: return (h.display as any)[key] || 0;
     }
   };
@@ -125,7 +117,9 @@ export function DashboardTable(props: TableProps) {
         return <TableCell align="right">{formatNumber(h.totalQty)}</TableCell>;
       case 'avgCost':
         // Display in stock currency (e.g. Agorot for ILA)
-        return <TableCell align="right">{formatPrice(h.avgCost, h.stockCurrency, 2, t)}</TableCell>;
+        // h.avgCost is in Display Currency (converted in dashboard.ts), so we convert it back to stock currency for display
+        const avgCostSC = convertCurrency(h.avgCost, displayCurrency, h.stockCurrency, exchangeRates);
+        return <TableCell align="right">{formatPrice(avgCostSC, h.stockCurrency, 2, t)}</TableCell>;
       case 'costBasis':
         return <TableCell align="right">{formatValue(vals.costBasis, displayCurrency, 2, t)}</TableCell>;
       case 'currentPrice':
@@ -139,7 +133,7 @@ export function DashboardTable(props: TableProps) {
       case 'mv':
         return <TableCell align="right">{formatValue(vals.marketValue, displayCurrency, 2, t)}</TableCell>;
       case 'unvestedValue':
-        return <TableCell align="right" sx={{ color: 'text.secondary' }}>{h.mvUnvested > 0 ? formatConverted(h.mvUnvested, h.portfolioCurrency) : '-'}</TableCell>;
+        return <TableCell align="right" sx={{ color: 'text.secondary' }}>{h.display.unvestedValue > 0 ? formatValue(h.display.unvestedValue, displayCurrency, 2, t) : '-'}</TableCell>;
       case 'unrealizedGain':
         return <TableCell align="right"><Typography variant="body2" color={vals.unrealizedGain >= 0 ? theme.palette.success.main : theme.palette.error.main}>{formatValue(vals.unrealizedGain, displayCurrency, 2, t)}</Typography></TableCell>;
       case 'unrealizedGainPct':

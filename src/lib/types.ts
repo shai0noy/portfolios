@@ -17,6 +17,12 @@ export const Currency = {
   ILA: 'ILA' as Currency,
 };
 
+export interface SimpleMoney {
+  amount: number;
+  currency: Currency;
+}
+
+
 const EXCHANGES = [
   'NASDAQ', 'NYSE', 'TASE', 'LSE', 'FWB',
   'EURONEXT', 'JPX', 'HKEX', 'TSX', 'ASX', 'GEMEL', 'PENSION',
@@ -180,6 +186,7 @@ export interface DashboardHolding {
   ticker: string;
   exchange: Exchange;
   displayName: string;
+  longName?: string;
   nameHe?: string;
   qtyVested: number;
   qtyUnvested: number;
@@ -318,14 +325,14 @@ export interface Portfolio {
   divPolicy: 'cash_taxed' | 'accumulate_tax_free' | 'hybrid_rsu';
   divCommRate: number;
   taxPolicy: TaxPolicy;
-  holdings?: Holding[];
+  holdings?: SheetHolding[];
   taxHistory?: TaxHistoryEntry[];
   feeHistory?: FeeHistoryEntry[];
 }
 
 export type TaxPolicy = 'TAX_FREE' | 'REAL_GAIN' | 'NOMINAL_GAIN' | 'PENSION';
 
-export interface Holding {
+export interface SheetHolding {
   portfolioId: string;
   ticker: string;
   exchange: Exchange;

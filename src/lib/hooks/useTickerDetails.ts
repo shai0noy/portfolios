@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { getTickerData, getTickersDataset, fetchTickerHistory, getVerifiedYahooSymbol, type TickerData } from '../fetching';
 import { fetchHolding, getMetadataValue, syncDividends, fetchDividends } from '../sheets';
-import { Exchange, parseExchange, toGoogleFinanceExchangeCode, type Holding, type Portfolio } from '../types';
+import { Exchange, parseExchange, toGoogleFinanceExchangeCode, type Portfolio, type SheetHolding } from '../types';
+
 import { formatPrice, toILS, normalizeCurrency } from '../currency';
 import { useLanguage } from '../i18n';
 import { getOwnedInPortfolios } from '../portfolioUtils';
@@ -42,7 +43,7 @@ export const useTickerDetails = ({ sheetId, ticker: propTicker, exchange: propEx
     const initialNameHe = propInitialNameHe || state?.initialNameHe;
 
     const [data, setData] = useState<TickerData | null>(null);
-    const [holdingData, setHoldingData] = useState<Holding | null>(null);
+    const [holdingData, setHoldingData] = useState<SheetHolding | null>(null);
     const [historicalData, setHistoricalData] = useState<{ date: Date; price: number; adjClose?: number }[] | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
