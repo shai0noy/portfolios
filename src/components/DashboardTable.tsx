@@ -83,7 +83,7 @@ export function DashboardTable(props: TableProps) {
       case 'ticker': return h.ticker || '';
       case 'displayName': return h.displayName || '';
       case 'type': return h.type ? t(h.type.nameEn, h.type.nameHe) : '';
-      case 'qty': return h.totalQty;
+      case 'qty': return h.qtyTotal;
       case 'avgCost': return h.display.avgCost;
       case 'costBasis': return h.display.costBasis;
       case 'currentPrice': return h.display.currentPrice;

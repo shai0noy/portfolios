@@ -51,6 +51,7 @@ export interface Lot {
 
     // Unrealized Tax (Active Lots)
     unrealizedTax?: number; // Estimated tax liability in Portfolio Currency
+    inflationAdjustedCost?: number; // Portfolio Currency (Active Lots only)
 }
 
 export interface DividendRecord {
@@ -135,6 +136,9 @@ export class Holding {
     // Holding-Level Fees (Accumulators)
     private _accumulatedMgmtFees: number = 0; // Portfolio Currency
 
+    // Tax/Inflation
+    public inflationAdjustedCost?: number; // Portfolio Currency
+
     // Unallocated Buy Fees (For average cost distribution if needed, though we try to allocate to lots)
     // We allocate buy fees PRO-RATA to lots on creation.
 
@@ -146,6 +150,7 @@ export class Holding {
     public displayName?: string; // Short Name preferred
     public nameHe?: string;
     public type?: any; // InstrumentClassification
+
 
     // Market Data (Mutable)
     public currentPrice: number = 0;

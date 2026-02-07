@@ -31,8 +31,12 @@ export interface DashboardHoldingDisplay {
     currentPrice: number;
     avgCost: number;
     weightInPortfolio: number;
+
     weightInGlobal: number;
     unvestedValue: number;
+
+  // Tax/Inflation
+  inflationAdjustedCost?: number; // Portfolio Currency
 }
 
 export interface EnrichedDashboardHolding extends DashboardHolding {
@@ -41,6 +45,10 @@ export interface EnrichedDashboardHolding extends DashboardHolding {
   realizedLots: Lot[];
   transactions: Transaction[];
   dividends: DividendRecord[];
+
+  // Meta
+  taxPolicy?: string;
+  taxOnBase?: boolean;
 }
 
 // Re-export INITIAL_SUMMARY for consumers
@@ -199,7 +207,7 @@ export function calculateDashboardSummary(data: any[], displayCurrency: string, 
           realizedLots: h.realizedLots,
           transactions: h.transactions as Transaction[],
           dividends: h.dividends as DividendRecord[],
-          totalQty: h.qtyTotal, // Mapped from getter
+          qtyTotal: h.qtyTotal, // Mapped from getter
           display 
         } as unknown as EnrichedDashboardHolding;
     });

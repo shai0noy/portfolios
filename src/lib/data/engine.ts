@@ -225,13 +225,26 @@ export class FinanceEngine {
                     h.currentPrice = finalPrice;
                 }
                 if (live.changePct1d !== undefined) h.dayChangePct = live.changePct1d;
-                if (live.perf1w !== undefined) h.perf1w = live.perf1w;
-                if (live.perf1m !== undefined) h.perf1m = live.perf1m;
-                if (live.perf3m !== undefined) h.perf3m = live.perf3m;
-                if (live.perfYtd !== undefined) h.perfYtd = live.perfYtd;
-                if (live.perf1y !== undefined) h.perf1y = live.perf1y;
-                if (live.perf3y !== undefined) h.perf3y = live.perf3y;
-                if (live.perf5y !== undefined) h.perf5y = live.perf5y;
+                if (live.changePctRecent !== undefined && live.recentChangeDays === 7) h.perf1w = live.changePctRecent;
+                else if (live.perf1w !== undefined) h.perf1w = live.perf1w; // Fallback
+
+                if (live.changePct1m !== undefined) h.perf1m = live.changePct1m;
+                else if (live.perf1m !== undefined) h.perf1m = live.perf1m;
+
+                if (live.changePct3m !== undefined) h.perf3m = live.changePct3m;
+                else if (live.perf3m !== undefined) h.perf3m = live.perf3m;
+
+                if (live.changePctYtd !== undefined) h.perfYtd = live.changePctYtd;
+                else if (live.perfYtd !== undefined) h.perfYtd = live.perfYtd;
+
+                if (live.changePct1y !== undefined) h.perf1y = live.changePct1y;
+                else if (live.perf1y !== undefined) h.perf1y = live.perf1y;
+
+                if (live.changePct3y !== undefined) h.perf3y = live.changePct3y;
+                else if (live.perf3y !== undefined) h.perf3y = live.perf3y;
+
+                if (live.changePct5y !== undefined) h.perf5y = live.changePct5y;
+                else if (live.perf5y !== undefined) h.perf5y = live.perf5y;
                 if (live.name) {
                     h.marketName = live.name;
                     // Dont override name if customName exists?
@@ -447,7 +460,13 @@ export class FinanceEngine {
                     const feesSC = convertCurrency(lot.feesBuy.amount, lot.feesBuy.currency, h.stockCurrency, this.exchangeRates);
 
                      let taxableILS = 0;
-                     if (taxPolicy === 'REAL_GAIN') {
+                    if (p.taxOnBase) {
+                        // Tax on Base Price: The entire specific amount is taxable? 
+                        // Usually this means the Cost Basis is 0 for tax purposes, OR it's a Wealth Tax on the entire value.
+                        // "Tax on Base Price" usually implies the tax is on the *principal* as well as gain, effectively making Cost Basis = 0.
+                        // Let's implement it as: Taxable Amount = Full Market Value
+                        taxableILS = mvILS;
+                    } else if (taxPolicy === 'REAL_GAIN') {
                          taxableILS = computeRealTaxableGain(
                              mvILS - (costILS + feesILS),
                              mvSC - feesSC,
@@ -461,10 +480,13 @@ export class FinanceEngine {
                      } else { // Nominal
                          taxableILS = mvILS - (costILS + feesILS);
                      }
+
                      totalTaxableGainILS += taxableILS;
                      totalWealthTaxILS += (costILS + feesILS) * incTax;
 
                     // Per-Lot Tax Liability (stored in Portfolio Currency)
+                    // If taxOnBase, 'taxableILS' is the full MV.
+                    // We assume 'cgt' is the relevant rate for this taxable amount.
                     const lotTaxLiabilityILS = Math.max(0, taxableILS) * cgt + ((costILS + feesILS) * incTax);
                     lot.unrealizedTax = convertCurrency(lotTaxLiabilityILS, Currency.ILS, h.portfolioCurrency, this.exchangeRates);
                  });
@@ -494,6 +516,7 @@ export class FinanceEngine {
             holdingsWithDayChange: 0,
             totalUnvestedValue: 0,
             totalUnvestedGain: 0,
+            totalUnvestedCost: 0,
             totalFees: 0
         };
 
@@ -519,6 +542,34 @@ export class FinanceEngine {
             // If we want Display Currency, conv PC -> Display
             const unrealizedGain = convertCurrency(h.unrealizedGain.amount, h.unrealizedGain.currency, displayCurrency, this.exchangeRates);
             
+            // Inflation Adjusted Cost?
+            // If Tax Policy is REAL_GAIN, we can calc it.
+            // inflationAdjCost = Cost * (CurrentCPI / CPI_Buy)
+            // But we have multiple lots.
+            // We can sum them up here or per lot.
+            let inflationAdjustedCost: number | undefined;
+            const p = this.portfolios.get(h.portfolioId);
+            if (p?.taxPolicy === 'REAL_GAIN' && this.cpiData) {
+                const currentCPI = getCPI(new Date(), this.cpiData);
+                // Iterate active lots
+                let totalInfCostPC = 0;
+                h.activeLots.forEach(l => {
+                    const inflationRate = (l.cpiAtBuy > 0) ? (currentCPI / l.cpiAtBuy) : 1;
+                    const costPC = l.costTotal.amount;
+                    const infCostPC = costPC * inflationRate;
+                    l.inflationAdjustedCost = infCostPC; // Store per lot
+                    totalInfCostPC += infCostPC;
+                });
+                inflationAdjustedCost = convertCurrency(totalInfCostPC, h.portfolioCurrency, displayCurrency, this.exchangeRates);
+            }
+
+            h.inflationAdjustedCost = inflationAdjustedCost;
+
+            // Unvested Cost Calculation
+            const unvestedCostPC = h.activeLots.reduce((acc, l) => !l.isVested ? acc + l.costTotal.amount : acc, 0);
+            const unvestedCost = convertCurrency(unvestedCostPC, h.portfolioCurrency, displayCurrency, this.exchangeRates);
+            globalAcc.totalUnvestedCost += unvestedCost;
+
             const realizedGain = convertCurrency(h.realizedGainNet.amount, h.realizedGainNet.currency, displayCurrency, this.exchangeRates);
             const dividends = convertCurrency(h.dividendsTotal.amount, h.dividendsTotal.currency, displayCurrency, this.exchangeRates);
             
@@ -563,9 +614,39 @@ export class FinanceEngine {
                 globalAcc.holdingsWithDayChange++;
             }
 
-            // Perf Periods (assuming Holding has them from live prices, but strict types might complain)
-            // I need to add index signature or explicit fields to Holding for perf.
-            // For now, skipping perf except day change to avoid TS errors.
+            // Perf Periods Aggregation
+            // We weigh performance by market value (AUM)?
+            // Or simple sum of weighted perfs?
+            // Standard approach: Portfolio Perf = Sum(HoldingPerf * HoldingWeight)
+            // Weight = HoldingMarketValue / TotalAUM
+            // Since we don't know TotalAUM until end, we sum (Perf * MV) and divide by AUM at end.
+
+            // Note: perf* fields on Holding are percentages (e.g. 0.05 for 5%).
+            // We use `marketValue` (in Display Currency) as weight.
+
+            if (h.perf1w !== undefined && h.perf1w !== 0) { perfAcc.totalChange_perf1w += h.perf1w * marketValue; perfAcc.aumFor_perf1w += marketValue; perfAcc.holdingsFor_perf1w++; }
+            if (h.perf1m !== undefined && h.perf1m !== 0) { perfAcc.totalChange_perf1m += h.perf1m * marketValue; perfAcc.aumFor_perf1m += marketValue; perfAcc.holdingsFor_perf1m++; }
+            if (h.perf3m !== undefined && h.perf3m !== 0) { perfAcc.totalChange_perf3m += h.perf3m * marketValue; perfAcc.aumFor_perf3m += marketValue; perfAcc.holdingsFor_perf3m++; }
+            if (h.perfYtd !== undefined && h.perfYtd !== 0) { perfAcc.totalChange_perfYtd += h.perfYtd * marketValue; perfAcc.aumFor_perfYtd += marketValue; perfAcc.holdingsFor_perfYtd++; }
+            if (h.perf1y !== undefined && h.perf1y !== 0) { perfAcc.totalChange_perf1y += h.perf1y * marketValue; perfAcc.aumFor_perf1y += marketValue; perfAcc.holdingsFor_perf1y++; }
+            if (h.perf3y !== undefined && h.perf3y !== 0) { perfAcc.totalChange_perf3y += h.perf3y * marketValue; perfAcc.aumFor_perf3y += marketValue; perfAcc.holdingsFor_perf3y++; }
+            if (h.perf5y !== undefined && h.perf5y !== 0) { perfAcc.totalChange_perf5y += h.perf5y * marketValue; perfAcc.aumFor_perf5y += marketValue; perfAcc.holdingsFor_perf5y++; }
+
+            // Unvested
+            const unvestedVal = convertCurrency(h.marketValueUnvested.amount, h.marketValueUnvested.currency, displayCurrency, this.exchangeRates);
+            globalAcc.totalUnvestedValue += unvestedVal;
+
+            // Unvested Gain?
+            // Unvested Gain = MarketValueUnvested - CostBasisUnvested?
+            // Usually Unvested Cost Basis is 0 (RSU/Option grant price 0 or strike).
+            // If we track CostBasisUnvested separately.
+            // Holding model has `qtyUnvested`.
+            // Let's assume for now Unvested Gain ~ Unvested Value (if cost 0) or we need to calculate it.
+            // Holding doesn't have `costBasisUnvested` explicitly calculated in `calculateSnapshot`.
+            // But we can approximate.
+            // For now, let's leave Unvested Gain as 0 or equal to Value if we treat cost as 0.
+            // Actually, usually RSUs have 0 cost. Options have strike.
+            // Let's rely on `marketValueUnvested` for Value.
         });
         
         const summary: DashboardSummaryData = {
@@ -581,9 +662,28 @@ export class FinanceEngine {
             totalDayChange: globalAcc.totalDayChange,
             realizedGainAfterTax: (globalAcc.totalRealized + globalAcc.totalDividends) - globalAcc.totalRealizedTax,
             valueAfterTax: globalAcc.aum - globalAcc.totalUnrealizedTax,
-            
-            // Unvested
-            // ...
+            totalDayChangePct: globalAcc.aumWithDayChangeData > 0 ? globalAcc.totalDayChange / globalAcc.aumWithDayChangeData : 0,
+            totalDayChangeIsIncomplete: globalAcc.holdingsWithDayChange < this.holdings.size, // Approximate
+
+            // Perf
+            perf1w: perfAcc.aumFor_perf1w > 0 ? perfAcc.totalChange_perf1w / perfAcc.aumFor_perf1w : 0,
+            perf1w_incomplete: perfAcc.aumFor_perf1w < globalAcc.aum * 0.9,
+            perf1m: perfAcc.aumFor_perf1m > 0 ? perfAcc.totalChange_perf1m / perfAcc.aumFor_perf1m : 0,
+            perf1m_incomplete: perfAcc.aumFor_perf1m < globalAcc.aum * 0.9,
+            perf3m: perfAcc.aumFor_perf3m > 0 ? perfAcc.totalChange_perf3m / perfAcc.aumFor_perf3m : 0,
+            perf3m_incomplete: perfAcc.aumFor_perf3m < globalAcc.aum * 0.9,
+            perfYtd: perfAcc.aumFor_perfYtd > 0 ? perfAcc.totalChange_perfYtd / perfAcc.aumFor_perfYtd : 0,
+            perfYtd_incomplete: perfAcc.aumFor_perfYtd < globalAcc.aum * 0.9,
+            perf1y: perfAcc.aumFor_perf1y > 0 ? perfAcc.totalChange_perf1y / perfAcc.aumFor_perf1y : 0,
+            perf1y_incomplete: perfAcc.aumFor_perf1y < globalAcc.aum * 0.9,
+            perf3y: perfAcc.aumFor_perf3y > 0 ? perfAcc.totalChange_perf3y / perfAcc.aumFor_perf3y : 0,
+            perf3y_incomplete: perfAcc.aumFor_perf3y < globalAcc.aum * 0.9,
+            perf5y: perfAcc.aumFor_perf5y > 0 ? perfAcc.totalChange_perf5y / perfAcc.aumFor_perf5y : 0,
+            perf5y_incomplete: perfAcc.aumFor_perf5y < globalAcc.aum * 0.9,
+
+            totalUnvestedValue: globalAcc.totalUnvestedValue,
+            totalUnvestedGain: globalAcc.totalUnvestedValue - globalAcc.totalUnvestedCost,
+            totalUnvestedGainPct: globalAcc.totalUnvestedCost > 0 ? (globalAcc.totalUnvestedValue - globalAcc.totalUnvestedCost) / globalAcc.totalUnvestedCost : 0
         };
         return summary;
     }

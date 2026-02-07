@@ -191,7 +191,7 @@ export interface DashboardHolding {
   nameHe?: string;
   qtyVested: number;
   qtyUnvested: number;
-  totalQty: number;
+  qtyTotal: number;
   currentPrice: number; // ALWAYS in Major Unit
   stockCurrency: Currency;
 
@@ -316,6 +316,7 @@ export interface Portfolio {
   divPolicy: 'cash_taxed' | 'accumulate_tax_free' | 'hybrid_rsu';
   divCommRate: number;
   taxPolicy: TaxPolicy;
+  taxOnBase?: boolean; // If true, tax is applied to the entire amount (base + gain), not just the gain.
   holdings?: SheetHolding[];
   taxHistory?: TaxHistoryEntry[];
   feeHistory?: FeeHistoryEntry[];

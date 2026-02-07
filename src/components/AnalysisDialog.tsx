@@ -1,4 +1,4 @@
-import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Table, TableBody, TableCell, TableHead, TableRow, Box, Typography, ToggleButton, ToggleButtonGroup, Tooltip, Select, MenuItem, FormControl, InputLabel } from '@mui/material';
+import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Table, TableBody, TableCell, TableHead, TableRow, Box, Typography, ToggleButton, ToggleButtonGroup, Tooltip, Select, MenuItem, FormControl, InputLabel, CircularProgress } from '@mui/material';
 import { useLanguage } from '../lib/i18n';
 import type { ChartSeries } from './TickerChart';
 import { useMemo, useState, useEffect } from 'react';
@@ -83,6 +83,8 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
         return theme.palette.mode === 'dark' ? DARK_COLORS : LIGHT_COLORS;
     }, [theme.palette.mode]);
 
+    const [loading, setLoading] = useState(false);
+
     // Update state when props change
     useEffect(() => {
         if (initialRange) setRange(initialRange);
@@ -95,66 +97,78 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
         }
     }, [currency]);
 
-    // Fetch Risk Free Series
+    // Combined Data Fetching
     useEffect(() => {
         if (!open) return;
-        const fetchRF = async () => {
-            const rf = RISK_FREE_TICKERS[riskFreeType];
+
+        const fetchData = async () => {
+            setLoading(true);
             try {
-                const historyResponse = await fetchTickerHistory(rf.ticker, rf.exchange);
-                if (historyResponse?.historical) {
-                    setRiskFreeSeries({
-                        name: rf.name,
-                        data: historyResponse.historical,
-                        color: '#000000' // Unused
-                    });
+                // 1. Fetch Risk Free
+                const rf = RISK_FREE_TICKERS[riskFreeType];
+                try {
+                    const historyResponse = await fetchTickerHistory(rf.ticker, rf.exchange);
+                    if (historyResponse?.historical) {
+                        setRiskFreeSeries({
+                            name: rf.name,
+                            data: historyResponse.historical,
+                            color: '#000000' // Unused
+                        });
+                    }
+                } catch (e) {
+                    console.warn('Failed to fetch Risk Free', e);
                 }
-            } catch (e) {
-                console.warn('Failed to fetch Risk Free', e);
-            }
-        };
-        fetchRF();
-    }, [open, riskFreeType]);
 
-    useEffect(() => {
-        if (!open) return;
+                // 2. Fetch Benchmarks
+                const newExtras: ChartSeries[] = [];
+                const existingNames = new Set(comparisonSeries.map(s => s.name));
+                const loadedNames = new Set(extraSeries.map(s => s.name));
 
-        const loadDefaults = async () => {
-            const newExtras: ChartSeries[] = [];
-            const existingNames = new Set(comparisonSeries.map(s => s.name));
-            const loadedNames = new Set(extraSeries.map(s => s.name));
+                // Identify missing benchmarks
+                const benchmarksToFetch = DEFAULT_BENCHMARKS.filter(b => !existingNames.has(b.name) && !loadedNames.has(b.name));
 
-            for (const bench of DEFAULT_BENCHMARKS) {
-                if (!existingNames.has(bench.name) && !loadedNames.has(bench.name)) {
-                    try {
-                        const historyResponse = await fetchTickerHistory(bench.ticker, bench.exchange);
-                        if (historyResponse?.historical) {
-                            const usedColors = new Set(comparisonSeries.map(s => s.color).filter(Boolean));
-                            newExtras.forEach(s => { if (s.color) usedColors.add(s.color); });
-                            extraSeries.forEach(s => { if (s.color) usedColors.add(s.color); });
+                if (benchmarksToFetch.length > 0) {
+                    await Promise.all(benchmarksToFetch.map(async (bench) => {
+                        try {
+                            const historyResponse = await fetchTickerHistory(bench.ticker, bench.exchange);
+                            if (historyResponse?.historical) {
+                                newExtras.push({
+                                    name: bench.name,
+                                    data: historyResponse.historical,
+                                    color: '' // Will assign color below
+                                });
+                            }
+                        } catch (e) {
+                            console.warn(`Failed to fetch default benchmark ${bench.name}`, e);
+                        }
+                    }));
 
+                    if (newExtras.length > 0) {
+                    // Assign colors safely
+                        const usedColors = new Set(comparisonSeries.map(s => s.color).filter(Boolean));
+                        extraSeries.forEach(s => { if (s.color) usedColors.add(s.color); });
+                        newExtras.forEach(s => { if (s.color) usedColors.add(s.color); }); // In case we assigned earlier, but we didn't
+
+                        const assignedExtras = newExtras.map((s, i) => {
                             let color = EXTRA_COLORS.find(c => !usedColors.has(c));
                             if (!color) {
                                 const totalCount = comparisonSeries.length + extraSeries.length + newExtras.length;
-                                color = EXTRA_COLORS[totalCount % EXTRA_COLORS.length];
+                                color = EXTRA_COLORS[(totalCount + i) % EXTRA_COLORS.length];
                             }
+                             usedColors.add(color!);
+                             return { ...s, color: color! };
+                         });
 
-                            newExtras.push({
-                                name: bench.name,
-                                data: historyResponse.historical,
-                                color: color
-                            });
-                        }
-                    } catch (e) {
-                        console.warn(`Failed to fetch default benchmark ${bench.name}`, e);
+                        setExtraSeries(prev => [...prev, ...assignedExtras]);
                     }
                 }
+            } finally {
+                setLoading(false);
             }
-            if (newExtras.length > 0) setExtraSeries(prev => [...prev, ...newExtras]);
         };
 
-        loadDefaults();
-    }, [open, comparisonSeries, EXTRA_COLORS, extraSeries]);
+        fetchData();
+    }, [open, riskFreeType, comparisonSeries, EXTRA_COLORS]); // Removed extraSeries dependency to avoid loop if we add to it
 
     const allSeries = useMemo(() => {
         const combined = [...comparisonSeries];
@@ -448,6 +462,12 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
                         </Select>
                     </FormControl>
                 </Box>
+                {loading ? (
+                    <Box display="flex" justifyContent="center" alignItems="center" minHeight={200}>
+                        <CircularProgress />
+                    </Box>
+                ) : (
+                    <>
                 <Box display="flex" gap={2} mb={1} ml={1}>
                     {subjectStdDev !== null && (
                         <Typography variant="caption" display="block">
@@ -558,6 +578,8 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 2, textAlign: 'center' }}>
                         {t('Add benchmarks to see comparative analysis.', 'הוסף מדדי ייחוס כדי לראות ניתוח השוואתי.')}
                     </Typography>
+                )}
+                    </>
                 )}
             </DialogContent>
             <DialogActions>

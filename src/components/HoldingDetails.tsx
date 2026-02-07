@@ -263,31 +263,38 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
     const layers = useMemo(() => {
         return matchingHoldings.flatMap(h => {
             const enrichedH = (h as any).display ? (h as EnrichedDashboardHolding) : null;
-            if (enrichedH?.activeLots) return enrichedH.activeLots;
-            if ((h as any).activeLots) return (h as any).activeLots;
-            if ((h as any)._lots) {
-                return ((h as any)._lots as Lot[]).filter(l => !l.soldDate && l.qty > 0);
+            let lots: Lot[] = [];
+            if (enrichedH?.activeLots) lots = enrichedH.activeLots;
+            else if ((h as any).activeLots) lots = (h as any).activeLots;
+            else if ((h as any)._lots) {
+                lots = ((h as any)._lots as Lot[]).filter(l => !l.soldDate && l.qty > 0);
             }
-            return [];
+            return lots.map(l => ({ ...l, portfolioId: h.portfolioId }));
         }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     }, [matchingHoldings]);
 
     const realizedLayers = useMemo(() => {
         return matchingHoldings.flatMap(h => {
             const enrichedH = (h as any).display ? (h as EnrichedDashboardHolding) : null;
-            if (enrichedH?.realizedLots) return enrichedH.realizedLots;
-            if ((h as any).realizedLots) return (h as any).realizedLots;
-            if ((h as any)._lots) {
-                return ((h as any)._lots as Lot[]).filter(l => l.soldDate);
+            let lots: Lot[] = [];
+            if (enrichedH?.realizedLots) lots = enrichedH.realizedLots;
+            else if ((h as any).realizedLots) lots = (h as any).realizedLots;
+            else if ((h as any)._lots) {
+                lots = ((h as any)._lots as Lot[]).filter(l => l.soldDate);
             }
-            return [];
+            else if ((h as any).realizedLots) lots = (h as any).realizedLots;
+            else if ((h as any)._lots) {
+                // Fallback for raw internal lots (less safe but works for now)
+                lots = ((h as any)._lots as Lot[]).filter(l => l.soldDate);
+            }
+            return lots.map(l => ({ ...l, portfolioId: h.portfolioId }));
         }).sort((a, b) => (b.soldDate?.getTime() || 0) - (a.soldDate?.getTime() || 0));
     }, [matchingHoldings]);
 
-    const stockCurrency = (holding as DashboardHolding).stockCurrency || (holding as Holding).stockCurrency || 'USD';
-    const totalQty = useMemo(() => {
-        return matchingHoldings.reduce((sum, h) => sum + ((h as Holding).qtyTotal || 0), 0);
-    }, [matchingHoldings]);
+    // For current holding context
+    const currentHolding = matchingHoldings.find(h => h.portfolioId === selectedPortfolio);
+    const stockCurrency = matchingHoldings[0]?.stockCurrency || Currency.USD;
+    const totalQty = matchingHoldings.reduce((sum, h) => sum + ((h as any).qtyTotal || h.qtyTotal || 0), 0);
 
     const totalFeesDisplay = useMemo(() => {
         return txnHistory.reduce((sum, txn) => {
@@ -366,66 +373,136 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                                     const unvestedGainDisplay = convertCurrency(unvestedGain, stockCurrency, displayCurrency, exchangeRates || undefined);
                                     const vestedValDisplay = vals.marketValue;
 
-                                    // Unified Layers Logic
-                                    const unifiedLayers = (() => {
+                                    // Unified Layers Logic grouped by Portfolio
+                                    const groupedLayers = (() => {
                                         const allLots = [...layers, ...realizedLayers];
-                                        const groups: Record<string, {
-                                            originalTxnId: string;
-                                            date: Date;
-                                            vestingDate?: Date;
-                                            price: number;
-                                            currency: string;
-                                            originalQty: number;
-                                            remainingQty: number;
-                                            soldQty: number;
-                                            originalCost: number;
-                                            currentValue: number;
-                                            realizedGain: number;
-                                            taxLiability: number;
+                                        // Key: portfolioId -> Key: originalTxnId -> UnifiedLayer
+                                        const portfolioGroups: Record<string, {
+                                            stats: {
+                                                qty: number;
+                                                value: number;
+                                                cost: number;
+                                            };
+                                            layers: Record<string, {
+                                                originalTxnId: string;
+                                                date: Date;
+                                                vestingDate?: Date;
+                                                price: number;
+                                                currency: string;
+                                                originalQty: number;
+                                                remainingQty: number;
+                                                soldQty: number;
+                                                originalCost: number;
+                                                remainingCost: number;
+                                                fees: number;
+                                                currentValue: number;
+                                                realizedGain: number;
+                                                taxLiability: number;
+                                                realizedTax: number;
+                                                unrealizedTax: number;
+                                                inflationAdjustedCost: number;
+                                            }>;
                                         }> = {};
 
                                         allLots.forEach(lot => {
-                                            const key = lot.originalTxnId || `unknown_${lot.date.getTime()}_${lot.costPerUnit.amount}`;
-                                            if (!groups[key]) {
-                                                // Deriving original stock currency price
+                                            const pid = lot.portfolioId || 'unknown';
+                                            if (!portfolioGroups[pid]) {
+                                                portfolioGroups[pid] = {
+                                                    stats: { qty: 0, value: 0, cost: 0 },
+                                                    layers: {}
+                                                };
+                                            }
+
+                                            const pGroup = portfolioGroups[pid];
+                                            const layerKey = lot.originalTxnId || `unknown_${lot.date.getTime()}_${lot.costPerUnit.amount}`;
+
+                                            if (!pGroup.layers[layerKey]) {
                                                 const originalPriceSC = lot.costPerUnit.amount / (lot.costPerUnit.rateToPortfolio || 1);
-                                                groups[key] = {
-                                                    originalTxnId: key,
+                                                pGroup.layers[layerKey] = {
+                                                    originalTxnId: layerKey,
                                                     date: new Date(lot.date),
                                                     vestingDate: lot.vestingDate ? new Date(lot.vestingDate) : undefined,
                                                     price: originalPriceSC,
-                                                    currency: stockCurrency, // Use Stock Currency
+                                                    currency: stockCurrency,
                                                     originalQty: 0,
                                                     remainingQty: 0,
                                                     soldQty: 0,
                                                     originalCost: 0,
+                                                    remainingCost: 0,
                                                     currentValue: 0,
                                                     realizedGain: 0,
-                                                    taxLiability: 0
+                                                    taxLiability: 0,
+                                                    realizedTax: 0,
+                                                    unrealizedTax: 0,
+                                                    fees: 0,
+                                                    inflationAdjustedCost: 0
                                                 };
                                             }
-                                            const g = groups[key];
+
+                                            const g = pGroup.layers[layerKey];
                                             g.originalQty += lot.qty;
                                             g.originalCost += convertCurrency(lot.costTotal.amount, lot.costTotal.currency, displayCurrency, exchangeRates || undefined);
+                                            g.fees += convertCurrency(lot.feesBuy.amount, lot.feesBuy.currency, displayCurrency, exchangeRates || undefined);
 
                                             if (lot.soldDate) {
                                                 g.soldQty += lot.qty;
                                                 g.realizedGain += convertMoney(lot.realizedGainNet ? { amount: lot.realizedGainNet, currency: lot.costTotal.currency } : undefined, displayCurrency, exchangeRates || undefined).amount;
-                                                g.taxLiability += convertCurrency(lot.realizedTax || 0, Currency.ILS, displayCurrency, exchangeRates || undefined);
+                                                const rTax = convertCurrency(lot.realizedTax || 0, Currency.ILS, displayCurrency, exchangeRates || undefined);
+                                                g.taxLiability += rTax;
+                                                g.realizedTax += rTax;
+                                                g.fees += convertCurrency(lot.soldFees?.amount || 0, lot.soldFees?.currency || Currency.ILS, displayCurrency, exchangeRates || undefined);
                                             } else {
                                                 g.remainingQty += lot.qty;
-                                                // Current Value of remaining
+                                                g.remainingCost += convertCurrency(lot.costTotal.amount, lot.costTotal.currency, displayCurrency, exchangeRates || undefined);
+
                                                 const currentPrice = (holding as any).currentPrice || 0;
-                                                // Value in Portfolio Currency (Display)
-                                                // We need to convert price from Stock Currency to Display
                                                 const valSC = lot.qty * currentPrice;
-                                                g.currentValue += convertCurrency(valSC, stockCurrency, displayCurrency, exchangeRates || undefined);
-                                                // Unrealized Tax
-                                                g.taxLiability += convertCurrency(lot.unrealizedTax || 0, lot.costTotal.currency, displayCurrency, exchangeRates || undefined);
+                                                const valDisplay = convertCurrency(valSC, stockCurrency, displayCurrency, exchangeRates || undefined);
+                                                g.currentValue += valDisplay;
+
+                                                const uTax = convertCurrency(lot.unrealizedTax || 0, lot.costTotal.currency, displayCurrency, exchangeRates || undefined);
+                                                g.taxLiability += uTax;
+                                                g.unrealizedTax += uTax;
+
+                                                if (lot.inflationAdjustedCost) {
+                                                    g.inflationAdjustedCost += convertCurrency(lot.inflationAdjustedCost, lot.costTotal.currency, displayCurrency, exchangeRates || undefined);
+                                                }
+
+                                                // Update Portfolio Stats (Remaining only)
+                                                // Wait, "Total Original Qty" means sum of originalQty of all layers?
+                                                // Or "Original Qty" of current position?
+                                                // User said "total original qty + current qty".
+                                                // Assuming "Total Original Qty" is sum of all layers' original qty (including sold).
+                                                // And "Current Qty" is sum of remaining.
+                                                // Let's accrue here.
+                                                // Actually easier to sum `g` stats after loop.
                                             }
                                         });
 
-                                        return Object.values(groups).sort((a, b) => b.date.getTime() - a.date.getTime());
+                                        // Finalize stats and sort
+                                        return Object.entries(portfolioGroups).map(([pid, group]) => {
+                                            const sortedLayers = Object.values(group.layers).sort((a, b) => b.date.getTime() - a.date.getTime());
+
+                                            // Ensure we have portfolio name
+                                            const pName = portfolioNameMap[pid] || pid;
+                                            const pWeightData = holdingsWeights.find(w => w.portfolioId === pid);
+
+                                            const totalOriginalQty = sortedLayers.reduce((sum, l) => sum + l.originalQty, 0);
+                                            const currentQty = sortedLayers.reduce((sum, l) => sum + l.remainingQty, 0);
+                                            const totalValue = sortedLayers.reduce((sum, l) => sum + l.currentValue, 0); // Value of remaining
+
+                                            return {
+                                                portfolioId: pid,
+                                                portfolioName: pName,
+                                                stats: {
+                                                    originalQty: totalOriginalQty,
+                                                    currentQty: currentQty,
+                                                    value: totalValue,
+                                                    weight: pWeightData?.weightInPortfolio || 0
+                                                },
+                                                layers: sortedLayers
+                                            };
+                                        });
                                     })();
 
                                     return (
@@ -494,7 +571,16 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                                                     </Grid>
                                                     <Grid item xs={6} sm={2.4}>
                                                         <Typography variant="caption" color="text.secondary">{t('Total Cost', 'עלות מקורית')}</Typography>
-                                                        <Typography variant="body2" fontWeight="500">{formatValue(vals.costBasis, displayCurrency)}</Typography>
+                                                        <Box>
+                                                            <Typography variant="body2" fontWeight="500">{formatValue(vals.costBasis, displayCurrency)}</Typography>
+                                                            {(holding as any).inflationAdjustedCost > 0 && (
+                                                                <Tooltip title={t('Inflation Adjusted Cost', 'עלות מתואמת למדד')}>
+                                                                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: '0.7rem' }}>
+                                                                        ({formatValue((holding as any).inflationAdjustedCost, displayCurrency)})
+                                                                    </Typography>
+                                                                </Tooltip>
+                                                            )}
+                                                        </Box>
                                                     </Grid>
                                                     <Grid item xs={6} sm={2.4}>
                                                         <Typography variant="caption" color="text.secondary">{t('Total Fees', 'סה"כ עמלות')}</Typography>
@@ -511,64 +597,8 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                                                 {/* Stack Layout for Distribution and Layers */}
 
                                                 <Box>
-                                                    <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'bold' }}>{t('Portfolio Distribution', 'התפלגות בתיקים')}</Typography>
-                                                    <Paper variant="outlined" sx={{ p: 2 }}>
-                                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1, px: 1 }}>
-                                                            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 'bold' }}>{t('Portfolio', 'תיק')}</Typography>
-                                                            <Box sx={{ display: 'flex', gap: 2 }}>
-                                                                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 'bold', minWidth: 90, textAlign: 'right' }}>
-                                                                    {t(hasGrants ? 'Total Value' : 'Value', hasGrants ? 'שווי כולל' : 'שווי')}
-                                                                </Typography>
-                                                                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 'bold', minWidth: 110, textAlign: 'right' }}>{t('Weight in Portfolio', 'משקל בתיק')}</Typography>
-                                                            </Box>
-                                                        </Box>
-                                                        <Divider sx={{ mb: 2 }} />
-
-                                                        <Stack spacing={1.5}>
-                                                            {holdingsWeights.map((w) => (
-                                                                <Box key={w.portfolioId} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 1 }}>
-                                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, overflow: 'hidden', mr: 1 }}>
-                                                                        <Link
-                                                                            component="button"
-                                                                            variant="body2"
-                                                                            underline="hover"
-                                                                            onClick={() => onPortfolioClick(w.portfolioId)}
-                                                                            sx={{ fontWeight: '600', textAlign: 'left', color: 'text.primary', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
-                                                                        >
-                                                                            {w.portfolioName}
-                                                                        </Link>
-                                                                    </Box>
-                                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
-                                                                        <Typography variant="body2" sx={{ minWidth: 90, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                                                                            {formatValue(w.value, displayCurrency)}
-                                                                        </Typography>
-                                                                        <Box sx={{ minWidth: 110, textAlign: 'right' }}>
-                                                                            <Typography variant="body2" fontWeight="bold" color="text.primary">
-                                                                                {formatPercent(w.weightInPortfolio)}
-                                                                            </Typography>
-                                                                        </Box>
-                                                                    </Box>
-                                                                </Box>
-                                                            ))}
-                                                        </Stack>
-                                                        <Divider sx={{ my: 2 }} />
-                                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 1 }}>
-                                                            <Typography variant="body2" fontWeight="bold">{t('All portfolios', 'כל התיקים')}</Typography>
-                                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
-                                                                <Typography variant="body2" fontWeight="bold" sx={{ minWidth: 90, textAlign: 'right' }}>
-                                                                    {formatValue(totalGlobalValue, displayCurrency)}
-                                                                </Typography>
-                                                                <Typography variant="body2" fontWeight="bold" color="primary.main" sx={{ minWidth: 110, textAlign: 'right' }}>
-                                                                    {formatPercent(totalGlobalWeight)}
-                                                                </Typography>
-                                                            </Box>
-                                                        </Box>
-                                                    </Paper>
-                                                </Box>
-
-                                                <Box>
                                                     <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'bold' }}>{t('Layers', 'שכבות')}</Typography>
-                                                    <Paper variant="outlined" sx={{ maxHeight: 300, overflowY: 'auto' }}>
+                                                    <Paper variant="outlined" sx={{ maxHeight: 500, overflowY: 'auto' }}>
                                                         <Table size="small" stickyHeader>
                                                             <TableHead>
                                                                 <TableRow>
@@ -579,13 +609,12 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                                                                     <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>{t('Orig. Cost', 'עלות מקורית')}</TableCell>
                                                                     <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>{t('Cur. Value', 'שווי נוכחי')}</TableCell>
                                                                     <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>{t('Realized', 'מומש')}</TableCell>
+                                                                    <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>{t('Unrealized Gain', 'רווח לא ממומש')}</TableCell>
                                                                     <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>
                                                                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5 }}>
-                                                                            {t('Tax Liability', 'חבות מס')}
-                                                                            <Tooltip title={t('Estimated tax liability. Takes fees into account but does not offset losses from other assets.', 'חבות מס משוערת. מתחשב בעמלות אך לא בקיזוז הפסדים מנכסים אחרים.')} enterTouchDelay={0}>
-                                                                                <IconButton size="small" sx={{ p: 0.5 }}>
-                                                                                    <InfoOutlinedIcon fontSize="small" sx={{ fontSize: '0.9rem', opacity: 0.7 }} />
-                                                                                </IconButton>
+                                                                            {t('Tax Liab.', 'חבות מס')}
+                                                                            <Tooltip title={t("Estimated Tax Liability. Includes Capital Gains Tax (on Realized + Unrealized) and Wealth Tax/Income Tax where applicable. Fees are deducted from taxable gain.", "חבות מס משוערת. כולל מס רווח הון (על מומש + לא ממומש) ומס יסף/הכנסה היכן שרלוונטי. עמלות מנוכות מהרווח החייב.")}>
+                                                                                <InfoOutlinedIcon sx={{ fontSize: '0.8rem', color: 'text.secondary', cursor: 'help' }} />
                                                                             </Tooltip>
                                                                         </Box>
                                                                     </TableCell>
@@ -593,47 +622,104 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                                                                 </TableRow>
                                                             </TableHead>
                                                             <TableBody>
-                                                                {unifiedLayers.length === 0 && (
-                                                                    <TableRow><TableCell colSpan={9} align="center" sx={{ py: 3, color: 'text.secondary' }}>{t('No layers found.', 'לא נמצאו שכבות.')}</TableCell></TableRow>
+                                                                {groupedLayers.length === 0 && (
+                                                                    <TableRow><TableCell colSpan={10} align="center" sx={{ py: 3, color: 'text.secondary' }}>{t('No layers found.', 'לא נמצאו שכבות.')}</TableCell></TableRow>
                                                                 )}
-                                                                {unifiedLayers.map((layer, i) => {
-                                                                    const vestDate = layer.vestingDate;
-                                                                    const isVested = !vestDate || vestDate <= new Date();
-                                                                    const vestColor = vestDate ? (isVested ? 'success.main' : 'text.secondary') : 'inherit';
-                                                                    const soldPct = layer.originalQty > 0 ? layer.soldQty / layer.originalQty : 0;
-
-                                                                    return (
-                                                                        <TableRow key={layer.originalTxnId || i}>
-                                                                            <TableCell>{formatDate(layer.date)}</TableCell>
-                                                                            <TableCell align="right">
-                                                                                <Box display="inline-block">
-                                                                                    {formatNumber(layer.originalQty)}
+                                                                {groupedLayers.map((group) => (
+                                                                    <>
+                                                                        {/* Portfolio Header Row */}
+                                                                        <TableRow key={`header-${group.portfolioId}`} sx={{ bgcolor: 'action.hover' }}>
+                                                                            <TableCell colSpan={10} sx={{ py: 1 }}>
+                                                                                <Box display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={2}>
+                                                                                    <Typography variant="subtitle2" fontWeight="bold">
+                                                                                        {group.portfolioName}
+                                                                                    </Typography>
+                                                                                    <Box display="flex" gap={2} sx={{ fontSize: '0.8rem', color: 'text.secondary' }}>
+                                                                                        <Box>
+                                                                                            <span>{t('Original Qty:', 'כמות מקורית:')} </span>
+                                                                                            <b>{formatNumber(group.stats.originalQty)}</b>
+                                                                                        </Box>
+                                                                                        <Box>
+                                                                                            <span>{t('Current Qty:', 'כמות נוכחית:')} </span>
+                                                                                            <b>{formatNumber(group.stats.currentQty)}</b>
+                                                                                        </Box>
+                                                                                        <Box>
+                                                                                            <span>{t('Value:', 'שווי:')} </span>
+                                                                                            <b>{formatValue(group.stats.value, displayCurrency)}</b>
+                                                                                        </Box>
+                                                                                        <Box>
+                                                                                            <span>{t('Weight:', 'משקל:')} </span>
+                                                                                            <b>{formatPercent(group.stats.weight)}</b>
+                                                                                        </Box>
+                                                                                    </Box>
                                                                                 </Box>
                                                                             </TableCell>
-                                                                            <TableCell align="right">
-                                                                                <Tooltip title={`${t('Sold:', 'נמכר:')} ${formatNumber(layer.soldQty)} (${formatPercent(soldPct)})`}>
-                                                                                    <Box display="inline-block" sx={{ cursor: 'help', textDecoration: 'underline dotted' }}>
-                                                                                        {formatNumber(layer.remainingQty)}
-                                                                                    </Box>
-                                                                                </Tooltip>
-                                                                            </TableCell>
-                                                                            <TableCell align="right">{formatPrice(layer.price, layer.currency)}</TableCell>
-                                                                            <TableCell align="right">{formatValue(layer.originalCost, displayCurrency)}</TableCell>
-                                                                            <TableCell align="right">
-                                                                                {layer.remainingQty > 0 ? formatValue(layer.currentValue, displayCurrency) : '-'}
-                                                                            </TableCell>
-                                                                            <TableCell align="right">
-                                                                                {layer.soldQty > 0 ? formatValue(layer.realizedGain, displayCurrency) : '-'}
-                                                                            </TableCell>
-                                                                            <TableCell align="right" sx={{ color: 'text.secondary' }}>
-                                                                                {formatValue(layer.taxLiability, displayCurrency)}
-                                                                            </TableCell>
-                                                                            <TableCell align="right" sx={{ color: vestColor, fontWeight: isVested ? 'bold' : 'normal' }}>
-                                                                                {vestDate ? formatDate(vestDate) : '-'}
-                                                                            </TableCell>
                                                                         </TableRow>
-                                                                    );
-                                                                })}
+                                                                        {/* Layers */}
+                                                                        {group.layers.map((layer, i) => {
+                                                                            const vestDate = layer.vestingDate;
+                                                                            const isVested = !vestDate || vestDate <= new Date();
+                                                                            const vestColor = vestDate ? (isVested ? 'success.main' : 'text.secondary') : 'inherit';
+                                                                            const soldPct = layer.originalQty > 0 ? layer.soldQty / layer.originalQty : 0;
+
+                                                                            return (
+                                                                                <TableRow key={layer.originalTxnId || `${group.portfolioId}-${i}`}>
+                                                                                    <TableCell>{formatDate(layer.date)}</TableCell>
+                                                                                    <TableCell align="right">{formatNumber(layer.originalQty)}</TableCell>
+                                                                                    <TableCell align="right">
+                                                                                        <Tooltip title={`${t('Sold:', 'נמכר:')} ${formatNumber(layer.soldQty)} (${formatPercent(soldPct)})`}>
+                                                                                            <Box display="inline-block" sx={{ cursor: 'help', textDecoration: 'underline dotted' }}>
+                                                                                                {formatNumber(layer.remainingQty)}
+                                                                                            </Box>
+                                                                                        </Tooltip>
+                                                                                    </TableCell>
+                                                                                    <TableCell align="right">{formatPrice(layer.price, layer.currency)}</TableCell>
+                                                                                    <TableCell align="right">{formatValue(layer.originalCost, displayCurrency)}</TableCell>
+                                                                                    <TableCell align="right">
+                                                                                        {layer.remainingQty > 0 ? formatValue(layer.currentValue, displayCurrency) : '-'}
+                                                                                    </TableCell>
+                                                                                    {/* Color Realized Gain: Green/Red if non-zero */}
+                                                                                    <TableCell align="right" sx={{ color: layer.realizedGain > 0 ? 'success.main' : layer.realizedGain < 0 ? 'error.main' : 'inherit' }}>
+                                                                                        {layer.soldQty > 0 || layer.realizedGain !== 0 ? formatValue(layer.realizedGain, displayCurrency) : '-'}
+                                                                                    </TableCell>
+                                                                                    <TableCell align="right" sx={{ color: (layer.currentValue - layer.remainingCost) >= 0 ? 'success.main' : 'error.main' }}>
+                                                                                        {layer.remainingQty > 0 ? formatValue(layer.currentValue - layer.remainingCost, displayCurrency) : '-'}
+                                                                                    </TableCell>
+                                                                                    <TableCell align="right" sx={{ color: 'text.secondary', cursor: 'help' }}>
+                                                                                        <Tooltip
+                                                                                            title={
+                                                                                                <Box sx={{ p: 1 }}>
+                                                                                                    <Typography variant="subtitle2" sx={{ mb: 1, textDecoration: 'underline' }}>{t('Tax Breakdown', 'פירוט מס')}</Typography>
+                                                                                                    <Box display="grid" gridTemplateColumns="1fr auto" gap={1} sx={{ fontSize: '0.8rem' }}>
+                                                                                                        <Typography variant="body2">{t('Realized Tax:', 'מס ששולם:')}</Typography>
+                                                                                                        <Typography variant="body2">{formatValue(layer.realizedTax, displayCurrency)}</Typography>
+
+                                                                                                        <Typography variant="body2">{t('Unrealized Tax:', 'מס על לא ממומש:')}</Typography>
+                                                                                                        <Typography variant="body2">{formatValue(layer.unrealizedTax, displayCurrency)}</Typography>
+
+                                                                                                        {layer.fees > 0 && (
+                                                                                                            <>
+                                                                                                                <Typography variant="body2" color="text.secondary">{t('Fees (Deducted from Gain):', 'עמלות (מופחת מהרווח):')}</Typography>
+                                                                                                                <Typography variant="body2" color="text.secondary">{formatValue(layer.fees, displayCurrency)}</Typography>
+                                                                                                            </>
+                                                                                                        )}
+                                                                                                    </Box>
+                                                                                                </Box>
+                                                                                            }
+                                                                                        >
+                                                                                            <Box sx={{ borderBottom: '1px dotted', borderColor: 'text.secondary', display: 'inline-block' }}>
+                                                                                                {formatValue(layer.realizedTax + layer.unrealizedTax, displayCurrency)}
+                                                                                            </Box>
+                                                                                        </Tooltip>
+                                                                                    </TableCell>
+                                                                                    <TableCell align="right" sx={{ color: vestColor, fontWeight: isVested ? 'bold' : 'normal' }}>
+                                                                                        {vestDate ? formatDate(vestDate) : '-'}
+                                                                                    </TableCell>
+                                                                                </TableRow>
+                                                                            );
+                                                                        })}
+                                                                    </>
+                                                                ))}
                                                             </TableBody>
                                                         </Table>
                                                     </Paper>
