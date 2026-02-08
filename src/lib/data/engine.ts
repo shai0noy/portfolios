@@ -28,6 +28,7 @@ export const INITIAL_SUMMARY: DashboardSummaryData = {
   perf1y: 0, perf1y_incomplete: false,
   perf3y: 0, perf3y_incomplete: false,
   perf5y: 0, perf5y_incomplete: false,
+    perfAll: 0, perfAll_incomplete: false,
   perfYtd: 0, perfYtd_incomplete: false,
   divYield: 0,
   totalUnvestedValue: 0,
@@ -43,6 +44,7 @@ const perfPeriods = {
   perf1y: 'perf1y',
   perf3y: 'perf3y',
   perf5y: 'perf5y',
+    perfAll: 'perfAll',
 } as const;
 
 type ProcessingEvent = 
@@ -245,6 +247,10 @@ export class FinanceEngine {
 
                 if (live.changePct5y !== undefined) h.perf5y = live.changePct5y;
                 else if (live.perf5y !== undefined) h.perf5y = live.perf5y;
+
+                if (live.changePctMax !== undefined) h.perfAll = live.changePctMax;
+                else if (live.perfAll !== undefined) h.perfAll = live.perfAll;
+
                 if (live.name) {
                     h.marketName = live.name;
                     // Dont override name if customName exists?
@@ -631,6 +637,7 @@ export class FinanceEngine {
             if (h.perf1y !== undefined && h.perf1y !== 0) { perfAcc.totalChange_perf1y += h.perf1y * marketValue; perfAcc.aumFor_perf1y += marketValue; perfAcc.holdingsFor_perf1y++; }
             if (h.perf3y !== undefined && h.perf3y !== 0) { perfAcc.totalChange_perf3y += h.perf3y * marketValue; perfAcc.aumFor_perf3y += marketValue; perfAcc.holdingsFor_perf3y++; }
             if (h.perf5y !== undefined && h.perf5y !== 0) { perfAcc.totalChange_perf5y += h.perf5y * marketValue; perfAcc.aumFor_perf5y += marketValue; perfAcc.holdingsFor_perf5y++; }
+            if (h.perfAll !== undefined && h.perfAll !== 0) { perfAcc.totalChange_perfAll += h.perfAll * marketValue; perfAcc.aumFor_perfAll += marketValue; perfAcc.holdingsFor_perfAll++; }
 
             // Unvested
             const unvestedVal = convertCurrency(h.marketValueUnvested.amount, h.marketValueUnvested.currency, displayCurrency, this.exchangeRates);
@@ -680,6 +687,8 @@ export class FinanceEngine {
             perf3y_incomplete: perfAcc.aumFor_perf3y < globalAcc.aum * 0.9,
             perf5y: perfAcc.aumFor_perf5y > 0 ? perfAcc.totalChange_perf5y / perfAcc.aumFor_perf5y : 0,
             perf5y_incomplete: perfAcc.aumFor_perf5y < globalAcc.aum * 0.9,
+            perfAll: perfAcc.aumFor_perfAll > 0 ? perfAcc.totalChange_perfAll / perfAcc.aumFor_perfAll : 0,
+            perfAll_incomplete: perfAcc.aumFor_perfAll < globalAcc.aum * 0.9,
 
             totalUnvestedValue: globalAcc.totalUnvestedValue,
             totalUnvestedGain: globalAcc.totalUnvestedValue - globalAcc.totalUnvestedCost,

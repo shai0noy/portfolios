@@ -162,6 +162,7 @@ export class Holding {
     public perf1y: number = 0;
     public perf3y: number = 0;
     public perf5y: number = 0;
+    public perfAll: number = 0;
 
     // Quantities
     public qtyVested: number;

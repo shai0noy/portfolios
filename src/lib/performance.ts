@@ -210,6 +210,7 @@ export interface PeriodReturns {
     perfYtd: number;
     perf1y: number;
     perf5y: number;
+    perfAll: number;
 }
 
 /**
@@ -224,7 +225,8 @@ export function calculatePeriodReturns(points: PerformancePoint[]): PeriodReturn
             perf3m: 0,
             perfYtd: 0,
             perf1y: 0,
-            perf5y: 0
+            perf5y: 0,
+            perfAll: 0
         };
     }
 
@@ -259,7 +261,7 @@ export function calculatePeriodReturns(points: PerformancePoint[]): PeriodReturn
         return found.twr;
     };
 
-    const subtractPeriod = (date: Date, period: '1w' | '1m' | '3m' | 'ytd' | '1y' | '5y'): Date => {
+    const subtractPeriod = (date: Date, period: '1w' | '1m' | '3m' | 'ytd' | '1y' | '5y' | 'all'): Date => {
         const d = new Date(date);
         switch (period) {
             case '1w': d.setDate(d.getDate() - 7); break;
@@ -268,11 +270,12 @@ export function calculatePeriodReturns(points: PerformancePoint[]): PeriodReturn
             case 'ytd': d.setMonth(0, 1); d.setHours(0, 0, 0, 0); break; // Jan 1st of current year
             case '1y': d.setFullYear(d.getFullYear() - 1); break;
             case '5y': d.setFullYear(d.getFullYear() - 5); break;
+            case 'all': d.setFullYear(points[0].date.getFullYear()); break;
         }
         return d;
     };
 
-    const calcReturn = (period: '1w' | '1m' | '3m' | 'ytd' | '1y' | '5y'): number => {
+    const calcReturn = (period: '1w' | '1m' | '3m' | 'ytd' | '1y' | '5y' | 'all'): number => {
         const startDate = subtractPeriod(latestDate, period);
         // If start date is after latest date (shouldn't happen) return 0
         if (startDate.getTime() > latestDate.getTime()) return 0;
@@ -294,6 +297,7 @@ export function calculatePeriodReturns(points: PerformancePoint[]): PeriodReturn
         perf3m: calcReturn('3m'),
         perfYtd: calcReturn('ytd'),
         perf1y: calcReturn('1y'),
-        perf5y: calcReturn('5y')
+        perf5y: calcReturn('5y'),
+        perfAll: calcReturn('all')
     };
 }

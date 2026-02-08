@@ -557,6 +557,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                                         <PerfStat label={t("YTD", "מתחילת שנה")} percentage={periodReturns ? periodReturns.perfYtd : undefined} isLoading={!periodReturns} isIncomplete={summary.perfYtd_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
                                         <PerfStat label={t("1Y", "שנה")} percentage={periodReturns ? periodReturns.perf1y : undefined} isLoading={!periodReturns} isIncomplete={summary.perf1y_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
                                         <PerfStat label={t("5Y", "5 שנים")} percentage={periodReturns ? periodReturns.perf5y : undefined} isLoading={!periodReturns} isIncomplete={summary.perf5y_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
+                                        <PerfStat label={t("ALL", "הכל")} percentage={periodReturns ? periodReturns.perfAll : undefined} isLoading={!periodReturns} isIncomplete={summary.perfAll_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
                                     </Box>
                                 </Box>
                             </Grid>

@@ -246,6 +246,7 @@ export interface DashboardHolding {
   perf1y: number;
   perf3y: number;
   perf5y: number;
+  perfAll: number;
   type?: InstrumentClassification;
 }
 
@@ -276,6 +277,8 @@ export interface DashboardSummaryData {
   perf3y_incomplete: boolean;
   perf5y: number;
   perf5y_incomplete: boolean;
+  perfAll: number;
+  perfAll_incomplete: boolean;
   perfYtd: number;
   perfYtd_incomplete: boolean;
   divYield: number;
