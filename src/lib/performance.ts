@@ -202,3 +202,98 @@ export async function calculatePortfolioPerformance(
 
     return points;
 }
+
+export interface PeriodReturns {
+    perf1w: number;
+    perf1m: number;
+    perf3m: number;
+    perfYtd: number;
+    perf1y: number;
+    perf5y: number;
+}
+
+/**
+ * Calculates percentage returns for standard periods based on TWR points.
+ * Returns 0 for periods with insufficient data.
+ */
+export function calculatePeriodReturns(points: PerformancePoint[]): PeriodReturns {
+    if (points.length === 0) {
+        return {
+            perf1w: 0,
+            perf1m: 0,
+            perf3m: 0,
+            perfYtd: 0,
+            perf1y: 0,
+            perf5y: 0
+        };
+    }
+
+    const latestPoint = points[points.length - 1];
+    const latestDate = new Date(latestPoint.date);
+    const latestTwr = latestPoint.twr;
+
+    const getTwrAtDate = (targetDate: Date): number => {
+        // Find the point closest to (but not after) the target date
+        // Since points are sorted by date...
+        // We want the point at the START of the window.
+        // E.g. for 1 week return, we want price at (Now - 1 week).
+
+        // Binary search or simple findLast
+        const targetTime = targetDate.getTime();
+
+        // If target is before the start of history, use the first point's TWR (which is usually 1.0 or close to start)
+        // Actually TWR starts at 1.0 BEFORE the first day's moves? 
+        // Our calculation starts with twrIndex = 1.0.
+        // points[0] has twr *after* day 1.
+
+        if (targetTime < new Date(points[0].date).getTime()) return 1.0;
+
+        // Find last point <= targetTime
+        let found = points[0];
+        for (let i = 0; i < points.length; i++) {
+            if (new Date(points[i].date).getTime() > targetTime) {
+                break;
+            }
+            found = points[i];
+        }
+        return found.twr;
+    };
+
+    const subtractPeriod = (date: Date, period: '1w' | '1m' | '3m' | 'ytd' | '1y' | '5y'): Date => {
+        const d = new Date(date);
+        switch (period) {
+            case '1w': d.setDate(d.getDate() - 7); break;
+            case '1m': d.setMonth(d.getMonth() - 1); break;
+            case '3m': d.setMonth(d.getMonth() - 3); break;
+            case 'ytd': d.setMonth(0, 1); d.setHours(0, 0, 0, 0); break; // Jan 1st of current year
+            case '1y': d.setFullYear(d.getFullYear() - 1); break;
+            case '5y': d.setFullYear(d.getFullYear() - 5); break;
+        }
+        return d;
+    };
+
+    const calcReturn = (period: '1w' | '1m' | '3m' | 'ytd' | '1y' | '5y'): number => {
+        const startDate = subtractPeriod(latestDate, period);
+        // If start date is after latest date (shouldn't happen) return 0
+        if (startDate.getTime() > latestDate.getTime()) return 0;
+
+        // If YTD, and we are on Jan 1st?
+        // If history starts AFTER the target start date?
+        // Then we measure from start of history.
+        // But strictly speaking, 5Y return is valid only if we have 5Y history?
+        // Usually we show "Since Inception" if < 5Y.
+        // Here we just use available history (TWR at start date effectively 1.0 if before start).
+
+        const startTwr = getTwrAtDate(startDate);
+        return (latestTwr / startTwr) - 1;
+    };
+
+    return {
+        perf1w: calcReturn('1w'),
+        perf1m: calcReturn('1m'),
+        perf3m: calcReturn('3m'),
+        perfYtd: calcReturn('ytd'),
+        perf1y: calcReturn('1y'),
+        perf5y: calcReturn('5y')
+    };
+}

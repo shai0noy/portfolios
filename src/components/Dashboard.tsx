@@ -29,7 +29,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
   const [groupByPortfolio, setGroupByPortfolio] = useState(true);
   // Persist Currency - normalize initial value
   const [displayCurrency, setDisplayCurrency] = useState<string>(() => normalizeCurrency(localStorage.getItem('displayCurrency') || 'USD'));
-  
+
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<string | null>(searchParams.get('portfolioId'));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
@@ -77,18 +77,18 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
     const emptyResult = { summary: INITIAL_SUMMARY, holdings: [] as EnrichedDashboardHolding[] };
 
     if (!holdings || holdings.length === 0 || !exchangeRates || !exchangeRates.current || loading) {
-        return emptyResult;
+      return emptyResult;
     }
 
     if (error) {
-        console.error("Dashboard error state:", error);
-        return emptyResult;
+      console.error("Dashboard error state:", error);
+      return emptyResult;
     }
 
     // Filter holdings based on selected portfolio
-    const filteredHoldings = selectedPortfolioId 
-        ? holdings.filter(h => h.portfolioId === selectedPortfolioId)
-        : holdings;
+    const filteredHoldings = selectedPortfolioId
+      ? holdings.filter(h => h.portfolioId === selectedPortfolioId)
+      : holdings;
 
     const newPortMap = new Map(portfolios.map(p => [p.id, p]));
     return calculateDashboardSummary(filteredHoldings, displayCurrency, exchangeRates, newPortMap, engine);
@@ -110,8 +110,8 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
   // Grouping Logic
   const groupedData = useMemo(() => {
     if (!enrichedHoldings || enrichedHoldings.length === 0) {
-        // Fallback for empty state or loading
-        return { 'All Holdings': [] as EnrichedDashboardHolding[] };
+      // Fallback for empty state or loading
+      return { 'All Holdings': [] as EnrichedDashboardHolding[] };
     }
 
     if (selectedPortfolioId) {
@@ -121,7 +121,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
     }
 
     if (!groupByPortfolio) return { 'All Holdings': enrichedHoldings };
-    
+
     const groups: Record<string, EnrichedDashboardHolding[]> = {};
     enrichedHoldings.forEach(h => {
       if (!groups[h.portfolioName]) groups[h.portfolioName] = [];
@@ -174,10 +174,10 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         <Typography variant="body1" color="text.secondary" sx={{ mb: 4, maxWidth: 500 }}>
           {t("It looks like you haven't created any portfolios yet. Start by creating your first portfolio to track your investments.", "נראה שעדיין לא יצרת תיקי השקעות. התחל ביצירת התיק הראשון שלך כדי לעקוב אחר ההשקעות שלך.")}
         </Typography>
-        <Button 
-          variant="contained" 
-          size="large" 
-          component={RouterLink} 
+        <Button
+          variant="contained"
+          size="large"
+          component={RouterLink}
           to="/portfolios"
           startIcon={<AddIcon />}
           sx={{ borderRadius: 2, px: 4, py: 1.5, textTransform: 'none', fontSize: '1.1rem' }}
@@ -189,7 +189,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
   }
 
   if (holdings.length === 0) {
-     return (
+    return (
       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', textAlign: 'center', p: 3 }}>
         <CloudUploadIcon sx={{ fontSize: 80, color: 'text.secondary', mb: 2, opacity: 0.5 }} />
         <Typography variant="h4" gutterBottom fontWeight="700">
@@ -199,19 +199,19 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
           {t('You have portfolios set up, but no transactions recorded yet. Add your first trade or import history from a CSV file.', 'יש לך תיקים מוגדרים, אך עדיין לא תועדו עסקאות. הוסף את העסקה הראשונה שלך או ייבא היסטוריה מקובץ CSV.')}
         </Typography>
         <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', justifyContent: 'center' }}>
-          <Button 
-            variant="contained" 
-            size="large" 
-            component={RouterLink} 
+          <Button
+            variant="contained"
+            size="large"
+            component={RouterLink}
             to="/transaction"
             startIcon={<AddIcon />}
             sx={{ borderRadius: 2, px: 4, py: 1.5, textTransform: 'none', fontSize: '1.1rem' }}
           >
             {t('Add a Transaction', 'הוסף עסקה')}
           </Button>
-          <Button 
-            variant="outlined" 
-            size="large" 
+          <Button
+            variant="outlined"
+            size="large"
             component={RouterLink}
             to="/dashboard?import=true"
             startIcon={<CloudUploadIcon />}
@@ -228,19 +228,19 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
     <Box sx={{ maxWidth: 1400, mx: 'auto', mt: 4 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
         {selectedPortfolioId && (
-          <Button 
-            variant="text" 
+          <Button
+            variant="text"
             size="small"
-            onClick={() => handleSelectPortfolio(null)} 
+            onClick={() => handleSelectPortfolio(null)}
             startIcon={<ArrowBackIcon fontSize="small" sx={{ transform: isRtl ? 'rotate(180deg)' : 'none' }} />}
             sx={{ textTransform: 'none', color: 'text.secondary', minWidth: 'auto', whiteSpace: 'nowrap', mt: -1 }}
           >
             {t('All Portfolios', 'כל התיקים')}
           </Button>
         )}
-        
+
         <Box sx={{ flexGrow: 1 }}>
-          <TickerSearch 
+          <TickerSearch
             portfolios={portfolios}
             isPortfoliosLoading={loading}
             collapsible={true}
@@ -316,8 +316,8 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
           </ToggleButton>
           <Divider orientation="vertical" flexItem sx={{ mx: 1, height: 20, alignSelf: 'center' }} />
           <Tooltip title={t("Refresh Data", "רענן נתונים")}>
-            <IconButton 
-              onClick={() => refresh()} 
+            <IconButton
+              onClick={() => refresh()}
               disabled={loading}
               size="small"
               sx={{ border: 'none', borderRadius: 0 }}
@@ -328,17 +328,16 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         </Box>
       </Box>
 
-            <DashboardTable 
+      <DashboardTable
 
-              holdings={enrichedHoldings}
+        holdings={enrichedHoldings}
 
-              groupedData={groupedData}
+        groupedData={groupedData}
+        groupByPortfolio={groupByPortfolio}
 
-              groupByPortfolio={groupByPortfolio}
+        displayCurrency={displayCurrency}
 
-              displayCurrency={displayCurrency}
 
-      
         exchangeRates={exchangeRates}
         onSelectPortfolio={handleSelectPortfolio} // Updated prop
         columnVisibility={columnVisibility}

@@ -1,6 +1,6 @@
 import { Box, Paper, Typography, Grid, Tooltip, ToggleButton, ToggleButtonGroup, IconButton, CircularProgress, Button, Menu, MenuItem, Chip, ListItemIcon, Dialog, DialogTitle, DialogContent } from '@mui/material';
-import { formatPercent, formatMoneyValue, normalizeCurrency, calculatePerformanceInDisplayCurrency } from '../lib/currency';
-import { logIfFalsy } from '../lib/utils';
+import { formatPercent, formatMoneyValue, normalizeCurrency, calculatePerformanceInDisplayCurrency } from '../lib/currencyUtils';
+import { logIfFalsy, getValueColor } from '../lib/utils';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
@@ -11,7 +11,7 @@ import { useLanguage } from '../lib/i18n';
 import { useState, useEffect, useCallback, useRef, useMemo, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TickerChart, type ChartSeries } from './TickerChart';
-import { calculatePortfolioPerformance, type PerformancePoint } from '../lib/performance';
+import { calculatePortfolioPerformance, calculatePeriodReturns, type PerformancePoint, type PeriodReturns } from '../lib/performance';
 import { fetchTransactions } from '../lib/sheets';
 import { useChartComparison, getAvailableRanges, getMaxLabel } from '../lib/hooks/useChartComparison';
 import { TickerSearch } from './TickerSearch';
@@ -91,24 +91,42 @@ const Stat = ({ label, value, pct, gainValue, gainLabel, color, tooltip, isMain 
 
 interface PerfStatProps {
     label: string;
-    percentage: number;
-    isIncomplete: boolean;
+    percentage?: number;
+    isIncomplete?: boolean;
+    isLoading?: boolean;
     aum: number;
     displayCurrency: string;
     size?: 'normal' | 'small';
 }
 
-const PerfStat = ({ label, percentage, isIncomplete, aum, displayCurrency, size = 'normal' }: PerfStatProps) => {
-    const { t } = useLanguage(); // Hook for translation
-    if (percentage === 0 || isNaN(percentage)) {
+const PerfStat = ({ label, percentage, isIncomplete, isLoading, aum, displayCurrency, size = 'normal' }: PerfStatProps) => {
+    const { t } = useLanguage();
+
+    if (isLoading) {
+        return (
+            <Paper variant="outlined" sx={{ p: size === 'small' ? 1 : 1.5, minWidth: size === 'small' ? 90 : 120 }}>
+                <Typography variant="caption" color="text.secondary" gutterBottom display="block">
+                    {label}
+                </Typography>
+                <Box display="flex" justifyContent="flex-end">
+                    <CircularProgress size={14} />
+                </Box>
+            </Paper>
+        );
+    }
+
+    const effectivePercentage = percentage || 0;
+
+    // If percentage is undefined (and not loading), it implies no data
+    if (percentage === undefined || isNaN(percentage)) {
         return <Stat label={label} value={0} pct={0} displayCurrency={displayCurrency} size={size} />;
     }
 
-    const previousAUM = aum / (1 + percentage);
+    const previousAUM = aum / (1 + effectivePercentage);
     const absoluteChange = aum - previousAUM;
-    const color = percentage >= 0 ? 'success.main' : 'error.main';
+    const color = getValueColor(effectivePercentage);
 
-    return <Stat label={label} value={absoluteChange} pct={percentage} color={color} tooltip={isIncomplete ? t("Calculation is based on partial data.", "החישוב מבוסס על נתונים חלקיים.") : undefined} displayCurrency={displayCurrency} size={size} />;
+    return <Stat label={label} value={absoluteChange} pct={effectivePercentage} color={color} tooltip={isIncomplete ? t("Calculation is based on partial data.", "החישוב מבוסס על נתונים חלקיים.") : undefined} displayCurrency={displayCurrency} size={size} />;
 }
 
 type TimePeriod = '1d' | '1w' | '1m';
@@ -259,7 +277,7 @@ const TopMovers = ({ holdings, displayCurrency, exchangeRates }: { holdings: Das
                 </Box>
             ) : (
                 <Box sx={{ display: 'flex', overflowX: 'auto', py: 0.5, flex: 1 }}>
-                    {allMovers[period].map(mover => <MoverItem key={mover.key} mover={mover} />)}
+                        {allMovers[period].map(mover => <MoverItem key={`${mover.key}-${mover.holding.portfolioId}`} mover={mover} />)}
                 </Box>
             )}
         </Box>
@@ -298,6 +316,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
 
     const [activeStep, setActiveStep] = useState(0);
     const [perfData, setPerfData] = useState<PerformancePoint[]>([]);
+    const [periodReturns, setPeriodReturns] = useState<PeriodReturns | null>(null);
     const [isPerfLoading, setIsPerfLoading] = useState(false);
     const [chartView, setChartView] = useState<'holdings' | 'gains'>('holdings');
     const [chartMetric, setChartMetric] = useState<'price' | 'percent'>('price');
@@ -343,17 +362,19 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
     }, [activeStep, startTimer]);
 
     useEffect(() => {
-        if (activeStep === 1 && perfData.length === 0 && !isPerfLoading) {
+        // Trigger if we don't have perf data yet, regardless of activeStep (needed for summary stats now)
+        if (holdings.length > 0 && perfData.length === 0 && !isPerfLoading) {
             setIsPerfLoading(true);
             fetchTransactions(sheetId).then(txns => {
                 calculatePortfolioPerformance(holdings, txns, displayCurrency, exchangeRates)
                     .then(data => {
                         setPerfData(data);
+                        setPeriodReturns(calculatePeriodReturns(data));
                         setIsPerfLoading(false);
                     });
             }).catch(() => setIsPerfLoading(false));
         }
-    }, [activeStep, holdings, displayCurrency, exchangeRates, sheetId]);
+    }, [holdings, displayCurrency, exchangeRates, sheetId]);
 
     const handleManualStep = (direction: 'next' | 'prev') => {
         isManualRef.current = true;
@@ -530,12 +551,12 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                                             size="small"
                                         />
 
-                                        <PerfStat label={t("1W", "שבוע")} percentage={summary.perf1w} isIncomplete={summary.perf1w_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
-                                        <PerfStat label={t("1M", "חודש")} percentage={summary.perf1m} isIncomplete={summary.perf1m_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
-                                        <PerfStat label={t("3M", "3 חודשים")} percentage={summary.perf3m} isIncomplete={summary.perf3m_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
-                                        <PerfStat label={t("YTD", "מתחילת שנה")} percentage={summary.perfYtd} isIncomplete={summary.perfYtd_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
-                                        <PerfStat label={t("1Y", "שנה")} percentage={summary.perf1y} isIncomplete={summary.perf1y_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
-                                        <PerfStat label={t("5Y", "5 שנים")} percentage={summary.perf5y} isIncomplete={summary.perf5y_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
+                                        <PerfStat label={t("1W", "שבוע")} percentage={periodReturns ? periodReturns.perf1w : undefined} isLoading={!periodReturns} isIncomplete={summary.perf1w_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
+                                        <PerfStat label={t("1M", "חודש")} percentage={periodReturns ? periodReturns.perf1m : undefined} isLoading={!periodReturns} isIncomplete={summary.perf1m_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
+                                        <PerfStat label={t("3M", "3 חודשים")} percentage={periodReturns ? periodReturns.perf3m : undefined} isLoading={!periodReturns} isIncomplete={summary.perf3m_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
+                                        <PerfStat label={t("YTD", "מתחילת שנה")} percentage={periodReturns ? periodReturns.perfYtd : undefined} isLoading={!periodReturns} isIncomplete={summary.perfYtd_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
+                                        <PerfStat label={t("1Y", "שנה")} percentage={periodReturns ? periodReturns.perf1y : undefined} isLoading={!periodReturns} isIncomplete={summary.perf1y_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
+                                        <PerfStat label={t("5Y", "5 שנים")} percentage={periodReturns ? periodReturns.perf5y : undefined} isLoading={!periodReturns} isIncomplete={summary.perf5y_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
                                     </Box>
                                 </Box>
                             </Grid>

@@ -5,7 +5,8 @@ import {
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import { formatNumber, formatMoneyValue, formatMoneyPrice, convertCurrency, normalizeCurrency } from '../lib/currency';
+import { formatPercent as formatPct, formatMoneyValue, formatMoneyPrice, convertCurrency, normalizeCurrency, formatNumber } from '../lib/currencyUtils';
+import { getValueColor } from '../lib/utils';
 import { logIfFalsy } from '../lib/utils';
 import { useNavigate } from 'react-router-dom';
 import type { ExchangeRates } from '../lib/types';
@@ -28,7 +29,7 @@ export function DashboardTable(props: TableProps) {
   const { groupedData, groupByPortfolio, displayCurrency, exchangeRates, onSelectPortfolio, columnVisibility, onHideColumn } = props;
   const theme = useTheme();
   const navigate = useNavigate();
-  const { t, tTry, isRtl } = useLanguage();
+  const { t, tTry } = useLanguage();
 
   const [sortBy, setSortBy] = useState<string>('totalMV');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
@@ -72,11 +73,7 @@ export function DashboardTable(props: TableProps) {
     handleCloseContextMenu();
   };
 
-  const formatPct = (n: number) => {
-    if (n === undefined || n === null || isNaN(n)) return '-';
-    const val = (n * 100).toFixed(2);
-    return (isRtl && n < 0 ? '\u200E' : '') + val + '%';
-  };
+
 
   const getSortValue = (h: EnrichedDashboardHolding, key: string) => {
     switch (key) {
@@ -114,7 +111,7 @@ export function DashboardTable(props: TableProps) {
       case 'sector':
         return <TableCell>{h.sector}</TableCell>;
       case 'qty':
-        return <TableCell align="right">{formatNumber(h.totalQty)}</TableCell>;
+        return <TableCell align="right">{formatNumber(h.qtyTotal)}</TableCell>;
       case 'avgCost':
         // Display in stock currency (e.g. Agorot for ILA)
         // h.display.avgCost is in Display Currency, so we convert it back to stock currency for display
@@ -127,29 +124,42 @@ export function DashboardTable(props: TableProps) {
       case 'weight':
         return <TableCell align="right" sx={{ color: 'text.secondary' }}>{formatPct(groupByPortfolio ? vals.weightInPortfolio : vals.weightInGlobal)}</TableCell>;
       case 'dayChangeVal':
-        return <TableCell align="right" sx={{ color: vals.dayChangePct >= 0 ? theme.palette.success.main : theme.palette.error.main }}>{formatMoneyValue({ amount: vals.dayChangeVal, currency: normalizeCurrency(displayCurrency) }, t)}</TableCell>;
+        return <TableCell align="right" sx={{ color: getValueColor(vals.dayChangePct) }}>{formatMoneyValue({ amount: vals.dayChangeVal, currency: normalizeCurrency(displayCurrency) }, t)}</TableCell>;
       case 'dayChangePct':
-        return <TableCell align="right" sx={{ color: vals.dayChangePct >= 0 ? theme.palette.success.main : theme.palette.error.main }}>{formatPct(vals.dayChangePct)}</TableCell>;
+        return <TableCell align="right" sx={{ color: getValueColor(vals.dayChangePct) }}>{formatPct(vals.dayChangePct)}</TableCell>;
       case 'mv':
         return <TableCell align="right">{formatMoneyValue({ amount: vals.marketValue, currency: normalizeCurrency(displayCurrency) }, t)}</TableCell>;
       case 'unvestedValue':
         return <TableCell align="right" sx={{ color: 'text.secondary' }}>{h.display.unvestedValue > 0 ? formatMoneyValue({ amount: h.display.unvestedValue, currency: normalizeCurrency(displayCurrency) }, t) : '-'}</TableCell>;
       case 'unrealizedGain':
-        return <TableCell align="right"><Typography variant="body2" color={vals.unrealizedGain >= 0 ? theme.palette.success.main : theme.palette.error.main}>{formatMoneyValue({ amount: vals.unrealizedGain, currency: normalizeCurrency(displayCurrency) }, t)}</Typography></TableCell>;
+        return <TableCell align="right"><Typography variant="body2" color={getValueColor(vals.unrealizedGain)}>{formatMoneyValue({ amount: vals.unrealizedGain, currency: normalizeCurrency(displayCurrency) }, t)}</Typography></TableCell>;
       case 'unrealizedGainPct':
-        return <TableCell align="right" sx={{ color: 'text.secondary' }}>{formatPct(vals.unrealizedGainPct)}</TableCell>;
+        return <TableCell align="right" sx={{ color: getValueColor(vals.unrealizedGainPct) }}>{formatPct(vals.unrealizedGainPct)}</TableCell>;
       case 'realizedGain':
-        return <TableCell align="right">{formatMoneyValue({ amount: vals.realizedGain, currency: normalizeCurrency(displayCurrency) }, t)}</TableCell>;
+        return <TableCell align="right" sx={{ color: getValueColor(vals.realizedGain) }}>{formatMoneyValue({ amount: vals.realizedGain, currency: normalizeCurrency(displayCurrency) }, t)}</TableCell>;
       case 'realizedGainPct':
-        return <TableCell align="right" sx={{ color: 'text.secondary' }}>{formatPct(vals.realizedGainPct)}</TableCell>;
+        return <TableCell align="right" sx={{ color: getValueColor(vals.realizedGainPct) }}>{formatPct(vals.realizedGainPct)}</TableCell>;
       case 'realizedGainAfterTax':
         return <TableCell align="right">{formatMoneyValue({ amount: vals.realizedGainAfterTax, currency: normalizeCurrency(displayCurrency) }, t)}</TableCell>;
       case 'totalGain':
-        return <TableCell align="right" sx={{ fontWeight: 'bold', color: vals.totalGain >= 0 ? theme.palette.success.main : theme.palette.error.main }}>{formatMoneyValue({ amount: vals.totalGain, currency: normalizeCurrency(displayCurrency) }, t)}</TableCell>;
+        return <TableCell align="right" sx={{ fontWeight: 'bold', color: getValueColor(vals.totalGain) }}>{formatMoneyValue({ amount: vals.totalGain, currency: normalizeCurrency(displayCurrency) }, t)}</TableCell>;
       case 'totalGainPct':
-        return <TableCell align="right" sx={{ color: 'text.secondary' }}>{formatPct(vals.totalGainPct)}</TableCell>;
+        return <TableCell align="right" sx={{ color: getValueColor(vals.totalGainPct) }}>{formatPct(vals.totalGainPct)}</TableCell>;
       case 'valueAfterTax':
-        return <TableCell align="right">{formatMoneyValue({ amount: vals.valueAfterTax, currency: normalizeCurrency(displayCurrency) }, t)}</TableCell>;
+        // Value After Tax = Market Value - Tax Liability on Unrealized Gains
+        // Percentage is calculated as Net Liquidation Value / Market Value
+        const mv = vals.marketValue;
+        const netVal = vals.valueAfterTax;
+        const pctOfRow = mv > 0 ? netVal / mv : 0;
+
+        return (
+          <TableCell align="right">
+            {formatMoneyValue({ amount: netVal, currency: normalizeCurrency(displayCurrency) }, t)}
+            <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>
+              ({formatPct(pctOfRow)})
+            </Typography>
+          </TableCell>
+        );
       default:
         return null;
     }
