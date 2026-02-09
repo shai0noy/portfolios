@@ -2,6 +2,7 @@ import type { ExchangeMetadata } from './types/ticker';
 import type { InstrumentClassification } from './types/instrument';
 import { InstrumentType } from './types/instrument';
 import type { ProvidentInfo } from './fetching/types';
+import { MultiCurrencyValue } from './data/multiCurrency';
 
 export type { ExchangeMetadata, InstrumentClassification, ProvidentInfo };
 export { InstrumentType };
@@ -248,6 +249,16 @@ export interface DashboardHolding {
   perf5y: number;
   perfAll: number;
   type?: InstrumentClassification;
+  generateGainForPeriod?: (
+    startDate: Date,
+    historyProvider: (ticker: string) => any,
+    rates: ExchangeRates
+  ) => {
+    gain: MultiCurrencyValue,
+    initialValue: MultiCurrencyValue,
+    finalValue: MultiCurrencyValue,
+    gainPct: number
+  };
 }
 
 export interface DashboardSummaryData {

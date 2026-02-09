@@ -4,6 +4,7 @@ import { convertCurrency, toILS, normalizeCurrency } from '../currencyUtils';
 import { getTaxRatesForDate } from '../portfolioUtils';
 
 // --- Types ---
+import { MultiCurrencyValue } from './multiCurrency';
 
 export interface DividendEvent {
     ticker: string;
@@ -15,6 +16,11 @@ export interface DividendEvent {
 
 import type { SimpleMoney } from '../types';
 
+/**
+ * Represents a monetary value with explicit conversions.
+ * TODO: Consider converting this interface to a class (e.g., extending MultiCurrencyValue) 
+ * in the future to encapsulate conversion logic and arithmetic operations directly.
+ */
 export interface Money extends SimpleMoney {
     rateToPortfolio: number; // Historical rate at transaction time
     // Historical values in base currencies (computed at txn time to avoid drift)
@@ -475,11 +481,187 @@ export class Holding {
     get transactions(): ReadonlyArray<Transaction> { return this._transactions; }
     get dividends(): ReadonlyArray<DividendRecord> { return this._dividends; }
 
-    // Getters for specific Lot filters
     get activeLots(): Lot[] { return this._lots.filter(l => !l.soldDate && l.qty > 0); }
     get realizedLots(): Lot[] { return this._lots.filter(l => l.soldDate); }
     get combinedLots(): Lot[] { return this._lots; }
 
-    // Legacy getters removed in favor of explicit properties populated by Engine
+    /**
+     * Calculates the gain for this holding over a specific period.
+     * Uses "Initial Value vs Final Value" logic (Simple Return), not Time-Weighted Return.
+     */
+    public generateGainForPeriod(
+        startDate: Date,
+        historyProvider: (ticker: string) => any, // Returns { historical: { date: Date, price: number }[] }
+        rates: ExchangeRates
+    ): {
+        gain: MultiCurrencyValue,
+        initialValue: MultiCurrencyValue,
+        finalValue: MultiCurrencyValue,
+        gainPct: number
+    } {
+        const initialVal = new MultiCurrencyValue(0, 0);
+        const finalVal = new MultiCurrencyValue(0, 0);
 
+        // Ensure start of day
+        const startTime = new Date(startDate).setUTCHours(0, 0, 0, 0);
+
+        // Fetch historical data once if needed
+        const historyData = historyProvider(this.ticker);
+        const getPriceAtDate = (date: Date): number => {
+            if (!historyData?.historical) return 0;
+            // Find closest price on or before date? Or after?
+            // Usually "price at start date" means closing price of that day or previous available.
+            const t = date.getTime();
+            // Assuming sorted ascending
+            // Find last point <= t
+            let found = historyData.historical[0];
+            for (let i = 0; i < historyData.historical.length; i++) {
+                if (new Date(historyData.historical[i].date).getTime() > t) break;
+                found = historyData.historical[i];
+            }
+            return found?.price || found?.adjClose || 0;
+        };
+
+        // Price at Start Date (for lots held through)
+        // Only fetch if we have lots that need it
+        let priceAtStart = 0;
+        let priceAtStartFetched = false;
+
+        const lots = this._lots; // All lots
+
+        for (const lot of lots) {
+            // 1. Filter: If sold before start date, it contributes nothing to this period's gain
+            if (lot.soldDate && lot.soldDate.getTime() < startTime) continue;
+
+            // 2. Initial Value
+            // If bought AFTER start date: Initial = Cost Basis (Value flowing in)
+            // If bought BEFORE start date: Initial = Market Value at Start Date
+
+            let lotInitialUSD = 0;
+            let lotInitialILS = 0;
+
+            if (lot.date.getTime() >= startTime) {
+                // Bought during period
+                lotInitialUSD = lot.costTotal.valUSD || convertCurrency(lot.costTotal.amount, lot.costTotal.currency, Currency.USD, rates);
+                lotInitialILS = lot.costTotal.valILS || convertCurrency(lot.costTotal.amount, lot.costTotal.currency, Currency.ILS, rates);
+            } else {
+                // Held through start date
+                if (!priceAtStartFetched) {
+                    priceAtStart = getPriceAtDate(startDate);
+                    priceAtStartFetched = true;
+                }
+
+                // Val = Qty * PriceAtStart
+                // We need Price in USD and ILS. 
+                // Price usually in Stock Currency.
+                const valSC = lot.qty * priceAtStart;
+                lotInitialUSD = convertCurrency(valSC, this.stockCurrency, Currency.USD, rates);
+                lotInitialILS = convertCurrency(valSC, this.stockCurrency, Currency.ILS, rates);
+            }
+
+            initialVal.valUSD += lotInitialUSD;
+            initialVal.valILS += lotInitialILS;
+
+            // 3. Final Value
+            // If sold during period: Final = Proceeds (Realized Value)
+            // If active: Final = Current Market Value
+
+            let lotFinalUSD = 0;
+            let lotFinalILS = 0;
+
+            if (lot.soldDate) {
+                // Sold during period (we already filtered sold-before-start)
+                // Proceeds
+                // we need proceedsTotal for this Lot?
+                // Lot doesn't strictly store 'proceedsTotal' directly, it stores 'soldPricePerUnit' * qty?
+                // We computed it in handleSell but stored only Net Gain usually.
+                // Reconstruct proceeds:
+                // We know soldDate, quantity (lot.qty is sold qty for realized lots).
+                // Wait, `lot.qty` is the quantity of the lot. 
+                // `handleSell` creates a new lot for sold portion.
+                // So reliable: `quantity * soldPrice`.
+                // But we don't store `soldPrice` on the lot easily accessible except `soldPricePerUnit`?
+                // Actually `handleSell` DOES set `soldPricePerUnit`?
+                // Checking `handleSell`... it DOES NOT set `soldPricePerUnit` explicitly on the lot! 
+                // It calculates `proceedsPC` and sets `realizedGainNet`.
+                // It does NOT store the gross proceeds persistently on the lot object in `handleSell`.
+
+                // PROBLEM: We need Gross Proceeds for "Final Value".
+                // We have `realizedGainNet`, `costTotal`, `fees`?
+                // Proceeds = Cost + NetGain + Fees + SoldFees?
+                // Yes.
+                const costPC = lot.costTotal.amount;
+                const netGainPC = lot.realizedGainNet || 0;
+                const buyFeePC = lot.feesBuy.amount;
+                const sellFeePC = lot.soldFees?.amount || 0;
+
+                // PC Amount
+                const proceedsPC = costPC + netGainPC + buyFeePC + sellFeePC;
+
+                // Convert PC to USD/ILS
+                lotFinalUSD = convertCurrency(proceedsPC, this.portfolioCurrency, Currency.USD, rates);
+                lotFinalILS = convertCurrency(proceedsPC, this.portfolioCurrency, Currency.ILS, rates);
+
+            } else {
+                // Active
+                const currentPrice = this.currentPrice; // Live price
+                const valSC = lot.qty * currentPrice;
+                lotFinalUSD = convertCurrency(valSC, this.stockCurrency, Currency.USD, rates);
+                lotFinalILS = convertCurrency(valSC, this.stockCurrency, Currency.ILS, rates);
+            }
+
+            finalVal.valUSD += lotFinalUSD;
+            finalVal.valILS += lotFinalILS;
+        }
+
+        const gain = finalVal.sub(initialVal);
+
+        // Add Dividends received during period?
+        // Logic says: "Value Gain" usually includes dividends.
+        // For each dividend: if date >= startDate, add to Final Value (as it's cash flowing out/received).
+        // Initial Value of dividend is 0 (it's generated).
+        for (const div of this._dividends) {
+            if (div.date.getTime() >= startTime) {
+                // Add Gross or Net?
+                // "Value Gain" -> usually Gross Dividend (before tax) or Net?
+                // User said "compute the value gain... simailar logic that HoldingDetails use".
+                // HoldingDetails uses Net usually for "Realized Gain".
+                // Let's use Net Amount PC for consistency with Realized Gain being Net.
+                // Or maybe Gross?
+                // If we want "Performance", TWR uses Gross + Reinvest.
+                // If we want "My Pocket Gain", Net is better.
+                // Let's use Net Amount PC.
+                const divUSD = convertCurrency(div.netAmountPC, this.portfolioCurrency, Currency.USD, rates);
+                const divILS = convertCurrency(div.netAmountPC, this.portfolioCurrency, Currency.ILS, rates);
+
+                finalVal.valUSD += divUSD;
+                finalVal.valILS += divILS;
+                gain.valUSD += divUSD;
+                gain.valILS += divILS;
+            }
+        }
+
+    // Pct Gain
+    // If initial value is 0 (e.g. started from 0 with no cost basis? or just bought today), handle gracefully.
+    // We use USD for Pct calculation standardization, or return separate Pcts?
+    // User said: "compute a currency adjusted pct gain in each currency according to its current value. We will display the relevant one."
+    // So we need Pct per currency?
+    // The return type has single `gainPct`.
+    // Let's provide a helper to choose. Or we return MultiCurrencyValue Pct?
+    // But simplified: Pct is usually unified if FX neutral, but here FX matters.
+    // Let's calculate Pct based on Portfolio Preference?
+    // Actually, let's just use USD as default for "Global" or rely on caller to pick.
+    // But typically we display in "Display Currency".
+    // Let's calculate gainPct as:
+    // (Gain in Display / Initial in Display).
+    // Since we don't know Display Currency here (we have USD/ILS), we can expose method to get fractional gain.
+    // Let's just return the MultiValues. The caller will convert Gain and Initial to Display and divide.
+
+        return {
+            gain,
+            initialValue: initialVal,
+            finalValue: finalVal,
+            gainPct: 0 // Caller will compute
+        };
+    }
 }

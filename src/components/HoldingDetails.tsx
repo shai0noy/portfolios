@@ -1,4 +1,4 @@
-import { Box, Typography, Paper, Table, TableBody, TableCell, TableHead, TableRow, Grid, Divider, Tooltip, Link, Stack, CircularProgress, IconButton } from '@mui/material';
+import { Box, Typography, Paper, Table, TableBody, TableCell, TableHead, TableRow, Grid, Divider, Tooltip, Stack, CircularProgress, IconButton } from '@mui/material';
 import { formatValue, formatNumber, formatPrice, convertCurrency, formatPercent, getExchangeRates, normalizeCurrency, convertMoney } from '../lib/currency';
 import { useLanguage } from '../lib/i18n';
 import { Currency } from '../lib/types';
@@ -40,7 +40,7 @@ const formatDate = (dateInput: string | Date | number) => {
     return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
 };
 
-export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, portfolios, onPortfolioClick, section = 'holdings' }: HoldingDetailsProps) {
+export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, portfolios, section = 'holdings' }: HoldingDetailsProps & { section?: string }) {
     const { t } = useLanguage();
     const navigate = useNavigate();
 
@@ -291,8 +291,7 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
         }).sort((a, b) => (b.soldDate?.getTime() || 0) - (a.soldDate?.getTime() || 0));
     }, [matchingHoldings]);
 
-    // For current holding context
-    const currentHolding = matchingHoldings.find(h => h.portfolioId === selectedPortfolio);
+    // For current holding context: currentHolding was unused.
     const stockCurrency = matchingHoldings[0]?.stockCurrency || Currency.USD;
     const totalQty = matchingHoldings.reduce((sum, h) => sum + ((h as any).qtyTotal || h.qtyTotal || 0), 0);
 
@@ -304,14 +303,7 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
         }, 0);
     }, [txnHistory, stockCurrency, displayCurrency, exchangeRates]);
 
-    const totalGlobalWeight = useMemo(() => {
-        return holdingsWeights.reduce((sum, w) => sum + w.weightInGlobal, 0);
-    }, [holdingsWeights]);
-
-    // Add Total Value for Portfolio Distribution
-    const totalGlobalValue = useMemo(() => {
-        return holdingsWeights.reduce((sum, w) => sum + w.value, 0);
-    }, [holdingsWeights]);
+    // totalGlobalWeight and totalGlobalValue were unused and removed.
 
     const portfolioNameMap = useMemo(() => {
         return portfolios.reduce((acc, p) => {

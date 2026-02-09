@@ -90,7 +90,7 @@ describe('calculatePeriodReturns - Reproduction', () => {
         const mockRates = { current: { USD: 1 }, ago1m: { USD: 1 } } as any;
 
 
-        const points = await calculatePortfolioPerformance(holdings, txns, 'USD', mockRates, undefined, undefined, fetchFn);
+        const { points } = await calculatePortfolioPerformance(holdings, txns, 'USD', mockRates, undefined, undefined, fetchFn);
         console.log('Generated Points:', points.map(p => ({ date: p.date.toISOString(), val: p.holdingsValue })));
 
         const lastPoint = points[points.length - 1];
@@ -192,7 +192,7 @@ describe('calculatePeriodReturns - Reproduction', () => {
         const fetchFn = async (t: string) => ({ historical: (mockHistory as any)[`NASDAQ:${t}`], fromCache: true } as any);
         const mockRates = { current: { USD: 1 }, ago1m: { USD: 1 } } as any;
 
-        const points = await calculatePortfolioPerformance(holdings, txns, 'USD', mockRates, undefined, undefined, fetchFn);
+        const { points } = await calculatePortfolioPerformance(holdings, txns, 'USD', mockRates, undefined, undefined, fetchFn);
 
         // Day 1: Bought 10 @ 10 = 100. Value 10 @ 11 = 110. Gain 10.
         // TWR should be 1.1?

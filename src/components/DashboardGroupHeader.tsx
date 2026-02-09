@@ -1,10 +1,9 @@
-import React, { memo } from 'react';
+import { memo } from 'react';
 import { Box, Typography, IconButton, TableRow, TableCell } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { formatPercent as formatPct, formatMoneyValue, normalizeCurrency } from '../lib/currencyUtils';
 import { useLanguage } from '../lib/i18n';
-import { DASHBOARD_COLUMNS } from '../lib/dashboardColumns';
 
 interface DashboardGroupHeaderProps {
   groupName: string;

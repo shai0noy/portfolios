@@ -70,7 +70,7 @@ async function testBasicBuyAndHold() {
         date: '2024-01-02', portfolioId: 'p1', ticker: 'AAPL', exchange: Exchange.NASDAQ,
         type: 'BUY', qty: 10, price: 102, originalQty: 10, originalPrice: 102
     } as any];
-    const points = await calculatePortfolioPerformance(holdings, txns, 'USD', mockRates, undefined, undefined, mockFetchHistory);
+    const { points } = await calculatePortfolioPerformance(holdings, txns, 'USD', mockRates, undefined, undefined, mockFetchHistory);
     const p1 = points.find(p => p.date.toISOString().startsWith('2024-01-02'));
     assert(!!p1, 'Point for buy date exists');
     if (p1) {
@@ -95,7 +95,7 @@ async function testCurrencyConversion() {
         date: '2024-01-02', portfolioId: 'p1', ticker: 'AAPL', exchange: Exchange.NASDAQ,
         type: 'BUY', qty: 10, price: 102, originalQty: 10, originalPrice: 102
     } as any];
-    const points = await calculatePortfolioPerformance(holdings, txns, 'ILS', mockRates, undefined, undefined, mockFetchHistory);
+    const { points } = await calculatePortfolioPerformance(holdings, txns, 'ILS', mockRates, undefined, undefined, mockFetchHistory);
     const p1 = points.find(p => p.date.toISOString().startsWith('2024-01-02'));
     if (p1) {
         assertClose(p1.holdingsValue, 4080, 0.01, 'MV in ILS');
@@ -114,7 +114,7 @@ async function testPartialSell() {
         { date: '2024-01-02', portfolioId: 'p1', ticker: 'AAPL', exchange: Exchange.NASDAQ, type: 'BUY', qty: 10, price: 102 } as any,
         { date: '2024-01-04', portfolioId: 'p1', ticker: 'AAPL', exchange: Exchange.NASDAQ, type: 'SELL', qty: 5, price: 110 } as any
     ];
-    const points = await calculatePortfolioPerformance(holdings, txns, 'USD', mockRates, undefined, undefined, mockFetchHistory);
+    const { points } = await calculatePortfolioPerformance(holdings, txns, 'USD', mockRates, undefined, undefined, mockFetchHistory);
     const pBefore = points.find(p => p.date.toISOString().startsWith('2024-01-03'));
     if (pBefore) assertClose(pBefore.gainsValue, 30, 0.01, 'Gains before sell');
     const pAfter = points.find(p => p.date.toISOString().startsWith('2024-01-04'));
@@ -135,7 +135,7 @@ async function testDividends() {
         { date: '2024-01-02', portfolioId: 'p1', ticker: 'AAPL', exchange: Exchange.NASDAQ, type: 'BUY', qty: 10, price: 100 } as any,
         { date: '2024-01-03', portfolioId: 'p1', ticker: 'AAPL', exchange: Exchange.NASDAQ, type: 'DIVIDEND', qty: 0, price: 5, originalPrice: 5 }
     ];
-    const points = await calculatePortfolioPerformance(holdings, txns, 'USD', mockRates, undefined, undefined, mockFetchHistory);
+    const { points } = await calculatePortfolioPerformance(holdings, txns, 'USD', mockRates, undefined, undefined, mockFetchHistory);
     const p = points.find(p => p.date.toISOString().startsWith('2024-01-03'));
     if (p) assertClose(p.gainsValue, 55, 0.01, 'Gains with dividend');
 }
@@ -164,7 +164,7 @@ async function testTWR() {
         { date: '2024-01-03', portfolioId: 'p1', ticker: 'AAPL', exchange: Exchange.NASDAQ, type: 'BUY', qty: 10, price: 105 } as any
     ];
 
-    const points = await calculatePortfolioPerformance(holdings, txns, 'USD', mockRates, undefined, undefined, mockFetchHistory);
+    const { points } = await calculatePortfolioPerformance(holdings, txns, 'USD', mockRates, undefined, undefined, mockFetchHistory);
     
     const p2 = points.find(p => p.date.toISOString().startsWith('2024-01-03'));
     if (p2) {
@@ -212,7 +212,7 @@ async function testMissingPriceData() {
         { date: '2024-01-01', portfolioId: 'p1', ticker: 'DENSE', exchange: Exchange.NASDAQ, type: 'BUY', qty: 1, price: 10 } as any
     ];
 
-    const points = await calculatePortfolioPerformance(holdings, txns, 'USD', mockRates, undefined, undefined, fetchGap);
+    const { points } = await calculatePortfolioPerformance(holdings, txns, 'USD', mockRates, undefined, undefined, fetchGap);
     
     const pGap = points.find(p => p.date.toISOString().startsWith('2024-01-03'));
     
@@ -245,7 +245,7 @@ async function testIntradayWash() {
         { date: '2024-01-02', portfolioId: 'p1', ticker: 'DAY', exchange: Exchange.NASDAQ, type: 'SELL', qty: 10, price: 110 } as any  // Proceeds 1100
     ];
 
-    const points = await calculatePortfolioPerformance(holdings, txns, 'USD', mockRates, undefined, undefined, fetchCustom);
+    const { points } = await calculatePortfolioPerformance(holdings, txns, 'USD', mockRates, undefined, undefined, fetchCustom);
     const p = points.find(p => p.date.toISOString().startsWith('2024-01-02'));
 
     if (p) {
@@ -275,7 +275,7 @@ async function testZeroStartTWR() {
         { date: '2024-01-02', portfolioId: 'p1', ticker: 'ZERO', exchange: Exchange.NASDAQ, type: 'BUY', qty: 10, price: 100 } as any
     ];
 
-    const points = await calculatePortfolioPerformance(holdings, txns, 'USD', mockRates, undefined, undefined, fetchCustom);
+    const { points } = await calculatePortfolioPerformance(holdings, txns, 'USD', mockRates, undefined, undefined, fetchCustom);
     
     // Check Day 2 (Day of deposit)
     const p2 = points.find(p => p.date.toISOString().startsWith('2024-01-02'));

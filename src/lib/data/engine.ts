@@ -672,6 +672,7 @@ export class FinanceEngine {
             totalDayChangePct: globalAcc.aumWithDayChangeData > 0 ? globalAcc.totalDayChange / globalAcc.aumWithDayChangeData : 0,
             totalDayChangeIsIncomplete: globalAcc.holdingsWithDayChange < this.holdings.size, // Approximate
 
+
             // Perf
             perf1w: perfAcc.aumFor_perf1w > 0 ? perfAcc.totalChange_perf1w / perfAcc.aumFor_perf1w : 0,
             perf1w_incomplete: perfAcc.aumFor_perf1w < globalAcc.aum * 0.9,

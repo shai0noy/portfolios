@@ -1,17 +1,18 @@
 import { Box, Paper, Typography, Grid, Tooltip, ToggleButton, ToggleButtonGroup, IconButton, CircularProgress, Button, Menu, MenuItem, Chip, ListItemIcon, Dialog, DialogTitle, DialogContent } from '@mui/material';
-import { formatPercent, formatMoneyValue, normalizeCurrency, calculatePerformanceInDisplayCurrency } from '../lib/currencyUtils';
+import { formatPercent, formatMoneyValue, normalizeCurrency, calculatePerformanceInDisplayCurrency, convertCurrency } from '../lib/currencyUtils';
+import { MultiCurrencyValue } from '../lib/data/multiCurrency';
 import { logIfFalsy, getValueColor } from '../lib/utils';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
-import type { ExchangeRates, DashboardHolding, Portfolio } from '../lib/types';
+import { type ExchangeRates, type DashboardHolding, type Portfolio, Currency } from '../lib/types';
 import { useLanguage } from '../lib/i18n';
 import { useState, useEffect, useCallback, useRef, useMemo, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TickerChart, type ChartSeries } from './TickerChart';
-import { calculatePortfolioPerformance, calculatePeriodReturns, type PerformancePoint, type PeriodReturns } from '../lib/performance';
+import { calculatePortfolioPerformance, type PerformancePoint, type PeriodReturns } from '../lib/performance';
 import { fetchTransactions } from '../lib/sheets';
 import { useChartComparison, getAvailableRanges, getMaxLabel } from '../lib/hooks/useChartComparison';
 import { TickerSearch } from './TickerSearch';
@@ -105,14 +106,14 @@ const PerfStat = ({ label, percentage, gainValue, isIncomplete, isLoading, aum, 
 
     if (isLoading) {
         return (
-            <Paper variant="outlined" sx={{ p: size === 'small' ? 1 : 1.5, minWidth: size === 'small' ? 90 : 120 }}>
+            <Box sx={{ p: size === 'small' ? 1 : 1.5, minWidth: size === 'small' ? 90 : 120 }}>
                 <Typography variant="caption" color="text.secondary" gutterBottom display="block">
                     {label}
                 </Typography>
                 <Box display="flex" justifyContent="flex-end">
                     <CircularProgress size={14} />
                 </Box>
-            </Paper>
+            </Box>
         );
     }
 
@@ -324,7 +325,8 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
 
     const [activeStep, setActiveStep] = useState(0);
     const [perfData, setPerfData] = useState<PerformancePoint[]>([]);
-    const [periodReturns, setPeriodReturns] = useState<PeriodReturns | null>(null);
+    // periodReturns removed as unused
+    const [simplePeriodReturns, setSimplePeriodReturns] = useState<PeriodReturns | null>(null);
     const [isPerfLoading, setIsPerfLoading] = useState(false);
     const [chartView, setChartView] = useState<'holdings' | 'gains'>('holdings');
     const [chartMetric, setChartMetric] = useState<'price' | 'percent'>('price');
@@ -375,12 +377,77 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
             setIsPerfLoading(true);
             fetchTransactions(sheetId).then(txns => {
                 calculatePortfolioPerformance(holdings, txns, displayCurrency, exchangeRates)
-                    .then(data => {
-                        setPerfData(data);
-                        setPeriodReturns(calculatePeriodReturns(data));
+                    .then(({ points, historyMap }) => {
+                        setPerfData(points);
+                        // Calculate TWR Period Returns (for Chart comparison if needed, or legacy) - Removed as unused
+                        // setPeriodReturns(calculatePeriodReturns(points));
+
+
+
+                        // Helper to aggregate simple gain
+                        const calcSimple = (period: '1w' | '1m' | '3m' | 'ytd' | '1y' | '5y' | 'all') => {
+                            let startDate = new Date();
+                            switch (period) {
+                                case '1w': startDate.setDate(startDate.getDate() - 7); break;
+                                case '1m': startDate.setMonth(startDate.getMonth() - 1); break;
+                                case '3m': startDate.setMonth(startDate.getMonth() - 3); break;
+                                case 'ytd': startDate = new Date(new Date().getFullYear(), 0, 1); break;
+                                case '1y': startDate.setFullYear(startDate.getFullYear() - 1); break;
+                                case '5y': startDate.setFullYear(startDate.getFullYear() - 5); break;
+                                case 'all': startDate = new Date(0); break;
+                            }
+
+                            const aggGain = new MultiCurrencyValue(0, 0);
+                            const aggInitial = new MultiCurrencyValue(0, 0);
+
+                            holdings.forEach(h => {
+                                // We need a history provider wrapper for the map
+                                const provider = (ticker: string) => historyMap.get(ticker);
+                                // We need Exchange Rates
+                                if (h.generateGainForPeriod) {
+                                    const res = h.generateGainForPeriod(startDate, provider, exchangeRates);
+                                    aggGain.valUSD += res.gain.valUSD;
+                                    aggGain.valILS += res.gain.valILS;
+                                    aggInitial.valUSD += res.initialValue.valUSD;
+                                    aggInitial.valILS += res.initialValue.valILS;
+                                }
+                            });
+
+                            // Convert final agg to display currency for percentage
+                            // Gain Pct = Gain / Initial
+                            const gainDisplay = convertCurrency(aggGain.valUSD, Currency.USD, displayCurrency, exchangeRates);
+                            const initialDisplay = convertCurrency(aggInitial.valUSD, Currency.USD, displayCurrency, exchangeRates);
+
+                            const perf = initialDisplay !== 0 ? gainDisplay / initialDisplay : 0;
+                            const gainVal = gainDisplay;
+
+                            return { perf, gain: gainVal };
+                        };
+
+                        const s1w = calcSimple('1w');
+                        const s1m = calcSimple('1m');
+                        const s3m = calcSimple('3m');
+                        const sYtd = calcSimple('ytd');
+                        const s1y = calcSimple('1y');
+                        const s5y = calcSimple('5y');
+                        const sAll = calcSimple('all');
+
+                        setSimplePeriodReturns({
+                            perf1w: s1w.perf, gain1w: s1w.gain,
+                            perf1m: s1m.perf, gain1m: s1m.gain,
+                            perf3m: s3m.perf, gain3m: s3m.gain,
+                            perfYtd: sYtd.perf, gainYtd: sYtd.gain,
+                            perf1y: s1y.perf, gain1y: s1y.gain,
+                            perf5y: s5y.perf, gain5y: s5y.gain,
+                            perfAll: sAll.perf, gainAll: sAll.gain
+                        });
+
                         setIsPerfLoading(false);
                     });
-            }).catch(() => setIsPerfLoading(false));
+            }).catch(e => {
+                console.error("Perf Load Error", e);
+                setIsPerfLoading(false);
+            });
         }
     }, [holdings, displayCurrency, exchangeRates, sheetId]);
 
@@ -524,7 +591,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                                         <Stat
                                             label={t("Realized Gain", "רווח ממומש")}
                                             value={summary.totalRealized + summary.totalDividends}
-                                            pct={(summary.totalRealized + summary.totalDividends) / (summary.totalCostOfSold > 0 ? summary.totalCostOfSold : 1)}
+                                            pct={(summary.totalRealized + summary.totalDividends) / ((summary.totalCostOfSold + ((summary.aum - summary.totalUnvestedValue) - summary.totalUnrealized)) > 0 ? (summary.totalCostOfSold + ((summary.aum - summary.totalUnvestedValue) - summary.totalUnrealized)) : 1)}
                                             color={(summary.totalRealized + summary.totalDividends) >= 0 ? 'success.main' : 'error.main'}
                                             tooltip={
                                                 <>
@@ -559,13 +626,13 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                                             size="small"
                                         />
 
-                                        <PerfStat label={t("1W", "שבוע")} percentage={periodReturns ? periodReturns.perf1w : undefined} gainValue={periodReturns ? periodReturns.gain1w : undefined} isLoading={!periodReturns} isIncomplete={summary.perf1w_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
-                                        <PerfStat label={t("1M", "חודש")} percentage={periodReturns ? periodReturns.perf1m : undefined} gainValue={periodReturns ? periodReturns.gain1m : undefined} isLoading={!periodReturns} isIncomplete={summary.perf1m_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
-                                        <PerfStat label={t("3M", "3 חודשים")} percentage={periodReturns ? periodReturns.perf3m : undefined} gainValue={periodReturns ? periodReturns.gain3m : undefined} isLoading={!periodReturns} isIncomplete={summary.perf3m_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
-                                        <PerfStat label={t("YTD", "מתחילת שנה")} percentage={periodReturns ? periodReturns.perfYtd : undefined} gainValue={periodReturns ? periodReturns.gainYtd : undefined} isLoading={!periodReturns} isIncomplete={summary.perfYtd_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
-                                        <PerfStat label={t("1Y", "שנה")} percentage={periodReturns ? periodReturns.perf1y : undefined} gainValue={periodReturns ? periodReturns.gain1y : undefined} isLoading={!periodReturns} isIncomplete={summary.perf1y_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
-                                        <PerfStat label={t("5Y", "5 שנים")} percentage={periodReturns ? periodReturns.perf5y : undefined} gainValue={periodReturns ? periodReturns.gain5y : undefined} isLoading={!periodReturns} isIncomplete={summary.perf5y_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
-                                        <PerfStat label={t("ALL", "הכל")} percentage={periodReturns ? periodReturns.perfAll : undefined} gainValue={summary.totalReturn} isLoading={!periodReturns} isIncomplete={summary.perfAll_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
+                                        <PerfStat label={t("1W", "שבוע")} percentage={simplePeriodReturns ? simplePeriodReturns.perf1w : undefined} gainValue={simplePeriodReturns ? simplePeriodReturns.gain1w : undefined} isLoading={!simplePeriodReturns} isIncomplete={summary.perf1w_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
+                                        <PerfStat label={t("1M", "חודש")} percentage={simplePeriodReturns ? simplePeriodReturns.perf1m : undefined} gainValue={simplePeriodReturns ? simplePeriodReturns.gain1m : undefined} isLoading={!simplePeriodReturns} isIncomplete={summary.perf1m_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
+                                        <PerfStat label={t("3M", "3 חודשים")} percentage={simplePeriodReturns ? simplePeriodReturns.perf3m : undefined} gainValue={simplePeriodReturns ? simplePeriodReturns.gain3m : undefined} isLoading={!simplePeriodReturns} isIncomplete={summary.perf3m_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
+                                        <PerfStat label={t("YTD", "מתחילת שנה")} percentage={simplePeriodReturns ? simplePeriodReturns.perfYtd : undefined} gainValue={simplePeriodReturns ? simplePeriodReturns.gainYtd : undefined} isLoading={!simplePeriodReturns} isIncomplete={summary.perfYtd_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
+                                        <PerfStat label={t("1Y", "שנה")} percentage={simplePeriodReturns ? simplePeriodReturns.perf1y : undefined} gainValue={simplePeriodReturns ? simplePeriodReturns.gain1y : undefined} isLoading={!simplePeriodReturns} isIncomplete={summary.perf1y_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
+                                        <PerfStat label={t("5Y", "5 שנים")} percentage={simplePeriodReturns ? simplePeriodReturns.perf5y : undefined} gainValue={simplePeriodReturns ? simplePeriodReturns.gain5y : undefined} isLoading={!simplePeriodReturns} isIncomplete={summary.perf5y_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
+                                        <PerfStat label={t("ALL", "הכל")} percentage={simplePeriodReturns ? simplePeriodReturns.perfAll : undefined} gainValue={summary.totalReturn} isLoading={!simplePeriodReturns} isIncomplete={summary.perfAll_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
                                     </Box>
                                 </Box>
                             </Grid>

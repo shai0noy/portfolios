@@ -22,13 +22,13 @@ export async function calculatePortfolioPerformance(
     portfolioPolicies?: Map<string, { divPolicy: 'cash_taxed' | 'accumulate_tax_free' | 'hybrid_rsu' }>,
     signal?: AbortSignal,
     fetchHistoryFn: typeof fetchTickerHistory = fetchTickerHistory
-): Promise<PerformancePoint[]> {
+): Promise<{ points: PerformancePoint[], historyMap: Map<string, any> }> {
     const relevantPortIds = new Set([...holdings.map(h => h.portfolioId), ...transactions.map(t => t.portfolioId)]);
     const sortedTxns = transactions
         .filter(t => relevantPortIds.has(t.portfolioId))
         .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-    if (sortedTxns.length === 0) return [];
+    if (sortedTxns.length === 0) return { points: [], historyMap: new Map() };
 
     // 1. Identify all tickers ever held and fetch their history
     const allTickersEver = new Map<string, { ticker: string, exchange: Exchange }>();
@@ -58,7 +58,7 @@ export async function calculatePortfolioPerformance(
     });
 
     const sortedTimestamps = Array.from(allTimestamps).sort((a, b) => a - b);
-    if (sortedTimestamps.length === 0) return [];
+    if (sortedTimestamps.length === 0) return { points: [], historyMap: new Map() };
 
     // Filter to only include dates from the first transaction
     const fDate = new Date(sortedTxns[0].date);
@@ -66,7 +66,7 @@ export async function calculatePortfolioPerformance(
     const firstTxnDate = fDate.getTime();
     const activeTimestamps = sortedTimestamps.filter(ts => ts >= firstTxnDate);
 
-    if (activeTimestamps.length === 0) return [];
+    if (activeTimestamps.length === 0) return { points: [], historyMap: new Map() };
 
     // 4. Time-series aggregation
     const points: PerformancePoint[] = [];
@@ -280,7 +280,7 @@ export async function calculatePortfolioPerformance(
         });
     }
 
-    return points;
+    return { points, historyMap };
 }
 
 export interface PeriodReturns {
