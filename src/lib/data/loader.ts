@@ -27,7 +27,94 @@ async function fetchCPIData(_sheetId: string): Promise<TickerData | null> {
     return null;
 }
 
-export const loadFinanceEngine = async (sheetId: string) => {
+const CACHE_KEY = 'finance_engine_cache';
+const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+
+interface FinanceCache {
+    timestamp: number;
+    sheetId: string;
+    transactions: any[];
+    portfolios: any[];
+    rawDivs: any[];
+    exchangeRates: ExchangeRates;
+    cpiData: TickerData | null;
+    livePrices: [string, TickerData][];
+}
+
+function saveToCache(sheetId: string, data: Omit<FinanceCache, 'timestamp' | 'sheetId'>) {
+    try {
+        const cache: FinanceCache = {
+            timestamp: Date.now(),
+            sheetId,
+            ...data
+        };
+        localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+    } catch (e) {
+        console.warn('Failed to save to cache', e);
+    }
+}
+
+function loadFromCache(sheetId: string): FinanceCache | null {
+    try {
+        const json = localStorage.getItem(CACHE_KEY);
+        if (!json) return null;
+
+        const cache = JSON.parse(json) as FinanceCache;
+        if (cache.sheetId !== sheetId) return null;
+        if (Date.now() - cache.timestamp > CACHE_TTL) return null;
+
+        return cache;
+    } catch (e) {
+        console.warn('Failed to load from cache', e);
+        return null;
+    }
+}
+
+export const loadFinanceEngine = async (sheetId: string, forceRefresh = false) => {
+    // 0. Try Load from Cache
+    if (!forceRefresh) {
+        const cached = loadFromCache(sheetId);
+        if (cached) {
+            console.log('Loader: Using cached data');
+            const { transactions, portfolios, rawDivs, exchangeRates, cpiData, livePrices } = cached;
+
+            // Reconstruct Dividends
+            const dividends: DividendEvent[] = rawDivs.map((d: any) => ({
+                ticker: d.ticker,
+                exchange: d.exchange,
+                date: new Date(d.date),
+                amount: d.amount,
+                source: d.source || 'SHEET'
+            }));
+
+            // Reconstruct Engine
+            const engine = new FinanceEngine(portfolios, exchangeRates as unknown as ExchangeRates, cpiData);
+            engine.processEvents(transactions, dividends);
+
+            // Hydrate Prices
+            const priceMap = new Map<string, TickerData>(livePrices);
+            engine.hydrateLivePrices(priceMap);
+
+            // Generate Recurring Fees
+            const holdingsWithFees = Array.from(engine.holdings.values()).filter(h => {
+                const p = engine.portfolios.get(h.portfolioId);
+                return p && (p.mgmtType === 'percentage' || (p.feeHistory && p.feeHistory.some(f => f.mgmtType === 'percentage')));
+            });
+
+            if (holdingsWithFees.length > 0) {
+                engine.generateRecurringFees((ticker, exchange, _date) => {
+                    const h = engine.holdings.get(`${holdingsWithFees.find(h => h.ticker === ticker && h.exchange === exchange)?.portfolioId}_${ticker}`);
+                    return h ? h.currentPrice : 0;
+                });
+            }
+
+            engine.calculateSnapshot();
+            return engine;
+        }
+    }
+
+    console.log('Loader: Fetching fresh data');
+
     // 1. Fetch Base Data
     const [transactions, portfolios] = await Promise.all([
         fetchTransactions(sheetId),
@@ -56,11 +143,11 @@ export const loadFinanceEngine = async (sheetId: string) => {
     });
 
     console.log(`Loader: Fetching prices for ${tickers.size} tickers:`, Array.from(tickers));
-    const livePrices = await fetchLivePrices(Array.from(tickers).map(t => {
+    const livePricesMap = await fetchLivePrices(Array.from(tickers).map(t => {
         const [exchange, ticker] = t.split(':');
         return { ticker, exchange: exchange as Exchange };
     }));
-    console.log(`Loader: Fetched ${livePrices.size} prices.`);
+    console.log(`Loader: Fetched ${livePricesMap.size} prices.`);
 
     // 3. Initialize Engine
     const exchangeRates = await fetchSheetExchangeRates(sheetId);
@@ -96,6 +183,16 @@ export const loadFinanceEngine = async (sheetId: string) => {
         }));
     }
 
+    // Save to Cache
+    saveToCache(sheetId, {
+        transactions,
+        portfolios,
+        rawDivs,
+        exchangeRates: exchangeRates as unknown as ExchangeRates,
+        cpiData,
+        livePrices: Array.from(livePricesMap.entries())
+    });
+
     // Create Engine
     const engine = new FinanceEngine(portfolios, exchangeRates as unknown as ExchangeRates, cpiData);
 
@@ -103,7 +200,7 @@ export const loadFinanceEngine = async (sheetId: string) => {
     engine.processEvents(transactions, dividends);
 
     // 4. Hydrate Prices (Must be AFTER processEvents so holdings exist)
-    engine.hydrateLivePrices(livePrices);
+    engine.hydrateLivePrices(livePricesMap);
 
     // 6. Generate Recurring Fees (Requires Historical Prices)
     const holdingsWithFees = Array.from(engine.holdings.values()).filter(h => {

@@ -7,13 +7,12 @@ import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
-import { type ExchangeRates, type DashboardHolding, type Portfolio, Currency } from '../lib/types';
+import { type ExchangeRates, type DashboardHolding, type Portfolio, Currency, type Transaction } from '../lib/types';
 import { useLanguage } from '../lib/i18n';
 import { useState, useEffect, useCallback, useRef, useMemo, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TickerChart, type ChartSeries } from './TickerChart';
 import { calculatePortfolioPerformance, type PerformancePoint, type PeriodReturns } from '../lib/performance';
-import { fetchTransactions } from '../lib/sheets';
 import { useChartComparison, getAvailableRanges, getMaxLabel } from '../lib/hooks/useChartComparison';
 import { TickerSearch } from './TickerSearch';
 import type { TickerProfile } from '../lib/types/ticker';
@@ -30,9 +29,9 @@ interface SummaryProps {
     displayCurrency: string;
     exchangeRates: ExchangeRates;
     selectedPortfolio: string | null;
-    sheetId: string;
     portfolios: Portfolio[];
     isPortfoliosLoading: boolean;
+    transactions: Transaction[];
 }
 
 interface StatProps {
@@ -319,7 +318,7 @@ const TopMovers = ({ holdings, displayCurrency, exchangeRates }: { holdings: Das
     );
 };
 
-export function DashboardSummary({ summary, holdings, displayCurrency, exchangeRates, selectedPortfolio, sheetId, portfolios, isPortfoliosLoading }: SummaryProps) {
+export function DashboardSummary({ summary, holdings, displayCurrency, exchangeRates, selectedPortfolio, portfolios, isPortfoliosLoading, transactions }: SummaryProps) {
     logIfFalsy(exchangeRates, "DashboardSummary: exchangeRates missing");
     const { t } = useLanguage();
 
@@ -373,83 +372,80 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
 
     useEffect(() => {
         // Trigger if we don't have perf data yet, regardless of activeStep (needed for summary stats now)
-        if (holdings.length > 0 && perfData.length === 0 && !isPerfLoading) {
+        if (holdings.length > 0 && perfData.length === 0 && !isPerfLoading && transactions && transactions.length > 0) {
             setIsPerfLoading(true);
-            fetchTransactions(sheetId).then(txns => {
-                calculatePortfolioPerformance(holdings, txns, displayCurrency, exchangeRates)
-                    .then(({ points, historyMap }) => {
-                        setPerfData(points);
-                        // Calculate TWR Period Returns (for Chart comparison if needed, or legacy) - Removed as unused
-                        // setPeriodReturns(calculatePeriodReturns(points));
 
+            // Use passed transactions directly
+            calculatePortfolioPerformance(holdings, transactions, displayCurrency, exchangeRates)
+                .then(({ points, historyMap }) => {
+                    setPerfData(points);
 
+                    // Helper to aggregate simple gain
+                    const calcSimple = (period: '1w' | '1m' | '3m' | 'ytd' | '1y' | '5y' | 'all') => {
+                        let startDate = new Date();
+                        switch (period) {
+                            case '1w': startDate.setDate(startDate.getDate() - 7); break;
+                            case '1m': startDate.setMonth(startDate.getMonth() - 1); break;
+                            case '3m': startDate.setMonth(startDate.getMonth() - 3); break;
+                            case 'ytd': startDate = new Date(new Date().getFullYear(), 0, 1); break;
+                            case '1y': startDate.setFullYear(startDate.getFullYear() - 1); break;
+                            case '5y': startDate.setFullYear(startDate.getFullYear() - 5); break;
+                            case 'all': startDate = new Date(0); break;
+                        }
 
-                        // Helper to aggregate simple gain
-                        const calcSimple = (period: '1w' | '1m' | '3m' | 'ytd' | '1y' | '5y' | 'all') => {
-                            let startDate = new Date();
-                            switch (period) {
-                                case '1w': startDate.setDate(startDate.getDate() - 7); break;
-                                case '1m': startDate.setMonth(startDate.getMonth() - 1); break;
-                                case '3m': startDate.setMonth(startDate.getMonth() - 3); break;
-                                case 'ytd': startDate = new Date(new Date().getFullYear(), 0, 1); break;
-                                case '1y': startDate.setFullYear(startDate.getFullYear() - 1); break;
-                                case '5y': startDate.setFullYear(startDate.getFullYear() - 5); break;
-                                case 'all': startDate = new Date(0); break;
+                        const aggGain = new MultiCurrencyValue(0, 0);
+                        const aggInitial = new MultiCurrencyValue(0, 0);
+
+                        holdings.forEach(h => {
+                            // We need a history provider wrapper for the map
+                            const provider = (ticker: string) => historyMap.get(ticker);
+                            // We need Exchange Rates
+                            if (h.generateGainForPeriod) {
+                                const res = h.generateGainForPeriod(startDate, provider, exchangeRates);
+                                aggGain.valUSD += res.gain.valUSD;
+                                aggGain.valILS += res.gain.valILS;
+                                aggInitial.valUSD += res.initialValue.valUSD;
+                                aggInitial.valILS += res.initialValue.valILS;
                             }
-
-                            const aggGain = new MultiCurrencyValue(0, 0);
-                            const aggInitial = new MultiCurrencyValue(0, 0);
-
-                            holdings.forEach(h => {
-                                // We need a history provider wrapper for the map
-                                const provider = (ticker: string) => historyMap.get(ticker);
-                                // We need Exchange Rates
-                                if (h.generateGainForPeriod) {
-                                    const res = h.generateGainForPeriod(startDate, provider, exchangeRates);
-                                    aggGain.valUSD += res.gain.valUSD;
-                                    aggGain.valILS += res.gain.valILS;
-                                    aggInitial.valUSD += res.initialValue.valUSD;
-                                    aggInitial.valILS += res.initialValue.valILS;
-                                }
-                            });
-
-                            // Convert final agg to display currency for percentage
-                            // Gain Pct = Gain / Initial
-                            const gainDisplay = convertCurrency(aggGain.valUSD, Currency.USD, displayCurrency, exchangeRates);
-                            const initialDisplay = convertCurrency(aggInitial.valUSD, Currency.USD, displayCurrency, exchangeRates);
-
-                            const perf = initialDisplay !== 0 ? gainDisplay / initialDisplay : 0;
-                            const gainVal = gainDisplay;
-
-                            return { perf, gain: gainVal };
-                        };
-
-                        const s1w = calcSimple('1w');
-                        const s1m = calcSimple('1m');
-                        const s3m = calcSimple('3m');
-                        const sYtd = calcSimple('ytd');
-                        const s1y = calcSimple('1y');
-                        const s5y = calcSimple('5y');
-                        const sAll = calcSimple('all');
-
-                        setSimplePeriodReturns({
-                            perf1w: s1w.perf, gain1w: s1w.gain,
-                            perf1m: s1m.perf, gain1m: s1m.gain,
-                            perf3m: s3m.perf, gain3m: s3m.gain,
-                            perfYtd: sYtd.perf, gainYtd: sYtd.gain,
-                            perf1y: s1y.perf, gain1y: s1y.gain,
-                            perf5y: s5y.perf, gain5y: s5y.gain,
-                            perfAll: sAll.perf, gainAll: sAll.gain
                         });
 
-                        setIsPerfLoading(false);
+                        // Convert final agg to display currency for percentage
+                        // Gain Pct = Gain / Initial
+                        const gainDisplay = convertCurrency(aggGain.valUSD, Currency.USD, displayCurrency, exchangeRates);
+                        const initialDisplay = convertCurrency(aggInitial.valUSD, Currency.USD, displayCurrency, exchangeRates);
+
+                        const perf = initialDisplay !== 0 ? gainDisplay / initialDisplay : 0;
+                        const gainVal = gainDisplay;
+
+                        return { perf, gain: gainVal };
+                    };
+
+                    const s1w = calcSimple('1w');
+                    const s1m = calcSimple('1m');
+                    const s3m = calcSimple('3m');
+                    const sYtd = calcSimple('ytd');
+                    const s1y = calcSimple('1y');
+                    const s5y = calcSimple('5y');
+                    const sAll = calcSimple('all');
+
+                    setSimplePeriodReturns({
+                        perf1w: s1w.perf, gain1w: s1w.gain,
+                        perf1m: s1m.perf, gain1m: s1m.gain,
+                        perf3m: s3m.perf, gain3m: s3m.gain,
+                        perfYtd: sYtd.perf, gainYtd: sYtd.gain,
+                        perf1y: s1y.perf, gain1y: s1y.gain,
+                        perf5y: s5y.perf, gain5y: s5y.gain,
+                        perfAll: sAll.perf, gainAll: sAll.gain
                     });
-            }).catch(e => {
-                console.error("Perf Load Error", e);
-                setIsPerfLoading(false);
-            });
+
+                    setIsPerfLoading(false);
+                })
+                .catch(e => {
+                    console.error("Perf Load Error", e);
+                    setIsPerfLoading(false);
+                });
         }
-    }, [holdings, displayCurrency, exchangeRates, sheetId]);
+    }, [holdings, displayCurrency, exchangeRates, transactions]);
 
     const handleManualStep = (direction: 'next' | 'prev') => {
         isManualRef.current = true;

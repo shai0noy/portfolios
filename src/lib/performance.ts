@@ -23,6 +23,10 @@ export async function calculatePortfolioPerformance(
     signal?: AbortSignal,
     fetchHistoryFn: typeof fetchTickerHistory = fetchTickerHistory
 ): Promise<{ points: PerformancePoint[], historyMap: Map<string, any> }> {
+    if (!transactions || !Array.isArray(transactions)) {
+        console.warn("calculatePortfolioPerformance received invalid transactions:", transactions);
+        return { points: [], historyMap: new Map() };
+    }
     const relevantPortIds = new Set([...holdings.map(h => h.portfolioId), ...transactions.map(t => t.portfolioId)]);
     const sortedTxns = transactions
         .filter(t => relevantPortIds.has(t.portfolioId))

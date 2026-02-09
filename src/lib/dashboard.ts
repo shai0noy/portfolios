@@ -64,12 +64,12 @@ export function useDashboardData(sheetId: string) {
   const { showLoginModal } = useSession();
   const [engine, setEngine] = useState<FinanceEngine | null>(null);
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (force = false) => {
     if (!sheetId) return;
     setLoading(true);
     setError(null);
     try {
-      const eng = await loadFinanceEngine(sheetId);
+      const eng = await loadFinanceEngine(sheetId, force);
       setEngine(eng);
       setPortfolios(Array.from(eng.portfolios.values()));
       setExchangeRates(eng.exchangeRates);
@@ -90,7 +90,7 @@ export function useDashboardData(sheetId: string) {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  return { holdings, loading, error, portfolios, exchangeRates, hasFutureTxns, refresh: loadData, engine };
+  return { holdings, loading, error, portfolios, exchangeRates, hasFutureTxns, refresh: (force = false) => loadData(force), engine };
 }
 
 export function calculateDashboardSummary(data: any[], displayCurrency: string, exchangeRates: ExchangeRates, portfoliosMap: Map<string, Portfolio>, engine?: FinanceEngine | null): { summary: DashboardSummaryData, holdings: EnrichedDashboardHolding[] } {

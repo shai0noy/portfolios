@@ -277,9 +277,9 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         displayCurrency={displayCurrency}
         exchangeRates={exchangeRates}
         selectedPortfolio={portfolios.find(p => p.id === (selectedPortfolioId || ''))?.name || null}
-        sheetId={sheetId}
         portfolios={portfolios}
         isPortfoliosLoading={loading}
+        transactions={engine?.transactions || []}
       />
       {hasFutureTxns && (
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'right', mt: 0.5, mb: 1, fontSize: '0.7rem' }}>
@@ -317,7 +317,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
           <Divider orientation="vertical" flexItem sx={{ mx: 1, height: 20, alignSelf: 'center' }} />
           <Tooltip title={t("Refresh Data", "רענן נתונים")}>
             <IconButton
-              onClick={() => refresh()}
+              onClick={() => refresh(true)}
               disabled={loading}
               size="small"
               sx={{ border: 'none', borderRadius: 0 }}
