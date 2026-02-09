@@ -60,7 +60,9 @@ export async function calculatePortfolioPerformance(
     if (sortedTimestamps.length === 0) return [];
 
     // Filter to only include dates from the first transaction
-    const firstTxnDate = new Date(sortedTxns[0].date).getTime();
+    const fDate = new Date(sortedTxns[0].date);
+    fDate.setHours(0, 0, 0, 0);
+    const firstTxnDate = fDate.getTime();
     const activeTimestamps = sortedTimestamps.filter(ts => ts >= firstTxnDate);
     if (activeTimestamps.length === 0) return [];
 
@@ -205,12 +207,19 @@ export async function calculatePortfolioPerformance(
 
 export interface PeriodReturns {
     perf1w: number;
+    gain1w: number;
     perf1m: number;
+    gain1m: number;
     perf3m: number;
+    gain3m: number;
     perfYtd: number;
+    gainYtd: number;
     perf1y: number;
+    gain1y: number;
     perf5y: number;
+    gain5y: number;
     perfAll: number;
+    gainAll: number;
 }
 
 /**
@@ -220,45 +229,33 @@ export interface PeriodReturns {
 export function calculatePeriodReturns(points: PerformancePoint[]): PeriodReturns {
     if (points.length === 0) {
         return {
-            perf1w: 0,
-            perf1m: 0,
-            perf3m: 0,
-            perfYtd: 0,
-            perf1y: 0,
-            perf5y: 0,
-            perfAll: 0
+            perf1w: 0, gain1w: 0,
+            perf1m: 0, gain1m: 0,
+            perf3m: 0, gain3m: 0,
+            perfYtd: 0, gainYtd: 0,
+            perf1y: 0, gain1y: 0,
+            perf5y: 0, gain5y: 0,
+            perfAll: 0, gainAll: 0
         };
     }
 
     const latestPoint = points[points.length - 1];
     const latestDate = new Date(latestPoint.date);
     const latestTwr = latestPoint.twr;
+    const latestGainsVal = latestPoint.gainsValue;
 
-    const getTwrAtDate = (targetDate: Date): number => {
-        // Find the point closest to (but not after) the target date
-        // Since points are sorted by date...
-        // We want the point at the START of the window.
-        // E.g. for 1 week return, we want price at (Now - 1 week).
-
-        // Binary search or simple findLast
+    const getPointAtDate = (targetDate: Date): PerformancePoint => {
         const targetTime = targetDate.getTime();
-
-        // If target is before the start of history, use the first point's TWR (which is usually 1.0 or close to start)
-        // Actually TWR starts at 1.0 BEFORE the first day's moves? 
-        // Our calculation starts with twrIndex = 1.0.
-        // points[0] has twr *after* day 1.
-
-        if (targetTime < new Date(points[0].date).getTime()) return 1.0;
-
-        // Find last point <= targetTime
+        if (targetTime < new Date(points[0].date).getTime()) {
+            // Virtual start point
+            return { date: new Date(0), twr: 1.0, gainsValue: 0, holdingsValue: 0, costBasis: 0 };
+        }
         let found = points[0];
         for (let i = 0; i < points.length; i++) {
-            if (new Date(points[i].date).getTime() > targetTime) {
-                break;
-            }
+            if (new Date(points[i].date).getTime() > targetTime) break;
             found = points[i];
         }
-        return found.twr;
+        return found;
     };
 
     const subtractPeriod = (date: Date, period: '1w' | '1m' | '3m' | 'ytd' | '1y' | '5y' | 'all'): Date => {
@@ -270,34 +267,42 @@ export function calculatePeriodReturns(points: PerformancePoint[]): PeriodReturn
             case 'ytd': d.setMonth(0, 1); d.setHours(0, 0, 0, 0); break; // Jan 1st of current year
             case '1y': d.setFullYear(d.getFullYear() - 1); break;
             case '5y': d.setFullYear(d.getFullYear() - 5); break;
-            case 'all': d.setFullYear(points[0].date.getFullYear()); break;
+            case 'all': return new Date(0); 
         }
         return d;
     };
 
-    const calcReturn = (period: '1w' | '1m' | '3m' | 'ytd' | '1y' | '5y' | 'all'): number => {
+    const calcReturn = (period: '1w' | '1m' | '3m' | 'ytd' | '1y' | '5y' | 'all'): { perf: number, gain: number } => {
         const startDate = subtractPeriod(latestDate, period);
-        // If start date is after latest date (shouldn't happen) return 0
-        if (startDate.getTime() > latestDate.getTime()) return 0;
+        if (startDate.getTime() > latestDate.getTime()) return { perf: 0, gain: 0 };
 
-        // If YTD, and we are on Jan 1st?
-        // If history starts AFTER the target start date?
-        // Then we measure from start of history.
-        // But strictly speaking, 5Y return is valid only if we have 5Y history?
-        // Usually we show "Since Inception" if < 5Y.
-        // Here we just use available history (TWR at start date effectively 1.0 if before start).
+        const startPoint = getPointAtDate(startDate);
+        // TWR
+        const perf = (latestTwr / startPoint.twr) - 1;
+        // Absolute Gain ($)
+        // Gain over period = Total Gains (End) - Total Gains (Start)
+        // This works because gainsValue tracks cumulative Realized + Unrealized gains/losses
+        // including dividends/fees, from the start of time.
+        const gain = latestGainsVal - startPoint.gainsValue;
 
-        const startTwr = getTwrAtDate(startDate);
-        return (latestTwr / startTwr) - 1;
+        return { perf, gain };
     };
 
+    const r1w = calcReturn('1w');
+    const r1m = calcReturn('1m');
+    const r3m = calcReturn('3m');
+    const rYtd = calcReturn('ytd');
+    const r1y = calcReturn('1y');
+    const r5y = calcReturn('5y');
+    const rAll = calcReturn('all');
+
     return {
-        perf1w: calcReturn('1w'),
-        perf1m: calcReturn('1m'),
-        perf3m: calcReturn('3m'),
-        perfYtd: calcReturn('ytd'),
-        perf1y: calcReturn('1y'),
-        perf5y: calcReturn('5y'),
-        perfAll: calcReturn('all')
+        perf1w: r1w.perf, gain1w: r1w.gain,
+        perf1m: r1m.perf, gain1m: r1m.gain,
+        perf3m: r3m.perf, gain3m: r3m.gain,
+        perfYtd: rYtd.perf, gainYtd: rYtd.gain,
+        perf1y: r1y.perf, gain1y: r1y.gain,
+        perf5y: r5y.perf, gain5y: r5y.gain,
+        perfAll: rAll.perf, gainAll: rAll.gain
     };
 }

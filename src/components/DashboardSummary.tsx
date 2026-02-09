@@ -92,6 +92,7 @@ const Stat = ({ label, value, pct, gainValue, gainLabel, color, tooltip, isMain 
 interface PerfStatProps {
     label: string;
     percentage?: number;
+    gainValue?: number; // Added
     isIncomplete?: boolean;
     isLoading?: boolean;
     aum: number;
@@ -99,7 +100,7 @@ interface PerfStatProps {
     size?: 'normal' | 'small';
 }
 
-const PerfStat = ({ label, percentage, isIncomplete, isLoading, aum, displayCurrency, size = 'normal' }: PerfStatProps) => {
+const PerfStat = ({ label, percentage, gainValue, isIncomplete, isLoading, aum, displayCurrency, size = 'normal' }: PerfStatProps) => {
     const { t } = useLanguage();
 
     if (isLoading) {
@@ -122,8 +123,15 @@ const PerfStat = ({ label, percentage, isIncomplete, isLoading, aum, displayCurr
         return <Stat label={label} value={0} pct={0} displayCurrency={displayCurrency} size={size} />;
     }
 
-    const previousAUM = aum / (1 + effectivePercentage);
-    const absoluteChange = aum - previousAUM;
+    let absoluteChange = 0;
+    if (gainValue !== undefined) {
+        absoluteChange = gainValue;
+    } else {
+    // Fallback to TWR derivation (only if gainValue not provided)
+        const previousAUM = aum / (1 + effectivePercentage);
+        absoluteChange = aum - previousAUM;
+    }
+
     const color = getValueColor(effectivePercentage);
 
     return <Stat label={label} value={absoluteChange} pct={effectivePercentage} color={color} tooltip={isIncomplete ? t("Calculation is based on partial data.", "החישוב מבוסס על נתונים חלקיים.") : undefined} displayCurrency={displayCurrency} size={size} />;
@@ -551,13 +559,13 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                                             size="small"
                                         />
 
-                                        <PerfStat label={t("1W", "שבוע")} percentage={periodReturns ? periodReturns.perf1w : undefined} isLoading={!periodReturns} isIncomplete={summary.perf1w_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
-                                        <PerfStat label={t("1M", "חודש")} percentage={periodReturns ? periodReturns.perf1m : undefined} isLoading={!periodReturns} isIncomplete={summary.perf1m_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
-                                        <PerfStat label={t("3M", "3 חודשים")} percentage={periodReturns ? periodReturns.perf3m : undefined} isLoading={!periodReturns} isIncomplete={summary.perf3m_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
-                                        <PerfStat label={t("YTD", "מתחילת שנה")} percentage={periodReturns ? periodReturns.perfYtd : undefined} isLoading={!periodReturns} isIncomplete={summary.perfYtd_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
-                                        <PerfStat label={t("1Y", "שנה")} percentage={periodReturns ? periodReturns.perf1y : undefined} isLoading={!periodReturns} isIncomplete={summary.perf1y_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
-                                        <PerfStat label={t("5Y", "5 שנים")} percentage={periodReturns ? periodReturns.perf5y : undefined} isLoading={!periodReturns} isIncomplete={summary.perf5y_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
-                                        <PerfStat label={t("ALL", "הכל")} percentage={periodReturns ? periodReturns.perfAll : undefined} isLoading={!periodReturns} isIncomplete={summary.perfAll_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
+                                        <PerfStat label={t("1W", "שבוע")} percentage={periodReturns ? periodReturns.perf1w : undefined} gainValue={periodReturns ? periodReturns.gain1w : undefined} isLoading={!periodReturns} isIncomplete={summary.perf1w_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
+                                        <PerfStat label={t("1M", "חודש")} percentage={periodReturns ? periodReturns.perf1m : undefined} gainValue={periodReturns ? periodReturns.gain1m : undefined} isLoading={!periodReturns} isIncomplete={summary.perf1m_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
+                                        <PerfStat label={t("3M", "3 חודשים")} percentage={periodReturns ? periodReturns.perf3m : undefined} gainValue={periodReturns ? periodReturns.gain3m : undefined} isLoading={!periodReturns} isIncomplete={summary.perf3m_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
+                                        <PerfStat label={t("YTD", "מתחילת שנה")} percentage={periodReturns ? periodReturns.perfYtd : undefined} gainValue={periodReturns ? periodReturns.gainYtd : undefined} isLoading={!periodReturns} isIncomplete={summary.perfYtd_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
+                                        <PerfStat label={t("1Y", "שנה")} percentage={periodReturns ? periodReturns.perf1y : undefined} gainValue={periodReturns ? periodReturns.gain1y : undefined} isLoading={!periodReturns} isIncomplete={summary.perf1y_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
+                                        <PerfStat label={t("5Y", "5 שנים")} percentage={periodReturns ? periodReturns.perf5y : undefined} gainValue={periodReturns ? periodReturns.gain5y : undefined} isLoading={!periodReturns} isIncomplete={summary.perf5y_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
+                                        <PerfStat label={t("ALL", "הכל")} percentage={periodReturns ? periodReturns.perfAll : undefined} gainValue={summary.totalReturn} isLoading={!periodReturns} isIncomplete={summary.perfAll_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
                                     </Box>
                                 </Box>
                             </Grid>
