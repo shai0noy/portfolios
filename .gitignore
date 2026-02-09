@@ -2,3 +2,4 @@ node_modules/
 proxy/.dev.vars
 dist-test/
 dist_test/
+test_output*.txt

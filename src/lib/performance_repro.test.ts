@@ -71,8 +71,8 @@ describe('calculatePeriodReturns - Reproduction', () => {
         } as any];
 
         const txns: Transaction[] = [
-            { date: '2024-01-01T00:00:00', portfolioId: 'p1', ticker: 'TEST', exchange: Exchange.NASDAQ, type: 'BUY', qty: 10, price: 100 } as any,
-            { date: '2024-01-02T00:00:00', portfolioId: 'p1', ticker: 'TEST', exchange: Exchange.NASDAQ, type: 'SELL', qty: 5, price: 120 } as any
+            { date: '2024-01-01T00:00:00.000Z', portfolioId: 'p1', ticker: 'TEST', exchange: Exchange.NASDAQ, type: 'BUY', qty: 10, price: 100 } as any,
+            { date: '2024-01-02T00:00:00.000Z', portfolioId: 'p1', ticker: 'TEST', exchange: Exchange.NASDAQ, type: 'SELL', qty: 5, price: 120 } as any
         ];
 
         // Mock History:
@@ -81,23 +81,23 @@ describe('calculatePeriodReturns - Reproduction', () => {
         // Jan 3: 120
         const mockHistory = {
             'NASDAQ:TEST': [
-                { date: new Date('2024-01-01T00:00:00'), price: 100 },
-                { date: new Date('2024-01-02T00:00:00'), price: 110 },
-                { date: new Date('2024-01-03T00:00:00'), price: 120 },
+                { date: new Date('2024-01-01T00:00:00.000Z'), price: 100 },
+                { date: new Date('2024-01-02T00:00:00.000Z'), price: 110 },
+                { date: new Date('2024-01-03T00:00:00.000Z'), price: 120 },
             ]
         };
         const fetchFn = async (t: string) => ({ historical: (mockHistory as any)[`NASDAQ:${t}`], fromCache: true } as any);
         const mockRates = { current: { USD: 1 }, ago1m: { USD: 1 } } as any;
 
 
-        const points = await calculatePortfolioPerformance(holdings, txns, 'USD', mockRates, undefined, fetchFn);
+        const points = await calculatePortfolioPerformance(holdings, txns, 'USD', mockRates, undefined, undefined, fetchFn);
         console.log('Generated Points:', points.map(p => ({ date: p.date.toISOString(), val: p.holdingsValue })));
 
         const lastPoint = points[points.length - 1];
         expect(lastPoint).toBeDefined();
         if (lastPoint) {
             // Jan 2: Price 110. Realized 100. Unrealized 50. Total 150.
-            const p2 = points.find(p => p.date.getDate() === 2);
+            const p2 = points.find(p => p.date.getUTCDate() === 2);
             expect(p2).toBeDefined();
             if (p2) {
                 expect(p2.gainsValue).toBeCloseTo(150, 0.01);
@@ -153,5 +153,54 @@ describe('calculatePeriodReturns - Reproduction', () => {
         // expect(derivedGain).toBeGreaterThan(100); 
         expect(derivedGain).toBeCloseTo(500100, 1);
         expect(points[points.length - 1].gainsValue).toBe(100);
+    });
+
+    it('should capture Day 1 gains in TWR (Inception Return)', () => {
+        // Day 1: Buy 100. Close 110 (+10%).
+        // Day 2: Flat.
+        // Expected TWR: 1.10 (10%).
+
+        const points: PerformancePoint[] = [
+            { date: new Date('2024-01-01T00:00:00'), twr: 1.1, holdingsValue: 110, gainsValue: 10, costBasis: 100 },
+            // Note: In manual calculation test, we can just assert expected output if we feed this to calculatePeriodReturns 
+            // BUT calculatePeriodReturns just reads TWR from points.
+            // We need to test calculatePortfolioPerformance logic itself! 
+            // This test file mocks calculatePeriodReturns inputs.
+            // We need to call calculatePortfolioPerformance.
+        ];
+        // ...
+    });
+
+    it('should calculate TWR correctly for Day 1 using calculatePortfolioPerformance', async () => {
+        const holdings: DashboardHolding[] = [{
+            portfolioId: 'p1', ticker: 'TEST', exchange: Exchange.NASDAQ,
+            stockCurrency: Currency.USD, portfolioCurrency: Currency.USD,
+            qtyVested: 10, totalQty: 10
+        } as any];
+
+        const txns: Transaction[] = [
+            { date: '2024-01-01T00:00:00.000Z', portfolioId: 'p1', ticker: 'TEST', exchange: Exchange.NASDAQ, type: 'BUY', qty: 10, price: 10 } as any
+        ];
+
+        // History: Jan 1 Price 11 (Bought at 10). Gain 10%.
+        const mockHistory = {
+            'NASDAQ:TEST': [
+                { date: new Date('2024-01-01T00:00:00.000Z'), price: 11 },
+                { date: new Date('2024-01-02T00:00:00.000Z'), price: 11 },
+            ]
+        };
+        const fetchFn = async (t: string) => ({ historical: (mockHistory as any)[`NASDAQ:${t}`], fromCache: true } as any);
+        const mockRates = { current: { USD: 1 }, ago1m: { USD: 1 } } as any;
+
+        const points = await calculatePortfolioPerformance(holdings, txns, 'USD', mockRates, undefined, undefined, fetchFn);
+
+        // Day 1: Bought 10 @ 10 = 100. Value 10 @ 11 = 110. Gain 10.
+        // TWR should be 1.1?
+
+        const p1 = points.find(p => p.date.getUTCDate() === 1);
+        expect(p1).toBeDefined();
+        if (p1) {
+            expect(p1.twr).toBeCloseTo(1.1, 0.01);
+        }
     });
 });

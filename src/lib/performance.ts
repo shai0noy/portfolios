@@ -19,10 +19,11 @@ export async function calculatePortfolioPerformance(
     transactions: Transaction[],
     displayCurrency: string,
     exchangeRates: ExchangeRates,
+    portfolioPolicies?: Map<string, { divPolicy: 'cash_taxed' | 'accumulate_tax_free' | 'hybrid_rsu' }>,
     signal?: AbortSignal,
     fetchHistoryFn: typeof fetchTickerHistory = fetchTickerHistory
 ): Promise<PerformancePoint[]> {
-    const relevantPortIds = new Set(holdings.map(h => h.portfolioId));
+    const relevantPortIds = new Set([...holdings.map(h => h.portfolioId), ...transactions.map(t => t.portfolioId)]);
     const sortedTxns = transactions
         .filter(t => relevantPortIds.has(t.portfolioId))
         .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -37,7 +38,7 @@ export async function calculatePortfolioPerformance(
         }
     });
 
-    const histories = await Promise.all(Array.from(allTickersEver.values()).map(info => 
+    const histories = await Promise.all(Array.from(allTickersEver.values()).map(info =>
         fetchHistoryFn(info.ticker, info.exchange, signal)
             .then(data => ({ key: `${info.exchange}:${info.ticker}`, data }))
             .catch(() => ({ key: `${info.exchange}:${info.ticker}`, data: null }))
@@ -51,7 +52,7 @@ export async function calculatePortfolioPerformance(
     histories.forEach(h => {
         h.data?.historical?.forEach((p: any) => {
             const d = new Date(p.date);
-            d.setHours(0, 0, 0, 0);
+            d.setUTCHours(0, 0, 0, 0);
             allTimestamps.add(d.getTime());
         });
     });
@@ -61,9 +62,10 @@ export async function calculatePortfolioPerformance(
 
     // Filter to only include dates from the first transaction
     const fDate = new Date(sortedTxns[0].date);
-    fDate.setHours(0, 0, 0, 0);
+    fDate.setUTCHours(0, 0, 0, 0);
     const firstTxnDate = fDate.getTime();
     const activeTimestamps = sortedTimestamps.filter(ts => ts >= firstTxnDate);
+
     if (activeTimestamps.length === 0) return [];
 
     // 4. Time-series aggregation
@@ -79,32 +81,58 @@ export async function calculatePortfolioPerformance(
     // Pre-calculate indices for historical prices and map current holdings metadata
     const historyPointers = new Map<string, number>();
     histories.forEach(h => historyPointers.set(h.key, 0));
-    
+
     const holdingsMap = new Map<string, DashboardHolding>();
     holdings.forEach(h => holdingsMap.set(`${h.exchange}:${h.ticker}`, h));
 
     for (const ts of activeTimestamps) {
         const currentDate = new Date(ts);
-        
+
         let dayNetFlow = 0;
         let dayDividends = 0;
         let dayFees = 0;
 
-        // Apply all transactions that happened ON or BEFORE this date
-        while (txnIdx < sortedTxns.length && new Date(sortedTxns[txnIdx].date).getTime() <= ts) {
+        // Apply all transactions that happened ON or BEFORE this date (by Day)
+        while (txnIdx < sortedTxns.length) {
+            const tDate = new Date(sortedTxns[txnIdx].date);
+            tDate.setUTCHours(0, 0, 0, 0);
+
+
+
+            if (tDate.getTime() > ts) break;
+
             const t = sortedTxns[txnIdx];
+
             const tickerKey = `${t.exchange}:${t.ticker}`;
-            const stateKey = `${t.portfolioId}:${tickerKey}`; 
-            
+            const stateKey = `${t.portfolioId}:${tickerKey}`;
+
             const holding = holdingsMap.get(tickerKey);
             const resolvedStockCurrency = holding?.stockCurrency || t.currency || Currency.USD;
 
             const state = currentHoldings.get(stateKey) || { qty: 0, costBasis: 0, stockCurrency: resolvedStockCurrency };
-            
-            const tQty = t.qty || 0;
+
+            let tQty = t.qty || 0;
             const tPrice = t.price || 0;
-            const tValue = tQty * tPrice; 
-            
+
+            // Strict DRIP Policy Check
+            if (t.type === 'DIVIDEND' && tQty > 0) {
+                const policy = portfolioPolicies?.get(t.portfolioId)?.divPolicy;
+                if (policy === 'cash_taxed') {
+                    // console.warn(`[Performance] Ignoring DRIP qty for portfolio ${t.portfolioId} with policy ${policy}`);
+                    tQty = 0;
+                }
+            }
+
+            // Calculate Value: Prefer grossValue, fallback to qty*price, or price if div/fee with 0 qty
+            let tValue = t.grossValue || 0;
+            if (!tValue) {
+                if ((t.type === 'DIVIDEND' || t.type === 'FEE') && Math.abs(tQty) < 1e-9) {
+                    tValue = tPrice;
+                } else {
+                    tValue = tQty * tPrice;
+                }
+            }
+
             const stockCurrency = state.stockCurrency;
             const costToAdd = convertCurrency(tValue, t.currency || Currency.USD, stockCurrency, exchangeRates);
 
@@ -117,22 +145,55 @@ export async function calculatePortfolioPerformance(
                 const avgCost = state.qty > 0 ? state.costBasis / state.qty : 0;
                 state.qty -= tQty;
                 state.costBasis -= tQty * avgCost;
-                
+
                 const proceedsDisplay = convertCurrency(tValue, t.currency || Currency.USD, displayCurrency, exchangeRates);
                 const costOfSoldDisplay = convertCurrency(tQty * avgCost, stockCurrency, displayCurrency, exchangeRates);
-                
+
                 otherGains += (proceedsDisplay - costOfSoldDisplay);
-                dayNetFlow -= proceedsDisplay; 
+                dayNetFlow -= proceedsDisplay;
             } else if (t.type === 'DIVIDEND') {
+                // For dividends, value is ALWAYS added to returns (cash flow out of stock into pocket/account)
+                // If it was DRIP (qty > 0):
+                //  - value added to Performance (Income)
+                //  - But since we bought shares, is it "Flow"? 
+                //  - Actually, DRIP is effectively: Dividend Income (Flow Out/Income) + Immediate Buy (Flow In).
+                //  - Net Flow = 0?
+                //  - If we model it as just "Qty Increase", we miss the "Income" part in `dayDividends`.
+                //  - But `otherGains` captures it?
+
+                // Let's stick to simple model:
+                // Dividend = Value gained.
+                // If Qty > 0 (Allowed DRIP):
+                //   - We likely need to treat it as a Buy too?
+                //   - Current logic: `state.qty += ...`? No, DIVIDEND block doesn't add to `state.qty` below!
+                //   - WAIT. Previous code logic for DIVIDEND did NOT update `state.qty`.
+                //   - So DRIP was effectively broken anyway unless handled as a separate BUY?
+                //   - Checks lines 157+ (old 147): Yes, `else if (t.type === 'DIVIDEND')` only adds to `otherGains`. It does NOT increase `qty`.
+                //   - So `qty` on DIVIDEND transactions was ALREADY ignored for holding count!
+                //   - The user asked to "assert that drip only occurs on portfolios that have it".
+                //   - If the previous code ignored qty, then DRIP wasn't working.
+
+                // Correction: If `qty` is passed, we probably SHOULD increase quantity if it's a DRIP.
+                // But if the code never did `state.qty += tQty` for dividends, then it never supported DRIP.
+                // UNLESS DRIPs come as two transactions: Dividend (Cash) + Buy (Shares).
+                // If they come as a single "DIVIDEND" txn with qty > 0, we need to handle it.
+
                 const divVal = convertCurrency(tValue, t.currency || Currency.USD, displayCurrency, exchangeRates);
                 otherGains += divVal;
                 dayDividends += divVal;
+
+                if (tQty > 0) {
+                    // Handle DRIP - Increase Qty, Increase Cost Basis?
+                    // Cost Basis for DRIP is the dividend amount reinvested.
+                    state.qty += tQty;
+                    state.costBasis += costToAdd;
+                }
             } else if (t.type === 'FEE') {
                 const feeVal = convertCurrency(tValue, t.currency || Currency.USD, displayCurrency, exchangeRates);
                 otherGains -= feeVal;
                 dayFees += feeVal;
             }
-            
+
             if (state.qty > 1e-9) {
                 currentHoldings.set(stateKey, state);
             } else {
@@ -164,10 +225,10 @@ export async function calculatePortfolioPerformance(
                 const price = point.adjClose || point.price;
                 if (price > 0) {
                     const priceCurrency = history.currency || state.stockCurrency;
-                    
+
                     const valDisplay = convertCurrency(state.qty * price, priceCurrency, displayCurrency, exchangeRates);
                     const costDisplay = convertCurrency(state.costBasis, state.stockCurrency, displayCurrency, exchangeRates);
-                    
+
                     totalHoldingsValue += valDisplay;
                     totalCostBasis += costDisplay;
                 }
@@ -176,22 +237,42 @@ export async function calculatePortfolioPerformance(
 
         // TWR Calculation (End-of-Day Flow Assumption)
         // 1. Calculate return on the capital that started the day
-        const denom = prevHoldingsValue; 
+        const denom = prevHoldingsValue;
 
         let dayReturn = 0;
         if (denom > 1e-6) {
             // Market Gain = (End Value - Net Flows) - Start Value
             // We remove Net Flows because they are "new money" not generated by the market
             const marketGain = (totalHoldingsValue - dayNetFlow) - prevHoldingsValue;
-            
+
             // Total Return = Market Gain + Income
             const totalGain = marketGain + dayDividends - dayFees;
-            
+
             dayReturn = totalGain / denom;
+        } else if (dayNetFlow > 1e-6) {
+            // Special Case: Inception Day (or Restart after empty)
+            // prevHoldingsValue is 0, but we have new flow today.
+            // We assume flow happened at start (or at least participated in the day's move) for this specific case,
+            // otherwise we lose the first day's performance.
+
+            // If we assume flow at start:
+            // Start adjusted = dayNetFlow.
+            // Gain = (End Value - dayNetFlow) - 0.
+            // But wait, if we assume flow at start, then End Value includes the flow + gain.
+            // Market Gain logic above: (Val - Flow) - Prev.
+            // If Val = 110, Flow = 100, Prev = 0. Market Gain = 10.
+            // Return = 10 / 100 = 10%.
+
+            const marketGain = (totalHoldingsValue - dayNetFlow) - prevHoldingsValue;
+            const totalGain = marketGain + dayDividends - dayFees;
+            dayReturn = totalGain / dayNetFlow;
         }
 
         twrIndex *= (1 + dayReturn);
         prevHoldingsValue = totalHoldingsValue;
+
+        // Debug logging for Jan 3 issue
+
 
         points.push({
             date: currentDate,
@@ -267,7 +348,7 @@ export function calculatePeriodReturns(points: PerformancePoint[]): PeriodReturn
             case 'ytd': d.setMonth(0, 1); d.setHours(0, 0, 0, 0); break; // Jan 1st of current year
             case '1y': d.setFullYear(d.getFullYear() - 1); break;
             case '5y': d.setFullYear(d.getFullYear() - 5); break;
-            case 'all': return new Date(0); 
+            case 'all': return new Date(0);
         }
         return d;
     };
