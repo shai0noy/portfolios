@@ -44,45 +44,45 @@ export const DashboardRow = memo(function DashboardRow({
       case 'sector':
         return <TableCell>{h.sector}</TableCell>;
       case 'qty':
-        return <TableCell align="right">{formatNumber(h.qtyTotal)}</TableCell>;
+        return <TableCell align="left">{formatNumber(h.qtyTotal)}</TableCell>;
       case 'avgCost':
         // Display in stock currency (e.g. Agorot for ILA)
         const avgCostSC = convertCurrency(h.display.avgCost, displayCurrency, h.stockCurrency, exchangeRates);
-        return <TableCell align="right">{formatMoneyPrice({ amount: avgCostSC, currency: h.stockCurrency }, t)}</TableCell>;
+        return <TableCell align="left">{formatMoneyPrice({ amount: avgCostSC, currency: h.stockCurrency }, t)}</TableCell>;
       case 'costBasis':
-        return <TableCell align="right">{formatMoneyValue({ amount: vals.costBasis, currency: normalizeCurrency(displayCurrency) }, t)}</TableCell>;
+        return <TableCell align="left">{formatMoneyValue({ amount: vals.costBasis, currency: normalizeCurrency(displayCurrency) }, t)}</TableCell>;
       case 'currentPrice':
-        return <TableCell align="right">{formatMoneyPrice({ amount: h.currentPrice, currency: h.stockCurrency }, t)}</TableCell>;
+        return <TableCell align="left">{formatMoneyPrice({ amount: h.currentPrice, currency: h.stockCurrency }, t)}</TableCell>;
       case 'weight':
-        return <TableCell align="right" sx={{ color: 'text.secondary' }}>{formatPct(groupByPortfolio ? vals.weightInPortfolio : vals.weightInGlobal)}</TableCell>;
+        return <TableCell align="left" sx={{ color: 'text.secondary' }}>{formatPct(groupByPortfolio ? vals.weightInPortfolio : vals.weightInGlobal)}</TableCell>;
       case 'dayChangeVal':
-        return <TableCell align="right" sx={{ color: getValueColor(vals.dayChangePct) }}>{formatMoneyValue({ amount: vals.dayChangeVal, currency: normalizeCurrency(displayCurrency) }, t)}</TableCell>;
+        return <TableCell align="left" sx={{ color: getValueColor(vals.dayChangePct) }}>{formatMoneyValue({ amount: vals.dayChangeVal, currency: normalizeCurrency(displayCurrency) }, t)}</TableCell>;
       case 'dayChangePct':
-        return <TableCell align="right" sx={{ color: getValueColor(vals.dayChangePct) }}>{formatPct(vals.dayChangePct)}</TableCell>;
+        return <TableCell align="left" sx={{ color: getValueColor(vals.dayChangePct) }}>{formatPct(vals.dayChangePct)}</TableCell>;
       case 'mv':
-        return <TableCell align="right">{formatMoneyValue({ amount: vals.marketValue, currency: normalizeCurrency(displayCurrency) }, t)}</TableCell>;
+        return <TableCell align="left">{formatMoneyValue({ amount: vals.marketValue, currency: normalizeCurrency(displayCurrency) }, t)}</TableCell>;
       case 'unvestedValue':
-        return <TableCell align="right" sx={{ color: 'text.secondary' }}>{h.display.unvestedValue > 0 ? formatMoneyValue({ amount: h.display.unvestedValue, currency: normalizeCurrency(displayCurrency) }, t) : '-'}</TableCell>;
+        return <TableCell align="left" sx={{ color: 'text.secondary' }}>{h.display.unvestedValue > 0 ? formatMoneyValue({ amount: h.display.unvestedValue, currency: normalizeCurrency(displayCurrency) }, t) : '-'}</TableCell>;
       case 'unrealizedGain':
-        return <TableCell align="right"><Typography variant="body2" color={getValueColor(vals.unrealizedGain)}>{formatMoneyValue({ amount: vals.unrealizedGain, currency: normalizeCurrency(displayCurrency) }, t)}</Typography></TableCell>;
+        return <TableCell align="left"><Typography variant="body2" color={getValueColor(vals.unrealizedGain)}>{formatMoneyValue({ amount: vals.unrealizedGain, currency: normalizeCurrency(displayCurrency) }, t)}</Typography></TableCell>;
       case 'unrealizedGainPct':
-        return <TableCell align="right" sx={{ color: getValueColor(vals.unrealizedGainPct) }}>{formatPct(vals.unrealizedGainPct)}</TableCell>;
+        return <TableCell align="left" sx={{ color: getValueColor(vals.unrealizedGainPct) }}>{formatPct(vals.unrealizedGainPct)}</TableCell>;
       case 'realizedGain':
-        return <TableCell align="right" sx={{ color: getValueColor(vals.realizedGain) }}>{formatMoneyValue({ amount: vals.realizedGain, currency: normalizeCurrency(displayCurrency) }, t)}</TableCell>;
+        return <TableCell align="left" sx={{ color: getValueColor(vals.realizedGain) }}>{formatMoneyValue({ amount: vals.realizedGain, currency: normalizeCurrency(displayCurrency) }, t)}</TableCell>;
       case 'realizedGainPct':
-        return <TableCell align="right" sx={{ color: getValueColor(vals.realizedGainPct) }}>{formatPct(vals.realizedGainPct)}</TableCell>;
+        return <TableCell align="left" sx={{ color: getValueColor(vals.realizedGainPct) }}>{formatPct(vals.realizedGainPct)}</TableCell>;
       case 'realizedGainAfterTax':
-        return <TableCell align="right">{formatMoneyValue({ amount: vals.realizedGainAfterTax, currency: normalizeCurrency(displayCurrency) }, t)}</TableCell>;
+        return <TableCell align="left">{formatMoneyValue({ amount: vals.realizedGainAfterTax, currency: normalizeCurrency(displayCurrency) }, t)}</TableCell>;
       case 'totalGain':
-        return <TableCell align="right" sx={{ fontWeight: 'bold', color: getValueColor(vals.totalGain) }}>{formatMoneyValue({ amount: vals.totalGain, currency: normalizeCurrency(displayCurrency) }, t)}</TableCell>;
+        return <TableCell align="left" sx={{ fontWeight: 'bold', color: getValueColor(vals.totalGain) }}>{formatMoneyValue({ amount: vals.totalGain, currency: normalizeCurrency(displayCurrency) }, t)}</TableCell>;
       case 'totalGainPct':
-        return <TableCell align="right" sx={{ color: getValueColor(vals.totalGainPct) }}>{formatPct(vals.totalGainPct)}</TableCell>;
+        return <TableCell align="left" sx={{ color: getValueColor(vals.totalGainPct) }}>{formatPct(vals.totalGainPct)}</TableCell>;
       case 'valueAfterTax':
         const mv = vals.marketValue;
         const netVal = vals.valueAfterTax;
         const pctOfRow = mv > 0 ? netVal / mv : 0;
         return (
-          <TableCell align="right">
+          <TableCell align="left">
             {formatMoneyValue({ amount: netVal, currency: normalizeCurrency(displayCurrency) }, t)}
             <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>
               ({formatPct(pctOfRow)})

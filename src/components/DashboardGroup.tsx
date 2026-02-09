@@ -114,7 +114,7 @@ export const DashboardGroup = memo(function DashboardGroup(props: DashboardGroup
             <TableRow sx={{ bgcolor: theme.palette.background.paper }}>
               {DASHBOARD_COLUMNS.map(col => (
                 columnVisibility[col.key] && (
-                  <TableCell key={col.key} onContextMenu={(e) => onContextMenu(e, col.key)} align={col.numeric ? "right" : "inherit"}>
+                  <TableCell key={col.key} onContextMenu={(e) => onContextMenu(e, col.key)} align="left">
                     <TableSortLabel
                       active={sortBy === (col.sortKey || col.key)}
                       direction={sortDir}

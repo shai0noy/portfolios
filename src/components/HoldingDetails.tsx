@@ -482,6 +482,7 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                                             const totalOriginalQty = sortedLayers.reduce((sum, l) => sum + l.originalQty, 0);
                                             const currentQty = sortedLayers.reduce((sum, l) => sum + l.remainingQty, 0);
                                             const totalValue = sortedLayers.reduce((sum, l) => sum + l.currentValue, 0); // Value of remaining
+                                            const totalRemainingCost = sortedLayers.reduce((sum, l) => sum + l.remainingCost, 0);
 
                                             return {
                                                 portfolioId: pid,
@@ -490,6 +491,7 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                                                     originalQty: totalOriginalQty,
                                                     currentQty: currentQty,
                                                     value: totalValue,
+                                                    cost: totalRemainingCost,
                                                     weight: pWeightData?.weightInPortfolio || 0
                                                 },
                                                 layers: sortedLayers
@@ -553,15 +555,19 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                                                 <Divider sx={{ my: 2 }} />
 
                                                 <Grid container spacing={2}>
-                                                    <Grid item xs={6} sm={2.4}>
+                                                    <Grid item xs={6} sm={2}>
+                                                        <Typography variant="caption" color="text.secondary">{t('Weight', 'משקל')}</Typography>
+                                                        <Typography variant="body2" fontWeight="500">{formatPercent(holdingsWeights.reduce((s, h) => s + h.weightInGlobal, 0))}</Typography>
+                                                    </Grid>
+                                                    <Grid item xs={6} sm={2}>
                                                         <Typography variant="caption" color="text.secondary">{t('Avg Cost', 'מחיר ממוצע')}</Typography>
                                                         <Typography variant="body2" fontWeight="500">{formatPrice(vals.avgCost, displayCurrency)}</Typography>
                                                     </Grid>
-                                                    <Grid item xs={6} sm={2.4}>
+                                                    <Grid item xs={6} sm={2}>
                                                         <Typography variant="caption" color="text.secondary">{t('Quantity', 'כמות')}</Typography>
                                                         <Typography variant="body1" fontWeight="500">{formatNumber(totalQty)}</Typography>
                                                     </Grid>
-                                                    <Grid item xs={6} sm={2.4}>
+                                                    <Grid item xs={6} sm={2}>
                                                         <Typography variant="caption" color="text.secondary">{t('Total Cost', 'עלות מקורית')}</Typography>
                                                         <Box>
                                                             <Typography variant="body2" fontWeight="500">{formatValue(vals.costBasis, displayCurrency)}</Typography>
@@ -574,11 +580,11 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                                                             )}
                                                         </Box>
                                                     </Grid>
-                                                    <Grid item xs={6} sm={2.4}>
+                                                    <Grid item xs={6} sm={2}>
                                                         <Typography variant="caption" color="text.secondary">{t('Total Fees', 'סה"כ עמלות')}</Typography>
                                                         <Typography variant="body2" fontWeight="500">{formatValue(totalFeesDisplay, displayCurrency)}</Typography>
                                                     </Grid>
-                                                    <Grid item xs={6} sm={2.4}>
+                                                    <Grid item xs={6} sm={2}>
                                                         <Typography variant="caption" color="text.secondary">{t('Taxes Paid', 'מס ששולם')}</Typography>
                                                         <Typography variant="body2" fontWeight="500">{formatValue(vals.realizedTax, displayCurrency)}</Typography>
                                                     </Grid>
@@ -587,6 +593,35 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
 
                                             <Stack spacing={3} sx={{ mb: 3 }}>
                                                 {/* Stack Layout for Distribution and Layers */}
+
+                                                <Box sx={{ mb: 4 }}>
+                                                    <Paper variant="outlined">
+                                                        <Table size="small">
+                                                            <TableHead>
+                                                                <TableRow>
+                                                                    <TableCell sx={{ bgcolor: 'background.paper' }}>{t('Portfolio', 'תיק')}</TableCell>
+                                                                    <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>{t('Weight', 'משקל')}</TableCell>
+                                                                    <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>{t('Original Qty', 'כמות מקורית')}</TableCell>
+                                                                    <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>{t('Current Qty', 'כמות נוכחית')}</TableCell>
+                                                                    <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>{t('Total Cost', 'עלות כוללת')}</TableCell>
+                                                                    <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>{t('Value', 'שווי')}</TableCell>
+                                                                </TableRow>
+                                                            </TableHead>
+                                                            <TableBody>
+                                                                {groupedLayers.map(group => (
+                                                                    <TableRow key={group.portfolioId} hover>
+                                                                        <TableCell component="th" scope="row" sx={{ fontWeight: 'bold' }}>{group.portfolioName}</TableCell>
+                                                                        <TableCell align="right">{formatPercent(group.stats.weight)}</TableCell>
+                                                                        <TableCell align="right">{formatNumber(group.stats.originalQty)}</TableCell>
+                                                                        <TableCell align="right">{formatNumber(group.stats.currentQty)}</TableCell>
+                                                                        <TableCell align="right">{formatValue(group.stats.cost, displayCurrency)}</TableCell>
+                                                                        <TableCell align="right">{formatValue(group.stats.value, displayCurrency)}</TableCell>
+                                                                    </TableRow>
+                                                                ))}
+                                                            </TableBody>
+                                                        </Table>
+                                                    </Paper>
+                                                </Box>
 
                                                 <Box>
                                                     <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'bold' }}>{t('Layers', 'שכבות')}</Typography>
@@ -622,29 +657,9 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                                                                         {/* Portfolio Header Row */}
                                                                         <TableRow key={`header-${group.portfolioId}`} sx={{ bgcolor: 'action.hover' }}>
                                                                             <TableCell colSpan={10} sx={{ py: 1 }}>
-                                                                                <Box display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={2}>
-                                                                                    <Typography variant="subtitle2" fontWeight="bold">
-                                                                                        {group.portfolioName}
-                                                                                    </Typography>
-                                                                                    <Box display="flex" gap={2} sx={{ fontSize: '0.8rem', color: 'text.secondary' }}>
-                                                                                        <Box>
-                                                                                            <span>{t('Original Qty:', 'כמות מקורית:')} </span>
-                                                                                            <b>{formatNumber(group.stats.originalQty)}</b>
-                                                                                        </Box>
-                                                                                        <Box>
-                                                                                            <span>{t('Current Qty:', 'כמות נוכחית:')} </span>
-                                                                                            <b>{formatNumber(group.stats.currentQty)}</b>
-                                                                                        </Box>
-                                                                                        <Box>
-                                                                                            <span>{t('Value:', 'שווי:')} </span>
-                                                                                            <b>{formatValue(group.stats.value, displayCurrency)}</b>
-                                                                                        </Box>
-                                                                                        <Box>
-                                                                                            <span>{t('Weight:', 'משקל:')} </span>
-                                                                                            <b>{formatPercent(group.stats.weight)}</b>
-                                                                                        </Box>
-                                                                                    </Box>
-                                                                                </Box>
+                                                                                <Typography variant="subtitle2" fontWeight="bold" color="primary">
+                                                                                    {group.portfolioName}
+                                                                                </Typography>
                                                                             </TableCell>
                                                                         </TableRow>
                                                                         {/* Layers */}
@@ -690,10 +705,9 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                                                                                                         <Typography variant="body2">{formatValue(layer.unrealizedTax, displayCurrency)}</Typography>
 
                                                                                                         {layer.fees > 0 && (
-                                                                                                            <>
-                                                                                                                <Typography variant="body2" color="text.secondary">{t('Fees (Deducted from Gain):', 'עמלות (מופחת מהרווח):')}</Typography>
-                                                                                                                <Typography variant="body2" color="text.secondary">{formatValue(layer.fees, displayCurrency)}</Typography>
-                                                                                                            </>
+                                                                                                            <Typography variant="caption" color="text.secondary" sx={{ gridColumn: '1 / -1', mt: 0.5, pt: 0.5, borderTop: '1px dashed', borderColor: 'divider' }}>
+                                                                                                                {t('* Fees are used to reduce taxable gain', '* העמלות משמשות להקטנת הרווח החייב')}
+                                                                                                            </Typography>
                                                                                                         )}
                                                                                                     </Box>
                                                                                                 </Box>
@@ -834,7 +848,7 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                                             {div.cashedAmount ? formatValue(convertCurrency(div.cashedAmount, holding.portfolioCurrency, displayCurrency, exchangeRates || undefined), displayCurrency) : '-'}
                                         </TableCell>
                                         {divHistory.some(d => d.reinvestedAmount > 0) && (
-                                            <TableCell align="right" sx={{ color: 'info.main' }}>
+                                            <TableCell align="right">
                                                 {div.reinvestedAmount ? formatValue(convertCurrency(div.reinvestedAmount, holding.portfolioCurrency, displayCurrency, exchangeRates || undefined), displayCurrency) : '-'}
                                             </TableCell>
                                         )}
