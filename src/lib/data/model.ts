@@ -551,6 +551,12 @@ export class Holding {
                     priceAtStartFetched = true;
                 }
 
+                if (priceAtStart <= 0) {
+                    // Missing history for start date, cannot calculate gain for this lot.
+                    // Skipping it ensures we don't have 0 Initial Value with >0 Final Value (infinite gain).
+                    continue;
+                }
+
                 // Val = Qty * PriceAtStart
                 // We need Price in USD and ILS. 
                 // Price usually in Stock Currency.
