@@ -3,7 +3,8 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useTheme } from '@mui/material/styles';
 import {
   Box, TextField, Button, MenuItem, Select, InputLabel, FormControl,
-  Typography, Alert, InputAdornment, Grid, Card, CardContent, Divider, Tooltip, Chip
+  Typography, Alert, InputAdornment, Grid, Card, CardContent, Divider, Tooltip, Chip,
+  Backdrop, CircularProgress
 } from '@mui/material';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -783,6 +784,18 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
           </Grid>
         )}
       </Grid >
+      <Backdrop
+        sx={{ color: '#fff', zIndex: (theme) => theme.zIndex.drawer + 1, display: 'flex', flexDirection: 'column', gap: 2 }}
+        open={loading}
+      >
+        <CircularProgress color="inherit" size={60} thickness={4} />
+        <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
+          {t('Saving...', 'שומר...')}
+        </Typography>
+        <Typography variant="body1" sx={{ opacity: 0.8 }}>
+          {t('Updating Holdings...', 'מעדכן החזקות...')}
+        </Typography>
+      </Backdrop>
     </Box >
   );
 };

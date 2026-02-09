@@ -967,7 +967,53 @@ export const deleteDividend = withAuthHandling(async (spreadsheetId: string, row
 
 export const rebuildHoldingsSheet = withAuthHandling(async (spreadsheetId: string) => {
     const gapi = await ensureGapi();
-    const transactions = await fetchTransactions(spreadsheetId);
+
+    // 1. Parallel Fetch: CURRENT Holdings (for cache) AND Transactions
+    // This optimization avoids re-fetching unchanged metadata and runs independent fetches in parallel.
+    const [currentHoldingsRes, transactions] = await Promise.all([
+        gapi.client.sheets.spreadsheets.values.get({
+            spreadsheetId,
+            range: HOLDINGS_RANGE,
+            valueRenderOption: 'UNFORMATTED_VALUE',
+        }),
+        fetchTransactions(spreadsheetId)
+    ]);
+
+    const currentRows = currentHoldingsRes.result.values || [];
+
+    // Map: "TICKER:EXCHANGE" -> Metadata
+    const metadataCache = new Map<string, TickerData>();
+
+    currentRows.forEach((row: any[]) => {
+        // Row indices based on `createHoldingRow` mapping:
+        // 0: Ticker, 1: Exchange, 6: Name, 7: NameHe, 8: Sector, 9: Type, 19: NumericId, 20: RecentChangeDays
+        const ticker = String(row[0] || '').toUpperCase();
+        const exchangeStr = String(row[1] || '');
+        if (!ticker || !exchangeStr) return;
+
+        let exchange: Exchange;
+        try { exchange = parseExchange(exchangeStr); } catch { return; }
+
+        const key = `${ticker}:${exchange}`;
+
+        // Reconstruct a partial TickerData object from the sheet
+        const cachedMeta: any = {
+            ticker,
+            exchange,
+            name: row[6] === 'Loading...' ? undefined : row[6], // Avoid caching placeholders
+            nameHe: row[7],
+            sector: row[8],
+            type: row[9] ? new InstrumentClassification(row[9]) : undefined,
+            numericId: row[19] ? Number(row[19]) : null,
+            recentChangeDays: row[20] ? Number(row[20]) : 7
+        };
+
+        // Only cache if we have at least a name, otherwise we might retry fetching
+        if (cachedMeta.name && cachedMeta.name.trim() !== '') {
+            metadataCache.set(key, cachedMeta);
+        }
+    });
+
     const holdings: Record<string, { ticker: string, exchange: Exchange, qty: number, numericId: number | null }> = {};
 
     // Sort transactions by date to ensure we get the latest numericId for a holding
@@ -991,15 +1037,36 @@ export const rebuildHoldingsSheet = withAuthHandling(async (spreadsheetId: strin
     });
 
     const enrichedData = await Promise.all(Object.values(holdings).map(async (h) => {
-        let meta: TickerData | null = null;
-        try { meta = await getTickerData(h.ticker, h.exchange, h.numericId); } catch (e) { console.warn("Failed to fetch metadata for " + h.ticker, e); }
-        
-        // Sync dividends if available
-        if (meta?.dividends && meta.dividends.length > 0) {
-            await syncDividends(spreadsheetId, h.ticker, h.exchange, meta.dividends, 'YAHOO');
+        const cacheKey = `${h.ticker.toUpperCase()}:${h.exchange}`;
+        let meta: TickerData | null | undefined = metadataCache.get(cacheKey);
+
+        // If we have cached metadata, we might still want to use the numericId from the transaction if it's newer/present
+        if (meta) {
+            // If the transaction has a numericId but the cache doesn't, or they differ, 
+            // we might ideally want to refresh, but for speed we'll trust the cache unless it's missing critical info.
+            // Actually, we can just overlay the transaction's numericId if the cache is missing it.
+            if (h.numericId && !meta.numericId) {
+                meta.numericId = h.numericId;
+            }
+            // For GEMEL/PENSION, we *might* want to force refresh if prices are stale?
+            // But `rebuildHoldingsSheet` primarily sets up the STRUCTURE (formulas). 
+            // The prices are fetched via GOOGLEFINANCE or `External_Datasets`.
+            // So reusing metadata (Name, Sector) is safe.
+        } else {
+            // Not in cache, fetch fresh
+            try {
+                meta = await getTickerData(h.ticker, h.exchange, h.numericId);
+
+                // Sync dividends if available (only for new fetches to avoid spamming)
+                if (meta?.dividends && meta.dividends.length > 0) {
+                    await syncDividends(spreadsheetId, h.ticker, h.exchange, meta.dividends, 'YAHOO');
+                }
+            } catch (e) {
+                console.warn("Failed to fetch metadata for " + h.ticker, e);
+            }
         }
 
-        return { h, meta };
+        return { h, meta: meta || null };
     }));
 
     const data = enrichedData.map(({ h, meta }, i) => createHoldingRow(h, meta, i + 2)).filter((row): row is any[] => row !== null);
