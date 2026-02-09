@@ -232,18 +232,22 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     }
   };
 
-  useEffect(() => {
-    const selectedPort = portfolios.find(p => p.id === portId);
-    if (!selectedPort || type === 'DIV_EVENT') return;
+  const EPS = 1e-12;
+  const majorCurrency = tickerCurrency === Currency.ILA ? Currency.ILS : tickerCurrency;
 
-    const t = parseFloat(total);
+  // Helper to calculate and set commission
+  const updateCommission = (currentTotal: string, currentPortId: string, currentType: string) => {
+    const selectedPort = portfolios.find(p => p.id === currentPortId);
+    if (!selectedPort || currentType === 'DIV_EVENT') return;
+
+    const t = parseFloat(currentTotal);
     if (!Number.isFinite(t) || t === 0) {
       setCommission('');
       setCommissionPct('');
       return;
     }
 
-    if (type === 'BUY' || type === 'SELL') {
+    if (currentType === 'BUY' || currentType === 'SELL') {
       const rate = selectedPort.commRate;
       const min = selectedPort.commMin;
       const max = selectedPort.commMax;
@@ -252,16 +256,12 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
       const finalFee = max > 0 ? Math.min(clampedMin, max) : clampedMin;
       setCommission(finalFee.toFixed(2));
       setCommissionPct(((finalFee / t) * 100).toFixed(4));
-    } else if (type === 'DIVIDEND') {
+    } else if (currentType === 'DIVIDEND') {
       const rate = selectedPort.divCommRate;
       setCommission((t * rate).toFixed(2));
       setCommissionPct((rate * 100).toFixed(4));
     }
-  }, [portId, type, total, portfolios]);
-
-
-  const EPS = 1e-12;
-  const majorCurrency = tickerCurrency === Currency.ILA ? Currency.ILS : tickerCurrency;
+  };
 
   const handleQtyChange = (val: string) => {
     setQty(val);
@@ -270,7 +270,15 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     if (Number.isFinite(q) && Number.isFinite(p)) {
       const rawTotal = q * p;
       const displayTotal = convertCurrency(rawTotal, tickerCurrency, majorCurrency, exchangeRates);
-      setTotal(parseFloat(displayTotal.toFixed(6)).toString());
+      const totalStr = parseFloat(displayTotal.toFixed(6)).toString();
+      setTotal(totalStr);
+      updateCommission(totalStr, portId, type);
+    } else {
+      // If qty or price invalid, reset total? Or keep as is?
+      // Usually if one is empty we might want to clear total or just commission
+      if (val === '' || price === '') {
+        updateCommission('0', portId, type); // Reset commission
+      }
     }
   };
 
@@ -281,12 +289,20 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     if (Number.isFinite(q) && Number.isFinite(p)) {
       const rawTotal = q * p;
       const displayTotal = convertCurrency(rawTotal, tickerCurrency, majorCurrency, exchangeRates);
-      setTotal(parseFloat(displayTotal.toFixed(6)).toString());
+      const totalStr = parseFloat(displayTotal.toFixed(6)).toString();
+      setTotal(totalStr);
+      updateCommission(totalStr, portId, type);
+    } else {
+      if (val === '' || qty === '') {
+        updateCommission('0', portId, type);
+      }
     }
   };
 
   const handleTotalChange = (val: string) => {
     setTotal(val);
+    updateCommission(val, portId, type);
+
     const q = parseFloat(qty);
     const p = parseFloat(price);
     const tDisplay = parseFloat(val);
@@ -322,6 +338,19 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     } else {
       setCommission('');
     }
+  };
+
+  // Update commission when portfolio or type changes too
+  const handlePortChange = (e: any) => {
+    const newPortId = e.target.value;
+    setPortId(newPortId);
+    updateCommission(total, newPortId, type);
+  };
+
+  const handleTypeChange = (e: any) => {
+    const newType = e.target.value as any;
+    setType(newType);
+    updateCommission(total, portId, newType);
   };
 
   const handleDelete = async () => {
@@ -640,7 +669,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                             <InputLabel>Portfolio</InputLabel>
                             <Select
                               value={portId} label="Portfolio"
-                              onChange={(e) => setPortId(e.target.value)}
+                              onChange={handlePortChange}
                               disabled={isPortfoliosLoading}
                               sx={{ bgcolor: !portId ? 'action.hover' : 'inherit' }}
                             >
@@ -663,7 +692,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                       <Grid item xs={12} sm={4}>
                         <FormControl size="small" fullWidth>
                           <InputLabel>Type</InputLabel>
-                          <Select value={type} label="Type" onChange={(e) => setType(e.target.value as any)}>
+                          <Select value={type} label="Type" onChange={handleTypeChange}>
                             <MenuItem value="BUY">Buy</MenuItem>
                             <MenuItem value="SELL">Sell</MenuItem>
                             <MenuItem value="DIV_EVENT">Dividend</MenuItem>

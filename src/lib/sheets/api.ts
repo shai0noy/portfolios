@@ -480,8 +480,14 @@ export const batchAddTransactions = withAuthHandling(async (spreadsheetId: strin
         // Numeric ID mapping
         rowData.numeric_id = t.numericId;
 
-        // Map to columns in correct order
-        const rowValues = Object.values(TXN_COLS).map(colDef => {
+        // Map to columns in correct order explicitly
+        // Object.values is not guaranteed to be sorted, so we verify sort by colId
+        const sortedColDefs = Object.values(TXN_COLS).sort((a, b) => {
+            const lenDiff = a.colId.length - b.colId.length;
+            return lenDiff !== 0 ? lenDiff : a.colId.localeCompare(b.colId);
+        });
+
+        const rowValues = sortedColDefs.map(colDef => {
             if (colDef.formula) return null; // Formulas are added separately in step 3
             const key = colDef.key;
             // Use the normalized values from rowData if available, otherwise fallback to t[key]
@@ -799,8 +805,13 @@ export const updateTransaction = withAuthHandling(async (spreadsheetId: string, 
     rowData.creationDate = toGoogleSheetDateFormat(cDate);
     rowData.numeric_id = t.numericId;
 
-    const rowValues = Object.values(TXN_COLS).map(colDef => {
-        if (colDef.formula) return null; 
+    const sortedColDefs = Object.values(TXN_COLS).sort((a, b) => {
+        const lenDiff = a.colId.length - b.colId.length;
+        return lenDiff !== 0 ? lenDiff : a.colId.localeCompare(b.colId);
+    });
+
+    const rowValues = sortedColDefs.map(colDef => {
+        if (colDef.formula) return null;
         const key = colDef.key;
         const val = rowData[key] ?? (t as any)[key];
         return (val === undefined) ? null : (val as string | number | null);
@@ -965,11 +976,100 @@ export const deleteDividend = withAuthHandling(async (spreadsheetId: string, row
     });
 });
 
+
+
+export const batchSyncDividends = withAuthHandling(async (spreadsheetId: string, items: { ticker: string, exchange: Exchange, dividends: Dividend[], source: string }[]) => {
+    if (!items || items.length === 0) return;
+
+    const gapi = await ensureGapi();
+    try {
+        // 1. Fetch existing dividends ONCE
+        const res = await gapi.client.sheets.spreadsheets.values.get({
+            spreadsheetId,
+            range: DIVIDENDS_RANGE,
+            valueRenderOption: 'UNFORMATTED_VALUE',
+        });
+        const rows = res.result.values || [];
+
+        const manualDates = new Set<string>();
+        const exactMatches = new Set<string>();
+
+        rows.forEach(row => {
+            const rowEx = String(row[0]);
+            const rowTicker = String(row[1]);
+
+            let rowDate: string;
+            if (typeof row[2] === 'number') {
+                const date = new Date((row[2] - 25569) * 86400 * 1000);
+                rowDate = date.toISOString().split('T')[0];
+            } else {
+                rowDate = new Date(row[2]).toISOString().split('T')[0];
+            }
+
+            const rowAmount = Number(row[3]).toFixed(6);
+            const rowSource = String(row[4] || '').toUpperCase();
+
+            const commonPrefix = `${rowEx}:${rowTicker}:${rowDate}`;
+
+            if (rowSource === 'MANUAL') {
+                manualDates.add(commonPrefix);
+            }
+            exactMatches.add(`${commonPrefix}:${rowAmount}`);
+        });
+
+        const allNewRows: any[][] = [];
+
+        items.forEach(item => {
+            const effectiveSource = item.source.toUpperCase().includes('MANUAL') ? 'MANUAL' : 'YAHOO';
+            const exc = toGoogleSheetsExchangeCode(item.exchange);
+            const tic = item.ticker.toUpperCase();
+
+            item.dividends.forEach(div => {
+                const dateStr = div.date.toISOString().split('T')[0];
+                const amountStr = div.amount.toFixed(6);
+                const prefix = `${exc}:${tic}:${dateStr}`;
+
+                if (manualDates.has(prefix)) return;
+                if (exactMatches.has(`${prefix}:${amountStr}`)) return;
+
+                // Avoid adding duplicates within the same batch
+                if (exactMatches.has(`${prefix}:${amountStr}`)) return;
+                exactMatches.add(`${prefix}:${amountStr}`); // Mark as added for this batch
+
+                allNewRows.push([
+                    exc,
+                    tic,
+                    dateStr,
+                    div.amount,
+                    effectiveSource
+                ]);
+            });
+        });
+
+        if (allNewRows.length > 0) {
+            await gapi.client.sheets.spreadsheets.values.append({
+                spreadsheetId,
+                range: `${DIV_SHEET_NAME}!A:A`,
+                valueInputOption: 'USER_ENTERED',
+                resource: { values: allNewRows }
+            });
+            await setMetadataValue(spreadsheetId, 'dividends_rebuild', toGoogleSheetDateFormat(new Date()));
+        }
+
+    } catch (error: unknown) {
+        const err = error as GapiError;
+        if (err.result?.error?.code === 400) {
+            console.warn("Dividends sheet not found, skipping sync.");
+            return;
+        }
+        throw error;
+    }
+});
+
 export const rebuildHoldingsSheet = withAuthHandling(async (spreadsheetId: string) => {
     const gapi = await ensureGapi();
 
     // 1. Parallel Fetch: CURRENT Holdings (for cache) AND Transactions
-    // This optimization avoids re-fetching unchanged metadata and runs independent fetches in parallel.
     const [currentHoldingsRes, transactions] = await Promise.all([
         gapi.client.sheets.spreadsheets.values.get({
             spreadsheetId,
@@ -985,8 +1085,6 @@ export const rebuildHoldingsSheet = withAuthHandling(async (spreadsheetId: strin
     const metadataCache = new Map<string, TickerData>();
 
     currentRows.forEach((row: any[]) => {
-        // Row indices based on `createHoldingRow` mapping:
-        // 0: Ticker, 1: Exchange, 6: Name, 7: NameHe, 8: Sector, 9: Type, 19: NumericId, 20: RecentChangeDays
         const ticker = String(row[0] || '').toUpperCase();
         const exchangeStr = String(row[1] || '');
         if (!ticker || !exchangeStr) return;
@@ -996,11 +1094,10 @@ export const rebuildHoldingsSheet = withAuthHandling(async (spreadsheetId: strin
 
         const key = `${ticker}:${exchange}`;
 
-        // Reconstruct a partial TickerData object from the sheet
         const cachedMeta: any = {
             ticker,
             exchange,
-            name: row[6] === 'Loading...' ? undefined : row[6], // Avoid caching placeholders
+            name: row[6] === 'Loading...' ? undefined : row[6],
             nameHe: row[7],
             sector: row[8],
             type: row[9] ? new InstrumentClassification(row[9]) : undefined,
@@ -1008,7 +1105,6 @@ export const rebuildHoldingsSheet = withAuthHandling(async (spreadsheetId: strin
             recentChangeDays: row[20] ? Number(row[20]) : 7
         };
 
-        // Only cache if we have at least a name, otherwise we might retry fetching
         if (cachedMeta.name && cachedMeta.name.trim() !== '') {
             metadataCache.set(key, cachedMeta);
         }
@@ -1016,7 +1112,6 @@ export const rebuildHoldingsSheet = withAuthHandling(async (spreadsheetId: strin
 
     const holdings: Record<string, { ticker: string, exchange: Exchange, qty: number, numericId: number | null }> = {};
 
-    // Sort transactions by date to ensure we get the latest numericId for a holding
     transactions.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     transactions.forEach(txn => {
@@ -1026,7 +1121,6 @@ export const rebuildHoldingsSheet = withAuthHandling(async (spreadsheetId: strin
                 if (!txn.exchange) throw new Error(`Transaction missing exchange for ticker: ${txn.ticker}`);
                 holdings[key] = { ticker: txn.ticker, exchange: txn.exchange, qty: 0, numericId: null };
             }
-            // Since transactions are sorted, this will overwrite with the latest numericId for each holding
             if (txn.numericId !== undefined) {
                 holdings[key].numericId = txn.numericId ?? null;
             }
@@ -1036,30 +1130,27 @@ export const rebuildHoldingsSheet = withAuthHandling(async (spreadsheetId: strin
         }
     });
 
+    // Collect dividends to sync
+    const dividendsToSync: { ticker: string, exchange: Exchange, dividends: Dividend[], source: string }[] = [];
+
     const enrichedData = await Promise.all(Object.values(holdings).map(async (h) => {
         const cacheKey = `${h.ticker.toUpperCase()}:${h.exchange}`;
         let meta: TickerData | null | undefined = metadataCache.get(cacheKey);
 
-        // If we have cached metadata, we might still want to use the numericId from the transaction if it's newer/present
         if (meta) {
-            // If the transaction has a numericId but the cache doesn't, or they differ, 
-            // we might ideally want to refresh, but for speed we'll trust the cache unless it's missing critical info.
-            // Actually, we can just overlay the transaction's numericId if the cache is missing it.
             if (h.numericId && !meta.numericId) {
                 meta.numericId = h.numericId;
             }
-            // For GEMEL/PENSION, we *might* want to force refresh if prices are stale?
-            // But `rebuildHoldingsSheet` primarily sets up the STRUCTURE (formulas). 
-            // The prices are fetched via GOOGLEFINANCE or `External_Datasets`.
-            // So reusing metadata (Name, Sector) is safe.
         } else {
-            // Not in cache, fetch fresh
             try {
                 meta = await getTickerData(h.ticker, h.exchange, h.numericId);
-
-                // Sync dividends if available (only for new fetches to avoid spamming)
                 if (meta?.dividends && meta.dividends.length > 0) {
-                    await syncDividends(spreadsheetId, h.ticker, h.exchange, meta.dividends, 'YAHOO');
+                    dividendsToSync.push({
+                        ticker: h.ticker,
+                        exchange: h.exchange,
+                        dividends: meta.dividends,
+                        source: 'YAHOO'
+                    });
                 }
             } catch (e) {
                 console.warn("Failed to fetch metadata for " + h.ticker, e);
@@ -1068,6 +1159,11 @@ export const rebuildHoldingsSheet = withAuthHandling(async (spreadsheetId: strin
 
         return { h, meta: meta || null };
     }));
+
+    // Batch sync all collected dividends
+    if (dividendsToSync.length > 0) {
+        await batchSyncDividends(spreadsheetId, dividendsToSync);
+    }
 
     const data = enrichedData.map(({ h, meta }, i) => createHoldingRow(h, meta, i + 2)).filter((row): row is any[] => row !== null);
 
@@ -1094,7 +1190,7 @@ export const addPortfolio = withAuthHandling(async (spreadsheetId: string, p: Po
     }
     const row = objectToRow(pForSheet, portfolioHeaders, portfolioMapping as any);
     await gapi.client.sheets.spreadsheets.values.append({
-        spreadsheetId, range: 'Portfolio_Options!A:A', valueInputOption: 'USER_ENTERED',
+        spreadsheetId, range: `${PORTFOLIO_SHEET_NAME}!A:A`, valueInputOption: 'USER_ENTERED',
         resource: { values: [row] }
     });
 });
@@ -1382,5 +1478,4 @@ export const getExternalPrices = withAuthHandling(async (spreadsheetId: string):
     }
 });
 
-// Remove unused function export
 export {};
