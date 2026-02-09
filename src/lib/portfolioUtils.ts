@@ -13,7 +13,7 @@ export function getOwnedInPortfolios(symbol: string, portfolios: Portfolio[], ex
 
 export function getTaxRatesForDate(p: Portfolio, date: Date | string): { cgt: number, incTax: number } {
     const d = new Date(date);
-    d.setHours(0,0,0,0);
+    d.setUTCHours(0, 0, 0, 0);
     
     if (!p.taxHistory || p.taxHistory.length === 0) {
         return { cgt: p.cgt, incTax: p.incTax };
@@ -33,7 +33,7 @@ export function getTaxRatesForDate(p: Portfolio, date: Date | string): { cgt: nu
 
 export function getFeeRatesForDate(p: Portfolio, date: Date | string): { mgmtVal: number, mgmtType: 'percentage' | 'fixed', mgmtFreq: 'monthly' | 'quarterly' | 'yearly', divCommRate: number, commRate: number, commMin: number, commMax: number } {
     const d = new Date(date);
-    d.setHours(0,0,0,0);
+    d.setUTCHours(0, 0, 0, 0);
     
     if (!p.feeHistory || p.feeHistory.length === 0) {
         return { mgmtVal: p.mgmtVal, mgmtType: p.mgmtType, mgmtFreq: p.mgmtFreq, divCommRate: p.divCommRate, commRate: p.commRate, commMin: p.commMin, commMax: p.commMax };

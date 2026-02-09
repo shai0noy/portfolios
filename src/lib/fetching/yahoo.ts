@@ -262,8 +262,8 @@ export async function fetchYahooTickerData(
 
           const getDateAgo = (amount: number, unit: string) => {
             const d = new Date(lastPoint.time * 1000);
-            if (unit === 'months') d.setMonth(d.getMonth() - amount);
-            else if (unit === 'years') d.setFullYear(d.getFullYear() - amount);
+            if (unit === 'months') d.setUTCMonth(d.getUTCMonth() - amount);
+            else if (unit === 'years') d.setUTCFullYear(d.getUTCFullYear() - amount);
             return d.getTime() / 1000;
           };
 
@@ -277,7 +277,7 @@ export async function fetchYahooTickerData(
           const res3y = calcChange(y3); changePct3y = res3y.pct; changeDate3y = res3y.date;
           const res5y = calcChange(y5); changePct5y = res5y.pct; changeDate5y = res5y.date;
 
-          const targetYtd = new Date(lastPoint.time * 1000); targetYtd.setMonth(0); targetYtd.setDate(0);
+          const targetYtd = new Date(lastPoint.time * 1000); targetYtd.setUTCMonth(0, 0); targetYtd.setUTCHours(0, 0, 0, 0);
           const resYtd = calcChange(findClosestPoint(targetYtd.getTime() / 1000)); changePctYtd = resYtd.pct; changeDateYtd = resYtd.date;
           const resMax = calcChange(points[0]); changePctMax = resMax.pct; changeDateMax = resMax.date;
         }

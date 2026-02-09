@@ -177,16 +177,16 @@ export function useChartComparison() {
             startDate = new Date(minDate);
         } else {
             startDate = new Date();
-            startDate.setHours(0, 0, 0, 0);
+            startDate.setUTCHours(0, 0, 0, 0);
 
             switch (range) {
-                case '1M': startDate.setMonth(now.getMonth() - 1); break;
-                case '3M': startDate.setMonth(now.getMonth() - 3); break;
-                case '6M': startDate.setMonth(now.getMonth() - 6); break;
-                case 'YTD': startDate.setFullYear(now.getFullYear(), 0, 1); break;
-                case '1Y': startDate.setFullYear(now.getFullYear() - 1); break;
-                case '3Y': startDate.setFullYear(now.getFullYear() - 3); break;
-                case '5Y': startDate.setFullYear(now.getFullYear() - 5); break;
+                case '1M': startDate.setUTCMonth(now.getUTCMonth() - 1); break;
+                case '3M': startDate.setUTCMonth(now.getUTCMonth() - 3); break;
+                case '6M': startDate.setUTCMonth(now.getUTCMonth() - 6); break;
+                case 'YTD': startDate.setUTCFullYear(now.getUTCFullYear(), 0, 1); break;
+                case '1Y': startDate.setUTCFullYear(now.getUTCFullYear() - 1); break;
+                case '3Y': startDate.setUTCFullYear(now.getUTCFullYear() - 3); break;
+                case '5Y': startDate.setUTCFullYear(now.getUTCFullYear() - 5); break;
                 default: return data;
             }
         }

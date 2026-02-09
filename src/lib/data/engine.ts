@@ -284,19 +284,19 @@ export class FinanceEngine {
             if (h.transactions.length === 0) return;
 
             const startDate = new Date(h.transactions[0].date);
-            const iter = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 1);
+            const iter = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth() + 1, 1));
             const limit = new Date();
-            limit.setHours(23, 59, 59, 999);
+            limit.setUTCHours(23, 59, 59, 999);
 
             while (iter <= limit) {
                 const rates = getFeeRatesForDate(p, iter); 
                 if (rates.mgmtVal === 0 || rates.mgmtType !== 'percentage') {
-                    iter.setMonth(iter.getMonth() + 1);
+                    iter.setUTCMonth(iter.getUTCMonth() + 1);
                     continue;
                 }
 
                 let isDue = false;
-                const m = iter.getMonth();
+                const m = iter.getUTCMonth();
                 if (rates.mgmtFreq === 'monthly') isDue = true;
                 else if (rates.mgmtFreq === 'quarterly') isDue = (m % 3 === 0);
                 else if (rates.mgmtFreq === 'yearly') isDue = (m === 0);
@@ -328,7 +328,7 @@ export class FinanceEngine {
                         }
                     }
                 }
-                iter.setMonth(iter.getMonth() + 1);
+                iter.setUTCMonth(iter.getUTCMonth() + 1);
             }
         });
     }

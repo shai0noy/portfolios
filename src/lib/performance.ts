@@ -271,9 +271,6 @@ export async function calculatePortfolioPerformance(
         twrIndex *= (1 + dayReturn);
         prevHoldingsValue = totalHoldingsValue;
 
-        // Debug logging for Jan 3 issue
-
-
         points.push({
             date: currentDate,
             holdingsValue: totalHoldingsValue,
@@ -342,12 +339,12 @@ export function calculatePeriodReturns(points: PerformancePoint[]): PeriodReturn
     const subtractPeriod = (date: Date, period: '1w' | '1m' | '3m' | 'ytd' | '1y' | '5y' | 'all'): Date => {
         const d = new Date(date);
         switch (period) {
-            case '1w': d.setDate(d.getDate() - 7); break;
-            case '1m': d.setMonth(d.getMonth() - 1); break;
-            case '3m': d.setMonth(d.getMonth() - 3); break;
-            case 'ytd': d.setMonth(0, 1); d.setHours(0, 0, 0, 0); break; // Jan 1st of current year
-            case '1y': d.setFullYear(d.getFullYear() - 1); break;
-            case '5y': d.setFullYear(d.getFullYear() - 5); break;
+            case '1w': d.setUTCDate(d.getUTCDate() - 7); break;
+            case '1m': d.setUTCMonth(d.getUTCMonth() - 1); break;
+            case '3m': d.setUTCMonth(d.getUTCMonth() - 3); break;
+            case 'ytd': d.setUTCMonth(0, 0); d.setUTCHours(0, 0, 0, 0); break; // Dec 31st of previous year (UTC)
+            case '1y': d.setUTCFullYear(d.getUTCFullYear() - 1); break;
+            case '5y': d.setUTCFullYear(d.getUTCFullYear() - 5); break;
             case 'all': return new Date(0);
         }
         return d;

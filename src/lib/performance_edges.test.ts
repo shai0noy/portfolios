@@ -37,8 +37,7 @@ describe('calculatePortfolioPerformance - Edge Cases', () => {
         { date: new Date('2024-01-02T00:00:00.000Z'), price: 100 },
       ]
     };
-
-
+    const points = await calculatePortfolioPerformance(holdings, txns, 'USD', mockRates, undefined, undefined, mkFetch(history));
 
     // Day 2:
     // Value: 10 * 100 = 1000.
@@ -174,6 +173,7 @@ describe('calculatePortfolioPerformance - Edge Cases', () => {
     // Let's check if the result is 0 (Constant Rate assumption) or something else.
 
 
+    const points = await calculatePortfolioPerformance(holdings, txns, 'USD', rates, undefined, undefined, mkFetch(history));
     const p2 = points.find(p => p.date.getUTCDate() === 2);
 
     // If constant rates used:
