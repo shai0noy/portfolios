@@ -17,6 +17,7 @@ export const INITIAL_SUMMARY: DashboardSummaryData = {
   totalDividends: 0,
   totalReturn: 0,
   realizedGainAfterTax: 0,
+    totalTaxPaid: 0,
   valueAfterTax: 0,
   totalDayChange: 0,
   totalDayChangePct: 0,
@@ -223,6 +224,8 @@ export class FinanceEngine {
                 h.addTransaction(t, this.exchangeRates, this.cpiData, p);
             }
         });
+
+        this.calculateSnapshot();
     }
 
     public hydrateLivePrices(priceMap: Map<string, any>) {
@@ -419,6 +422,8 @@ export class FinanceEngine {
 
             // 4. Realized Stats (Portfolio Currency)
             const realizedGainNetVal = realizedLots.reduce((acc, l) => acc + (l.realizedGainNet || 0), 0);
+
+            h.realizedGainNet = { amount: realizedGainNetVal, currency: h.portfolioCurrency };
             // accumulatedMgmtFees are subtracted from Net Gain? 
             // holding._accumulatedMgmtFees is internal. We need to respect it.
             // We can access it if we change visibility or just iterate lots and trust realizedGainNet?
@@ -552,15 +557,16 @@ export class FinanceEngine {
             totalCostOfSold: 0,
             totalDividends: 0,
             totalReturn: 0,
-            totalRealizedTax: 0,
-            totalUnrealizedTax: 0,
             totalDayChange: 0,
             aumWithDayChangeData: 0,
             holdingsWithDayChange: 0,
             totalUnvestedValue: 0,
             totalUnvestedGain: 0,
             totalUnvestedCost: 0,
-            totalFees: 0
+            totalFees: 0,
+            totalRealizedTax: 0,
+            totalUnrealizedTax: 0,
+            totalDividendTax: 0
         };
 
         // Perf Acc (skipped for brevity, or need to reimplement?)
@@ -636,13 +642,21 @@ export class FinanceEngine {
             globalAcc.aum += marketValue;
             globalAcc.totalUnrealized += unrealizedGain;
             globalAcc.totalRealized += realizedGain; // Net
+            const divs = (h as any)._dividends || [];
+            const divsTaxVal = divs.reduce((acc: number, d: any) => acc + (d.taxAmountPC || 0), 0);
+            const divsTaxDisplay = convertCurrency(divsTaxVal, h.portfolioCurrency, displayCurrency, this.exchangeRates);
+            globalAcc.totalDividendTax += divsTaxDisplay;
+
+            const dividendsGross = dividends + divsTaxDisplay;
+
             globalAcc.totalCostOfSold += costOfSold;
-            globalAcc.totalDividends += dividends; // Net
-            globalAcc.totalReturn += totalGain; // Net
+            globalAcc.totalDividends += dividendsGross; // Gross
+            globalAcc.totalReturn += (totalGain + divsTaxDisplay); // Gross (since totalGain used Net Dividends before)
             globalAcc.totalFees += totalFees;
 
             // Tax
-            const realizedTax = convertCurrency(h.realizedCapitalGainsTax, Currency.ILS, displayCurrency, this.exchangeRates);
+            // Use totalTaxPaidPC (CGT + Income + Div Tax)
+            const realizedTax = convertCurrency(h.totalTaxPaidPC, h.portfolioCurrency, displayCurrency, this.exchangeRates);
             const unrealizedTax = convertCurrency(h.unrealizedTaxLiabilityILS, Currency.ILS, displayCurrency, this.exchangeRates);
 
             globalAcc.totalRealizedTax += realizedTax;
@@ -705,6 +719,7 @@ export class FinanceEngine {
             totalRealizedGainPct: globalAcc.totalCostOfSold > 0 ? globalAcc.totalRealized / globalAcc.totalCostOfSold : 0,
             totalDayChange: globalAcc.totalDayChange,
             realizedGainAfterTax: (globalAcc.totalRealized + globalAcc.totalDividends) - globalAcc.totalRealizedTax,
+            totalTaxPaid: globalAcc.totalRealizedTax, // Populate the new field
             valueAfterTax: globalAcc.aum - globalAcc.totalUnrealizedTax,
             totalDayChangePct: globalAcc.aumWithDayChangeData > 0 ? globalAcc.totalDayChange / globalAcc.aumWithDayChangeData : 0,
             totalDayChangeIsIncomplete: globalAcc.holdingsWithDayChange < this.holdings.size, // Approximate

@@ -120,9 +120,20 @@ export function calculateDashboardSummary(data: any[], displayCurrency: string, 
     // dividendsTotal is now SimpleMoney (PC)
     const dividends = convertCurrency(h.dividendsTotal.amount, h.dividendsTotal.currency, displayCurrency, exchangeRates);
 
-    // realizedGainNet is SimpleMoney (PC)
+    // realizedGainNet is SimpleMoney (PC) - PRE-TAX (Gross of Tax)
     const realizedGainFromSells = convertCurrency(h.realizedGainNet.amount, h.realizedGainNet.currency, displayCurrency, exchangeRates);
-    const realizedGain = realizedGainFromSells + dividends;
+
+    // Calculate Dividend Tax for adjustment
+    const divTaxToDeduct = (h as any)._dividends
+      ? (h as any)._dividends.reduce((acc: number, d: any) => acc + (d.taxAmountPC || 0), 0)
+      : 0;
+    const divTaxDisplay = convertCurrency(divTaxToDeduct, h.portfolioCurrency, displayCurrency, exchangeRates);
+
+    // Gross Dividends (Pre-Tax)
+    const dividendsGross = dividends + divTaxDisplay;
+
+    // Realized Gain (Gross) = Realized Sell Gain (Gross) + Dividends (Gross)
+    const realizedGain = realizedGainFromSells + dividendsGross;
 
     // costOfSoldTotal is SimpleMoney (PC)
     const costOfSold = convertCurrency(h.costOfSoldTotal.amount, h.costOfSoldTotal.currency, displayCurrency, exchangeRates);
@@ -142,14 +153,21 @@ export function calculateDashboardSummary(data: any[], displayCurrency: string, 
     // costBasis is Vested. costOfSold is Realized.
     // feesTotal is All (Active + Realized).
     // So this formula works for specific "Life of Holding" gain?
-    const totalGain = marketValue + proceedsDisplay + dividends - costBasisDisplay - costOfSold - feesTotalDisplay;
+    // Using Gross Dividends for Total Return (Pre-Tax)
+    const totalGain = marketValue + proceedsDisplay + dividendsGross - costBasisDisplay - costOfSold - feesTotalDisplay;
 
-    const realizedTaxDisplay = convertCurrency(h.realizedTax, Currency.ILS, displayCurrency, exchangeRates);
+    const realizedTaxDisplay = convertCurrency(h.totalTaxPaidPC, h.portfolioCurrency, displayCurrency, exchangeRates);
     const unrealizedTaxDisplay = convertCurrency(h.unrealizedTaxLiabilityILS, Currency.ILS, displayCurrency, exchangeRates);
 
     // Value After Tax (Net Liquidation Value) = Market Value - Unrealized Tax Liability
     const valueAfterTax = marketValue - unrealizedTaxDisplay;
+
+    // Realized Gain After Tax = Realized Gain (Gross) - Total Tax Paid
     const realizedGainAfterTax = realizedGain - realizedTaxDisplay;
+
+    // Also explicitly map realizedTax for the Dashboard Table (EnrichedDashboardHolding)
+    // We use the Total Tax Paid (CGT + Inc + Div)
+    const realizedTax = realizedTaxDisplay;
 
     const costBasis = costBasisDisplay;
 
@@ -209,6 +227,7 @@ export function calculateDashboardSummary(data: any[], displayCurrency: string, 
       transactions: h.transactions as Transaction[],
       dividends: h.dividends as DividendRecord[],
       qtyTotal: h.qtyTotal, // Mapped from getter
+      realizedTax, // Added
       display
     } as unknown as EnrichedDashboardHolding;
   });

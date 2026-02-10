@@ -205,9 +205,45 @@ function runTestSales(p: Portfolio, tBuy: Transaction, tSell: Transaction, label
         if (soldLot) {
             // @ts-ignore
             const lotTotalTax = soldLot.totalRealizedTaxPC;
+            // @ts-ignore
+            console.log(`Lot Realized Gain Net: ${soldLot.realizedGainNet}`);
             console.log(`Lot Total Tax: ${lotTotalTax?.toFixed(2)}`);
             if (Math.abs((lotTotalTax || 0) - 1156.25) < 1) {
-                console.log("SUCCESS: Lot totalRealizedTaxPC correct.");
+
+                // --- Global Summary Verification ---
+                console.log('\n--- Verification: Global Summary ---');
+                const summary = engine.getGlobalSummary('ILS', null);
+                console.log('Global Summary Tax Paid:', summary.totalTaxPaid);
+                console.log('Global Summary Total Realized:', summary.totalRealized);
+                console.log('Global Summary Realized Gain After Tax:', summary.realizedGainAfterTax);
+
+                // Expected for Income Tax Portfolio ONLY:
+                // Tax = 1156.25.
+                // Realized Gain (Gross) = 925 (Sale) + 0 (Divs? No, Divs are separate here?).
+                // Wait, engine.totalRealized is JUST Sale Gain?
+                // engine.totalDividends is Gross Dividends.
+                // engine.realizedGainAfterTax = (totalRealized + totalDividends) - totalRealizedTax.
+
+                // In this test case:
+                // Sale Gain (Gross) = 925.
+                // Dividends = 0 (No dividends in the 'Income Tax Portfolio' scenario? Wait, did I add divs?)
+                // runTestSales uses `txnBuyIT` and `txnSellIT`. It does NOT add a dividend event explicitly in `runTestSales`.
+                // So totalDividends = 0.
+
+                // Gain After Tax = (925 + 0) - 1156.25 = -231.25.
+                // This expectation remains same because Divs are 0.
+
+                if (Math.abs(summary.totalTaxPaid - 1156.25) < 0.01) {
+                    console.log('SUCCESS: Global Tax Paid Correct (1156.25).');
+                } else {
+                    console.error('FAILURE: Global Tax Paid Mismatch. Got:', summary.totalTaxPaid);
+                }
+
+                if (Math.abs(summary.realizedGainAfterTax - (-231.25)) < 0.01) {
+                    console.log('SUCCESS: Global Realized Gain After Tax Correct (-231.25).');
+                } else {
+                    console.error('FAILURE: Global Realized Gain After Tax Mismatch. Got:', summary.realizedGainAfterTax);
+                }
             } else {
                 console.log(`FAILURE: Lot totalRealizedTaxPC mismatch.`);
             }

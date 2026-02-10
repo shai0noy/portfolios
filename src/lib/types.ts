@@ -275,6 +275,9 @@ export interface DashboardSummaryData {
   totalDayChange: number;
   totalDayChangePct: number;
   totalDayChangeIsIncomplete: boolean;
+  totalTaxPaid: number; // Added
+
+  // Performance
   perf1d: number;
   perf1w: number;
   perf1w_incomplete: boolean;
