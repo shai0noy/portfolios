@@ -681,14 +681,14 @@ export class FinanceEngine {
             // Note: perf* fields on Holding are percentages (e.g. 0.05 for 5%).
             // We use `marketValue` (in Display Currency) as weight.
 
-            if (h.perf1w !== undefined && h.perf1w !== 0) { perfAcc.totalChange_perf1w += h.perf1w * marketValue; perfAcc.aumFor_perf1w += marketValue; perfAcc.holdingsFor_perf1w++; }
-            if (h.perf1m !== undefined && h.perf1m !== 0) { perfAcc.totalChange_perf1m += h.perf1m * marketValue; perfAcc.aumFor_perf1m += marketValue; perfAcc.holdingsFor_perf1m++; }
-            if (h.perf3m !== undefined && h.perf3m !== 0) { perfAcc.totalChange_perf3m += h.perf3m * marketValue; perfAcc.aumFor_perf3m += marketValue; perfAcc.holdingsFor_perf3m++; }
-            if (h.perfYtd !== undefined && h.perfYtd !== 0) { perfAcc.totalChange_perfYtd += h.perfYtd * marketValue; perfAcc.aumFor_perfYtd += marketValue; perfAcc.holdingsFor_perfYtd++; }
-            if (h.perf1y !== undefined && h.perf1y !== 0) { perfAcc.totalChange_perf1y += h.perf1y * marketValue; perfAcc.aumFor_perf1y += marketValue; perfAcc.holdingsFor_perf1y++; }
-            if (h.perf3y !== undefined && h.perf3y !== 0) { perfAcc.totalChange_perf3y += h.perf3y * marketValue; perfAcc.aumFor_perf3y += marketValue; perfAcc.holdingsFor_perf3y++; }
-            if (h.perf5y !== undefined && h.perf5y !== 0) { perfAcc.totalChange_perf5y += h.perf5y * marketValue; perfAcc.aumFor_perf5y += marketValue; perfAcc.holdingsFor_perf5y++; }
-            if (h.perfAll !== undefined && h.perfAll !== 0) { perfAcc.totalChange_perfAll += h.perfAll * marketValue; perfAcc.aumFor_perfAll += marketValue; perfAcc.holdingsFor_perfAll++; }
+            if (h.perf1w !== undefined) { perfAcc.totalChange_perf1w += h.perf1w * marketValue; perfAcc.aumFor_perf1w += marketValue; perfAcc.holdingsFor_perf1w++; }
+            if (h.perf1m !== undefined) { perfAcc.totalChange_perf1m += h.perf1m * marketValue; perfAcc.aumFor_perf1m += marketValue; perfAcc.holdingsFor_perf1m++; }
+            if (h.perf3m !== undefined) { perfAcc.totalChange_perf3m += h.perf3m * marketValue; perfAcc.aumFor_perf3m += marketValue; perfAcc.holdingsFor_perf3m++; }
+            if (h.perfYtd !== undefined) { perfAcc.totalChange_perfYtd += h.perfYtd * marketValue; perfAcc.aumFor_perfYtd += marketValue; perfAcc.holdingsFor_perfYtd++; }
+            if (h.perf1y !== undefined) { perfAcc.totalChange_perf1y += h.perf1y * marketValue; perfAcc.aumFor_perf1y += marketValue; perfAcc.holdingsFor_perf1y++; }
+            if (h.perf3y !== undefined) { perfAcc.totalChange_perf3y += h.perf3y * marketValue; perfAcc.aumFor_perf3y += marketValue; perfAcc.holdingsFor_perf3y++; }
+            if (h.perf5y !== undefined) { perfAcc.totalChange_perf5y += h.perf5y * marketValue; perfAcc.aumFor_perf5y += marketValue; perfAcc.holdingsFor_perf5y++; }
+            if (h.perfAll !== undefined) { perfAcc.totalChange_perfAll += h.perfAll * marketValue; perfAcc.aumFor_perfAll += marketValue; perfAcc.holdingsFor_perfAll++; }
 
             // Unvested
             const unvestedVal = convertCurrency(h.marketValueUnvested.amount, h.marketValueUnvested.currency, displayCurrency, this.exchangeRates);
