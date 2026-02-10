@@ -137,17 +137,50 @@ export class FinanceEngine {
                             const grossPC = convertCurrency(grossSC, h.stockCurrency, h.portfolioCurrency, this.exchangeRates);
                             
                             // Tax Estimate
-                            let taxRate = 0;
+                            let taxRateCashed = 0;
+                            let taxRateReinvested = 0;
                             let taxAmountPC = 0;
+                            let taxCashedPC = 0;
+                            let taxReinvestedPC = 0;
+
                             if (p) {
-                                const { cgt, incTax } = getTaxRatesForDate(p, d.date);
+                                const { cgt, incTax, divPolicy, taxPolicy } = p;
                                 const isReit = h.type?.type === InstrumentType.STOCK_REIT;
-                                taxRate = (isReit && incTax > 0) ? incTax : cgt;
+                                let baseTaxRate = (isReit && incTax > 0) ? incTax : cgt;
+
+                                // Policy Overrides
+                                if (taxPolicy === 'TAX_FREE') baseTaxRate = 0;
+
+                                // Cashed Portion is usually taxed unless exempt
+                                taxRateCashed = baseTaxRate;
+
+                                // Reinvested Portion depends on policy
+                                if (divPolicy === 'accumulate_tax_free' || divPolicy === 'hybrid_rsu') {
+                                    taxRateReinvested = 0;
+                                } else {
+                                    taxRateReinvested = baseTaxRate; // 'cash_taxed' usually implies even reinvestment (DRIP) is taxable, unless specifically exempt
+                                }
 
                                 const valILS = convertCurrency(grossSC, h.stockCurrency, Currency.ILS, this.exchangeRates);
-                                const taxILS = valILS * taxRate;
-                                taxAmountPC = convertCurrency(taxILS, Currency.ILS, h.portfolioCurrency, this.exchangeRates);
+
+                                // Proportional Tax Calculation
+                                const ratioCashed = totalQty > 0 ? vested / totalQty : 0;
+                                const ratioReinvested = totalQty > 0 ? unvested / totalQty : 0;
+
+                                const grossILS = valILS;
+                                const taxILSCashed = (grossILS * ratioCashed) * taxRateCashed;
+                                const taxILSReinvested = (grossILS * ratioReinvested) * taxRateReinvested;
+
+                                taxCashedPC = convertCurrency(taxILSCashed, Currency.ILS, h.portfolioCurrency, this.exchangeRates);
+                                taxReinvestedPC = convertCurrency(taxILSReinvested, Currency.ILS, h.portfolioCurrency, this.exchangeRates);
+
+                                taxAmountPC = taxCashedPC + taxReinvestedPC;
                             }
+
+                            // Proportional Fee Calculation (simple split)
+                            const ratioCashed = totalQty > 0 ? vested / totalQty : 0;
+                            const feeCashedPC = feePC * ratioCashed;
+                            const feeReinvestedPC = feePC - feeCashedPC;
 
                             const netPC = grossPC - feePC - taxAmountPC;
 
@@ -165,9 +198,13 @@ export class FinanceEngine {
                                 // New breakdown
                                 unitsHeld: totalQty,
                                 pricePerUnit: d.amount,
-                                cashedAmount: totalQty > 0 ? netPC * (vested / totalQty) : 0,
-                                reinvestedAmount: totalQty > 0 ? netPC * (unvested / totalQty) : 0,
-                                isReinvested: unvested > 0
+                                cashedAmount: totalQty > 0 ? (grossPC * ratioCashed) - feeCashedPC - taxCashedPC : 0,
+                                reinvestedAmount: totalQty > 0 ? (grossPC * (unvested / totalQty)) - feeReinvestedPC - taxReinvestedPC : 0,
+                                isReinvested: unvested > 0,
+                                taxCashedPC,
+                                taxReinvestedPC,
+                                feeCashedPC,
+                                feeReinvestedPC
                             };
 
                             h.addDividend(divRecord);
@@ -502,7 +539,7 @@ export class FinanceEngine {
 
                 // Realized Tax
                 const realizedTaxVal = realizedLots.reduce((acc, l) => acc + (l.realizedTax || 0), 0);
-                h.realizedTax = realizedTaxVal;
+                h.realizedCapitalGainsTax = realizedTaxVal;
             }
         });
     }
@@ -605,7 +642,7 @@ export class FinanceEngine {
             globalAcc.totalFees += totalFees;
 
             // Tax
-            const realizedTax = convertCurrency(h.realizedTax, Currency.ILS, displayCurrency, this.exchangeRates);
+            const realizedTax = convertCurrency(h.realizedCapitalGainsTax, Currency.ILS, displayCurrency, this.exchangeRates);
             const unrealizedTax = convertCurrency(h.unrealizedTaxLiabilityILS, Currency.ILS, displayCurrency, this.exchangeRates);
 
             globalAcc.totalRealizedTax += realizedTax;

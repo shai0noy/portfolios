@@ -10,6 +10,8 @@ import EditIcon from '@mui/icons-material/Edit';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { useNavigate } from 'react-router-dom';
 
+import { aggregateDividends } from '../lib/dividends';
+
 export type HoldingSection = 'holdings' | 'transactions' | 'dividends';
 
 export interface HoldingWeight {
@@ -153,7 +155,7 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
 
         matchingHoldings.forEach(h => {
             // Handle Enriched vs Raw
-            const raw = h as Holding; 
+            const raw = h as Holding;
 
             // Accumulate Base Metrics (Converting to Display Currency)
             // Use convertMoney helper
@@ -167,9 +169,14 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
             const rGainNetDisplay = convertMoney(raw.realizedGainNet, displayCurrency, exchangeRates).amount;
             agg.realizedNetBase += rGainNetDisplay;
 
-            const rTax = raw.realizedTax || 0;
-            const rTaxDisplay = convertCurrency(rTax, Currency.ILS, displayCurrency, exchangeRates);
-            agg.realizedTaxBase += rTaxDisplay;
+            // Tax Calculation: Aggregate from Sales (Realized Lots) and Dividends
+            // raw.realizedTax is not reliable/updated on holding level usually.
+
+
+            // Tax Calculation: Use Holding attribute
+            const taxPC = raw.totalTaxPaidPC ?? 0;
+            const taxDisplay = convertCurrency(taxPC, raw.portfolioCurrency || 'USD', displayCurrency, exchangeRates);
+            agg.realizedTaxBase += taxDisplay;
 
             // Fix: Calculate unrealized tax ONLY for Vested lots to avoid negative "Net" on Vested Value
             // raw.unrealizedTaxLiabilityILS includes ALL active lots (vested + unvested)
@@ -191,7 +198,7 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
             if (dcPct !== 0) {
                 const price = raw.currentPrice || 0;
                 // change per unit in stock currency
-                const chgPerUnit = price * dcPct; 
+                const chgPerUnit = price * dcPct;
                 // value change in Stock Currency
                 const valChgSC = chgPerUnit * (raw.qtyVested || 0);
                 agg.dayChangeVal += convertCurrency(valChgSC, raw.stockCurrency || 'USD', displayCurrency, exchangeRates);
@@ -252,68 +259,7 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
     }, [transactions]);
 
     const divHistory = useMemo(() => {
-        // Extended Dividend Record with Display Currency accumulations
-        type AggregatedDividend = DividendRecord & {
-            count: number;
-            // Aggregated values in Display Currency
-            grossAmountDisplay: number;
-            netAmountDisplay: number;
-            taxAmountDisplay: number;
-            feeAmountDisplay: number;
-            cashedAmountDisplay: number;
-            reinvestedAmountDisplay: number;
-            portfolioCurrency?: string; // Kept for reference (random ref)
-        };
-
-        const grouped: Record<string, AggregatedDividend> = {};
-
-        dividendHistory.forEach(d => {
-            const dateKey = new Date(d.date).toISOString().split('T')[0];
-            const pCurrency = d.portfolioCurrency || 'USD';
-
-            // Conversions to Display Currency
-            const grossDisplay = convertCurrency(d.grossAmount.amount, d.grossAmount.currency, displayCurrency, exchangeRates || undefined);
-            const netDisplay = convertCurrency(d.netAmountPC, pCurrency, displayCurrency, exchangeRates || undefined);
-            const taxDisplay = convertCurrency(d.taxAmountPC, pCurrency, displayCurrency, exchangeRates || undefined);
-            const feeDisplay = convertCurrency(d.feeAmountPC, pCurrency, displayCurrency, exchangeRates || undefined);
-            const cashedDisplay = convertCurrency(d.cashedAmount, pCurrency, displayCurrency, exchangeRates || undefined);
-            const reinvestedDisplay = convertCurrency(d.reinvestedAmount, pCurrency, displayCurrency, exchangeRates || undefined);
-
-            if (!grouped[dateKey]) {
-                grouped[dateKey] = {
-                    ...d,
-                    count: 1,
-                    grossAmountDisplay: grossDisplay,
-                    netAmountDisplay: netDisplay,
-                    taxAmountDisplay: taxDisplay,
-                    feeAmountDisplay: feeDisplay,
-                    cashedAmountDisplay: cashedDisplay,
-                    reinvestedAmountDisplay: reinvestedDisplay,
-                    portfolioCurrency: pCurrency
-                };
-            } else {
-                const g = grouped[dateKey];
-                g.unitsHeld += d.unitsHeld;
-                g.grossAmount = { ...g.grossAmount, amount: g.grossAmount.amount + d.grossAmount.amount }; // Gross SC sum
-
-                g.grossAmountDisplay += grossDisplay;
-                g.netAmountDisplay += netDisplay;
-                g.taxAmountDisplay += taxDisplay;
-                g.feeAmountDisplay += feeDisplay;
-                g.cashedAmountDisplay += cashedDisplay;
-                g.reinvestedAmountDisplay += reinvestedDisplay;
-
-                g.count += 1;
-            }
-        });
-
-        return Object.values(grouped).map((d) => {
-            return {
-                ...d,
-                date: new Date(d.date),
-                source: 'System', 
-            };
-        }).sort((a, b) => b.date.getTime() - a.date.getTime());
+        return aggregateDividends(dividendHistory, displayCurrency, exchangeRates);
     }, [dividendHistory, displayCurrency, exchangeRates]);
 
     const layers = useMemo(() => {
@@ -495,7 +441,7 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                                             if (lot.soldDate) {
                                                 g.soldQty += lot.qty;
                                                 g.realizedGain += convertMoney(lot.realizedGainNet ? { amount: lot.realizedGainNet, currency: lot.costTotal.currency } : undefined, displayCurrency, exchangeRates || undefined).amount;
-                                                const rTax = convertCurrency(lot.realizedTax || 0, Currency.ILS, displayCurrency, exchangeRates || undefined);
+                                                const rTax = convertCurrency(lot.totalRealizedTaxPC || 0, lot.costTotal?.currency || Currency.USD, displayCurrency, exchangeRates || undefined);
                                                 g.taxLiability += rTax;
                                                 g.realizedTax += rTax;
                                                 g.fees += convertCurrency(lot.soldFees?.amount || 0, lot.soldFees?.currency || Currency.ILS, displayCurrency, exchangeRates || undefined);
@@ -603,7 +549,7 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
 
                                                 <Grid container spacing={2}>
                                                     <Grid item xs={6} sm={2}>
-                                                        <Typography variant="caption" color="text.secondary">{t('Weight', 'משקל')}</Typography>
+                                                        <Typography variant="caption" color="text.secondary">{t('Weight in Holdings', 'משקל בתיק')}</Typography>
                                                         <Typography variant="body2" fontWeight="500">{formatPercent(holdingsWeights.reduce((s, h) => s + h.weightInGlobal, 0))}</Typography>
                                                     </Grid>
                                                     <Grid item xs={6} sm={2}>
@@ -866,76 +812,112 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
             {section === 'dividends' && (
                 <Box>
                     <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'bold' }}>{t('Dividends Received', 'דיבידנדים שהתקבלו')}</Typography>
-                    <Paper variant="outlined" sx={{ maxHeight: 500, overflowY: 'auto' }}>
-                        <Table size="small" stickyHeader>
-                            <TableHead>
-                                <TableRow>
-                                    <TableCell sx={{ bgcolor: 'background.paper' }}>{t('Date', 'תאריך')}</TableCell>
-                                    <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>{t('Units Held', 'יחידות')}</TableCell>
-                                    <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>{t('Dividend per Unit', 'דיבידנד ליחידה')}</TableCell>
-                                    <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>{t('Total Value', 'שווי כולל')}</TableCell>
-                                    <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>{t('Cashed', 'נפדה')}</TableCell>
-                                    {divHistory.some(d => d.reinvestedAmount > 0) && (
-                                        <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>{t('Reinvested', 'הושקע מחדש')}</TableCell>
-                                    )}
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {divHistory.map((div, i) => (
-                                    <TableRow key={i} hover>
-                                        <TableCell>
-                                            {formatDate(div.date)}
-                                            {(div as any).count > 1 && (
-                                                <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
-                                                    ({(div as any).count} {t('records', 'רשומות')})
-                                                </Typography>
+                    <Paper variant="outlined">
+                        {loading ? (
+                            <Box sx={{ p: 4, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                                <CircularProgress />
+                            </Box>
+                        ) : (
+                            <Table size="small" stickyHeader>
+                                <TableHead>
+                                    <TableRow>
+                                        <TableCell sx={{ bgcolor: 'background.paper' }}>{t('Date', 'תאריך')}</TableCell>
+                                            <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>{t('Units', 'יחידות')}</TableCell>
+                                            <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>{t('Amount', 'סכום ליחידה')}</TableCell>
+                                            <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>{t('Total Value', 'שווי כולל')}</TableCell>
+                                            <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>{t('Cashed', 'נפדה')}</TableCell>
+                                            {divHistory.some(d => d.reinvestedAmount > 0) && (
+                                                <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>{t('Reinvested', 'הושקע מחדש')}</TableCell>
                                             )}
-                                        </TableCell>
-                                        <TableCell align="right">{formatNumber(div.unitsHeld || 0)}</TableCell>
-                                        <TableCell align="right">{formatPrice(div.pricePerUnit || 0, div.grossAmount.currency)}</TableCell>
-                                        <TableCell align="right">
-                                            <Tooltip
-                                                title={
-                                                    <Box sx={{ p: 1 }}>
-                                                        <Typography variant="subtitle2" sx={{ mb: 1, textDecoration: 'underline' }}>{t('Dividend Breakdown', 'פירוט דיבידנד')}</Typography>
-                                                        <Box display="grid" gridTemplateColumns="1fr auto" gap={1} sx={{ fontSize: '0.8rem' }}>
-                                                            <Typography variant="body2">{t('Gross Amount:', 'סכום ברוטו:')}</Typography>
-                                                            <Typography variant="body2">{formatValue(div.grossAmountDisplay, displayCurrency)}</Typography>
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {divHistory.map((div, i) => (
+                                            <TableRow key={i} hover>
+                                                <TableCell>
+                                                    {formatDate(div.date)}
+                                                    {(div as any).count > 1 && (
+                                                        <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                                                            ({(div as any).count} {t('records', 'רשומות')})
+                                                        </Typography>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell align="right">{formatNumber(div.unitsHeld || 0)}</TableCell>
+                                                <TableCell align="right">{formatPrice(div.pricePerUnit || 0, div.grossAmount.currency)}</TableCell>
+                                                <TableCell align="right">
+                                                    {/* Total Value is now Gross Amount */}
+                                                    {formatValue(div.grossAmountDisplay, displayCurrency)}
+                                                </TableCell>
+                                                <TableCell align="right" sx={{ color: 'text.secondary' }}>
+                                                    {div.cashedAmountDisplay ? (
+                                                        <Tooltip
+                                                            title={
+                                                                <Box sx={{ p: 1 }}>
+                                                                    <Typography variant="subtitle2" sx={{ mb: 1, textDecoration: 'underline' }}>{t('Cashed Breakdown', 'פירוט פדיון')}</Typography>
+                                                                    <Box display="grid" gridTemplateColumns="1fr auto" gap={1} sx={{ fontSize: '0.8rem' }}>
+                                                                        <Typography variant="body2">{t('Gross Amount:', 'סכום ברוטו:')}</Typography>
+                                                                        <Typography variant="body2">{formatValue(div.cashedGrossDisplay, displayCurrency)}</Typography>
 
-                                                            <Typography variant="body2">{t('Tax:', 'מס:')}</Typography>
-                                                            <Typography variant="body2" color="error.main">-{formatValue(div.taxAmountDisplay, displayCurrency)}</Typography>
+                                                                        <Typography variant="body2">{t('Tax:', 'מס:')}</Typography>
+                                                                        <Typography variant="body2" color="error.main">-{formatValue(div.cashedTaxDisplay, displayCurrency)}</Typography>
 
-                                                            <Typography variant="body2">{t('Fees:', 'עמלות:')}</Typography>
-                                                            <Typography variant="body2" color="error.main">-{formatValue(div.feeAmountDisplay, displayCurrency)}</Typography>
+                                                                        <Typography variant="body2">{t('Fees:', 'עמלות:')}</Typography>
+                                                                        <Typography variant="body2" color="error.main">-{formatValue(div.cashedFeeDisplay, displayCurrency)}</Typography>
 
-                                                            <Box sx={{ gridColumn: '1 / -1', borderTop: '1px dashed', borderColor: 'divider', my: 0.5 }} />
+                                                                        <Box sx={{ gridColumn: '1 / -1', borderTop: '1px dashed', borderColor: 'divider', my: 0.5 }} />
 
-                                                            <Typography variant="body2" fontWeight="bold">{t('Net:', 'נטו:')}</Typography>
-                                                            <Typography variant="body2" fontWeight="bold">{formatValue(div.netAmountDisplay, displayCurrency)}</Typography>
-                                                        </Box>
-                                                    </Box>
-                                                }
-                                            >
-                                                <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'success.main', cursor: 'help', textDecoration: 'underline dotted' }}>
-                                                    {formatValue(div.netAmountDisplay, displayCurrency)}
-                                                </Typography>
-                                            </Tooltip>
-                                        </TableCell>
-                                        <TableCell align="right" sx={{ color: 'text.secondary' }}>
-                                            {div.cashedAmountDisplay ? formatValue(div.cashedAmountDisplay, displayCurrency) : '-'}
-                                        </TableCell>
-                                        {divHistory.some(d => d.reinvestedAmount > 0) && (
-                                            <TableCell align="right">
-                                                {div.reinvestedAmountDisplay ? formatValue(div.reinvestedAmountDisplay, displayCurrency) : '-'}
-                                            </TableCell>
+                                                                        <Typography variant="body2" fontWeight="bold">{t('Net:', 'נטו:')}</Typography>
+                                                                        <Typography variant="body2" fontWeight="bold">{formatValue(div.cashedAmountDisplay, displayCurrency)}</Typography>
+                                                                    </Box>
+                                                                </Box>
+                                                            }
+                                                        >
+                                                            <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'success.main', cursor: 'help', textDecoration: 'underline dotted' }}>
+                                                                {formatValue(div.cashedAmountDisplay, displayCurrency)}
+                                                            </Typography>
+                                                        </Tooltip>
+                                                    ) : '-'}
+                                                </TableCell>
+                                                {divHistory.some(d => d.reinvestedAmount > 0) && (
+                                                    <TableCell align="right">
+                                                        {div.reinvestedAmountDisplay ? (
+                                                            <Tooltip
+                                                                title={
+                                                                    <Box sx={{ p: 1 }}>
+                                                                        <Typography variant="subtitle2" sx={{ mb: 1, textDecoration: 'underline' }}>{t('Reinvested Breakdown', 'פירוט השקעה מחדש')}</Typography>
+                                                                        <Box display="grid" gridTemplateColumns="1fr auto" gap={1} sx={{ fontSize: '0.8rem' }}>
+                                                                            <Typography variant="body2">{t('Gross Amount:', 'סכום ברוטו:')}</Typography>
+                                                                            <Typography variant="body2">{formatValue(div.reinvestedGrossDisplay, displayCurrency)}</Typography>
+
+                                                                            <Typography variant="body2">{t('Tax:', 'מס:')}</Typography>
+                                                                            <Typography variant="body2" color="error.main">-{formatValue(div.reinvestedTaxDisplay, displayCurrency)}</Typography>
+
+                                                                            <Typography variant="body2">{t('Fees:', 'עמלות:')}</Typography>
+                                                                            <Typography variant="body2" color="error.main">-{formatValue(div.reinvestedFeeDisplay, displayCurrency)}</Typography>
+
+                                                                            <Box sx={{ gridColumn: '1 / -1', borderTop: '1px dashed', borderColor: 'divider', my: 0.5 }} />
+
+                                                                            <Typography variant="body2" fontWeight="bold">{t('Net:', 'נטו:')}</Typography>
+                                                                            <Typography variant="body2" fontWeight="bold">{formatValue(div.reinvestedAmountDisplay, displayCurrency)}</Typography>
+                                                                        </Box>
+                                                                    </Box>
+                                                                }
+                                                            >
+                                                                <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'success.main', cursor: 'help', textDecoration: 'underline dotted' }}>
+                                                                    {formatValue(div.reinvestedAmountDisplay, displayCurrency)}
+                                                                </Typography>
+                                                            </Tooltip>
+                                                        ) : '-'}
+                                                    </TableCell>
+                                                )}
+                                            </TableRow>
+                                        ))}
+                                        {divHistory.length === 0 && (
+                                            <TableRow><TableCell colSpan={divHistory.some(d => d.reinvestedAmount > 0) ? 6 : 5} align="center" sx={{ py: 3, color: 'text.secondary' }}>{t('No dividends found.', 'לא נמצאו דיבידנדים.')}</TableCell></TableRow>
                                         )}
-                                    </TableRow>
-                                ))}
-                                {divHistory.length === 0 && (
-                                    <TableRow><TableCell colSpan={divHistory.some(d => d.reinvestedAmount > 0) ? 6 : 5} align="center" sx={{ py: 3, color: 'text.secondary' }}>{t('No dividends found.', 'לא נמצאו דיבידנדים.')}</TableCell></TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
+                                    </TableBody>
+                                </Table>
+                        )}
                     </Paper>
                 </Box>
             )}

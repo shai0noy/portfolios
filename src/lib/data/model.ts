@@ -52,7 +52,10 @@ export interface Lot {
     soldPricePerUnit?: Money;
     soldFees?: Money; // Prorated sell fees
     realizedGainNet?: number; // Cached calc (Portfolio Currency)
-    realizedTax?: number; // Cached measure of tax liability
+    realizedTax?: number; // Capital Gains Tax (Usually ILS/Domestic)
+    realizedTaxPC?: number; // Capital Gains Tax converted to Portfolio Currency
+    realizedIncomeTaxPC?: number; // Income Tax on Vest Value (Portfolio Currency)
+    totalRealizedTaxPC?: number; // Total Realized Tax (CGT + Income Tax) in Portfolio Currency
     realizedTaxableGainILS?: number; // Specific for tax reporting
 
     // Unrealized Tax (Active Lots)
@@ -73,6 +76,11 @@ export interface DividendRecord {
     cashedAmount: number; // Net PC
     reinvestedAmount: number; // Net PC
     isReinvested: boolean;
+    // Split Tax (PC)
+    taxCashedPC?: number;
+    taxReinvestedPC?: number;
+    feeCashedPC?: number;
+    feeReinvestedPC?: number;
 }
 
 // --- Helpers ---
@@ -191,7 +199,8 @@ export class Holding {
     costOfSoldTotal: SimpleMoney;
 
     // Tax (Portfolio Currency - usually ILS)
-    realizedTax: number;
+    realizedCapitalGainsTax: number;
+    realizedIncomeTax: number;
     unrealizedTaxLiabilityILS: number;
     unrealizedTaxableGainILS: number; 
 
@@ -232,7 +241,8 @@ export class Holding {
         this.feesTotal = { ...zeroPC };
         this.costOfSoldTotal = { ...zeroPC };
 
-        this.realizedTax = 0;
+        this.realizedCapitalGainsTax = 0;
+        this.realizedIncomeTax = 0;
         this.unrealizedTaxLiabilityILS = 0;
         this.unrealizedTaxableGainILS = 0;
     }
@@ -469,7 +479,23 @@ export class Holding {
             }
 
             targetLot.realizedTaxableGainILS = taxableGainILS;
-            targetLot.realizedTax = Math.max(0, taxableGainILS) * cgt;
+            const taxILS = Math.max(0, taxableGainILS) * cgt;
+            targetLot.realizedTax = taxILS; // Lot keeps 'realizedTax' for now as per interface
+            targetLot.realizedTaxPC = convertCurrency(taxILS, Currency.ILS, this.portfolioCurrency, rates);
+
+            this.realizedCapitalGainsTax += targetLot.realizedTaxPC; // Accumulate in PC
+
+            // INCOME TAX (RSU Vest Value Tax)
+            if (portfolio.incTax && portfolio.incTax > 0) {
+                // Assuming IncTax applies to the Cost Basis (Grant Value)
+                // costPC is the cost of the SOLD portion.
+                const incomeTaxPC = costPC * portfolio.incTax;
+                targetLot.realizedIncomeTaxPC = incomeTaxPC;
+                this.realizedIncomeTax += incomeTaxPC;
+            }
+
+            // Total Tax per Lot
+            targetLot.totalRealizedTaxPC = (targetLot.realizedTaxPC || 0) + (targetLot.realizedIncomeTaxPC || 0);
 
             qtyToSell -= portion;
         }
@@ -484,6 +510,20 @@ export class Holding {
     get activeLots(): Lot[] { return this._lots.filter(l => !l.soldDate && l.qty > 0); }
     get realizedLots(): Lot[] { return this._lots.filter(l => l.soldDate); }
     get combinedLots(): Lot[] { return this._lots; }
+
+    /**
+     * Aggregated Realized Tax in Portfolio Currency (PC).
+     * Sums:
+     * 1. Realized Capital Gains Tax from Sold Lots
+     * 2. Realized Income Tax from Sold Lots (e.g. RSU Vest Value tax, paid upon Sale)
+     * 3. Tax on Dividends
+     */
+    get totalTaxPaidPC(): number {
+        const salesTax = this.realizedLots.reduce((sum, lot) => sum + (lot.realizedTaxPC || 0), 0);
+        const incomeTax = this.realizedLots.reduce((sum, lot) => sum + (lot.realizedIncomeTaxPC || 0), 0);
+        const divTax = this._dividends.reduce((sum, d) => sum + (d.taxAmountPC || 0), 0);
+        return salesTax + incomeTax + divTax;
+    }
 
     /**
      * Calculates the gain for this holding over a specific period.

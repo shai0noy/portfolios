@@ -264,7 +264,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                         {openPrice != null && openPrice !== 0 && (data?.tradeTimeStatus || volumeDisplay) && <Typography variant="caption" color="text.secondary">|</Typography>}
                         {volumeDisplay && (
                           <>
-                            <Tooltip title={t('Average daily trading volume (quarterly avg, in ticker currency)', 'מחזור מסחר יומי ממוצע (ממוצע רבעוני, במטבע הנייר)')} arrow enterTouchDelay={0} leaveTouchDelay={3000}>
+                            <Tooltip title={t('Average daily trading volume (quarterly avg)', 'מחזור מסחר יומי ממוצע (ממוצע רבעוני)')} arrow enterTouchDelay={0} leaveTouchDelay={3000}>
                               <Typography variant="caption" color="text.secondary" sx={{ cursor: 'help' }}>{t('Vol:', 'מחזור:')} {volumeDisplay}</Typography>
                             </Tooltip>
                             {data?.tradeTimeStatus && <Typography variant="caption" color="text.secondary">|</Typography>}

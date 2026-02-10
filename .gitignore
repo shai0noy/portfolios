@@ -3,3 +3,4 @@ proxy/.dev.vars
 dist-test/
 dist_test/
 test_output*.txt
+temp_dist/
