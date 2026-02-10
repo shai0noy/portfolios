@@ -64,8 +64,9 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
 
     const dividendHistory = useMemo(() => {
         return matchingHoldings.flatMap(h => {
-            // Both have `dividends` property
-            return ((h as any).dividends || []) as DividendRecord[];
+            // Attach portfolioCurrency to the record so we can convert it later
+            const divs = ((h as any).dividends || []) as DividendRecord[];
+            return divs.map(d => ({ ...d, portfolioCurrency: h.portfolioCurrency }));
         });
     }, [matchingHoldings]);
 
@@ -251,14 +252,69 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
     }, [transactions]);
 
     const divHistory = useMemo(() => {
-        return dividendHistory.map((d) => {
+        // Extended Dividend Record with Display Currency accumulations
+        type AggregatedDividend = DividendRecord & {
+            count: number;
+            // Aggregated values in Display Currency
+            grossAmountDisplay: number;
+            netAmountDisplay: number;
+            taxAmountDisplay: number;
+            feeAmountDisplay: number;
+            cashedAmountDisplay: number;
+            reinvestedAmountDisplay: number;
+            portfolioCurrency?: string; // Kept for reference (random ref)
+        };
+
+        const grouped: Record<string, AggregatedDividend> = {};
+
+        dividendHistory.forEach(d => {
+            const dateKey = new Date(d.date).toISOString().split('T')[0];
+            const pCurrency = d.portfolioCurrency || 'USD';
+
+            // Conversions to Display Currency
+            const grossDisplay = convertCurrency(d.grossAmount.amount, d.grossAmount.currency, displayCurrency, exchangeRates || undefined);
+            const netDisplay = convertCurrency(d.netAmountPC, pCurrency, displayCurrency, exchangeRates || undefined);
+            const taxDisplay = convertCurrency(d.taxAmountPC, pCurrency, displayCurrency, exchangeRates || undefined);
+            const feeDisplay = convertCurrency(d.feeAmountPC, pCurrency, displayCurrency, exchangeRates || undefined);
+            const cashedDisplay = convertCurrency(d.cashedAmount, pCurrency, displayCurrency, exchangeRates || undefined);
+            const reinvestedDisplay = convertCurrency(d.reinvestedAmount, pCurrency, displayCurrency, exchangeRates || undefined);
+
+            if (!grouped[dateKey]) {
+                grouped[dateKey] = {
+                    ...d,
+                    count: 1,
+                    grossAmountDisplay: grossDisplay,
+                    netAmountDisplay: netDisplay,
+                    taxAmountDisplay: taxDisplay,
+                    feeAmountDisplay: feeDisplay,
+                    cashedAmountDisplay: cashedDisplay,
+                    reinvestedAmountDisplay: reinvestedDisplay,
+                    portfolioCurrency: pCurrency
+                };
+            } else {
+                const g = grouped[dateKey];
+                g.unitsHeld += d.unitsHeld;
+                g.grossAmount = { ...g.grossAmount, amount: g.grossAmount.amount + d.grossAmount.amount }; // Gross SC sum
+
+                g.grossAmountDisplay += grossDisplay;
+                g.netAmountDisplay += netDisplay;
+                g.taxAmountDisplay += taxDisplay;
+                g.feeAmountDisplay += feeDisplay;
+                g.cashedAmountDisplay += cashedDisplay;
+                g.reinvestedAmountDisplay += reinvestedDisplay;
+
+                g.count += 1;
+            }
+        });
+
+        return Object.values(grouped).map((d) => {
             return {
                 ...d,
                 date: new Date(d.date),
                 source: 'System', 
             };
         }).sort((a, b) => b.date.getTime() - a.date.getTime());
-    }, [dividendHistory]);
+    }, [dividendHistory, displayCurrency, exchangeRates]);
 
     const layers = useMemo(() => {
         return matchingHoldings.flatMap(h => {
@@ -459,15 +515,6 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                                                 if (lot.inflationAdjustedCost) {
                                                     g.inflationAdjustedCost += convertCurrency(lot.inflationAdjustedCost, lot.costTotal.currency, displayCurrency, exchangeRates || undefined);
                                                 }
-
-                                                // Update Portfolio Stats (Remaining only)
-                                                // Wait, "Total Original Qty" means sum of originalQty of all layers?
-                                                // Or "Original Qty" of current position?
-                                                // User said "total original qty + current qty".
-                                                // Assuming "Total Original Qty" is sum of all layers' original qty (including sold).
-                                                // And "Current Qty" is sum of remaining.
-                                                // Let's accrue here.
-                                                // Actually easier to sum `g` stats after loop.
                                             }
                                         });
 
@@ -772,7 +819,7 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                                     const txnPortfolioName = portfolioNameMap[txn.portfolioId] || txn.portfolioId;
 
                                     const titleCase = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : s;
-                                    const displayLabel = titleCase(typeLabel === 'Grant' ? 'Grant' : txn.type);
+                                    const displayLabel = titleCase(typeLabel);
 
                                     return (
                                         <TableRow key={i} hover>
@@ -836,20 +883,50 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                             <TableBody>
                                 {divHistory.map((div, i) => (
                                     <TableRow key={i} hover>
-                                        <TableCell>{formatDate(div.date)}</TableCell>
+                                        <TableCell>
+                                            {formatDate(div.date)}
+                                            {(div as any).count > 1 && (
+                                                <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                                                    ({(div as any).count} {t('records', 'רשומות')})
+                                                </Typography>
+                                            )}
+                                        </TableCell>
                                         <TableCell align="right">{formatNumber(div.unitsHeld || 0)}</TableCell>
                                         <TableCell align="right">{formatPrice(div.pricePerUnit || 0, div.grossAmount.currency)}</TableCell>
                                         <TableCell align="right">
-                                            <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'success.main' }}>
-                                                {formatValue(convertCurrency(div.netAmountPC, holding.portfolioCurrency, displayCurrency, exchangeRates || undefined), displayCurrency)}
-                                            </Typography>
+                                            <Tooltip
+                                                title={
+                                                    <Box sx={{ p: 1 }}>
+                                                        <Typography variant="subtitle2" sx={{ mb: 1, textDecoration: 'underline' }}>{t('Dividend Breakdown', 'פירוט דיבידנד')}</Typography>
+                                                        <Box display="grid" gridTemplateColumns="1fr auto" gap={1} sx={{ fontSize: '0.8rem' }}>
+                                                            <Typography variant="body2">{t('Gross Amount:', 'סכום ברוטו:')}</Typography>
+                                                            <Typography variant="body2">{formatValue(div.grossAmountDisplay, displayCurrency)}</Typography>
+
+                                                            <Typography variant="body2">{t('Tax:', 'מס:')}</Typography>
+                                                            <Typography variant="body2" color="error.main">-{formatValue(div.taxAmountDisplay, displayCurrency)}</Typography>
+
+                                                            <Typography variant="body2">{t('Fees:', 'עמלות:')}</Typography>
+                                                            <Typography variant="body2" color="error.main">-{formatValue(div.feeAmountDisplay, displayCurrency)}</Typography>
+
+                                                            <Box sx={{ gridColumn: '1 / -1', borderTop: '1px dashed', borderColor: 'divider', my: 0.5 }} />
+
+                                                            <Typography variant="body2" fontWeight="bold">{t('Net:', 'נטו:')}</Typography>
+                                                            <Typography variant="body2" fontWeight="bold">{formatValue(div.netAmountDisplay, displayCurrency)}</Typography>
+                                                        </Box>
+                                                    </Box>
+                                                }
+                                            >
+                                                <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'success.main', cursor: 'help', textDecoration: 'underline dotted' }}>
+                                                    {formatValue(div.netAmountDisplay, displayCurrency)}
+                                                </Typography>
+                                            </Tooltip>
                                         </TableCell>
                                         <TableCell align="right" sx={{ color: 'text.secondary' }}>
-                                            {div.cashedAmount ? formatValue(convertCurrency(div.cashedAmount, holding.portfolioCurrency, displayCurrency, exchangeRates || undefined), displayCurrency) : '-'}
+                                            {div.cashedAmountDisplay ? formatValue(div.cashedAmountDisplay, displayCurrency) : '-'}
                                         </TableCell>
                                         {divHistory.some(d => d.reinvestedAmount > 0) && (
                                             <TableCell align="right">
-                                                {div.reinvestedAmount ? formatValue(convertCurrency(div.reinvestedAmount, holding.portfolioCurrency, displayCurrency, exchangeRates || undefined), displayCurrency) : '-'}
+                                                {div.reinvestedAmountDisplay ? formatValue(div.reinvestedAmountDisplay, displayCurrency) : '-'}
                                             </TableCell>
                                         )}
                                     </TableRow>
