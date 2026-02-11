@@ -398,7 +398,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
 
                         holdings.forEach(h => {
                             // We need a history provider wrapper for the map
-                            const provider = (ticker: string) => historyMap.get(ticker);
+                            const provider = (ticker: string) => historyMap.get(`${h.exchange}:${ticker}`);
                             // We need Exchange Rates
                             if (h.generateGainForPeriod) {
                                 const res = h.generateGainForPeriod(startDate, provider, exchangeRates);
