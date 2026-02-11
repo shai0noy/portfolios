@@ -60,7 +60,7 @@ describe('FinanceEngine', () => {
         expect(totalDivFees).toBeCloseTo(1.5);
 
         const totalDivsNet = h!.dividendsTotal;
-        expect(totalDivsNet).toBeCloseTo(13.5);
+        expect(totalDivsNet.amount).toBeCloseTo(13.5);
     });
 
     it('calculates real gain tax with inflation', () => {
@@ -90,7 +90,7 @@ describe('FinanceEngine', () => {
         
         const h = engine.holdings.get('p2_TA35');
         expect(h).toBeDefined();
-        expect(h!.realizedGainNet).toBeCloseTo(10); // Nominal Net Gain (no fees) matches Nominal Gain here
+        expect(h!.realizedGainNet.amount).toBeCloseTo(10); // Nominal Net Gain (no fees) matches Nominal Gain here
 
         // Verify via Realized Lots
         expect(h!.realizedLots.length).toBe(1);
@@ -98,7 +98,7 @@ describe('FinanceEngine', () => {
 
         expect(lot.realizedTaxableGainILS).toBeCloseTo(9); // Real
         expect(lot.realizedTax).toBeCloseTo(2.25);
-        expect(h!.realizedTax).toBeCloseTo(2.25);
+        expect(h!.realizedCapitalGainsTax).toBeCloseTo(2.25);
     });
 
     it('allocates buy fees on sell and reduces unallocated fees', () => {
@@ -146,11 +146,11 @@ describe('FinanceEngine', () => {
         const feesActive = h!.activeLots.reduce((acc, l) => acc + l.feesBuy.amount, 0);
         expect(feesActive).toBe(25);
 
-        const feesRealized = h!.realizedFees; // Includes Buy Fees of realized lots + Sell Fees
+        const feesRealized = h!.realizedLots.reduce((acc, l) => acc + l.feesBuy.amount + (l.soldFees?.amount || 0), 0);
         // Realized Fees = 5 (Buy) + 5 (Sell) = 10.
         expect(feesRealized).toBe(10);
 
-        expect(h!.feesTotal).toBe(35);
+        expect(h!.feesTotal.amount).toBe(35);
 
         // Check specifics on the realized lot
         expect(h!.realizedLots.length).toBe(1);
@@ -203,6 +203,6 @@ describe('FinanceEngine', () => {
         // Buy Fee (Allocated): (5/10) * 5 = 2.5.
         // Sell Fee: 5.
         // Net Gain = 900 - 750 - 2.5 - 5 = 142.5.
-        expect(h!.realizedGainNet).toBeCloseTo(142.5);
+        expect(h!.realizedGainNet.amount).toBeCloseTo(142.5);
     });
 });

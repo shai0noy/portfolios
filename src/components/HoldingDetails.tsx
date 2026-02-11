@@ -1,5 +1,5 @@
 import { Box, Typography, Paper, Table, TableBody, TableCell, TableHead, TableRow, Grid, Divider, Tooltip, Stack, CircularProgress, IconButton } from '@mui/material';
-import { formatValue, formatNumber, formatPrice, convertCurrency, formatPercent, getExchangeRates, normalizeCurrency, convertMoney } from '../lib/currency';
+import { formatValue, formatNumber, formatPrice, convertCurrency, formatPercent, getExchangeRates, normalizeCurrency, convertMoney, calculatePerformanceInDisplayCurrency } from '../lib/currency';
 import { useLanguage } from '../lib/i18n';
 import { Currency } from '../lib/types';
 import type { DashboardHolding, Transaction, ExchangeRates, Portfolio } from '../lib/types';
@@ -120,6 +120,8 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
             marketValue: 0,
             unrealizedGain: 0,
             realizedGain: 0,
+            realizedGainGross: 0,
+            realizedGainNet: 0,
             realizedGainAfterTax: 0,
             totalGain: 0,
             valueAfterTax: 0,
@@ -148,75 +150,137 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
 
         if (!matchingHoldings || matchingHoldings.length === 0 || !exchangeRates) return defaultVals;
 
-        const agg = { ...defaultVals };
+        const agg = matchingHoldings.reduce((acc, h) => {
+            // Check if Enriched
+            const enriched = h as EnrichedDashboardHolding;
+            if (enriched.display) {
+                const d = enriched.display;
+                acc.marketValue += d.marketValue;
+                acc.unvestedValue += d.unvestedValue || 0;
+                acc.costBasis += d.costBasis;
+                acc.costOfSold += d.costOfSold;
+                acc.proceeds += d.proceeds;
+                acc.unrealizedGain += d.unrealizedGain;
 
-        let currentPrice = 0;
-        const totalStockCurrency = (matchingHoldings[0] as any).stockCurrency || 'USD';
+                // Gross Realized from Enriched
+                acc.realizedGain += d.realizedGain;
+                acc.realizedGainGross += d.realizedGainGross || d.realizedGain; // Fallback
+                acc.realizedGainNet += d.realizedGainNet;
 
-        matchingHoldings.forEach(h => {
-            // Handle Enriched vs Raw
-            const raw = h as Holding;
+                acc.dividends += d.dividends;
+                acc.realizedTaxBase += (d as any).realizedTax || 0;
+                acc.unrealizedTaxBase += (d as any).unrealizedTax || 0;
 
-            // Accumulate Base Metrics (Converting to Display Currency)
-            // Use convertMoney helper
-            agg.marketValue += convertMoney(raw.marketValueVested, displayCurrency, exchangeRates).amount;
-            agg.unvestedValue += convertMoney(raw.marketValueUnvested, displayCurrency, exchangeRates).amount;
-            agg.costBasis += convertMoney(raw.costBasisVested, displayCurrency, exchangeRates).amount;
-            agg.costOfSold += convertMoney(raw.costOfSoldTotal, displayCurrency, exchangeRates).amount;
-            agg.proceeds += convertMoney(raw.proceedsTotal, displayCurrency, exchangeRates).amount;
-            agg.dividends += convertMoney(raw.dividendsTotal, displayCurrency, exchangeRates).amount;
+                // Day Change
+                acc.dayChangeVal += d.dayChangeVal;
+            } else {
+                // Raw Holding
+                const raw = h as Holding;
+                acc.marketValue += convertMoney(raw.marketValueVested, displayCurrency, exchangeRates).amount;
+                acc.unvestedValue += convertMoney(raw.marketValueUnvested, displayCurrency, exchangeRates).amount;
+                acc.costBasis += convertMoney(raw.costBasisVested, displayCurrency, exchangeRates).amount;
+                acc.costOfSold += convertMoney(raw.costOfSoldTotal, displayCurrency, exchangeRates).amount;
+                acc.proceeds += convertMoney(raw.proceedsTotal, displayCurrency, exchangeRates).amount;
 
-            const rGainNetDisplay = convertMoney(raw.realizedGainNet, displayCurrency, exchangeRates).amount;
-            agg.realizedNetBase += rGainNetDisplay;
+                const rGainNetDisplay = convertMoney(raw.realizedGainNet, displayCurrency, exchangeRates).amount;
+                // raw.realizedGainNet is After-Fee, Pre-Tax.
 
-            // Tax Calculation: Aggregate from Sales (Realized Lots) and Dividends
-            // raw.realizedTax is not reliable/updated on holding level usually.
+                const taxPC = raw.totalTaxPaidPC ?? 0;
+                const taxDisplay = convertCurrency(taxPC, raw.portfolioCurrency || 'USD', displayCurrency, exchangeRates);
+                acc.realizedTaxBase += taxDisplay;
 
+                // Dividends Net
+                const divNet = convertMoney(raw.dividendsTotal, displayCurrency, exchangeRates).amount;
+                acc.dividends += divNet;
 
-            // Tax Calculation: Use Holding attribute
-            const taxPC = raw.totalTaxPaidPC ?? 0;
-            const taxDisplay = convertCurrency(taxPC, raw.portfolioCurrency || 'USD', displayCurrency, exchangeRates);
-            agg.realizedTaxBase += taxDisplay;
-
-            // Fix: Calculate unrealized tax ONLY for Vested lots to avoid negative "Net" on Vested Value
-            // raw.unrealizedTaxLiabilityILS includes ALL active lots (vested + unvested)
-            const vestedTax = (raw.activeLots || []).reduce((sum, lot) => {
-                const isVested = !lot.vestingDate || new Date(lot.vestingDate) <= new Date();
-                if (isVested && lot.unrealizedTax) {
-                    // lot.unrealizedTax is in Portfolio Currency (raw.portfolioCurrency)
-                    return sum + convertCurrency(lot.unrealizedTax, raw.portfolioCurrency || 'USD', displayCurrency, exchangeRates);
+                // Calculate Gross Divs for Raw
+                let divsGross = divNet; // fallback
+                const rawDivs = ((raw as any)._dividends || []) as DividendRecord[];
+                if (rawDivs.length > 0) {
+                    divsGross = rawDivs.reduce((s, d) => s + convertCurrency(d.grossAmount.amount, d.grossAmount.currency, displayCurrency, exchangeRates), 0);
+                } else {
+                // Best effort: Net + Tax
+                // But we don't have Div Tax separately easily on Raw without loop.
+                // Just use Net.
                 }
-                return sum;
-            }, 0);
 
-            agg.unrealizedTaxBase += vestedTax;
+                // Gross Sells
+                const proceedsDisplay = convertMoney(raw.proceedsTotal, displayCurrency, exchangeRates).amount;
+                const costOfSoldDisplay = convertMoney(raw.costOfSoldTotal, displayCurrency, exchangeRates).amount;
+                const sellsGross = proceedsDisplay - costOfSoldDisplay;
 
-            agg.totalQty += raw.qtyVested || 0;
+                acc.realizedGain += sellsGross + divsGross;
+                acc.realizedGainGross += sellsGross + divsGross;
 
-            // Day Change (Value)
-            const dcPct = raw.dayChangePct || 0;
-            if (dcPct !== 0) {
-                const price = raw.currentPrice || 0;
-                // change per unit in stock currency
-                const chgPerUnit = price * dcPct;
-                // value change in Stock Currency
-                const valChgSC = chgPerUnit * (raw.qtyVested || 0);
-                agg.dayChangeVal += convertCurrency(valChgSC, raw.stockCurrency || 'USD', displayCurrency, exchangeRates);
+                // Net Realized = SellsNet (PreTax) - Tax + DivsNet
+                // Note: taxDisplay includes Div Tax and CGT.
+                // So (SellsNet + DivsNet) - TotalTax?
+                // rGainNetDisplay (SellsNet, PreTax) + DivsNet - TotalTax.
+                // But DivsNet (raw.dividendsTotal) is After Tax?
+                // If DivsNet is After Tax, and TotalTax includes DivTax, then subtracting TotalTax from DivsNet double counts tax?
+                // `raw.realizedGainNet`: Sells Proceeds - Cost - Fees. (Pre-Tax).
+                // `raw.dividendsTotal`: Net Payout (After Tax).
+                // `raw.totalTaxPaidPC`: Sum of CGT + DivTax + IncomeTax.
+                // If we do: `realizedGainNet + dividendsTotal - totalTaxPaid`, we subtract DivTax from dividendsTotal (which is already net)?
+                // No.
+                // We want Realized Net (Pocket).
+                // Pocket = (Sells Proceeds - Cost - Fees - CGT) + (Divs Nominal - Tax - Fee).
+                // `raw.dividendsTotal` IS (Divs Nominal - Tax - Fee) (Pocket).
+                // `raw.realizedGainNet` IS (Sells Proceeds - Cost - Fees) (Pre-Tax).
+                // So Pocket = `raw.realizedGainNet` - CGT + `raw.dividendsTotal`.
+                // We only have `totalTaxPaid`.
+                // If `totalTaxPaid` = CGT + DivTax.
+                // And `raw.dividendsTotal` is After DivTax.
+                // Then `raw.realizedGainNet + raw.dividendsTotal - totalTaxPaid` = (SellsPreTax) + (DivsNet) - (CGT + DivTax).
+                // = SellsPreTax - CGT + (DivsNet - DivTax).
+                // This subtracts DivTax TWICE (once implies in DivsNet, once explicitly).
+                // ERROR in my Logic or Understanding.
+
+                // If `raw.dividendsTotal` is Net, we DON'T subtract DivTax again.
+                // We only subtract CGT.
+                // But we don't have CGT isolated easily?
+                // `raw.realizedCapitalGainsTax` exists?
+                // Yes, `h.realizedCapitalGainsTax` exists in `Holding`?
+                // Let's check `types.ts` or `model.ts`.
+                // `realizedCapitalGainsTax` is on `Holding`?
+                // `dashbaord_calc.ts` used `h.realizedCapitalGainsTax`.
+                // So we can use it.
+
+                const cgtDisplay = convertCurrency(raw.realizedCapitalGainsTax || 0, raw.portfolioCurrency || 'USD', displayCurrency, exchangeRates);
+                acc.realizedGainNet += (rGainNetDisplay - cgtDisplay) + divNet;
+
+                // Day Change
+                const dcPct = raw.dayChangePct || 0;
+                if (dcPct !== 0) {
+                    const { changeVal } = calculatePerformanceInDisplayCurrency(raw.currentPrice, raw.stockCurrency, dcPct, displayCurrency, exchangeRates);
+                    acc.dayChangeVal += changeVal * (raw.qtyVested || 0);
+                }
+
+                // Unrealized Gain
+                const unrealizedGain = convertMoney(raw.unrealizedGain, displayCurrency, exchangeRates).amount;
+                acc.unrealizedGain += unrealizedGain;
+
+                // Unrealized Tax
+                // Approx?
+
+                acc.totalQty += raw.qtyVested || 0;
             }
-
-            currentPrice = raw.currentPrice || currentPrice;
-        });
+            return acc;
+        }, { ...defaultVals }); // Use defaultVals as initial
 
         // Derived Totals (in Display Currency)
-        agg.unrealizedGain = agg.marketValue - agg.costBasis;
-        agg.realizedGain = agg.realizedNetBase + agg.dividends; // RealizedNet + Divs
-        agg.realizedGainAfterTax = agg.realizedGain - agg.realizedTaxBase;
+
+        // agg.realizedGainNet is already Net Sum.
+
+        agg.realizedGainAfterTax = agg.realizedGainNet;
+
         agg.totalGain = agg.unrealizedGain + agg.realizedGain;
         agg.valueAfterTax = agg.marketValue - agg.unrealizedTaxBase;
 
         // Derived Pcts
         const unrealizedGainPct = agg.costBasis > 0 ? agg.unrealizedGain / agg.costBasis : 0;
-        const realizedGainPct = agg.costOfSold > 0 ? (agg.realizedNetBase) / agg.costOfSold : 0;
+        const realizedSellsGross = agg.proceeds - agg.costOfSold;
+        const realizedGainPct = agg.costOfSold > 0 ? realizedSellsGross / agg.costOfSold : 0;
 
         const totalGainPct = (agg.costBasis + agg.costOfSold) > 0 ? agg.totalGain / (agg.costBasis + agg.costOfSold) : 0;
         const dayChangePct = agg.marketValue > 0 ? agg.dayChangeVal / (agg.marketValue - agg.dayChangeVal) : 0;
@@ -225,12 +289,25 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
         const totalVestedQty = matchingHoldings.reduce((s, h) => s + ((h as Holding).qtyVested || 0), 0);
         const avgCost = totalVestedQty > 0 ? agg.costBasis / totalVestedQty : 0;
 
+        let currentPrice = 0;
+        const totalStockCurrency = (matchingHoldings[0] as any).stockCurrency || 'USD';
+        // If there's an enriched holding, use its current price. Otherwise, try to get it from a raw holding.
+        const enrichedHolding = matchingHoldings.find(h => (h as EnrichedDashboardHolding).display) as EnrichedDashboardHolding;
+        if (enrichedHolding?.display?.currentPrice) {
+            currentPrice = enrichedHolding.display.currentPrice;
+        } else if (matchingHoldings[0]) {
+            currentPrice = (matchingHoldings[0] as Holding).currentPrice || 0;
+        }
+
+
         // Return matching structure
         return {
             marketValue: agg.marketValue,
             unrealizedGain: agg.unrealizedGain,
             unrealizedGainPct,
             realizedGain: agg.realizedGain,
+            realizedGainGross: agg.realizedGain,
+            realizedGainNet: agg.realizedGainNet,
             realizedGainPct,
             realizedGainAfterTax: agg.realizedGainAfterTax,
             totalGain: agg.totalGain,
@@ -526,11 +603,11 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                                                         </Typography>
                                                     </Box>
                                                     <Box>
-                                                        <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', display: 'block' }}>{t('Net Realized', 'מימוש נטו')}</Typography>
-                                                        <Typography variant="h6" fontWeight="700" color={vals.realizedGainAfterTax >= 0 ? 'success.main' : 'error.main'}>
-                                                            {formatValue(vals.realizedGainAfterTax, displayCurrency)}
+                                                        <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', display: 'block' }}>{t('Realized', 'מימוש')}</Typography>
+                                                        <Typography variant="h6" fontWeight="700" color={vals.realizedGain >= 0 ? 'success.main' : 'error.main'}>
+                                                            {formatValue(vals.realizedGain, displayCurrency)}
                                                         </Typography>
-                                                        <Typography variant="caption" sx={{ display: 'block', mt: -0.5 }} color={vals.realizedGainAfterTax >= 0 ? 'success.main' : 'error.main'}>
+                                                        <Typography variant="caption" sx={{ display: 'block', mt: -0.5 }} color={vals.realizedGain >= 0 ? 'success.main' : 'error.main'}>
                                                             {formatPercent(vals.realizedGainPct)}
                                                         </Typography>
                                                     </Box>
@@ -547,20 +624,20 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
 
                                                 <Divider sx={{ my: 2 }} />
 
-                                                <Grid container spacing={2}>
-                                                    <Grid item xs={6} sm={2}>
+                                                <Grid container spacing={1}>
+                                                    <Grid item xs={6} sm>
                                                         <Typography variant="caption" color="text.secondary">{t('Weight in Holdings', 'משקל בתיק')}</Typography>
                                                         <Typography variant="body2" fontWeight="500">{formatPercent(holdingsWeights.reduce((s, h) => s + h.weightInGlobal, 0))}</Typography>
                                                     </Grid>
-                                                    <Grid item xs={6} sm={2}>
+                                                    <Grid item xs={6} sm>
                                                         <Typography variant="caption" color="text.secondary">{t('Avg Cost', 'מחיר ממוצע')}</Typography>
                                                         <Typography variant="body2" fontWeight="500">{formatPrice(vals.avgCost, displayCurrency)}</Typography>
                                                     </Grid>
-                                                    <Grid item xs={6} sm={2}>
+                                                    <Grid item xs={6} sm>
                                                         <Typography variant="caption" color="text.secondary">{t('Quantity', 'כמות')}</Typography>
                                                         <Typography variant="body1" fontWeight="500">{formatNumber(totalQty)}</Typography>
                                                     </Grid>
-                                                    <Grid item xs={6} sm={2}>
+                                                    <Grid item xs={6} sm>
                                                         <Typography variant="caption" color="text.secondary">{t('Total Cost', 'עלות מקורית')}</Typography>
                                                         <Box>
                                                             <Typography variant="body2" fontWeight="500">{formatValue(vals.costBasis, displayCurrency)}</Typography>
@@ -573,13 +650,19 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                                                             )}
                                                         </Box>
                                                     </Grid>
-                                                    <Grid item xs={6} sm={2}>
+                                                    <Grid item xs={6} sm>
                                                         <Typography variant="caption" color="text.secondary">{t('Total Fees', 'סה"כ עמלות')}</Typography>
                                                         <Typography variant="body2" fontWeight="500">{formatValue(totalFeesDisplay, displayCurrency)}</Typography>
                                                     </Grid>
-                                                    <Grid item xs={6} sm={2}>
+                                                    <Grid item xs={6} sm>
                                                         <Typography variant="caption" color="text.secondary">{t('Taxes Paid', 'מס ששולם')}</Typography>
                                                         <Typography variant="body2" fontWeight="500">{formatValue(vals.realizedTax, displayCurrency)}</Typography>
+                                                    </Grid>
+                                                    <Grid item xs={6} sm>
+                                                        <Typography variant="caption" color="text.secondary" noWrap>{t('Net Realized', 'מימוש נטו')}</Typography>
+                                                        <Typography variant="body2" fontWeight="500" color={vals.realizedGainNet >= 0 ? 'success.main' : 'error.main'}>
+                                                            {formatValue(vals.realizedGainNet, displayCurrency)}
+                                                        </Typography>
                                                     </Grid>
                                                 </Grid>
                                             </Paper>

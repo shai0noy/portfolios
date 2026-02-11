@@ -71,6 +71,6 @@ describe('Gain Calculation with Currency Fluctuation', () => {
         
         // Currently expect 0 (since arg is ignored) - demonstrating the bug if we WANT FX gain.
         // After fix, this should be 50.
-        // expect(resFixed.gain.valILS).toBe(50); 
+        expect(resFixed.gain.valILS).toBeCloseTo(50, 4); 
     });
 });

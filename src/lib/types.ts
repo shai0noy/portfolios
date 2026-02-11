@@ -2,7 +2,7 @@ import type { ExchangeMetadata } from './types/ticker';
 import type { InstrumentClassification } from './types/instrument';
 import { InstrumentType } from './types/instrument';
 import type { ProvidentInfo } from './fetching/types';
-import { MultiCurrencyValue } from './data/multiCurrency';
+import type { MultiCurrencyValue } from './data/multiCurrency';
 
 export type { ExchangeMetadata, InstrumentClassification, ProvidentInfo };
 export { InstrumentType };
@@ -215,28 +215,7 @@ export interface DashboardHolding {
   unrealizedTaxableGainILS: number;
 
   // Display fields (Calculated in dashboard.ts)
-  display: {
-    marketValue: number;
-    unrealizedGain: number;
-    unrealizedGainPct: number;
-    realizedGain: number;
-    realizedGainPct: number;
-    realizedGainAfterTax: number;
-    totalGain: number;
-    totalGainPct: number;
-    valueAfterTax: number;
-    dayChangeVal: number; // Display Currency
-    dayChangePct: number;
-    costBasis: number;
-    costOfSold: number;
-    proceeds: number;
-    dividends: number;
-    currentPrice: number;
-    avgCost: number; // Display Currency
-    weightInPortfolio: number;
-    weightInGlobal: number;
-    unvestedValue: number;
-  };
+  display: DashboardHoldingDisplay;
 
   sector?: string;
   dayChangePct: number;
@@ -252,13 +231,42 @@ export interface DashboardHolding {
   generateGainForPeriod?: (
     startDate: Date,
     historyProvider: (ticker: string) => any,
-    rates: ExchangeRates
+    rates: ExchangeRates,
+    initialRates?: Record<string, number>
   ) => {
     gain: MultiCurrencyValue,
     initialValue: MultiCurrencyValue,
     finalValue: MultiCurrencyValue,
     gainPct: number
   };
+}
+
+export interface DashboardHoldingDisplay {
+  marketValue: number;
+  unrealizedGain: number;
+  unrealizedGainPct: number;
+  realizedGain: number;
+  realizedGainGross: number; // Pre-Fee, Pre-Tax
+  realizedGainNet: number;   // Post-Fee, Post-Tax (if applicable)
+  realizedGainPct: number;
+  realizedGainAfterTax: number;
+  totalGain: number;
+  totalGainPct: number;
+  valueAfterTax: number;
+  dayChangeVal: number;
+  dayChangePct: number;
+  costBasis: number;
+  costOfSold: number;
+  proceeds: number;
+  dividends: number;
+  currentPrice: number;
+  avgCost: number;
+  weightInPortfolio: number;
+  weightInGlobal: number;
+  unvestedValue: number;
+  inflationAdjustedCost?: number;
+  realizedTax?: number;
+  unrealizedTax?: number;
 }
 
 export interface DashboardSummaryData {

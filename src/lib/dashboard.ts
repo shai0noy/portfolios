@@ -12,7 +12,8 @@ import { INITIAL_SUMMARY, FinanceEngine } from './data/engine';
 // import type { Lot, DividendRecord } from './data/model'; // Unused
 // import type { Transaction } from './types'; // Unused
 import { calculateDashboardSummary } from './dashboard_calc';
-import type { DashboardHoldingDisplay, EnrichedDashboardHolding } from './dashboard_calc';
+import type { EnrichedDashboardHolding } from './dashboard_calc';
+import type { DashboardHoldingDisplay } from './types';
 
 
 // Re-export INITIAL_SUMMARY for consumers

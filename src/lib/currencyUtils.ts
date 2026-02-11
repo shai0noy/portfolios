@@ -212,3 +212,5 @@ export function formatMoneyPrice(m: SimpleMoney | undefined, t?: any): string {
   if (!m) return '-';
   return formatPrice(m.amount, m.currency, 2, t);
 }
+
+

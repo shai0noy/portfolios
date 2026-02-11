@@ -1,6 +1,6 @@
 import { Box, Paper, Typography, Grid, Tooltip, ToggleButton, ToggleButtonGroup, IconButton, CircularProgress, Button, Menu, MenuItem, Chip, ListItemIcon, Dialog, DialogTitle, DialogContent } from '@mui/material';
 import { formatPercent, formatMoneyValue, normalizeCurrency, calculatePerformanceInDisplayCurrency, convertCurrency } from '../lib/currencyUtils';
-import { MultiCurrencyValue } from '../lib/data/multiCurrency';
+import { MultiCurrencyValue, getHistoricalRates } from '../lib/data/model';
 import { logIfFalsy, getValueColor } from '../lib/utils';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
@@ -127,7 +127,7 @@ const PerfStat = ({ label, percentage, gainValue, isIncomplete, isLoading, aum, 
     if (gainValue !== undefined) {
         absoluteChange = gainValue;
     } else {
-    // Fallback to TWR derivation (only if gainValue not provided)
+        // Fallback to TWR derivation (only if gainValue not provided)
         const previousAUM = aum / (1 + effectivePercentage);
         absoluteChange = aum - previousAUM;
     }
@@ -393,6 +393,8 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                             case 'all': startDate = new Date(0); break;
                         }
 
+                        const initialRates = getHistoricalRates(exchangeRates, period as any);
+
                         const aggGain = new MultiCurrencyValue(0, 0);
                         const aggInitial = new MultiCurrencyValue(0, 0);
 
@@ -401,7 +403,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                             const provider = (ticker: string) => historyMap.get(`${h.exchange}:${ticker}`);
                             // We need Exchange Rates
                             if (h.generateGainForPeriod) {
-                                const res = h.generateGainForPeriod(startDate, provider, exchangeRates);
+                                const res = h.generateGainForPeriod(startDate, provider, exchangeRates, initialRates);
                                 aggGain.valUSD += res.gain.valUSD;
                                 aggGain.valILS += res.gain.valILS;
                                 aggInitial.valUSD += res.initialValue.valUSD;
@@ -623,13 +625,50 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                                             size="small"
                                         />
 
-                                        <PerfStat label={t("1W", "שבוע")} percentage={simplePeriodReturns ? simplePeriodReturns.perf1w : summary.perf1w} gainValue={simplePeriodReturns ? simplePeriodReturns.gain1w : undefined} isLoading={isPortfoliosLoading && !simplePeriodReturns && summary.perf1w === 0} isIncomplete={summary.perf1w_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
-                                        <PerfStat label={t("1M", "חודש")} percentage={simplePeriodReturns ? simplePeriodReturns.perf1m : summary.perf1m} gainValue={simplePeriodReturns ? simplePeriodReturns.gain1m : undefined} isLoading={isPortfoliosLoading && !simplePeriodReturns && summary.perf1m === 0} isIncomplete={summary.perf1m_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
-                                        <PerfStat label={t("3M", "3 חודשים")} percentage={simplePeriodReturns ? simplePeriodReturns.perf3m : summary.perf3m} gainValue={simplePeriodReturns ? simplePeriodReturns.gain3m : undefined} isLoading={isPortfoliosLoading && !simplePeriodReturns && summary.perf3m === 0} isIncomplete={summary.perf3m_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
-                                        <PerfStat label={t("YTD", "מתחילת שנה")} percentage={simplePeriodReturns ? simplePeriodReturns.perfYtd : summary.perfYtd} gainValue={simplePeriodReturns ? simplePeriodReturns.gainYtd : undefined} isLoading={isPortfoliosLoading && !simplePeriodReturns && summary.perfYtd === 0} isIncomplete={summary.perfYtd_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
-                                        <PerfStat label={t("1Y", "שנה")} percentage={simplePeriodReturns ? simplePeriodReturns.perf1y : summary.perf1y} gainValue={simplePeriodReturns ? simplePeriodReturns.gain1y : undefined} isLoading={isPortfoliosLoading && !simplePeriodReturns && summary.perf1y === 0} isIncomplete={summary.perf1y_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
-                                        <PerfStat label={t("5Y", "5 שנים")} percentage={simplePeriodReturns ? simplePeriodReturns.perf5y : summary.perf5y} gainValue={simplePeriodReturns ? simplePeriodReturns.gain5y : undefined} isLoading={isPortfoliosLoading && !simplePeriodReturns && summary.perf5y === 0} isIncomplete={summary.perf5y_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
-                                        <PerfStat label={t("ALL", "הכל")} percentage={simplePeriodReturns ? simplePeriodReturns.perfAll : summary.perfAll} gainValue={simplePeriodReturns ? simplePeriodReturns.gainAll : summary.totalReturn} isLoading={isPortfoliosLoading && !simplePeriodReturns && summary.perfAll === 0} isIncomplete={summary.perfAll_incomplete} aum={summary.aum} displayCurrency={displayCurrency} size="small" />
+                                        {(() => {
+                                            const getDuration = (p: string) => {
+                                                const now = new Date();
+                                                switch (p) {
+                                                    case '1W': return 7;
+                                                    case '1M': return 30;
+                                                    case '3M': return 90;
+                                                    case '6M': return 180;
+                                                    case 'YTD':
+                                                        const startOfYear = new Date(now.getFullYear(), 0, 1);
+                                                        return (now.getTime() - startOfYear.getTime()) / (1000 * 60 * 60 * 24);
+                                                    case '1Y': return 365;
+                                                    case '5Y': return 365 * 5;
+                                                    case 'ALL': return 36500;
+                                                    default: return 99999;
+                                                }
+                                            };
+
+                                            const statsConfig = [
+                                                { label: '1W', labelVs: t("1W", "שבוע"), keyPct: 'perf1w', keyGain: 'gain1w', keyInc: 'perf1w_incomplete' },
+                                                { label: '1M', labelVs: t("1M", "חודש"), keyPct: 'perf1m', keyGain: 'gain1m', keyInc: 'perf1m_incomplete' },
+                                                { label: '3M', labelVs: t("3M", "3 חודשים"), keyPct: 'perf3m', keyGain: 'gain3m', keyInc: 'perf3m_incomplete' },
+                                                { label: 'YTD', labelVs: t("YTD", "מתחילת שנה"), keyPct: 'perfYtd', keyGain: 'gainYtd', keyInc: 'perfYtd_incomplete' },
+                                                { label: '1Y', labelVs: t("1Y", "שנה"), keyPct: 'perf1y', keyGain: 'gain1y', keyInc: 'perf1y_incomplete' },
+                                                { label: '5Y', labelVs: t("5Y", "5 שנים"), keyPct: 'perf5y', keyGain: 'gain5y', keyInc: 'perf5y_incomplete' },
+                                                { label: 'ALL', labelVs: t("ALL", "הכל"), keyPct: 'perfAll', keyGain: 'gainAll', keyInc: 'perfAll_incomplete', fallbackGain: 'totalReturn' },
+                                            ];
+
+                                            return statsConfig
+                                                .sort((a, b) => getDuration(a.label) - getDuration(b.label))
+                                                .map(cfg => (
+                                                    <PerfStat
+                                                        key={cfg.label}
+                                                        label={cfg.labelVs}
+                                                        percentage={simplePeriodReturns ? (simplePeriodReturns as any)[cfg.keyPct] : (summary as any)[cfg.keyPct]}
+                                                        gainValue={simplePeriodReturns ? (simplePeriodReturns as any)[cfg.keyGain] : (cfg.fallbackGain ? (summary as any)[cfg.fallbackGain] : undefined)}
+                                                        isLoading={isPortfoliosLoading && !simplePeriodReturns && (summary as any)[cfg.keyPct] === 0}
+                                                        isIncomplete={(summary as any)[cfg.keyInc]}
+                                                        aum={summary.aum}
+                                                        displayCurrency={displayCurrency}
+                                                        size="small"
+                                                    />
+                                                ));
+                                        })()}
                                     </Box>
                                 </Box>
                             </Grid>

@@ -228,12 +228,102 @@ export class FinanceEngine {
         this.calculateSnapshot();
     }
 
+    priceHistory: Map<string, { date: Date, price: number }[]> = new Map();
+
     public hydrateLivePrices(priceMap: Map<string, any>) {
+        // First pass: Populate Price History
+        this.holdings.forEach(h => {
+            const key = `${h.exchange}:${h.ticker}`;
+            const live = priceMap.get(key);
+            if (live?.historical) {
+                this.priceHistory.set(h.ticker, live.historical);
+            }
+        });
+
+        const now = new Date();
+        const startOfToday = new Date(now); startOfToday.setHours(0, 0, 0, 0);
+
+        // Helper to calc perf
+        const calculatePersonalPerf = (h: Holding, period: string, fallbackPct?: number): number => {
+            let startDate: Date;
+            switch (period) {
+                case '1w': startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); break;
+                case '1m':
+                    startDate = new Date(now);
+                    startDate.setMonth(startDate.getMonth() - 1);
+                    break;
+                case '3m':
+                    startDate = new Date(now);
+                    startDate.setMonth(startDate.getMonth() - 3);
+                    break;
+                case 'ytd':
+                    startDate = new Date(now.getFullYear(), 0, 1);
+                    break;
+                case '1y':
+                    startDate = new Date(now);
+                    startDate.setFullYear(startDate.getFullYear() - 1);
+                    break;
+                case '3y':
+                    startDate = new Date(now);
+                    startDate.setFullYear(startDate.getFullYear() - 3);
+                    break;
+                case '5y':
+                    startDate = new Date(now);
+                    startDate.setFullYear(startDate.getFullYear() - 5);
+                    break;
+                case 'all':
+                    startDate = new Date(0); // Beginning of time
+                    break;
+                default: return fallbackPct || 0;
+            }
+
+            // If start date is in future (e.g. YTD on Jan 1st), return 0 or Day Change?
+            if (startDate > now) return fallbackPct || 0;
+
+            try {
+                // We use a history provider that looks up this.priceHistory
+                // But we also need to handle the case where we don't have history for a specific ticker
+                // create a simple provider closure
+                const provider = (t: string) => ({ historical: this.priceHistory.get(t) || [] });
+
+                const res = h.generateGainForPeriod(startDate, provider, this.exchangeRates);
+
+                // If initialValue is 0 (e.g. bought today), gainPct is undefined/Infinity
+                if (res.initialValue.get(h.portfolioCurrency) === 0) {
+                    // If bought *after* startDate, generateGainForPeriod uses Cost Basis as Initial.
+                    // If Initial is 0, it means we have NO lots active/sold in this period?
+                    // Or maybe we bought today?
+                    // If bought today, Initial = Cost.
+                    // If Cost is 0 (free shares?), unlikely.
+                    return fallbackPct !== undefined ? fallbackPct : 0;
+                }
+
+                // If the holding was effectively empty during this period (e.g. sold before start, bought after end?), 
+                // generateGainForPeriod should return 0 gain, 0 initial.
+
+                // gainPct calculation:
+                // We want: (Final Value - Initial Value + Dividends) / Initial Value
+                // generateGainForPeriod returns { gain, initialValue, finalValue }
+                // gain = final - initial + dividends
+
+                const initialPC = res.initialValue.get(h.portfolioCurrency);
+                const gainPC = res.gain.get(h.portfolioCurrency);
+
+                if (initialPC === 0) return fallbackPct !== undefined ? fallbackPct : 0;
+
+                return gainPC / initialPC;
+
+            } catch (e) {
+                console.warn(`Failed to calc personal perf for ${h.ticker} ${period}`, e);
+                return fallbackPct !== undefined ? fallbackPct : 0;
+            }
+        };
+
         this.holdings.forEach(h => {
             const key = `${h.exchange}:${h.ticker}`;
             const live = priceMap.get(key);
             if (h.exchange === 'TASE' || (h.exchange as string) === 'Tel Aviv') {
-                console.log(`DEBUG TASE: ${h.ticker} Price:${live?.price} Cur:${live?.currency} StockCur:${h.stockCurrency}`);
+                // Console log removed to reduce noise, or keep if debugging needed
             }
             if (live) {
                 let price = live.price || h.currentPrice;
@@ -246,10 +336,6 @@ export class FinanceEngine {
                     }
 
                     // Strict Correction for TASE:
-                    // TASE stocks trade in Agorot. If a provider (like Globes) returns ILS/NIS,
-                    // it is almost certainly a mislabeling of the Agorot value.
-                    // e.g. 7600 Agorot might be labeled "7600 ILS" by the provider.
-                    // We treat "ILS" from TASE as "ILA".
                     if (h.exchange === Exchange.TASE) {
                         const norm = normalizeCurrency(liveCurrencyStr || h.stockCurrency);
                         if (norm === Currency.ILS) {
@@ -267,45 +353,23 @@ export class FinanceEngine {
                     h.currentPrice = finalPrice;
                 }
                 if (live.changePct1d !== undefined) h.dayChangePct = live.changePct1d;
-                if (live.changePctRecent !== undefined && live.recentChangeDays === 7) h.perf1w = live.changePctRecent;
-                else if (live.perf1w !== undefined) h.perf1w = live.perf1w; // Fallback
 
-                if (live.changePct1m !== undefined) h.perf1m = live.changePct1m;
-                else if (live.perf1m !== undefined) h.perf1m = live.perf1m;
-
-                if (live.changePct3m !== undefined) h.perf3m = live.changePct3m;
-                else if (live.perf3m !== undefined) h.perf3m = live.perf3m;
-
-                if (live.changePctYtd !== undefined) h.perfYtd = live.changePctYtd;
-                else if (live.perfYtd !== undefined) h.perfYtd = live.perfYtd;
-
-                if (live.changePct1y !== undefined) h.perf1y = live.changePct1y;
-                else if (live.perf1y !== undefined) h.perf1y = live.perf1y;
-
-                if (live.changePct3y !== undefined) h.perf3y = live.changePct3y;
-                else if (live.perf3y !== undefined) h.perf3y = live.perf3y;
-
-                if (live.changePct5y !== undefined) h.perf5y = live.changePct5y;
-                else if (live.perf5y !== undefined) h.perf5y = live.perf5y;
-
-                if (live.changePctMax !== undefined) h.perfAll = live.changePctMax;
-                else if (live.perfAll !== undefined) h.perfAll = live.perfAll;
+                // Use Personal Perf with Fallback to Market Perf
+                h.perf1w = calculatePersonalPerf(h, '1w', live.changePctRecent ?? live.perf1w);
+                h.perf1m = calculatePersonalPerf(h, '1m', live.changePct1m ?? live.perf1m);
+                h.perf3m = calculatePersonalPerf(h, '3m', live.changePct3m ?? live.perf3m);
+                h.perfYtd = calculatePersonalPerf(h, 'ytd', live.changePctYtd ?? live.perfYtd);
+                h.perf1y = calculatePersonalPerf(h, '1y', live.changePct1y ?? live.perf1y);
+                h.perf3y = calculatePersonalPerf(h, '3y', live.changePct3y ?? live.perf3y);
+                h.perf5y = calculatePersonalPerf(h, '5y', live.changePct5y ?? live.perf5y);
+                h.perfAll = calculatePersonalPerf(h, 'all', live.changePctMax ?? live.perfAll);
 
                 if (live.name) {
                     h.marketName = live.name;
-                    // Dont override name if customName exists?
-                    // User said: "In table use short name (market), but use long in most other places".
-                    // So `name` property on Holding should probably stay as Custom Name if available?
-                    // Or we leave `name` as is and let dashboard decide?
-                    // Let's populate marketName.
                 }
                 if (live.nameHe) h.nameHe = live.nameHe;
                 if (live.type) h.type = live.type;
                 if (live.sector) h.sector = live.sector;
-                // Add perf stats if you want them on Holding?
-                // Holding class doesn't strictly have them as fields yet, maybe in `meta` if we added it?
-                // For now, we only use specific fields. We can add a generic `meta` or explicit fields.
-                // Assuming we just updated the main ones.
             }
         });
     }
@@ -501,31 +565,66 @@ export class FinanceEngine {
                 let totalWealthTaxILS = 0;
 
                 activeLots.forEach(lot => {
+                    if (!lot.isVested) return; // Exclude unvested from tax liability (Value After Tax should be Vested only)
+
                     const mvILS = lot.qty * currentPriceILS;
                     const mvSC = lot.qty * currentPriceSC;
                     const costILS = lot.costTotal.valILS || convertCurrency(lot.costTotal.amount, lot.costTotal.currency, Currency.ILS, this.exchangeRates);
                     const feesILS = lot.feesBuy.valILS || convertCurrency(lot.feesBuy.amount, lot.feesBuy.currency, Currency.ILS, this.exchangeRates);
                     const feesSC = convertCurrency(lot.feesBuy.amount, lot.feesBuy.currency, h.stockCurrency, this.exchangeRates);
 
-                     let taxableILS = 0;
+                    // Determine Cost in Stock Currency (costSC)
+                    let costSC = 0;
+                    if (h.stockCurrency === Currency.USD && lot.costTotal.valUSD) {
+                        costSC = lot.costTotal.valUSD;
+                    } else if (h.stockCurrency === Currency.ILS && lot.costTotal.valILS) {
+                        costSC = lot.costTotal.valILS;
+                    } else {
+                        // Fallback using rateToPortfolio
+                        costSC = lot.costTotal.amount / (lot.costTotal.rateToPortfolio || 1);
+                    }
+
+                    // Gain in Stock Currency (Value - Cost - Fees)
+                    const gainSC = mvSC - costSC - feesSC;
+
+                    // Calculate Taxable Base in ILS
+                    let taxableILS = 0;
+                    const isForeign = h.stockCurrency !== Currency.ILS;
+
                     if (p.taxOnBase) {
-                        // Tax on Base Price: The entire specific amount is taxable? 
-                        // Usually this means the Cost Basis is 0 for tax purposes, OR it's a Wealth Tax on the entire value.
-                        // "Tax on Base Price" usually implies the tax is on the *principal* as well as gain, effectively making Cost Basis = 0.
-                        // Let's implement it as: Taxable Amount = Full Market Value
+                        // TAX ON BASE PRICE (Wealth Tax / Turnover Tax)
+                        // Tax is applied to the full market value, not just the gain.
                         taxableILS = mvILS;
                     } else if (taxPolicy === 'REAL_GAIN') {
+                        // REAL GAIN POLICY (Inflation Adjusted)
+                        // Domestic: Nominal Gain adjusted for CPI. Includes "Never Lose" protection (if Deflation, Taxable Gain is capped at Nominal).
+                        // Foreign: "Never Lose" Rule -> Min(Nominal Gain in ILS, Real Gain in ILS).
+
+                        const nominalGainILS = mvILS - (costILS + feesILS);
+
                          taxableILS = computeRealTaxableGain(
-                             mvILS - (costILS + feesILS),
-                             mvSC - feesSC,
+                             nominalGainILS,
+                             gainSC,
                              costILS + feesILS,
                              h.stockCurrency,
                              Currency.ILS,
-                            lot.cpiAtBuy,
-                            currentCPI,
-                            this.exchangeRates
-                        );
-                     } else { // Nominal
+                             lot.cpiAtBuy,
+                             currentCPI,
+                             this.exchangeRates
+                         );
+                    } else if (taxPolicy === 'NOMINAL_GAIN' && isForeign) {
+                        // NOMINAL GAIN POLICY (Foreign Assets Exception)
+                        // "Flat rate on gain in the ticker currency"
+                        // We ignore currency fluctuations on the principal. 
+                        // Taxable Gain = Gain in Foreign Currency * Current Exchange Rate (to ILS).
+
+                        const foreignGainConvertedToILS = convertCurrency(gainSC, h.stockCurrency, Currency.ILS, this.exchangeRates);
+
+                        // If GainSC is negative, Taxable is negative (Credit).
+                        taxableILS = foreignGainConvertedToILS;
+                    } else {
+                        // NOMINAL GAIN POLICY (Domestic / Standard)
+                        // Simple Nominal Gain in ILS (Proceeds - Cost).
                          taxableILS = mvILS - (costILS + feesILS);
                      }
 
@@ -533,14 +632,16 @@ export class FinanceEngine {
                      totalWealthTaxILS += (costILS + feesILS) * incTax;
 
                     // Per-Lot Tax Liability (stored in Portfolio Currency)
+                    // We allow negative tax liability (tax credit) to offset other gains.
                     // If taxOnBase, 'taxableILS' is the full MV.
                     // We assume 'cgt' is the relevant rate for this taxable amount.
-                    const lotTaxLiabilityILS = Math.max(0, taxableILS) * cgt + ((costILS + feesILS) * incTax);
+                    const lotTaxLiabilityILS = (taxableILS * cgt) + ((costILS + feesILS) * incTax);
                     lot.unrealizedTax = convertCurrency(lotTaxLiabilityILS, Currency.ILS, h.portfolioCurrency, this.exchangeRates);
                  });
 
                 h.unrealizedTaxableGainILS = totalTaxableGainILS;
-                h.unrealizedTaxLiabilityILS = Math.max(0, totalTaxableGainILS) * cgt + totalWealthTaxILS;
+                // Allow negative total liability for the holding
+                h.unrealizedTaxLiabilityILS = (totalTaxableGainILS * cgt) + totalWealthTaxILS;
 
                 // Realized Tax
                 const realizedTaxVal = realizedLots.reduce((acc, l) => acc + (l.realizedTax || 0), 0);
@@ -582,8 +683,8 @@ export class FinanceEngine {
             if (filterIds && !filterIds.has(h.id)) return;
 
             // Values in Display Currency
-            // Reconstruct Market Value Total
-            const mvTotalSC = h.marketValueVested.amount + h.marketValueUnvested.amount;
+            // Reconstruct Market Value Total (Vested Only)
+            const mvTotalSC = h.marketValueVested.amount;
             const marketValue = convertCurrency(mvTotalSC, h.stockCurrency, displayCurrency, this.exchangeRates);
 
             // Unrealized Gain (stored in PC)
@@ -718,9 +819,9 @@ export class FinanceEngine {
             totalUnrealizedGainPct: (globalAcc.aum - globalAcc.totalUnrealized) > 0 ? globalAcc.totalUnrealized / (globalAcc.aum - globalAcc.totalUnrealized) : 0,
             totalRealizedGainPct: globalAcc.totalCostOfSold > 0 ? globalAcc.totalRealized / globalAcc.totalCostOfSold : 0,
             totalDayChange: globalAcc.totalDayChange,
-            realizedGainAfterTax: (globalAcc.totalRealized + globalAcc.totalDividends) - globalAcc.totalRealizedTax,
-            totalTaxPaid: globalAcc.totalRealizedTax, // Populate the new field
-            valueAfterTax: globalAcc.aum - globalAcc.totalUnrealizedTax,
+            realizedGainAfterTax: (globalAcc.totalRealized + globalAcc.totalDividends) - Math.max(0, globalAcc.totalRealizedTax),
+            totalTaxPaid: Math.max(0, globalAcc.totalRealizedTax), // Populate the new field
+            valueAfterTax: globalAcc.aum - Math.max(0, globalAcc.totalUnrealizedTax),
             totalDayChangePct: globalAcc.aumWithDayChangeData > 0 ? globalAcc.totalDayChange / globalAcc.aumWithDayChangeData : 0,
             totalDayChangeIsIncomplete: globalAcc.holdingsWithDayChange < this.holdings.size, // Approximate
 

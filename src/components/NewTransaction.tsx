@@ -454,6 +454,21 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
               if (onSaveSuccess) onSaveSuccess(t('Dividend added', 'הדיבידנד נוסף'));
           }
       } else {
+        // Sanity Check: If Fetch 'Open' is drastically different from User 'Price' (e.g. > 2x or < 0.5x),
+        // it likely indicates a data source mismatch (stale split, wrong currency unit).
+        // In this case, prefer the User's Price to avoid triggering a false split in the sheet.
+        const openP = selectedTicker?.openPrice || 0;
+        let safeOpenPrice = openP;
+        if (p > 0 && openP > 0) {
+          const ratio = openP / p;
+          if (ratio > 2 || ratio < 0.5) {
+            console.warn(`Mismatch between Open Price (${openP}) and User Price (${p}). Using User Price for origOpenPriceAtCreationDate.`);
+            safeOpenPrice = p;
+          }
+        } else if (openP === 0) {
+          safeOpenPrice = p; // Fallback if open is 0
+        }
+
           const txn: Transaction = {
             date,
             portfolioId: portId,
@@ -462,7 +477,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
             type,
             originalQty: q,
             originalPrice: p,
-            origOpenPriceAtCreationDate: locationState?.editTransaction?.origOpenPriceAtCreationDate || selectedTicker?.openPrice || 0,
+            origOpenPriceAtCreationDate: locationState?.editTransaction?.origOpenPriceAtCreationDate || safeOpenPrice,
             currency: normalizeCurrency(tickerCurrency),
             numericId: selectedTicker?.numericId || undefined,
             vestDate,

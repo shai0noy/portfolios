@@ -27,8 +27,11 @@ export async function calculatePortfolioPerformance(
         console.warn("calculatePortfolioPerformance received invalid transactions:", transactions);
         return { points: [], historyMap: new Map() };
     }
-    const relevantPortIds = new Set([...holdings.map(h => h.portfolioId), ...transactions.map(t => t.portfolioId)]);
-    const sortedTxns = transactions
+    // Treat vesting date as buy date (ignore unvested until they vest)
+    const effectiveTxns = transactions.map(t => t.vestDate ? { ...t, date: t.vestDate } : t);
+
+    const relevantPortIds = new Set([...holdings.map(h => h.portfolioId), ...effectiveTxns.map(t => t.portfolioId)]);
+    const sortedTxns = effectiveTxns
         .filter(t => relevantPortIds.has(t.portfolioId))
         .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 

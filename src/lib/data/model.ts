@@ -5,6 +5,7 @@ import { getTaxRatesForDate } from '../portfolioUtils';
 
 // --- Types ---
 import { MultiCurrencyValue } from './multiCurrency';
+export { MultiCurrencyValue };
 
 export interface DividendEvent {
     ticker: string;
@@ -12,6 +13,24 @@ export interface DividendEvent {
     date: Date;
     amount: number;
     source: string;
+}
+
+export function getHistoricalRates(rates: ExchangeRates, period: '1w' | '1m' | '3m' | 'ytd' | '1y' | '5y' | 'all'): Record<string, number> | undefined {
+    const rateKeyMap: Record<string, string> = {
+        '1w': 'ago1w',
+        '1m': 'ago1m',
+        '3m': 'ago3m',
+        'ytd': 'ytd',
+        '1y': 'ago1y',
+        '5y': 'ago5y',
+        'all': 'agoMax'
+    };
+
+    const key = rateKeyMap[period];
+    if (key && key in rates) {
+        return (rates as any)[key];
+    }
+    return undefined;
 }
 
 import type { SimpleMoney } from '../types';
@@ -107,6 +126,23 @@ export const getCPI = (date: Date, cpiData: any) => {
 };
 
 // Helper to compute Real Taxable Gain
+/**
+ * Computes the Real Taxable Gain according to Israeli Tax Law principles, consistently applying the "Never Lose" rule.
+ * 
+ * The "Never Lose" Rule (Benefit of the Doubt):
+ * Taxable Gain is always the MINIMUM of Nominal Gain and Real Gain.
+ * 
+ * 1. Domestic Assets (ILS):
+ *    - Nominal Gain = Proceeds - Cost
+ *    - Real Gain = Proceeds - (Cost * (1 + Inflation))
+ *    - We subtract Inflation Adjustment from Nominal Gain.
+ *    - If Deflation (Inflation < 0), Real Gain > Nominal Gain. We maximize Adjustment at 0 to ensure we don't pay more than Nominal.
+ * 
+ * 2. Foreign Assets:
+ *    - Nominal Gain = Proceeds(ILS) - Cost(ILS)
+ *    - Real Gain = Gain(ForeignCurrency) converted to ILS
+ *    - Taxable = Min(Nominal, Real)
+ */
 export function computeRealTaxableGain(
     nominalGainPC: number,
     gainSC: number,
@@ -119,16 +155,32 @@ export function computeRealTaxableGain(
 ): number {
     let taxableGain = nominalGainPC;
 
+    // DOMESTIC (CPI Adjusted)
     if (portfolioCurrency === Currency.ILS && (stockCurrency === Currency.ILS || stockCurrency === Currency.ILA)) {
+        // Calculate Inflation Rate
         const inflationRate = (cpiStart > 0) ? (cpiEnd / cpiStart) - 1 : 0;
+        
+        // Calculate Inflation Adjustment (Benefit)
+        // We use Math.max(0, ...) to ensure we "Never Lose" from Deflation.
+        // If Deflation occurs (Rate < 0), Adjustment is 0, so we pay Nominal Tax (which is lower than Real Tax in deflation).
         const inflationAdj = Math.max(0, costBasisPC * inflationRate);
+        
         taxableGain -= inflationAdj;
+        
     } else if (portfolioCurrency !== stockCurrency) {
-        // Evaluate if gain in Stock Currency is lower (when converted to PC)
-        // Foreign Currency Exception approximation
+        // FOREIGN (Exchange Rate Adjusted)
+        
+        // Real Gain in Portfolio Currency (approx)
+        // We calculate what the Foreign Gain is worth in today's rates.
         const realGainPC = convertCurrency(gainSC, stockCurrency, portfolioCurrency, exchangeRates);
+        
+        // "Never Lose" Rule:
+        // Take the Minimum of Nominal Gain (ILS) and Real Gain (Foreign -> ILS).
+        // If Currency Devaluation (Inflationary) -> Real is Lower -> Pay Real.
+        // If Currency Apprecation (Deflationary) -> Nominal is Lower -> Pay Nominal.
         taxableGain = Math.min(taxableGain, realGainPC);
     }
+    
     return taxableGain;
 }
 
@@ -202,7 +254,7 @@ export class Holding {
     realizedCapitalGainsTax: number;
     realizedIncomeTax: number;
     unrealizedTaxLiabilityILS: number;
-    unrealizedTaxableGainILS: number; 
+    unrealizedTaxableGainILS: number;
 
     constructor(
         portfolioId: string,
@@ -328,12 +380,48 @@ export class Holding {
         // Fee allocation per unit
         // const feePerUnitPC = feePC / qty;
 
+        // Calculate valUSD and valILS strictly to avoid "Drift" from current rates
+        // if we have the original data in that currency.
+        let valUSD: number | undefined = txn.originalPriceUSD;
+        if (!valUSD) {
+            const txnCurr = txn.currency ? normalizeCurrency(txn.currency) : null;
+            if (txnCurr === Currency.USD && txn.price) {
+                valUSD = txn.price;
+            } else if (txn.originalPrice && txnCurr === Currency.USD) {
+                valUSD = txn.originalPrice;
+            } else {
+                valUSD = convertCurrency(pricePerUnitPC, this.portfolioCurrency, Currency.USD, rates);
+            }
+        }
+
+        let valILS: number | undefined = undefined;
+        if (this.portfolioCurrency === Currency.ILS) {
+            valILS = pricePerUnitPC;
+        } else if (txn.originalPriceILA) {
+            valILS = toILS(txn.originalPriceILA, Currency.ILA);
+        } else {
+            const txnCurr = txn.currency ? normalizeCurrency(txn.currency) : null;
+            if ((txnCurr === Currency.ILS || txnCurr === Currency.ILA) && txn.price) {
+                // Careful: ILA price is in Agorot usually? Or ILS? 
+                // txn.price is usually usually in major units (ILS) or minor (Agora)? 
+                // Loader for ILA: commission was *100. Price?
+                // Usually price is as-is. 
+                // If standardizing, let's stick to convertCurrency if uncertain, 
+                // OR entrust explicit fields.
+                // For ILS stock, we usually trust pricePerUnitPC if portfolio is ILS.
+                // If portfolio is USD, and we bought ILS stock...
+                valILS = convertCurrency(pricePerUnitPC, this.portfolioCurrency, Currency.ILS, rates);
+            } else {
+                valILS = convertCurrency(pricePerUnitPC, this.portfolioCurrency, Currency.ILS, rates);
+            }
+        }
+
         const costMoney: Money = {
             amount: pricePerUnitPC,
             currency: this.portfolioCurrency,
             rateToPortfolio: rateToPC,
-            valUSD: txn.originalPriceUSD || convertCurrency(pricePerUnitPC, this.portfolioCurrency, Currency.USD, rates),
-            valILS: (this.portfolioCurrency === Currency.ILS) ? pricePerUnitPC : (txn.originalPriceILA ? toILS(txn.originalPriceILA, Currency.ILA) : convertCurrency(pricePerUnitPC, this.portfolioCurrency, Currency.ILS, rates))
+            valUSD: valUSD,
+            valILS: valILS
         };
 
         const totalCostMoney: Money = {
@@ -450,32 +538,103 @@ export class Holding {
             const { cgt } = getTaxRatesForDate(portfolio, txn.date);
             const { taxPolicy } = portfolio;
 
+            let proceedsILS = convertCurrency(proceedsPC, this.portfolioCurrency, Currency.ILS, rates);
+
+            // Override with Historical Data if available (for Tax Purposes)
+            if (this.portfolioCurrency === Currency.ILS && txn.originalPriceILA) {
+                const histPriceILS = toILS(txn.originalPriceILA, Currency.ILA);
+                proceedsILS = portion * histPriceILS;
+            } else if (txn.originalPriceILA) {
+                const histPriceILS = toILS(txn.originalPriceILA, Currency.ILA);
+                proceedsILS = portion * histPriceILS;
+            }
+
             const sellFeeILS = convertCurrency(allocatedSellFeePC, this.portfolioCurrency, Currency.ILS, rates);
             const buyFeeILS = convertCurrency(buyFeePC, this.portfolioCurrency, Currency.ILS, rates);
-
-            const proceedsILS = convertCurrency(proceedsPC, this.portfolioCurrency, Currency.ILS, rates);
             const costILS = convertCurrency(costPC, this.portfolioCurrency, Currency.ILS, rates);
 
-            const nominalGainSC = proceedsSC - convertCurrency(allocatedSellFeePC, this.portfolioCurrency, this.stockCurrency, rates)
-                - convertCurrency(buyFeePC, this.portfolioCurrency, this.stockCurrency, rates);
+            // True Cost ILS (Best Effort)
+            const trueCostILS = targetLot.costTotal.valILS || costILS;
+            const trueBuyFeeILS = targetLot.feesBuy.valILS || buyFeeILS;
+
+            // Nominal Gain (ILS)
+            const nominalGainILS = (proceedsILS - sellFeeILS) - (trueCostILS + trueBuyFeeILS);
+
+            // Real Gain Calculation (Foreign Currency)
+            // Gain in Stock Currency (GainSC) = ProceedsSC - CostSC - FeesSC
+
+            // Calculate CostSC
+            let costSC = 0;
+            if (this.stockCurrency === Currency.USD && targetLot.costTotal.valUSD) {
+                costSC = targetLot.costTotal.valUSD;
+            } else if (this.stockCurrency === Currency.ILS && targetLot.costTotal.valILS) {
+                costSC = targetLot.costTotal.valILS;
+            } else {
+                costSC = targetLot.costTotal.amount / (targetLot.costTotal.rateToPortfolio || 1);
+            }
+
+            const sellFeeSC = convertCurrency(allocatedSellFeePC, this.portfolioCurrency, this.stockCurrency, rates);
+            const buyFeeSC = convertCurrency(buyFeePC, this.portfolioCurrency, this.stockCurrency, rates);
+
+            const gainSC = proceedsSC - sellFeeSC - buyFeeSC - costSC;
 
             let taxableGainILS = 0;
 
             if (taxPolicy === 'TAX_FREE') {
                 taxableGainILS = 0;
             } else if (taxPolicy === 'REAL_GAIN') {
+                // Synthesize Historical Rates for Real Gain Calculation
+                let calcRates = rates;
+                if (proceedsSC > 0 && proceedsILS > 0) {
+                    const effectiveRate = proceedsILS / proceedsSC; // e.g. 3.5 ILS / 1 USD
+
+                    // We need to inject this into the rates object correctly.
+                    // Assuming 'rates.current' is Key->Value relative to Base (USD=1).
+                    // If Stock=USD, Portfolio=ILS, effectiveRate is ILS rate.
+                    // If Stock=Other, Portfolio=ILS. 
+                    // Logic: update the rate of the Non-Base currency.
+
+                    const newCurrent = { ...rates.current };
+                    if (this.stockCurrency === Currency.USD) {
+                        // USD is Base (1). Update Portfolio Currency Rate.
+                        newCurrent[this.portfolioCurrency] = effectiveRate;
+                    } else if (this.portfolioCurrency === Currency.USD) {
+                        // Portfolio is Base (1). Update Stock Currency Rate.
+                        // Rate = ProceedsUSD / ProceedsStock.
+                        // If 100 Stock -> 25 USD. Rate = 0.25 (1 Stock = 0.25 USD).
+                        // In rates map: Stock = 1 / 0.25 = 4.0.
+                        newCurrent[this.stockCurrency] = 1 / effectiveRate;
+                    } else {
+                        // Cross Rate. Harder to patch single rate without knowing one side.
+                        // Fallback to current rates if not involving USD?
+                        // Or assume USD is implicit pivot and just update Portfolio Currency relative to implicit 1?
+                        // If we assume Stocks are priced in USD?
+                        // If we just want X -> Y conversion to equal Z.
+                        // convertCurrency(A, X, Y) = A * (Y_Rate / X_Rate).
+                        // We want A * (Y/X) = Effective.
+                        // Y/X = Effective/A? No.
+                        // We want convertCurrency(gainSC) to use effectiveRate.
+                        // gainSC * (RateILs / RateUSD) = gainSC * 3.5.
+                        // If Stock=USD (Rate=1), RateILS must be 3.5.
+                        if (newCurrent[this.stockCurrency] === 1) {
+                            newCurrent[this.portfolioCurrency] = effectiveRate;
+                        }
+                    }
+                    calcRates = { ...rates, current: newCurrent };
+                }
+
                 taxableGainILS = computeRealTaxableGain(
-                    (proceedsILS - sellFeeILS) - (costILS + buyFeeILS),
-                    nominalGainSC,
-                    costILS + buyFeeILS,
+                    nominalGainILS,
+                    gainSC,
+                    trueCostILS + trueBuyFeeILS,
                     this.stockCurrency,
                     Currency.ILS,
                     targetLot.cpiAtBuy,
                     cpi,
-                    rates
+                    calcRates
                 );
             } else {
-                taxableGainILS = (proceedsILS - sellFeeILS) - (costILS + buyFeeILS);
+                taxableGainILS = nominalGainILS;
             }
 
             targetLot.realizedTaxableGainILS = taxableGainILS;
@@ -508,8 +667,21 @@ export class Holding {
     get dividends(): ReadonlyArray<DividendRecord> { return this._dividends; }
 
     get activeLots(): Lot[] { return this._lots.filter(l => !l.soldDate && l.qty > 0); }
+    get vestedLots(): Lot[] { return this._lots.filter(l => !l.soldDate && l.qty > 0 && l.isVested); }
     get realizedLots(): Lot[] { return this._lots.filter(l => l.soldDate); }
     get combinedLots(): Lot[] { return this._lots; }
+
+    get marketValueTotal(): SimpleMoney {
+        return {
+            amount: this.marketValueVested.amount + this.marketValueUnvested.amount,
+            currency: this.stockCurrency
+        };
+    }
+
+    get unrealizedGainPct(): number {
+        if (this.costBasisVested.amount === 0) return 0;
+        return this.unrealizedGain.amount / this.costBasisVested.amount;
+    }
 
     /**
      * Aggregated Realized Tax in Portfolio Currency (PC).
@@ -532,15 +704,16 @@ export class Holding {
     public generateGainForPeriod(
         startDate: Date,
         historyProvider: (ticker: string) => any, // Returns { historical: { date: Date, price: number }[] }
-        rates: ExchangeRates
+        rates: ExchangeRates,
+        initialRates?: Record<string, number>
     ): {
         gain: MultiCurrencyValue,
         initialValue: MultiCurrencyValue,
         finalValue: MultiCurrencyValue,
         gainPct: number
     } {
-        const initialVal = new MultiCurrencyValue(0, 0);
-        const finalVal = new MultiCurrencyValue(0, 0);
+        let initialVal = MultiCurrencyValue.zero();
+        let finalVal = MultiCurrencyValue.zero();
 
         // Ensure start of day
         const startTime = new Date(startDate).setUTCHours(0, 0, 0, 0);
@@ -549,8 +722,6 @@ export class Holding {
         const historyData = historyProvider(this.ticker);
         const getPriceAtDate = (date: Date): number => {
             if (!historyData?.historical) return 0;
-            // Find closest price on or before date? Or after?
-            // Usually "price at start date" means closing price of that day or previous available.
             const t = date.getTime();
             // Assuming sorted ascending
             // Find last point <= t
@@ -570,138 +741,94 @@ export class Holding {
         const lots = this._lots; // All lots
 
         for (const lot of lots) {
+            // Exclude Unvested Lots
+            if (!lot.isVested) continue;
+
             // 1. Filter: If sold before start date, it contributes nothing to this period's gain
             if (lot.soldDate && lot.soldDate.getTime() < startTime) continue;
 
             // 2. Initial Value
-            // If bought AFTER start date: Initial = Cost Basis (Value flowing in)
-            // If bought BEFORE start date: Initial = Market Value at Start Date
-
-            let lotInitialUSD = 0;
-            let lotInitialILS = 0;
+            let lotInitial = MultiCurrencyValue.zero();
 
             if (lot.date.getTime() >= startTime) {
-                // Bought during period
-                lotInitialUSD = lot.costTotal.valUSD || convertCurrency(lot.costTotal.amount, lot.costTotal.currency, Currency.USD, rates);
-                lotInitialILS = lot.costTotal.valILS || convertCurrency(lot.costTotal.amount, lot.costTotal.currency, Currency.ILS, rates);
+                // Bought during period -> Initial = Cost Basis
+                // Use stored USD/ILS values if available
+                const usd = lot.costTotal.valUSD || convertCurrency(lot.costTotal.amount, lot.costTotal.currency, Currency.USD, rates);
+                const ils = lot.costTotal.valILS || convertCurrency(lot.costTotal.amount, lot.costTotal.currency, Currency.ILS, rates);
+                lotInitial = new MultiCurrencyValue(usd, ils);
             } else {
-                // Held through start date
+                // Held through start date -> Initial = Market Value at Start Date
                 if (!priceAtStartFetched) {
                     priceAtStart = getPriceAtDate(startDate);
                     priceAtStartFetched = true;
                 }
 
                 if (priceAtStart <= 0) {
-                    // Missing history for start date, cannot calculate gain for this lot.
-                    // Skipping it ensures we don't have 0 Initial Value with >0 Final Value (infinite gain).
-                    continue;
+                    continue; // Missing history
                 }
 
                 // Val = Qty * PriceAtStart
-                // We need Price in USD and ILS. 
-                // Price usually in Stock Currency.
                 const valSC = lot.qty * priceAtStart;
-                lotInitialUSD = convertCurrency(valSC, this.stockCurrency, Currency.USD, rates);
-                lotInitialILS = convertCurrency(valSC, this.stockCurrency, Currency.ILS, rates);
+
+                // Use initialRates if provided, otherwise current rates fallback
+                const ratesToUse = initialRates || rates.current;
+
+                // Construct synthetic rates for conversion
+                const synthRates: ExchangeRates = { ...rates, current: ratesToUse };
+
+                lotInitial = new MultiCurrencyValue(
+                    convertCurrency(valSC, this.stockCurrency, Currency.USD, synthRates),
+                    convertCurrency(valSC, this.stockCurrency, Currency.ILS, synthRates)
+                );
             }
 
-            initialVal.valUSD += lotInitialUSD;
-            initialVal.valILS += lotInitialILS;
+            initialVal = initialVal.add(lotInitial);
 
             // 3. Final Value
-            // If sold during period: Final = Proceeds (Realized Value)
-            // If active: Final = Current Market Value
-
-            let lotFinalUSD = 0;
-            let lotFinalILS = 0;
+            let lotFinal = MultiCurrencyValue.zero();
 
             if (lot.soldDate) {
-                // Sold during period (we already filtered sold-before-start)
-                // Proceeds
-                // we need proceedsTotal for this Lot?
-                // Lot doesn't strictly store 'proceedsTotal' directly, it stores 'soldPricePerUnit' * qty?
-                // We computed it in handleSell but stored only Net Gain usually.
-                // Reconstruct proceeds:
-                // We know soldDate, quantity (lot.qty is sold qty for realized lots).
-                // Wait, `lot.qty` is the quantity of the lot. 
-                // `handleSell` creates a new lot for sold portion.
-                // So reliable: `quantity * soldPrice`.
-                // But we don't store `soldPrice` on the lot easily accessible except `soldPricePerUnit`?
-                // Actually `handleSell` DOES set `soldPricePerUnit`?
-                // Checking `handleSell`... it DOES NOT set `soldPricePerUnit` explicitly on the lot! 
-                // It calculates `proceedsPC` and sets `realizedGainNet`.
-                // It does NOT store the gross proceeds persistently on the lot object in `handleSell`.
-
-                // PROBLEM: We need Gross Proceeds for "Final Value".
-                // We have `realizedGainNet`, `costTotal`, `fees`?
-                // Proceeds = Cost + NetGain + Fees + SoldFees?
-                // Yes.
+                // Sold during period -> Final = Proceeds
                 const costPC = lot.costTotal.amount;
                 const netGainPC = lot.realizedGainNet || 0;
                 const buyFeePC = lot.feesBuy.amount;
                 const sellFeePC = lot.soldFees?.amount || 0;
 
-                // PC Amount
                 const proceedsPC = costPC + netGainPC + buyFeePC + sellFeePC;
 
-                // Convert PC to USD/ILS
-                lotFinalUSD = convertCurrency(proceedsPC, this.portfolioCurrency, Currency.USD, rates);
-                lotFinalILS = convertCurrency(proceedsPC, this.portfolioCurrency, Currency.ILS, rates);
+                // Use current rates for realized proceeds
+                lotFinal = new MultiCurrencyValue(
+                    convertCurrency(proceedsPC, this.portfolioCurrency, Currency.USD, rates),
+                    convertCurrency(proceedsPC, this.portfolioCurrency, Currency.ILS, rates)
+                );
 
             } else {
-                // Active
-                const currentPrice = this.currentPrice; // Live price
+                // Active -> Final = Current Market Value
+                const currentPrice = this.currentPrice;
                 const valSC = lot.qty * currentPrice;
-                lotFinalUSD = convertCurrency(valSC, this.stockCurrency, Currency.USD, rates);
-                lotFinalILS = convertCurrency(valSC, this.stockCurrency, Currency.ILS, rates);
+                lotFinal = new MultiCurrencyValue(
+                    convertCurrency(valSC, this.stockCurrency, Currency.USD, rates),
+                    convertCurrency(valSC, this.stockCurrency, Currency.ILS, rates)
+                );
             }
 
-            finalVal.valUSD += lotFinalUSD;
-            finalVal.valILS += lotFinalILS;
+            finalVal = finalVal.add(lotFinal);
         }
 
-        const gain = finalVal.sub(initialVal);
+        let gain = finalVal.sub(initialVal);
 
-        // Add Dividends received during period?
-        // Logic says: "Value Gain" usually includes dividends.
-        // For each dividend: if date >= startDate, add to Final Value (as it's cash flowing out/received).
-        // Initial Value of dividend is 0 (it's generated).
+        // Add Dividends received during period
         for (const div of this._dividends) {
             if (div.date.getTime() >= startTime) {
-                // Add Gross or Net?
-                // "Value Gain" -> usually Gross Dividend (before tax) or Net?
-                // User said "compute the value gain... simailar logic that HoldingDetails use".
-                // HoldingDetails uses Net usually for "Realized Gain".
-                // Let's use Net Amount PC for consistency with Realized Gain being Net.
-                // Or maybe Gross?
-                // If we want "Performance", TWR uses Gross + Reinvest.
-                // If we want "My Pocket Gain", Net is better.
-                // Let's use Net Amount PC.
-                const divUSD = convertCurrency(div.netAmountPC, this.portfolioCurrency, Currency.USD, rates);
-                const divILS = convertCurrency(div.netAmountPC, this.portfolioCurrency, Currency.ILS, rates);
+                const divVal = new MultiCurrencyValue(
+                    convertCurrency(div.netAmountPC, this.portfolioCurrency, Currency.USD, rates),
+                    convertCurrency(div.netAmountPC, this.portfolioCurrency, Currency.ILS, rates)
+                );
 
-                finalVal.valUSD += divUSD;
-                finalVal.valILS += divILS;
-                gain.valUSD += divUSD;
-                gain.valILS += divILS;
+                finalVal = finalVal.add(divVal);
+                gain = gain.add(divVal);
             }
         }
-
-    // Pct Gain
-    // If initial value is 0 (e.g. started from 0 with no cost basis? or just bought today), handle gracefully.
-    // We use USD for Pct calculation standardization, or return separate Pcts?
-    // User said: "compute a currency adjusted pct gain in each currency according to its current value. We will display the relevant one."
-    // So we need Pct per currency?
-    // The return type has single `gainPct`.
-    // Let's provide a helper to choose. Or we return MultiCurrencyValue Pct?
-    // But simplified: Pct is usually unified if FX neutral, but here FX matters.
-    // Let's calculate Pct based on Portfolio Preference?
-    // Actually, let's just use USD as default for "Global" or rely on caller to pick.
-    // But typically we display in "Display Currency".
-    // Let's calculate gainPct as:
-    // (Gain in Display / Initial in Display).
-    // Since we don't know Display Currency here (we have USD/ILS), we can expose method to get fractional gain.
-    // Let's just return the MultiValues. The caller will convert Gain and Initial to Display and divide.
 
         return {
             gain,

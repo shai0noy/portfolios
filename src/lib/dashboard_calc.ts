@@ -1,36 +1,12 @@
 
 import { Currency } from './types';
-import type { DashboardHolding, DashboardSummaryData, Portfolio, ExchangeRates } from './types';
+import type { DashboardHolding, DashboardHoldingDisplay, DashboardSummaryData, Portfolio, ExchangeRates } from './types';
 import { convertCurrency, calculatePerformanceInDisplayCurrency } from './currencyUtils';
 import { INITIAL_SUMMARY, FinanceEngine } from './data/engine';
 import type { Lot, DividendRecord } from './data/model';
 import type { Transaction } from './types';
 
-export interface DashboardHoldingDisplay {
-  marketValue: number;
-  unrealizedGain: number;
-  unrealizedGainPct: number;
-  realizedGain: number;
-  realizedGainPct: number;
-  realizedGainAfterTax: number;
-  totalGain: number;
-  totalGainPct: number;
-  valueAfterTax: number;
-  dayChangeVal: number;
-  dayChangePct: number;
-  costBasis: number;
-  costOfSold: number;
-  proceeds: number;
-  dividends: number;
-  currentPrice: number;
-  avgCost: number;
-  weightInPortfolio: number;
-  weightInGlobal: number;
-  unvestedValue: number;
 
-  // Tax/Inflation
-  inflationAdjustedCost?: number; // Portfolio Currency
-}
 
 export interface EnrichedDashboardHolding extends DashboardHolding {
   display: DashboardHoldingDisplay;
@@ -69,58 +45,71 @@ export function calculateDashboardSummary(data: any[], displayCurrency: string, 
     const unrealizedGain = convertCurrency(unrealizedGainVestedVal, h.portfolioCurrency, displayCurrency, exchangeRates);
 
     // dividendsTotal is now SimpleMoney (PC)
-    const dividends = convertCurrency(h.dividendsTotal.amount, h.dividendsTotal.currency, displayCurrency, exchangeRates);
+    // dividendsTotal is Net (Pocket).
+    // derived Gross Dividends
+    const dividendsNet = convertCurrency(h.dividendsTotal.amount, h.dividendsTotal.currency, displayCurrency, exchangeRates);
 
-    // realizedGainNet is SimpleMoney (PC) - PRE-TAX (Gross of Tax)
-    const realizedGainFromSells = convertCurrency(h.realizedGainNet.amount, h.realizedGainNet.currency, displayCurrency, exchangeRates);
+    // Sum Gross Dividends from records
+    // Use (h as any)._dividends if available, else fallback to net + tax (approx if fee is 0)
+    const rawDivs = ((h as any)._dividends || []) as DividendRecord[];
+    let dividendsGross = 0;
+    let dividendsTax = 0;
 
-    // Calculate Dividend Tax for adjustment
+    // Helper to calc tax display
     const divTaxToDeduct = (h as any)._dividends
       ? (h as any)._dividends.reduce((acc: number, d: any) => acc + (d.taxAmountPC || 0), 0)
       : 0;
     const divTaxDisplay = convertCurrency(divTaxToDeduct, h.portfolioCurrency, displayCurrency, exchangeRates);
 
-    // Gross Dividends (Pre-Tax)
-    const dividendsGross = dividends + divTaxDisplay;
+    if (rawDivs.length > 0) {
+      dividendsGross = rawDivs.reduce((sum, d) => sum + convertCurrency(d.grossAmount.amount, d.grossAmount.currency, displayCurrency, exchangeRates), 0);
+      dividendsTax = rawDivs.reduce((sum, d) => sum + convertCurrency(d.taxAmountPC, h.portfolioCurrency, displayCurrency, exchangeRates), 0);
+    } else {
+      // Fallback
+      dividendsTax = divTaxDisplay;
+      dividendsGross = dividendsNet + dividendsTax;
+    }
 
-    // Realized Gain (Gross) = Realized Sell Gain (Gross) + Dividends (Gross)
-    const realizedGain = realizedGainFromSells + dividendsGross;
+    // Realized Gain from Sells (Pre-Fee, Pre-Tax) = Proceeds - CostOfSold
+    // proceedsTotal and costOfSoldTotal are available
+    const proceedsDisplay = convertCurrency(h.proceedsTotal.amount, h.proceedsTotal.currency, displayCurrency, exchangeRates);
+    const costOfSoldDisplay = convertCurrency(h.costOfSoldTotal.amount, h.costOfSoldTotal.currency, displayCurrency, exchangeRates);
+    const realizedSellsGross = proceedsDisplay - costOfSoldDisplay;
 
-    // costOfSoldTotal is SimpleMoney (PC)
-    const costOfSold = convertCurrency(h.costOfSoldTotal.amount, h.costOfSoldTotal.currency, displayCurrency, exchangeRates);
+    // Realized Gain (Gross) for UI = Sells Gross + Divs Gross
+    // Label "Realized" will use this.
+    const realizedGainGross = realizedSellsGross + dividendsGross;
 
-    // feesTotal is SimpleMoney (PC)
-    // Standard Definition: Gain = Ending Value + Proceeds - Inflows (Cost Basis + Fees Paid for Active).
-    // Robust: Total Gain = marketValue + proceeds + dividends - costBasis - costOfSold - totalFees.
-    // All in Display Currency.
+    // Net Realized = (Sells Net of Fee - Sells Tax) + (Divs Net - [Divs Tax is already deducted in Net])
+    // Wait, Divs Net IS Net.
+    // Sells Net of Fee = h.realizedGainNet (Pre-Tax)
+    const realizedSellsNetFee = convertCurrency(h.realizedGainNet.amount, h.realizedGainNet.currency, displayCurrency, exchangeRates);
+    const realizedSellsTax = convertCurrency(h.realizedCapitalGainsTax || 0, h.portfolioCurrency, displayCurrency, exchangeRates);
 
-    const proceedsPC = h.proceedsTotal.amount; // PC
-    const proceedsDisplay = convertCurrency(proceedsPC, h.portfolioCurrency, displayCurrency, exchangeRates);
+    const realizedSellsNet = realizedSellsNetFee - realizedSellsTax;
 
-    const feesTotalDisplay = convertCurrency(h.feesTotal.amount, h.feesTotal.currency, displayCurrency, exchangeRates);
+    // Net Realized Total = Sells Net + Divs Net
+    const realizedGainNet = realizedSellsNet + dividendsNet;
+
+    // costBasisDisplay was calculated above (line 101).
     const costBasisDisplay = convertCurrency(cbVested.amount, cbVested.currency, displayCurrency, exchangeRates);
 
-    // Note: marketValue is Vested. proceeds is Realized. dividends is Realized.
-    // costBasis is Vested. costOfSold is Realized.
-    // feesTotal is All (Active + Realized).
-    // So this formula works for specific "Life of Holding" gain?
-    // Using Gross Dividends for Total Return (Pre-Tax)
-    const totalGain = marketValue + proceedsDisplay + dividendsGross - costBasisDisplay - costOfSold - feesTotalDisplay;
+    // Total Gain = Unrealized (Gross) + Realized (Gross)
+    // "Gross" here means Pre-Tax, Pre-Fee.
+    // Unrealized Gain is MV - Cost (Pre-Fee, Pre-Tax).
+    const totalGain = unrealizedGain + realizedGainGross;
 
     const realizedTaxDisplay = convertCurrency(h.totalTaxPaidPC, h.portfolioCurrency, displayCurrency, exchangeRates);
     const unrealizedTaxDisplay = convertCurrency(h.unrealizedTaxLiabilityILS, Currency.ILS, displayCurrency, exchangeRates);
 
-    // Value After Tax (Net Liquidation Value) = Market Value - Unrealized Tax Liability
+    // Value After Tax
     const valueAfterTax = marketValue - unrealizedTaxDisplay;
 
-    // Realized Gain After Tax = Realized Gain (Gross) - Total Tax Paid
-    const realizedGainAfterTax = realizedGain - realizedTaxDisplay;
+    // Realized Gain After Tax (Legacy field, might be redundant with realizedGainNet, but keeping for compatibility)
+    const realizedGainAfterTax = realizedGainNet;
 
     // Also explicitly map realizedTax for the Dashboard Table (EnrichedDashboardHolding)
-    // We use the Total Tax Paid (CGT + Inc + Div)
     const realizedTax = realizedTaxDisplay;
-
-    const costBasis = costBasisDisplay;
 
     const unvestedVal = convertCurrency(h.marketValueUnvested.amount, h.marketValueUnvested.currency, displayCurrency, exchangeRates);
 
@@ -134,25 +123,30 @@ export function calculateDashboardSummary(data: any[], displayCurrency: string, 
 
     const display: DashboardHoldingDisplay = {
       marketValue,
-      unrealizedGain,
-      unrealizedGainPct: costBasis > 0 ? unrealizedGain / costBasis : 0,
-      realizedGain,
-      realizedGainPct: costOfSold > 0 ? realizedGain / costOfSold : 0,
+      unrealizedGain, // Use definition from line 69
+      unrealizedGainPct: costBasisDisplay > 0 ? unrealizedGain / costBasisDisplay : 0,
+      realizedGain: realizedGainGross,
+      realizedGainGross,
+      realizedGainNet,
+      // realizedGainPct: yield on SOLD portion only (pure trade performance)
+      realizedGainPct: costOfSoldDisplay > 0 ? realizedSellsGross / costOfSoldDisplay : 0, 
       realizedGainAfterTax,
       totalGain,
-      totalGainPct: (costBasis + costOfSold) > 0 ? totalGain / (costBasis + costOfSold) : 0,
+      totalGainPct: (costBasisDisplay + costOfSoldDisplay) > 0 ? totalGain / (costBasisDisplay + costOfSoldDisplay) : 0,
       valueAfterTax,
       dayChangeVal,
       dayChangePct,
-      costBasis,
-      costOfSold,
-      proceeds: convertCurrency(h.proceedsTotal.amount, h.proceedsTotal.currency, displayCurrency, exchangeRates),
-      dividends,
+      costBasis: costBasisDisplay,
+      costOfSold: costOfSoldDisplay,
+      proceeds: proceedsDisplay,
+      dividends: dividendsNet, // Net
       currentPrice: convertCurrency(h.currentPrice, h.stockCurrency, displayCurrency, exchangeRates),
-      avgCost: h.qtyVested > 0 ? convertCurrency(cbVested.amount / h.qtyVested, cbVested.currency, displayCurrency, exchangeRates) : 0,
-      weightInPortfolio: 0,
+      avgCost: h.qtyVested > 0 ? costBasisDisplay / h.qtyVested : 0,
+      weightInPortfolio: 0, 
       weightInGlobal: 0,
-      unvestedValue: unvestedVal
+      unvestedValue: unvestedVal,
+      realizedTax: realizedTaxDisplay,
+      unrealizedTax: unrealizedTaxDisplay
     };
 
     const pName = portfoliosMap.get(h.portfolioId)?.name || h.portfolioId;

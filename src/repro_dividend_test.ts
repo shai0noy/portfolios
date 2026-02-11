@@ -1,6 +1,7 @@
 console.log("Starting script...");
 import { FinanceEngine } from './lib/data/engine';
-import { Portfolio, Currency, Exchange, Transaction, ExchangeRates } from './lib/types';
+import type { Portfolio, Transaction, ExchangeRates } from './lib/types';
+import { Currency, Exchange } from './lib/types';
 
 const mockExchangeRates: ExchangeRates = {
     current: {
@@ -212,7 +213,7 @@ function runTestSales(p: Portfolio, tBuy: Transaction, tSell: Transaction, label
 
                 // --- Global Summary Verification ---
                 console.log('\n--- Verification: Global Summary ---');
-                const summary = engine.getGlobalSummary('ILS', null);
+                const summary = engine.getGlobalSummary('ILS', undefined);
                 console.log('Global Summary Tax Paid:', summary.totalTaxPaid);
                 console.log('Global Summary Total Realized:', summary.totalRealized);
                 console.log('Global Summary Realized Gain After Tax:', summary.realizedGainAfterTax);
