@@ -299,14 +299,44 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                         {isStale && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>{t('Data is from', 'הנתונים מתאריך')}: {formatDate(dataTimestamp)}</Typography>}
                         <Typography variant="subtitle2" gutterBottom>{t('Performance', 'ביצועים')}</Typography>
                         <Box display="flex" flexWrap="wrap" gap={1} sx={{ mb: 2 }}>
-                            {Object.entries(perfData).map(([range, item]) => item && (
-                            <Tooltip key={range} title={item.date ? `Since ${formatDate(item.date)}` : ''} arrow enterTouchDelay={0} leaveTouchDelay={3000}>
+                        {(() => {
+                          const getDuration = (p: string) => {
+                            const now = new Date();
+                            switch (p) {
+                              case '1D': return 1;
+                              case '1W': return 7;
+                              case '1M': return 30;
+                              case '3M': return 90;
+                              case '6M': return 180;
+                              case 'YTD':
+                                const startOfYear = new Date(now.getFullYear(), 0, 1);
+                                return (now.getTime() - startOfYear.getTime()) / (1000 * 60 * 60 * 24);
+                              case '1Y': return 365;
+                              case '3Y': return 365 * 3;
+                              case '5Y': return 365 * 5;
+                              case 'Max': return 36500;
+                              default:
+                                // Handle "XD" format (e.g. "5D")
+                                if (p.endsWith('D')) {
+                                  const days = parseInt(p.slice(0, -1), 10);
+                                  if (!isNaN(days)) return days;
+                                }
+                                return 99999;
+                            }
+                          };
+
+                          return Object.entries(perfData)
+                            .filter(([_, item]) => item != null)
+                            .sort(([rangeA], [rangeB]) => getDuration(rangeA) - getDuration(rangeB))
+                            .map(([range, item]) => item && (
+                              <Tooltip key={range} title={item.date ? `Since ${formatDate(item.date)}` : ''} arrow enterTouchDelay={0} leaveTouchDelay={3000}>
                                 <Chip variant="outlined" size="small" sx={{ minWidth: 78, py: 0.5, px: 0.75, height: 'auto', color: item.val > 0 ? 'success.main' : item.val < 0 ? 'error.main' : 'text.primary', '& .MuiChip-label': { display: 'flex', flexDirection: 'column', alignItems: 'center' } }}
-                                label={<><Typography variant="caption" color="text.secondary">{translateRange(range)}</Typography><Typography variant="body2" sx={{ fontWeight: 600 }}>{formatPercent(item.val)}</Typography></>}
+                                  label={<><Typography variant="caption" color="text.secondary">{translateRange(range)}</Typography><Typography variant="body2" sx={{ fontWeight: 600 }}>{formatPercent(item.val)}</Typography></>}
                                 />
-                            </Tooltip>
-                                                                            ))}
-                                                                        </Box>
+                              </Tooltip>
+                                    ));
+                        })()}
+                      </Box>
                                                 
                                                                         {historicalData && historicalData.length > 0 && (                            <>
                             <Box display="flex" justifyContent="flex-start" alignItems="center" gap={1} flexWrap="wrap">

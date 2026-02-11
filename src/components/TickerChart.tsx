@@ -606,6 +606,47 @@ export function TickerChart({ series, currency, mode = 'percent', height = 300 }
     // is outside the visible range.
     const clampedOffset = Math.max(0, Math.min(1, offset));
 
+    const yTicks = useMemo(() => {
+        // If 0 is not in the visible range, let Recharts handle ticks automatically
+        if (yMin > 0 || yMax < 0) return undefined;
+
+        // If 0 is in range, we want to ensure a tick at 0
+        const range = yMax - yMin;
+        if (range === 0) return [0];
+
+        const targetTickCount = 5;
+        const rawStep = range / targetTickCount;
+        const mag = Math.pow(10, Math.floor(Math.log10(rawStep)));
+        let step = Math.ceil(rawStep / mag) * mag; // e.g. 0.1, 1, 10...
+
+        // Adjust step to be "nice" (multiples of 1, 2, 5)
+        if (step / mag < 1.5) step = 1 * mag;
+        else if (step / mag < 3.5) step = 2 * mag;
+        else if (step / mag < 7.5) step = 5 * mag;
+        else step = 10 * mag;
+
+        const ticks: number[] = [];
+        ticks.push(0);
+
+        // Add positive ticks
+        let curr = step;
+        while (curr <= yMax) {
+            ticks.push(curr);
+            curr += step;
+        }
+
+        // Add negative ticks
+        curr = -step;
+        while (curr >= yMin) {
+            ticks.unshift(curr);
+            curr -= step;
+        }
+
+        return ticks;
+    }, [yMin, yMax]);
+
+    const showZeroLine = yMin <= 0 && yMax >= 0;
+
     return (
         <Box sx={{
             width: '100%',
@@ -651,9 +692,19 @@ export function TickerChart({ series, currency, mode = 'percent', height = 300 }
                         tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
                         dx={3}
                         domain={[yMin, yMax]}
+                        ticks={yTicks}
                     />
                     <Tooltip content={<CustomTooltip currency={currency} t={t} basePrice={basePrice} isComparison={isComparison} series={displaySeries} mode={mode} />} />
-                    <ReferenceLine y={threshold} stroke={theme.palette.text.secondary} strokeDasharray="3 3" />
+
+                    {/* Zero line (solid, semi-opaque) - only if 0 is in range */}
+                    {showZeroLine && (
+                        <ReferenceLine y={0} stroke={theme.palette.text.secondary} strokeOpacity={0.4} strokeWidth={1} />
+                    )}
+
+                    {/* Threshold line (dashed) - used for base price in price mode. Avoid if it duplicates 0 (which is covered above) */}
+                    {threshold !== 0 && (
+                        <ReferenceLine y={threshold} stroke={theme.palette.text.secondary} strokeDasharray="3 3" />
+                    )}
                     
                     {displaySeries.slice(1).map((s, i) => (
                         <Line
