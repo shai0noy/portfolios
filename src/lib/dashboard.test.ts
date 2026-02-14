@@ -15,7 +15,7 @@ const mockRates: ExchangeRates = {
 const mockPortfolios = new Map<string, Portfolio>();
 mockPortfolios.set('p1', {
     id: 'p1', name: 'US Portfolio', currency: Currency.USD,
-    taxPolicy: 'REAL_GAIN', cgt: 0.25, incTax: 0.25,
+    taxPolicy: 'IL_REAL_GAIN', cgt: 0.25, incTax: 0.25,
     commRate: 0, commMin: 0, commMax: 0, divCommRate: 0,
     holdings: []
 } as unknown as Portfolio);

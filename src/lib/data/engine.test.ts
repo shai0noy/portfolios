@@ -21,7 +21,7 @@ const portfolio: Portfolio = {
     cgt: 0.25, incTax: 0,
     commRate: 0, commMin: 0, commMax: 0,
     divPolicy: 'cash_taxed', divCommRate: 0,
-    taxPolicy: 'REAL_GAIN',
+    taxPolicy: 'IL_REAL_GAIN',
     mgmtVal: 0, mgmtType: 'percentage', mgmtFreq: 'yearly',
     feeHistory: [
         { startDate: '2023-01-01', divCommRate: 0.1, commRate: 0, commMin: 0, commMax: 0, mgmtVal: 0, mgmtType: 'percentage', mgmtFreq: 'yearly' }, 
@@ -64,7 +64,7 @@ describe('FinanceEngine', () => {
     });
 
     it('calculates real gain tax with inflation', () => {
-        const ilPortfolio: Portfolio = { ...portfolio, id: 'p2', currency: Currency.ILS, taxPolicy: 'REAL_GAIN' };
+        const ilPortfolio: Portfolio = { ...portfolio, id: 'p2', currency: Currency.ILS, taxPolicy: 'IL_REAL_GAIN' };
         // Rates: USD=3.5 in 2023, USD=4.0 in 2024.
         const engine = new FinanceEngine([ilPortfolio], mockRates as any, mockCPI as any);
 

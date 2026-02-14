@@ -27,7 +27,7 @@ const mockPortfolioILS: Portfolio = {
     commMax: 0,
     divPolicy: 'cash_taxed',
     divCommRate: 0,
-    taxPolicy: 'REAL_GAIN'
+    taxPolicy: 'IL_REAL_GAIN'
 };
 
 const txnBuy: Transaction = {
@@ -70,7 +70,7 @@ const mockPortfolioIncomeTax: Portfolio = {
     name: 'Test Income Tax',
     currency: Currency.ILS, // Using ILS portfolio to make math easy (or hard depending on conversion)
     incTax: 0.5, // 50% Income Tax on Grant Value
-    taxPolicy: 'REAL_GAIN'
+    taxPolicy: 'IL_REAL_GAIN'
 };
 
 const txnBuyIT: Transaction = {

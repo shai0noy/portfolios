@@ -19,7 +19,7 @@ const portfolio: Portfolio = {
     cgt: 0.25, incTax: 0,
     commRate: 0, commMin: 0, commMax: 0,
     divPolicy: 'cash_taxed', divCommRate: 0,
-    taxPolicy: 'REAL_GAIN',
+    taxPolicy: 'IL_REAL_GAIN',
     mgmtVal: 0, mgmtType: 'percentage', mgmtFreq: 'yearly',
     feeHistory: []
 };

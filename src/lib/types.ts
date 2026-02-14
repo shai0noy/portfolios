@@ -347,7 +347,7 @@ export interface Portfolio {
   feeHistory?: FeeHistoryEntry[];
 }
 
-export type TaxPolicy = 'TAX_FREE' | 'REAL_GAIN' | 'NOMINAL_GAIN' | 'PENSION';
+export type TaxPolicy = 'TAX_FREE' | 'IL_REAL_GAIN' | 'NOMINAL_GAIN' | 'PENSION';
 
 export interface SheetHolding {
   portfolioId: string;
@@ -435,7 +435,7 @@ export const PORTFOLIO_TEMPLATES: Record<string, Partial<Portfolio>> = {
     mgmtType: 'percentage',
     mgmtFreq: 'yearly',
     divCommRate: 0,
-    taxPolicy: 'REAL_GAIN'
+    taxPolicy: 'IL_REAL_GAIN'
   },
   'std_us': {
     cgt: 0.25,
@@ -462,7 +462,7 @@ export const PORTFOLIO_TEMPLATES: Record<string, Partial<Portfolio>> = {
     mgmtType: 'percentage',
     mgmtFreq: 'yearly',
     divCommRate: 0,
-    taxPolicy: 'REAL_GAIN'
+    taxPolicy: 'IL_REAL_GAIN'
   },
   'hishtalmut': {
     cgt: 0,

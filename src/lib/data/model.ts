@@ -582,7 +582,7 @@ export class Holding {
 
             if (taxPolicy === 'TAX_FREE') {
                 taxableGainILS = 0;
-            } else if (taxPolicy === 'REAL_GAIN') {
+            } else if (taxPolicy === 'IL_REAL_GAIN') {
                 // Synthesize Historical Rates for Real Gain Calculation
                 let calcRates = rates;
                 if (proceedsSC > 0 && proceedsILS > 0) {

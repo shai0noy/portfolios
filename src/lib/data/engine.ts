@@ -221,7 +221,19 @@ export class FinanceEngine {
                 const stockCurrency = normalizeCurrency(t.currency || (exchange === Exchange.TASE ? Currency.ILA : Currency.USD));
 
                 const h = this.getHolding(t.portfolioId, t.ticker, exchange, stockCurrency);
-                h.addTransaction(t, this.exchangeRates, this.cpiData, p);
+
+                // Try to use historical rates for the transaction date if available
+                // This ensures that synthesized Cost Basis (e.g. USD from ILS) uses the correct historical rate
+                let txnRates = this.exchangeRates;
+                // t.date is YYYY-MM-DD string
+                if (t.date && this.exchangeRates[t.date]) {
+                    txnRates = {
+                        ...this.exchangeRates,
+                        current: this.exchangeRates[t.date] as Record<string, number>
+                    };
+                }
+
+                h.addTransaction(t, txnRates, this.cpiData, p);
             }
         });
 
@@ -595,7 +607,7 @@ export class FinanceEngine {
                         // TAX ON BASE PRICE (Wealth Tax / Turnover Tax)
                         // Tax is applied to the full market value, not just the gain.
                         taxableILS = mvILS;
-                    } else if (taxPolicy === 'REAL_GAIN') {
+                    } else if (taxPolicy === 'IL_REAL_GAIN') {
                         // REAL GAIN POLICY (Inflation Adjusted)
                         // Domestic: Nominal Gain adjusted for CPI. Includes "Never Lose" protection (if Deflation, Taxable Gain is capped at Nominal).
                         // Foreign: "Never Lose" Rule -> Min(Nominal Gain in ILS, Real Gain in ILS).
@@ -693,13 +705,13 @@ export class FinanceEngine {
             const unrealizedGain = convertCurrency(h.unrealizedGain.amount, h.unrealizedGain.currency, displayCurrency, this.exchangeRates);
             
             // Inflation Adjusted Cost?
-            // If Tax Policy is REAL_GAIN, we can calc it.
+            // If Tax Policy is IL_REAL_GAIN, we can calc it.
             // inflationAdjCost = Cost * (CurrentCPI / CPI_Buy)
             // But we have multiple lots.
             // We can sum them up here or per lot.
             let inflationAdjustedCost: number | undefined;
             const p = this.portfolios.get(h.portfolioId);
-            if (p?.taxPolicy === 'REAL_GAIN' && this.cpiData) {
+            if (p?.taxPolicy === 'IL_REAL_GAIN' && this.cpiData) {
                 const currentCPI = getCPI(new Date(), this.cpiData);
                 // Iterate active lots
                 let totalInfCostPC = 0;

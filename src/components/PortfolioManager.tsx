@@ -20,7 +20,7 @@ import { addPortfolio, fetchPortfolios, updatePortfolio } from '../lib/sheets/in
 import { useLanguage } from '../lib/i18n';
 
 const taxPolicyNames: { [key: string]: string } = {
-  REAL_GAIN: "Israel (Real Gain - Inflation Adjusted)",
+  IL_REAL_GAIN: "Israel (Real Gain - Inflation Adjusted)",
   NOMINAL_GAIN: "Fixed (Nominal Gain)",
   TAX_FREE: "Tax Free (Gemel/Hishtalmut)",
   PENSION: "Pension (Income Taxed)"
@@ -54,7 +54,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
     mgmtVal: 0, mgmtType: 'percentage', mgmtFreq: 'yearly',
     commRate: 0.001, commMin: 0, commMax: 0,
     divPolicy: 'cash_taxed', divCommRate: 0,
-    taxPolicy: 'REAL_GAIN'
+    taxPolicy: 'IL_REAL_GAIN'
   });
 
   useEffect(() => {
@@ -85,7 +85,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
         mgmtVal: 0, mgmtType: 'percentage', mgmtFreq: 'yearly',
         commRate: 0.001, commMin: 0, commMax: 0,
         divPolicy: 'cash_taxed', divCommRate: 0,
-        taxPolicy: 'REAL_GAIN'
+        taxPolicy: 'IL_REAL_GAIN'
       });
       setIdDirty(false);
     }
@@ -233,7 +233,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
       mgmtVal: 0, mgmtType: 'percentage', mgmtFreq: 'yearly',
       commRate: 0.001, commMin: 0, commMax: 0,
       divPolicy: 'cash_taxed', divCommRate: 0,
-      taxPolicy: 'REAL_GAIN'
+      taxPolicy: 'IL_REAL_GAIN'
     });
     setIdDirty(false);
     setShowNewPortfolioForm(false);
