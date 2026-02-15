@@ -1,4 +1,4 @@
-import { Box, Paper, Typography, Grid, Tooltip, ToggleButton, ToggleButtonGroup, IconButton, CircularProgress, Button, Menu, MenuItem, Chip, ListItemIcon, Dialog, DialogTitle, DialogContent } from '@mui/material';
+import { Box, Paper, Typography, Grid, Tooltip, ToggleButton, ToggleButtonGroup, IconButton, CircularProgress, Button, Menu, MenuItem, Chip, ListItemIcon, Dialog, DialogTitle, DialogContent, alpha } from '@mui/material';
 import { formatPercent, formatMoneyValue, normalizeCurrency, convertCurrency } from '../lib/currencyUtils';
 import { MultiCurrencyValue, getHistoricalRates } from '../lib/data/model';
 import { logIfFalsy, getValueColor } from '../lib/utils';
@@ -7,6 +7,8 @@ import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import { type ExchangeRates, type DashboardHolding, type Portfolio, Currency, type Transaction } from '../lib/types';
 import { useLanguage } from '../lib/i18n';
 import { useState, useEffect, useCallback, useRef, useMemo, type ReactNode } from 'react';
@@ -157,34 +159,56 @@ const TopMovers = ({ holdings, displayCurrency, exchangeRates }: { holdings: Das
         '1m': t('Monthly', 'חודשי')
     };
 
-    const MoverItem = ({ mover }: { mover: Mover }) => (
-        <Box
-            onClick={() => navigate(`/ticker/${mover.exchange.toUpperCase()}/${mover.ticker}`, { state: { holding: mover.holding, from: '/dashboard' } })}
-            sx={{
-                px: 1, py: 0.25,
-                border: '1px solid', borderColor: 'divider', borderRadius: 2,
-                mr: 0.5,
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                cursor: 'pointer',
-                transition: 'background-color 0.2s',
-                '&:hover': { bgcolor: 'action.hover' }
-            }}
-        >
-            <Tooltip title={mover.name} enterTouchDelay={0} leaveTouchDelay={3000}>
-                <Typography variant="body2" fontWeight="500" noWrap>
-                    {mover.ticker}
-                </Typography>
-            </Tooltip>
-            <Box textAlign="right" sx={{ ml: 1 }}>
-                <Typography variant="body2" color={mover.change >= 0 ? 'success.main' : 'error.main'} noWrap>
-                    {formatMoneyValue({ amount: mover.change, currency: normalizeCurrency(displayCurrency) }, undefined)}
-                    <span style={{ fontSize: '0.75rem', marginLeft: '4px', opacity: 0.8 }}>
-                        ({mover.pct > 0 ? '+' : ''}{formatPercent(mover.pct)})
-                    </span>
-                </Typography>
-            </Box>
-        </Box>
-    );
+    const MoverItem = ({ mover }: { mover: Mover }) => {
+        const isPositive = mover.change >= 0;
+        const color = isPositive ? 'success.main' : 'error.main';
+
+
+        return (
+            <Paper
+                variant="outlined"
+                onClick={() => navigate(`/ticker/${mover.exchange.toUpperCase()}/${mover.ticker}`, { state: { holding: mover.holding, from: '/dashboard' } })}
+                sx={{
+                    px: 1.5, py: 0.75,
+                    mr: 1,
+                    minWidth: 140,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    borderColor: 'divider',
+                    '&:hover': {
+                        borderColor: isPositive ? 'success.light' : 'error.light',
+                        bgcolor: (theme) => alpha(theme.palette[isPositive ? 'success' : 'error'].main, 0.04),
+                        transform: 'translateY(-1px)',
+                        boxShadow: 1
+                    }
+                }}
+            >
+                <Box display="flex" justifyContent="space-between" alignItems="center" mb={0.5}>
+                    <Tooltip title={mover.name} enterTouchDelay={0} leaveTouchDelay={3000}>
+                        <Typography variant="body2" fontWeight="bold" noWrap sx={{ maxWidth: 80 }}>
+                            {mover.ticker}
+                        </Typography>
+                    </Tooltip>
+                    {isPositive ?
+                        <TrendingUpIcon fontSize="small" color="success" sx={{ opacity: 0.8, fontSize: '1rem' }} /> :
+                        <TrendingDownIcon fontSize="small" color="error" sx={{ opacity: 0.8, fontSize: '1rem' }} />
+                    }
+                </Box>
+
+                <Box display="flex" alignItems="baseline" justifyContent="space-between">
+                    <Typography variant="body2" fontWeight="500" color={color}>
+                        {formatMoneyValue({ amount: mover.change, currency: normalizeCurrency(displayCurrency) }, undefined)}
+                    </Typography>
+                    <Typography variant="caption" color={color} sx={{ fontWeight: 'bold', opacity: 0.9 }}>
+                        {isPositive ? '+' : ''}{formatPercent(mover.pct)}
+                    </Typography>
+                </Box>
+            </Paper>
+        );
+    };
 
     const MoversRow = ({ period, isLast }: { period: TimePeriod, isLast: boolean }) => (
         <Box sx={{ display: 'flex', alignItems: 'center', py: 0.25, borderBottom: isLast ? 'none' : '1px solid', borderColor: 'divider' }}>
