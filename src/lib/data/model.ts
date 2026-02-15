@@ -82,6 +82,8 @@ export interface Lot {
     adjustedCost?: number; // Portfolio Currency (Active Lots only)
     adjustedCostILS?: number; // Always in ILS (Tax Basis - Rule Applied)
     realCostILS?: number; // Always in ILS (Pure Real Cost - No Rules)
+    unrealizedTaxableGainILS?: number; // The exact taxable gain calculated by the engine (ILS)
+    currentValueILS?: number; // Calculated value in ILS
     adjustmentDetails?: {
         label: string;
         percentage: number;
@@ -184,7 +186,18 @@ export function computeRealTaxableGain(
         // Take the Minimum of Nominal Gain (ILS) and Real Gain (Foreign -> ILS).
         // If Currency Devaluation (Inflationary) -> Real is Lower -> Pay Real.
         // If Currency Apprecation (Deflationary) -> Nominal is Lower -> Pay Nominal.
-        taxableGain = Math.min(taxableGain, realGainPC);
+
+        if (taxableGain > 0 && realGainPC > 0) {
+            taxableGain = Math.min(taxableGain, realGainPC);
+        } else if (taxableGain < 0 && realGainPC < 0) {
+            // Both are Losses. Recognized/Allowable Loss is the SMALLER loss (Conservative).
+            taxableGain = Math.max(taxableGain, realGainPC);
+        } else {
+            // Mixed (One is Gain, One is Loss).
+            // "Phantom Gain" or "Phantom Loss".
+            // Exempt from Tax. (No Gain, No Loss Recognized).
+            taxableGain = 0;
+        }
     }
     
     return taxableGain;
@@ -261,6 +274,7 @@ export class Holding {
     realizedIncomeTax: number;
     unrealizedTaxLiabilityILS: number;
     unrealizedTaxableGainILS: number;
+    realCostILS: number;
 
     private recalculateQty() {
         this.qtyVested = this._lots.reduce((acc, l) => acc + (l.isVested && !l.soldDate ? l.qty : 0), 0);
@@ -309,6 +323,7 @@ export class Holding {
         this.realizedIncomeTax = 0;
         this.unrealizedTaxLiabilityILS = 0;
         this.unrealizedTaxableGainILS = 0;
+        this.realCostILS = 0;
     }
 
     // --- Core Logic ---

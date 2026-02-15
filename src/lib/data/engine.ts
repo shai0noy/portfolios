@@ -762,6 +762,18 @@ export class FinanceEngine {
                     // We assume 'cgt' is the relevant rate for this taxable amount.
                     const lotTaxLiabilityILS = (taxableILS * cgt) + ((costILS + feesILS) * incTax);
                     lot.unrealizedTax = convertCurrency(lotTaxLiabilityILS, Currency.ILS, h.portfolioCurrency, this.exchangeRates);
+                    lot.unrealizedTaxableGainILS = taxableILS;
+                    lot.currentValueILS = mvILS;
+
+                    // Calculate Real Cost ILS for display
+                    if (isForeign) {
+                        // Foreign: Real Cost = Cost in Foreign Currency * Current Rate
+                        lot.realCostILS = convertCurrency(costSC + feesSC, h.stockCurrency, Currency.ILS, this.exchangeRates);
+                    } else {
+                        // Domestic: Real Cost = Cost adjusted for Inflation
+                        const inflationRate = (lot.cpiAtBuy > 0) ? (currentCPI / lot.cpiAtBuy) : 1;
+                        lot.realCostILS = (costILS + feesILS) * inflationRate;
+                    }
                 });
 
                 h.unrealizedTaxableGainILS = totalTaxableGainILS;
