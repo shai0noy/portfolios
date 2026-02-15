@@ -732,7 +732,11 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                                                                     <TableCell align="right" sx={{ bgcolor: 'background.paper' }}>
                                                                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5 }}>
                                                                             {t('Tax Liab.', 'חבות מס')}
-                                                                            <Tooltip title={t("Estimated Tax Liability. Includes Capital Gains Tax (on Realized + Unrealized) and Wealth Tax/Income Tax where applicable. Fees are deducted from taxable gain.", "חבות מס משוערת. כולל מס רווח הון (על מומש + לא ממומש) ומס יסף/הכנסה היכן שרלוונטי. עמלות מנוכות מהרווח החייב.")}>
+                                                                            <Tooltip
+                                                                                enterTouchDelay={0}
+                                                                                leaveTouchDelay={3000}
+                                                                                title={t("Estimated Tax Liability. Includes Capital Gains Tax (on Realized + Unrealized) and Wealth Tax/Income Tax where applicable. Fees are deducted from taxable gain.", "חבות מס משוערת. כולל מס רווח הון (על מומש + לא ממומש) ומס יסף/הכנסה היכן שרלוונטי. עמלות מנוכות מהרווח החייב.")}
+                                                                            >
                                                                                 <InfoOutlinedIcon sx={{ fontSize: '0.8rem', color: 'text.secondary', cursor: 'help' }} />
                                                                             </Tooltip>
                                                                         </Box>
@@ -742,13 +746,13 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                                                             </TableHead>
                                                             <TableBody>
                                                                 {groupedLayers.length === 0 && (
-                                                                    <TableRow><TableCell colSpan={10} align="center" sx={{ py: 3, color: 'text.secondary' }}>{t('No layers found.', 'לא נמצאו שכבות.')}</TableCell></TableRow>
+                                                                    <TableRow><TableCell colSpan={11} align="center" sx={{ py: 3, color: 'text.secondary' }}>{t('No layers found.', 'לא נמצאו שכבות.')}</TableCell></TableRow>
                                                                 )}
                                                                 {groupedLayers.map((group) => (
                                                                     <>
                                                                         {/* Portfolio Header Row */}
                                                                         <TableRow key={`header-${group.portfolioId}`} sx={{ bgcolor: 'action.hover' }}>
-                                                                        <TableCell colSpan={10} sx={{ py: 1, pl: 2 }}>
+                                                                            <TableCell colSpan={11} sx={{ py: 1, pl: 2 }}>
                                                                             <Typography variant="subtitle2" fontWeight="bold" color="primary">
                                                                                 {group.portfolioName}
                                                                             </Typography>
@@ -766,8 +770,12 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                                                                                 <TableCell>{formatDate(layer.date)}</TableCell>
                                                                                 <TableCell align="right">{formatNumber(layer.originalQty)}</TableCell>
                                                                                 <TableCell align="right">
-                                                                                    <Tooltip title={`${t('Sold:', 'נמכר:')} ${formatNumber(layer.soldQty)} (${formatPercent(soldPct)})`}>
-                                                                                        <Box display="inline-block" sx={{ cursor: 'help', textDecoration: 'underline dotted' }}>
+                                                                                    <Tooltip
+                                                                                        title={`${t('Sold:', 'נמכר:')} ${formatNumber(layer.soldQty)} (${formatPercent(soldPct)})`}
+                                                                                        enterTouchDelay={0}
+                                                                                        leaveTouchDelay={3000}
+                                                                                    >
+                                                                                        <Box component="span" sx={{ cursor: 'help', borderBottom: '1px dotted', borderColor: 'text.secondary', display: 'inline-block' }}>
                                                                                             {formatNumber(layer.remainingQty)}
                                                                                         </Box>
                                                                                     </Tooltip>
@@ -776,6 +784,8 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                                                                                 <TableCell align="right">
                                                                                     {displayCurrency !== Currency.ILS ? (
                                                                                         <Tooltip
+                                                                                            enterTouchDelay={0}
+                                                                                            leaveTouchDelay={3000}
                                                                                             title={
                                                                                                 <Box sx={{ p: 1 }}>
                                                                                                     <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>{t('Nominal Cost (ILS)', 'עלות נומינלית (ש"ח)')}</Typography>
@@ -788,9 +798,9 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                                                                                                 </Box>
                                                                                             }
                                                                                         >
-                                                                                            <span style={{ cursor: 'help', borderBottom: '1px dotted #999' }}>
+                                                                                            <Box component="span" sx={{ cursor: 'help', borderBottom: '1px dotted', borderColor: 'text.secondary', display: 'inline-block' }}>
                                                                                                 {formatValue(layer.originalCost, displayCurrency)}
-                                                                                            </span>
+                                                                                            </Box>
                                                                                         </Tooltip>
                                                                                     ) : (
                                                                                         formatValue(layer.originalCost, displayCurrency)
@@ -802,6 +812,8 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                                                                                         if (p?.taxPolicy === 'IL_REAL_GAIN') {
                                                                                             return (
                                                                                                 <Tooltip
+                                                                                                    enterTouchDelay={0}
+                                                                                                    leaveTouchDelay={3000}
                                                                                                     title={
                                                                                                         <Box sx={{ p: 1 }}>
                                                                                                             <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>{t('Adjusted Cost', 'עלות מתואמת')}</Typography>
@@ -818,15 +830,19 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                                                                                                         </Box>
                                                                                                     }
                                                                                                 >
-                                                                                                    <Box component="span" sx={{ cursor: 'help', borderBottom: '1px dotted', borderColor: 'text.secondary' }}>
+                                                                                                    <Box component="span" sx={{ cursor: 'help', borderBottom: '1px dotted', borderColor: 'text.secondary', display: 'inline-block' }}>
                                                                                                         {formatValue(layer.adjustedCostILS, Currency.ILS)}
                                                                                                     </Box>
                                                                                                 </Tooltip>
                                                                                             );
                                                                                         }
                                                                                         return (
-                                                                                            <Tooltip title={t('Not applicable for this tax policy (Nominal Gain applies)', 'לא רלוונטי למדיניות מס זו (חלק רווח נומינלי)')}>
-                                                                                                <span style={{ cursor: 'help', color: 'text.disabled' }}>-</span>
+                                                                                            <Tooltip
+                                                                                                title={t('Not applicable for this tax policy (Nominal Gain applies)', 'לא רלוונטי למדיניות מס זו (חלק רווח נומינלי)')}
+                                                                                                enterTouchDelay={0}
+                                                                                                leaveTouchDelay={3000}
+                                                                                            >
+                                                                                                <span style={{ cursor: 'help', color: 'text.disabled', borderBottom: '1px dotted', borderColor: 'text.disabled' }}>-</span>
                                                                                             </Tooltip>
                                                                                         );
                                                                                     })()}
@@ -849,6 +865,8 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
 
                                                                                         return (
                                                                                             <Tooltip
+                                                                                                enterTouchDelay={0}
+                                                                                                leaveTouchDelay={3000}
                                                                                                 title={
                                                                                                     <Box sx={{ p: 1 }}>
                                                                                                         {!isILS && (
@@ -869,7 +887,7 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                                                                                                     </Box>
                                                                                                 }
                                                                                             >
-                                                                                                <Box component="span" sx={{ cursor: 'help', borderBottom: '1px dotted', borderColor: 'text.secondary' }}>
+                                                                                                <Box component="span" sx={{ cursor: 'help', borderBottom: '1px dotted', borderColor: 'text.secondary', display: 'inline-block' }}>
                                                                                                     {valContent}
                                                                                                 </Box>
                                                                                             </Tooltip>
@@ -885,6 +903,8 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                                                                                 </TableCell>
                                                                                 <TableCell align="right" sx={{ color: 'text.secondary', cursor: 'help' }}>
                                                                                     <Tooltip
+                                                                                        enterTouchDelay={0}
+                                                                                        leaveTouchDelay={3000}
                                                                                         title={
                                                                                             <Box sx={{ p: 1 }}>
                                                                                                 <Typography variant="subtitle2" sx={{ mb: 1, textDecoration: 'underline' }}>{t('Tax Breakdown', 'פירוט מס')}</Typography>
@@ -904,7 +924,7 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                                                                                             </Box>
                                                                                         }
                                                                                     >
-                                                                                        <Box sx={{ borderBottom: '1px dotted', borderColor: 'text.secondary', display: 'inline-block' }}>
+                                                                                        <Box component="span" sx={{ borderBottom: '1px dotted', borderColor: 'text.secondary', display: 'inline-block', cursor: 'help' }}>
                                                                                             {formatValue(layer.realizedTax + layer.unrealizedTax, displayCurrency)}
                                                                                         </Box>
                                                                                     </Tooltip>
