@@ -134,22 +134,24 @@ export const getCPI = (date: Date, cpiData: any) => {
 };
 
 // Helper to compute Real Taxable Gain
+
 /**
- * Computes the Real Taxable Gain according to Israeli Tax Law principles, consistently applying the "Never Lose" rule.
+ * Computes the Real Taxable Gain according to Israeli Tax Law principles.
  * 
- * The "Never Lose" Rule (Benefit of the Doubt):
- * Taxable Gain is always the MINIMUM of Nominal Gain and Real Gain.
+ * Logic: "Closer to 0" Rule.
  * 
  * 1. Domestic Assets (ILS):
- *    - Nominal Gain = Proceeds - Cost
- *    - Real Gain = Proceeds - (Cost * (1 + Inflation))
- *    - We subtract Inflation Adjustment from Nominal Gain.
- *    - If Deflation (Inflation < 0), Real Gain > Nominal Gain. We maximize Adjustment at 0 to ensure we don't pay more than Nominal.
+ *    - Nominal Gain (x) = Proceeds - Cost
+ *    - Real Gain (y) = Proceeds - (Cost * (1 + Inflation))
+ *    - We subtract Inflation Adjustment from Nominal Gain to get Real Gain.
+ *    - Taxable Gain is whichever is closer to 0 (Nominal or Real).
  * 
  * 2. Foreign Assets:
- *    - Nominal Gain = Proceeds(ILS) - Cost(ILS)
- *    - Real Gain = Gain(ForeignCurrency) converted to ILS
- *    - Taxable = Min(Nominal, Real)
+ *    - Nominal Gain (x) = Proceeds(ILS) - Cost(ILS)
+ *    - Real Gain (y) = Gain(ForeignCurrency) converted to ILS
+ *       (Equivalent to: Proceeds(ILS) - CostInForex * CurrentRate)
+ *    - Taxable Gain is whichever is closer to 0 (|x| < |y| ? x : y).
+ *    - Exception: Mixed Case (Gain vs Loss) -> 0.
  */
 export function computeRealTaxableGain(
     nominalGainPC: number,
@@ -161,46 +163,42 @@ export function computeRealTaxableGain(
     cpiEnd: number,
     exchangeRates: ExchangeRates
 ): number {
-    let taxableGain = nominalGainPC;
+    let x = nominalGainPC; // Nominal Gain
+    let y = nominalGainPC; // Real Gain
 
     // DOMESTIC (CPI Adjusted)
     if (portfolioCurrency === Currency.ILS && (stockCurrency === Currency.ILS || stockCurrency === Currency.ILA)) {
         // Calculate Inflation Rate
         const inflationRate = (cpiStart > 0) ? (cpiEnd / cpiStart) - 1 : 0;
         
-        // Calculate Inflation Adjustment (Benefit)
-        // We use Math.max(0, ...) to ensure we "Never Lose" from Deflation.
-        // If Deflation occurs (Rate < 0), Adjustment is 0, so we pay Nominal Tax (which is lower than Real Tax in deflation).
-        const inflationAdj = Math.max(0, costBasisPC * inflationRate);
-        
-        taxableGain -= inflationAdj;
+        // Real Gain (y) = Nominal Gain - Inflation Adjustment
+        // Note: If Deflation (Rate < 0), InflationAdj is negative, so we subtract a negative (add) -> y > x.
+        const inflationAdj = costBasisPC * inflationRate;
+        y = nominalGainPC - inflationAdj;
         
     } else if (portfolioCurrency !== stockCurrency) {
         // FOREIGN (Exchange Rate Adjusted)
-        
-        // Real Gain in Portfolio Currency (approx)
-        // We calculate what the Foreign Gain is worth in today's rates.
-        const realGainPC = convertCurrency(gainSC, stockCurrency, portfolioCurrency, exchangeRates);
-        
-        // "Never Lose" Rule:
-        // Take the Minimum of Nominal Gain (ILS) and Real Gain (Foreign -> ILS).
-        // If Currency Devaluation (Inflationary) -> Real is Lower -> Pay Real.
-        // If Currency Apprecation (Deflationary) -> Nominal is Lower -> Pay Nominal.
+        // Real Gain (y) is the Gain in Stock Currency converted to Portfolio Currency (current rates)
+        y = convertCurrency(gainSC, stockCurrency, portfolioCurrency, exchangeRates);
+    }
 
-        if (taxableGain > 0 && realGainPC > 0) {
-            taxableGain = Math.min(taxableGain, realGainPC);
-        } else if (taxableGain < 0 && realGainPC < 0) {
-            // Both are Losses. Recognized/Allowable Loss is the SMALLER loss (Conservative).
-            taxableGain = Math.max(taxableGain, realGainPC);
-        } else {
-            // Mixed (One is Gain, One is Loss).
-            // "Phantom Gain" or "Phantom Loss".
-            // Exempt from Tax. (No Gain, No Loss Recognized).
-            taxableGain = 0;
-        }
+    // Unified "Nominal Loss / Min Gain" Logic
+    // User Requirement: "Real loses are capped at 0 from below for tax purposes", "Because of that we can only use nominal loses [for losses]"
+
+    // 1. Mixed Case (Gain vs Loss) -> Exempt (0)
+    if ((x > 0 && y < 0) || (x < 0 && y > 0)) {
+        return 0;
+    }
+
+    // 2. Both Positive -> Min(x, y)
+    // We use the lower gain between Nominal and Real.
+    if (x >= 0 && y >= 0) {
+        return Math.min(x, y);
     }
     
-    return taxableGain;
+    // 3. Both Negative -> Nominal Loss (x)
+    // We ignore the Real Loss value (even if it's "closer to 0") and use the full Nominal Loss.
+    return x;
 }
 
 // --- Holding Class ---

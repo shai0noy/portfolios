@@ -152,6 +152,55 @@ export const loadFinanceEngine = async (sheetId: string, forceRefresh = false) =
     // 3. Initialize Engine
     const exchangeRates = await fetchSheetExchangeRates(sheetId);
 
+    // 3.5 Fetch Historical Rates for Missing Data (In-Memory Patch)
+    const txnsNeedingRates = transactions.filter((t: any) => {
+        // We want Nominal ILS Cost for all foreign assets (primarily USD)
+        const isUSD = t.currency === 'USD'; // Normalize? assuming 'USD' from sheet or normalized in fetch
+        const missingILA = !t.originalPriceILA;
+        return isUSD && missingILA && t.originalPrice && t.date;
+    });
+
+    if (txnsNeedingRates.length > 0) {
+        console.log(`Loader: Fetching historical USDILS rates for ${txnsNeedingRates.length} transactions to fix missing originalPriceILA`);
+        try {
+            const usdIls = await fetchYahooTickerData('USDILS=X', Exchange.FOREX, undefined, false, 'max');
+            if (usdIls && usdIls.historical) {
+                const rateMap = new Map<string, number>();
+                usdIls.historical.forEach(h => {
+                    const dateStr = h.date.toISOString().split('T')[0];
+                    rateMap.set(dateStr, h.price);
+                });
+
+                let patchedCount = 0;
+                txnsNeedingRates.forEach((t: any) => {
+                    let d = new Date(t.date);
+                    let dateStr = d.toISOString().split('T')[0];
+
+                    // Try exact match, then +/- 1-3 days if missing (weekends)
+                    let rate = rateMap.get(dateStr);
+                    if (!rate) {
+                        // Simple fallback for weekends: look back up to 3 days
+                        for (let i = 1; i <= 3; i++) {
+                            d.setDate(d.getDate() - 1);
+                            dateStr = d.toISOString().split('T')[0];
+                            rate = rateMap.get(dateStr);
+                            if (rate) break;
+                        }
+                    }
+
+                    if (rate) {
+                        // ILA = ILS * 100
+                        t.originalPriceILA = t.originalPrice * rate * 100;
+                        patchedCount++;
+                    }
+                });
+                console.log(`Loader: Successfully patched ${patchedCount} transactions with historical rates.`);
+            }
+        } catch (e) {
+            console.warn('Loader: Failed to fetch historical rates for patching', e);
+        }
+    }
+
     // Fill missing critical rates (Fallback)
     const currentRates = exchangeRates.current;
     const missing = ['ILS', 'EUR', 'GBP'].filter(c => !currentRates[c]);

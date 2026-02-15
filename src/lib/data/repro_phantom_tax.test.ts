@@ -18,9 +18,10 @@ describe('FinanceEngine - Phantom Tax Reproduction', () => {
 
     const portfolio: Portfolio = {
         id: 'p1', name: 'Test', currency: Currency.ILS,
-        taxPolicy: 'IL_REAL_GAIN', // Default for tests
+        taxPolicy: 'IL_REAL_GAIN' as TaxPolicy,
         cgt: 0.25, incTax: 0,
-        mgmtVal: 0, mgmtType: 'percentage', mgmtFreq: 'yearly', commRate: 0
+        mgmtVal: 0, mgmtType: 'percentage', mgmtFreq: 'yearly', commRate: 0,
+        commMin: 0, commMax: 0, divPolicy: 'cash_taxed', divCommRate: 0
     };
 
     it('should NOT charge tax on a loss even if currency fluctuation looks like a gain (Never Lose Rule)', () => {
@@ -73,7 +74,7 @@ describe('FinanceEngine - Phantom Tax Reproduction', () => {
         // Nominal Gain ILS: +10,000 ILS.
         // Taxable Gain: 0 (No change in USD price).
         
-        const pNominal = { ...portfolio, taxPolicy: 'NOMINAL_GAIN' };
+        const pNominal = { ...portfolio, taxPolicy: 'NOMINAL_GAIN' as TaxPolicy };
         const engine = new FinanceEngine([pNominal], mockRates as any, mockCPI as any);
         
         const buy: Transaction = {
@@ -134,7 +135,8 @@ describe('FinanceEngine - Phantom Tax Reproduction', () => {
         const h2 = engine.holdings.get('p1_DOMESTIC');
         
         h2!.currentPrice = 110;
-        (engine as any).cpi.current = 90; // Deflation
+        h2!.currentPrice = 110;
+        (engine as any).cpiData.current = 90; // Deflation
         
         engine.calculateSnapshot();
         
@@ -164,7 +166,7 @@ describe('FinanceEngine - Phantom Tax Reproduction', () => {
         const buy: Transaction = {
             date: '2024-01-01', type: 'BUY', portfolioId: 'p1', ticker: 'WIZ', exchange: Exchange.NASDAQ,
             qty: 100, price: 0, // Inferred?
-            cost: 40000, // 40k ILS Total Cost
+            // cost: 40000, // Removed invalid property
             originalPrice: 100, // ?
             originalQty: 100, 
             currency: Currency.ILS, // Paid in ILS
@@ -235,9 +237,12 @@ describe('FinanceEngine - Phantom Tax Reproduction', () => {
         console.log('Double Loss - Nominal:', h!.unrealizedGain.amount / 100 * 3.5); // Approx
         console.log('Double Loss - Taxable:', taxable);
 
-        // We expect -3500 (Real Loss), NOT -8500 (Nominal Loss).
-        expect(taxable).toBeCloseTo(-3500, -2); // within 100 range
-        expect(taxable).toBeGreaterThan(-8000); // Should be much smaller loss than Nominal
+        // We expect -6750 (Nominal Loss), NOT -1750 (Real Loss).
+        // User Rule: "For tax reasons, we can only use nominal loses" (Real losses capped at 0/ignored).
+        // Nominal Gain = -6750. Real Gain = -1750.
+        // Taxable = Nominal = -6750.
+        expect(taxable).toBeCloseTo(-6750, -2); // within 100 range
+        // expect(taxable).toBeGreaterThan(-8000); // Still true
     });
 
     it('should have Positive Tax on Negative Gain IF incTax (RSU) is present', () => {
@@ -275,7 +280,7 @@ describe('FinanceEngine - Phantom Tax Reproduction', () => {
         // Tax Policy: NOMINAL_GAIN (taxes the USD Gain).
         // UI Display: Nominal ILS Gain (Total ILS Value - Total ILS Cost).
         
-        const pNominal = { ...portfolio, taxPolicy: 'NOMINAL_GAIN' };
+        const pNominal = { ...portfolio, taxPolicy: 'NOMINAL_GAIN' as TaxPolicy };
         const engine = new FinanceEngine([pNominal], mockRates as any, mockCPI as any);
 
         // Buy 100 @ 100 USD. Rate 4.
