@@ -79,7 +79,12 @@ export interface Lot {
 
     // Unrealized Tax (Active Lots)
     unrealizedTax?: number; // Estimated tax liability in Portfolio Currency
-    inflationAdjustedCost?: number; // Portfolio Currency (Active Lots only)
+    adjustedCost?: number; // Portfolio Currency (Active Lots only)
+    adjustedCostILS?: number; // Always in ILS (for tax display)
+    adjustmentDetails?: {
+        label: string;
+        percentage: number;
+    };
 }
 
 export interface DividendRecord {
@@ -203,7 +208,7 @@ export class Holding {
     private _accumulatedMgmtFees: number = 0; // Portfolio Currency
 
     // Tax/Inflation
-    public inflationAdjustedCost?: number; // Portfolio Currency
+    public adjustedCost?: number; // Portfolio Currency
 
     // Unallocated Buy Fees (For average cost distribution if needed, though we try to allocate to lots)
     // We allocate buy fees PRO-RATA to lots on creation.
@@ -255,6 +260,12 @@ export class Holding {
     realizedIncomeTax: number;
     unrealizedTaxLiabilityILS: number;
     unrealizedTaxableGainILS: number;
+
+    private recalculateQty() {
+        this.qtyVested = this._lots.reduce((acc, l) => acc + (l.isVested && !l.soldDate ? l.qty : 0), 0);
+        this.qtyUnvested = this._lots.reduce((acc, l) => acc + (!l.isVested && !l.soldDate ? l.qty : 0), 0);
+        this.qtyTotal = this.qtyVested + this.qtyUnvested;
+    }
 
     constructor(
         portfolioId: string,
@@ -456,6 +467,7 @@ export class Holding {
         };
 
         this._lots.push(lot);
+        this.recalculateQty();
     }
 
     private handleSell(txn: Transaction, rates: ExchangeRates, cpi: number, feePC: number, portfolio: Portfolio) {
@@ -658,6 +670,8 @@ export class Holding {
 
             qtyToSell -= portion;
         }
+
+        this.recalculateQty();
     }
 
     // --- Getters (Computed Properties) ---

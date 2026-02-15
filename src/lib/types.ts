@@ -264,7 +264,7 @@ export interface DashboardHoldingDisplay {
   weightInPortfolio: number;
   weightInGlobal: number;
   unvestedValue: number;
-  inflationAdjustedCost?: number;
+  adjustedCost?: number;
   realizedTax?: number;
   unrealizedTax?: number;
 }

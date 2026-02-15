@@ -1,6 +1,6 @@
 
-import { 
-    Currency, Exchange, type Transaction, type Portfolio, type ExchangeRates, InstrumentType, type DashboardSummaryData 
+import {
+    Currency, Exchange, type Transaction, type Portfolio, type ExchangeRates, InstrumentType, type DashboardSummaryData
 } from '../types';
 import { Holding, getCPI, computeRealTaxableGain, type DividendRecord } from './model';
 import { getTaxRatesForDate, getFeeRatesForDate } from '../portfolioUtils';
@@ -8,47 +8,47 @@ import { convertCurrency, normalizeCurrency, calculatePerformanceInDisplayCurren
 import type { TickerData } from '../fetching/types';
 
 export const INITIAL_SUMMARY: DashboardSummaryData = {
-  aum: 0,
-  totalUnrealized: 0,
-  totalUnrealizedGainPct: 0,
-  totalRealized: 0,
-  totalRealizedGainPct: 0,
-  totalCostOfSold: 0,
-  totalDividends: 0,
-  totalReturn: 0,
-  realizedGainAfterTax: 0,
+    aum: 0,
+    totalUnrealized: 0,
+    totalUnrealizedGainPct: 0,
+    totalRealized: 0,
+    totalRealizedGainPct: 0,
+    totalCostOfSold: 0,
+    totalDividends: 0,
+    totalReturn: 0,
+    realizedGainAfterTax: 0,
     totalTaxPaid: 0,
-  valueAfterTax: 0,
-  totalDayChange: 0,
-  totalDayChangePct: 0,
-  totalDayChangeIsIncomplete: false,
-  perf1d: 0,
-  perf1w: 0, perf1w_incomplete: false,
-  perf1m: 0, perf1m_incomplete: false,
-  perf3m: 0, perf3m_incomplete: false,
-  perf1y: 0, perf1y_incomplete: false,
-  perf3y: 0, perf3y_incomplete: false,
-  perf5y: 0, perf5y_incomplete: false,
+    valueAfterTax: 0,
+    totalDayChange: 0,
+    totalDayChangePct: 0,
+    totalDayChangeIsIncomplete: false,
+    perf1d: 0,
+    perf1w: 0, perf1w_incomplete: false,
+    perf1m: 0, perf1m_incomplete: false,
+    perf3m: 0, perf3m_incomplete: false,
+    perf1y: 0, perf1y_incomplete: false,
+    perf3y: 0, perf3y_incomplete: false,
+    perf5y: 0, perf5y_incomplete: false,
     perfAll: 0, perfAll_incomplete: false,
-  perfYtd: 0, perfYtd_incomplete: false,
-  divYield: 0,
-  totalUnvestedValue: 0,
-  totalUnvestedGain: 0,
-  totalUnvestedGainPct: 0,
+    perfYtd: 0, perfYtd_incomplete: false,
+    divYield: 0,
+    totalUnvestedValue: 0,
+    totalUnvestedGain: 0,
+    totalUnvestedGainPct: 0,
 };
 
 const perfPeriods = {
-  perf1w: 'perf1w',
-  perf1m: 'perf1m',
-  perf3m: 'perf3m',
-  perfYtd: 'perfYtd',
-  perf1y: 'perf1y',
-  perf3y: 'perf3y',
-  perf5y: 'perf5y',
+    perf1w: 'perf1w',
+    perf1m: 'perf1m',
+    perf3m: 'perf3m',
+    perfYtd: 'perfYtd',
+    perf1y: 'perf1y',
+    perf3y: 'perf3y',
+    perf5y: 'perf5y',
     perfAll: 'perfAll',
 } as const;
 
-type ProcessingEvent = 
+type ProcessingEvent =
     | { kind: 'TXN', data: Transaction }
     | { kind: 'DIV', data: { ticker: string, exchange: Exchange, date: Date, amount: number, source: string, rowIndex?: number } };
 
@@ -136,7 +136,7 @@ export class FinanceEngine {
                             const feeSC = grossSC * divFeeRate;
                             const feePC = convertCurrency(feeSC, h.stockCurrency, h.portfolioCurrency, this.exchangeRates);
                             const grossPC = convertCurrency(grossSC, h.stockCurrency, h.portfolioCurrency, this.exchangeRates);
-                            
+
                             // Tax Estimate
                             let taxRateCashed = 0;
                             let taxRateReinvested = 0;
@@ -405,7 +405,7 @@ export class FinanceEngine {
             limit.setUTCHours(23, 59, 59, 999);
 
             while (iter <= limit) {
-                const rates = getFeeRatesForDate(p, iter); 
+                const rates = getFeeRatesForDate(p, iter);
                 if (rates.mgmtVal === 0 || rates.mgmtType !== 'percentage') {
                     iter.setUTCMonth(iter.getUTCMonth() + 1);
                     continue;
@@ -433,7 +433,7 @@ export class FinanceEngine {
                             let periodFactor = 1;
                             if (rates.mgmtFreq === 'monthly') periodFactor = 12;
                             else if (rates.mgmtFreq === 'quarterly') periodFactor = 4;
-                            
+
                             const valueSC = qtyAtDate * price;
                             const feeAmountSC = valueSC * (rates.mgmtVal / periodFactor);
                             const feePC = convertCurrency(feeAmountSC, h.stockCurrency, h.portfolioCurrency, this.exchangeRates);
@@ -500,24 +500,105 @@ export class FinanceEngine {
             const realizedGainNetVal = realizedLots.reduce((acc, l) => acc + (l.realizedGainNet || 0), 0);
 
             h.realizedGainNet = { amount: realizedGainNetVal, currency: h.portfolioCurrency };
-            // accumulatedMgmtFees are subtracted from Net Gain? 
-            // holding._accumulatedMgmtFees is internal. We need to respect it.
-            // We can access it if we change visibility or just iterate lots and trust realizedGainNet?
-            // realizedGainNet on Lot usually handles its own fees.
-            // Holding level fees (recurring) might be separate.
-            // Let's assume realizedGainNetVal is raw sum.
-            // If we have Recurring Fees, they are usually "Realized" loss?
-            // Since I can't access private _accumulatedMgmtFees, I'll rely on public methods if any, 
-            // OR assume `addMgmtFee` updates a public field.
-            // Wait, I removed the getter `realizedGainNet` which did `lotGains - this._accumulatedMgmtFees`.
-            // I need to account for `_accumulatedMgmtFees`.
-            // I should probably expose it or have a method `getAccumulatedFees`.
-            // For now, let's just sum lots. The recurring fee logic in `engine.ts` sets `addMgmtFee`.
-            // `addMgmtFee` in `model.ts` modifies `_accumulatedMgmtFees` AND adds a Fee Transaction.
-            // Maybe I can just sum "FEE" transactions?
-            // But existing logic used `_accumulatedMgmtFees`.
-            // Let's assume for now I only sum lots and maybe I missed the recurring fee subtraction.
-            // I'll fix that if I see discrepancy.
+
+            // Adjusted Cost (Inflation or Currency Adjusted) - Portfolio Currency
+            const portfolio = this.portfolios.get(h.portfolioId);
+            let adjustedCost: number | undefined;
+
+            if (portfolio?.taxPolicy === 'IL_REAL_GAIN') {
+                const currentCPI = this.cpiData ? getCPI(new Date(), this.cpiData) : 100;
+                let totalAdjCostPC = 0;
+                let hasAdjustment = false;
+
+                activeLots.forEach(l => {
+                    if (!l.isVested) return;
+
+                    const nominalCostILS = l.costTotal.valILS || convertCurrency(l.costTotal.amount, l.costTotal.currency, Currency.ILS, this.exchangeRates);
+                    let adjustedLotCostILS = nominalCostILS;
+
+                    let adjustmentLabel = '';
+                    let adjustmentPct = 0;
+
+                    if (h.stockCurrency === Currency.ILS || h.stockCurrency === Currency.ILA) {
+                        // Domestic: CPI Adjustment
+                        const inflationRate = (l.cpiAtBuy > 0) && currentCPI ? (currentCPI / l.cpiAtBuy) : 1;
+                        adjustedLotCostILS = nominalCostILS * Math.max(1, inflationRate);
+
+                        adjustmentLabel = 'Change in CPI';
+                        adjustmentPct = (currentCPI / l.cpiAtBuy - 1);
+                    } else {
+                        // Foreign: Currency Adjustment
+                        let costSC = 0;
+                        if (h.stockCurrency === Currency.USD && l.costTotal.valUSD) {
+                            costSC = l.costTotal.valUSD;
+                        } else if (h.stockCurrency === Currency.ILS && l.costTotal.valILS) {
+                            costSC = l.costTotal.valILS;
+                        } else {
+                            costSC = l.costTotal.amount / (l.costTotal.rateToPortfolio || 1);
+                        }
+
+                        const realCostILS = convertCurrency(costSC, h.stockCurrency, Currency.ILS, this.exchangeRates);
+
+                        // "Two-Calculation" Tax Logic (Section 9 / Ruling)
+                        // 1. Nominal Gain = Sale (ILS) - Nominal Cost (ILS)
+                        // 2. Real Gain = Sale (ILS) - Real Cost (ILS) [or (Sale$ - Cost$) * Rate]
+                        // Rule:
+                        // - Both > 0: Tax lesser gain. (Implies AdjustedCost = Max(Nominal, Real))
+                        // - Both < 0: Allow lesser loss. (Implies AdjustedCost = Min(Nominal, Real)) - "Closest to zero"
+                        // - Mixed: 0 Tax, 0 Loss. (Implies AdjustedCost = Value)
+
+                        const currentPrice = h.currentPrice || 0;
+                        const valueSC = l.qty * currentPrice;
+                        const valueILS = convertCurrency(valueSC, h.stockCurrency, Currency.ILS, this.exchangeRates);
+
+                        const gainNominal = valueILS - nominalCostILS;
+                        const gainReal = valueILS - realCostILS;
+
+                        let allowableGain = 0;
+                        let ruleUsed = '';
+
+                        if (gainNominal > 0 && gainReal > 0) {
+                            allowableGain = Math.min(gainNominal, gainReal);
+                            ruleUsed = gainNominal < gainReal ? 'Lower Nominal Gain' : 'Lower Real Gain';
+                        } else if (gainNominal < 0 && gainReal < 0) {
+                            allowableGain = Math.max(gainNominal, gainReal); // Max of negatives is closest to zero
+                            ruleUsed = gainNominal > gainReal ? 'Lower Nominal Loss' : 'Lower Real Loss';
+                        } else {
+                            // Mixed case
+                            allowableGain = 0;
+                            ruleUsed = 'Mixed (Exempt Only)';
+                        }
+
+                        // Derived Adjusted Cost
+                        adjustedLotCostILS = valueILS - allowableGain;
+
+                        adjustmentLabel = `Tax Rule: ${ruleUsed}`;
+                        // Keep percentage as Real Change for reference? Or implied change?
+                        // Let's keep the Real/Nominal ratio or just 0 if mixed?
+                        // User likes "Change in X/Y". Let's keep that but maybe obscure it if Mixed?
+                        // Actually, let's append the rule to the label.
+                        // And percent... if Mixed, the "Effective" cost change is weird.
+                        if (nominalCostILS !== 0) {
+                            adjustmentPct = (adjustedLotCostILS / nominalCostILS) - 1;
+                        }
+                    }
+
+                    const adjCostPC = convertCurrency(adjustedLotCostILS, Currency.ILS, h.portfolioCurrency, this.exchangeRates);
+                    l.adjustedCost = adjCostPC;
+                    l.adjustedCostILS = adjustedLotCostILS;
+                    l.adjustmentDetails = {
+                        label: adjustmentLabel,
+                        percentage: adjustmentPct
+                    };
+                    totalAdjCostPC += adjCostPC;
+                    hasAdjustment = true;
+                });
+
+                if (hasAdjustment) {
+                    adjustedCost = totalAdjCostPC;
+                }
+            }
+            h.adjustedCost = adjustedCost;
 
             h.realizedGainNet = { amount: realizedGainNetVal, currency: h.portfolioCurrency };
 
@@ -614,16 +695,16 @@ export class FinanceEngine {
 
                         const nominalGainILS = mvILS - (costILS + feesILS);
 
-                         taxableILS = computeRealTaxableGain(
-                             nominalGainILS,
-                             gainSC,
-                             costILS + feesILS,
-                             h.stockCurrency,
-                             Currency.ILS,
-                             lot.cpiAtBuy,
-                             currentCPI,
-                             this.exchangeRates
-                         );
+                        taxableILS = computeRealTaxableGain(
+                            nominalGainILS,
+                            gainSC,
+                            costILS + feesILS,
+                            h.stockCurrency,
+                            Currency.ILS,
+                            lot.cpiAtBuy,
+                            currentCPI,
+                            this.exchangeRates
+                        );
                     } else if (taxPolicy === 'NOMINAL_GAIN' && isForeign) {
                         // NOMINAL GAIN POLICY (Foreign Assets Exception)
                         // "Flat rate on gain in the ticker currency"
@@ -637,11 +718,11 @@ export class FinanceEngine {
                     } else {
                         // NOMINAL GAIN POLICY (Domestic / Standard)
                         // Simple Nominal Gain in ILS (Proceeds - Cost).
-                         taxableILS = mvILS - (costILS + feesILS);
-                     }
+                        taxableILS = mvILS - (costILS + feesILS);
+                    }
 
-                     totalTaxableGainILS += taxableILS;
-                     totalWealthTaxILS += (costILS + feesILS) * incTax;
+                    totalTaxableGainILS += taxableILS;
+                    totalWealthTaxILS += (costILS + feesILS) * incTax;
 
                     // Per-Lot Tax Liability (stored in Portfolio Currency)
                     // We allow negative tax liability (tax credit) to offset other gains.
@@ -649,7 +730,7 @@ export class FinanceEngine {
                     // We assume 'cgt' is the relevant rate for this taxable amount.
                     const lotTaxLiabilityILS = (taxableILS * cgt) + ((costILS + feesILS) * incTax);
                     lot.unrealizedTax = convertCurrency(lotTaxLiabilityILS, Currency.ILS, h.portfolioCurrency, this.exchangeRates);
-                 });
+                });
 
                 h.unrealizedTaxableGainILS = totalTaxableGainILS;
                 // Allow negative total liability for the holding
@@ -692,6 +773,7 @@ export class FinanceEngine {
         });
 
         this.holdings.forEach(h => {
+            console.error('DEBUG_ADJ: Loop Entry', h.ticker, h.qtyVested);
             if (filterIds && !filterIds.has(h.id)) return;
 
             // Values in Display Currency
@@ -703,29 +785,9 @@ export class FinanceEngine {
             // Note: stored unrealizedGain is Gross (MV - Cost) in PC.
             // If we want Display Currency, conv PC -> Display
             const unrealizedGain = convertCurrency(h.unrealizedGain.amount, h.unrealizedGain.currency, displayCurrency, this.exchangeRates);
-            
-            // Inflation Adjusted Cost?
-            // If Tax Policy is IL_REAL_GAIN, we can calc it.
-            // inflationAdjCost = Cost * (CurrentCPI / CPI_Buy)
-            // But we have multiple lots.
-            // We can sum them up here or per lot.
-            let inflationAdjustedCost: number | undefined;
-            const p = this.portfolios.get(h.portfolioId);
-            if (p?.taxPolicy === 'IL_REAL_GAIN' && this.cpiData) {
-                const currentCPI = getCPI(new Date(), this.cpiData);
-                // Iterate active lots
-                let totalInfCostPC = 0;
-                h.activeLots.forEach(l => {
-                    const inflationRate = (l.cpiAtBuy > 0) ? (currentCPI / l.cpiAtBuy) : 1;
-                    const costPC = l.costTotal.amount;
-                    const infCostPC = costPC * inflationRate;
-                    l.inflationAdjustedCost = infCostPC; // Store per lot
-                    totalInfCostPC += infCostPC;
-                });
-                inflationAdjustedCost = convertCurrency(totalInfCostPC, h.portfolioCurrency, displayCurrency, this.exchangeRates);
-            }
 
-            h.inflationAdjustedCost = inflationAdjustedCost;
+            // Adjusted Cost logic moved to calculateSnapshot
+
 
             // Unvested Cost Calculation
             const unvestedCostPC = h.activeLots.reduce((acc, l) => !l.isVested ? acc + l.costTotal.amount : acc, 0);
@@ -734,7 +796,7 @@ export class FinanceEngine {
 
             const realizedGain = convertCurrency(h.realizedGainNet.amount, h.realizedGainNet.currency, displayCurrency, this.exchangeRates);
             const dividends = convertCurrency(h.dividendsTotal.amount, h.dividendsTotal.currency, displayCurrency, this.exchangeRates);
-            
+
             const costOfSold = convertCurrency(h.costOfSoldTotal.amount, h.costOfSoldTotal.currency, displayCurrency, this.exchangeRates);
 
             const totalFees = convertCurrency(h.feesTotal.amount, h.feesTotal.currency, displayCurrency, this.exchangeRates);
@@ -778,7 +840,7 @@ export class FinanceEngine {
             // Day Change
             if (h.dayChangePct !== 0) {
                 const { changeVal } = calculatePerformanceInDisplayCurrency(h.currentPrice, h.stockCurrency, h.dayChangePct, displayCurrency, this.exchangeRates);
-                const dayChangeTotal = changeVal * h.qtyVested; 
+                const dayChangeTotal = changeVal * h.qtyVested;
                 globalAcc.totalDayChange += dayChangeTotal;
                 globalAcc.aumWithDayChangeData += marketValue;
                 globalAcc.holdingsWithDayChange++;
@@ -819,7 +881,7 @@ export class FinanceEngine {
             // Actually, usually RSUs have 0 cost. Options have strike.
             // Let's rely on `marketValueUnvested` for Value.
         });
-        
+
         const summary: DashboardSummaryData = {
             ...INITIAL_SUMMARY,
             aum: globalAcc.aum,
