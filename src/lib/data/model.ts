@@ -80,7 +80,8 @@ export interface Lot {
     // Unrealized Tax (Active Lots)
     unrealizedTax?: number; // Estimated tax liability in Portfolio Currency
     adjustedCost?: number; // Portfolio Currency (Active Lots only)
-    adjustedCostILS?: number; // Always in ILS (for tax display)
+    adjustedCostILS?: number; // Always in ILS (Tax Basis - Rule Applied)
+    realCostILS?: number; // Always in ILS (Pure Real Cost - No Rules)
     adjustmentDetails?: {
         label: string;
         percentage: number;
@@ -361,6 +362,16 @@ export class Holding {
         const qty = txn.qty || 0;
         if (qty <= 0) return;
 
+        // Lookup historical rates for the transaction date
+        let effectiveRates = rates ? (rates as any).current : undefined;
+        if (rates && txn.date) {
+            const d = txn.date;
+            const dateKey = (typeof d === 'object' && 'toISOString' in d) ? (d as Date).toISOString().split('T')[0] : String(d).substring(0, 10);
+            if ((rates as any)[dateKey]) {
+                effectiveRates = (rates as any)[dateKey];
+            }
+        }
+
         // Price Resolution
         let pricePerUnitPC = 0;
 
@@ -368,12 +379,12 @@ export class Holding {
             const txnCurr = txn.currency ? normalizeCurrency(txn.currency) : null;
             if (txnCurr === Currency.ILS || txnCurr === Currency.ILA) {
                 // Trust the transaction currency directly for simple fixed conversions
-                pricePerUnitPC = convertCurrency(txn.price || 0, txnCurr, Currency.ILS, rates);
+                pricePerUnitPC = convertCurrency(txn.price || 0, txnCurr, Currency.ILS, effectiveRates);
             } else if (txn.originalPriceILA) {
                 // For foreign currencies, prefer the sheet's historical calculation
                 pricePerUnitPC = toILS(txn.originalPriceILA, Currency.ILA);
             } else {
-                pricePerUnitPC = convertCurrency(txn.price || 0, txn.currency || this.stockCurrency, Currency.ILS, rates);
+                pricePerUnitPC = convertCurrency(txn.price || 0, txn.currency || this.stockCurrency, Currency.ILS, effectiveRates);
             }
         } else {
             const txnCurr = txn.currency ? normalizeCurrency(txn.currency) : null;
@@ -382,7 +393,7 @@ export class Holding {
             } else if (txn.originalPriceUSD) {
                 pricePerUnitPC = txn.originalPriceUSD;
             } else {
-                pricePerUnitPC = convertCurrency(txn.price || 0, txn.currency || this.stockCurrency, Currency.USD, rates);
+                pricePerUnitPC = convertCurrency(txn.price || 0, txn.currency || this.stockCurrency, Currency.USD, effectiveRates);
             }
         }
 
@@ -401,7 +412,7 @@ export class Holding {
             } else if (txn.originalPrice && txnCurr === Currency.USD) {
                 valUSD = txn.originalPrice;
             } else {
-                valUSD = convertCurrency(pricePerUnitPC, this.portfolioCurrency, Currency.USD, rates);
+                valUSD = convertCurrency(pricePerUnitPC, this.portfolioCurrency, Currency.USD, effectiveRates);
             }
         }
 
@@ -413,17 +424,9 @@ export class Holding {
         } else {
             const txnCurr = txn.currency ? normalizeCurrency(txn.currency) : null;
             if ((txnCurr === Currency.ILS || txnCurr === Currency.ILA) && txn.price) {
-                // Careful: ILA price is in Agorot usually? Or ILS? 
-                // txn.price is usually usually in major units (ILS) or minor (Agora)? 
-                // Loader for ILA: commission was *100. Price?
-                // Usually price is as-is. 
-                // If standardizing, let's stick to convertCurrency if uncertain, 
-                // OR entrust explicit fields.
-                // For ILS stock, we usually trust pricePerUnitPC if portfolio is ILS.
-                // If portfolio is USD, and we bought ILS stock...
-                valILS = convertCurrency(pricePerUnitPC, this.portfolioCurrency, Currency.ILS, rates);
+                valILS = convertCurrency(pricePerUnitPC, this.portfolioCurrency, Currency.ILS, effectiveRates);
             } else {
-                valILS = convertCurrency(pricePerUnitPC, this.portfolioCurrency, Currency.ILS, rates);
+                valILS = convertCurrency(pricePerUnitPC, this.portfolioCurrency, Currency.ILS, effectiveRates);
             }
         }
 

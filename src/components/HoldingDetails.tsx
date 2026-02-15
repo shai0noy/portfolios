@@ -512,6 +512,7 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                                                 fees: 0,
                                                 adjustedCost: 0,
                                                 adjustedCostILS: 0,
+                                                realCostILS: 0,
                                                 originalCostILS: 0,
                                                 currentValueILS: 0,
                                                 adjustmentDetails: undefined
@@ -525,6 +526,9 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                                         if (lot.adjustedCostILS) {
                                             g.adjustedCostILS += lot.adjustedCostILS;
                                         }
+                                            if (lot.realCostILS) {
+                                                g.realCostILS += lot.realCostILS;
+                                            }
                                         if (lot.costTotal.valILS) {
                                             g.originalCostILS += lot.costTotal.valILS;
                                         } else {
@@ -855,13 +859,33 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                                                                                         if (layer.remainingQty <= 0) return valContent;
 
                                                                                         const p = portfolios.find(p => p.id === group.portfolioId);
-                                                                                        const isRealGainPolicy = p?.taxPolicy === 'IL_REAL_GAIN';
-                                                                                        const costBasisILS = (isRealGainPolicy && layer.adjustedCostILS) ? layer.adjustedCostILS : layer.originalCostILS;
-                                                                                        const gainILS = layer.currentValueILS - costBasisILS;
-                                                                                        const gainLabel = isRealGainPolicy ? t('Real Gain (ILS)', 'רווח ריאלי (ש"ח)') : t('Nominal Gain (ILS)', 'רווח נומינלי (ש"ח)');
+
+                                                                                        // Nominal Gain
+                                                                                        const nominalCostILS = layer.originalCostILS;
+                                                                                        const nominalGainILS = layer.currentValueILS - nominalCostILS;
+                                                                                        const nominalGainPct = nominalCostILS > 0 ? nominalGainILS / nominalCostILS : 0;
+
+                                                                                        // Real Gain (Pure - No Tax Rules)
+                                                                                        // Use realCostILS if available, else fallback to Nominal
+                                                                                        const realCostILS = layer.realCostILS || nominalCostILS;
+                                                                                        const realGainILS = layer.currentValueILS - realCostILS;
+                                                                                        const realGainPct = realCostILS > 0 ? realGainILS / realCostILS : 0;
+
+                                                                                        // Taxable Gain (Based on Policy)
+                                                                                        let taxableGainILS = 0;
+                                                                                        const taxPolicy = p?.taxPolicy || 'NOMINAL_GAIN';
+
+                                                                                        if (taxPolicy === 'TAX_FREE') {
+                                                                                            taxableGainILS = 0;
+                                                                                        } else if (taxPolicy === 'NOMINAL_GAIN') {
+                                                                                            taxableGainILS = nominalGainILS;
+                                                                                        } else if (taxPolicy === 'IL_REAL_GAIN') {
+                                                                                            // Use Rule-Based Adjusted Cost (adjustedCostILS)
+                                                                                            const ruleBasedCostILS = layer.adjustedCostILS || nominalCostILS;
+                                                                                            taxableGainILS = layer.currentValueILS - ruleBasedCostILS;
+                                                                                        }
 
                                                                                         const taxILS = convertCurrency(layer.unrealizedTax, displayCurrency, Currency.ILS, exchangeRates || undefined);
-                                                                                        const gainPct = costBasisILS > 0 ? gainILS / costBasisILS : 0;
 
                                                                                         return (
                                                                                             <Tooltip
@@ -876,13 +900,25 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                                                                                                             </>
                                                                                                         )}
 
-                                                                                                        <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>{gainLabel}</Typography>
-                                                                                                        <Typography variant="body2" color={gainILS >= 0 ? 'success.light' : 'error.light'}>
-                                                                                                            {formatValue(gainILS, Currency.ILS)} ({formatPercent(gainPct)})
+                                                                                                        <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>{t('Nominal Gain (ILS)', 'רווח נומינלי (ש"ח)')}</Typography>
+                                                                                                        <Typography variant="body2" color={nominalGainILS >= 0 ? 'success.light' : 'error.light'} sx={{ mb: 1 }}>
+                                                                                                            {formatValue(nominalGainILS, Currency.ILS)} ({formatPercent(nominalGainPct)})
                                                                                                         </Typography>
 
+                                                                                                        <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>{t('Real Gain (ILS)', 'רווח ריאלי (ש"ח)')}</Typography>
+                                                                                                        <Typography variant="body2" color={realGainILS >= 0 ? 'success.light' : 'error.light'} sx={{ mb: 1 }}>
+                                                                                                            {formatValue(realGainILS, Currency.ILS)} ({formatPercent(realGainPct)})
+                                                                                                        </Typography>
+
+                                                                                                        <Box sx={{ borderTop: '1px dashed', borderColor: 'divider', pt: 1, mt: 1 }}>
+                                                                                                            <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>{t('Taxable Gain', 'רווח חייב')}</Typography>
+                                                                                                            <Typography variant="body2" color={taxableGainILS > 0 ? 'success.light' : taxableGainILS < 0 ? 'error.light' : 'text.primary'}>
+                                                                                                                {formatValue(taxableGainILS, Currency.ILS)}
+                                                                                                            </Typography>
+                                                                                                        </Box>
+
                                                                                                         <Typography variant="caption" display="block" sx={{ mt: 0.5, color: 'text.secondary' }}>
-                                                                                                            {t('Tax Due (Est.):', 'מס לתשלום (משוער):')} {formatValue(taxILS, Currency.ILS)}
+                                                                                                            {t('Tax Due:', 'מס לתשלום:')} {formatValue(taxILS, Currency.ILS)}
                                                                                                         </Typography>
                                                                                                     </Box>
                                                                                                 }

@@ -502,27 +502,42 @@ export class FinanceEngine {
             h.realizedGainNet = { amount: realizedGainNetVal, currency: h.portfolioCurrency };
 
             // Adjusted Cost (Inflation or Currency Adjusted) - Portfolio Currency
-            const portfolio = this.portfolios.get(h.portfolioId);
-            let adjustedCost: number | undefined;
+            // We calculate this ALWAYS for display purposes (Real vs Nominal analysis), 
+            // regardless of the actual tax policy used for realized gains.
+            // const portfolio = this.portfolios.get(h.portfolioId); // Removed duplicate
+            // Adjusted Cost & Real Cost Calculation
+            // We calculate two values:
+            // 1. realCostILS: Pure inflation/currency adjusted cost (for display).
+            // 2. adjustedCostILS: The "Tax Basis" cost after applying tax rules (e.g. Section 9 limits).
 
-            if (portfolio?.taxPolicy === 'IL_REAL_GAIN') {
+            const portfolio = this.portfolios.get(h.portfolioId);
+            let adjustedCost: number | undefined; // Portfolio Currency version of tax basis
+
+            {
                 const currentCPI = this.cpiData ? getCPI(new Date(), this.cpiData) : 100;
                 let totalAdjCostPC = 0;
                 let hasAdjustment = false;
 
                 activeLots.forEach(l => {
-                    if (!l.isVested) return;
-
                     const nominalCostILS = l.costTotal.valILS || convertCurrency(l.costTotal.amount, l.costTotal.currency, Currency.ILS, this.exchangeRates);
-                    let adjustedLotCostILS = nominalCostILS;
+                    let pureRealCostILS = nominalCostILS;
+                    let taxBasisCostILS = nominalCostILS;
 
                     let adjustmentLabel = '';
                     let adjustmentPct = 0;
 
                     if (h.stockCurrency === Currency.ILS || h.stockCurrency === Currency.ILA) {
                         // Domestic: CPI Adjustment
+                        // Real Cost = Nominal * (CPI_Now / CPI_Buy)
                         const inflationRate = (l.cpiAtBuy > 0) && currentCPI ? (currentCPI / l.cpiAtBuy) : 1;
-                        adjustedLotCostILS = nominalCostILS * Math.max(1, inflationRate);
+                        pureRealCostILS = nominalCostILS * inflationRate;
+
+                        // Tax Basis: Max(Nominal, Real) - usually.
+                        // Actually for Domestic, if Inflation > 0, Basis is Real.
+                        // If Deflation, Basis is Nominal (Capital Loss not allowed on deflation?).
+                        // Let's assume Max(Nominal, Real) for now or just Real if we follow strict Real Gain?
+                        // Usually: Adjusted Cost = Cost * Max(1, Change).
+                        taxBasisCostILS = nominalCostILS * Math.max(1, inflationRate);
 
                         adjustmentLabel = 'Change in CPI';
                         adjustmentPct = (currentCPI / l.cpiAtBuy - 1);
@@ -537,15 +552,13 @@ export class FinanceEngine {
                             costSC = l.costTotal.amount / (l.costTotal.rateToPortfolio || 1);
                         }
 
+                        // Pure Real Cost = CostSC * Rate_Now
                         const realCostILS = convertCurrency(costSC, h.stockCurrency, Currency.ILS, this.exchangeRates);
+                        pureRealCostILS = realCostILS;
 
-                        // "Two-Calculation" Tax Logic (Section 9 / Ruling)
-                        // 1. Nominal Gain = Sale (ILS) - Nominal Cost (ILS)
-                        // 2. Real Gain = Sale (ILS) - Real Cost (ILS) [or (Sale$ - Cost$) * Rate]
-                        // Rule:
-                        // - Both > 0: Tax lesser gain. (Implies AdjustedCost = Max(Nominal, Real))
-                        // - Both < 0: Allow lesser loss. (Implies AdjustedCost = Min(Nominal, Real)) - "Closest to zero"
-                        // - Mixed: 0 Tax, 0 Loss. (Implies AdjustedCost = Value)
+                        // Tax Basis Rules (Section 9)
+                        // This logic defines the "Taxable Gain" or "Recognized Loss".
+                        // To store it as a "Cost Basis", we derive it: TaxBasis = Value - TaxableGain.
 
                         const currentPrice = h.currentPrice || 0;
                         const valueSC = l.qty * currentPrice;
@@ -561,7 +574,7 @@ export class FinanceEngine {
                             allowableGain = Math.min(gainNominal, gainReal);
                             ruleUsed = gainNominal < gainReal ? 'Lower Nominal Gain' : 'Lower Real Gain';
                         } else if (gainNominal < 0 && gainReal < 0) {
-                            allowableGain = Math.max(gainNominal, gainReal); // Max of negatives is closest to zero
+                            allowableGain = Math.max(gainNominal, gainReal); // Max of negatives is closest to zero (Smallest Loss)
                             ruleUsed = gainNominal > gainReal ? 'Lower Nominal Loss' : 'Lower Real Loss';
                         } else {
                             // Mixed case
@@ -569,23 +582,42 @@ export class FinanceEngine {
                             ruleUsed = 'Mixed (Exempt Only)';
                         }
 
-                        // Derived Adjusted Cost
-                        adjustedLotCostILS = valueILS - allowableGain;
+                        // Derived Tax Basis
+                        // If Policy is NOT IL_REAL_GAIN, this logic is irrelevant for TaxableGain, 
+                        // but we store it in adjustedCostILS as the "Real Scenario" basis.
+                        // However, the User wants "Taxable Gain" field to be 0/Nominal/Real depending on policy.
+                        // So `adjustedCostILS` should probably match the policy?
+                        // User said: "TAX FREE -> 0, NOMINAL -> Nominal, REAL -> Real (with ceilings)".
+
+                        // Let's store the "Section 9 Basis" in a specific variable, 
+                        // and let HoldingDetails decide which one to use for "Taxable Gain".
+                        // OR we update `l.adjustedCostILS` to be the "Tax Basis according to Policy".
+
+                        // Wait, if I change `l.adjustedCostILS` to depend on policy, then "Real Cost" field in UI needs `l.realCostILS`.
+                        // I added `l.realCostILS`.
+
+                        // So:
+                        // l.realCostILS = pureRealCostILS (Always calculated).
+                        // l.adjustedCostILS = taxBasisCostILS (Calculated based on Section 9 rules).
+
+                        // But wait, if policy is NOMINAL, `l.adjustedCostILS` should probably be `nominalCostILS`?
+                        // No, `adjustedCost` usually implies "Inflation Adjusted".
+                        // Let's keep `l.adjustedCostILS` as the "Section 9 / Inflation Adjusted Basis" (The 'Real' scenario).
+                        // And `HoldingDetails` will pick `nominalCostILS` if policy is Nominal.
+
+                        taxBasisCostILS = valueILS - allowableGain;
 
                         adjustmentLabel = `Tax Rule: ${ruleUsed}`;
-                        // Keep percentage as Real Change for reference? Or implied change?
-                        // Let's keep the Real/Nominal ratio or just 0 if mixed?
-                        // User likes "Change in X/Y". Let's keep that but maybe obscure it if Mixed?
-                        // Actually, let's append the rule to the label.
-                        // And percent... if Mixed, the "Effective" cost change is weird.
                         if (nominalCostILS !== 0) {
-                            adjustmentPct = (adjustedLotCostILS / nominalCostILS) - 1;
+                            adjustmentPct = (taxBasisCostILS / nominalCostILS) - 1;
                         }
                     }
 
-                    const adjCostPC = convertCurrency(adjustedLotCostILS, Currency.ILS, h.portfolioCurrency, this.exchangeRates);
-                    l.adjustedCost = adjCostPC;
-                    l.adjustedCostILS = adjustedLotCostILS;
+                    const adjCostPC = convertCurrency(taxBasisCostILS, Currency.ILS, h.portfolioCurrency, this.exchangeRates);
+                    l.adjustedCost = adjCostPC; // This is used for "Value After Tax" aggregation potentially?
+                    l.adjustedCostILS = taxBasisCostILS; // Section 9 / CPI Basis
+                    l.realCostILS = pureRealCostILS; // Pure Real Basis
+
                     l.adjustmentDetails = {
                         label: adjustmentLabel,
                         percentage: adjustmentPct
