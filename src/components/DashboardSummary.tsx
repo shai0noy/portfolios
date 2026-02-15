@@ -1,5 +1,5 @@
 import { Box, Paper, Typography, Grid, Tooltip, ToggleButton, ToggleButtonGroup, IconButton, CircularProgress, Button, Menu, MenuItem, Chip, ListItemIcon, Dialog, DialogTitle, DialogContent } from '@mui/material';
-import { formatPercent, formatMoneyValue, normalizeCurrency, calculatePerformanceInDisplayCurrency, convertCurrency } from '../lib/currencyUtils';
+import { formatPercent, formatMoneyValue, normalizeCurrency, convertCurrency } from '../lib/currencyUtils';
 import { MultiCurrencyValue, getHistoricalRates } from '../lib/data/model';
 import { logIfFalsy, getValueColor } from '../lib/utils';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
@@ -18,6 +18,7 @@ import { TickerSearch } from './TickerSearch';
 import type { TickerProfile } from '../lib/types/ticker';
 import { AnalysisDialog } from './AnalysisDialog';
 import type { DashboardSummaryData } from '../lib/dashboard';
+import { calculateTopMovers, type Mover, type TimePeriod } from '../lib/dashboard_movers';
 
 // Time constants for auto-stepping
 const AUTO_STEP_DELAY = 2 * 60 * 1000; // 2 minutes
@@ -137,105 +138,14 @@ const PerfStat = ({ label, percentage, gainValue, isIncomplete, isLoading, aum, 
     return <Stat label={label} value={absoluteChange} pct={effectivePercentage} color={color} tooltip={isIncomplete ? t("Calculation is based on partial data.", "החישוב מבוסס על נתונים חלקיים.") : undefined} displayCurrency={displayCurrency} size={size} />;
 }
 
-type TimePeriod = '1d' | '1w' | '1m';
-
-interface Mover {
-    key: string;
-    name: string;
-    ticker: string;
-    change: number;
-    pct: number;
-    exchange: string;
-    holding: DashboardHolding;
-}
-
 const TopMovers = ({ holdings, displayCurrency, exchangeRates }: { holdings: DashboardHolding[], displayCurrency: string, exchangeRates: ExchangeRates }) => {
     const { t } = useLanguage();
     const navigate = useNavigate();
     const [sortBy, setSortBy] = useState<'change' | 'pct'>('change');
 
     const allMovers = useMemo(() => {
-        const periods: TimePeriod[] = ['1d', '1w', '1m'];
-        const result: Record<TimePeriod, Mover[]> = { '1d': [], '1w': [], '1m': [] };
-
-        if (!holdings) {
-            console.log('TopMovers: No holdings provided');
-            return result;
-        }
-
-        console.log('TopMovers: Calculating movers for', holdings.length, 'holdings');
-        if (holdings.length > 0) {
-            console.log('TopMovers: Sample holding[0]:', {
-                ticker: holdings[0].ticker,
-                dayChangePct: holdings[0].dayChangePct,
-                perf1w: holdings[0].perf1w,
-                perf1m: holdings[0].perf1m,
-                currentPrice: holdings[0].currentPrice,
-                stockCurrency: holdings[0].stockCurrency,
-                qtyTotal: holdings[0].qtyTotal,
-                exchangeRatesKeys: Object.keys(exchangeRates || {}),
-                displayCurrency
-            });
-        }
-
-        const getChange = (h: DashboardHolding, period: TimePeriod) => {
-            const perf = (() => {
-                switch (period) {
-                    case '1d': return h.dayChangePct;
-                    case '1w': return h.perf1w;
-                    case '1m': return h.perf1m;
-                    default: return 0;
-                }
-            })();
-
-            // Detailed log for first holding only for 1d
-            if (h.ticker === holdings[0]?.ticker && period === '1d') {
-                console.log('TopMovers: Calc for', h.ticker, period, { perf });
-            }
-
-            if (isNaN(perf) || perf === 0) return 0;
-
-            const { changeVal } = calculatePerformanceInDisplayCurrency(h.currentPrice, h.stockCurrency, perf, displayCurrency, exchangeRates);
-
-            if (h.ticker === holdings[0]?.ticker && period === '1d') {
-                console.log('TopMovers: Result for', h.ticker, { changeVal, qtyTotal: h.qtyTotal, final: changeVal * h.qtyTotal });
-            }
-
-            return changeVal * h.qtyTotal;
-        };
-
-
-        const getPct = (h: DashboardHolding, period: TimePeriod) => {
-            switch (period) {
-                case '1d': return h.dayChangePct;
-                case '1w': return h.perf1w;
-                case '1m': return h.perf1m;
-                default: return 0;
-            }
-        }
-
-        for (const period of periods) {
-            result[period] = holdings
-                .map(h => ({
-                    key: h.key,
-                    name: h.displayName,
-                    ticker: h.ticker,
-                    change: getChange(h, period),
-                    pct: getPct(h, period),
-                    exchange: h.exchange,
-                    holding: h
-                }))
-                .filter(h => h.change !== 0 && !isNaN(h.change))
-                .sort((a, b) => {
-                    if (sortBy === 'pct') {
-                        return Math.abs(b.pct) - Math.abs(a.pct);
-                    }
-                    return Math.abs(b.change) - Math.abs(a.change);
-                })
-                .slice(0, 6);
-        }
-        return result;
-    }, [holdings, displayCurrency, exchangeRates, t, sortBy]);
+        return calculateTopMovers(holdings, displayCurrency, exchangeRates);
+    }, [holdings, displayCurrency, exchangeRates]);
 
     useEffect(() => {
         console.log('TopMovers result:', Object.keys(allMovers).map(k => `${k}: ${allMovers[k as TimePeriod].length}`));
