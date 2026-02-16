@@ -77,8 +77,8 @@ export async function calculatePortfolioPerformance(
 
     // 4. Time-series aggregation
     const points: PerformancePoint[] = [];
-    const currentHoldings = new Map<string, { qty: number, costBasis: number, stockCurrency: Currency }>();
-    let otherGains = 0; // Cumulative dividends, fees, realized gains
+    const currentHoldings = new Map<string, { qty: number, costBasis: number, stockCurrency: Currency, lots: { date: number, qty: number, cost: number }[] }>();
+    let otherGains = 0; // Cumulative dividends, fees, realized gains (in displayCurrency)
     let txnIdx = 0;
 
     // TWR State
@@ -104,8 +104,6 @@ export async function calculatePortfolioPerformance(
             const tDate = new Date(sortedTxns[txnIdx].date);
             tDate.setUTCHours(0, 0, 0, 0);
 
-
-
             if (tDate.getTime() > ts) break;
 
             const t = sortedTxns[txnIdx];
@@ -116,7 +114,8 @@ export async function calculatePortfolioPerformance(
             const holding = holdingsMap.get(tickerKey);
             const resolvedStockCurrency = holding?.stockCurrency || t.currency || Currency.USD;
 
-            const state = currentHoldings.get(stateKey) || { qty: 0, costBasis: 0, stockCurrency: resolvedStockCurrency };
+            // costBasis is now tracked in displayCurrency
+            const state = currentHoldings.get(stateKey) || { qty: 0, costBasis: 0, stockCurrency: resolvedStockCurrency, lots: [] };
 
             let tQty = t.qty || 0;
             const tPrice = t.price || 0;
@@ -140,24 +139,91 @@ export async function calculatePortfolioPerformance(
                 }
             }
 
-            const stockCurrency = state.stockCurrency;
-            const costToAdd = convertCurrency(tValue, t.currency || Currency.USD, stockCurrency, exchangeRates);
+            // Helper to get transaction value in Display Currency using Historical Data if available
+            const getTxnValueInDisplay = () => {
+                if (displayCurrency === Currency.ILS && (t.originalPriceILA || t.currency === Currency.ILS)) {
+                    // Prefer originalPriceILA (Agorot) -> ILS
+                    if (t.originalPriceILA) {
+                        const priceILS = t.originalPriceILA / 100;
+                        // If it's a BUY/SELL, value = qty * price
+                        // If it's DIV/FEE with 0 qty, value... wait, originalPrice is per share.
+                        // For DIV/FEE, originalPrice might be undefined or 0.
+                        // If tQty > 0, we can use quantity * price.
+                        if (Math.abs(tQty) > 1e-9) {
+                            return tQty * priceILS;
+                        }
+                    }
+                    // Fallback for ILS native transactions (assuming tValue is in ILS)
+                    if (t.currency === Currency.ILS) return tValue;
+                } else if (displayCurrency === Currency.USD && (t.originalPriceUSD || t.currency === Currency.USD)) {
+                    if (t.originalPriceUSD) {
+                        if (Math.abs(tQty) > 1e-9) {
+                            return tQty * t.originalPriceUSD;
+                        }
+                    }
+                    if (t.currency === Currency.USD) return tValue;
+                }
+
+                // Fallback: Use Current Exchange Rate
+                return convertCurrency(tValue, t.currency || Currency.USD, displayCurrency, exchangeRates);
+            };
+
+            const valInDisplay = getTxnValueInDisplay();
 
             if (t.type === 'BUY') {
                 state.qty += tQty;
-                state.costBasis += costToAdd;
-                const flowValDisplay = convertCurrency(tValue, t.currency || Currency.USD, displayCurrency, exchangeRates);
-                dayNetFlow += flowValDisplay;
+                state.costBasis += valInDisplay;
+                if (!state.lots) state.lots = [];
+                state.lots.push({ date: tDate.getTime(), qty: tQty, cost: valInDisplay });
+                dayNetFlow += valInDisplay;
             } else if (t.type === 'SELL') {
-                const avgCost = state.qty > 0 ? state.costBasis / state.qty : 0;
-                state.qty -= tQty;
-                state.costBasis -= tQty * avgCost;
+                // FIFO Logic: Consume from lots
+                let remainingToSell = tQty;
+                let costOfSoldPC = 0;
 
-                const proceedsDisplay = convertCurrency(tValue, t.currency || Currency.USD, displayCurrency, exchangeRates);
-                const costOfSoldDisplay = convertCurrency(tQty * avgCost, stockCurrency, displayCurrency, exchangeRates);
+                // Ensure we have a valid queue
+                if (!state.lots) state.lots = [];
+
+                // Sort by date? Usually they are added in order provided they are processed chronologically.
+                // Assuming sortedTxns are creating lots in order.
+
+                while (remainingToSell > 1e-9 && state.lots.length > 0) {
+                    const lot = state.lots[0]; // Peek oldest
+                    const sellQty = Math.min(lot.qty, remainingToSell);
+
+                    const lotCost = (lot.cost / lot.qty) * sellQty;
+                    costOfSoldPC += lotCost;
+
+                    lot.qty -= sellQty;
+                    lot.cost -= lotCost;
+                    remainingToSell -= sellQty;
+
+                    if (lot.qty < 1e-9) {
+                        state.lots.shift(); // Remove empty lot
+                    }
+                }
+
+                // If we oversold (negative qty), we might have negative cost basis or just 0?
+                // For now, assume long-only or allow negative qty with 0 cost?
+                // Standard behavior: if shorting, cost basis might be different.
+                // Let's just accumulate whatever we found.
+
+                state.qty -= tQty;
+                state.costBasis -= costOfSoldPC;
+
+                const proceedsDisplay = valInDisplay;
+                const costOfSoldDisplay = costOfSoldPC;
 
                 otherGains += (proceedsDisplay - costOfSoldDisplay);
-                dayNetFlow -= proceedsDisplay;
+                dayNetFlow -= proceedsDisplay; // Outflow (Proceeds leaving the tracking, effectively) - Wait.
+                // Net Flow Calculation for TWR:
+                // If I Sell, I get Cash.
+                // If the Portfolio tracks Cash, then Flow is 0 (Asset -> Cash).
+                // But this function tracks "Holdings Performance" (excluding cash?).
+                // Usually `calculatePortfolioPerformance` tracks the *invested* assets.
+                // If I sell, money leaves the "Invested" bucket.
+                // So it is a Negative Flow (Withdrawal) from the Investment perspective?
+                // Yes: `dayNetFlow -= proceedsDisplay`.
             } else if (t.type === 'DIVIDEND') {
                 // DRIP Logic:
                 // If tQty > 0, we treat it as:
@@ -165,16 +231,19 @@ export async function calculatePortfolioPerformance(
                 // 2. Acquisition: Reinvested quantity added to `state.qty` and `state.costBasis`.
                 // This ensures TWR captures the income, and future price moves capture compounding.
 
-                const divVal = convertCurrency(tValue, t.currency || Currency.USD, displayCurrency, exchangeRates);
+                const divVal = valInDisplay;
                 otherGains += divVal;
                 dayDividends += divVal;
 
                 if (tQty > 0) {
                     state.qty += tQty;
-                    state.costBasis += costToAdd;
+                    // For DRIP acquisition cost, we use the Dividend Value (Reinvested Amount)
+                    state.costBasis += divVal;
+                    if (!state.lots) state.lots = [];
+                    state.lots.push({ date: tDate.getTime(), qty: tQty, cost: divVal });
                 }
             } else if (t.type === 'FEE') {
-                const feeVal = convertCurrency(tValue, t.currency || Currency.USD, displayCurrency, exchangeRates);
+                const feeVal = valInDisplay;
                 otherGains -= feeVal;
                 dayFees += feeVal;
             }
@@ -195,7 +264,14 @@ export async function calculatePortfolioPerformance(
             const [, exchange, ticker] = stateKey.split(':');
             const tickerKey = `${exchange}:${ticker}`;
             const history = historyMap.get(tickerKey);
-            if (!history?.historical) return;
+            if (!history?.historical) {
+                // If no history, we might still want to add Cost Basis?
+                // But Market Value is 0.
+                // If we add Cost Basis, we show huge unrealized loss?
+                // Usually if no price, we skip or use Cost as Value?
+                // Existing logic returned.
+                return;
+            }
 
             const hist = history.historical;
             let ptr = historyPointers.get(tickerKey) || 0;
@@ -212,7 +288,8 @@ export async function calculatePortfolioPerformance(
                     const priceCurrency = history.currency || state.stockCurrency;
 
                     const valDisplay = convertCurrency(state.qty * price, priceCurrency, displayCurrency, exchangeRates);
-                    const costDisplay = convertCurrency(state.costBasis, state.stockCurrency, displayCurrency, exchangeRates);
+                    // state.costBasis is ALREADY in displayCurrency (Accumulated Historical)
+                    const costDisplay = state.costBasis;
 
                     totalHoldingsValue += valDisplay;
                     totalCostBasis += costDisplay;

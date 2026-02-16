@@ -3,7 +3,16 @@ import { describe, it, expect } from 'vitest';
 import { calculateDashboardSummary, type DashboardSummaryData } from './dashboard';
 import { Currency, Exchange, type Portfolio, type ExchangeRates } from './types';
 import { FinanceEngine } from './data/engine';
-import { Holding } from './data/model';
+import { Holding, Lot, DividendRecord } from './data/model';
+
+// Extend mock input type to allow passing lots
+interface MockHoldingData {
+    [key: string]: any;
+    vestedLots?: Partial<Lot>[];
+    realizedLots?: Partial<Lot>[];
+    transactions?: any[];
+    dividends?: any[];
+}
 
 // --- MOCKS ---
 
@@ -22,7 +31,7 @@ mockPortfolios.set('p1', {
 
 // --- HELPERS ---
 
-function createMockEngine(holdingsData: any[]) {
+function createMockEngine(holdingsData: MockHoldingData[]) {
     // Better: create a partial object that looks like FinanceEngine
     const engine = {
         holdings: new Map<string, Holding>(),
@@ -111,6 +120,12 @@ function createMockEngine(holdingsData: any[]) {
             unrealizedTaxableGainILS: h.unrealizedTaxableGainILS || 0,
             realizedTax: h.realizedTax || 0,
             
+            // New fields required for historical calc
+            vestedLots: h.vestedLots || [],
+            realizedLots: h.realizedLots || [],
+            transactions: h.transactions || [],
+            dividends: h.dividends || [],
+
             addTransaction: () => { },
             addDividend: () => { },
         } as unknown as Holding; 
@@ -210,5 +225,38 @@ describe('Dashboard Summary Calculation', () => {
         expect(summary.totalRealized).toBeCloseTo(100, 1);
         // Tax is 25 USD. So 100 - 25 = 75.
         expect(summary.realizedGainAfterTax).toBeCloseTo(75, 1);
+    });
+
+    it('should use historical cost from lots for display currency', () => {
+        // Scenario: Bought 1 unit at $100 when ILS was 3.5. Cost 350 ILS.
+        // Current ILS is 4.0. Value 480 ILS ($120 * 4).
+        // Historical Cost Logic: Cost = 350. Unrealized = 130.
+        // Current Rate Logic (Bad): Cost = 400. Unrealized = 80.
+
+        const historicalLot = {
+            qty: 1,
+            costTotal: { amount: 100, currency: Currency.USD, valILS: 350, valUSD: 100 }
+        };
+
+        const engine = createMockEngine([{
+            portfolioId: 'p1', ticker: 'HIST', exchange: Exchange.NASDAQ,
+            stockCurrency: Currency.USD, portfolioCurrency: Currency.USD,
+            qtyVested: 1, qtyUnvested: 0,
+            currentPrice: 120,
+            marketValueVested: { amount: 120, currency: Currency.USD },
+            unrealizedGain: { amount: 20, currency: Currency.USD },
+            costBasisVested: { amount: 100, currency: Currency.USD },
+            dayChangePct: 0,
+
+            vestedLots: [historicalLot as any],
+        }]);
+
+        const data = [{ key: 'p1_HIST' }];
+        const { holdings } = calculateDashboardSummary(data, 'ILS', mockRates, mockPortfolios, engine);
+        const enriched = holdings[0];
+
+        expect(enriched.display.marketValue).toBeCloseTo(480, 1);
+        expect(enriched.display.costBasis).toBeCloseTo(350, 1);
+        expect(enriched.display.unrealizedGain).toBeCloseTo(130, 1);
     });
 });

@@ -314,6 +314,123 @@ async function testZeroStartTWR() {
     }
 }
 
+async function testHistoricalCostBasis() {
+    console.log('\n--- Test: Historical Cost Basis (originalPriceILA) ---');
+    // Scenario: Buy USD stock when 1 USD = 3.5 ILS.
+    // Display in ILS. Current Rate 1 USD = 4.0 ILS.
+    // Cost should be 3.5 * Price. Value should be 4.0 * Price.
+
+    const holdings: DashboardHolding[] = [{
+        portfolioId: 'p1', ticker: 'HIST', exchange: Exchange.NASDAQ,
+        stockCurrency: Currency.USD, portfolioCurrency: Currency.USD,
+        qtyVested: 10, totalQty: 10
+    } as any];
+
+    const txns: Transaction[] = [{
+        date: new Date('2024-01-02T00:00:00Z') as any, portfolioId: 'p1', ticker: 'HIST', exchange: Exchange.NASDAQ,
+        type: 'BUY', qty: 10, price: 100,
+        originalQty: 10, originalPrice: 100,
+        currency: Currency.USD,
+        // Historical Cost: 100 USD * 3.5 = 350 ILS (35000 Agorot)
+        originalPriceILA: 35000
+    } as any];
+
+    // Mock rates: Current 1 USD = 4.0 ILS
+    const rates: ExchangeRates = {
+        current: { USD: 1, ILS: 4.0 },
+        ago1m: { USD: 1, ILS: 3.5 }
+    };
+
+    // Mock History: Price 100 USD all the time
+    const customHistory = {
+        'NASDAQ:HIST': [
+            { date: new Date('2024-01-02'), price: 100 },
+            { date: new Date('2024-01-03'), price: 100 },
+        ]
+    };
+    const fetchCustom = async (t: string) => ({ historical: (customHistory as any)[`NASDAQ:${t}`], fromCache: true } as any);
+
+    const { points } = await calculatePortfolioPerformance(holdings, txns, 'ILS', rates, undefined, undefined, fetchCustom);
+
+    const p = points.find(p => p.date.toISOString().startsWith('2024-01-03'));
+
+    if (p) {
+        // Value: 10 * 100 * 4.0 = 4000 ILS.
+        assertClose(p.holdingsValue, 4000, 0.01, 'Holdings Value (Current Rate)');
+
+        // Cost Basis: Should use originalPriceILA -> 35000 agorot / 100 * 10 = 3500 ILS.
+        // If it used Current Rate: 100 * 10 * 4.0 = 4000 ILS.
+        assertClose(p.costBasis, 3500, 0.01, 'Cost Basis (Historical Rate)');
+
+        // Gains: 4000 - 3500 = 500 ILS.
+        assertClose(p.gainsValue, 500, 0.01, 'Gains = Value - Historical Cost');
+    }
+}
+
+async function testFIFOCostBasis() {
+    // Tests that SELL uses FIFO (First-In-First-Out) for Cost Basis, not Average Cost.
+    // Buy 1 @ 10, Buy 1 @ 20. Sell 1.
+    // FIFO: Sell the 10. Remaining Cost = 20.
+    // AvgCost: Sell 1 @ 15. Remaining Cost = 15.
+
+    const holdings: any[] = [];
+    const txns: Transaction[] = [
+        {
+            date: new Date('2024-01-01T00:00:00Z') as any, portfolioId: 'p1', ticker: 'FIFO', exchange: Exchange.NASDAQ,
+            type: 'BUY', qty: 1, price: 10, originalPrice: 10,
+            currency: Currency.USD
+        } as any,
+        {
+            date: new Date('2024-01-02T00:00:00Z') as any, portfolioId: 'p1', ticker: 'FIFO', exchange: Exchange.NASDAQ,
+            type: 'BUY', qty: 1, price: 20, originalPrice: 20,
+            currency: Currency.USD
+        } as any,
+        {
+            date: new Date('2024-01-03T00:00:00Z') as any, portfolioId: 'p1', ticker: 'FIFO', exchange: Exchange.NASDAQ,
+            type: 'SELL', qty: 1, price: 30, originalPrice: 30,
+            currency: Currency.USD
+        } as any
+    ];
+
+    const rates: ExchangeRates = { current: { USD: 1, ILS: 1 } } as any; // Simple 1:1
+
+    // Mock History: Price 30 USD all the time for FIFO
+    const customHistory = {
+        'NASDAQ:FIFO': [
+            { date: new Date('2024-01-01'), price: 10 },
+            { date: new Date('2024-01-02'), price: 20 },
+            { date: new Date('2024-01-03'), price: 30 },
+        ]
+    };
+    const fetchCustom = async (t: string) => ({ historical: (customHistory as any)[`NASDAQ:${t}`], fromCache: true } as any);
+
+    const { points } = await calculatePortfolioPerformance(holdings, txns, 'USD', rates, undefined, undefined, fetchCustom);
+
+    // Check points after sell (Jan 3 or later)
+    const pAfter = points.find(p => p.date.toISOString().startsWith('2024-01-03'));
+
+    if (pAfter) {
+        // Remaining Qty = 1.
+        // FIFO Cost Basis = 20.
+        // Avg Cost Basis would be 15.
+
+        console.log(`[Test FIFO] Cost Basis: ${pAfter.costBasis}`);
+        assertClose(pAfter.costBasis, 20, 0.01, 'FIFO Cost Basis (Should be 20)');
+
+        // Gains Calculation check
+        // Realized Gain from Sell: Proceeds 30 - Cost 10 = 20.
+        // Unrealized Gain on Remaining: Value (30 * 1) - Cost 20 = 10. (Assuming price stays 30)
+        // Total Gains = Realized (20) + Unrealized (10) = 30.
+        // Holdings Value = 30.
+        // Cost Basis = 20.
+        // gainsValue = Holdings(30) - Cost(20) + Realized(20) = 30.
+
+        assertClose(pAfter.gainsValue, 30, 0.01, 'Total Gains (Realized + Unrealized)');
+    } else {
+        throw new Error('No point found for Jan 3');
+    }
+}
+
 export async function runTests() {
     try {
         await testBasicBuyAndHold();
@@ -324,6 +441,8 @@ export async function runTests() {
         await testMissingPriceData();
         await testIntradayWash();
         await testZeroStartTWR();
+        await testHistoricalCostBasis();
+        await testFIFOCostBasis(); // Added new test
         console.log('\n🎉 All performance tests passed!');
     } catch (e) {
         console.error('\n💥 Performance tests failed.');

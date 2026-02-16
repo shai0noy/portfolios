@@ -493,7 +493,24 @@ export class Holding {
         // Sort active lots by Date (FIFO)
         const activeLots = this.activeLots.sort((a, b) => a.date.getTime() - b.date.getTime());
 
-        const sellPricePC = convertCurrency(txn.price || 0, txn.currency || this.stockCurrency, this.portfolioCurrency, rates);
+        // Resolve Sell Price in Portfolio Currency (preferring historical)
+        let sellPricePC = 0;
+
+        if (this.portfolioCurrency === Currency.ILS) {
+            if (txn.originalPriceILA) {
+                sellPricePC = toILS(txn.originalPriceILA, Currency.ILA);
+            } else {
+                sellPricePC = convertCurrency(txn.price || 0, txn.currency || this.stockCurrency, Currency.ILS, rates);
+            }
+        } else {
+            // USD or Other
+            if (this.portfolioCurrency === Currency.USD && txn.originalPriceUSD) {
+                sellPricePC = txn.originalPriceUSD;
+            } else {
+                sellPricePC = convertCurrency(txn.price || 0, txn.currency || this.stockCurrency, this.portfolioCurrency, rates);
+            }
+        }
+
         const sellPriceSC = convertCurrency(txn.price || 0, txn.currency || this.stockCurrency, this.stockCurrency, rates);
 
         const totalSellQty = qtyToSell;

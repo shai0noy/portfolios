@@ -32,74 +32,126 @@ export function calculateDashboardSummary(data: any[], displayCurrency: string, 
   const filteredUnified = unifiedHoldings.filter(h => dataKeys.has(h.id));
 
   const enrichedHoldings: EnrichedDashboardHolding[] = filteredUnified.map(h => {
+    // Helper to get historical value in display currency
+    const getHistoricalVal = (money: { amount: number, currency: Currency, valILS?: number, valUSD?: number }): number => {
+      if (displayCurrency === Currency.ILS && money.valILS !== undefined) return money.valILS;
+      if (displayCurrency === Currency.USD && money.valUSD !== undefined) return money.valUSD;
+      // Fallback: This is technically "wrong" for historical consistency if we lack val data, 
+      // but consistent with "we don't have history". 
+      // Ideally we'd error or warn, but for now conversion at current rate is the fallback 
+      // (or we can try to look up rate if we had date, but we don't here easily).
+      return convertCurrency(money.amount, money.currency, displayCurrency, exchangeRates);
+    };
+
     // Vested Calculations
     const mvVested = h.marketValueVested; // SimpleMoney (SC)
-    const cbVested = h.costBasisVested; // SimpleMoney (PC)
-
-    // Calculate Unrealized Gain Vested in PC
-    // We need MV in PC
-    const mvVestedPC = convertCurrency(mvVested.amount, mvVested.currency, h.portfolioCurrency, exchangeRates);
-    const unrealizedGainVestedVal = mvVestedPC - cbVested.amount;
-
+    // Market Value is always Current Rate
     const marketValue = convertCurrency(mvVested.amount, mvVested.currency, displayCurrency, exchangeRates);
-    const unrealizedGain = convertCurrency(unrealizedGainVestedVal, h.portfolioCurrency, displayCurrency, exchangeRates);
 
-    // dividendsTotal is now SimpleMoney (PC)
-    // dividendsTotal is Net (Pocket).
-    // derived Gross Dividends
-    const dividendsNet = convertCurrency(h.dividendsTotal.amount, h.dividendsTotal.currency, displayCurrency, exchangeRates);
+    // Cost Basis Vested (Historical)
+    // Sum from vested lots
+    const costBasisDisplay = h.vestedLots.reduce((sum, lot) => sum + getHistoricalVal(lot.costTotal), 0);
 
-    // Sum Gross Dividends from records
-    // Use (h as any)._dividends if available, else fallback to net + tax (approx if fee is 0)
+    // Unrealized Gain (Nominal) = MarketValue - HistoricalCost
+    const unrealizedGain = marketValue - costBasisDisplay;
+
+    // dividendsTotal (Net)
+    // We should ideally sum historical dividends too?
+    // h.dividends is DividendRecord[].
+    const dividendsNet = h.dividends.reduce((sum, d) => {
+    // DividendRecord has netAmountPC (number) in portfolio currency.
+    // We want to convert this to display currency closely matching historical rates.
+    // We have d.grossAmount (Money) which HAS historical values (valILS, valUSD).
+    // We can use the implied rate from grossAmount to convert netAmountPC.
+
+      let netValDisplay = 0;
+      const grossValDisplay = getHistoricalVal(d.grossAmount);
+
+      if (d.grossAmount.amount !== 0) {
+        const ratio = d.netAmountPC / d.grossAmount.amount;
+        netValDisplay = grossValDisplay * ratio;
+      } else {
+        // Fallback
+        netValDisplay = convertCurrency(d.netAmountPC, h.portfolioCurrency, displayCurrency, exchangeRates);
+      }
+
+      return sum + netValDisplay;
+    }, 0);
+
     const rawDivs = ((h as any)._dividends || []) as DividendRecord[];
     let dividendsGross = 0;
-    let dividendsTax = 0;
 
-    // Helper to calc tax display
-    const divTaxToDeduct = (h as any)._dividends
-      ? (h as any)._dividends.reduce((acc: number, d: any) => acc + (d.taxAmountPC || 0), 0)
-      : 0;
-    const divTaxDisplay = convertCurrency(divTaxToDeduct, h.portfolioCurrency, displayCurrency, exchangeRates);
-
+    // Sum Gross Dividends
     if (rawDivs.length > 0) {
-      dividendsGross = rawDivs.reduce((sum, d) => sum + convertCurrency(d.grossAmount.amount, d.grossAmount.currency, displayCurrency, exchangeRates), 0);
-      dividendsTax = rawDivs.reduce((sum, d) => sum + convertCurrency(d.taxAmountPC, h.portfolioCurrency, displayCurrency, exchangeRates), 0);
+      dividendsGross = rawDivs.reduce((sum, d) => sum + getHistoricalVal(d.grossAmount), 0);
     } else {
       // Fallback
-      dividendsTax = divTaxDisplay;
-      dividendsGross = dividendsNet + dividendsTax;
+      const divTaxToDeduct = (h as any)._dividends
+        ? (h as any)._dividends.reduce((acc: number, d: any) => acc + (d.taxAmountPC || 0), 0)
+        : 0;
+      const divTaxDisplay = convertCurrency(divTaxToDeduct, h.portfolioCurrency, displayCurrency, exchangeRates);
+      dividendsGross = dividendsNet + divTaxDisplay;
     }
 
-    // Realized Gain from Sells (Pre-Fee, Pre-Tax) = Proceeds - CostOfSold
-    // proceedsTotal and costOfSoldTotal are available
-    const proceedsDisplay = convertCurrency(h.proceedsTotal.amount, h.proceedsTotal.currency, displayCurrency, exchangeRates);
-    const costOfSoldDisplay = convertCurrency(h.costOfSoldTotal.amount, h.costOfSoldTotal.currency, displayCurrency, exchangeRates);
+    // Cost Of Sold (Historical)
+    const costOfSoldDisplay = h.realizedLots.reduce((sum, lot) => sum + getHistoricalVal(lot.costTotal), 0);
+
+    // Proceeds (Historical)
+    // Iterate SELL transactions
+    // We use `h.transactions` which are filtered by ticker/exchange.
+    const proceedsDisplay = h.transactions
+      .filter(t => t.type === 'SELL')
+      .reduce((sum, t) => {
+        // Replicate `performance.ts` logic: prefer originalPriceILA/USD
+        let val = 0;
+        if (displayCurrency === Currency.ILS && (t.originalPriceILA || t.currency === Currency.ILS)) {
+          if (t.originalPriceILA) {
+            val = (t.originalPriceILA / 100) * (t.qty || 0); // originalPriceILA is unit price in Agorot? 
+            // performance.ts: `const priceILS = t.originalPriceILA / 100; return tQty * priceILS;`
+            // Yes.
+          } else {
+            // ILS native
+            val = (t.price || 0) * (t.qty || 0);
+          }
+        } else if (displayCurrency === Currency.USD && (t.originalPriceUSD || t.currency === Currency.USD)) {
+          if (t.originalPriceUSD) {
+            val = t.originalPriceUSD * (t.qty || 0);
+          } else {
+            val = (t.price || 0) * (t.qty || 0);
+          }
+        } else {
+          // Fallback: Convert at current rate (Suboptimal but necessary if no history)
+          // Or ideally we use `grossValue` converted?
+          const gross = (t.price || 0) * (t.qty || 0);
+          val = convertCurrency(gross, t.currency || h.stockCurrency, displayCurrency, exchangeRates);
+        }
+        return sum + val;
+      }, 0);
+
+    // Realized Gain from Sells (Gross)
     const realizedSellsGross = proceedsDisplay - costOfSoldDisplay;
 
-    // Realized Gain (Gross) for UI = Sells Gross + Divs Gross
-    // Label "Realized" will use this.
+    // Realized Gain (Gross) for UI
     const realizedGainGross = realizedSellsGross + dividendsGross;
 
-    // Net Realized = (Sells Net of Fee - Sells Tax) + (Divs Net - [Divs Tax is already deducted in Net])
-    // Wait, Divs Net IS Net.
-    // Sells Net of Fee = h.realizedGainNet (Pre-Tax)
-    const realizedSellsNetFee = convertCurrency(h.realizedGainNet.amount, h.realizedGainNet.currency, displayCurrency, exchangeRates);
-    const realizedSellsTax = convertCurrency(h.realizedCapitalGainsTax || 0, h.portfolioCurrency, displayCurrency, exchangeRates);
+    // Net Realized...
+    // We need Fee and Tax in Display Currency.
+    const feesDisplay = convertCurrency(h.feesTotal.amount, h.feesTotal.currency, displayCurrency, exchangeRates);
+    // Realized Tax (sum from lots?)
+    const realizedTaxDisplay = h.realizedLots.reduce((sum, lot) => {
+      // lot.realizedTaxPC is in PC.
+      // We probably want to convert at current rate? Tax is paid in cash.
+      // Or did we track tax historically?
+      // Lot doesn't store valILS for tax.
+      return sum + convertCurrency((lot.realizedTaxPC || 0) + (lot.realizedIncomeTaxPC || 0), h.portfolioCurrency, displayCurrency, exchangeRates);
+    }, 0);
 
-    const realizedSellsNet = realizedSellsNetFee - realizedSellsTax;
-
-    // Net Realized Total = Sells Net + Divs Net
+    const realizedSellsNet = realizedSellsGross - feesDisplay - realizedTaxDisplay;
     const realizedGainNet = realizedSellsNet + dividendsNet;
 
-    // costBasisDisplay was calculated above (line 101).
-    const costBasisDisplay = convertCurrency(cbVested.amount, cbVested.currency, displayCurrency, exchangeRates);
+    // Total Gain
+    const totalGain = unrealizedGain + realizedGainGross; 
 
-    // Total Gain = Unrealized (Gross) + Realized (Gross)
-    // "Gross" here means Pre-Tax, Pre-Fee.
-    // Unrealized Gain is MV - Cost (Pre-Fee, Pre-Tax).
-    const totalGain = unrealizedGain + realizedGainGross;
-
-    const realizedTaxDisplay = convertCurrency(h.totalTaxPaidPC, h.portfolioCurrency, displayCurrency, exchangeRates);
     const unrealizedTaxDisplay = convertCurrency(h.unrealizedTaxLiabilityILS, Currency.ILS, displayCurrency, exchangeRates);
 
     // Value After Tax
