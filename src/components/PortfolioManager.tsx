@@ -2,8 +2,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTheme } from '@mui/material/styles';
-import { 
-  Box, TextField, Button, MenuItem, Select, InputLabel, FormControl, 
+import {
+  Box, TextField, Button, MenuItem, Select, InputLabel, FormControl,
   Typography, Alert, Snackbar, Grid, Card, CardContent, Tooltip,
   InputAdornment,
   TableContainer, Table, TableHead, TableRow, TableCell, TableBody, Paper,
@@ -19,6 +19,7 @@ import { type Portfolio, PORTFOLIO_TEMPLATES, Currency } from '../lib/types';
 import { addPortfolio, fetchPortfolios, updatePortfolio } from '../lib/sheets/index';
 import { useLanguage } from '../lib/i18n';
 import { PortfolioWizard } from './PortfolioWizard';
+import { NumericField, PercentageField } from './PortfolioInputFields';
 
 const taxPolicyNames: { [key: string]: string } = {
   IL_REAL_GAIN: "Israel (Real Gain - Inflation Adjusted)",
@@ -137,94 +138,94 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
 
 
   const addTaxHistoryEntry = () => {
-      const today = new Date().toISOString().split('T')[0];
-      setP(prev => ({
-          ...prev,
-          taxHistory: [...(prev.taxHistory || []), { startDate: today, cgt: 0.25, incTax: 0 }]
-      }));
+    const today = new Date().toISOString().split('T')[0];
+    setP(prev => ({
+      ...prev,
+      taxHistory: [...(prev.taxHistory || []), { startDate: today, cgt: 0.25, incTax: 0 }]
+    }));
   };
 
   const removeTaxHistoryEntry = (index: number) => {
-      setP(prev => {
-          const newHistory = [...(prev.taxHistory || [])];
-          newHistory.splice(index, 1);
-          return { ...prev, taxHistory: newHistory };
-      });
+    setP(prev => {
+      const newHistory = [...(prev.taxHistory || [])];
+      newHistory.splice(index, 1);
+      return { ...prev, taxHistory: newHistory };
+    });
   };
 
   const updateTaxHistoryEntry = (index: number, field: keyof import('../lib/types').TaxHistoryEntry, value: any) => {
-      // Validate Date Order
-      if (field === 'startDate') {
-          const newDate = new Date(value);
-          const history = p.taxHistory || [];
-          
-          // Check previous (must be later than previous)
-          if (index > 0) {
-              const prevDate = new Date(history[index - 1].startDate);
-              if (newDate <= prevDate) {
-                  alert(t('Date must be after the previous entry.', 'התאריך חייב להיות אחרי הרשומה הקודמת.'));
-                  return;
-              }
-          }
-          
-          // Check next (must be earlier than next)
-          if (index < history.length - 1) {
-              const nextDate = new Date(history[index + 1].startDate);
-              if (newDate >= nextDate) {
-                  alert(t('Date must be before the next entry.', 'התאריך חייב להיות לפני הרשומה הבאה.'));
-                  return;
-              }
-          }
+    // Validate Date Order
+    if (field === 'startDate') {
+      const newDate = new Date(value);
+      const history = p.taxHistory || [];
+
+      // Check previous (must be later than previous)
+      if (index > 0) {
+        const prevDate = new Date(history[index - 1].startDate);
+        if (newDate <= prevDate) {
+          alert(t('Date must be after the previous entry.', 'התאריך חייב להיות אחרי הרשומה הקודמת.'));
+          return;
+        }
       }
 
-      setP(prev => {
-          const newHistory = [...(prev.taxHistory || [])];
-          newHistory[index] = { ...newHistory[index], [field]: value };
-          return { ...prev, taxHistory: newHistory };
-      });
+      // Check next (must be earlier than next)
+      if (index < history.length - 1) {
+        const nextDate = new Date(history[index + 1].startDate);
+        if (newDate >= nextDate) {
+          alert(t('Date must be before the next entry.', 'התאריך חייב להיות לפני הרשומה הבאה.'));
+          return;
+        }
+      }
+    }
+
+    setP(prev => {
+      const newHistory = [...(prev.taxHistory || [])];
+      newHistory[index] = { ...newHistory[index], [field]: value };
+      return { ...prev, taxHistory: newHistory };
+    });
   };
 
   const addFeeHistoryEntry = () => {
-      const today = new Date().toISOString().split('T')[0];
-      setP(prev => ({
-          ...prev,
-          feeHistory: [...(prev.feeHistory || []), { startDate: today, mgmtVal: 0, mgmtType: 'percentage', mgmtFreq: 'yearly', divCommRate: 0, commRate: 0, commMin: 0, commMax: 0 }]
-      }));
+    const today = new Date().toISOString().split('T')[0];
+    setP(prev => ({
+      ...prev,
+      feeHistory: [...(prev.feeHistory || []), { startDate: today, mgmtVal: 0, mgmtType: 'percentage', mgmtFreq: 'yearly', divCommRate: 0, commRate: 0, commMin: 0, commMax: 0 }]
+    }));
   };
 
   const removeFeeHistoryEntry = (index: number) => {
-      setP(prev => {
-          const newHistory = [...(prev.feeHistory || [])];
-          newHistory.splice(index, 1);
-          return { ...prev, feeHistory: newHistory };
-      });
+    setP(prev => {
+      const newHistory = [...(prev.feeHistory || [])];
+      newHistory.splice(index, 1);
+      return { ...prev, feeHistory: newHistory };
+    });
   };
 
   const updateFeeHistoryEntry = (index: number, field: keyof import('../lib/types').FeeHistoryEntry, value: any) => {
-      if (field === 'startDate') {
-          const newDate = new Date(value);
-          const history = p.feeHistory || [];
-          if (index > 0) {
-              const prevDate = new Date(history[index - 1].startDate);
-              if (newDate <= prevDate) {
-                  alert(t('Date must be after the previous entry.', 'התאריך חייב להיות אחרי הרשומה הקודמת.'));
-                  return;
-              }
-          }
-          if (index < history.length - 1) {
-              const nextDate = new Date(history[index + 1].startDate);
-              if (newDate >= nextDate) {
-                  alert(t('Date must be before the next entry.', 'התאריך חייב להיות לפני הרשומה הבאה.'));
-                  return;
-              }
-          }
+    if (field === 'startDate') {
+      const newDate = new Date(value);
+      const history = p.feeHistory || [];
+      if (index > 0) {
+        const prevDate = new Date(history[index - 1].startDate);
+        if (newDate <= prevDate) {
+          alert(t('Date must be after the previous entry.', 'התאריך חייב להיות אחרי הרשומה הקודמת.'));
+          return;
+        }
       }
+      if (index < history.length - 1) {
+        const nextDate = new Date(history[index + 1].startDate);
+        if (newDate >= nextDate) {
+          alert(t('Date must be before the next entry.', 'התאריך חייב להיות לפני הרשומה הבאה.'));
+          return;
+        }
+      }
+    }
 
-      setP(prev => {
-          const newHistory = [...(prev.feeHistory || [])];
-          newHistory[index] = { ...newHistory[index], [field]: value };
-          return { ...prev, feeHistory: newHistory };
-      });
+    setP(prev => {
+      const newHistory = [...(prev.feeHistory || [])];
+      newHistory[index] = { ...newHistory[index], [field]: value };
+      return { ...prev, feeHistory: newHistory };
+    });
   };
 
   const cancelEdit = () => {
@@ -316,27 +317,27 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
         // Check for tax changes
         const cgtChanged = Math.abs((portToSave.cgt || 0) - (editingPortfolio.cgt || 0)) > 1e-6;
         const incTaxChanged = Math.abs((portToSave.incTax || 0) - (editingPortfolio.incTax || 0)) > 1e-6;
-        
+
         if (cgtChanged || incTaxChanged) {
-            const today = new Date().toISOString().split('T')[0];
-            const history = [...(editingPortfolio.taxHistory || [])];
-            
-            if (history.length === 0) {
-                history.push({ 
-                    startDate: '1970-01-01', 
-                    cgt: editingPortfolio.cgt || 0, 
-                    incTax: editingPortfolio.incTax || 0
-                });
-            }
-            
-            const existingTodayIndex = history.findIndex(h => h.startDate === today);
-            if (existingTodayIndex >= 0) {
-                history[existingTodayIndex] = { startDate: today, cgt: portToSave.cgt, incTax: portToSave.incTax };
-            } else {
-                history.push({ startDate: today, cgt: portToSave.cgt, incTax: portToSave.incTax });
-            }
-            
-            portToSave.taxHistory = history;
+          const today = new Date().toISOString().split('T')[0];
+          const history = [...(editingPortfolio.taxHistory || [])];
+
+          if (history.length === 0) {
+            history.push({
+              startDate: '1970-01-01',
+              cgt: editingPortfolio.cgt || 0,
+              incTax: editingPortfolio.incTax || 0
+            });
+          }
+
+          const existingTodayIndex = history.findIndex(h => h.startDate === today);
+          if (existingTodayIndex >= 0) {
+            history[existingTodayIndex] = { startDate: today, cgt: portToSave.cgt, incTax: portToSave.incTax || 0 };
+          } else {
+            history.push({ startDate: today, cgt: portToSave.cgt, incTax: portToSave.incTax || 0 });
+          }
+
+          portToSave.taxHistory = history;
         }
 
         // Check for fee changes
@@ -349,41 +350,41 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
         const commMaxChanged = Math.abs((portToSave.commMax || 0) - (editingPortfolio.commMax || 0)) > 1e-6;
 
         if (valChanged || typeChanged || freqChanged || divCommChanged || commRateChanged || commMinChanged || commMaxChanged) {
-            const today = new Date().toISOString().split('T')[0];
-            const history = [...(editingPortfolio.feeHistory || [])];
-            
-            if (history.length === 0) {
-                history.push({ 
-                    startDate: '1970-01-01', 
-                    mgmtVal: editingPortfolio.mgmtVal || 0,
-                    mgmtType: editingPortfolio.mgmtType || 'percentage',
-                    mgmtFreq: editingPortfolio.mgmtFreq || 'yearly',
-                    divCommRate: editingPortfolio.divCommRate || 0,
-                    commRate: editingPortfolio.commRate || 0,
-                    commMin: editingPortfolio.commMin || 0,
-                    commMax: editingPortfolio.commMax || 0
-                });
-            }
-            
-            const newEntry: import('../lib/types').FeeHistoryEntry = { 
-                startDate: today, 
-                mgmtVal: portToSave.mgmtVal || 0,
-                mgmtType: portToSave.mgmtType || 'percentage',
-                mgmtFreq: portToSave.mgmtFreq || 'yearly',
-                divCommRate: portToSave.divCommRate || 0,
-                commRate: portToSave.commRate || 0,
-                commMin: portToSave.commMin || 0,
-                commMax: portToSave.commMax || 0
-            };
+          const today = new Date().toISOString().split('T')[0];
+          const history = [...(editingPortfolio.feeHistory || [])];
 
-            const existingTodayIndex = history.findIndex(h => h.startDate === today);
-            if (existingTodayIndex >= 0) {
-                history[existingTodayIndex] = newEntry;
-            } else {
-                history.push(newEntry);
-            }
-            
-            portToSave.feeHistory = history;
+          if (history.length === 0) {
+            history.push({
+              startDate: '1970-01-01',
+              mgmtVal: editingPortfolio.mgmtVal || 0,
+              mgmtType: editingPortfolio.mgmtType || 'percentage',
+              mgmtFreq: editingPortfolio.mgmtFreq || 'yearly',
+              divCommRate: editingPortfolio.divCommRate || 0,
+              commRate: editingPortfolio.commRate || 0,
+              commMin: editingPortfolio.commMin || 0,
+              commMax: editingPortfolio.commMax || 0
+            });
+          }
+
+          const newEntry: import('../lib/types').FeeHistoryEntry = {
+            startDate: today,
+            mgmtVal: portToSave.mgmtVal || 0,
+            mgmtType: portToSave.mgmtType || 'percentage',
+            mgmtFreq: portToSave.mgmtFreq || 'yearly',
+            divCommRate: portToSave.divCommRate || 0,
+            commRate: portToSave.commRate || 0,
+            commMin: portToSave.commMin || 0,
+            commMax: portToSave.commMax || 0
+          };
+
+          const existingTodayIndex = history.findIndex(h => h.startDate === today);
+          if (existingTodayIndex >= 0) {
+            history[existingTodayIndex] = newEntry;
+          } else {
+            history.push(newEntry);
+          }
+
+          portToSave.feeHistory = history;
         }
       }
 
@@ -397,9 +398,9 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
         setMsg(t('Portfolio Created!', 'התיק נוצר!'));
         setShowNewPortfolioForm(false);
       }
-      setP({ id: '', name: '' }); 
+      setP({ id: '', name: '' });
       setIdDirty(false);
-      loadPortfolios(); 
+      loadPortfolios();
       onSuccess();
     } catch (e) {
       console.error(e);
@@ -434,124 +435,13 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
       updates.divCommRate = 0; // If not taxed, fee is 0
       needsUpdate = true;
     }
-    
+
     if (needsUpdate) {
       setP(prev => ({ ...prev, ...updates }));
     }
   }, [p.taxPolicy, p.incTax, p.cgt, p.divPolicy, p.divCommRate]);
 
-  // Helper for debounced numeric fields
-  const NumericField = ({ label, field, tooltip, disabled, showCurrency }: { label: string, field: keyof Portfolio, tooltip?: string, disabled?: boolean, showCurrency?: boolean }) => {
-    // This state is to allow for typing trailing decimals, e.g. "25."
-    const [localDisplay, setLocalDisplay] = useState<string | null>(null);
 
-    const val = p[field] as number;
-    const displayVal = Number.isFinite(val) ? val.toString() : '';
-
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const v = e.target.value;
-
-      if (v === '' || v === '-') {
-        setLocalDisplay(v);
-        set(field, 0);
-        return;
-      }
-      
-      // Allow trailing decimal
-      if (v.endsWith('.')) {
-        setLocalDisplay(v);
-      } else {
-        setLocalDisplay(null);
-      }
-      
-      let num = parseFloat(v);
-      if (isNaN(num)) return;
-
-      if (num < 0) num = 0;
-      set(field, num);
-    };
-
-    const textField = (
-        <TextField 
-          fullWidth type="number" size="small" label={label} 
-          value={localDisplay !== null ? localDisplay : displayVal}
-          disabled={disabled}
-          onChange={handleChange}
-          onBlur={() => setLocalDisplay(null)}
-        autoComplete="off"
-          InputProps={{ 
-            endAdornment: showCurrency ? <InputAdornment position="end">{p.currency}</InputAdornment> : null,
-            inputProps: { min: 0, step: 'any' }
-          }}
-        />
-    );
-
-    if (tooltip) {
-      return (
-        <Tooltip title={tooltip} placement="top" arrow>
-          {textField}
-        </Tooltip>
-      );
-    }
-    return textField;
-  };
-
-  // Helper for Percentage Fields (Display 0-100, Store 0.0-1.0)
-  const PercentageField = ({ label, field, tooltip, disabled }: { label: string, field: keyof Portfolio, tooltip?: string, disabled?: boolean }) => {
-    // This state is to allow for typing trailing decimals, e.g. "25."
-    const [localDisplay, setLocalDisplay] = useState<string | null>(null);
-
-    const val = (p[field] as number) * 100;
-    const displayVal = Number.isFinite(val) ? parseFloat(val.toFixed(4)).toString() : '';
-
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const v = e.target.value;
-
-      if (v === '' || v === '-') {
-        setLocalDisplay(v);
-        set(field, 0);
-        return;
-      }
-      
-      // Allow trailing decimal
-      if (v.endsWith('.')) {
-        setLocalDisplay(v);
-      } else {
-        setLocalDisplay(null);
-      }
-      
-      let num = parseFloat(v);
-      if (isNaN(num)) return;
-
-      if (num > 100) num = 100;
-      if (num < 0) num = 0;
-      set(field, num / 100);
-    };
-
-    const textField = (
-        <TextField 
-          fullWidth type="number" size="small" label={label} 
-          value={localDisplay !== null ? localDisplay : displayVal}
-          disabled={disabled}
-          onChange={handleChange}
-          onBlur={() => setLocalDisplay(null)}
-        autoComplete="off"
-        InputProps={{
-          endAdornment: <InputAdornment position="end">%</InputAdornment>,
-          inputProps: { min: 0, step: 'any' }
-        }}
-        />
-    );
-
-    if (tooltip) {
-      return (
-        <Tooltip title={tooltip} placement="top" arrow>
-          {textField}
-        </Tooltip>
-      );
-    }
-    return textField;
-  };
 
   return (
     <Box sx={{ maxWidth: 900, mx: 'auto' }}>
@@ -567,12 +457,12 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
             />
           ) : (
             <>
-          <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-            <Typography variant="h5" fontWeight="600" color="text.primary">
-              {editMode ? `${t('Editing Portfolio:', 'עריכת תיק:')} ${editingPortfolio?.name}` : t('Create New Portfolio', 'יצירת תיק חדש')}
-            </Typography>
-            
-            {!editMode && (
+                <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+                  <Typography variant="h5" fontWeight="600" color="text.primary">
+                    {editMode ? `${t('Editing Portfolio:', 'עריכת תיק:')} ${editingPortfolio?.name}` : t('Create New Portfolio', 'יצירת תיק חדש')}
+                  </Typography>
+
+                  {!editMode && (
                     <Box display="flex" gap={2}>
                       <Button onClick={() => setWizardMode(true)} color="primary">
                         {t('Switch to Wizard', 'עבור לאשף')}
@@ -589,142 +479,142 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                         </Select>
                       </FormControl>
                     </Box>
-            )}
-          </Box>
+                  )}
+                </Box>
 
-          <Grid container spacing={3}>
-            {/* IDENTITY */}
-            <Grid item xs={12} md={6}>
-              <Card variant="outlined" sx={{ height: '100%' }}>
-                <CardContent>
-                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                    {t('PORTFOLIO IDENTITY', 'פרטי זיהוי')}
-                  </Typography>
-                  <Grid container spacing={3} mt={2}>
-                    <Grid item xs={12}>
-                      <TextField fullWidth size="small" label={t('Display Name', 'שם תצוגה')} value={p.name} onChange={e => handleNameChange(e.target.value)} />
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <Tooltip title={t("Unique System ID (auto-generated). No spaces.", "מזהה ייחודי (נוצר אוטומטית). ללא רווחים.")}>
-                        <TextField fullWidth size="small" label={t('ID', 'מזהה')} value={p.id} onChange={(e) => handleIdChange(e.target.value)} disabled={editMode} />
-                      </Tooltip>
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <FormControl fullWidth size="small">
-                        <InputLabel>{t('Currency', 'מטבע')}</InputLabel>
-                        <Select value={p.currency} label={t('Currency', 'מטבע')} onChange={e => set('currency', e.target.value)}>
-                          <MenuItem value="ILS">ILS</MenuItem>
-                          <MenuItem value="USD">USD</MenuItem>
-                        </Select>
-                      </FormControl>
-                    </Grid>
+                <Grid container spacing={3}>
+                  {/* IDENTITY */}
+                  <Grid item xs={12} md={6}>
+                    <Card variant="outlined" sx={{ height: '100%' }}>
+                      <CardContent>
+                        <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                          {t('PORTFOLIO IDENTITY', 'פרטי זיהוי')}
+                        </Typography>
+                        <Grid container spacing={3} mt={2}>
+                          <Grid item xs={12}>
+                            <TextField fullWidth size="small" label={t('Display Name', 'שם תצוגה')} value={p.name} onChange={e => handleNameChange(e.target.value)} />
+                          </Grid>
+                          <Grid item xs={12} sm={6}>
+                            <Tooltip title={t("Unique System ID (auto-generated). No spaces.", "מזהה ייחודי (נוצר אוטומטית). ללא רווחים.")}>
+                              <TextField fullWidth size="small" label={t('ID', 'מזהה')} value={p.id} onChange={(e) => handleIdChange(e.target.value)} disabled={editMode} />
+                            </Tooltip>
+                          </Grid>
+                          <Grid item xs={12} sm={6}>
+                            <FormControl fullWidth size="small">
+                              <InputLabel>{t('Currency', 'מטבע')}</InputLabel>
+                              <Select value={p.currency} label={t('Currency', 'מטבע')} onChange={e => set('currency', e.target.value)}>
+                                <MenuItem value="ILS">ILS</MenuItem>
+                                <MenuItem value="USD">USD</MenuItem>
+                              </Select>
+                            </FormControl>
+                          </Grid>
+                        </Grid>
+                      </CardContent>
+                    </Card>
                   </Grid>
-                </CardContent>
-              </Card>
-            </Grid>
 
-            {/* TAX & DIV */}
-            <Grid item xs={12} md={6}>
-              <Card variant="outlined" sx={{ height: '100%' }}>
-                <CardContent>
-                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>{t('TAXATION & DIVIDENDS', 'מיסוי ודיבידנדים')}</Typography>
-                  <Grid container spacing={3} mt={2}>
-                     <Grid item xs={12}>
-                      <FormControl fullWidth size="small">
-                        <InputLabel>{t('Cap. Gain Tax Policy', 'מדיניות מס רווחי הון')}</InputLabel>
-                        <Select 
-                          value={p.taxPolicy} 
-                          label={t('Cap. Gain Tax Policy', 'מדיניות מס רווחי הון')}
-                          onChange={e => set('taxPolicy', e.target.value)}
-                          disabled={editMode}
-                        >
-                          {Object.entries(taxPolicyNames).map(([key, name]) => (
-                            <MenuItem key={key} value={key}>{name}</MenuItem>
-                          ))}
-                        </Select>
-                      </FormControl>
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <PercentageField label={t('Gains Tax', 'מס רווח הון')} field="cgt" tooltip={t("Capital Gains Tax", "מס רווחי הון")} disabled={p.taxPolicy === 'TAX_FREE' || p.taxPolicy === 'PENSION'} />
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                       <PercentageField label={t('Tax on Base Price', 'מס הכנסה (בסיס)')} field="incTax" tooltip={t("Income Tax (for RSUs)", "מס הכנסה (עבור RSU)")} disabled={p.taxPolicy === 'TAX_FREE'} />
-                    </Grid>
-                    <Grid item xs={12}>
-                        <Button 
-                            size="small" 
-                            onClick={() => setShowTaxHistory(!showTaxHistory)} 
+                  {/* TAX & DIV */}
+                  <Grid item xs={12} md={6}>
+                    <Card variant="outlined" sx={{ height: '100%' }}>
+                      <CardContent>
+                        <Typography variant="subtitle2" color="text.secondary" gutterBottom>{t('TAXATION & DIVIDENDS', 'מיסוי ודיבידנדים')}</Typography>
+                        <Grid container spacing={3} mt={2}>
+                          <Grid item xs={12}>
+                            <FormControl fullWidth size="small">
+                              <InputLabel>{t('Cap. Gain Tax Policy', 'מדיניות מס רווחי הון')}</InputLabel>
+                              <Select
+                                value={p.taxPolicy}
+                                label={t('Cap. Gain Tax Policy', 'מדיניות מס רווחי הון')}
+                                onChange={e => set('taxPolicy', e.target.value)}
+                                disabled={editMode}
+                              >
+                                {Object.entries(taxPolicyNames).map(([key, name]) => (
+                                  <MenuItem key={key} value={key}>{name}</MenuItem>
+                                ))}
+                              </Select>
+                            </FormControl>
+                          </Grid>
+                          <Grid item xs={12} sm={6}>
+                            <PercentageField label={t('Gains Tax', 'מס רווח הון')} value={p.cgt || 0} onChange={v => set('cgt', v)} tooltip={t("Capital Gains Tax", "מס רווחי הון")} disabled={p.taxPolicy === 'TAX_FREE' || p.taxPolicy === 'PENSION'} />
+                          </Grid>
+                          <Grid item xs={12} sm={6}>
+                            <PercentageField label={t('Tax on Base Price', 'מס הכנסה (בסיס)')} value={p.incTax || 0} onChange={v => set('incTax', v)} tooltip={t("Income Tax (for RSUs)", "מס הכנסה (עבור RSU)")} disabled={p.taxPolicy === 'TAX_FREE'} />
+                          </Grid>
+                          <Grid item xs={12}>
+                            <Button
+                              size="small"
+                              onClick={() => setShowTaxHistory(!showTaxHistory)}
                             endIcon={showTaxHistory ? <ExpandLessIcon /> : <ExpandMoreIcon />}
                             sx={{ textTransform: 'none', color: 'text.secondary', mb: 1 }}
-                        >
+                            >
                             {t('Manage Tax History', 'ניהול היסטוריית מס')}
-                        </Button>
-                        <Collapse in={showTaxHistory}>
+                            </Button>
+                            <Collapse in={showTaxHistory}>
                             <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 300, mb: 2 }}>
                                 <Table size="small" stickyHeader>
-                                    <TableHead>
-                                        <TableRow>
-                                            <TableCell>{t('Start Date', 'תאריך התחלה')}</TableCell>
-                                            <TableCell>{t('CGT', 'מס רווח')}</TableCell>
-                                            <TableCell>{t('Inc Tax', 'מס הכנסה')}</TableCell>
-                                            <TableCell align="center">{t('Actions', 'פעולות')}</TableCell>
-                                        </TableRow>
-                                    </TableHead>
-                                    <TableBody>
-                                        {p.taxHistory && p.taxHistory.map((h, i) => (
-                                            <TableRow key={i}>
-                                                <TableCell>
-                                                    {i === 0 ? (
-                                                        <Typography variant="body2" color="text.secondary" sx={{ pl: 1 }}>
-                                                            {t('Creation / Always', 'יצירה / תמיד')}
-                                                        </Typography>
-                                                    ) : (
-                                                        <TextField 
-                                                            type="date" 
-                                                            size="small" 
-                                                            value={h.startDate} 
-                                                            onChange={e => updateTaxHistoryEntry(i, 'startDate', e.target.value)}
-                                                            sx={{ width: 150, '& .MuiInputBase-input': { colorScheme: theme.palette.mode } }}
-                                                        />
-                                                    )}
-                                                </TableCell>
-                                                <TableCell>
-                                                    <TextField 
-                                                        type="number" 
-                                                        size="small" 
-                                                        value={(h.cgt * 100).toFixed(4).replace(/\.?0+$/, '')} 
-                                                        onChange={e => updateTaxHistoryEntry(i, 'cgt', parseFloat(e.target.value) / 100)}
-                                                autoComplete="off"
-                                                InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment>, inputProps: { min: 0, step: 'any' } }}
-                                                        sx={{ width: 100 }}
-                                                    />
-                                                </TableCell>
-                                                <TableCell>
-                                                    <TextField 
-                                                        type="number" 
-                                                        size="small" 
-                                                        value={(h.incTax * 100).toFixed(4).replace(/\.?0+$/, '')} 
-                                                        onChange={e => updateTaxHistoryEntry(i, 'incTax', parseFloat(e.target.value) / 100)}
-                                                autoComplete="off"
-                                                InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment>, inputProps: { min: 0, step: 'any' } }}
-                                                        sx={{ width: 100 }}
-                                                    />
-                                                </TableCell>
-                                                <TableCell align="center">
-                                                    <IconButton size="small" color="error" onClick={() => removeTaxHistoryEntry(i)} disabled={i === 0}>
-                                                        <DeleteIcon fontSize="small" />
-                                                    </IconButton>
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
-                                        {(!p.taxHistory || p.taxHistory.length === 0) && (
-                                            <TableRow>
-                                                <TableCell colSpan={4} align="center" sx={{ color: 'text.secondary' }}>
-                                                    {t('No history records.', 'אין רשומות היסטוריה.')}
-                                                </TableCell>
-                                            </TableRow>
-                                        )}
-                                    </TableBody>
+                                  <TableHead>
+                                    <TableRow>
+                                      <TableCell>{t('Start Date', 'תאריך התחלה')}</TableCell>
+                                      <TableCell>{t('CGT', 'מס רווח')}</TableCell>
+                                      <TableCell>{t('Inc Tax', 'מס הכנסה')}</TableCell>
+                                      <TableCell align="center">{t('Actions', 'פעולות')}</TableCell>
+                                    </TableRow>
+                                  </TableHead>
+                                  <TableBody>
+                                    {p.taxHistory && p.taxHistory.map((h, i) => (
+                                      <TableRow key={i}>
+                                        <TableCell>
+                                          {i === 0 ? (
+                                            <Typography variant="body2" color="text.secondary" sx={{ pl: 1 }}>
+                                              {t('Creation / Always', 'יצירה / תמיד')}
+                                            </Typography>
+                                          ) : (
+                                            <TextField
+                                              type="date"
+                                              size="small"
+                                              value={h.startDate}
+                                              onChange={e => updateTaxHistoryEntry(i, 'startDate', e.target.value)}
+                                              sx={{ width: 150, '& .MuiInputBase-input': { colorScheme: theme.palette.mode } }}
+                                            />
+                                          )}
+                                        </TableCell>
+                                        <TableCell>
+                                          <TextField
+                                            type="number"
+                                            size="small"
+                                            value={(h.cgt * 100).toFixed(4).replace(/\.?0+$/, '')}
+                                            onChange={e => updateTaxHistoryEntry(i, 'cgt', parseFloat(e.target.value) / 100)}
+                                            autoComplete="off"
+                                            InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment>, inputProps: { min: 0, step: 'any' } }}
+                                            sx={{ width: 100 }}
+                                          />
+                                        </TableCell>
+                                        <TableCell>
+                                          <TextField
+                                            type="number"
+                                            size="small"
+                                            value={(h.incTax * 100).toFixed(4).replace(/\.?0+$/, '')}
+                                            onChange={e => updateTaxHistoryEntry(i, 'incTax', parseFloat(e.target.value) / 100)}
+                                            autoComplete="off"
+                                            InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment>, inputProps: { min: 0, step: 'any' } }}
+                                            sx={{ width: 100 }}
+                                          />
+                                        </TableCell>
+                                        <TableCell align="center">
+                                          <IconButton size="small" color="error" onClick={() => removeTaxHistoryEntry(i)} disabled={i === 0}>
+                                            <DeleteIcon fontSize="small" />
+                                          </IconButton>
+                                        </TableCell>
+                                      </TableRow>
+                                    ))}
+                                    {(!p.taxHistory || p.taxHistory.length === 0) && (
+                                      <TableRow>
+                                        <TableCell colSpan={4} align="center" sx={{ color: 'text.secondary' }}>
+                                          {t('No history records.', 'אין רשומות היסטוריה.')}
+                                        </TableCell>
+                                      </TableRow>
+                                    )}
+                                  </TableBody>
                                 </Table>
                             </TableContainer>
                             <Button startIcon={<AddIcon />} size="small" onClick={addTaxHistoryEntry}>
@@ -733,58 +623,58 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                             <Alert severity="warning" sx={{ mt: 2 }}>
                                 {t('Warning: Changing history does not automatically update past transactions tax calculations. Only new dashboard calculations will use this.', 'אזהרה: שינוי ההיסטוריה אינו מעדכן אוטומטית חישובי מס של עסקאות עבר. רק חישובי דאשבורד חדשים ישתמשו בזה.')}
                             </Alert>
-                        </Collapse>
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <FormControl fullWidth size="small">
-                        <InputLabel>{t('Dividend Policy', 'מדיניות דיבידנד')}</InputLabel>
-                        <Select value={p.divPolicy} label={t('Dividend Policy', 'מדיניות דיבידנד')} onChange={e => set('divPolicy', e.target.value)} disabled={editMode}>
-                          <MenuItem value="cash_taxed">Cash (Taxed)</MenuItem>
-                          <MenuItem value="accumulate_tax_free">Accumulate (Tax-Free)</MenuItem>
-                          <MenuItem value="hybrid_rsu">Accumulate Unvested / Cash Vested</MenuItem>
-                        </Select>
-                      </FormControl>
-                    </Grid>
+                            </Collapse>
+                          </Grid>
+                          <Grid item xs={12} sm={6}>
+                            <FormControl fullWidth size="small">
+                              <InputLabel>{t('Dividend Policy', 'מדיניות דיבידנד')}</InputLabel>
+                              <Select value={p.divPolicy} label={t('Dividend Policy', 'מדיניות דיבידנד')} onChange={e => set('divPolicy', e.target.value)} disabled={editMode}>
+                                <MenuItem value="cash_taxed">Cash (Taxed)</MenuItem>
+                                <MenuItem value="accumulate_tax_free">Accumulate (Tax-Free)</MenuItem>
+                                <MenuItem value="hybrid_rsu">Accumulate Unvested / Cash Vested</MenuItem>
+                              </Select>
+                            </FormControl>
+                          </Grid>
 
-                  </Grid>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            {/* FEES */}
-            <Grid item xs={12} md={6}>
-              <Card variant="outlined" sx={{ height: '100%' }}>
-                <CardContent>
-                  
-                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>{t('TRADING FESS', 'עמלות מסחר')}</Typography>
-                  <Grid container spacing={3} mt={0.5} mb={3}>
-                    <Grid item xs={12} sm={4}>
-                      <PercentageField label={t('Rate', 'שיעור')} field="commRate" tooltip={t("Commission rate per trade", "שיעור עמלה לכל פעולה")} />
-                    </Grid>
-                    <Grid item xs={12} sm={4}>
-                      <NumericField label={t('Min Fee', 'עמלת מינימום')} field="commMin" showCurrency />
-                    </Grid>
-                    <Grid item xs={12} sm={4}>
-                      <NumericField label={t('Max Fee', 'עמלת מקסימום')} field="commMax" showCurrency />
-                    </Grid>
+                        </Grid>
+                      </CardContent>
+                    </Card>
                   </Grid>
 
-                  <Box display="flex" alignItems="center" gap={1} mb={1}>
-                     <Typography variant="subtitle2" color="text.secondary">{t('HOLDING FEES', 'דמי ניהול והחזקה')}</Typography>
-                     <Tooltip title={t("Recurring fees charged by the broker/manager (e.g. 0.7% Accumulation, or 15 ILS/month).", "עמלות חוזרות הנגבות על ידי הברוקר/מנהל (למשל 0.7% צבירה, או 15 ש\"ח לחודש).")}>
-                       <InfoOutlinedIcon fontSize="inherit" color="action" />
-                     </Tooltip>
-                  </Box>
-                  <Grid container spacing={3} mt={0}>
-                    <Grid item xs={12} sm={6}>
-                       {p.mgmtType === 'percentage' ? (
-                         <PercentageField label={t('Value', 'ערך')} field="mgmtVal" />
-                       ) : (
-                         <NumericField label={t('Value', 'ערך')} field="mgmtVal" showCurrency />
-                       )}
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <FormControl fullWidth size="small">
+                  {/* FEES */}
+                  <Grid item xs={12} md={6}>
+                    <Card variant="outlined" sx={{ height: '100%' }}>
+                      <CardContent>
+
+                        <Typography variant="subtitle2" color="text.secondary" gutterBottom>{t('TRADING FESS', 'עמלות מסחר')}</Typography>
+                        <Grid container spacing={3} mt={0.5} mb={3}>
+                          <Grid item xs={12} sm={4}>
+                            <PercentageField label={t('Rate', 'שיעור')} value={p.commRate || 0} onChange={v => set('commRate', v)} tooltip={t("Commission rate per trade", "שיעור עמלה לכל פעולה")} />
+                          </Grid>
+                          <Grid item xs={12} sm={4}>
+                            <NumericField label={t('Min Fee', 'עמלת מינימום')} value={p.commMin || 0} onChange={v => set('commMin', v)} currency={p.currency} />
+                          </Grid>
+                          <Grid item xs={12} sm={4}>
+                            <NumericField label={t('Max Fee', 'עמלת מקסימום')} value={p.commMax || 0} onChange={v => set('commMax', v)} currency={p.currency} />
+                          </Grid>
+                        </Grid>
+
+                        <Box display="flex" alignItems="center" gap={1} mb={1}>
+                          <Typography variant="subtitle2" color="text.secondary">{t('HOLDING FEES', 'דמי ניהול והחזקה')}</Typography>
+                          <Tooltip title={t("Recurring fees charged by the broker/manager (e.g. 0.7% Accumulation, or 15 ILS/month).", "עמלות חוזרות הנגבות על ידי הברוקר/מנהל (למשל 0.7% צבירה, או 15 ש\"ח לחודש).")}>
+                            <InfoOutlinedIcon fontSize="inherit" color="action" />
+                          </Tooltip>
+                        </Box>
+                        <Grid container spacing={3} mt={0}>
+                          <Grid item xs={12} sm={6}>
+                            {p.mgmtType === 'percentage' ? (
+                              <PercentageField label={t('Value', 'ערך')} value={p.mgmtVal || 0} onChange={v => set('mgmtVal', v)} />
+                            ) : (
+                              <NumericField label={t('Value', 'ערך')} value={p.mgmtVal || 0} onChange={v => set('mgmtVal', v)} currency={p.currency} />
+                            )}
+                          </Grid>
+                          <Grid item xs={12} sm={6}>
+                            <FormControl fullWidth size="small">
                               <InputLabel>{t('Exemptions', 'פטורים')}</InputLabel>
                               <Select
                                 value={p.commExemption || 'none'}
@@ -800,202 +690,203 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                           </Grid>
                           <Grid item xs={12} sm={6}>
                             <FormControl fullWidth size="small">
-                        <InputLabel>{t('Type', 'סוג')}</InputLabel>
-                        <Select value={p.mgmtType} label={t('Type', 'סוג')} onChange={e => set('mgmtType', e.target.value)}>
-                          <MenuItem value="percentage">Percentage</MenuItem>
-                          <MenuItem value="fixed">Fixed</MenuItem>
-                        </Select>
-                      </FormControl>
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <FormControl fullWidth size="small">
-                        <InputLabel>{t('Frequency', 'תדירות')}</InputLabel>
-                        <Select value={p.mgmtFreq} label={t('Frequency', 'תדירות')} onChange={e => set('mgmtFreq', e.target.value)}>
-                          <MenuItem value="monthly">Monthly</MenuItem>
-                          <MenuItem value="quarterly">Quarterly</MenuItem>
-                          <MenuItem value="yearly">Yearly</MenuItem>
-                        </Select>
-                      </FormControl>
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <PercentageField 
-                        label={t('Cashed Div Fee Rate', 'עמלת דיבידנד ממומש')}
-                        field="divCommRate" 
-                        tooltip={t("Fee rate on cashed dividends", "שיעור עמלה על דיבידנד ממומש")}
-                        disabled={p.taxPolicy === 'TAX_FREE' || p.divPolicy === 'accumulate_tax_free'}
-                      />
-                    </Grid>
-                    <Grid item xs={12}>
-                        <Button 
-                            size="small" 
-                            onClick={() => setShowFeeHistory(!showFeeHistory)} 
+                              <InputLabel>{t('Type', 'סוג')}</InputLabel>
+                              <Select value={p.mgmtType} label={t('Type', 'סוג')} onChange={e => set('mgmtType', e.target.value)}>
+                                <MenuItem value="percentage">Percentage</MenuItem>
+                                <MenuItem value="fixed">Fixed</MenuItem>
+                              </Select>
+                            </FormControl>
+                          </Grid>
+                          <Grid item xs={12} sm={6}>
+                            <FormControl fullWidth size="small">
+                              <InputLabel>{t('Frequency', 'תדירות')}</InputLabel>
+                              <Select value={p.mgmtFreq} label={t('Frequency', 'תדירות')} onChange={e => set('mgmtFreq', e.target.value)}>
+                                <MenuItem value="monthly">Monthly</MenuItem>
+                                <MenuItem value="quarterly">Quarterly</MenuItem>
+                                <MenuItem value="yearly">Yearly</MenuItem>
+                              </Select>
+                            </FormControl>
+                          </Grid>
+                          <Grid item xs={12} sm={6}>
+                            <PercentageField
+                              label={t('Dividend Commission', 'עמלת דיבידנד')}
+                              value={p.divCommRate || 0}
+                              onChange={v => set('divCommRate', v)}
+                              tooltip={t("Tax/Fee taken from dividend source", "מס/עמלה במקור על דיבידנד")}
+                              disabled={p.taxPolicy === 'TAX_FREE' || p.divPolicy === 'accumulate_tax_free'}
+                            />
+                          </Grid>
+                          <Grid item xs={12}>
+                            <Button
+                              size="small"
+                              onClick={() => setShowFeeHistory(!showFeeHistory)}
                             endIcon={showFeeHistory ? <ExpandLessIcon /> : <ExpandMoreIcon />}
                             sx={{ textTransform: 'none', color: 'text.secondary', mb: 1 }}
-                        >
+                            >
                             {t('Manage Fee History', 'ניהול היסטוריית דמי ניהול')}
-                        </Button>
-                        <Collapse in={showFeeHistory}>
+                            </Button>
+                            <Collapse in={showFeeHistory}>
                             <Alert severity="error" sx={{ mb: 2 }}>
                                 {t('DANGER: Modifying fee history will require recalculating fees for ALL transactions in this portfolio. This logic is NOT YET IMPLEMENTED. Use with caution.', 'סכנה: שינוי היסטוריית העמלות ידרוש חישוב מחדש של עמלות לכל העסקאות בתיק זה. לוגיקה זו טרם יושמה. השתמש בזהירות.')}
                             </Alert>
                             <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 300, mb: 2 }}>
                                 <Table size="small" stickyHeader>
-                                    <TableHead>
-                                        <TableRow>
-                                            <TableCell>{t('Start', 'התחלה')}</TableCell>
-                                            <TableCell>{t('Mgmt', 'דמי ניהול')}</TableCell>
-                                            <TableCell>{t('Type', 'סוג')}</TableCell>
-                                            <TableCell>{t('Freq', 'תדירות')}</TableCell>
-                                            <TableCell>{t('Div%', 'דיב%')}</TableCell>
-                                            <TableCell>{t('Comm%', 'עמלה%')}</TableCell>
-                                            <TableCell>{t('Min Comm', 'עמלה מינ')}</TableCell>
-                                            <TableCell>{t('Max Comm', 'עמלה מקס')}</TableCell>
-                                            <TableCell align="center"></TableCell>
-                                        </TableRow>
-                                    </TableHead>
-                                    <TableBody>
-                                        {p.feeHistory && p.feeHistory.map((h, i) => (
-                                            <TableRow key={i}>
-                                                <TableCell>
-                                                    {i === 0 ? (
-                                                        <Typography variant="caption" color="text.secondary">
-                                                            {t('Always', 'תמיד')}
-                                                        </Typography>
-                                                    ) : (
-                                                        <TextField 
-                                                            type="date" 
-                                                            size="small" 
-                                                            value={h.startDate} 
-                                                            onChange={e => updateFeeHistoryEntry(i, 'startDate', e.target.value)}
-                                                            sx={{ width: 130, '& .MuiInputBase-input': { colorScheme: theme.palette.mode, fontSize: '0.8rem' } }}
-                                                        />
-                                                    )}
-                                                </TableCell>
-                                                <TableCell>
-                                                    <TextField 
-                                                        type="number" 
-                                                        size="small" 
-                                                        value={h.mgmtType === 'percentage' ? parseFloat((h.mgmtVal * 100).toFixed(4)).toString() : h.mgmtVal} 
-                                                        onChange={e => updateFeeHistoryEntry(i, 'mgmtVal', h.mgmtType === 'percentage' ? parseFloat(e.target.value) / 100 : parseFloat(e.target.value))}
-                                                        sx={{ width: 70 }}
-                                                autoComplete="off"
-                                                InputProps={{ style: { fontSize: '0.8rem' }, inputProps: { min: 0, step: 'any' } }}
-                                                    />
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Select
-                                                        size="small"
-                                                        value={h.mgmtType}
-                                                        onChange={e => updateFeeHistoryEntry(i, 'mgmtType', e.target.value)}
-                                                        sx={{ minWidth: 60, fontSize: '0.8rem' }}
-                                                    >
-                                                        <MenuItem value="percentage">%</MenuItem>
-                                                        <MenuItem value="fixed">Fixed</MenuItem>
-                                                    </Select>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Select
-                                                        size="small"
-                                                        value={h.mgmtFreq}
-                                                        onChange={e => updateFeeHistoryEntry(i, 'mgmtFreq', e.target.value)}
-                                                        sx={{ minWidth: 60, fontSize: '0.8rem' }}
-                                                    >
-                                                        <MenuItem value="monthly">M</MenuItem>
-                                                        <MenuItem value="quarterly">Q</MenuItem>
-                                                        <MenuItem value="yearly">Y</MenuItem>
-                                                    </Select>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <TextField 
-                                                        type="number" 
-                                                        size="small" 
-                                                        value={((h.divCommRate || 0) * 100).toFixed(4).replace(/\.?0+$/, '')} 
-                                                        onChange={e => updateFeeHistoryEntry(i, 'divCommRate', parseFloat(e.target.value) / 100)}
-                                                        sx={{ width: 70 }}
-                                                autoComplete="off"
-                                                InputProps={{ style: { fontSize: '0.8rem' }, inputProps: { min: 0, step: 'any' } }}
-                                                    />
-                                                </TableCell>
-                                                <TableCell>
-                                                    <TextField 
-                                                        type="number" 
-                                                        size="small" 
-                                                        value={((h.commRate || 0) * 100).toFixed(4).replace(/\.?0+$/, '')} 
-                                                        onChange={e => updateFeeHistoryEntry(i, 'commRate', parseFloat(e.target.value) / 100)}
-                                                        sx={{ width: 70 }}
-                                                autoComplete="off"
-                                                InputProps={{ style: { fontSize: '0.8rem' }, inputProps: { min: 0, step: 'any' } }}
-                                                    />
-                                                </TableCell>
-                                                <TableCell>
-                                                    <TextField 
-                                                        type="number" 
-                                                        size="small" 
-                                                        value={h.commMin || 0} 
-                                                        onChange={e => updateFeeHistoryEntry(i, 'commMin', parseFloat(e.target.value))}
-                                                        sx={{ width: 60 }}
-                                                autoComplete="off"
-                                                InputProps={{ style: { fontSize: '0.8rem' }, inputProps: { min: 0 } }}
-                                                    />
-                                                </TableCell>
-                                                <TableCell>
-                                                    <TextField 
-                                                        type="number" 
-                                                        size="small" 
-                                                        value={h.commMax || 0} 
-                                                        onChange={e => updateFeeHistoryEntry(i, 'commMax', parseFloat(e.target.value))}
-                                                        sx={{ width: 60 }}
-                                                autoComplete="off"
-                                                InputProps={{ style: { fontSize: '0.8rem' }, inputProps: { min: 0 } }}
-                                                    />
-                                                </TableCell>
-                                                <TableCell align="center">
-                                                    <IconButton size="small" color="error" onClick={() => removeFeeHistoryEntry(i)} disabled={i === 0}>
-                                                        <DeleteIcon fontSize="small" />
-                                                    </IconButton>
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
-                                        {(!p.feeHistory || p.feeHistory.length === 0) && (
-                                            <TableRow>
-                                                <TableCell colSpan={9} align="center" sx={{ color: 'text.secondary' }}>
-                                                    {t('No history records.', 'אין רשומות היסטוריה.')}
-                                                </TableCell>
-                                            </TableRow>
-                                        )}
-                                    </TableBody>
+                                  <TableHead>
+                                    <TableRow>
+                                      <TableCell>{t('Start', 'התחלה')}</TableCell>
+                                      <TableCell>{t('Mgmt', 'דמי ניהול')}</TableCell>
+                                      <TableCell>{t('Type', 'סוג')}</TableCell>
+                                      <TableCell>{t('Freq', 'תדירות')}</TableCell>
+                                      <TableCell>{t('Div%', 'דיב%')}</TableCell>
+                                      <TableCell>{t('Comm%', 'עמלה%')}</TableCell>
+                                      <TableCell>{t('Min Comm', 'עמלה מינ')}</TableCell>
+                                      <TableCell>{t('Max Comm', 'עמלה מקס')}</TableCell>
+                                      <TableCell align="center"></TableCell>
+                                    </TableRow>
+                                  </TableHead>
+                                  <TableBody>
+                                    {p.feeHistory && p.feeHistory.map((h, i) => (
+                                      <TableRow key={i}>
+                                        <TableCell>
+                                          {i === 0 ? (
+                                            <Typography variant="caption" color="text.secondary">
+                                              {t('Always', 'תמיד')}
+                                            </Typography>
+                                          ) : (
+                                            <TextField
+                                              type="date"
+                                              size="small"
+                                              value={h.startDate}
+                                              onChange={e => updateFeeHistoryEntry(i, 'startDate', e.target.value)}
+                                              sx={{ width: 130, '& .MuiInputBase-input': { colorScheme: theme.palette.mode, fontSize: '0.8rem' } }}
+                                            />
+                                          )}
+                                        </TableCell>
+                                        <TableCell>
+                                          <TextField
+                                            type="number"
+                                            size="small"
+                                            value={h.mgmtType === 'percentage' ? parseFloat((h.mgmtVal * 100).toFixed(4)).toString() : h.mgmtVal}
+                                            onChange={e => updateFeeHistoryEntry(i, 'mgmtVal', h.mgmtType === 'percentage' ? parseFloat(e.target.value) / 100 : parseFloat(e.target.value))}
+                                            sx={{ width: 70 }}
+                                            autoComplete="off"
+                                            InputProps={{ style: { fontSize: '0.8rem' }, inputProps: { min: 0, step: 'any' } }}
+                                          />
+                                        </TableCell>
+                                        <TableCell>
+                                          <Select
+                                            size="small"
+                                            value={h.mgmtType}
+                                            onChange={e => updateFeeHistoryEntry(i, 'mgmtType', e.target.value)}
+                                            sx={{ minWidth: 60, fontSize: '0.8rem' }}
+                                          >
+                                            <MenuItem value="percentage">%</MenuItem>
+                                            <MenuItem value="fixed">Fixed</MenuItem>
+                                          </Select>
+                                        </TableCell>
+                                        <TableCell>
+                                          <Select
+                                            size="small"
+                                            value={h.mgmtFreq}
+                                            onChange={e => updateFeeHistoryEntry(i, 'mgmtFreq', e.target.value)}
+                                            sx={{ minWidth: 60, fontSize: '0.8rem' }}
+                                          >
+                                            <MenuItem value="monthly">M</MenuItem>
+                                            <MenuItem value="quarterly">Q</MenuItem>
+                                            <MenuItem value="yearly">Y</MenuItem>
+                                          </Select>
+                                        </TableCell>
+                                        <TableCell>
+                                          <TextField
+                                            type="number"
+                                            size="small"
+                                            value={((h.divCommRate || 0) * 100).toFixed(4).replace(/\.?0+$/, '')}
+                                            onChange={e => updateFeeHistoryEntry(i, 'divCommRate', parseFloat(e.target.value) / 100)}
+                                            sx={{ width: 70 }}
+                                            autoComplete="off"
+                                            InputProps={{ style: { fontSize: '0.8rem' }, inputProps: { min: 0, step: 'any' } }}
+                                          />
+                                        </TableCell>
+                                        <TableCell>
+                                          <TextField
+                                            type="number"
+                                            size="small"
+                                            value={((h.commRate || 0) * 100).toFixed(4).replace(/\.?0+$/, '')}
+                                            onChange={e => updateFeeHistoryEntry(i, 'commRate', parseFloat(e.target.value) / 100)}
+                                            sx={{ width: 70 }}
+                                            autoComplete="off"
+                                            InputProps={{ style: { fontSize: '0.8rem' }, inputProps: { min: 0, step: 'any' } }}
+                                          />
+                                        </TableCell>
+                                        <TableCell>
+                                          <TextField
+                                            type="number"
+                                            size="small"
+                                            value={h.commMin || 0}
+                                            onChange={e => updateFeeHistoryEntry(i, 'commMin', parseFloat(e.target.value))}
+                                            sx={{ width: 60 }}
+                                            autoComplete="off"
+                                            InputProps={{ style: { fontSize: '0.8rem' }, inputProps: { min: 0 } }}
+                                          />
+                                        </TableCell>
+                                        <TableCell>
+                                          <TextField
+                                            type="number"
+                                            size="small"
+                                            value={h.commMax || 0}
+                                            onChange={e => updateFeeHistoryEntry(i, 'commMax', parseFloat(e.target.value))}
+                                            sx={{ width: 60 }}
+                                            autoComplete="off"
+                                            InputProps={{ style: { fontSize: '0.8rem' }, inputProps: { min: 0 } }}
+                                          />
+                                        </TableCell>
+                                        <TableCell align="center">
+                                          <IconButton size="small" color="error" onClick={() => removeFeeHistoryEntry(i)} disabled={i === 0}>
+                                            <DeleteIcon fontSize="small" />
+                                          </IconButton>
+                                        </TableCell>
+                                      </TableRow>
+                                    ))}
+                                    {(!p.feeHistory || p.feeHistory.length === 0) && (
+                                      <TableRow>
+                                        <TableCell colSpan={9} align="center" sx={{ color: 'text.secondary' }}>
+                                          {t('No history records.', 'אין רשומות היסטוריה.')}
+                                        </TableCell>
+                                      </TableRow>
+                                    )}
+                                  </TableBody>
                                 </Table>
                             </TableContainer>
                             <Button startIcon={<AddIcon />} size="small" onClick={addFeeHistoryEntry}>
                                 {t('Add History Entry', 'הוסף רשומה')}
                             </Button>
-                        </Collapse>
-                    </Grid>
+                            </Collapse>
+                          </Grid>
+                        </Grid>
+                      </CardContent>
+                    </Card>
                   </Grid>
-                </CardContent>
-              </Card>
-            </Grid>
 
-            <Grid item xs={12}>
-               <Button 
-                variant="contained" fullWidth size="large" 
-                startIcon={<CheckCircleOutlineIcon />} onClick={handleSubmit} disabled={loading}
-                sx={{ py: 1.5, fontSize: '1rem' }}
-              >
-                {loading ? (editMode ? t('Updating...', 'מעדכן...') : t('Creating...', 'יוצר...')) : (editMode ? t('Update Portfolio', 'עדכן תיק') : t('Create Portfolio', 'צור תיק'))}
-              </Button>
-              {(editMode || showNewPortfolioForm) && (
-                <Button 
-                  variant="outlined" fullWidth size="large" 
-                  onClick={editMode ? cancelEdit : () => setShowNewPortfolioForm(false)}
-                  disabled={loading}
-                  sx={{ py: 1.5, fontSize: '1rem', mt: 1 }}
-                >
-                  {editMode ? t('Cancel Edit', 'בטל עריכה') : t('Cancel', 'ביטול')}
-                </Button>
-              )}
-            </Grid>
-          </Grid>
+                  <Grid item xs={12}>
+                    <Button
+                      variant="contained" fullWidth size="large"
+                      startIcon={<CheckCircleOutlineIcon />} onClick={handleSubmit} disabled={loading}
+                      sx={{ py: 1.5, fontSize: '1rem' }}
+                    >
+                      {loading ? (editMode ? t('Updating...', 'מעדכן...') : t('Creating...', 'יוצר...')) : (editMode ? t('Update Portfolio', 'עדכן תיק') : t('Create Portfolio', 'צור תיק'))}
+                    </Button>
+                    {(editMode || showNewPortfolioForm) && (
+                      <Button
+                        variant="outlined" fullWidth size="large"
+                        onClick={editMode ? cancelEdit : () => setShowNewPortfolioForm(false)}
+                        disabled={loading}
+                        sx={{ py: 1.5, fontSize: '1rem', mt: 1 }}
+                      >
+                        {editMode ? t('Cancel Edit', 'בטל עריכה') : t('Cancel', 'ביטול')}
+                      </Button>
+                    )}
+                  </Grid>
+                </Grid>
             </>
           )}
         </Box>
@@ -1037,7 +928,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                     <TableCell>{port.id}</TableCell>
                     <TableCell>{port.name}</TableCell>
                     <TableCell>{port.currency}</TableCell>
-                    <TableCell>{taxPolicyNames[port.taxPolicy] || port.taxPolicy}</TableCell>
+                    <TableCell>{taxPolicyNames[port.taxPolicy || 'IL_REAL_GAIN'] || port.taxPolicy}</TableCell>
                     <TableCell>
                       <Button size="small" onClick={() => navigate(`/portfolios/${port.id}`)} sx={{ mr: 1 }}>{t('Edit', 'ערוך')}</Button>
                       <Button size="small" color="error" onClick={() => alert('Delete: ' + port.id)}>{t('Delete', 'מחק')}</Button>

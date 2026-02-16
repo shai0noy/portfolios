@@ -167,13 +167,13 @@ export function PortfolioWizard({ onComplete, onCancel, onManual, existingNames 
     let rawName = isRtl ? preset.titleHe : preset.title;
 
     // Distinct Default Names (User Request)
-    if (preset.id === 'il_broker') rawName = isRtl ? 'מסחר - בנק/ברוקר' : 'Trade - Bank/Broker';
-    if (preset.id === 'us_broker_il') rawName = isRtl ? 'מסחר - ברוקר זר' : 'Trade - US Broker';
-    if (preset.id === 'us_broker_nr') rawName = isRtl ? 'מסחר - תושב חוץ' : 'Trade - NR Account';
-    if (preset.id === 'pension') rawName = isRtl ? 'קרן פנסיה' : 'Pension Fund';
-    if (preset.id === 'gemel') rawName = isRtl ? 'קופת גמל' : 'Kupat Gemel';
-    if (preset.id === 'hishtalmut') rawName = isRtl ? 'קרן השתלמות' : 'Keren Hishtalmut';
-    if (preset.id === 'rsu') rawName = isRtl ? 'אופציות ומניות' : 'My ESOP/RSU';
+    if (preset.id === 'il_broker') rawName = isRtl ? 'מסחר' : 'Trade';
+    if (preset.id === 'us_broker_il') rawName = isRtl ? 'מסחר' : 'Trade';
+    if (preset.id === 'us_broker_nr') rawName = isRtl ? 'מסחר' : 'Trade';
+    if (preset.id === 'pension') rawName = isRtl ? 'פנסיה' : 'Pension';
+    if (preset.id === 'gemel') rawName = isRtl ? 'גמל' : 'Gemel';
+    if (preset.id === 'hishtalmut') rawName = isRtl ? 'השתלמות' : 'Hishtalmut';
+    if (preset.id === 'rsu') rawName = isRtl ? 'RSU' : 'RSU';
 
     // Allow Alphanumeric (English + Hebrew) + Spaces, remove others
     const sanitizedName = rawName.replace(/[^a-zA-Z0-9\u0590-\u05FF\s]/g, ' ').replace(/\s+/g, ' ').trim();
@@ -211,9 +211,7 @@ export function PortfolioWizard({ onComplete, onCancel, onManual, existingNames 
       setBuysExempt(true);
       setSellsExempt(false);
     } else if (preset.isPension || preset.id === 'gemel' || preset.id === 'hishtalmut') {
-      setBuysExempt(false); // Usually deposits are via payslip, but if manual buy? keeping false for now or maybe true? 
-      // Actually for Pension/Gemel, "Buying" is usually depositing which might be fee free or different fee.
-      // But "Selling" is withdrawing. Use Sells Free if only Mgmt Fee applies.
+      setBuysExempt(false);
       setSellsExempt(true);
     } else {
       setBuysExempt(false);

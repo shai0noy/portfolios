@@ -1,6 +1,6 @@
 
 import { FinanceEngine } from './lib/data/engine';
-import { Currency, Exchange, type Portfolio, type Transaction, type ExchangeRates } from './lib/types';
+import { Currency, Exchange, type Portfolio, type Transaction } from './lib/types';
 
 // Mock Data
 const mockExchangeRates: any = {
