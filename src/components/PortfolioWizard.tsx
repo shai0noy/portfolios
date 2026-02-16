@@ -150,8 +150,6 @@ export function PortfolioWizard({ onComplete, onCancel, onManual, existingNames 
   // RSU
   const [rsuDivChoice, setRsuDivChoice] = useState<'cash' | 'reinvest' | 'hybrid'>('hybrid');
 
-  const isRtl = language === 'he';
-
   const handleSelectPreset = (preset: PresetConfig) => {
     setSelectedPreset(preset);
     // Set defaults based on preset
@@ -163,17 +161,16 @@ export function PortfolioWizard({ onComplete, onCancel, onManual, existingNames 
     }
 
     // Default Name Sanitization
-    // Default Name Sanitization
-    let rawName = isRtl ? preset.titleHe : preset.title;
+    let rawName = t(preset.titleHe, preset.title);
 
     // Distinct Default Names (User Request)
-    if (preset.id === 'il_broker') rawName = isRtl ? 'מסחר' : 'Trade';
-    if (preset.id === 'us_broker_il') rawName = isRtl ? 'מסחר' : 'Trade';
-    if (preset.id === 'us_broker_nr') rawName = isRtl ? 'מסחר' : 'Trade';
-    if (preset.id === 'pension') rawName = isRtl ? 'פנסיה' : 'Pension';
-    if (preset.id === 'gemel') rawName = isRtl ? 'גמל' : 'Gemel';
-    if (preset.id === 'hishtalmut') rawName = isRtl ? 'השתלמות' : 'Hishtalmut';
-    if (preset.id === 'rsu') rawName = isRtl ? 'RSU' : 'RSU';
+    if (preset.id === 'il_broker') rawName = t('Trade', 'מסחר');
+    if (preset.id === 'us_broker_il') rawName = t('Trade', 'מסחר');
+    if (preset.id === 'us_broker_nr') rawName = t('Trade', 'מסחר');
+    if (preset.id === 'pension') rawName = t('Pension', 'פנסיה');
+    if (preset.id === 'gemel') rawName = t('Gemel', 'גמל');
+    if (preset.id === 'hishtalmut') rawName = t('Hishtalmut', 'השתלמות');
+    if (preset.id === 'rsu') rawName = t('RSU', 'RSU');
 
     // Allow Alphanumeric (English + Hebrew) + Spaces, remove others
     const sanitizedName = rawName.replace(/[^a-zA-Z0-9\u0590-\u05FF\s]/g, ' ').replace(/\s+/g, ' ').trim();
