@@ -47,11 +47,16 @@ describe('calculatePeriodReturns', () => {
       { ...mkPoint('2023-12-31', 1.2), gainsValue: 220 },
     ];
     // YTD Start: Jan 1 (Virtual). Gain 0.
-    // YTD Gain = 220 - 0 = 220.
+    // Latest: Dec 31 2023.
+    // YTD Start: Jan 1 2023.
+    // Jan 1 < Jun 1.
+    // New Logic: Returns FIRST ACTUAL point (Jun 1). TWR 1.1. Gain 110.
+    // YTD = 1.2 / 1.1 - 1 = 9.09%.
+    // Gain = 220 - 110 = 110.
 
     const result = calculatePeriodReturns(points);
-    expect(result.perfYtd).toBeCloseTo(0.2, 4);
-    expect(result.gainYtd).toBe(220); // Full gain since inception (virtual start)
+    expect(result.perfYtd).toBeCloseTo(1.2 / 1.1 - 1, 4);
+    expect(result.gainYtd).toBe(110);
   });
 
   it('should calculate YTD correctly (with Jan 1 data)', () => {
@@ -60,16 +65,18 @@ describe('calculatePeriodReturns', () => {
       { ...mkPoint('2023-01-02', 1.04), gainsValue: 40 },
       { ...mkPoint('2023-06-01', 1.20), gainsValue: 200 },
     ];
-    // YTD Start: Dec 31 (Virtual 1.0, 0 gain).
-    // YTD Gain = 200 - 0 = 200.
+    // YTD Start: Dec 31 (Virtual).
+    // New Logic: Finds First Point >= Jan 1. -> Jan 1 (1.02, Gain 20).
+    // YTD = 1.20 / 1.02 - 1 = 17.65%.
+    // Gain = 200 - 20 = 180.
 
     const result = calculatePeriodReturns(points);
-    expect(result.perfYtd).toBeCloseTo(0.20, 4); // 1.20 / 1.0 - 1
-    expect(result.gainYtd).toBe(200); 
+    expect(result.perfYtd).toBeCloseTo(1.20 / 1.02 - 1, 4);
+    expect(result.gainYtd).toBe(180); 
   });
 
   it('should calculate 1M return correctly for chart alignment', () => {
-    // Scenario: Confirming alignment logic
+  // Scenario: Confirming alignment logic
     const points: PerformancePoint[] = [
       { ...mkPoint('2023-01-01', 1.0), gainsValue: 1000 },
       { ...mkPoint('2023-02-01', 1.1), gainsValue: 1100 }, // +100

@@ -387,15 +387,22 @@ export function calculatePeriodReturns(points: PerformancePoint[]): PeriodReturn
     const getPointAtDate = (targetDate: Date): PerformancePoint => {
         const targetTime = targetDate.getTime();
         if (targetTime < new Date(points[0].date).getTime()) {
-            // Virtual start point
-            return { date: new Date(0), twr: 1.0, gainsValue: 0, holdingsValue: 0, costBasis: 0 };
+            // Virtual start point if checking before inception, BUT for chart alignment
+            // we usually want the first actual point if we are looking for "1M" return
+            // and inception was 2 weeks ago.
+            // However, calculatePeriodReturns (ALL) special case handles inception.
+            // For fixed periods (1M) where inception > 1M ago, we want strict match.
+            // If inception < 1M ago, returns are usually calculated from Inception.
+            return points[0];
         }
-        let found = points[0];
+
+        // Find FIRST point >= targetTime (Matching Chart Logic)
         for (let i = 0; i < points.length; i++) {
-            if (new Date(points[i].date).getTime() > targetTime) break;
-            found = points[i];
+            if (new Date(points[i].date).getTime() >= targetTime) {
+                return points[i];
+            }
         }
-        return found;
+        return points[points.length - 1];
     };
 
     const subtractPeriod = (date: Date, period: '1w' | '1m' | '3m' | 'ytd' | '1y' | '5y' | 'all'): Date => {
