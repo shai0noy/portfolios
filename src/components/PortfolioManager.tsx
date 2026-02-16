@@ -1,5 +1,5 @@
 // src/components/PortfolioManager.tsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTheme } from '@mui/material/styles';
 import {
@@ -410,8 +410,13 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
     }
   };
 
-  // Helper to update state
-  const set = (field: keyof Portfolio, val: any) => setP((prev: any) => ({ ...prev, [field]: val }));
+  // Helper to update state - Stable for React.memo
+  const handleUpdate = useCallback((field: string, val: any) => {
+    setP((prev: any) => ({ ...prev, [field]: val }));
+  }, []);
+
+  // Legacy set for non-memoized parts (or can use handleUpdate)
+  const set = (field: keyof Portfolio, val: any) => handleUpdate(field as string, val);
 
   useEffect(() => {
     const updates: Partial<Portfolio> = {};
@@ -535,10 +540,10 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                             </FormControl>
                           </Grid>
                           <Grid item xs={12} sm={6}>
-                            <PercentageField label={t('Gains Tax', 'מס רווח הון')} value={p.cgt || 0} onChange={v => set('cgt', v)} tooltip={t("Capital Gains Tax", "מס רווחי הון")} disabled={p.taxPolicy === 'TAX_FREE' || p.taxPolicy === 'PENSION'} />
+                            <PercentageField label={t('Gains Tax', 'מס רווח הון')} field="cgt" value={p.cgt || 0} onUpdate={handleUpdate} tooltip={t("Capital Gains Tax", "מס רווחי הון")} disabled={p.taxPolicy === 'TAX_FREE' || p.taxPolicy === 'PENSION'} />
                           </Grid>
                           <Grid item xs={12} sm={6}>
-                            <PercentageField label={t('Tax on Base Price', 'מס הכנסה (בסיס)')} value={p.incTax || 0} onChange={v => set('incTax', v)} tooltip={t("Income Tax (for RSUs)", "מס הכנסה (עבור RSU)")} disabled={p.taxPolicy === 'TAX_FREE'} />
+                            <PercentageField label={t('Tax on Base Price', 'מס הכנסה (בסיס)')} field="incTax" value={p.incTax || 0} onUpdate={handleUpdate} tooltip={t("Income Tax (for RSUs)", "מס הכנסה (עבור RSU)")} disabled={p.taxPolicy === 'TAX_FREE'} />
                           </Grid>
                           <Grid item xs={12}>
                             <Button
@@ -649,13 +654,13 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                         <Typography variant="subtitle2" color="text.secondary" gutterBottom>{t('TRADING FESS', 'עמלות מסחר')}</Typography>
                         <Grid container spacing={3} mt={0.5} mb={3}>
                           <Grid item xs={12} sm={4}>
-                            <PercentageField label={t('Rate', 'שיעור')} value={p.commRate || 0} onChange={v => set('commRate', v)} tooltip={t("Commission rate per trade", "שיעור עמלה לכל פעולה")} />
+                            <PercentageField label={t('Rate', 'שיעור')} field="commRate" value={p.commRate || 0} onUpdate={handleUpdate} tooltip={t("Commission rate per trade", "שיעור עמלה לכל פעולה")} />
                           </Grid>
                           <Grid item xs={12} sm={4}>
-                            <NumericField label={t('Min Fee', 'עמלת מינימום')} value={p.commMin || 0} onChange={v => set('commMin', v)} currency={p.currency} />
+                            <NumericField label={t('Min Fee', 'עמלת מינימום')} field="commMin" value={p.commMin || 0} onUpdate={handleUpdate} currency={p.currency} />
                           </Grid>
                           <Grid item xs={12} sm={4}>
-                            <NumericField label={t('Max Fee', 'עמלת מקסימום')} value={p.commMax || 0} onChange={v => set('commMax', v)} currency={p.currency} />
+                            <NumericField label={t('Max Fee', 'עמלת מקסימום')} field="commMax" value={p.commMax || 0} onUpdate={handleUpdate} currency={p.currency} />
                           </Grid>
                         </Grid>
 
@@ -668,9 +673,9 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                         <Grid container spacing={3} mt={0}>
                           <Grid item xs={12} sm={6}>
                             {p.mgmtType === 'percentage' ? (
-                              <PercentageField label={t('Value', 'ערך')} value={p.mgmtVal || 0} onChange={v => set('mgmtVal', v)} />
+                              <PercentageField label={t('Value', 'ערך')} field="mgmtVal" value={p.mgmtVal || 0} onUpdate={handleUpdate} />
                             ) : (
-                              <NumericField label={t('Value', 'ערך')} value={p.mgmtVal || 0} onChange={v => set('mgmtVal', v)} currency={p.currency} />
+                                <NumericField label={t('Value', 'ערך')} field="mgmtVal" value={p.mgmtVal || 0} onUpdate={handleUpdate} currency={p.currency} />
                             )}
                           </Grid>
                           <Grid item xs={12} sm={6}>
@@ -710,8 +715,9 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                           <Grid item xs={12} sm={6}>
                             <PercentageField
                               label={t('Dividend Commission', 'עמלת דיבידנד')}
+                              field="divCommRate"
                               value={p.divCommRate || 0}
-                              onChange={v => set('divCommRate', v)}
+                              onUpdate={handleUpdate}
                               tooltip={t("Tax/Fee taken from dividend source", "מס/עמלה במקור על דיבידנד")}
                               disabled={p.taxPolicy === 'TAX_FREE' || p.divPolicy === 'accumulate_tax_free'}
                             />

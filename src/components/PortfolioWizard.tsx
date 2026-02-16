@@ -120,6 +120,7 @@ const PRESETS: PresetConfig[] = [
 
 export function PortfolioWizard({ onComplete, onCancel, onManual, existingNames = [], existingIds = [] }: WizardProps) {
   const { t, language } = useLanguage();
+  const isRtl = language === 'he';
   const theme = useTheme();
   const [step, setStep] = useState<1 | 2>(1);
   const [selectedPreset, setSelectedPreset] = useState<PresetConfig | null>(null);
