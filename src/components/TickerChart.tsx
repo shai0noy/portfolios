@@ -16,6 +16,7 @@ interface TickerChartProps {
     currency: string;
     mode?: 'percent' | 'price';
     height?: number | string;
+    hideCurrentPrice?: boolean;
 }
 
 interface ChartPoint {
@@ -36,9 +37,10 @@ interface CustomTooltipProps {
     isComparison: boolean;
     series: ChartSeries[];
     mode: 'percent' | 'price';
+    hideCurrentPrice?: boolean;
 }
 
-const CustomTooltip = ({ active, payload, currency, t, basePrice, isComparison, series, mode }: CustomTooltipProps) => {
+const CustomTooltip = ({ active, payload, currency, t, basePrice, isComparison, series, mode, hideCurrentPrice }: CustomTooltipProps) => {
     if (active && payload && payload.length) {
         const point = payload[0].payload as ChartPoint;
         const date = point.date; // It's already a Date object
@@ -123,11 +125,13 @@ const CustomTooltip = ({ active, payload, currency, t, basePrice, isComparison, 
         return (
             <Paper elevation={3} sx={{ padding: '10px' }}>
                 <Typography variant="caption" display="block">{dateStr}</Typography>
-                <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                    {formatPrice(val, currency, undefined, t)}
-                </Typography>
+                {!hideCurrentPrice && (
+                    <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                        {formatPrice(val, currency, undefined, t)}
+                    </Typography>
+                )}
                 {basePrice !== 0 && (
-                    <Typography variant="body2" sx={{ color: percentChange >= 0 ? 'success.main' : 'error.main' }}>
+                    <Typography variant="body2" sx={{ fontWeight: hideCurrentPrice ? 'bold' : 'normal', color: percentChange >= 0 ? 'success.main' : 'error.main' }}>
                         {formatPercent(percentChange)}
                     </Typography>
                 )}
@@ -146,9 +150,10 @@ interface SelectionSummaryProps {
     series: ChartSeries[];
     mainLineColor: string;
     mode: 'percent' | 'price';
+    hideCurrentPrice?: boolean;
 }
 
-const SelectionSummary = ({ startPoint, endPoint, currency, t, isComparison, series, mainLineColor, mode }: SelectionSummaryProps) => {
+const SelectionSummary = ({ startPoint, endPoint, currency, t, isComparison, series, mainLineColor, mode, hideCurrentPrice }: SelectionSummaryProps) => {
     if (!startPoint || !endPoint) return null;
 
     const theme = useTheme();
@@ -269,13 +274,13 @@ const SelectionSummary = ({ startPoint, endPoint, currency, t, isComparison, ser
                 {startDateStr} to {endDateStr} ({duration} days)
             </Typography>
             <Typography variant="body2" sx={{ fontWeight: 'bold', color }}>
-                {formatPrice(priceChange, currency, undefined, t)} ({formatPercent(percentChange)})
+                {!hideCurrentPrice && formatPrice(priceChange, currency, undefined, t)} ({formatPercent(percentChange)})
             </Typography>
         </Box>
     );
 };
 
-export function TickerChart({ series, currency, mode = 'percent', height = 300 }: TickerChartProps) {
+export function TickerChart({ series, currency, mode = 'percent', height = 300, hideCurrentPrice }: TickerChartProps) {
     const FADE_MS = 170;          // Speed of the opacity transition
     const TRANSFORM_MS = 360;     // Speed of the line movement (Very fast)
     const BUFFER_MS = 30;        // Safety window for browser paint
@@ -660,7 +665,7 @@ export function TickerChart({ series, currency, mode = 'percent', height = 300 }
                 outline: 'none !important',
             }
         }}>
-            <SelectionSummary startPoint={startPoint} endPoint={endPoint} currency={currency} t={t} isComparison={isComparison} series={displaySeries} mainLineColor={mainLineColor} mode={mode} />
+            <SelectionSummary startPoint={startPoint} endPoint={endPoint} currency={currency} t={t} isComparison={isComparison} series={displaySeries} mainLineColor={mainLineColor} mode={mode} hideCurrentPrice={hideCurrentPrice} />
             <ResponsiveContainer width="100%" height="100%">
                 <AreaChart
                     data={finalData}
@@ -696,7 +701,7 @@ export function TickerChart({ series, currency, mode = 'percent', height = 300 }
                         domain={[yMin, yMax]}
                         ticks={yTicks}
                     />
-                    <Tooltip content={<CustomTooltip currency={currency} t={t} basePrice={basePrice} isComparison={isComparison} series={displaySeries} mode={mode} />} />
+                    <Tooltip content={<CustomTooltip currency={currency} t={t} basePrice={basePrice} isComparison={isComparison} series={displaySeries} mode={mode} hideCurrentPrice={hideCurrentPrice} />} />
 
                     {/* Zero line (solid, semi-opaque) - only if 0 is in range */}
                     {showZeroLine && (

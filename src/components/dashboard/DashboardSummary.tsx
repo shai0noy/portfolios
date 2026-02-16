@@ -544,7 +544,13 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                   )}
 
                   <Box sx={{ height: isComparison ? 120 : 140 }}>
-                    <TickerChart series={portfolioSeries} currency={displayCurrency} mode={effectiveChartMetric} height="100%" />
+                      <TickerChart
+                        series={portfolioSeries}
+                        currency={displayCurrency}
+                        mode={effectiveChartMetric}
+                        height="100%"
+                        hideCurrentPrice={chartView === 'twr'}
+                      />
                   </Box>
                 </Box>
               ) : (
