@@ -72,7 +72,9 @@ const CustomTooltip = ({ active, payload, currency, t, basePrice, isComparison, 
                             } else {
                                 // Comparison series
                                 const dataKey = `series_${index - 1}`;
-                                value = point[dataKey];
+                                // Use RAW value for display if available, otherwise fallback to aligned value (backward compatibility)
+                                const rawValue = point[`${dataKey}_raw`];
+                                value = (rawValue !== undefined) ? rawValue : point[dataKey];
                                 seriesPct = point[`${dataKey}_pct`];
                                 color = s.color; // Color is stored in the series object for comparisons.
                             }
@@ -191,8 +193,12 @@ const SelectionSummary = ({ startPoint, endPoint, currency, t, isComparison, ser
                 endVal = endPoint.yValue;
             } else { // Comparison series
                 const dataKey = `series_${index - 1}`;
-                startVal = startPoint[dataKey];
-                endVal = endPoint[dataKey];
+                // Use RAW values for selection summary too
+                const startRaw = startPoint[`${dataKey}_raw`];
+                const endRaw = endPoint[`${dataKey}_raw`];
+
+                startVal = (startRaw !== undefined) ? startRaw : startPoint[dataKey];
+                endVal = (endRaw !== undefined) ? endRaw : endPoint[dataKey];
             }
 
             if (startVal === undefined || endVal === undefined || startVal === null || endVal === null) {
@@ -373,7 +379,10 @@ export function TickerChart({ series, currency, mode = 'percent', height = 300, 
         
         // Create pointers for each comparison series for an efficient merge
         const seriesPointers = otherSeries.map(() => 0);
- 
+
+        // Track offsets to align comparison series with the main series at their first appearance
+        const seriesOffsets = otherSeries.map(() => null as number | null);
+
         return processedMain.map(p => {
             const point = { ...p } as ChartPoint;
             otherSeries.forEach((s, i) => {
@@ -387,14 +396,60 @@ export function TickerChart({ series, currency, mode = 'percent', height = 300, 
                 }
 
                 const match = s.data[seriesPointers[i]];
-                if (match) {
-                    const val = match.adjClose || match.price;
+
+                // Ensure the match is valid and not in the future (though logic above ensures <=)
+                // Also ensure we actually have data coverage (e.g. if main starts Jan 1, s starts June 1)
+                // The loop finds closest <=. Check if it's potentially too old?
+                // Assuming continuous history, if match.date < p.date - 7 days, maybe data gap?
+                // For now trust the closest <= point logic.
+
+                // IMPORTANT: Check if the match is actually within reasonable range or if s hasn't started yet.
+                // If s starts June 1, and p is Jan 1. 
+                // s.data[0] is June 1. match will be s.data[0] (index 0). 
+                // But June 1 > Jan 1. So match.date > p.date.
+                // We need to check data existence.
+
+                let val: number | undefined;
+                let pct: number | undefined;
+
+                // Correction: The while loop finds the largest index <= p.date sets pointers[i].
+                // But initially pointers[i] = 0.
+                // If s.data[0].date > p.date, then s has NOT started yet.
+                // We must check if s.data[seriesPointers[i]].date <= p.date
+
+                if (match && match.date.getTime() <= p.date.getTime()) {
+                    val = match.adjClose || match.price;
                     // Normalize other series to its own start in the visible range
                     const sFirst = s.data[0];
                     const sBase = sFirst.adjClose || sFirst.price;
-                    const pct = sBase > 0 ? (val / sBase - 1) : 0;
-                    point[`series_${i}`] = mode === 'percent' ? pct : val;
+                    const rawPct = sBase > 0 ? (val / sBase - 1) : 0;
+
+                    // Determine Offset at the first valid point
+                    if (seriesOffsets[i] === null) {
+                        // This is the first overlapping point
+                        // We want rawPct + offset = p.pctValue (Main Series Pct)
+                        // offset = p.pctValue - rawPct
+                        seriesOffsets[i] = (p.pctValue || 0) - rawPct;
+                    }
+
+                    pct = rawPct + (seriesOffsets[i] || 0);
+
+                    // Calculate "aligned value" for price mode? 
+                    // Price mode usually shows absolute prices. Aligning prices is confusing (1.0 vs 150).
+                    // Only align in 'percent' mode.
+                    if (mode === 'price') {
+                        point[`series_${i}`] = val;
+                    } else {
+                        point[`series_${i}`] = pct;
+                    }
+                    // Store aligned pct for diff calculation if desired, or raw?
+                    // point[`series_${i}_pct`] usually stores the value used for the line?
+                    // Actually CustomTooltip uses `series_${i}_pct` for the DIFF calculation (relative to main).
+                    // If we want diff to be "how much higher/lower is this line compared to main line", we use aligned pct.
                     point[`series_${i}_pct`] = pct;
+
+                    // Store RAW value for tooltip display
+                    point[`series_${i}_raw`] = mode === 'percent' ? rawPct : val;
                 }
             });
             return point;
@@ -416,7 +471,7 @@ export function TickerChart({ series, currency, mode = 'percent', height = 300, 
         chartData.forEach((p) => {
             updateMinMax(p.yValue);
             Object.keys(p).forEach(k => {
-                if (k.startsWith('series_')) {
+                if (k.startsWith('series_') && !k.endsWith('_pct') && !k.endsWith('_raw')) {
                     updateMinMax(p[k]);
                 }
             });
