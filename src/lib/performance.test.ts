@@ -1,3 +1,4 @@
+import { test } from 'vitest';
 import { calculatePortfolioPerformance } from './performance';
 import { Currency, Exchange, type DashboardHolding, type Transaction, type ExchangeRates } from './types';
 
@@ -9,18 +10,16 @@ const mockRates: ExchangeRates = {
 };
 
 const mockHistory: Record<string, { date: Date, price: number }[]> = {
+    'NASDAQ:DRIP': [
+        { date: new Date('2024-01-02'), price: 100 },
+        { date: new Date('2024-01-03'), price: 100 },
+    ],
     'NASDAQ:AAPL': [
         { date: new Date('2024-01-01'), price: 100 },
         { date: new Date('2024-01-02'), price: 102 },
         { date: new Date('2024-01-03'), price: 105 },
         { date: new Date('2024-01-04'), price: 110 },
-        { date: new Date('2024-01-05'), price: 108 },
-    ],
-    'TASE:123': [
-        { date: new Date('2024-01-01'), price: 1000 },
-        { date: new Date('2024-01-02'), price: 1000 },
-        { date: new Date('2024-01-03'), price: 1100 },
-        { date: new Date('2024-01-05'), price: 1200 },
+        { date: new Date('2024-01-05'), price: 115 },
     ]
 };
 
@@ -67,10 +66,13 @@ async function testBasicBuyAndHold() {
         qtyVested: 10, totalQty: 10,
     } as any];
     const txns: Transaction[] = [{
-        date: '2024-01-02', portfolioId: 'p1', ticker: 'AAPL', exchange: Exchange.NASDAQ,
+        date: new Date('2024-01-02T00:00:00Z') as any, portfolioId: 'p1', ticker: 'AAPL', exchange: Exchange.NASDAQ,
         type: 'BUY', qty: 10, price: 102, originalQty: 10, originalPrice: 102
     } as any];
     const { points } = await calculatePortfolioPerformance(holdings, txns, 'USD', mockRates, undefined, undefined, mockFetchHistory);
+    // Debug logging
+    // console.log('Points Dates:', points.map(p => p.date.toISOString()));
+
     const p1 = points.find(p => p.date.toISOString().startsWith('2024-01-02'));
     assert(!!p1, 'Point for buy date exists');
     if (p1) {
@@ -140,6 +142,33 @@ async function testDividends() {
     if (p) assertClose(p.gainsValue, 55, 0.01, 'Gains with dividend');
 }
 
+async function testDRIP() {
+    console.log('\n--- Test: DRIP (Dividend Reinvestment) ---');
+    const holdings: DashboardHolding[] = [{
+        portfolioId: 'p1', ticker: 'DRIP', exchange: Exchange.NASDAQ,
+        stockCurrency: Currency.USD, portfolioCurrency: Currency.USD,
+        qtyVested: 10.5, totalQty: 10.5
+    } as any];
+    const txns: Transaction[] = [
+        { date: '2024-01-02', portfolioId: 'p1', ticker: 'DRIP', exchange: Exchange.NASDAQ, type: 'BUY', qty: 10, price: 100 } as any,
+        { date: '2024-01-03', portfolioId: 'p1', ticker: 'DRIP', exchange: Exchange.NASDAQ, type: 'DIVIDEND', qty: 0.5, price: 50, originalPrice: 50 } as any
+    ];
+    const { points } = await calculatePortfolioPerformance(holdings, txns, 'USD', mockRates, undefined, undefined, mockFetchHistory);
+
+    // Day 1 (Jan 2): Buy 10 @ 100. Val=1000. Cost=1000.
+    // Day 2 (Jan 3): Price 100.
+    // Holdings: 10.5 shares @ 100 = 1050.
+    // Cost Basis: 1000 (Initial) + 50 (Reinvested Div) = 1050.
+    // Gains Value: (1050 - 1050) + 50 (Div Income) = 50.
+
+    const p = points.find(p => p.date.toISOString().startsWith('2024-01-03'));
+    if (p) {
+        assertClose(p.holdingsValue, 1050, 0.01, 'Holdings Value (inc DRIP)');
+        assertClose(p.costBasis, 1050, 0.01, 'Cost Basis (inc DRIP)');
+        assertClose(p.gainsValue, 50, 0.01, 'Total Gains (Div Income)');
+    }
+}
+
 async function testTWR() {
     console.log('\n--- Test: TWR with Deposit (End of Day Flow) ---');
     // Day 1: Buy 10 @ 102. MV=1020. Flow +1020. Prev=0.
@@ -205,7 +234,7 @@ async function testMissingPriceData() {
         ]
     };
     
-    const fetchGap = async (t: string) => ({ historical: customHistory[`NASDAQ:${t}`], fromCache: true } as any);
+    const fetchGap = async (t: string) => ({ historical: (customHistory as any)[`NASDAQ:${t}`], fromCache: true } as any);
 
     const txns: Transaction[] = [
         { date: '2024-01-01', portfolioId: 'p1', ticker: 'GAP', exchange: Exchange.NASDAQ, type: 'BUY', qty: 10, price: 100 } as any,
@@ -238,7 +267,7 @@ async function testIntradayWash() {
             { date: new Date('2024-01-02'), price: 105 } // Price doesn't matter for 0 qty
         ]
     };
-    const fetchCustom = async (t: string) => ({ historical: customHistory[`NASDAQ:${t}`], fromCache: true } as any);
+    const fetchCustom = async (t: string) => ({ historical: (customHistory as any)[`NASDAQ:${t}`], fromCache: true } as any);
 
     const txns: Transaction[] = [
         { date: '2024-01-02', portfolioId: 'p1', ticker: 'DAY', exchange: Exchange.NASDAQ, type: 'BUY', qty: 10, price: 100 } as any, // Cost 1000
@@ -268,7 +297,7 @@ async function testZeroStartTWR() {
             { date: new Date('2024-01-03'), price: 110 }
         ]
     };
-    const fetchCustom = async (t: string) => ({ historical: customHistory[`NASDAQ:${t}`], fromCache: true } as any);
+    const fetchCustom = async (t: string) => ({ historical: (customHistory as any)[`NASDAQ:${t}`], fromCache: true } as any);
 
     const txns: Transaction[] = [
         // Day 2: Deposit/Buy
@@ -299,7 +328,10 @@ export async function runTests() {
     } catch (e) {
         console.error('\n💥 Performance tests failed.');
         console.error(e);
+        throw e;
     }
 }
 
-runTests();
+test('Performance Tests', async () => {
+    await runTests();
+});

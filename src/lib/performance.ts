@@ -159,39 +159,17 @@ export async function calculatePortfolioPerformance(
                 otherGains += (proceedsDisplay - costOfSoldDisplay);
                 dayNetFlow -= proceedsDisplay;
             } else if (t.type === 'DIVIDEND') {
-                // For dividends, value is ALWAYS added to returns (cash flow out of stock into pocket/account)
-                // If it was DRIP (qty > 0):
-                //  - value added to Performance (Income)
-                //  - But since we bought shares, is it "Flow"? 
-                //  - Actually, DRIP is effectively: Dividend Income (Flow Out/Income) + Immediate Buy (Flow In).
-                //  - Net Flow = 0?
-                //  - If we model it as just "Qty Increase", we miss the "Income" part in `dayDividends`.
-                //  - But `otherGains` captures it?
-
-                // Let's stick to simple model:
-                // Dividend = Value gained.
-                // If Qty > 0 (Allowed DRIP):
-                //   - We likely need to treat it as a Buy too?
-                //   - Current logic: `state.qty += ...`? No, DIVIDEND block doesn't add to `state.qty` below!
-                //   - WAIT. Previous code logic for DIVIDEND did NOT update `state.qty`.
-                //   - So DRIP was effectively broken anyway unless handled as a separate BUY?
-                //   - Checks lines 157+ (old 147): Yes, `else if (t.type === 'DIVIDEND')` only adds to `otherGains`. It does NOT increase `qty`.
-                //   - So `qty` on DIVIDEND transactions was ALREADY ignored for holding count!
-                //   - The user asked to "assert that drip only occurs on portfolios that have it".
-                //   - If the previous code ignored qty, then DRIP wasn't working.
-
-                // Correction: If `qty` is passed, we probably SHOULD increase quantity if it's a DRIP.
-                // But if the code never did `state.qty += tQty` for dividends, then it never supported DRIP.
-                // UNLESS DRIPs come as two transactions: Dividend (Cash) + Buy (Shares).
-                // If they come as a single "DIVIDEND" txn with qty > 0, we need to handle it.
+                // DRIP Logic:
+                // If tQty > 0, we treat it as:
+                // 1. Income: Dividend value added to `otherGains` (Total Return).
+                // 2. Acquisition: Reinvested quantity added to `state.qty` and `state.costBasis`.
+                // This ensures TWR captures the income, and future price moves capture compounding.
 
                 const divVal = convertCurrency(tValue, t.currency || Currency.USD, displayCurrency, exchangeRates);
                 otherGains += divVal;
                 dayDividends += divVal;
 
                 if (tQty > 0) {
-                    // Handle DRIP - Increase Qty, Increase Cost Basis?
-                    // Cost Basis for DRIP is the dividend amount reinvested.
                     state.qty += tQty;
                     state.costBasis += costToAdd;
                 }

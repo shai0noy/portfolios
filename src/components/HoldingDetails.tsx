@@ -528,9 +528,7 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                                             // Accumulate other fields...
                                             // Note: Logic below remains the same, but now it's correct because init was 0.
                                             g.originalCost += lot.costTotal.amount / (lot.costTotal.rateToPortfolio || 1);
-                                            g.remainingCost += lot.costTotal.amount / (lot.costTotal.rateToPortfolio || 1); // Only for remaining? Wait, remainingCost logic is tricky if sold.
-                                            // Assuming lot corresponds to remaining part if unsold? 
-                                            // Actually lot.qty is "quantity in this lot".
+                                            // g.remainingCost += lot.costTotal.amount / (lot.costTotal.rateToPortfolio || 1); // REMOVED: Caused double counting and incorrect inclusion of sold lots
 
                                             g.fees += lot.feesBuy.amount;
                                         if (lot.adjustedCostILS) {
@@ -562,7 +560,17 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                                             g.fees += convertCurrency(lot.soldFees?.amount || 0, lot.soldFees?.currency || Currency.ILS, displayCurrency, exchangeRates || undefined);
                                         } else {
                                             g.remainingQty += lot.qty;
-                                            g.remainingCost += convertCurrency(lot.costTotal.amount, lot.costTotal.currency, displayCurrency, exchangeRates || undefined);
+
+                                            // Fix: Use historical cost if available for Book Cost
+                                            let addedCost = 0;
+                                            if (displayCurrency === Currency.ILS && lot.costTotal.valILS) {
+                                                addedCost = lot.costTotal.valILS;
+                                            } else if (displayCurrency === Currency.USD && lot.costTotal.valUSD) {
+                                                addedCost = lot.costTotal.valUSD;
+                                            } else {
+                                                addedCost = convertCurrency(lot.costTotal.amount, lot.costTotal.currency, displayCurrency, exchangeRates || undefined);
+                                            }
+                                            g.remainingCost += addedCost;
 
                                             const currentPrice = (holding as any).currentPrice || 0;
                                             const valSC = lot.qty * currentPrice;
