@@ -407,7 +407,7 @@ export function calculatePeriodReturns(points: PerformancePoint[]): PeriodReturn
             case 'ytd': d.setUTCMonth(0, 0); d.setUTCHours(0, 0, 0, 0); break; // Dec 31st of previous year (UTC)
             case '1y': d.setUTCFullYear(d.getUTCFullYear() - 1); break;
             case '5y': d.setUTCFullYear(d.getUTCFullYear() - 5); break;
-            case 'all': return new Date(0);
+            case 'all': return new Date(points[0].date);
         }
         return d;
     };

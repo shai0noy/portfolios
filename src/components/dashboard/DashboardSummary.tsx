@@ -1,17 +1,16 @@
 import { Box, Paper, Typography, Grid, Tooltip, ToggleButton, ToggleButtonGroup, IconButton, CircularProgress, Button, Menu, MenuItem, Chip, ListItemIcon, Dialog, DialogTitle, DialogContent } from '@mui/material';
-import { formatMoneyValue, normalizeCurrency, convertCurrency } from '../../lib/currencyUtils';
-import { getHistoricalRates, MultiCurrencyValue } from '../../lib/data/model';
+import { formatMoneyValue, normalizeCurrency } from '../../lib/currencyUtils';
 import { logIfFalsy } from '../../lib/utils';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
-import { type ExchangeRates, type DashboardHolding, type Portfolio, Currency, type Transaction } from '../../lib/types';
+import { type ExchangeRates, type DashboardHolding, type Portfolio, type Transaction } from '../../lib/types';
 import { useLanguage } from '../../lib/i18n';
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { TickerChart, type ChartSeries } from '../TickerChart';
-import { calculatePortfolioPerformance, type PerformancePoint, type PeriodReturns } from '../../lib/performance';
+import { calculatePortfolioPerformance, calculatePeriodReturns, type PerformancePoint, type PeriodReturns } from '../../lib/performance';
 import { useChartComparison, getAvailableRanges, getMaxLabel } from '../../lib/hooks/useChartComparison';
 import { TickerSearch } from '../TickerSearch';
 import type { TickerProfile } from '../../lib/types/ticker';
@@ -104,68 +103,12 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
 
       // Use passed transactions directly
       calculatePortfolioPerformance(holdings, transactions, displayCurrency, exchangeRates)
-        .then(({ points, historyMap }) => {
+        .then(({ points }) => {
           setPerfData(points);
 
-          // Helper to aggregate simple gain
-          const calcSimple = (period: '1w' | '1m' | '3m' | 'ytd' | '1y' | '5y' | 'all') => {
-            let startDate = new Date();
-            switch (period) {
-              case '1w': startDate.setDate(startDate.getDate() - 7); break;
-              case '1m': startDate.setMonth(startDate.getMonth() - 1); break;
-              case '3m': startDate.setMonth(startDate.getMonth() - 3); break;
-              case 'ytd': startDate = new Date(new Date().getFullYear(), 0, 1); break;
-              case '1y': startDate.setFullYear(startDate.getFullYear() - 1); break;
-              case '5y': startDate.setFullYear(startDate.getFullYear() - 5); break;
-              case 'all': startDate = new Date(0); break;
-            }
-
-            const initialRates = getHistoricalRates(exchangeRates, period as any);
-
-            const aggGain = new MultiCurrencyValue(0, 0);
-            const aggInitial = new MultiCurrencyValue(0, 0);
-
-            holdings.forEach(h => {
-              // We need a history provider wrapper for the map
-              const provider = (ticker: string) => historyMap.get(`${h.exchange}:${ticker}`);
-              // We need Exchange Rates
-              if (h.generateGainForPeriod) {
-                const res = h.generateGainForPeriod(startDate, provider, exchangeRates, initialRates);
-                aggGain.valUSD += res.gain.valUSD;
-                aggGain.valILS += res.gain.valILS;
-                aggInitial.valUSD += res.initialValue.valUSD;
-                aggInitial.valILS += res.initialValue.valILS;
-              }
-            });
-
-            // Convert final agg to display currency for percentage
-            // Gain Pct = Gain / Initial
-            const gainDisplay = convertCurrency(aggGain.valUSD, Currency.USD, displayCurrency, exchangeRates);
-            const initialDisplay = convertCurrency(aggInitial.valUSD, Currency.USD, displayCurrency, exchangeRates);
-
-            const perf = initialDisplay !== 0 ? gainDisplay / initialDisplay : 0;
-            const gainVal = gainDisplay;
-
-            return { perf, gain: gainVal };
-          };
-
-          const s1w = calcSimple('1w');
-          const s1m = calcSimple('1m');
-          const s3m = calcSimple('3m');
-          const sYtd = calcSimple('ytd');
-          const s1y = calcSimple('1y');
-          const s5y = calcSimple('5y');
-          const sAll = calcSimple('all');
-
-          setSimplePeriodReturns({
-            perf1w: s1w.perf, gain1w: s1w.gain,
-            perf1m: s1m.perf, gain1m: s1m.gain,
-            perf3m: s3m.perf, gain3m: s3m.gain,
-            perfYtd: sYtd.perf, gainYtd: sYtd.gain,
-            perf1y: s1y.perf, gain1y: s1y.gain,
-            perf5y: s5y.perf, gain5y: s5y.gain,
-            perfAll: sAll.perf, gainAll: sAll.gain
-          });
+          // Calculate period returns directly from the performance points (consistent with chart)
+          const periodReturns = calculatePeriodReturns(points);
+          setSimplePeriodReturns(periodReturns);
 
           setIsPerfLoading(false);
         })

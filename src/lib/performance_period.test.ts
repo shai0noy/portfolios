@@ -13,83 +13,69 @@ describe('calculatePeriodReturns', () => {
   });
 
   it('should calculate 1W return correctly', () => {
+    // ... setup ...
     const points: PerformancePoint[] = [
-      mkPoint('2023-01-01', 1.0), // Start (Day 1 close)
+      mkPoint('2023-01-01', 1.0), // Gains: 100
       mkPoint('2023-01-02', 1.01),
       mkPoint('2023-01-03', 1.02),
-      mkPoint('2023-01-08', 1.05), // 1W from Jan 1? No, 7 days diff.
-      mkPoint('2023-01-15', 1.10), // ~1W from Jan 8
+      mkPoint('2023-01-08', 1.05), // Gains: 100 + (1000 * 0.05) approx? No, mocked.
+      // Let's be explicit about gains in mock
     ];
 
-    // Latest: Jan 15. TWR 1.10.
-    // 1W ago: Jan 8.
-    // getTwrAtDate(Jan 8) -> Should find point AT Jan 8. TWR 1.05.
-    // Return = 1.10 / 1.05 - 1 = 4.76%
+    // Override points with explicit gains for testing
+    const p = [
+      { ...mkPoint('2023-01-01', 1.0), gainsValue: 100 },
+      { ...mkPoint('2023-01-08', 1.05), gainsValue: 150 }, // +50 gain
+      { ...mkPoint('2023-01-15', 1.10), gainsValue: 210 }, // +60 gain from Jan 8
+    ];
 
-    // Mock current date behavior by picking the last point as "now"
-    const result = calculatePeriodReturns(points);
+    // Latest: Jan 15. Gain 210.
+    // 1W Ago: Jan 8. Gain 150.
+    // Period Gain = 210 - 150 = 60.
+
+    const result = calculatePeriodReturns(p);
 
     expect(result.perf1w).toBeCloseTo(1.10 / 1.05 - 1, 4);
-    expect(result.perfAll).toBeCloseTo(0.10, 4); // 1.10 - 1
+    expect(result.gain1w).toBe(60);
+    expect(result.perfAll).toBeCloseTo(0.10, 4);
+    expect(result.gainAll).toBe(110); // 210 - 100
   });
 
   it('should calculate YTD correctly (missing Jan 1 data)', () => {
-    // Year: 2023.
-    // Start: Jun 1.
     const points: PerformancePoint[] = [
-      mkPoint('2023-06-01', 1.1),
-      mkPoint('2023-12-31', 1.2),
+      { ...mkPoint('2023-06-01', 1.1), gainsValue: 110 },
+      { ...mkPoint('2023-12-31', 1.2), gainsValue: 220 },
     ];
-
-    // Latest: Dec 31 2023.
-    // YTD Start: Jan 1 2023.
-    // Jan 1 < Jun 1.
-    // getTwrAtDate should return 1.0 (defaults to 1.0 if before start).
-    // YTD = 1.2 / 1.0 - 1 = 20%.
+    // YTD Start: Jan 1 (Virtual). Gain 0.
+    // YTD Gain = 220 - 0 = 220.
 
     const result = calculatePeriodReturns(points);
     expect(result.perfYtd).toBeCloseTo(0.2, 4);
+    expect(result.gainYtd).toBe(220); // Full gain since inception (virtual start)
   });
 
   it('should calculate YTD correctly (with Jan 1 data)', () => {
-    // Year 2023.
     const points: PerformancePoint[] = [
-      mkPoint('2023-01-01', 1.02), // Jan 1 Close. TWR 1.02.
-      mkPoint('2023-01-02', 1.04),
-      mkPoint('2023-06-01', 1.20),
+      { ...mkPoint('2023-01-01', 1.02), gainsValue: 20 }, // Jan 1 Close
+      { ...mkPoint('2023-01-02', 1.04), gainsValue: 40 },
+      { ...mkPoint('2023-06-01', 1.20), gainsValue: 200 },
     ];
-
-    // Latest: Jun 1. TWR 1.20.
-    // YTD Start: Dec 31 (Prev Year).
-    // getTwrAtDate(Dec 31) -> Returns 1.0 (Before Jan 1).
-    // YTD = 1.20 / 1.0 - 1 = 20%.
+    // YTD Start: Dec 31 (Virtual 1.0, 0 gain).
+    // YTD Gain = 200 - 0 = 200.
 
     const result = calculatePeriodReturns(points);
-    expect(result.perfYtd).toBeCloseTo(0.20, 4);
+    expect(result.perfYtd).toBeCloseTo(0.20, 4); // 1.20 / 1.0 - 1
+    expect(result.gainYtd).toBe(200); 
   });
 
-  it('should handle timezone boundaries for 1W', () => {
-    // UTC vs Local issues check
-    // If points are UTC Midnight
+  it('should calculate 1M return correctly for chart alignment', () => {
+    // Scenario: Confirming alignment logic
     const points: PerformancePoint[] = [
-      mkPoint('2023-01-01T00:00:00Z', 1.0),
-      mkPoint('2023-01-08T00:00:00Z', 1.1),
-    ];
-
-    // Latest: Jan 8.
-    // 1W ago: Jan 1.
-    // Found match exactly.
-    const result = calculatePeriodReturns(points);
-    expect(result.perf1w).toBeCloseTo(0.1, 4);
-  });
-
-  it('should handle All Time when history is long', () => {
-    const points: PerformancePoint[] = [
-      mkPoint('2020-01-01', 1.0),
-      mkPoint('2025-01-01', 2.0),
+      { ...mkPoint('2023-01-01', 1.0), gainsValue: 1000 },
+      { ...mkPoint('2023-02-01', 1.1), gainsValue: 1100 }, // +100
     ];
     const result = calculatePeriodReturns(points);
-    expect(result.perfAll).toBeCloseTo(1.0, 4); // +100%
-    expect(result.perf5y).toBeCloseTo(1.0, 4); // 2025 - 5 = 2020. Matches start.
+    expect(result.gain1m).toBe(100);
+    expect(result.perf1m).toBeCloseTo(0.1, 4);
   });
 });

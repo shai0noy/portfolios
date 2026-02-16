@@ -279,7 +279,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         selectedPortfolio={portfolios.find(p => p.id === (selectedPortfolioId || ''))?.name || null}
         portfolios={portfolios}
         isPortfoliosLoading={loading}
-        transactions={engine?.transactions || []}
+        transactions={selectedPortfolioId ? (engine?.transactions?.filter(t => t.portfolioId === selectedPortfolioId) || []) : (engine?.transactions || [])}
       />
       {hasFutureTxns && (
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'right', mt: 0.5, mb: 1, fontSize: '0.7rem' }}>
