@@ -10,7 +10,7 @@ import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { ColumnSelector } from './ColumnSelector';
 import { normalizeCurrency } from '../lib/currency';
-import { DashboardSummary } from './DashboardSummary';
+import { DashboardSummary } from './dashboard/DashboardSummary';
 import { DashboardTable } from './DashboardTable';
 import { useLanguage } from '../lib/i18n';
 import { useDashboardData, calculateDashboardSummary, INITIAL_SUMMARY, type EnrichedDashboardHolding } from '../lib/dashboard';
