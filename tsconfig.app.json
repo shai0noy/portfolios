@@ -35,9 +35,7 @@
             "noUncheckedSideEffectImports": true,
           },
           "include": [
-            "src"
-          ],
-          "exclude": [
+            "src",
             "src/**/*.test.ts"
           ]
         }

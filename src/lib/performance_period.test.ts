@@ -1,5 +1,5 @@
 
-import { calculatePeriodReturns, PerformancePoint } from './performance';
+import { calculatePeriodReturns, type PerformancePoint } from './performance';
 import { describe, it, expect } from 'vitest';
 
 describe('calculatePeriodReturns', () => {

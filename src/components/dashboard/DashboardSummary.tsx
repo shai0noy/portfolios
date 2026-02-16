@@ -13,7 +13,7 @@ import { useLanguage } from '../../lib/i18n';
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { TickerChart, type ChartSeries } from '../TickerChart';
 import { calculatePortfolioPerformance, calculatePeriodReturns, type PerformancePoint, type PeriodReturns } from '../../lib/performance';
-import { useChartComparison, getAvailableRanges, getMaxLabel } from '../../lib/hooks/useChartComparison';
+import { useChartComparison, getAvailableRanges, getMaxLabel, type ComparisonOption } from '../../lib/hooks/useChartComparison';
 import { TickerSearch } from '../TickerSearch';
 import type { TickerProfile } from '../../lib/types/ticker';
 import { AnalysisDialog } from '../AnalysisDialog';
@@ -88,7 +88,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
       ticker: ticker.symbol,
       exchange: ticker.exchange,
       name: ticker.name,
-    });
+    } as ComparisonOption);
     setIsSearchOpen(false);
   };
 
