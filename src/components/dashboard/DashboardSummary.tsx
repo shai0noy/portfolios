@@ -1,6 +1,8 @@
 import { Box, Paper, Typography, Grid, Tooltip, ToggleButton, ToggleButtonGroup, IconButton, CircularProgress, Button, Menu, MenuItem, Chip, ListItemIcon, Dialog, DialogTitle, DialogContent } from '@mui/material';
 import { formatMoneyValue, normalizeCurrency } from '../../lib/currencyUtils';
 import { logIfFalsy } from '../../lib/utils';
+import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
+import PieChartIcon from '@mui/icons-material/PieChart';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
@@ -82,6 +84,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
 
   const handleTickerSearchSelect = (ticker: TickerProfile) => {
     handleSelectComparison({
+      type: 'TICKER',
       ticker: ticker.symbol,
       exchange: ticker.exchange,
       name: ticker.name,
@@ -440,25 +443,46 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                         open={Boolean(compareMenuAnchor)}
                         onClose={() => setCompareMenuAnchor(null)}
                       >
-                        {comparisonOptions.map((opt) => (
-                          <MenuItem
-                            key={opt.name}
-                            onClick={() => {
-                              handleSelectComparison(opt);
-                              setCompareMenuAnchor(null);
-                            }}
-                            disabled={comparisonSeries.some(s => s.name === opt.name) || comparisonLoading[opt.name]}
-                            sx={{ fontSize: '0.8rem', minWidth: 120 }}
-                          >
-                            {opt.icon === 'search' && (
-                              <ListItemIcon>
-                                <SearchIcon fontSize="small" />
-                              </ListItemIcon>
-                            )}
-                            {opt.name}
-                            {comparisonLoading[opt.name] && <CircularProgress size={12} sx={{ ml: 'auto', pl: 1 }} />}
-                          </MenuItem>
-                        ))}
+                          {(() => {
+                            let lastGroup = '';
+                            return comparisonOptions.map((opt) => {
+                              const showHeader = opt.group && opt.group !== lastGroup;
+                              if (showHeader) lastGroup = opt.group!;
+
+                              return [
+                                showHeader && (
+                                  <Box key={`header - ${opt.group}`} sx={{ px: 2, py: 1, bgcolor: 'background.default', typography: 'caption', color: 'text.secondary', fontWeight: 'bold' }}>
+                                    {opt.group}
+                                  </Box>
+                                ),
+                                <MenuItem
+                                  key={opt.name}
+                                  onClick={() => {
+                                    handleSelectComparison(opt);
+                                    setCompareMenuAnchor(null);
+                                  }}
+                                  disabled={comparisonSeries.some(s => s.name === opt.name) || comparisonLoading[opt.name]}
+                                  sx={{ fontSize: '0.8125rem', minWidth: 120, pl: opt.group ? 3 : 2, minHeight: 32 }}
+                                  dense
+                                >
+                                  {opt.icon === 'search' && (
+                                    <ListItemIcon sx={{ minWidth: 28 }}>
+                                      <SearchIcon fontSize="small" sx={{ fontSize: '1.1rem' }} />
+                                    </ListItemIcon>
+                                  )}
+                                  {opt.icon && opt.icon !== 'search' && (
+                                    <ListItemIcon sx={{ minWidth: 28 }}>
+                                      {opt.icon === 'pie_chart' ? <PieChartIcon fontSize="small" sx={{ fontSize: '1.1rem' }} /> :
+                                        opt.icon === 'business_center' ? <BusinessCenterIcon fontSize="small" sx={{ fontSize: '1.1rem' }} /> :
+                                          null}
+                                    </ListItemIcon>
+                                  )}
+                                  {opt.name}
+                                  {comparisonLoading[opt.name] && <CircularProgress size={12} sx={{ ml: 'auto', pl: 1 }} />}
+                                </MenuItem>
+                              ];
+                            });
+                          })()}
                       </Menu>
                       <Button
                         onClick={() => setAnalysisOpen(true)}

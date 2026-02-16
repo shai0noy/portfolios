@@ -8,6 +8,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useLanguage } from '../lib/i18n';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
+import PieChartIcon from '@mui/icons-material/PieChart';
 import { TickerChart } from './TickerChart';
 import type { TickerProfile } from '../lib/types/ticker';
 import { useChartComparison, getAvailableRanges, getMaxLabel, SEARCH_OPTION_TICKER } from '../lib/hooks/useChartComparison';
@@ -48,11 +49,51 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
     ownedInPortfolios, externalLinks, formatVolume, state, navigate
   } = useTickerDetails({ sheetId, ticker: propTicker, exchange: propExchange, numericId: propNumericId, initialName: propInitialName, initialNameHe: propInitialNameHe, portfolios, isPortfoliosLoading });
 
+  const getPortfolioHistory = async (portfolioId: string | null) => {
+    try {
+      const engine = await loadFinanceEngine(sheetId);
+
+      // FinanceEngine holdings/transactions are Maps, convert to Arrays
+      const allHoldings = Array.from(engine.holdings.values());
+      const allTransactions = Array.from(engine.transactions.values());
+
+      let relevantHoldings: any[] = allHoldings;
+      let relevantTransactions: any[] = allTransactions;
+
+      if (portfolioId) {
+        relevantHoldings = allHoldings.filter((h: any) => h.portfolioId === portfolioId);
+        relevantTransactions = allTransactions.filter((t: any) => t.portfolioId === portfolioId);
+      }
+
+      const { getExchangeRates } = await import('../lib/currency');
+      const { calculatePortfolioPerformance } = await import('../lib/performance');
+
+      const rates = await getExchangeRates(sheetId);
+      const displayCurrency = normalizeCurrency(localStorage.getItem('displayCurrency') || 'USD');
+
+      const { points } = await calculatePortfolioPerformance(relevantHoldings, relevantTransactions, displayCurrency, rates);
+
+      return points.map(p => ({
+        date: new Date(p.date),
+        price: p.twr // TWR is cumulative (e.g. 1.05), Chart Percent Mode expects 0.05 for 5%? 
+        // WAIT. TickerChart receives "price" data. 
+        // If mode is 'percent', TickerChart calculates (val / base - 1).
+        // IF we pass raw TWR factor (1.0, 1.05), TickerChart will do (1.05 / 1.0 - 1) = 0.05 = 5%. Correct.
+        // SO WE SHOULD PASS RAW TWR.
+        // BUT `p.twr` from `calculatePortfolioPerformance` starts at 1.0? Yes.
+        // So just passing `p.twr` as price should work if we want the chart to treat it like a price history starting at 1.0.
+      }));
+    } catch (e) {
+      console.error("Failed to calc portfolio history", e);
+      return [];
+    }
+  };
+
   const {
     chartRange, setChartRange, comparisonSeries, comparisonOptions,
     comparisonLoading, handleSelectComparison, handleRemoveComparison,
     getClampedData, isSearchOpen, setIsSearchOpen
-  } = useChartComparison();
+  } = useChartComparison({ portfolios, getPortfolioHistory });
 
   const [chartMetric, setChartMetric] = useState<'percent' | 'price'>('percent');
   const [compareMenuAnchor, setCompareMenuAnchor] = useState<null | HTMLElement>(null);
@@ -92,6 +133,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
 
   const handleTickerSearchSelect = (tickerProfile: TickerProfile) => {
     handleSelectComparison({
+      type: 'TICKER',
       ticker: tickerProfile.symbol,
       exchange: tickerProfile.exchange,
       name: tickerProfile.name,
@@ -349,13 +391,39 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                                 </ToggleButtonGroup>
                                 <Button onClick={(e) => setCompareMenuAnchor(e.currentTarget)}>{t('Compare', 'השווה')}</Button>
                                 <Menu anchorEl={compareMenuAnchor} open={Boolean(compareMenuAnchor)} onClose={() => setCompareMenuAnchor(null)}>
-                                {comparisonOptions.map((opt) => (
-                                    <MenuItem key={opt.name} onClick={() => { handleSelectComparison(opt); setCompareMenuAnchor(null); }} disabled={comparisonSeries.some(s => s.name === opt.name) || comparisonLoading[opt.name]}>
-                                    {opt.ticker === SEARCH_OPTION_TICKER && <ListItemIcon><SearchIcon fontSize="small" /></ListItemIcon>}
-                                    {opt.name}
-                                    {comparisonLoading[opt.name] && <CircularProgress size={16} sx={{ ml: 1 }} />}
-                                    </MenuItem>
-                                ))}
+                            {(() => {
+                              let lastGroup = '';
+                              return comparisonOptions.map((opt) => {
+                                const showHeader = opt.group && opt.group !== lastGroup;
+                                if (showHeader) lastGroup = opt.group!;
+
+                                return [
+                                  showHeader && (
+                                    <Box key={`header-${opt.group}`} sx={{ px: 2, py: 1, bgcolor: 'background.default', typography: 'caption', color: 'text.secondary', fontWeight: 'bold' }}>
+                                      {opt.group}
+                                    </Box>
+                                  ),
+                                  <MenuItem
+                                    key={opt.name}
+                                    onClick={() => { handleSelectComparison(opt); setCompareMenuAnchor(null); }}
+                                    disabled={comparisonSeries.some(s => s.name === opt.name) || comparisonLoading[opt.name]}
+                                    sx={{ pl: opt.group ? 3 : 2, minHeight: 32 }}
+                                    dense
+                                  >
+                                    {opt.ticker === SEARCH_OPTION_TICKER && <ListItemIcon sx={{ minWidth: 32 }}><SearchIcon fontSize="small" sx={{ fontSize: '1.1rem' }} /></ListItemIcon>}
+                                    {opt.icon && opt.ticker !== SEARCH_OPTION_TICKER && (
+                                      <ListItemIcon sx={{ minWidth: 32 }}>
+                                        {opt.icon === 'pie_chart' ? <PieChartIcon fontSize="small" sx={{ fontSize: '1.1rem' }} /> :
+                                          opt.icon === 'business_center' ? <BusinessCenterIcon fontSize="small" sx={{ fontSize: '1.1rem' }} /> :
+                                            null}
+                                      </ListItemIcon>
+                                    )}
+                                    <Typography variant="body2" sx={{ fontSize: '0.8125rem' }}>{opt.name}</Typography>
+                                    {comparisonLoading[opt.name] && <CircularProgress size={12} sx={{ ml: 1 }} />}
+                                  </MenuItem>
+                                ];
+                              });
+                            })()}
                                 </Menu>
                                 <Button onClick={() => setAnalysisOpen(true)}>{t('Analysis', 'ניתוח')}</Button>
                             </Box>

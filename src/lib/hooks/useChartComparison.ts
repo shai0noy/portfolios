@@ -6,27 +6,37 @@ import type { ChartSeries } from '../../components/TickerChart';
 
 export const SEARCH_OPTION_TICKER = 'SEARCH_ACTION';
 
+export type ComparisonType = 'TICKER' | 'PORTFOLIO';
+
 export interface ComparisonOption {
-    ticker: string;
-    exchange: Exchange;
+    type: ComparisonType;
+    ticker: string; // Used as ID for Portfolios
+    exchange: Exchange | 'PORTFOLIO';
     name: string;
     icon?: string;
+    group?: string;
 }
 
 export const INITIAL_COMPARISON_OPTIONS: ComparisonOption[] = [
-    { ticker: SEARCH_OPTION_TICKER, exchange: Exchange.NYSE, name: 'Search...', icon: 'search' },
-    { ticker: '^SPX', exchange: Exchange.NYSE, name: 'S&P 500' },
-    { ticker: '^NDX', exchange: Exchange.NASDAQ, name: 'NASDAQ 100' },
-    { ticker: '^MID', exchange: Exchange.NYSE, name: 'S&P 400 (Midcap)' },
-    { ticker: '^RUT', exchange: Exchange.NYSE, name: 'Russell 2000' },
-    { ticker: 'ZB=F', exchange: Exchange.NYSE, name: 'US Treasury Bond Futures' },
-    { ticker: 'TA35', exchange: Exchange.TASE, name: 'Tel Aviv 35' },
-    { ticker: '137', exchange: Exchange.TASE, name: 'Tel Aviv 125' },
-    { ticker: 'TCH-F91', exchange: Exchange.TASE, name: 'Tel Gov Makam' },
-    { ticker: '120010', exchange: Exchange.CBS, name: 'Israel Consumer Price Index'},
-    { ticker: 'GC=F', exchange: Exchange.NYSE, name: 'Gold Futures'},
-    { ticker: 'ILS=X', exchange: Exchange.FOREX, name: 'USD/ILS' },
-    { ticker: 'ILSUSD=X', exchange: Exchange.NYSE, name: 'ILS/USD' },
+    { type: 'TICKER', ticker: SEARCH_OPTION_TICKER, exchange: Exchange.NYSE, name: 'Search...', icon: 'search', group: 'Actions' },
+
+    // Indices
+    { type: 'TICKER', ticker: '^SPX', exchange: Exchange.NYSE, name: 'S&P 500', group: 'Indices' },
+    { type: 'TICKER', ticker: '^NDX', exchange: Exchange.NASDAQ, name: 'NASDAQ 100', group: 'Indices' },
+    { type: 'TICKER', ticker: '^MID', exchange: Exchange.NYSE, name: 'S&P 400 (Midcap)', group: 'Indices' },
+    { type: 'TICKER', ticker: '^RUT', exchange: Exchange.NYSE, name: 'Russell 2000', group: 'Indices' },
+    { type: 'TICKER', ticker: 'TA35', exchange: Exchange.TASE, name: 'Tel Aviv 35', group: 'Indices' },
+    { type: 'TICKER', ticker: '137', exchange: Exchange.TASE, name: 'Tel Aviv 125', group: 'Indices' },
+    { type: 'TICKER', ticker: 'TCH-F91', exchange: Exchange.TASE, name: 'Tel Gov Makam', group: 'Indices' }, // Bonds/Indices
+    { type: 'TICKER', ticker: '120010', exchange: Exchange.CBS, name: 'Israel Consumer Price Index', group: 'Indices' },
+
+    // Commodities / Futures
+    { type: 'TICKER', ticker: 'ZB=F', exchange: Exchange.NYSE, name: 'US Treasury Bond Futures', group: 'Commodities' },
+    { type: 'TICKER', ticker: 'GC=F', exchange: Exchange.NYSE, name: 'Gold Futures', group: 'Commodities' },
+
+    // Currencies
+    { type: 'TICKER', ticker: 'ILS=X', exchange: Exchange.FOREX, name: 'USD/ILS', group: 'Currencies' },
+    { type: 'TICKER', ticker: 'ILSUSD=X', exchange: Exchange.NYSE, name: 'ILS/USD', group: 'Currencies' },
 ];
 
 export const DARK_COLORS = [
@@ -93,11 +103,48 @@ export function getMaxLabel(startDate: Date | undefined): string {
     return `Max (${Math.ceil(diffDays)}D)`;
 }
 
-export function useChartComparison() {
+interface UseChartComparisonProps {
+    portfolios?: { id: string; name: string }[];
+    getPortfolioHistory?: (portfolioId: string | null) => Promise<{ date: Date; price: number }[]>;
+}
+
+export function useChartComparison({ portfolios, getPortfolioHistory }: UseChartComparisonProps = {}) {
     const theme = useTheme();
     const [chartRange, setChartRange] = useState('1Y');
     const [comparisonSeries, setComparisonSeries] = useState<ChartSeries[]>([]);
-    const [comparisonOptions, setComparisonOptions] = useState<ComparisonOption[]>(INITIAL_COMPARISON_OPTIONS);
+    const [comparisonOptions, setComparisonOptions] = useState<ComparisonOption[]>(() => {
+        // Initialize with default options
+        const options = [...INITIAL_COMPARISON_OPTIONS];
+
+        // Add Portfolios if provided
+        if (portfolios && portfolios.length > 0) {
+            // Add separator or header conceptually (UI handles rendering)
+            // Add 'All Portfolios' option
+            options.push({
+                type: 'PORTFOLIO',
+                ticker: 'ALL_PORTFOLIOS',
+                exchange: 'PORTFOLIO',
+                name: 'All Portfolios (TWR)',
+                icon: 'pie_chart',
+                group: 'Portfolios'
+            });
+
+            // Add individual portfolios
+            portfolios.forEach(p => {
+                options.push({
+                    type: 'PORTFOLIO',
+                    ticker: p.id, // Use ID as ticker
+                    exchange: 'PORTFOLIO',
+                    name: `${p.name} (TWR)`,
+                    icon: 'business_center',
+                    group: 'Portfolios'
+                });
+            });
+        }
+
+        return options;
+    });
+
     const [comparisonLoading, setComparisonLoading] = useState<Record<string, boolean>>({});
     const [isSearchOpen, setIsSearchOpen] = useState(false);
 
@@ -120,6 +167,44 @@ export function useChartComparison() {
         }));
     }, [theme.palette.mode]);
 
+    useEffect(() => {
+        if (!portfolios || portfolios.length === 0) return;
+
+        setComparisonOptions(prev => {
+            // Remove existing portfolio options to avoid duplicates/stale data
+            const nonPortfolioOptions = prev.filter(o => o.group !== 'Portfolios');
+
+            const newPortfolioOptions: ComparisonOption[] = [];
+
+            // Add 'All Portfolios' option
+            newPortfolioOptions.push({
+                type: 'PORTFOLIO',
+                ticker: 'ALL_PORTFOLIOS',
+                exchange: 'PORTFOLIO',
+                name: 'All Portfolios (TWR)',
+                icon: 'pie_chart',
+                group: 'Portfolios'
+            });
+
+            // Add individual portfolios
+            portfolios.forEach(p => {
+                newPortfolioOptions.push({
+                    type: 'PORTFOLIO',
+                    ticker: p.id,
+                    exchange: 'PORTFOLIO',
+                    name: `${p.name} (TWR)`,
+                    icon: 'business_center',
+                    group: 'Portfolios'
+                });
+            });
+
+            // Combine: Maintain order (Non-Portfolios first, then Portfolios)
+            // Or should we preserve specific placement?
+            // The initial options + search are at the top. Portfolios at the bottom is fine.
+            return [...nonPortfolioOptions, ...newPortfolioOptions];
+        });
+    }, [portfolios]);
+
     const handleSelectComparison = useCallback(async (option: ComparisonOption) => {
         if (option.ticker === SEARCH_OPTION_TICKER) {
             setIsSearchOpen(true);
@@ -128,9 +213,8 @@ export function useChartComparison() {
 
         if (comparisonSeries.some(s => s.name === option.name)) return;
 
-        // Add to comparison options if it's not already there
+        // Add to comparison options if it's not already there (for search results)
         if (!comparisonOptions.some(o => o.ticker === option.ticker && o.exchange === option.exchange)) {
-            // Insert after the "Search..." option
             setComparisonOptions(prev => {
                 const searchIndex = prev.findIndex(o => o.ticker === SEARCH_OPTION_TICKER);
                 const newOptions = [...prev];
@@ -142,25 +226,39 @@ export function useChartComparison() {
         
         setComparisonLoading(prev => ({ ...prev, [option.name]: true }));
         try {
-            const historyResponse = await fetchTickerHistory(option.ticker, option.exchange);
-            if (historyResponse?.historical) {
+            let data: { date: Date, price: number }[] | undefined;
+
+            if (option.type === 'PORTFOLIO') {
+                if (getPortfolioHistory) {
+                    const portfolioId = option.ticker === 'ALL_PORTFOLIOS' ? null : option.ticker;
+                    data = await getPortfolioHistory(portfolioId);
+                } else {
+                    console.error("getPortfolioHistory not provided");
+                }
+            } else {
+                // Regular Ticker
+                const historyResponse = await fetchTickerHistory(option.ticker, option.exchange as Exchange);
+                data = historyResponse?.historical;
+            }
+
+            if (data && data.length > 0) {
                 setComparisonSeries(prev => {
                     const usedColors = new Set(prev.map(s => s.color));
                     const nextColor = extraColors.find(c => !usedColors.has(c)) || extraColors[prev.length % extraColors.length];
 
                     return [...prev, {
                         name: option.name,
-                        data: historyResponse.historical!,
+                        data: data!,
                         color: nextColor
                     }];
                 });
             }
         } catch (e) {
-            console.error(`Failed to fetch comparison ticker ${option.name}`, e);
+            console.error(`Failed to fetch comparison ${option.name}`, e);
         } finally {
             setComparisonLoading(prev => ({ ...prev, [option.name]: false }));
         }
-    }, [comparisonSeries, comparisonOptions, extraColors]);
+    }, [comparisonSeries, comparisonOptions, extraColors, getPortfolioHistory]);
 
     const handleRemoveComparison = useCallback((name: string) => {
         setComparisonSeries(prev => prev.filter(s => s.name !== name));
