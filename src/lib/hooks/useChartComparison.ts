@@ -20,19 +20,19 @@ export interface ComparisonOption {
 export const INITIAL_COMPARISON_OPTIONS: ComparisonOption[] = [
     { type: 'TICKER', ticker: SEARCH_OPTION_TICKER, exchange: Exchange.NYSE, name: 'Search...', icon: 'search', group: 'Actions' },
 
-    // Indices
+    // Equity Indices
     { type: 'TICKER', ticker: '^SPX', exchange: Exchange.NYSE, name: 'S&P 500', group: 'Indices' },
     { type: 'TICKER', ticker: '^NDX', exchange: Exchange.NASDAQ, name: 'NASDAQ 100', group: 'Indices' },
     { type: 'TICKER', ticker: '^MID', exchange: Exchange.NYSE, name: 'S&P 400 (Midcap)', group: 'Indices' },
     { type: 'TICKER', ticker: '^RUT', exchange: Exchange.NYSE, name: 'Russell 2000', group: 'Indices' },
     { type: 'TICKER', ticker: 'TA35', exchange: Exchange.TASE, name: 'Tel Aviv 35', group: 'Indices' },
     { type: 'TICKER', ticker: '137', exchange: Exchange.TASE, name: 'Tel Aviv 125', group: 'Indices' },
-    { type: 'TICKER', ticker: 'TCH-F91', exchange: Exchange.TASE, name: 'Tel Gov Makam', group: 'Indices' }, // Bonds/Indices
-    { type: 'TICKER', ticker: '120010', exchange: Exchange.CBS, name: 'Israel Consumer Price Index', group: 'Indices' },
+    { type: 'TICKER', ticker: 'GC=F', exchange: Exchange.NYSE, name: 'Gold Futures', group: 'Indices' },
 
-    // Commodities / Futures
-    { type: 'TICKER', ticker: 'ZB=F', exchange: Exchange.NYSE, name: 'US Treasury Bond Futures', group: 'Commodities' },
-    { type: 'TICKER', ticker: 'GC=F', exchange: Exchange.NYSE, name: 'Gold Futures', group: 'Commodities' },
+    // Macro
+    { type: 'TICKER', ticker: 'TCH-F91', exchange: Exchange.TASE, name: 'Tel Gov Makam', group: 'Macro' },
+    { type: 'TICKER', ticker: 'ZB=F', exchange: Exchange.NYSE, name: 'US Treasury Bond Futures', group: 'Macro' },
+    { type: 'TICKER', ticker: '120010', exchange: Exchange.CBS, name: 'Israel Consumer Price Index', group: 'Macro' },
 
     // Currencies
     { type: 'TICKER', ticker: 'ILS=X', exchange: Exchange.FOREX, name: 'USD/ILS', group: 'Currencies' },

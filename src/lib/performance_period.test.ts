@@ -14,14 +14,6 @@ describe('calculatePeriodReturns', () => {
 
   it('should calculate 1W return correctly', () => {
     // ... setup ...
-    const points: PerformancePoint[] = [
-      mkPoint('2023-01-01', 1.0), // Gains: 100
-      mkPoint('2023-01-02', 1.01),
-      mkPoint('2023-01-03', 1.02),
-      mkPoint('2023-01-08', 1.05), // Gains: 100 + (1000 * 0.05) approx? No, mocked.
-      // Let's be explicit about gains in mock
-    ];
-
     // Override points with explicit gains for testing
     const p = [
       { ...mkPoint('2023-01-01', 1.0), gainsValue: 100 },
