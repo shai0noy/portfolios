@@ -478,8 +478,10 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
           disabled={disabled}
           onChange={handleChange}
           onBlur={() => setLocalDisplay(null)}
+        autoComplete="off"
           InputProps={{ 
-            endAdornment: showCurrency ? <InputAdornment position="end">{p.currency}</InputAdornment> : null 
+            endAdornment: showCurrency ? <InputAdornment position="end">{p.currency}</InputAdornment> : null,
+            inputProps: { min: 0, step: 'any' }
           }}
         />
     );
@@ -533,7 +535,11 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
           disabled={disabled}
           onChange={handleChange}
           onBlur={() => setLocalDisplay(null)}
-          InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
+        autoComplete="off"
+        InputProps={{
+          endAdornment: <InputAdornment position="end">%</InputAdornment>,
+          inputProps: { min: 0, step: 'any' }
+        }}
         />
     );
 
@@ -688,7 +694,8 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                                                         size="small" 
                                                         value={(h.cgt * 100).toFixed(4).replace(/\.?0+$/, '')} 
                                                         onChange={e => updateTaxHistoryEntry(i, 'cgt', parseFloat(e.target.value) / 100)}
-                                                        InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
+                                                autoComplete="off"
+                                                InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment>, inputProps: { min: 0, step: 'any' } }}
                                                         sx={{ width: 100 }}
                                                     />
                                                 </TableCell>
@@ -698,7 +705,8 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                                                         size="small" 
                                                         value={(h.incTax * 100).toFixed(4).replace(/\.?0+$/, '')} 
                                                         onChange={e => updateTaxHistoryEntry(i, 'incTax', parseFloat(e.target.value) / 100)}
-                                                        InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
+                                                autoComplete="off"
+                                                InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment>, inputProps: { min: 0, step: 'any' } }}
                                                         sx={{ width: 100 }}
                                                     />
                                                 </TableCell>
@@ -786,7 +794,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                                 <MenuItem value="none">{t('None', 'ללא')}</MenuItem>
                                 <MenuItem value="buys">{t('Buys Free', 'קנייה חינם')}</MenuItem>
                                 <MenuItem value="sells">{t('Sells Free', 'מכירה חינם')}</MenuItem>
-                                <MenuItem value="all">{t('All Free', 'הכל חינם')}</MenuItem>
+
                               </Select>
                             </FormControl>
                           </Grid>
@@ -870,7 +878,8 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                                                         value={h.mgmtType === 'percentage' ? parseFloat((h.mgmtVal * 100).toFixed(4)).toString() : h.mgmtVal} 
                                                         onChange={e => updateFeeHistoryEntry(i, 'mgmtVal', h.mgmtType === 'percentage' ? parseFloat(e.target.value) / 100 : parseFloat(e.target.value))}
                                                         sx={{ width: 70 }}
-                                                        InputProps={{ style: { fontSize: '0.8rem' } }}
+                                                autoComplete="off"
+                                                InputProps={{ style: { fontSize: '0.8rem' }, inputProps: { min: 0, step: 'any' } }}
                                                     />
                                                 </TableCell>
                                                 <TableCell>
@@ -903,7 +912,8 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                                                         value={((h.divCommRate || 0) * 100).toFixed(4).replace(/\.?0+$/, '')} 
                                                         onChange={e => updateFeeHistoryEntry(i, 'divCommRate', parseFloat(e.target.value) / 100)}
                                                         sx={{ width: 70 }}
-                                                        InputProps={{ style: { fontSize: '0.8rem' } }}
+                                                autoComplete="off"
+                                                InputProps={{ style: { fontSize: '0.8rem' }, inputProps: { min: 0, step: 'any' } }}
                                                     />
                                                 </TableCell>
                                                 <TableCell>
@@ -913,7 +923,8 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                                                         value={((h.commRate || 0) * 100).toFixed(4).replace(/\.?0+$/, '')} 
                                                         onChange={e => updateFeeHistoryEntry(i, 'commRate', parseFloat(e.target.value) / 100)}
                                                         sx={{ width: 70 }}
-                                                        InputProps={{ style: { fontSize: '0.8rem' } }}
+                                                autoComplete="off"
+                                                InputProps={{ style: { fontSize: '0.8rem' }, inputProps: { min: 0, step: 'any' } }}
                                                     />
                                                 </TableCell>
                                                 <TableCell>
@@ -923,7 +934,8 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                                                         value={h.commMin || 0} 
                                                         onChange={e => updateFeeHistoryEntry(i, 'commMin', parseFloat(e.target.value))}
                                                         sx={{ width: 60 }}
-                                                        InputProps={{ style: { fontSize: '0.8rem' } }}
+                                                autoComplete="off"
+                                                InputProps={{ style: { fontSize: '0.8rem' }, inputProps: { min: 0 } }}
                                                     />
                                                 </TableCell>
                                                 <TableCell>
@@ -933,7 +945,8 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                                                         value={h.commMax || 0} 
                                                         onChange={e => updateFeeHistoryEntry(i, 'commMax', parseFloat(e.target.value))}
                                                         sx={{ width: 60 }}
-                                                        InputProps={{ style: { fontSize: '0.8rem' } }}
+                                                autoComplete="off"
+                                                InputProps={{ style: { fontSize: '0.8rem' }, inputProps: { min: 0 } }}
                                                     />
                                                 </TableCell>
                                                 <TableCell align="center">

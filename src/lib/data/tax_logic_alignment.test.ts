@@ -1,6 +1,6 @@
 
 import { describe, it, expect } from 'vitest';
-import { Currency } from '../types';
+
 
 // We will test the pure logic function first (we'll assume we refactor it to be pure and testable)
 // or we can test the existing function signature if we keep it similar.

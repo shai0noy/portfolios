@@ -130,7 +130,7 @@ describe('FinanceEngine - Phantom Tax Reproduction', () => {
             current: { USD: 1, ILS: 1 }, // Domestic
             '2024-01-01': { USD: 1, ILS: 1 }
         };
-        const h = engine.holdings.get('p1_DOMESTIC'); // Will be created after process? No need to fetch if not processed.
+        // const h = engine.holdings.get('p1_DOMESTIC'); // Will be created after process? No need to fetch if not processed.
         engine.processEvents([buy], []);
         const h2 = engine.holdings.get('p1_DOMESTIC');
         
@@ -141,7 +141,7 @@ describe('FinanceEngine - Phantom Tax Reproduction', () => {
         engine.calculateSnapshot();
         
         const totalGain = h2!.unrealizedGain.amount;
-        const taxVal = h2!.unrealizedTaxLiabilityILS;
+        // const taxVal = h2!.unrealizedTaxLiabilityILS;
         const taxable = h2!.unrealizedTaxableGainILS;
         
         console.log('Deflation - Nominal Gain ILS:', totalGain);

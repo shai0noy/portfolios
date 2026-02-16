@@ -163,7 +163,18 @@ export function PortfolioWizard({ onComplete, onCancel, onManual, existingNames 
     }
 
     // Default Name Sanitization
-    const rawName = isRtl ? preset.titleHe : preset.title;
+    // Default Name Sanitization
+    let rawName = isRtl ? preset.titleHe : preset.title;
+
+    // Distinct Default Names (User Request)
+    if (preset.id === 'il_broker') rawName = isRtl ? 'מסחר - בנק/ברוקר' : 'Trade - Bank/Broker';
+    if (preset.id === 'us_broker_il') rawName = isRtl ? 'מסחר - ברוקר זר' : 'Trade - US Broker';
+    if (preset.id === 'us_broker_nr') rawName = isRtl ? 'מסחר - תושב חוץ' : 'Trade - NR Account';
+    if (preset.id === 'pension') rawName = isRtl ? 'קרן פנסיה' : 'Pension Fund';
+    if (preset.id === 'gemel') rawName = isRtl ? 'קופת גמל' : 'Kupat Gemel';
+    if (preset.id === 'hishtalmut') rawName = isRtl ? 'קרן השתלמות' : 'Keren Hishtalmut';
+    if (preset.id === 'rsu') rawName = isRtl ? 'אופציות ומניות' : 'My ESOP/RSU';
+
     // Allow Alphanumeric (English + Hebrew) + Spaces, remove others
     const sanitizedName = rawName.replace(/[^a-zA-Z0-9\u0590-\u05FF\s]/g, ' ').replace(/\s+/g, ' ').trim();
 
@@ -473,8 +484,10 @@ export function PortfolioWizard({ onComplete, onCancel, onManual, existingNames 
                             size="small"
                             value={customTax}
                             onChange={e => setCustomTax(e.target.value)}
+                            autoComplete="off"
                             InputProps={{
-                              endAdornment: <InputAdornment position="end">%</InputAdornment>
+                              endAdornment: <InputAdornment position="end">%</InputAdornment>,
+                              inputProps: { min: 0, step: 'any' }
                             }}
                             sx={{ width: 150 }}
                           />
@@ -496,8 +509,10 @@ export function PortfolioWizard({ onComplete, onCancel, onManual, existingNames 
                         label={t('Marginal Rate', 'שיעור מס שולי')}
                         value={incomeTax}
                         onChange={e => setIncomeTax(e.target.value)}
+                        autoComplete="off"
                         InputProps={{
-                          endAdornment: <InputAdornment position="end">%</InputAdornment>
+                          endAdornment: <InputAdornment position="end">%</InputAdornment>,
+                          inputProps: { min: 0, step: 'any' }
                         }}
                         helperText={t('Tax rate applied to the grant value (Compensation Income)', 'שיעור המס על שווי המענק (הכנסת עבודה)')}
                       />
@@ -516,8 +531,10 @@ export function PortfolioWizard({ onComplete, onCancel, onManual, existingNames 
                         label={t('Marginal Rate', 'שיעור מס שולי')}
                         value={pensionTax}
                         onChange={e => setPensionTax(e.target.value)}
+                        autoComplete="off"
                         InputProps={{
-                          endAdornment: <InputAdornment position="end">%</InputAdornment>
+                          endAdornment: <InputAdornment position="end">%</InputAdornment>,
+                          inputProps: { min: 0, step: 'any' }
                         }}
                         helperText={t('Estimated marginal tax rate on pension income. Note: Complex partial exemptions on withdrawn amounts are not yet supported.', 'שיעור מס שולי משוער על הפנסיה. הערה: חישוב הטבות מס מורכבות על משיכה הונית אינו נתמך עדיין.')}
                         sx={{ width: 300 }}
@@ -543,8 +560,10 @@ export function PortfolioWizard({ onComplete, onCancel, onManual, existingNames 
                             label={t('Value', 'ערך')}
                             value={mgmtVal}
                             onChange={e => setMgmtVal(e.target.value)}
+                            autoComplete="off"
                             InputProps={{
-                              endAdornment: <InputAdornment position="end">{mgmtType === 'percentage' ? '%' : currency}</InputAdornment>
+                              endAdornment: <InputAdornment position="end">{mgmtType === 'percentage' ? '%' : currency}</InputAdornment>,
+                              inputProps: { min: 0, step: 'any' }
                             }}
                           />
                         </Grid>
@@ -602,8 +621,10 @@ export function PortfolioWizard({ onComplete, onCancel, onManual, existingNames 
                           value={commRate === '0' ? '' : commRate}
                           placeholder="-"
                           onChange={e => setCommRate(e.target.value)}
+                          autoComplete="off"
                           InputProps={{
-                            endAdornment: <InputAdornment position="end">%</InputAdornment>
+                            endAdornment: <InputAdornment position="end">%</InputAdornment>,
+                            inputProps: { min: 0, step: 'any' }
                           }}
                         />
                       </Grid>
@@ -616,8 +637,10 @@ export function PortfolioWizard({ onComplete, onCancel, onManual, existingNames 
                           value={commMin === '0' ? '' : commMin}
                           placeholder="-"
                           onChange={e => setCommMin(e.target.value)}
+                          autoComplete="off"
                           InputProps={{
-                            endAdornment: <InputAdornment position="end">{currency}</InputAdornment>
+                            endAdornment: <InputAdornment position="end">{currency}</InputAdornment>,
+                            inputProps: { min: 0, step: 'any' }
                           }}
                         />
                       </Grid>
@@ -630,8 +653,10 @@ export function PortfolioWizard({ onComplete, onCancel, onManual, existingNames 
                           value={commMax === '0' ? '' : commMax}
                           placeholder="-"
                           onChange={e => setCommMax(e.target.value)}
+                          autoComplete="off"
                           InputProps={{
-                            endAdornment: <InputAdornment position="end">{currency}</InputAdornment>
+                            endAdornment: <InputAdornment position="end">{currency}</InputAdornment>,
+                            inputProps: { min: 0, step: 'any' }
                           }}
                         />
                       </Grid>

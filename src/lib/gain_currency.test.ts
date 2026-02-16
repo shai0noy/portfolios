@@ -3,7 +3,7 @@
 import { describe, it, expect } from 'vitest';
 import { Holding, type Lot } from './data/model';
 import { Currency, Exchange } from './types';
-import { MultiCurrencyValue } from './data/multiCurrency';
+
 
 describe('Gain Calculation with Currency Fluctuation', () => {
     // Current Rates: 1 USD = 4.0 ILS
@@ -37,7 +37,7 @@ describe('Gain Calculation with Currency Fluctuation', () => {
         h.currentPrice = 100;
 
         // History Provider: Price was $100 one week ago too
-        const provider = (ticker: string) => ({
+        const provider = (_ticker: string) => ({
             historical: [
                 { date: new Date('2026-02-01'), price: 100 },
                 { date: new Date('2026-02-11'), price: 100 }

@@ -50,7 +50,7 @@ describe('Adjusted Cost Calculation (IL_REAL_GAIN)', () => {
 
     const engine = new FinanceEngine([p], mockExchangeRates, mockCPIData);
     engine.processEvents([txn], []);
-    const snapshot = engine.calculateSnapshot();
+    engine.calculateSnapshot();
     const h = engine.holdings.get('p1_TLV:123');
 
     expect(h).toBeDefined();
@@ -90,7 +90,7 @@ describe('Adjusted Cost Calculation (IL_REAL_GAIN)', () => {
 
     const engine = new FinanceEngine([p], mockExchangeRates, mockCPIData);
     engine.processEvents([txn], []);
-    const snapshot = engine.calculateSnapshot(); // Snapshot in ILS to verify ILS values internally first?
+    engine.calculateSnapshot(); // Snapshot in ILS to verify ILS values internally first?
     // Actually holding field `adjustedCost` is in Portfolio Currency (USD).
 
     const h = engine.holdings.get('p2_AAPL');
@@ -105,7 +105,7 @@ describe('Adjusted Cost Calculation (IL_REAL_GAIN)', () => {
     expect(h?.adjustedCost).toBeCloseTo(1000, 1);
 
     // Verification in ILS
-    const adjCostILS = h?.activeLots[0].adjustedCost! * 3.7; // Approx
+    // const adjCostILS = h?.activeLots[0].adjustedCost! * 3.7; // Approx
     // Actually engine stores `adjustedCost` in PC.
     // But let's check exact logic through `unrealizedTaxLiability` maybe?
     // Or blindly trust the property if test passes.

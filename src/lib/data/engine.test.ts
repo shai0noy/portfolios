@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { FinanceEngine } from './engine';
-import { Currency, Exchange, Portfolio, Transaction } from '../types';
-import { DividendEvent } from './model';
+import { Currency, Exchange, type Portfolio, type Transaction } from '../types';
+import type { DividendEvent } from './model';
 
 const mockRates = {
     current: { USD: 1, ILS: 4 },

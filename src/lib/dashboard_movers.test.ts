@@ -1,7 +1,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { calculateTopMovers } from './dashboard_movers';
-import { DashboardHolding, Currency, Exchange } from './types';
+import { Currency, Exchange, type DashboardHolding } from './types';
 
 // Minimal mock for DashboardHolding
 const mockHolding = (

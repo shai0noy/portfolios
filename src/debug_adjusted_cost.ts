@@ -55,7 +55,7 @@ async function run() {
     engine.processEvents([txn], []);
 
     console.log("Calculating Snapshot...");
-    engine.calculateSnapshot(Currency.ILS);
+    engine.calculateSnapshot();
 
     const h = engine.holdings.get('p2_AAPL');
     if (h) {
