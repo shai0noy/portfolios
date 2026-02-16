@@ -219,7 +219,7 @@ const TopMovers = ({ holdings, displayCurrency, exchangeRates }: { holdings: Das
                 </Box>
             ) : (
                 <Box sx={{ display: 'flex', overflowX: 'auto', py: 0.5, flex: 1 }}>
-                        {allMovers[period].map(mover => <MoverItem key={`${mover.key}-${mover.holding.portfolioId}`} mover={mover} />)}
+                    {allMovers[period].map(mover => <MoverItem key={`${mover.key}-${mover.holding.portfolioId}`} mover={mover} />)}
                 </Box>
             )}
         </Box>
@@ -258,10 +258,10 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
 
     const [activeStep, setActiveStep] = useState(0);
     const [perfData, setPerfData] = useState<PerformancePoint[]>([]);
-    // periodReturns removed as unused
     const [simplePeriodReturns, setSimplePeriodReturns] = useState<PeriodReturns | null>(null);
     const [isPerfLoading, setIsPerfLoading] = useState(false);
-    const [chartView, setChartView] = useState<'holdings' | 'gains'>('holdings');
+    // Merged: Included 'twr' from Incoming
+    const [chartView, setChartView] = useState<'holdings' | 'twr' | 'gains'>('holdings');
     const [chartMetric, setChartMetric] = useState<'price' | 'percent'>('price');
 
     const {
@@ -402,7 +402,16 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
     }, [getClampedData]);
 
     const isComparison = comparisonSeries.length > 0;
-    const effectiveChartMetric = isComparison ? 'percent' : chartMetric;
+
+    // Chart Metric Logic:
+    // - Comparison active -> Forced to 'percent'
+    // - TWR View -> Forced to 'percent' (TWR is a percentage metric)
+    // - Gains View -> Forced to 'price' (Absolute Value)
+    // - Holdings View -> User selectable ('price' or 'percent')
+    const effectiveChartMetric = isComparison || chartView === 'twr' ? 'percent' : (chartView === 'gains' ? 'price' : chartMetric);
+
+    // If we are in Gains mode, we disable comparison
+    const isComparisonDisabled = chartView === 'gains';
 
     const oldestDate = useMemo(() => perfData.length > 0 ? perfData[0].date : undefined, [perfData]);
     const availableRanges = useMemo(() => getAvailableRanges(oldestDate), [oldestDate]);
@@ -418,12 +427,12 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
             let val = 0;
             if (chartView === 'holdings') {
                 val = p.holdingsValue;
+            } else if (chartView === 'twr') {
+                // TWR View -> Always Percent
+                val = p.twr;
             } else {
-                // For Gains view:
-                // If metric is percent (effectiveChartMetric), use TWR index.
-                // TickerChart in percent mode normalizes relative to start, so TWR works perfectly.
-                // If metric is price ($), use absolute gainsValue.
-                val = effectiveChartMetric === 'percent' ? p.twr : p.gainsValue;
+                // Gains View -> Always Price (Absolute Gains)
+                val = p.gainsValue;
             }
             return {
                 date: p.date,
@@ -432,7 +441,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
         });
 
         const series: ChartSeries[] = [{
-            name: chartView === 'holdings' ? t('Total Holdings', 'שווי החזקות') : t('Total Gains', 'רווח מצטבר'),
+            name: chartView === 'holdings' ? t('Total Holdings', 'שווי החזקות') : (chartView === 'twr' ? t('Cumulative TWR', 'TWR מצטבר') : t('Total Gains', 'רווח מצטבר')),
             data: mainData
         }];
 
@@ -452,16 +461,15 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
             let val = 0;
             if (chartView === 'holdings') {
                 val = p.holdingsValue;
-            } else {
-                // For Gains analysis, we usually care about the return, so TWR is appropriate if we want to compare performance.
-                // However, user might be in Price mode.
-                // But for "Analysis" (Alpha/Beta), we generally compare % returns, so TWR is the correct metric to compare against a benchmark index.
+            } else if (chartView === 'twr') {
                 val = p.twr;
+            } else {
+                val = p.gainsValue;
             }
             return { date: p.date, price: val };
         });
         return {
-            name: chartView === 'holdings' ? t('Total Holdings', 'שווי החזקות') : t('Total Gains', 'רווח מצטבר'),
+            name: chartView === 'holdings' ? t('Total Holdings', 'שווי החזקות') : (chartView === 'twr' ? t('Cumulative TWR', 'TWR מצטבר') : t('Total Gains', 'רווח מצטבר')),
             data
         };
     }, [perfData, chartView, t]);
@@ -622,20 +630,33 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                                             <ToggleButtonGroup
                                                 value={chartView}
                                                 exclusive
-                                                onChange={(_, val) => val && setChartView(val)}
+                                                onChange={(_, val) => {
+                                                    if (val) {
+                                                        setChartView(val);
+                                                        if (val === 'gains') {
+                                                            setComparisonSeries([]);
+                                                        }
+                                                    }
+                                                }}
                                                 size="small"
                                                 sx={{ height: 26 }}
                                             >
                                                 <ToggleButton value="holdings" sx={{ px: 1, fontSize: '0.65rem' }}>{t('Holdings', 'החזקות')}</ToggleButton>
+                                                <ToggleButton value="twr" sx={{ px: 1, fontSize: '0.65rem' }}>{t('TWR', 'TWR')}</ToggleButton>
                                                 <ToggleButton value="gains" sx={{ px: 1, fontSize: '0.65rem' }}>{t('Gains', 'רווחים')}</ToggleButton>
                                             </ToggleButtonGroup>
 
                                             <Tooltip
                                                 enterTouchDelay={0}
                                                 leaveTouchDelay={3000}
-                                                title={chartView === 'holdings'
-                                                    ? t("Market Value over time. Tracks the total worth of your portfolio assets.", "שווי שוק לאורך זמן. עוקב אחר השווי הכולל של הנכסים בתיק.")
-                                                    : t("Total Return over time. Tracks Realized + Unrealized Gains, Dividends, and Fees. Uses TWR (Time-Weighted Return) for percentage mode to filter out deposits/withdrawals.", "תשואה כוללת לאורך זמן. עוקב אחר רווחים ממומשים + לא ממומשים, דיבידנדים ועמלות. משתמש ב-TWR (תשואה משוקללת זמן) במצב אחוזים לנטרול הפקדות/משיכות.")}
+                                                title={
+                                                    chartView === 'holdings'
+                                                        ? t("Market Value over time. Tracks the total worth of your portfolio assets.", "שווי שוק לאורך זמן. עוקב אחר השווי הכולל של הנכסים בתיק.")
+                                                        : (chartView === 'twr'
+                                                            ? t("Time-Weighted Return. Tracks the performance of your portfolio filtering out deposits/withdrawals. Best for comparing against benchmarks.", "תשואה משוקללת זמן. עוקב אחר ביצועי התיק ללא השפעת הפקדות/משיכות. המדד הטוב ביותר להשוואה מול מדדים.")
+                                                            : t("Absolute Gains over time. (Market Value - Net Cost). Shows exactly how much money you made.", "רווח אבסולוטי לאורך זמן (שווי שוק פחות עלות נטו). מציג בדיוק כמה כסף הרווחת.")
+                                                        )
+                                                }
                                             >
                                                 <InfoOutlinedIcon sx={{ fontSize: '0.9rem', color: 'text.secondary', cursor: 'help' }} />
                                             </Tooltip>
@@ -646,7 +667,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                                                 onChange={(_, val) => val && setChartMetric(val)}
                                                 size="small"
                                                 sx={{ height: 26 }}
-                                                disabled={isComparison}
+                                                disabled={isComparison || chartView === 'twr' || chartView === 'gains'}
                                             >
                                                 <ToggleButton value="price" sx={{ px: 1, fontSize: '0.65rem' }}>$</ToggleButton>
                                                 <ToggleButton value="percent" sx={{ px: 1, fontSize: '0.65rem' }}>%</ToggleButton>
@@ -672,6 +693,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                                                 startIcon={<AddIcon sx={{ fontSize: '1rem !important' }} />}
                                                 onClick={(e) => setCompareMenuAnchor(e.currentTarget)}
                                                 sx={{ height: 26, fontSize: '0.65rem', textTransform: 'none' }}
+                                                disabled={isComparisonDisabled}
                                             >
                                                 {t('Compare', 'השווה')}
                                             </Button>
@@ -766,3 +788,4 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
         </>
     );
 }
+

@@ -2,9 +2,9 @@
 import { ensureGoogleApis } from './gapiLoader';
 import { SessionExpiredError } from './errors';
 
-const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+const CLIENT_ID = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID;
 const SCOPES = 'https://www.googleapis.com/auth/drive.file';
-const WORKER_URL = import.meta.env.VITE_WORKER_URL || '';
+const WORKER_URL = (import.meta as any).env?.VITE_WORKER_URL || '';
 
 let gapiInstance: typeof gapi | null = null;
 let signInPromise: Promise<void> | null = null;
