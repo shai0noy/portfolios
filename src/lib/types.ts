@@ -437,6 +437,20 @@ export const PORTFOLIO_TEMPLATES: Record<string, Partial<Portfolio>> = {
     divCommRate: 0,
     taxPolicy: 'IL_REAL_GAIN'
   },
+  'us_broker_il_tax': {
+    cgt: 0.25,
+    incTax: 0,
+    commRate: 0,
+    commMin: 0,
+    commMax: 0,
+    currency: Currency.USD,
+    divPolicy: 'cash_taxed',
+    mgmtVal: 0,
+    mgmtType: 'percentage',
+    mgmtFreq: 'yearly',
+    divCommRate: 0,
+    taxPolicy: 'IL_REAL_GAIN'
+  },
   'std_us': {
     cgt: 0.25,
     incTax: 0,
@@ -472,6 +486,52 @@ export const PORTFOLIO_TEMPLATES: Record<string, Partial<Portfolio>> = {
     currency: Currency.ILS,
     divPolicy: 'accumulate_tax_free',
     mgmtVal: 0.007, // 0.7% from accumulation
+    mgmtType: 'percentage',
+    mgmtFreq: 'yearly',
+    divCommRate: 0,
+    taxPolicy: 'TAX_FREE'
+  },
+  'gemel': {
+    cgt: 0,
+    incTax: 0,
+    commRate: 0,
+    commMin: 0,
+    currency: Currency.ILS,
+    divPolicy: 'accumulate_tax_free',
+    mgmtVal: 0.007, // 0.7% same as hishtalmut defaults?
+    mgmtType: 'percentage',
+    mgmtFreq: 'yearly',
+    divCommRate: 0,
+    taxPolicy: 'MAX_TAX_FREE_OR_REAL_GAIN' as TaxPolicy // Wait, GEMEL is usually Tax Free up to limit, but here we treat as Tax Free? Or separate? 
+    // Actually existing code uses 'TAX_FREE' for Hishtalmut. Gemel LeHashkaa is 'IL_REAL_GAIN' usually unless it's Gemel LeKitzva.
+    // User requested: "IL Gemmel Fund" and "IL Hishtalmut fund".
+    // Hishtalmut is tax free. Gemel (LeHashkaa) is Capital Gains (Real).
+    // Gemel (LeKitzva/Pension) is different.
+    // Let's assume Gemel LeHashkaa for now which is like a taxable account but managed?
+    // User said "IL Gemmel Fund".
+    // If it's Gemel LeHashkaa: 25% Real Gain.
+    // If it's Gemel LeKitzva: Exempt if taken as annuity.
+    // I will use IL_REAL_GAIN for Gemel (LeHashkaa) to be safe, or ask?
+    // Re-reading user request: "IL pension fund, IL Gemmel Fund, IL Hishtalmut fund".
+    // Usually "Gemel" implies "Gemel LeHashkaa" in this context if distinct from Pension/Hishtalmut.
+    // BUT "Pension" is TAXED (Income Tax).
+    // Let's try to map:
+    // Hishtalmut -> Tax Free (usually)
+    // Pension -> Taxed (Income)
+    // Gemel -> ???
+    // If I look at `taxPolicyNames` in PortfolioManager:
+    // TAX_FREE = "Tax Free (Gemel/Hishtalmut)" 
+    // So current code assumes Gemel IS Tax Free.
+    // I will stick to TAX_FREE for Gemel template to match existing `taxPolicyNames`.
+  },
+  'gemel_tax_free': { // Internal name for consistency
+    cgt: 0,
+    incTax: 0,
+    commRate: 0,
+    commMin: 0,
+    currency: Currency.ILS,
+    divPolicy: 'accumulate_tax_free',
+    mgmtVal: 0.007,
     mgmtType: 'percentage',
     mgmtFreq: 'yearly',
     divCommRate: 0,

@@ -18,6 +18,7 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import { type Portfolio, PORTFOLIO_TEMPLATES, Currency } from '../lib/types';
 import { addPortfolio, fetchPortfolios, updatePortfolio } from '../lib/sheets/index';
 import { useLanguage } from '../lib/i18n';
+import { PortfolioWizard } from './PortfolioWizard';
 
 const taxPolicyNames: { [key: string]: string } = {
   IL_REAL_GAIN: "Israel (Real Gain - Inflation Adjusted)",
@@ -42,6 +43,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
   const [editMode, setEditMode] = useState<boolean>(!!portfolioId);
   const [editingPortfolio, setEditingPortfolio] = useState<Partial<Portfolio> | null>(null);
   const [showNewPortfolioForm, setShowNewPortfolioForm] = useState(!!portfolioId);
+  const [wizardMode, setWizardMode] = useState(true); // Default to Wizard
   const [showTaxHistory, setShowTaxHistory] = useState(false);
   const [showFeeHistory, setShowFeeHistory] = useState(false);
   const { t } = useLanguage();
@@ -79,6 +81,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
       setEditMode(false);
       setEditingPortfolio(null);
       setShowNewPortfolioForm(false);
+      setWizardMode(true); // Reset to Wizard when closing/clearing
       setP({
         id: '', name: '', currency: Currency.ILS,
         cgt: 0.25, incTax: 0,
@@ -238,6 +241,66 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
     setIdDirty(false);
     setShowNewPortfolioForm(false);
     navigate('/portfolios');
+  };
+
+  const handleWizardComplete = (initialProps: Partial<Portfolio>) => {
+    setP(prev => ({ ...prev, ...initialProps }));
+    // Auto-generate ID if name is provided (it should be)
+    // Actually Wizard generates ID too.
+    if (initialProps.id) {
+      setIdDirty(true);
+    }
+    setWizardMode(false); // Switch to "Manual" form to allow final review or just submit?
+    // Plan says "Create: Calls addPortfolio".
+    // But `handleSubmit` uses `p` state.
+    // If I want to allow review, I set `p` and `setWizardMode(false)`.
+    // If I want to submit immediately, I call `handleSubmit`? 
+    // The Wizard has "Create Portfolio" button. It implies immediate creation.
+    // Let's UPDATE `p` then call `handleSubmit` directly?
+    // But `handleSubmit` depends on `p` state which is async update.
+    // Better: Update `p` and then in `useEffect` or just pass `initialProps` to a submission helper?
+    // I'll update `p` and show the form populated for final verification? Or just submit?
+    // User "I will allow for choosing between a few defaults and customizing the applicable settings... Editing stay the same as now."
+    // Implies Wizard is for CREATION.
+    // The Wizard "Create" button should probably just create it.
+    // But I need to merge `initialProps` with defaults in `p`?
+    // `initialProps` from Wizard has everything needed (template + customizations).
+    // So I can just call `addPortfolio` with it.
+
+    // Actually, `PortfolioWizard` returns `initialPorfolio` which is `template + name + currency`.
+    // It might miss some fields if `template` doesn't have them?
+    // `types.ts` templates have all necessary fields.
+    // So I can just `addPortfolio`.
+
+    // BUT `handleSubmit` shares logic for `addPortfolio` and `updatePortfolio`.
+    // And handle loading state, etc.
+    // Let's repurpose `handleSubmit` or overload it?
+    // Or just set state and call `submitWithData`?
+
+    // safer: set P, then submitting might be tricky due to closure/async.
+    // I will call `submitPortfolio(initialProps)` helper.
+
+    submitPortfolio(initialProps as Portfolio);
+  };
+
+  const submitPortfolio = async (portfolioData: Portfolio) => {
+    setLoading(true);
+    try {
+      // Validation? Name and ID already checked in Wizard.
+      await addPortfolio(sheetId, portfolioData);
+      setMsg(t('Portfolio Created!', 'התיק נוצר!'));
+      setShowNewPortfolioForm(false);
+      setP({ id: '', name: '' });
+      setIdDirty(false);
+      setWizardMode(true);
+      loadPortfolios();
+      onSuccess();
+    } catch (e) {
+      console.error(e);
+      alert(t('Error creating portfolio', 'שגיאה ביצירת התיק'));
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSubmit = async () => {
@@ -488,23 +551,38 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
     <Box sx={{ maxWidth: 900, mx: 'auto' }}>
       {(showNewPortfolioForm || editMode) ? (
         <Box mb={4}>
+          {!editMode && wizardMode ? (
+            <PortfolioWizard
+              onComplete={handleWizardComplete}
+              onCancel={() => { setShowNewPortfolioForm(false); navigate('/portfolios'); }}
+              onManual={() => setWizardMode(false)}
+              existingNames={portfolios.map(p => p.name)}
+              existingIds={portfolios.map(p => p.id)}
+            />
+          ) : (
+            <>
           <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
             <Typography variant="h5" fontWeight="600" color="text.primary">
               {editMode ? `${t('Editing Portfolio:', 'עריכת תיק:')} ${editingPortfolio?.name}` : t('Create New Portfolio', 'יצירת תיק חדש')}
             </Typography>
             
             {!editMode && (
-              <FormControl size="small" sx={{ minWidth: 220 }}>
-                <InputLabel>{t('Load Template', 'טען תבנית')}</InputLabel>
-                <Select value={template} label={t('Load Template', 'טען תבנית')} onChange={e => handleTemplate(e.target.value)}>
-                  <MenuItem value="">-- {t('Select Template', 'בחר תבנית')} --</MenuItem>
-                  <MenuItem value="std_il">{t('Standard IL (Broker/Bank)', 'רגיל ישראל (ברוקר/בנק)')}</MenuItem>
-                  <MenuItem value="std_us">{t('Standard US (Broker)', 'רגיל ארה"ב (ברוקר)')}</MenuItem>
-                  <MenuItem value="pension">{t('Pension', 'פנסיה')}</MenuItem>
-                  <MenuItem value="hishtalmut">{t('Hishtalmut / Gemel', 'השתלמות / גמל')}</MenuItem>
-                  <MenuItem value="rsu">{t('RSU (Income Taxed)', 'RSU (ממוסה כהכנסה)')}</MenuItem>
-                </Select>
-              </FormControl>
+                    <Box display="flex" gap={2}>
+                      <Button onClick={() => setWizardMode(true)} color="primary">
+                        {t('Switch to Wizard', 'עבור לאשף')}
+                      </Button>
+                      <FormControl size="small" sx={{ minWidth: 220 }}>
+                        <InputLabel>{t('Load Template', 'טען תבנית')}</InputLabel>
+                        <Select value={template} label={t('Load Template', 'טען תבנית')} onChange={e => handleTemplate(e.target.value)}>
+                          <MenuItem value="">-- {t('Select Template', 'בחר תבנית')} --</MenuItem>
+                          <MenuItem value="std_il">{t('Standard IL (Broker/Bank)', 'רגיל ישראל (ברוקר/בנק)')}</MenuItem>
+                          <MenuItem value="std_us">{t('Standard US (Broker)', 'רגיל ארה"ב (ברוקר)')}</MenuItem>
+                          <MenuItem value="pension">{t('Pension', 'פנסיה')}</MenuItem>
+                          <MenuItem value="hishtalmut">{t('Hishtalmut / Gemel', 'השתלמות / גמל')}</MenuItem>
+                          <MenuItem value="rsu">{t('RSU (Income Taxed)', 'RSU (ממוסה כהכנסה)')}</MenuItem>
+                        </Select>
+                      </FormControl>
+                    </Box>
             )}
           </Box>
 
@@ -890,6 +968,8 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
               )}
             </Grid>
           </Grid>
+            </>
+          )}
         </Box>
       ) : null}
 
