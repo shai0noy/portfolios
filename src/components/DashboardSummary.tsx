@@ -423,6 +423,8 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
         const clampedData = getClampedDataCallback(perfData, chartRange);
         if (clampedData.length === 0) return [];
 
+        const initialGain = clampedData.length > 0 ? clampedData[0].gainsValue : 0;
+
         const mainData = clampedData.map(p => {
             let val = 0;
             if (chartView === 'holdings') {
@@ -431,8 +433,8 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                 // TWR View -> Always Percent
                 val = p.twr;
             } else {
-                // Gains View -> Always Price (Absolute Gains)
-                val = p.gainsValue;
+                // Gains View -> Always Price (Absolute Gains relative to start)
+                val = p.gainsValue - initialGain;
             }
             return {
                 date: p.date,
