@@ -161,10 +161,10 @@ export function PortfolioWizard({ onComplete, onCancel, onManual, existingNames 
       setCurrency(temp.currency);
     }
 
-    // Default Name Sanitization
+    // Generate localized default name based on preset title
     let rawName = t(preset.titleHe, preset.title);
 
-    // Distinct Default Names (User Request)
+    // Override with distinct, user-friendly names for specific presets
     if (preset.id === 'il_broker') rawName = t('Trade', 'מסחר');
     if (preset.id === 'us_broker_il') rawName = t('Trade', 'מסחר');
     if (preset.id === 'us_broker_nr') rawName = t('Trade', 'מסחר');
@@ -173,10 +173,10 @@ export function PortfolioWizard({ onComplete, onCancel, onManual, existingNames 
     if (preset.id === 'hishtalmut') rawName = t('Hishtalmut', 'השתלמות');
     if (preset.id === 'rsu') rawName = t('RSU', 'RSU');
 
-    // Allow Alphanumeric (English + Hebrew) + Spaces, remove others
+    // Sanitize: Allow only Alphanumeric (English + Hebrew) and spaces.
     const sanitizedName = rawName.replace(/[^a-zA-Z0-9\u0590-\u05FF\s]/g, ' ').replace(/\s+/g, ' ').trim();
 
-    // Check if name exists, if so append number (simple check)
+    // Ensure uniqueness by appending a counter if name already exists
     let finalName = sanitizedName;
     let counter = 1;
     while (existingNames.includes(finalName)) {

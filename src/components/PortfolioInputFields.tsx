@@ -12,8 +12,8 @@ interface BaseFieldProps {
 interface NumericFieldProps extends BaseFieldProps {
   field: string;
   value: number;
-  onChange?: (val: number) => void; // Legacy or simple usage
-  onUpdate?: (field: string, val: number) => void; // Stable callback usage
+  onChange?: (val: number) => void;
+  onUpdate?: (field: string, val: number) => void;
   currency?: string;
 }
 
@@ -23,7 +23,8 @@ export const NumericField = React.memo(({ label, field, value, onChange, onUpdat
   const displayVal = (value === 0 && localDisplay === null) ? '' : (localDisplay !== null ? localDisplay : value.toString());
 
   useEffect(() => {
-    // Sync logic if needed, currently reliant on value prop
+    // If external value changes (e.g. rounded by parent), we might need to sync.
+    // Currently relying on props creates a "controlled" component feel.
   }, [value]);
 
   const fireChange = (val: number) => {

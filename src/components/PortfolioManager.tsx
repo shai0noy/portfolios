@@ -410,12 +410,12 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
     }
   };
 
-  // Helper to update state - Stable for React.memo
+  // Helper to update state - Wrapped in useCallback to ensure stability for React.memo in children.
   const handleUpdate = useCallback((field: string, val: any) => {
     setP((prev: any) => ({ ...prev, [field]: val }));
   }, []);
 
-  // Legacy set for non-memoized parts (or can use handleUpdate)
+  // Wrapper for non-memoized calls or legacy usage.
   const set = (field: keyof Portfolio, val: any) => handleUpdate(field as string, val);
 
   useEffect(() => {
