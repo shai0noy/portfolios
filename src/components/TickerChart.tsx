@@ -126,9 +126,11 @@ const CustomTooltip = ({ active, payload, currency, t, basePrice, isComparison, 
                 <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
                     {formatPrice(val, currency, undefined, t)}
                 </Typography>
-                <Typography variant="body2" sx={{ color: percentChange >= 0 ? 'success.main' : 'error.main' }}>
-                    {formatPercent(percentChange)}
-                </Typography>
+                {basePrice !== 0 && (
+                    <Typography variant="body2" sx={{ color: percentChange >= 0 ? 'success.main' : 'error.main' }}>
+                        {formatPercent(percentChange)}
+                    </Typography>
+                )}
             </Paper>
         );
     }
