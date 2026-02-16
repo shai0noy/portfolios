@@ -1,0 +1,99 @@
+npm warn Unknown builtin config "globalignorefile". This will stop working in the next major version of npm.
+src/components/PortfolioManager.tsx(334,88): error TS2322: Type 'number | undefined' is not assignable to type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+src/components/PortfolioManager.tsx(336,71): error TS2322: Type 'number | undefined' is not assignable to type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+src/components/PortfolioManager.tsx(1027,48): error TS2538: Type 'undefined' cannot be used as an index type.
+src/components/PortfolioWizard.tsx(123,27): error TS2304: Cannot find name 'useState'.
+src/components/PortfolioWizard.tsx(124,47): error TS2304: Cannot find name 'useState'.
+src/components/PortfolioWizard.tsx(125,35): error TS2304: Cannot find name 'useState'.
+src/components/PortfolioWizard.tsx(128,27): error TS2304: Cannot find name 'useState'.
+src/components/PortfolioWizard.tsx(129,35): error TS2304: Cannot find name 'useState'.
+src/components/PortfolioWizard.tsx(132,33): error TS2304: Cannot find name 'useState'.
+src/components/PortfolioWizard.tsx(133,37): error TS2304: Cannot find name 'useState'.
+src/components/PortfolioWizard.tsx(134,37): error TS2304: Cannot find name 'useState'.
+src/components/PortfolioWizard.tsx(135,39): error TS2304: Cannot find name 'useState'.
+src/components/PortfolioWizard.tsx(138,35): error TS2304: Cannot find name 'useState'.
+src/components/PortfolioWizard.tsx(139,33): error TS2304: Cannot find name 'useState'.
+src/components/PortfolioWizard.tsx(140,33): error TS2304: Cannot find name 'useState'.
+src/components/PortfolioWizard.tsx(141,39): error TS2304: Cannot find name 'useState'.
+src/components/PortfolioWizard.tsx(142,41): error TS2304: Cannot find name 'useState'.
+src/components/PortfolioWizard.tsx(145,33): error TS2304: Cannot find name 'useState'.
+src/components/PortfolioWizard.tsx(146,35): error TS2304: Cannot find name 'useState'.
+src/components/PortfolioWizard.tsx(147,35): error TS2304: Cannot find name 'useState'.
+src/components/PortfolioWizard.tsx(150,43): error TS2304: Cannot find name 'useState'.
+src/debug_adjusted_cost.ts(3,69): error TS6133: 'ExchangeRates' is declared but its value is never read.
+src/debug_adjusted_cost.ts(58,30): error TS2554: Expected 0 arguments, but got 1.
+src/lib/dashboard.test.ts(6,19): error TS1484: 'Lot' is a type and must be imported using a type-only import when 'verbatimModuleSyntax' is enabled.
+src/lib/dashboard.test.ts(6,24): error TS1484: 'DividendRecord' is a type and must be imported using a type-only import when 'verbatimModuleSyntax' is enabled.
+src/lib/dashboard.test.ts(6,24): error TS6133: 'DividendRecord' is declared but its value is never read.
+src/lib/dashboard_movers.test.ts(4,10): error TS1484: 'DashboardHolding' is a type and must be imported using a type-only import when 'verbatimModuleSyntax' is enabled.
+src/lib/data/adjusted_cost.test.ts(53,11): error TS6133: 'snapshot' is declared but its value is never read.
+src/lib/data/adjusted_cost.test.ts(93,11): error TS6133: 'snapshot' is declared but its value is never read.
+src/lib/data/adjusted_cost.test.ts(108,11): error TS6133: 'adjCostILS' is declared but its value is never read.
+src/lib/data/engine.test.ts(3,30): error TS1484: 'Portfolio' is a type and must be imported using a type-only import when 'verbatimModuleSyntax' is enabled.
+src/lib/data/engine.test.ts(3,41): error TS1484: 'Transaction' is a type and must be imported using a type-only import when 'verbatimModuleSyntax' is enabled.
+src/lib/data/engine.test.ts(4,10): error TS1484: 'DividendEvent' is a type and must be imported using a type-only import when 'verbatimModuleSyntax' is enabled.
+src/lib/data/engine.ts(150,62): error TS18048: 'incTax' is possibly 'undefined'.
+src/lib/data/engine.ts(156,33): error TS2322: Type 'number | undefined' is not assignable to type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+src/lib/data/engine.ts(162,37): error TS2322: Type 'number | undefined' is not assignable to type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+src/lib/data/engine.ts(395,66): error TS18048: 'p.mgmtVal' is possibly 'undefined'.
+src/lib/data/engine.ts(513,19): error TS6133: 'portfolio' is declared but its value is never read.
+src/lib/data/repro_phantom_tax.test.ts(133,15): error TS6133: 'h' is declared but its value is never read.
+src/lib/data/repro_phantom_tax.test.ts(144,15): error TS6133: 'taxVal' is declared but its value is never read.
+src/lib/data/tax_logic_alignment.test.ts(3,1): error TS6133: 'Currency' is declared but its value is never read.
+src/lib/gain_currency.test.ts(3,19): error TS1484: 'Lot' is a type and must be imported using a type-only import when 'verbatimModuleSyntax' is enabled.
+src/lib/gain_currency.test.ts(5,1): error TS6133: 'MultiCurrencyValue' is declared but its value is never read.
+src/lib/gain_currency.test.ts(39,27): error TS6133: 'ticker' is declared but its value is never read.
+src/lib/holding_calculations.test.ts(3,20): error TS1484: 'ExchangeRates' is a type and must be imported using a type-only import when 'verbatimModuleSyntax' is enabled.
+src/lib/holding_calculations.test.ts(118,9): error TS2591: Cannot find name 'process'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+src/lib/performance.test.ts(145,16): error TS6133: 'testDRIP' is declared but its value is never read.
+src/lib/performance_edges.test.ts(2,41): error TS1484: 'PerformancePoint' is a type and must be imported using a type-only import when 'verbatimModuleSyntax' is enabled.
+src/lib/performance_edges.test.ts(2,41): error TS6133: 'PerformancePoint' is declared but its value is never read.
+src/lib/performance_edges.test.ts(2,59): error TS6133: 'calculatePeriodReturns' is declared but its value is never read.
+src/lib/performance_edges.test.ts(4,30): error TS1484: 'DashboardHolding' is a type and must be imported using a type-only import when 'verbatimModuleSyntax' is enabled.
+src/lib/performance_edges.test.ts(4,48): error TS1484: 'Transaction' is a type and must be imported using a type-only import when 'verbatimModuleSyntax' is enabled.
+src/lib/performance_edges.test.ts(49,23): error TS2339: Property 'find' does not exist on type '{ points: PerformancePoint[]; historyMap: Map<string, any>; }'.
+src/lib/performance_edges.test.ts(49,28): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/lib/performance_edges.test.ts(81,23): error TS2339: Property 'find' does not exist on type '{ points: PerformancePoint[]; historyMap: Map<string, any>; }'.
+src/lib/performance_edges.test.ts(81,28): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/lib/performance_edges.test.ts(122,23): error TS2339: Property 'find' does not exist on type '{ points: PerformancePoint[]; historyMap: Map<string, any>; }'.
+src/lib/performance_edges.test.ts(122,28): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/lib/performance_edges.test.ts(177,23): error TS2339: Property 'find' does not exist on type '{ points: PerformancePoint[]; historyMap: Map<string, any>; }'.
+src/lib/performance_edges.test.ts(177,28): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/lib/performance_repro.test.ts(2,65): error TS1484: 'PerformancePoint' is a type and must be imported using a type-only import when 'verbatimModuleSyntax' is enabled.
+src/lib/performance_repro.test.ts(4,30): error TS1484: 'DashboardHolding' is a type and must be imported using a type-only import when 'verbatimModuleSyntax' is enabled.
+src/lib/performance_repro.test.ts(4,48): error TS1484: 'Transaction' is a type and must be imported using a type-only import when 'verbatimModuleSyntax' is enabled.
+src/lib/performance_repro.test.ts(163,15): error TS6133: 'points' is declared but its value is never read.
+src/lib/portfolioUtils.ts(19,30): error TS2322: Type 'number | undefined' is not assignable to type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+src/lib/portfolioUtils.ts(31,26): error TS2322: Type 'number | undefined' is not assignable to type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+src/lib/portfolioUtils.ts(39,18): error TS2322: Type 'number | undefined' is not assignable to type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+src/lib/portfolioUtils.ts(39,38): error TS2322: Type '"percentage" | "fixed" | undefined' is not assignable to type '"percentage" | "fixed"'.
+  Type 'undefined' is not assignable to type '"percentage" | "fixed"'.
+src/lib/portfolioUtils.ts(39,60): error TS2322: Type '"monthly" | "quarterly" | "yearly" | undefined' is not assignable to type '"monthly" | "quarterly" | "yearly"'.
+  Type 'undefined' is not assignable to type '"monthly" | "quarterly" | "yearly"'.
+src/lib/portfolioUtils.ts(39,152): error TS2322: Type 'number | undefined' is not assignable to type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+src/lib/portfolioUtils.ts(52,13): error TS2322: Type 'number | undefined' is not assignable to type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+src/lib/portfolioUtils.ts(56,14): error TS2322: Type 'number | undefined' is not assignable to type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+src/lib/portfolioUtils.ts(56,34): error TS2322: Type '"percentage" | "fixed" | undefined' is not assignable to type '"percentage" | "fixed"'.
+  Type 'undefined' is not assignable to type '"percentage" | "fixed"'.
+src/lib/portfolioUtils.ts(56,56): error TS2322: Type '"monthly" | "quarterly" | "yearly" | undefined' is not assignable to type '"monthly" | "quarterly" | "yearly"'.
+  Type 'undefined' is not assignable to type '"monthly" | "quarterly" | "yearly"'.
+src/lib/portfolioUtils.ts(56,148): error TS2322: Type 'number | undefined' is not assignable to type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+src/lib/sheets/config.ts(171,14): error TS2741: Property 'commExemption' is missing in type '{ id: "Portfolio_ID"; name: "Display_Name"; cgt: "Cap_Gains_Tax_Rate"; incTax: "Income_Tax_Rate"; mgmtVal: "Mgmt_Fee_Val"; mgmtType: "Mgmt_Type"; mgmtFreq: "Mgmt_Freq"; commRate: "Comm_Rate_%"; ... 8 more ...; feeHistory: "Fee_History"; }' but required in type 'Record<"currency" | "id" | "name" | "cgt" | "incTax" | "taxPolicy" | "taxOnBase" | "mgmtVal" | "mgmtType" | "mgmtFreq" | "commRate" | "commMin" | "commMax" | "divCommRate" | "commExemption" | "divPolicy" | "taxHistory" | "feeHistory", "Currency" | ... 15 more ... | "Fee_History">'.
+src/lib/unvested_gain.test.ts(3,19): error TS1484: 'Lot' is a type and must be imported using a type-only import when 'verbatimModuleSyntax' is enabled.
+src/lib/unvested_gain.test.ts(36,27): error TS6133: 'ticker' is declared but its value is never read.
+gpkg: ERROR: failed to get OAuth2 token for: shain. Try running gcert to request a fresh SSO full ticket
+
+*** gpkg: This tool is configured to use Corp Airlock for package installs: http://go/corp-airlock
+*** gpkg: If Corp Airlock is breaking your workflow please report at: http://go/corp-airlock-feedback
+*** gpkg: Exceptions are available: http://go/corp-airlock#request-exception

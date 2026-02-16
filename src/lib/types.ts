@@ -309,6 +309,8 @@ export interface DashboardSummaryData {
   totalUnvestedGainPct: number;
 }
 
+export type CommissionExemption = 'none' | 'buys' | 'sells' | 'all';
+
 export interface TaxHistoryEntry {
   startDate: string; // YYYY-MM-DD
   cgt: number;
@@ -321,30 +323,41 @@ export interface FeeHistoryEntry {
   mgmtType: 'percentage' | 'fixed';
   mgmtFreq: 'monthly' | 'quarterly' | 'yearly';
   divCommRate: number;
-  commRate: number;
-  commMin: number;
-  commMax: number;
+  commRate?: number;
+  commMin?: number;
+  commMax?: number;
 }
 
 export interface Portfolio {
   id: string;
   name: string;
-  cgt: number;
-  incTax: number;
-  mgmtVal: number;
-  mgmtType: 'percentage' | 'fixed';
-  mgmtFreq: 'monthly' | 'quarterly' | 'yearly';
-  commRate: number;
-  commMin: number;
-  commMax: number;
   currency: Currency;
-  divPolicy: 'cash_taxed' | 'accumulate_tax_free' | 'hybrid_rsu';
-  divCommRate: number;
-  taxPolicy: TaxPolicy;
-  taxOnBase?: boolean; // If true, tax is applied to the entire amount (base + gain), not just the gain.
-  holdings?: SheetHolding[];
+
+  // Tax
+  cgt: number;
+  incTax?: number; // For RSUs: Marginal Income Tax Rate on Vest
+  taxPolicy?: TaxPolicy; // Default IL_REAL_GAIN
+  taxOnBase?: boolean;
+
+  // Fees
+  mgmtVal?: number;
+  mgmtType?: 'percentage' | 'fixed';
+  mgmtFreq?: 'monthly' | 'quarterly' | 'yearly';
+
+  commRate: number; // Percentage (0.001 = 0.1%)
+  commMin: number;
+  commMax?: number; // Optional cap
+  divCommRate: number; // Dividend Commission Rate
+  commExemption?: CommissionExemption; // New Field
+
+  // Dividend Policy (RSU specific mainly, but could be general)
+  divPolicy?: 'cash_taxed' | 'accumulate_tax_free' | 'hybrid_rsu';
+
+  // History
   taxHistory?: TaxHistoryEntry[];
   feeHistory?: FeeHistoryEntry[];
+
+  holdings?: SheetHolding[];
 }
 
 export type TaxPolicy = 'TAX_FREE' | 'IL_REAL_GAIN' | 'NOMINAL_GAIN' | 'PENSION';

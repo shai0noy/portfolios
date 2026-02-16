@@ -437,6 +437,7 @@ export async function runTests() {
         await testCurrencyConversion();
         await testPartialSell();
         await testDividends();
+        await testDRIP();
         await testTWR();
         await testMissingPriceData();
         await testIntradayWash();

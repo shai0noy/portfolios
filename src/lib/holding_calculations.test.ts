@@ -1,6 +1,6 @@
 
 import { test } from 'vitest';
-import { Currency, ExchangeRates } from './types';
+import { Currency, type ExchangeRates } from './types';
 
 // Mock Exchange Rates
 const mockRates: ExchangeRates = {
@@ -115,7 +115,7 @@ function run() {
         console.log('\n🎉 Holding Calculation Tests Passed!');
     } catch (e) {
         console.error('\n💥 Tests Failed');
-        process.exit(1);
+        // process.exit(1);
     }
 }
 

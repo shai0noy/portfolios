@@ -1,7 +1,8 @@
 
-import { calculatePortfolioPerformance, PerformancePoint, calculatePeriodReturns } from './performance';
+import { calculatePortfolioPerformance } from './performance';
 import { describe, it, expect } from 'vitest';
-import { Exchange, Currency, DashboardHolding, Transaction } from './types';
+import type { DashboardHolding, Transaction } from './types';
+import { Exchange, Currency } from './types';
 
 describe('calculatePortfolioPerformance - Edge Cases', () => {
 
@@ -37,7 +38,7 @@ describe('calculatePortfolioPerformance - Edge Cases', () => {
         { date: new Date('2024-01-02T00:00:00.000Z'), price: 100 },
       ]
     };
-    const points = await calculatePortfolioPerformance(holdings, txns, 'USD', mockRates, undefined, undefined, mkFetch(history));
+    const { points } = await calculatePortfolioPerformance(holdings, txns, 'USD', mockRates, undefined, undefined, mkFetch(history));
 
     // Day 2:
     // Value: 10 * 100 = 1000.
@@ -71,7 +72,7 @@ describe('calculatePortfolioPerformance - Edge Cases', () => {
       ]
     };
 
-    const points = await calculatePortfolioPerformance(holdings, txns, 'USD', mockRates, undefined, undefined, mkFetch(history));
+    const { points } = await calculatePortfolioPerformance(holdings, txns, 'USD', mockRates, undefined, undefined, mkFetch(history));
 
     // Day 2:
     // Value: 1000. Cost: 1000.
@@ -117,7 +118,7 @@ describe('calculatePortfolioPerformance - Edge Cases', () => {
       ]
     };
 
-    const points = await calculatePortfolioPerformance(holdings, txns, 'USD', mockRates, undefined, undefined, mkFetch(history));
+    const { points } = await calculatePortfolioPerformance(holdings, txns, 'USD', mockRates, undefined, undefined, mkFetch(history));
 
     const p1 = points.find(p => p.date.getUTCDate() === 1);
     expect(p1).toBeDefined();
@@ -173,7 +174,7 @@ describe('calculatePortfolioPerformance - Edge Cases', () => {
     // Let's check if the result is 0 (Constant Rate assumption) or something else.
 
 
-    const points = await calculatePortfolioPerformance(holdings, txns, 'USD', rates, undefined, undefined, mkFetch(history));
+    const { points } = await calculatePortfolioPerformance(holdings, txns, 'USD', rates, undefined, undefined, mkFetch(history));
     const p2 = points.find(p => p.date.getUTCDate() === 2);
 
     // If constant rates used:

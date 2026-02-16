@@ -147,7 +147,7 @@ export class FinanceEngine {
                             if (p) {
                                 const { cgt, incTax, divPolicy, taxPolicy } = p;
                                 const isReit = h.type?.type === InstrumentType.STOCK_REIT;
-                                let baseTaxRate = (isReit && incTax > 0) ? incTax : cgt;
+                                let baseTaxRate = (isReit && (incTax || 0) > 0) ? (incTax || 0) : cgt;
 
                                 // Policy Overrides
                                 if (taxPolicy === 'TAX_FREE') baseTaxRate = 0;
@@ -392,7 +392,7 @@ export class FinanceEngine {
             if (!p) return;
 
             const hasFeeHistory = p.feeHistory && p.feeHistory.some(f => f.mgmtType === 'percentage' && f.mgmtVal > 0);
-            const hasCurrentFee = p.mgmtType === 'percentage' && p.mgmtVal > 0;
+            const hasCurrentFee = p.mgmtType === 'percentage' && (p.mgmtVal || 0) > 0;
             if (!hasFeeHistory && !hasCurrentFee) return;
 
             // We need to generate FEE transactions.
@@ -502,7 +502,7 @@ export class FinanceEngine {
             h.realizedGainNet = { amount: realizedGainNetVal, currency: h.portfolioCurrency };
 
             // Adjusted Cost (Inflation or Currency Adjusted) - Portfolio Currency
-            // We calculate this ALWAYS for display purposes (Real vs Nominal analysis), 
+            // We calculate this ALWAYS for display purposes (Real vs Nominal analysis),
             // regardless of the actual tax policy used for realized gains.
             // const portfolio = this.portfolios.get(h.portfolioId); // Removed duplicate
             // Adjusted Cost & Real Cost Calculation
@@ -510,7 +510,7 @@ export class FinanceEngine {
             // 1. realCostILS: Pure inflation/currency adjusted cost (for display).
             // 2. adjustedCostILS: The "Tax Basis" cost after applying tax rules (e.g. Section 9 limits).
 
-            const portfolio = this.portfolios.get(h.portfolioId);
+            // const portfolio = this.portfolios.get(h.portfolioId);
             let adjustedCost: number | undefined; // Portfolio Currency version of tax basis
 
             {

@@ -16,7 +16,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import SettingsSuggestIcon from '@mui/icons-material/SettingsSuggest';
-import { type Portfolio, PORTFOLIO_TEMPLATES, Currency } from '../lib/types';
+import { type Portfolio, PORTFOLIO_TEMPLATES, Currency, type CommissionExemption } from '../lib/types';
 import { useLanguage } from '../lib/i18n';
 
 interface WizardProps {
@@ -138,6 +138,9 @@ export function PortfolioWizard({ onComplete, onCancel, onManual, existingNames 
   // Trading Fees
   const [commRate, setCommRate] = useState<string>('0.1'); // 0.1%
   const [commMin, setCommMin] = useState<string>('5');
+  const [commMax, setCommMax] = useState<string>('0');
+  const [buysExempt, setBuysExempt] = useState(false);
+  const [sellsExempt, setSellsExempt] = useState(false);
 
   // Management Fees
   const [mgmtVal, setMgmtVal] = useState<string>('0');
@@ -177,6 +180,7 @@ export function PortfolioWizard({ onComplete, onCancel, onManual, existingNames 
     if (temp) {
       setCommRate(((temp.commRate || 0) * 100).toString());
       setCommMin((temp.commMin || 0).toString());
+      setCommMax((temp.commMax || 0).toString());
 
       // Mgmt Default
       if (temp.mgmtVal) {
@@ -189,6 +193,20 @@ export function PortfolioWizard({ onComplete, onCancel, onManual, existingNames 
       }
       if (temp.mgmtType) setMgmtType(temp.mgmtType as any);
       if (temp.mgmtFreq) setMgmtFreq(temp.mgmtFreq as any);
+    }
+
+    // Default Exemptions
+    if (preset.id === 'rsu') {
+      setBuysExempt(true);
+      setSellsExempt(false);
+    } else if (preset.isPension || preset.id === 'gemel' || preset.id === 'hishtalmut') {
+      setBuysExempt(false); // Usually deposits are via payslip, but if manual buy? keeping false for now or maybe true? 
+      // Actually for Pension/Gemel, "Buying" is usually depositing which might be fee free or different fee.
+      // But "Selling" is withdrawing. Use Sells Free if only Mgmt Fee applies.
+      setSellsExempt(true);
+    } else {
+      setBuysExempt(false);
+      setSellsExempt(false);
     }
 
     // Enforce Mgmt Type if only one option
@@ -261,6 +279,13 @@ export function PortfolioWizard({ onComplete, onCancel, onManual, existingNames 
     // Apply Commissions (Available in all)
     initialPortfolio.commRate = parseFloat(commRate) / 100 || 0;
     initialPortfolio.commMin = parseFloat(commMin) || 0;
+    initialPortfolio.commMax = parseFloat(commMax) || 0;
+
+    let exemption: CommissionExemption = 'none';
+    if (buysExempt && sellsExempt) exemption = 'all';
+    else if (buysExempt) exemption = 'buys';
+    else if (sellsExempt) exemption = 'sells';
+    initialPortfolio.commExemption = exemption;
 
     // Apply Management Fees
     if (selectedPreset.mgmtFeeModes) {
@@ -561,30 +586,50 @@ export function PortfolioWizard({ onComplete, onCancel, onManual, existingNames 
                   {/* Commissions (Trading Fees) - Available in All */}
                   <Grid item xs={12}>
                     <Typography variant="subtitle2" gutterBottom>
-                      {t('Commissions (Trading)', 'עמלות מסחר (פעולות)')}
+                      {t('Commissions', 'עמלות מסחר')}
+                      {buysExempt && sellsExempt ? t(' (All Exempt)', ' (פטור מלא)') :
+                        buysExempt ? t(' (Sells Only)', ' (מכירה בלבד)') :
+                          sellsExempt ? t(' (Buys Only)', ' (קנייה בלבד)') :
+                            t(' (Trading)', ' (מסחר)')}
                     </Typography>
                     <Grid container spacing={2}>
-                      <Grid item xs={6}>
+                      <Grid item xs={4}>
                         <TextField
                           fullWidth
                           type="number"
                           size="small"
                           label={t('Rate', 'שיעור עמלה')}
-                          value={commRate}
+                          value={commRate === '0' ? '' : commRate}
+                          placeholder="-"
                           onChange={e => setCommRate(e.target.value)}
                           InputProps={{
                             endAdornment: <InputAdornment position="end">%</InputAdornment>
                           }}
                         />
                       </Grid>
-                      <Grid item xs={6}>
+                      <Grid item xs={4}>
                         <TextField
                           fullWidth
                           type="number"
                           size="small"
-                          label={t('Minimum Fee', 'עמלת מינימום')}
-                          value={commMin}
+                          label={t('Min Fee', 'עמלת מינימום')}
+                          value={commMin === '0' ? '' : commMin}
+                          placeholder="-"
                           onChange={e => setCommMin(e.target.value)}
+                          InputProps={{
+                            endAdornment: <InputAdornment position="end">{currency}</InputAdornment>
+                          }}
+                        />
+                      </Grid>
+                      <Grid item xs={4}>
+                        <TextField
+                          fullWidth
+                          type="number"
+                          size="small"
+                          label={t('Max Fee', 'עמלת מקסימום')}
+                          value={commMax === '0' ? '' : commMax}
+                          placeholder="-"
+                          onChange={e => setCommMax(e.target.value)}
                           InputProps={{
                             endAdornment: <InputAdornment position="end">{currency}</InputAdornment>
                           }}

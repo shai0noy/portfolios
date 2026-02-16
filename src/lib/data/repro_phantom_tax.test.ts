@@ -1,7 +1,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { FinanceEngine } from './engine';
-import { Exchange, Currency, TaxPolicy, Portfolio, Transaction } from '../types';
+import { Exchange, Currency, type TaxPolicy, type Portfolio, type Transaction } from '../types';
 
 describe('FinanceEngine - Phantom Tax Reproduction', () => {
     // Shared Mock Data

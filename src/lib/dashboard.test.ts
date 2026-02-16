@@ -3,7 +3,8 @@ import { describe, it, expect } from 'vitest';
 import { calculateDashboardSummary, type DashboardSummaryData } from './dashboard';
 import { Currency, Exchange, type Portfolio, type ExchangeRates } from './types';
 import { FinanceEngine } from './data/engine';
-import { Holding, Lot, DividendRecord } from './data/model';
+import { Holding } from './data/model';
+import type { Lot } from './data/model';
 
 // Extend mock input type to allow passing lots
 interface MockHoldingData {

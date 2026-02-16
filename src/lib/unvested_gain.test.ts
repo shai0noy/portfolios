@@ -1,6 +1,7 @@
 
 import { describe, it, expect } from 'vitest';
-import { Holding, Lot } from './data/model';
+import { Holding } from './data/model';
+import type { Lot } from './data/model';
 import { Currency, Exchange } from './types';
 
 describe('Unvested Lot Exclusion', () => {
@@ -33,7 +34,7 @@ describe('Unvested Lot Exclusion', () => {
         (h as any)._lots = [vestedLot, unvestedLot];
         h.currentPrice = 110; // 10% gain on vested
 
-        const provider = (ticker: string) => ({
+        const provider = (_ticker: string) => ({
             historical: [
                 { date: new Date('2026-02-01'), price: 100 },
                 { date: new Date('2026-02-11'), price: 110 }

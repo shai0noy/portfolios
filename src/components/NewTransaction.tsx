@@ -248,9 +248,22 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     }
 
     if (currentType === 'BUY' || currentType === 'SELL') {
+      // Check Exemption
+      const exemption = selectedPort.commExemption;
+      const isExempt =
+        (exemption === 'all') ||
+        (exemption === 'buys' && currentType === 'BUY') ||
+        (exemption === 'sells' && currentType === 'SELL');
+
+      if (isExempt) {
+        setCommission('0');
+        setCommissionPct('0');
+        return;
+      }
+
       const rate = selectedPort.commRate;
       const min = selectedPort.commMin;
-      const max = selectedPort.commMax;
+      const max = selectedPort.commMax || 0;
       const rawFee = t * rate;
       const clampedMin = Math.max(rawFee, min);
       const finalFee = max > 0 ? Math.min(clampedMin, max) : clampedMin;

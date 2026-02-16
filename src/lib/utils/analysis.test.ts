@@ -1,4 +1,4 @@
-import { synchronizeSeries, synchronizeThreeSeries, computeAnalysisMetrics, normalizeToStart, calculateReturns, DataPoint } from './analysis';
+import { synchronizeSeries, synchronizeThreeSeries, computeAnalysisMetrics, normalizeToStart, calculateReturns, type DataPoint } from './analysis';
 
 // --- HELPERS ---
 
@@ -243,9 +243,9 @@ function testSharpeRatio() {
     // 3. -0.005 - 0.001 = -0.006
     // Sum Excess = 0.022
     // Avg Excess = 0.007333333333333333
-    
-    const excess = [0.009, 0.019, -0.006];
-    const mean = 0.022 / 3;
+
+    // const excess = [0.009, 0.019, -0.006];
+    // const mean = 0.022 / 3;
     
     // Variance (Sample, n-1 = 2)
     // (0.009 - mean)^2 = (0.00166667)^2 = 0.0000027778

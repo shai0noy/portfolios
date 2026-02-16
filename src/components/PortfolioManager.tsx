@@ -777,6 +777,21 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                     </Grid>
                     <Grid item xs={12} sm={6}>
                       <FormControl fullWidth size="small">
+                              <InputLabel>{t('Exemptions', 'פטורים')}</InputLabel>
+                              <Select
+                                value={p.commExemption || 'none'}
+                                label={t('Exemptions', 'פטורים')}
+                                onChange={e => set('commExemption', e.target.value)}
+                              >
+                                <MenuItem value="none">{t('None', 'ללא')}</MenuItem>
+                                <MenuItem value="buys">{t('Buys Free', 'קנייה חינם')}</MenuItem>
+                                <MenuItem value="sells">{t('Sells Free', 'מכירה חינם')}</MenuItem>
+                                <MenuItem value="all">{t('All Free', 'הכל חינם')}</MenuItem>
+                              </Select>
+                            </FormControl>
+                          </Grid>
+                          <Grid item xs={12} sm={6}>
+                            <FormControl fullWidth size="small">
                         <InputLabel>{t('Type', 'סוג')}</InputLabel>
                         <Select value={p.mgmtType} label={t('Type', 'סוג')} onChange={e => set('mgmtType', e.target.value)}>
                           <MenuItem value="percentage">Percentage</MenuItem>

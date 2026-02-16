@@ -16,7 +16,7 @@ export function getTaxRatesForDate(p: Portfolio, date: Date | string): { cgt: nu
     d.setUTCHours(0, 0, 0, 0);
     
     if (!p.taxHistory || p.taxHistory.length === 0) {
-        return { cgt: p.cgt, incTax: p.incTax };
+        return { cgt: p.cgt, incTax: p.incTax ?? 0 };
     }
 
     // Sort descending by date
@@ -28,15 +28,15 @@ export function getTaxRatesForDate(p: Portfolio, date: Date | string): { cgt: nu
         return { cgt: entry.cgt, incTax: entry.incTax };
     }
     
-    return { cgt: p.cgt, incTax: p.incTax };
+    return { cgt: p.cgt, incTax: p.incTax ?? 0 };
 }
 
-export function getFeeRatesForDate(p: Portfolio, date: Date | string): { mgmtVal: number, mgmtType: 'percentage' | 'fixed', mgmtFreq: 'monthly' | 'quarterly' | 'yearly', divCommRate: number, commRate: number, commMin: number, commMax: number } {
+export function getFeeRatesForDate(p: Portfolio, date: Date | string): { mgmtVal: number, mgmtType: 'percentage' | 'fixed', mgmtFreq: 'monthly' | 'quarterly' | 'yearly', divCommRate: number, commRate: number, commMin: number, commMax?: number } {
     const d = new Date(date);
     d.setUTCHours(0, 0, 0, 0);
     
     if (!p.feeHistory || p.feeHistory.length === 0) {
-        return { mgmtVal: p.mgmtVal, mgmtType: p.mgmtType, mgmtFreq: p.mgmtFreq, divCommRate: p.divCommRate, commRate: p.commRate, commMin: p.commMin, commMax: p.commMax };
+        return { mgmtVal: p.mgmtVal ?? 0, mgmtType: p.mgmtType ?? 'percentage', mgmtFreq: p.mgmtFreq ?? 'yearly', divCommRate: p.divCommRate, commRate: p.commRate, commMin: p.commMin, commMax: p.commMax };
     }
 
     // Sort descending by date
@@ -53,5 +53,5 @@ export function getFeeRatesForDate(p: Portfolio, date: Date | string): { mgmtVal
         };
     }
     
-    return { mgmtVal: p.mgmtVal, mgmtType: p.mgmtType, mgmtFreq: p.mgmtFreq, divCommRate: p.divCommRate, commRate: p.commRate, commMin: p.commMin, commMax: p.commMax };
+    return { mgmtVal: p.mgmtVal ?? 0, mgmtType: p.mgmtType ?? 'percentage', mgmtFreq: p.mgmtFreq ?? 'yearly', divCommRate: p.divCommRate, commRate: p.commRate, commMin: p.commMin, commMax: p.commMax };
 }

@@ -1,6 +1,7 @@
 
+
 import { describe, it, expect } from 'vitest';
-import { Holding, Lot } from './data/model';
+import { Holding, type Lot } from './data/model';
 import { Currency, Exchange } from './types';
 import { MultiCurrencyValue } from './data/multiCurrency';
 
