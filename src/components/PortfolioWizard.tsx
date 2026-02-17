@@ -49,8 +49,8 @@ const PRESETS: PresetConfig[] = [
   {
     id: 'il_broker', templateKey: 'std_il',
     title: 'Israeli Broker / Bank', titleHe: 'ברוקר / בנק ישראלי',
-    description: 'Trading stocks & bonds via an Israeli bank or investment house.',
-    descriptionHe: 'מסחר במניות ואג"ח דרך בנק או בית השקעות ישראלי.',
+    description: 'An Israeli broker or bank account. Using Israeli tax rules.',
+    descriptionHe: 'ברוקר או בנק ישראלי. חישוב מס לפי החוק הישראלי.',
     icon: <AccountBalanceIcon fontSize="large" />,
     fixedCurrency: Currency.ILS,
     hasTaxSelection: true,
@@ -59,8 +59,8 @@ const PRESETS: PresetConfig[] = [
   {
     id: 'us_broker_il', templateKey: 'us_broker_il_tax',
     title: 'US Broker (IL Resident)', titleHe: 'ברוקר אמריקאי (תושב ישראל)',
-    description: 'Manual trading via foreign brokers (IBKR, Schwab). Reports Real Gain in ILS.',
-    descriptionHe: 'מסחר עצמאי דרך ברוקרים זרים (IBKR, Schwab). דיווח לפי רווח ריאלי.',
+    description: 'A foreign broker trading account. Using USD currency and Israeli tax laws.',
+    descriptionHe: 'חשבון מסחר בברוקר זר במטבע דולר ארה"ב. חישוב מס לפי החוק הישראלי.',
     icon: <PublicIcon fontSize="large" />,
     fixedCurrency: Currency.USD,
     hasTaxSelection: true,
@@ -69,7 +69,7 @@ const PRESETS: PresetConfig[] = [
   {
     id: 'us_broker_nr', templateKey: 'std_us',
     title: 'US Broker (Non-Resident)', titleHe: 'ברוקר אמריקאי (לא תושב)',
-    description: 'For non-residents of Israel (Nominal Gain tax policy).',
+    description: 'For non-residents of Israel. Fixed rate nominal taxation.',
     descriptionHe: 'למי שאינו תושב ישראל (מיסוי רווח הון נומינלי).',
     icon: <FlightTakeoffIcon fontSize="large" color="action" />,
     fixedCurrency: Currency.USD,
@@ -80,9 +80,9 @@ const PRESETS: PresetConfig[] = [
   {
     id: 'pension', templateKey: 'pension',
     title: 'Pension Fund', titleHe: 'קרן פנסיה',
-    description: 'Long-term savings with tax credits. Intent: Withdraw as pension annuity.',
-    descriptionHe: 'חיסכון פנסיוני עם הטבות מס. מטרה: משיכה כקצבה בפרישה.',
-    icon: <FamilyRestroomIcon fontSize="large" />, // Reverted
+    description: 'A pension fund using tax calculation assuming withdrawal as pension annuity.',
+    descriptionHe: 'קרן פנסיה עם חישוב מס לפי משיכה כקצבה בפרישה.',
+    icon: <FamilyRestroomIcon fontSize="large" />,
     fixedCurrency: Currency.ILS,
     isPension: true,
     mgmtFeeModes: ['percentage']
@@ -90,17 +90,17 @@ const PRESETS: PresetConfig[] = [
   {
     id: 'gemel', templateKey: 'gemel',
     title: 'Gemel LeHashkaa', titleHe: 'קופת גמל להשקעה',
-    description: 'Investment fund. Intent: Tax-exempt pension allowance or liquid withdrawal (25% tax).',
-    descriptionHe: 'קופת גמל. מטרה: קצבה פטורה ממס בפרישה, או משיכה נזילה (25% מס רווח הון).',
-    icon: <SavingsIcon fontSize="large" />, // Reverted
+    description: 'An investment fund using tax calculation assuming withdrawal as a tax-free pension annuity.',
+    descriptionHe: 'קופת גמל עם חישוב מס לפי משיכה פטורה ממס בפרישה.',
+    icon: <SavingsIcon fontSize="large" />,
     fixedCurrency: Currency.ILS,
     mgmtFeeModes: ['percentage']
   },
   {
     id: 'hishtalmut', templateKey: 'hishtalmut',
     title: 'Keren Hishtalmut', titleHe: 'קרן השתלמות',
-    description: 'Study Fund. Intent: Tax-free withdrawal after 6 years (or 3 for retirement/study).',
-    descriptionHe: 'קרן השתלמות. מטרה: משיכה פטורה ממס לאחר 6 שנים (או 3 לפרישה/לימודים).',
+    description: 'An investment fund using tax calculation assuming tax-free withdrawal.',
+    descriptionHe: 'קרן השתלמות עם חישוב מס לפי משיכה פטורה ממס.',
     icon: <SchoolIcon fontSize="large" />,
     fixedCurrency: Currency.ILS,
     mgmtFeeModes: ['percentage']
@@ -108,8 +108,8 @@ const PRESETS: PresetConfig[] = [
   {
     id: 'rsu', templateKey: 'rsu',
     title: 'RSU / Options', titleHe: 'RSU / אופציות',
-    description: 'Manage employee stock grants and taxation.',
-    descriptionHe: 'ניהול מענקי מניות לעובדים ומיסוי.',
+    description: 'An employee stock grant portfolio. Includes taxation over the base grant and a choice of dividend policies.',
+    descriptionHe: 'תיק מניות לעובדים עם חישוב מס הכנסה על המענק והבחירה בין מדיניות דיבידנד.',
     icon: <WorkIcon fontSize="large" />,
     fixedCurrency: Currency.USD,
     hasTaxSelection: true,
