@@ -58,6 +58,11 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   const [type, setType] = useState<'BUY' | 'SELL' | 'DIVIDEND' | 'FEE' | 'DIV_EVENT' | 'HOLDING_CHANGE'>('BUY');
   const [qty, setQty] = useState<string>('');
 
+  // Sell Existing Holding Flow State
+  const [actionMode, setActionMode] = useState<'search' | 'sell_holding'>('search');
+  const [sellFlowPortId, setSellFlowPortId] = useState<string>('');
+  const [holdingSearch, setHoldingSearch] = useState(''); // Search for holdings list
+
   // Holding Change specific state
   const [buyTicker, setBuyTicker] = useState<TickerData & { symbol: string } | null>(null);
   const [buyPrice, setBuyPrice] = useState<string>('');
@@ -182,6 +187,9 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     });
   }, [sheetId, refreshTrigger]);
 
+
+
+
   const handleTickerSelect = async (profile: TickerProfile) => {
     setLoading(true);
     // Hide TickerSearch and show loading indicator
@@ -284,6 +292,66 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
       setCommissionPct((rate * 100).toFixed(4));
     }
   }, [portfolios]);
+
+  // Moved handleSellHoldingSelect here to access updateCommission
+  const handleSellHoldingSelect = async (pid: string, tickerSymbol: string) => {
+    setLoading(true);
+    const port = portfolios.find(p => p.id === pid);
+    if (!port) return;
+    const holding = port.holdings?.find(h => h.ticker === tickerSymbol);
+    if (!holding) return;
+
+    // Fetch latest price data for accurate total calc
+    const data = await getTickerData(holding.ticker, holding.exchange, holding.numericId || null);
+    setLoading(false);
+
+    const combinedData: TickerData & { symbol: string } = {
+      ...(data || {}),
+      symbol: holding.ticker,
+      ticker: holding.ticker,
+      exchange: holding.exchange,
+      numericId: holding.numericId ?? data?.numericId ?? null,
+      name: holding.name || data?.name || holding.ticker,
+      nameHe: holding.nameHe || data?.nameHe,
+      price: data?.price || holding.price || 0,
+      currency: holding.currency || data?.currency || 'USD',
+    };
+
+    setSelectedTicker(combinedData);
+    setTicker(combinedData.symbol);
+    setExchange(combinedData.exchange);
+    setPortId(pid);
+
+    // Determine Type
+    const isTaxFreeAccumulating = port.divPolicy === 'accumulate_tax_free';
+    const newType = isTaxFreeAccumulating ? 'HOLDING_CHANGE' : 'SELL';
+    setType(newType);
+
+    // Pre-fill
+    setQty(holding.qty.toString());
+    setPercent('100');
+
+    if (combinedData.price) {
+      setPrice(parseFloat(combinedData.price.toFixed(6)).toString());
+      const totalVal = holding.qty * combinedData.price;
+      const tCurr = normalizeCurrency(combinedData.currency || 'USD');
+      setTickerCurrency(tCurr);
+
+      const major = tCurr === Currency.ILA ? Currency.ILS : tCurr;
+      const displayTotal = convertCurrency(totalVal, tCurr, major, exchangeRates);
+      const totalStr = parseFloat(displayTotal.toFixed(6)).toString();
+      setTotal(totalStr);
+
+      updateCommission(totalStr, pid, newType);
+    } else {
+      setPrice('');
+      setTotal('');
+      setTickerCurrency(Currency.USD);
+    }
+
+    setShowForm(true);
+    setActionMode('search');
+  };
 
   const handleQtyChange = useCallback((val: number) => {
     // NumericField passes number (or 0 if invalid/empty)
@@ -841,6 +909,24 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   }) : [];
   const totalHeld = ownedDetails.reduce((sum, item) => sum + item.qty, 0);
 
+  if (!isPortfoliosLoading && portfolios.length === 0) {
+    return (
+      <Box sx={{ maxWidth: 800, mx: 'auto', textAlign: 'center', mt: 10 }}>
+        <BusinessCenterIcon sx={{ fontSize: 60, color: 'text.secondary', mb: 2 }} />
+        <Typography variant="h5" gutterBottom>
+          {t('No Portfolios Found', 'לא נמצאו תיקים')}
+        </Typography>
+        <Typography color="text.secondary" paragraph>
+          {t('Please create a portfolio to start trading.', 'נא ליצור תיק כדי להתחיל לסחור.')}
+        </Typography>
+        <Button variant="contained" onClick={() => navigate('/')}>
+          {t('Create Portfolio', 'צור תיק')}
+        </Button>
+      </Box>
+    );
+  }
+
+
   return (
     <Box sx={{ maxWidth: 800, mx: 'auto' }}>
       <Typography variant="h5" gutterBottom sx={{ fontWeight: 600, color: 'text.primary', mb: 2 }}>
@@ -866,14 +952,177 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
       )}
 
       <Grid container spacing={2}>
-        {(!selectedTicker && !locationState?.prefilledTicker) && (
+        {(!selectedTicker && !locationState?.prefilledTicker && actionMode === 'search') && (
           <Grid item xs={12}>
-            <TickerSearch
-              onTickerSelect={handleTickerSelect}
-              portfolios={portfolios}
-              isPortfoliosLoading={isPortfoliosLoading}
-              collapsible={false}
-            />
+            <Box mb={4}>
+              <Typography variant="h6" gutterBottom>
+                {t('Search ticker to buy or sell', 'חפש נייר לקנייה או מכירה')}
+              </Typography>
+              <TickerSearch
+                onTickerSelect={handleTickerSelect}
+                portfolios={portfolios}
+                isPortfoliosLoading={isPortfoliosLoading}
+                collapsible={false}
+              />
+            </Box>
+
+            <Divider sx={{ my: 3 }}>
+              <Chip label={t('OR', 'או')} />
+            </Divider>
+
+            <Box display="flex" justifyContent="center">
+              <Button
+                variant="outlined"
+                size="medium"
+                startIcon={<BusinessCenterIcon />}
+                onClick={() => {
+                  setActionMode('sell_holding');
+                  // Auto-select portfolio if only one
+                  if (portfolios.length === 1) {
+                    setSellFlowPortId(portfolios[0].id);
+                  }
+                }}
+              >
+                {t('Sell Existing Holding', 'מכור החזקה קיימת')}
+              </Button>
+            </Box>
+          </Grid>
+        )}
+
+        {(!selectedTicker && !locationState?.prefilledTicker && actionMode === 'sell_holding') && (
+          <Grid item xs={12}>
+            <Box mb={2}>
+              <Button onClick={() => setActionMode('search')} startIcon={<SearchIcon />}>
+                {t('Back to Search', 'חזרה לחיפוש')}
+              </Button>
+            </Box>
+            <Card variant="outlined">
+              <CardContent>
+                <Typography variant="h6" gutterBottom sx={{ mb: 3 }}>
+                  {t('Select Holding to Sell', 'בחר החזקה למכירה')}
+                </Typography>
+
+                {portfolios.length > 1 && (
+                  <Box sx={{ mb: 4 }}>
+                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                      {t('Portfolio', 'תיק')}
+                    </Typography>
+                    <Grid container spacing={2}>
+                      {portfolios.map(p => {
+                        const isSelected = p.id === sellFlowPortId;
+                        return (
+                          <Grid item xs={4} sm={3} md={2} key={p.id}>
+                            <Card
+                              variant={isSelected ? "elevation" : "outlined"}
+                              sx={{
+                                cursor: 'pointer',
+                                borderColor: isSelected ? 'primary.main' : undefined,
+                                bgcolor: isSelected ? 'primary.light' : 'background.paper',
+                                color: isSelected ? 'primary.contrastText' : 'text.primary',
+                                transition: 'all 0.2s',
+                                minHeight: '100%'
+                              }}
+                              onClick={() => setSellFlowPortId(p.id)}
+                            >
+                              <CardContent sx={{ p: 1, '&:last-child': { p: 1 }, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+                                <Typography variant="caption" sx={{ fontWeight: 600, lineHeight: 1.2 }}>
+                                  {p.name}
+                                </Typography>
+                              </CardContent>
+                            </Card>
+                          </Grid>
+                        );
+                      })}
+                    </Grid>
+                  </Box>
+                )}
+
+                {sellFlowPortId && (
+                  <Box>
+                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                      {t('Holding', 'החזקה')}
+                    </Typography>
+
+                    <TextField
+                      fullWidth
+                      size="small"
+                      placeholder={t('Filter holdings...', 'סנן החזקות...')}
+                      value={holdingSearch}
+                      onChange={(e) => setHoldingSearch(e.target.value)}
+                      InputProps={{
+                        startAdornment: <InputAdornment position="start"><SearchIcon color="action" /></InputAdornment>
+                      }}
+                      sx={{ mb: 2 }}
+                    />
+
+                    <Card variant="outlined" sx={{ maxHeight: 400, overflow: 'auto' }}>
+                      {(() => {
+                        const port = portfolios.find(p => p.id === sellFlowPortId);
+                        const holdings = port?.holdings || [];
+                        const filtered = holdings.filter(h =>
+                          !holdingSearch ||
+                          h.ticker.toLowerCase().includes(holdingSearch.toLowerCase()) ||
+                          (h.name && h.name.toLowerCase().includes(holdingSearch.toLowerCase()))
+                        );
+
+                        if (filtered.length === 0) {
+                          return (
+                            <Box p={3} textAlign="center">
+                              <Typography color="text.secondary">
+                                {holdings.length === 0 ? t('No holdings in this portfolio', 'אין החזקות בתיק זה') : t('No matching holdings', 'לא נמצאו החזקות מתאימות')}
+                              </Typography>
+                            </Box>
+                          );
+                        }
+
+                        return (
+                          <Box>
+                            {filtered.map((h, index) => (
+                              <Box key={h.ticker}>
+                                {index > 0 && <Divider />}
+                                <Box
+                                  sx={{
+                                    p: 2,
+                                    cursor: 'pointer',
+                                    '&:hover': { bgcolor: 'action.hover' },
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center'
+                                  }}
+                                  onClick={() => handleSellHoldingSelect(sellFlowPortId, h.ticker)}
+                                >
+                                  <Box>
+                                    <Box display="flex" alignItems="center" gap={1}>
+                                      <Typography variant="subtitle1" fontWeight={600}>{h.ticker}</Typography>
+                                      <Chip label={h.exchange} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.7rem' }} />
+                                    </Box>
+                                    <Typography variant="body2" color="text.secondary" noWrap sx={{ maxWidth: 200 }}>
+                                      {tTry(h.name, h.nameHe)}
+                                    </Typography>
+                                  </Box>
+                                  <Box textAlign="right">
+                                    <Typography variant="subtitle2" component="div" sx={{ fontWeight: 600, color: 'primary.main' }}>
+                                      {(() => {
+                                        const val = h.totalValue ?? (h.price ? h.qty * h.price : 0);
+                                        const curr = h.currency || 'USD';
+                                        return new Intl.NumberFormat('en-US', { style: 'currency', currency: curr, maximumFractionDigits: 0 }).format(val);
+                                      })()}
+                                    </Typography>
+                                    <Typography variant="caption" display="block" color="text.secondary">
+                                      {h.qty} units
+                                    </Typography>
+                                  </Box>
+                                </Box>
+                              </Box>
+                            ))}
+                          </Box>
+                        );
+                      })()}
+                    </Card>
+                  </Box>
+                )}
+              </CardContent>
+            </Card>
           </Grid>
         )}
 
