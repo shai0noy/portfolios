@@ -410,7 +410,7 @@ export interface Transaction {
   portfolioId: string;
   ticker: string;
   exchange?: Exchange;
-  type: 'BUY' | 'SELL' | 'DIVIDEND' | 'FEE';
+  type: 'BUY' | 'SELL' | 'DIVIDEND' | 'FEE' | 'ITEM_CLOSE' | 'BUY_TRANSFER' | 'SELL_TRANSFER';
   originalQty: number;
   originalPrice: number;
   qty?: number;

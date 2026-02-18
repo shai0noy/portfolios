@@ -31,6 +31,7 @@ Low priority:
 - ON HOLD: Allow comparing portfolios to common indices, eg CPI, SP500, TLV-125
 - ON HOLD: Use Gemini for anlysis and insight
 - ON HOLD: Forcast mode, where future txns, vesting are taken into account, and growth of holding is predicted based on custom uesr input or recent trends. Should also include taxes
+- Support cash holding for IRS accounts
 
 DONE: Make sure that div sheet rebuilding handles duplicates well.
 DONE: Use taxetion. real gains, etc logic from summary in the dashboard table

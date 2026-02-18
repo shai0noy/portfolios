@@ -326,7 +326,7 @@ export class Holding {
 
     // --- Core Logic ---
 
-    public addTransaction(txn: Transaction, rates: ExchangeRates, cpiData: any, portfolio: Portfolio): void {
+    public addTransaction(txn: Transaction, rates: ExchangeRates, cpiData: any, portfolio: Portfolio, options?: { costBasisOverride?: number, originalDateOverride?: Date }): { costOfSold?: number, originalDate?: Date } {
         this._transactions.push(txn);
 
         const date = new Date(txn.date);
@@ -348,10 +348,10 @@ export class Holding {
             // feeSC = convertCurrency(commAmount, commCurrency === Currency.ILA ? Currency.ILS : commCurrency, this.stockCurrency, rates);
         }
 
-        if (txn.type === 'BUY') {
-            this.handleBuy(txn, rates, cpi, feePC);
-        } else if (txn.type === 'SELL') {
-            this.handleSell(txn, rates, cpi, feePC, portfolio);
+        if (txn.type === 'BUY' || txn.type === 'BUY_TRANSFER') {
+            this.handleBuy(txn, rates, cpi, feePC, options);
+        } else if (txn.type === 'SELL' || txn.type === 'SELL_TRANSFER') {
+            return this.handleSell(txn, rates, cpi, feePC, portfolio);
         } else if (txn.type === 'DIVIDEND') {
             // usually handled via addDividend
         } else if (txn.type === 'FEE') {
@@ -361,6 +361,7 @@ export class Holding {
             const valPC = convertCurrency(val, txn.currency || this.stockCurrency, this.portfolioCurrency, rates);
             this.addMgmtFee(valPC);
         }
+        return {};
     }
 
     public addDividend(d: DividendRecord) {
@@ -371,7 +372,7 @@ export class Holding {
         this._accumulatedMgmtFees += amount;
     }
 
-    private handleBuy(txn: Transaction, rates: ExchangeRates, cpi: number, feePC: number) {
+    private handleBuy(txn: Transaction, rates: ExchangeRates, cpi: number, feePC: number, options?: { costBasisOverride?: number, originalDateOverride?: Date }) {
         const qty = txn.qty || 0;
         if (qty <= 0) return;
 
@@ -443,18 +444,35 @@ export class Holding {
             }
         }
 
-        const costMoney: Money = {
-            amount: pricePerUnitPC,
-            currency: this.portfolioCurrency,
-            rateToPortfolio: rateToPC,
-            valUSD: valUSD,
-            valILS: valILS
-        };
+        let costMoney: Money;
+        if (options?.costBasisOverride !== undefined) {
+            // Override logic for Holding Change (Transfer)
+            // We use the provided Cost Basis in Portfolio Currency.
+            const forcedCostTotal = options.costBasisOverride;
+            const forcedCostPerUnit = qty > 0 ? forcedCostTotal / qty : 0;
+            const rateToPC_Override = forcedCostPerUnit / (txn.originalPrice || 1); // Synthetic rate
+
+            costMoney = {
+                amount: forcedCostPerUnit,
+                currency: this.portfolioCurrency,
+                rateToPortfolio: rateToPC_Override,
+                valUSD: undefined, // Lost historical context unless we pass it too?
+                valILS: undefined  // Lost historical context
+            };
+        } else {
+            costMoney = {
+                amount: pricePerUnitPC,
+                currency: this.portfolioCurrency,
+                rateToPortfolio: rateToPC,
+                valUSD: valUSD,
+                valILS: valILS
+            };
+        }
 
         const totalCostMoney: Money = {
-            amount: pricePerUnitPC * qty,
+            amount: costMoney.amount * qty,
             currency: this.portfolioCurrency,
-            rateToPortfolio: rateToPC,
+            rateToPortfolio: costMoney.rateToPortfolio,
             valUSD: costMoney.valUSD ? costMoney.valUSD * qty : undefined,
             valILS: costMoney.valILS ? costMoney.valILS * qty : undefined
         };
@@ -486,15 +504,16 @@ export class Holding {
         this.recalculateQty();
     }
 
-    private handleSell(txn: Transaction, rates: ExchangeRates, cpi: number, feePC: number, portfolio: Portfolio) {
+    private handleSell(txn: Transaction, rates: ExchangeRates, cpi: number, feePC: number, portfolio: Portfolio): { costOfSold?: number, originalDate?: Date } {
         let qtyToSell = txn.qty || 0;
-        if (qtyToSell <= 0) return;
+        if (qtyToSell <= 0) return {};
 
         // Sort active lots by Date (FIFO)
         const activeLots = this.activeLots.sort((a, b) => a.date.getTime() - b.date.getTime());
 
         // Resolve Sell Price in Portfolio Currency (preferring historical)
         let sellPricePC = 0;
+        let totalCostOfSold = 0;
 
         if (this.portfolioCurrency === Currency.ILS) {
             if (txn.originalPriceILA) {
@@ -598,6 +617,8 @@ export class Holding {
             const buyFeeILS = convertCurrency(buyFeePC, this.portfolioCurrency, Currency.ILS, rates);
             const costILS = convertCurrency(costPC, this.portfolioCurrency, Currency.ILS, rates);
 
+            totalCostOfSold += costPC;
+
             // True Cost ILS (Best Effort)
             const trueCostILS = targetLot.costTotal.valILS || costILS;
             const trueBuyFeeILS = targetLot.feesBuy.valILS || buyFeeILS;
@@ -687,7 +708,9 @@ export class Holding {
             targetLot.realizedTax = taxILS; // Lot keeps 'realizedTax' for now as per interface
             targetLot.realizedTaxPC = convertCurrency(taxILS, Currency.ILS, this.portfolioCurrency, rates);
 
-            this.realizedCapitalGainsTax += targetLot.realizedTaxPC; // Accumulate in PC
+            if (txn.type !== 'SELL_TRANSFER') {
+                this.realizedCapitalGainsTax += targetLot.realizedTaxPC; // Accumulate in PC
+            }
 
             // INCOME TAX (RSU Vest Value Tax)
             if (portfolio.incTax && portfolio.incTax > 0) {
@@ -695,16 +718,33 @@ export class Holding {
                 // costPC is the cost of the SOLD portion.
                 const incomeTaxPC = costPC * portfolio.incTax;
                 targetLot.realizedIncomeTaxPC = incomeTaxPC;
-                this.realizedIncomeTax += incomeTaxPC;
+                if (txn.type !== 'SELL_TRANSFER') {
+                    this.realizedIncomeTax += incomeTaxPC;
+                }
             }
 
             // Total Tax per Lot
             targetLot.totalRealizedTaxPC = (targetLot.realizedTaxPC || 0) + (targetLot.realizedIncomeTaxPC || 0);
 
+            // Override for SELL_TRANSFER (No Realized Gain/Tax reported)
+            // Override for SELL_TRANSFER (No Realized Gain/Tax reported)
+            if (txn.type === 'SELL_TRANSFER') {
+                targetLot.realizedGainNet = 0;
+                targetLot.realizedTax = 0;
+                targetLot.realizedTaxPC = 0;
+                targetLot.realizedIncomeTaxPC = 0;
+                targetLot.totalRealizedTaxPC = 0;
+                targetLot.realizedTaxableGainILS = 0;
+            }
+
             qtyToSell -= portion;
         }
 
         this.recalculateQty();
+
+        return {
+            costOfSold: totalCostOfSold,
+        };
     }
 
     // --- Getters (Computed Properties) ---

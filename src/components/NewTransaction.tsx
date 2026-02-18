@@ -40,6 +40,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [isPortfoliosLoading, setIsPortfoliosLoading] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('');
   const [priceError, setPriceError] = useState('');
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [exchangeRates, setExchangeRates] = useState<ExchangeRates>({ current: { USD: 1 } });
@@ -53,8 +54,14 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   const [portId, setPortId] = useState('');
   const [ticker, setTicker] = useState(locationState?.prefilledTicker || '');
   const [exchange, setExchange] = useState(locationState?.prefilledExchange || '');
-  const [type, setType] = useState<'BUY' | 'SELL' | 'DIVIDEND' | 'FEE' | 'DIV_EVENT'>('BUY');
+  const [type, setType] = useState<'BUY' | 'SELL' | 'DIVIDEND' | 'FEE' | 'DIV_EVENT' | 'HOLDING_CHANGE'>('BUY');
   const [qty, setQty] = useState<string>('');
+
+  // Holding Change specific state
+  const [buyTicker, setBuyTicker] = useState<TickerData & { symbol: string } | null>(null);
+  const [buyPrice, setBuyPrice] = useState<string>('');
+  const [buyQty, setBuyQty] = useState<string>('');
+
   const [price, setPrice] = useState<string>(() => {
     const p = locationState?.initialPrice;
     if (!p) return '';
@@ -62,6 +69,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     return isNaN(num) ? p : parseFloat(num.toFixed(6)).toString();
   });
   const [total, setTotal] = useState<string>('');
+  const [percent, setPercent] = useState<string>(''); // New Percent State
   const [vestDate, setVestDate] = useState('');
   const [comment, setComment] = useState('');
   const [commission, setCommission] = useState<string>('');
@@ -91,6 +99,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     if (prefilledTicker) {
       const fetchData = async () => {
         setLoading(true);
+        setLoadingMessage(t('Loading...', 'טוען...'));
         const data = await getTickerData(prefilledTicker!, prefilledExchange || '',
           locationState?.numericId || editTxn?.numericId || null, undefined, false);
 
@@ -277,9 +286,27 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   };
 
   const handleQtyChange = (val: string) => {
+    if (parseFloat(val) < 0) return;
     setQty(val);
     const q = parseFloat(val);
     const p = parseFloat(price);
+
+    // Update Percent if Sell/Holding Change
+    if ((type === 'SELL' || type === 'HOLDING_CHANGE') && selectedTicker) {
+      const selectedPort = portfolios.find(p => p.id === portId);
+      const holding = selectedPort?.holdings?.find(h => h.ticker === selectedTicker.symbol);
+      if (holding && holding.qty > 0) {
+        if (Number.isFinite(q)) {
+          const pct = (q / holding.qty) * 100;
+          setPercent(pct.toFixed(2));
+        } else {
+          setPercent('');
+        }
+      }
+    } else {
+      setPercent('');
+    }
+
     if (Number.isFinite(q) && Number.isFinite(p)) {
       const rawTotal = q * p;
       const displayTotal = convertCurrency(rawTotal, tickerCurrency, majorCurrency, exchangeRates);
@@ -296,6 +323,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   };
 
   const handlePriceChange = (val: string) => {
+    if (parseFloat(val) < 0) return;
     setPrice(val);
     const q = parseFloat(qty);
     const p = parseFloat(val);
@@ -313,12 +341,22 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   };
 
   const handleTotalChange = (val: string) => {
+    if (parseFloat(val) < 0) return;
     setTotal(val);
     updateCommission(val, portId, type);
 
     const q = parseFloat(qty);
     const p = parseFloat(price);
     const tDisplay = parseFloat(val);
+
+    // Update Buy Qty if in Holding Change mode
+    if (type === 'HOLDING_CHANGE' && buyPrice) {
+      const bp = parseFloat(buyPrice);
+      if (Number.isFinite(tDisplay) && Number.isFinite(bp) && bp > 0) {
+        const tRaw = convertCurrency(tDisplay, majorCurrency, normalizeCurrency(buyTicker?.currency || 'USD'), exchangeRates);
+        setBuyQty(parseFloat((tRaw / bp).toFixed(6)).toString());
+      }
+    }
 
     if (Number.isFinite(tDisplay)) {
       const tRaw = convertCurrency(tDisplay, majorCurrency, tickerCurrency, exchangeRates);
@@ -332,6 +370,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   };
 
   const handleCommissionChange = (val: string) => {
+    if (parseFloat(val) < 0) return;
     setCommission(val);
     const comm = parseFloat(val);
     const t = parseFloat(total); // total is now in major currency
@@ -343,6 +382,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   };
 
   const handleCommissionPctChange = (val: string) => {
+    if (parseFloat(val) < 0) return;
     setCommissionPct(val);
     const pct = parseFloat(val);
     const t = parseFloat(total); // total is now in major currency
@@ -353,23 +393,139 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     }
   };
 
+
+
+  // Helper to validate and set errors
+  const runValidation = (
+    tType: string = type,
+    q: string = qty,
+    pct: string = percent,
+    p: string = price,
+    tot: string = total,
+    comm: string = commission,
+    commPct: string = commissionPct
+  ) => {
+    const newErrors: { [key: string]: boolean } = {};
+
+    const qVal = parseFloat(q);
+    const pVal = parseFloat(p);
+    const totVal = parseFloat(tot);
+
+    if (tType === 'DIV_EVENT') {
+      // Dividend Event: Only Price (Amount) matters
+      if (!Number.isFinite(pVal) || pVal <= 0) newErrors.price = true;
+    } else {
+      // BUY, SELL, HOLDING_CHANGE, FEE (Fee might have different rules? Fee usually has Amount)
+      // Actually FEE type might use Price as amount? Or Total?
+      // Let's assume FEE uses similar fields or maybe it's not fully supported in this form yet (menu item removed?)
+      // The menu only has BUY, SELL, HOLDING_CHANGE, DIV_EVENT. 
+      // Wait, FEE was in state default but maybe not in menu?
+      // Let's check menu items.
+
+      // standard checks
+      if (!Number.isFinite(qVal) || qVal <= 0) newErrors.qty = true;
+      if (!Number.isFinite(pVal) || pVal < 0) newErrors.price = true;
+      if (!Number.isFinite(totVal) || totVal < 0) newErrors.total = true;
+
+      // 2. Sell / Holding Change Logic
+      if (tType === 'SELL' || tType === 'HOLDING_CHANGE') {
+        const selectedPort = portfolios.find(p => p.id === portId);
+        // Validate Portfolio has holdings
+        if (!selectedPort) {
+          newErrors.portId = true;
+        } else {
+          const holding = selectedPort.holdings?.find(h => h.ticker === ticker);
+
+          if (!holding) {
+            // If we are selling, we MUST hold it.
+            newErrors.qty = true;
+          } else {
+            // Check bounds
+            if (Number.isFinite(qVal)) {
+              // Strict check as requested by user
+              if (qVal > holding.qty) {
+                newErrors.qty = true;
+              }
+            }
+          }
+        }
+
+        const pctVal = parseFloat(pct);
+        if (Number.isFinite(pctVal) && (pctVal < 0 || pctVal > 100)) newErrors.percent = true;
+      }
+    }
+
+    if (comm !== '' && parseFloat(comm) < 0) newErrors.commission = true;
+    if (commPct !== '' && (parseFloat(commPct) < 0 || parseFloat(commPct) > 100)) newErrors.commissionPct = true;
+
+    setValidationErrors(newErrors);
+  };
+
+  // call runValidation in useEffect when values change? 
+  // Or just call it in handlers.
+  // useEffect is easier to catch all updates.
+  useEffect(() => {
+    runValidation();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [type, qty, percent, price, total, commission, commissionPct, ticker, portId]);
+
+  const handlePercentChange = (val: string) => {
+    if (parseFloat(val) < 0) return;
+    setPercent(val);
+    const pct = parseFloat(val);
+
+    if ((type === 'SELL' || type === 'HOLDING_CHANGE') && selectedTicker) {
+      const selectedPort = portfolios.find(p => p.id === portId);
+      const holding = selectedPort?.holdings?.find(h => h.ticker === selectedTicker.symbol);
+
+      if (holding && holding.qty > 0 && Number.isFinite(pct)) {
+        // Validation for pct > 100 happens in runValidation/useEffect
+        // But we should also clamp or allow typing? User said "show error", so allow typing but error.
+
+        // Calculate new Qty
+        const newQty = (holding.qty * pct) / 100;
+        const qStr = parseFloat(newQty.toFixed(6)).toString();
+
+        setQty(qStr);
+
+        // Recalc Total
+        const p = parseFloat(price);
+        if (Number.isFinite(p)) {
+          const rawTotal = newQty * p;
+          const displayTotal = convertCurrency(rawTotal, tickerCurrency, majorCurrency, exchangeRates);
+          const totalStr = parseFloat(displayTotal.toFixed(6)).toString();
+          setTotal(totalStr);
+          updateCommission(totalStr, portId, type);
+        }
+      } else if (val === '') {
+        // Clear percent
+      }
+    }
+  };
+
   // Update commission when portfolio or type changes too
   const handlePortChange = (e: any) => {
     const newPortId = e.target.value;
     setPortId(newPortId);
     updateCommission(total, newPortId, type);
+    // Recalc percent on port change?
+    setPercent(''); // Safe to reset
   };
 
   const handleTypeChange = (e: any) => {
     const newType = e.target.value as any;
     setType(newType);
     updateCommission(total, portId, newType);
+    if (newType !== 'SELL' && newType !== 'HOLDING_CHANGE') {
+      setPercent('');
+    }
   };
 
   const handleDelete = async () => {
     if (!confirm(t("Are you sure you want to delete this transaction?", "האם אתה בטוח שברצונך למחוק עסקה זו?"))) return;
     
     setLoading(true);
+    setLoadingMessage(t('Deleting...', 'מוחק...'));
     const editTxn = locationState?.editTransaction;
     const editDiv = locationState?.editDividend;
 
@@ -394,38 +550,52 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   };
 
   const handleUndo = async () => {
-      const data = undoDataRef.current;
-      if (!data) return;
-      setLoading(true);
-      
-      try {
-          if (data.action === 'delete') {
-              if (data.type === 'txn') {
-                  const { rowIndex, ...rest } = data.data;
-                  await addTransaction(sheetId, rest);
-              } else {
-                  await addDividendEvent(sheetId, data.data.ticker, data.data.exchange, data.data.date, data.data.amount);
-              }
-              if (onSaveSuccess) onSaveSuccess(t("Restored successfully.", "שוחזר בהצלחה."));
-          } else if (data.action === 'update') {
-              if (data.type === 'txn') {
-                  const original = { ...data.originalData, rowIndex: data.data.rowIndex };
-                  // Verify against the current state (data.data) before reverting to original
-                  await updateTransaction(sheetId, original, data.data);
-              } else {
-                   const d = data.originalData;
-                   // Verify against current state (data.data)
-                   await updateDividend(sheetId, data.data.rowIndex, d.ticker, d.exchange, d.date, d.amount, d.source, data.data);
-              }
-              if (onSaveSuccess) onSaveSuccess(t("Update reverted.", "העדכון בוטל."));
-          }
-          setUndoData(null);
-      } catch (e) {
-          console.error(e);
-          alert(t("Error undoing: ", "שגיאה בביטול: ") + (e instanceof Error ? e.message : String(e)));
-      } finally {
-          setLoading(false);
+    // ... existing undo logic ...
+    const data = undoDataRef.current;
+    if (!data) return;
+
+    // Batch Undo Check (for Holding Change)
+    if (Array.isArray(data.data)) {
+      alert(t("Undo not supported for Holding Change.", "ביטול פעולה לא נתמך עבור החלפת החזקה."));
+      return;
+    }
+
+    setLoading(true);
+    setLoadingMessage(t('Undoing...', 'מבטל...'));
+    try {
+      if (data.action === 'add' && data.type === 'txn' && Array.isArray(data.data)) {
+        // Handle batch undo
+        if (onSaveSuccess) onSaveSuccess(t("Undo not fully supported for Holding Change yet.", "ביטול לא נתמך מלא עבור החלפת החזקה."));
+        setUndoData(null);
+        return;
       }
+
+      // ... existing single undo ...
+      if (data.action === 'delete') {
+        if (data.type === 'txn') {
+          const { rowIndex, ...rest } = data.data;
+          await addTransaction(sheetId, rest);
+        } else {
+          await addDividendEvent(sheetId, data.data.ticker, data.data.exchange, data.data.date, data.data.amount);
+        }
+        if (onSaveSuccess) onSaveSuccess(t("Restored successfully.", "שוחזר בהצלחה."));
+      } else if (data.action === 'update') {
+        if (data.type === 'txn') {
+          const original = { ...data.originalData, rowIndex: data.data.rowIndex };
+          await updateTransaction(sheetId, original, data.data);
+        } else {
+          const d = data.originalData;
+          await updateDividend(sheetId, data.data.rowIndex, d.ticker, d.exchange, d.date, d.amount, d.source, data.data);
+        }
+        if (onSaveSuccess) onSaveSuccess(t("Update reverted.", "העדכון בוטל."));
+      }
+      setUndoData(null);
+    } catch (e) {
+      console.error(e);
+      alert(t("Error undoing: ", "שגיאה בביטול: ") + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSubmit = async () => {
@@ -434,6 +604,13 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     if (type === 'DIV_EVENT') {
         if (!ticker) errors.ticker = true;
         if (!price || parseFloat(price) === 0) errors.price = true;
+    } else if (type === 'HOLDING_CHANGE') {
+      if (!portId) errors.portId = true;
+      if (!ticker) errors.ticker = true; // Sell Ticker
+      if (!buyTicker) errors.buyTicker = true; // Buy Ticker
+      if (!qty || parseFloat(qty) === 0) errors.qty = true; // Sell Qty
+      if (!buyQty || parseFloat(buyQty) === 0) errors.buyQty = true; // Buy Qty
+      if (!total || parseFloat(total) === 0) errors.total = true; 
     } else {
         if (!portId) errors.portId = true;
         if (!ticker) errors.ticker = true;
@@ -442,11 +619,31 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
         if (!total || parseFloat(total) === 0) errors.total = true;
     }
 
+    // Additional Validations for SELL / HOLDING_CHANGE
+    if (type === 'SELL' || type === 'HOLDING_CHANGE') {
+      const selectedPort = portfolios.find(p => p.id === portId);
+      const holding = selectedPort?.holdings?.find(h => h.ticker === ticker);
+
+      if (!holding) {
+        alert(t("You don't hold this asset in the selected portfolio.", "אינך מחזיק בנכס זה בתיק הנבחר."));
+        return;
+      }
+
+      const sellQty = parseFloat(qty);
+      // Allow small epsilon for floating point issues?
+      if (holding.qty < sellQty - 1e-6) {
+        alert(t(`Cannot sell more than you hold (${holding.qty}).`, `לא ניתן למכור יותר מהכמות המוחזקת (${holding.qty}).`));
+        errors.qty = true;
+        return; // Stop here
+      }
+    }
+
     setValidationErrors(errors);
 
     if (Object.keys(errors).length > 0) return;
 
     setLoading(true);
+    setLoadingMessage(t('Saving...', 'שומר...'));
     setSaveSuccess(false);
 
     try {
@@ -466,10 +663,64 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
               await addDividendEvent(sheetId, ticker, parseExchange(exchange), new Date(date), p);
               if (onSaveSuccess) onSaveSuccess(t('Dividend added', 'הדיבידנד נוסף'));
           }
+      } else if (type === 'HOLDING_CHANGE') {
+        // 1. Sell Transaction (SELL_TRANSFER)
+        const sellTxn: Transaction = {
+          date,
+          portfolioId: portId,
+          ticker,
+          exchange: parseExchange(exchange),
+          type: 'SELL_TRANSFER',
+          originalQty: q,
+          originalPrice: p,
+          currency: normalizeCurrency(tickerCurrency),
+          numericId: selectedTicker?.numericId || undefined,
+          comment,
+          commission: parseFloat(commission) || 0, // Commission on Sell?
+        };
+
+        // 2. Buy Transaction (BUY_TRANSFER)
+        // We need Buy Ticker details (exchange, currency, numericId)
+        if (buyTicker) {
+          const buyTxn: Transaction = {
+            date,
+            portfolioId: portId,
+            ticker: buyTicker.symbol,
+            exchange: parseExchange(buyTicker.exchange || ''),
+            type: 'BUY_TRANSFER',
+            originalQty: parseFloat(buyQty),
+            originalPrice: parseFloat(buyPrice),
+            currency: normalizeCurrency(buyTicker.currency || 'USD'),
+            numericId: buyTicker.numericId || undefined,
+            comment: comment ? `${comment} (Linked to ${ticker})` : `Exchange from ${ticker}`,
+            commission: 0 // Assume 0 or ask? Usually one commission for the swap or separate?
+            // For now 0 on buy side, all on sell side? Or user should split?
+          };
+
+          await addTransaction(sheetId, sellTxn);
+          await addTransaction(sheetId, buyTxn);
+
+          // External Prices for both if Gemel
+          if ((parseExchange(exchange) === Exchange.GEMEL || parseExchange(exchange) === Exchange.PENSION)) {
+            // Sell Ticker Price
+            try {
+              if (selectedTicker?.price && selectedTicker?.timestamp) {
+                await addExternalPrice(sheetId, ticker, parseExchange(exchange), new Date(selectedTicker.timestamp), selectedTicker.price, normalizeCurrency(selectedTicker.currency || 'ILS'));
+              }
+              // Buy Ticker Price
+              if (buyTicker?.price && buyTicker?.timestamp) {
+                await addExternalPrice(sheetId, buyTicker.symbol, parseExchange(buyTicker.exchange || ''), new Date(buyTicker.timestamp), buyTicker.price, normalizeCurrency(buyTicker.currency || 'ILS'));
+              }
+            } catch (e) { console.warn(e); }
+          }
+
+          if (onSaveSuccess) onSaveSuccess(t('Holding Change completed', 'החלפת החזקה בוצעה'), undefined);
+        }
+
       } else {
+        // Standard Transaction (BUY, SELL, FEE, DIVIDEND)
         // Sanity Check: If Fetch 'Open' is drastically different from User 'Price' (e.g. > 2x or < 0.5x),
         // it likely indicates a data source mismatch (stale split, wrong currency unit).
-        // In this case, prefer the User's Price to avoid triggering a false split in the sheet.
         const openP = selectedTicker?.openPrice || 0;
         let safeOpenPrice = openP;
         if (p > 0 && openP > 0) {
@@ -479,7 +730,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
             safeOpenPrice = p;
           }
         } else if (openP === 0) {
-          safeOpenPrice = p; // Fallback if open is 0
+          safeOpenPrice = p;
         }
 
           const txn: Transaction = {
@@ -487,7 +738,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
             portfolioId: portId,
             ticker,
             exchange: parseExchange(exchange),
-            type,
+            type: type as Transaction['type'], // Safe cast as we checked specific types above
             originalQty: q,
             originalPrice: p,
             origOpenPriceAtCreationDate: locationState?.editTransaction?.origOpenPriceAtCreationDate || safeOpenPrice,
@@ -496,7 +747,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
             vestDate,
             comment,
             commission: parseFloat(commission) || 0,
-            rowIndex: editTxn?.rowIndex // Pass row index if updating
+            rowIndex: editTxn?.rowIndex
           };
 
           if (editTxn && editTxn.rowIndex) {
@@ -508,10 +759,8 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
               if (onSaveSuccess) onSaveSuccess(t('Transaction added', 'העסקה נוספה'));
           }
 
-          // If GEMEL or PENSION, also save the fetched price to external holdings for history
           if (!editTxn && (parseExchange(exchange) === Exchange.GEMEL || parseExchange(exchange) === Exchange.PENSION) && selectedTicker?.price && selectedTicker?.timestamp) {
             try {
-              // Note: We use the fetched price/date, NOT the transaction price/date
               await addExternalPrice(
                 sheetId,
                 ticker,
@@ -534,6 +783,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
           // Clear form for next entry of the SAME ticker
           setQty('');
           setTotal('');
+        setPercent('');
           setCommission('');
           setCommissionPct('');
           setComment('');
@@ -649,7 +899,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                   />
                   {selectedTicker?.price && (
                     <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
-                      {formatPrice(selectedTicker.price, tickerCurrency, 2, t)}
+                      {type === 'HOLDING_CHANGE' ? t('Start: ', 'מקור: ') : ''}{formatPrice(selectedTicker.price, tickerCurrency, 2, t)}
                     </Typography>
                   )}
                   {(selectedTicker?.providentInfo?.managementFee !== undefined || selectedTicker?.providentInfo?.depositFee !== undefined) && (
@@ -721,12 +971,66 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                         <FormControl size="small" fullWidth>
                           <InputLabel>Type</InputLabel>
                           <Select value={type} label="Type" onChange={handleTypeChange}>
-                            <MenuItem value="BUY">Buy</MenuItem>
-                            <MenuItem value="SELL">Sell</MenuItem>
-                            <MenuItem value="DIV_EVENT">Dividend</MenuItem>
+                            <MenuItem value="BUY">{t('Buy', 'קנייה')}</MenuItem>
+                            <MenuItem
+                              value="SELL"
+                              disabled={!!(portId && ticker && !portfolios.find(p => p.id === portId)?.holdings?.some(h => h.ticker === ticker))}
+                            >
+                              {t('Sell', 'מכירה')}
+                              {!!(portId && ticker && !portfolios.find(p => p.id === portId)?.holdings?.some(h => h.ticker === ticker)) ? ` (${t('Not Held', 'לא מוחזק')})` : ''}
+                            </MenuItem>
+                            {(selectedPortfolio?.divPolicy === 'accumulate_tax_free') && (
+                              <MenuItem value="HOLDING_CHANGE">
+                                {t('Holding Change', 'החלפת החזקה')}
+                              </MenuItem>
+                            )}
+                            <MenuItem value="DIV_EVENT">{t('Record Dividend event', 'תיעוד אירוע דיבידנד')}</MenuItem>
                           </Select>
                         </FormControl>
                       </Grid>
+
+                      {/* Holding Change Second Ticker Search */}
+                      {type === 'HOLDING_CHANGE' && (
+                        <Grid item xs={12}>
+                          <Box sx={{ border: '1px dashed grey', p: 1, borderRadius: 1 }}>
+                            <Typography variant="subtitle2" gutterBottom>{t('Switch To (Target Asset):', 'החלף ל (נכס יעד):')}</Typography>
+                            {!buyTicker ? (
+                              <TickerSearch
+                                onTickerSelect={(p) => {
+                                  setLoading(true);
+                                  getTickerData(p.symbol, p.exchange, p.securityId ?? null).then(d => {
+                                    if (d) {
+                                      const combined = { ...d, symbol: p.symbol, exchange: p.exchange };
+                                      setBuyTicker(combined);
+                                      if (d.price) {
+                                        setBuyPrice(parseFloat(d.price.toFixed(6)).toString());
+                                        // Calc buy qty based on total
+                                        const tDisplay = parseFloat(total);
+                                        if (Number.isFinite(tDisplay)) {
+                                          const tRaw = convertCurrency(tDisplay, majorCurrency, normalizeCurrency(d.currency || 'USD'), exchangeRates);
+                                          setBuyQty(parseFloat((tRaw / d.price).toFixed(6)).toString());
+                                        }
+                                      }
+                                    }
+                                    setLoading(false);
+                                  });
+                                }}
+                                portfolios={[]} // No need for holdings check here
+                                isPortfoliosLoading={false}
+                                collapsible={false}
+                              />
+                            ) : (
+                              <Box display="flex" alignItems="center" justifyContent="space-between">
+                                <Box>
+                                  <Typography variant="body2" fontWeight="bold">{buyTicker.name} ({buyTicker.symbol})</Typography>
+                                  <Typography variant="caption">{t('Price:', 'מחיר:')} {buyTicker.price}</Typography>
+                                </Box>
+                                <Button size="small" color="error" onClick={() => { setBuyTicker(null); setBuyQty(''); }}>Change</Button>
+                              </Box>
+                            )}
+                          </Box>
+                        </Grid>
+                      )}
 
                       {type === 'DIV_EVENT' ? (
                         <Grid item xs={12} sm={4}>
@@ -734,62 +1038,143 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                               <TextField
                                 label="Dividend Amount" type="number" size="small" fullWidth
                                 value={price}
-                                onChange={e => setPrice(e.target.value)}
-                                InputProps={tickerCurrency === 'ILA'
-                                  ? { endAdornment: <InputAdornment position="end">{t('ag.', "א'")}</InputAdornment> }
-                                  : { startAdornment: <InputAdornment position="start">{tickerCurrency}</InputAdornment> }
-                                }
-                                error={!!validationErrors.price}
-                                required
-                                helperText={!price ? "Required" : ""}
-                              />
-                            </Tooltip>
+                              onChange={e => { if (parseFloat(e.target.value) >= 0 || e.target.value === '') setPrice(e.target.value); }}
+                              InputProps={tickerCurrency === 'ILA'
+                                ? { endAdornment: <InputAdornment position="end">{t('ag.', "א'")}</InputAdornment> }
+                                : { startAdornment: <InputAdornment position="start">{tickerCurrency}</InputAdornment> }
+                              }
+                              error={!!validationErrors.price}
+                              required
+                              helperText={!price ? "Required" : ""}
+                            />
+                          </Tooltip>
                         </Grid>
                       ) : (
                         <>
-                          <Grid item xs={12}><Divider sx={{ my: 1 }}></Divider></Grid>
-                          <Grid item xs={6} sm={4}>
-                            <Tooltip title="Number of shares/units bought or sold.">
-                              <TextField
-                                label="Quantity" type="number" size="small" fullWidth
-                                value={qty} onChange={e => handleQtyChange(e.target.value)}
-                                error={!!validationErrors.qty}
-                                required
-                                helperText={!qty ? "Required" : ""}
-                                sx={{ bgcolor: !qty ? 'action.hover' : 'inherit' }}
-                              />
-                            </Tooltip>
-                          </Grid>
-                          <Grid item xs={6} sm={4}>
-                            <Tooltip title={`Price per single share/unit.${tickerCurrency === 'ILA' ? ' In Agorot.' : ''}`}>
-                              <TextField
-                                label="Price" type="number" size="small" fullWidth
-                                value={price}
-                                onChange={e => handlePriceChange(e.target.value)}
-                                InputProps={tickerCurrency === 'ILA'
-                                  ? { endAdornment: <InputAdornment position="end">{t('ag.', "א'")}</InputAdornment> }
-                                  : { startAdornment: <InputAdornment position="start">{tickerCurrency}</InputAdornment> }
-                                }
-                                error={!!validationErrors.price}
-                                required
-                                helperText={!price ? "Required" : ""}
-                                sx={{ bgcolor: !price ? 'action.hover' : 'inherit' }}
-                              />
-                            </Tooltip>
-                          </Grid>
-                          <Grid item xs={12} sm={4}>
-                            <Tooltip title="Total transaction value (Quantity × Price).">
-                              <TextField
-                                label="Total Cost" type="number" size="small" fullWidth
-                                value={total} onChange={e => handleTotalChange(e.target.value)}
-                                InputProps={{ startAdornment: <InputAdornment position="start">{majorCurrency}</InputAdornment> }}
-                                error={!!validationErrors.total}
-                                required
-                                helperText={!total ? "Required" : ""}
-                                sx={{ bgcolor: !total ? 'action.hover' : 'inherit' }}
-                              />
-                            </Tooltip>
-                          </Grid>
+                          {/* Dynamic Layout based on Type */}
+                          {(type === 'SELL' || type === 'HOLDING_CHANGE') ? (
+                            <>
+                              {/* Row 1: Qty and Percent */}
+                              <Grid item xs={12}><Divider sx={{ my: 1 }} /></Grid>
+                              <Grid item xs={6} sm={5}>
+                                <Tooltip title="Number of shares/units bought or sold.">
+                                  <TextField
+                                    label="Quantity" type="number" size="small" fullWidth
+                                    value={qty} onChange={e => handleQtyChange(e.target.value)}
+                                    error={!!validationErrors.qty}
+                                    required
+                                    helperText={
+                                      selectedTicker
+                                        ? (() => {
+                                          const p = portfolios.find(po => po.id === portId);
+                                          const h = p?.holdings?.find(h => h.ticker === selectedTicker.symbol);
+                                          return h ? `${t('Held:', 'מוחזק:')} ${h.qty}` : '';
+                                        })()
+                                        : (!qty ? "Required" : "")
+                                    }
+                                    sx={{ bgcolor: !qty ? 'action.hover' : 'inherit' }}
+                                  />
+                                </Tooltip>
+                              </Grid>
+                              <Grid item xs={6} sm={7} sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                                <TextField
+                                  label={t("% of Holdings", "% מהחזקות")} type="number" size="small" fullWidth
+                                  value={percent} onChange={e => handlePercentChange(e.target.value)}
+                                  InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
+                                  InputLabelProps={{ shrink: true }}
+                                  error={!!validationErrors.percent}
+                                  helperText={!!validationErrors.percent ? "Invalid" : " "}
+                                />
+                                <Button
+                                  size="medium"
+                                  variant="outlined"
+                                  onClick={() => handlePercentChange('100')}
+                                  sx={{ minWidth: '50px' }}
+                                >
+                                  All
+                                </Button>
+                              </Grid>
+
+                              {/* Row 2: Price and Total */}
+                              <Grid item xs={6} sm={6}>
+                                <Tooltip title={`Price per single share/unit.${tickerCurrency === 'ILA' ? ' In Agorot.' : ''}`}>
+                                  <TextField
+                                    label="Price" type="number" size="small" fullWidth
+                                    value={price}
+                                    onChange={e => handlePriceChange(e.target.value)}
+                                    InputProps={tickerCurrency === 'ILA'
+                                      ? { endAdornment: <InputAdornment position="end">{t('ag.', "א'")}</InputAdornment> }
+                                      : { startAdornment: <InputAdornment position="start">{tickerCurrency}</InputAdornment> }
+                                    }
+                                    error={!!validationErrors.price}
+                                    required
+                                    helperText={!price ? "Required" : ""}
+                                      sx={{ bgcolor: !price ? 'action.hover' : 'inherit' }}
+                                    />
+                                  </Tooltip>
+                                </Grid>
+                                <Grid item xs={6} sm={6}>
+                                  <Tooltip title="Total transaction value (Quantity × Price).">
+                                    <TextField
+                                      label="Total Cost" type="number" size="small" fullWidth
+                                      value={total} onChange={e => handleTotalChange(e.target.value)}
+                                      InputProps={{ startAdornment: <InputAdornment position="start">{majorCurrency}</InputAdornment> }}
+                                      error={!!validationErrors.total}
+                                      required
+                                      helperText={!total ? "Required" : ""}
+                                      sx={{ bgcolor: !total ? 'action.hover' : 'inherit' }}
+                                    />
+                                  </Tooltip>
+                                </Grid>
+                              </>
+                            ) : (
+                              <>
+                                  {/* Standard Layout for BUY */}
+                                  <Grid item xs={12}><Divider sx={{ my: 1 }} /></Grid>
+                                  <Grid item xs={6} sm={4}>
+                                    <Tooltip title="Number of shares/units bought or sold.">
+                                      <TextField
+                                        label="Quantity" type="number" size="small" fullWidth
+                                        value={qty} onChange={e => handleQtyChange(e.target.value)}
+                                        error={!!validationErrors.qty}
+                                        required
+                                        helperText={!qty ? "Required" : ""}
+                                        sx={{ bgcolor: !qty ? 'action.hover' : 'inherit' }}
+                                      />
+                                    </Tooltip>
+                                  </Grid>
+                                  <Grid item xs={6} sm={4}>
+                                    <Tooltip title={`Price per single share/unit.${tickerCurrency === 'ILA' ? ' In Agorot.' : ''}`}>
+                                      <TextField
+                                        label="Price" type="number" size="small" fullWidth
+                                        value={price}
+                                        onChange={e => handlePriceChange(e.target.value)}
+                                        InputProps={tickerCurrency === 'ILA'
+                                          ? { endAdornment: <InputAdornment position="end">{t('ag.', "א'")}</InputAdornment> }
+                                          : { startAdornment: <InputAdornment position="start">{tickerCurrency}</InputAdornment> }
+                                        }
+                                        error={!!validationErrors.price}
+                                        required
+                                        helperText={!price ? "Required" : ""}
+                                        sx={{ bgcolor: !price ? 'action.hover' : 'inherit' }}
+                                      />
+                                    </Tooltip>
+                                  </Grid>
+                                  <Grid item xs={12} sm={4}>
+                                    <Tooltip title="Total transaction value (Quantity × Price).">
+                                      <TextField
+                                        label="Total Cost" type="number" size="small" fullWidth
+                                        value={total} onChange={e => handleTotalChange(e.target.value)}
+                                        InputProps={{ startAdornment: <InputAdornment position="start">{majorCurrency}</InputAdornment> }}
+                                        error={!!validationErrors.total}
+                                        required
+                                        helperText={!total ? "Required" : ""}
+                                        sx={{ bgcolor: !total ? 'action.hover' : 'inherit' }}
+                                      />
+                                    </Tooltip>
+                                  </Grid>
+                              </>
+                            )}
                           <Grid item xs={12}><Divider sx={{ my: 1 }}> </Divider></Grid>
 
                           <Grid item xs={4} sm={3}>
@@ -830,8 +1215,8 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                             {t('Delete', 'מחק')}
                           </Button>
                       )}
-                      <Button variant="contained" size="large" fullWidth startIcon={<AddCircleOutlineIcon />} onClick={handleSubmit} disabled={loading} sx={{ flex: 2 }}>
-                        {loading ? t('Saving...', 'שומר...') : (type === 'DIV_EVENT' ? (locationState?.editDividend ? t('Update Dividend', 'עדכן דיבידנד') : t('Record Dividend', 'שמור דיבידנד')) : (locationState?.editTransaction ? t('Update Transaction', 'עדכן עסקה') : t('Save Transaction', 'שמור עסקה')))}
+                      <Button variant="contained" size="large" fullWidth startIcon={<AddCircleOutlineIcon />} onClick={handleSubmit} disabled={loading || Object.keys(validationErrors).length > 0} sx={{ flex: 2 }}>
+                        {loading ? (loadingMessage || t('Saving...', 'שומר...')) : (type === 'DIV_EVENT' ? (locationState?.editDividend ? t('Update Dividend', 'עדכן דיבידנד') : t('Record Dividend', 'שמור דיבידנד')) : (locationState?.editTransaction ? t('Update Transaction', 'עדכן עסקה') : t('Save Transaction', 'שמור עסקה')))}
                       </Button>
                     </Box>
                   </>
@@ -847,10 +1232,12 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
       >
         <CircularProgress color="inherit" size={60} thickness={4} />
         <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
-          {t('Saving...', 'שומר...')}
+          {loadingMessage || t('Loading...', 'טוען...')}
         </Typography>
         <Typography variant="body1" sx={{ opacity: 0.8 }}>
-          {t('Updating Holdings...', 'מעדכן החזקות...')}
+          {loadingMessage === t('Saving...', 'שומר...')
+            ? t('Updating Holdings...', 'מעדכן החזקות...')
+            : t('Fetching Data...', 'טוען נתונים...')}
         </Typography>
       </Backdrop>
     </Box >

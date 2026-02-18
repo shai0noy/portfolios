@@ -6,7 +6,7 @@ export interface ColDef {
     formula?: (rowNum: number, cols: any) => string;
 }
 
-export type TransactionKey = 'date' | 'portfolioId' | 'ticker' | 'exchange' | 'type' | 'originalQty' | 'originalPrice' | 'currency' | 'originalPriceILA' | 'originalPriceUSD' | 'vestDate' | 'comment' | 'commission' | 'source' | 'creationDate' | 'origOpenPriceAtCreationDate' | 'splitAdjOpenPrice' | 'splitRatio' | 'splitAdjustedPrice' | 'splitAdjustedQty' | 'numericId' | 'grossValue';
+export type TransactionKey = 'date' | 'portfolioId' | 'ticker' | 'exchange' | 'type' | 'originalQty' | 'originalPrice' | 'currency' | 'originalPriceILA' | 'originalPriceUSD' | 'vestDate' | 'comment' | 'commission' | 'source' | 'creationDate' | 'origOpenPriceAtCreationDate' | 'splitAdjOpenPrice' | 'splitRatio' | 'splitAdjustedPrice' | 'splitAdjustedQty' | 'numericId' | 'grossValue' | 'linkId';
 
 // Note: This must match the keys in TXN_COLS
 export type TransactionColumns = {
