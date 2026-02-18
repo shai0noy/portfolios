@@ -1121,7 +1121,7 @@ export const rebuildHoldingsSheet = withAuthHandling(async (spreadsheetId: strin
     transactions.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     transactions.forEach(txn => {
-        if (txn.type === 'BUY' || txn.type === 'SELL') {
+        if (txn.type === 'BUY' || txn.type === 'SELL' || txn.type === 'BUY_TRANSFER' || txn.type === 'SELL_TRANSFER') {
             const key = `${txn.ticker}-${txn.exchange}`;
             if (!holdings[key]) {
                 if (!txn.exchange) throw new Error(`Transaction missing exchange for ticker: ${txn.ticker}`);
@@ -1130,7 +1130,7 @@ export const rebuildHoldingsSheet = withAuthHandling(async (spreadsheetId: strin
             if (txn.numericId !== undefined) {
                 holdings[key].numericId = txn.numericId ?? null;
             }
-            const multiplier = txn.type === 'BUY' ? 1 : -1;
+            const multiplier = (txn.type === 'BUY' || txn.type === 'BUY_TRANSFER') ? 1 : -1;
             const qty = parseFloat(String(txn.splitAdjustedQty || txn.originalQty));
             holdings[key].qty += qty * multiplier;
         }

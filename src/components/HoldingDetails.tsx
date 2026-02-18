@@ -1066,7 +1066,11 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                                     const txnPortfolioName = portfolioNameMap[txn.portfolioId] || txn.portfolioId;
 
                                     const titleCase = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : s;
-                                    const displayLabel = titleCase(typeLabel);
+                                    // Handle BUY_TRANSFER -> Buy Transfer
+                                    const displayLabel = titleCase(typeLabel).replace('_', ' ');
+
+                                    const isBuy = txn.type === 'BUY' || txn.type === 'BUY_TRANSFER';
+                                    const isSell = txn.type === 'SELL' || txn.type === 'SELL_TRANSFER';
 
                                     return (
                                         <TableRow key={i} hover>
@@ -1075,7 +1079,7 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                                                 <Typography
                                                     variant="caption"
                                                     fontWeight="bold"
-                                                    sx={{ color: txn.type === 'BUY' ? 'primary.main' : txn.type === 'SELL' ? 'secondary.main' : 'text.secondary' }}
+                                                    sx={{ color: isBuy ? 'primary.main' : isSell ? 'secondary.main' : 'text.secondary' }}
                                                 >
                                                     {displayLabel}
                                                 </Typography>

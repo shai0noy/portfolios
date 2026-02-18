@@ -434,6 +434,14 @@ export interface Transaction {
   rowIndex?: number;
 }
 
+export function isBuy(type: Transaction['type']): boolean {
+  return type === 'BUY' || type === 'BUY_TRANSFER';
+}
+
+export function isSell(type: Transaction['type']): boolean {
+  return type === 'SELL' || type === 'SELL_TRANSFER';
+}
+
 // Templates for quick setup
 export const PORTFOLIO_TEMPLATES: Record<string, Partial<Portfolio>> = {
   'std_il': {
