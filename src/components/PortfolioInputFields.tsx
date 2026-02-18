@@ -7,24 +7,32 @@ interface BaseFieldProps {
   label: string;
   tooltip?: string;
   disabled?: boolean;
+  error?: boolean;
+  helperText?: string;
+  required?: boolean;
+  startAdornment?: React.ReactNode;
+  endAdornment?: React.ReactNode;
+  placeholder?: string;
 }
 
 interface NumericFieldProps extends BaseFieldProps {
   field: string;
-  value: number;
+  value: number | string; // Allow string if needed for intermediate
   onChange?: (val: number) => void;
   onUpdate?: (field: string, val: number) => void;
   currency?: string;
 }
 
-export const NumericField = React.memo(({ label, field, value, onChange, onUpdate, currency, tooltip, disabled }: NumericFieldProps) => {
+export const NumericField = React.memo(({ label, field, value, onChange, onUpdate, currency, tooltip, disabled, error, helperText, required, startAdornment, endAdornment, placeholder }: NumericFieldProps) => {
   const [localDisplay, setLocalDisplay] = useState<string | null>(null);
 
-  const displayVal = (value === 0 && localDisplay === null) ? '' : (localDisplay !== null ? localDisplay : value.toString());
+  const numericVal = typeof value === 'string' ? parseFloat(value) : value;
+  const safeVal = isNaN(numericVal) ? 0 : numericVal;
+
+  const displayVal = (safeVal === 0 && localDisplay === null) ? '' : (localDisplay !== null ? localDisplay : safeVal.toString());
 
   useEffect(() => {
     // If external value changes (e.g. rounded by parent), we might need to sync.
-    // Currently relying on props creates a "controlled" component feel.
   }, [value]);
 
   const fireChange = (val: number) => {
@@ -60,6 +68,10 @@ export const NumericField = React.memo(({ label, field, value, onChange, onUpdat
     }
   };
 
+  // Determine Adornments
+  const finalEndAdornment = endAdornment || (currency ? <InputAdornment position="end">{currency}</InputAdornment> : null);
+  const finalStartAdornment = startAdornment;
+
   const textField = (
     <TextField
       fullWidth
@@ -67,15 +79,20 @@ export const NumericField = React.memo(({ label, field, value, onChange, onUpdat
       size="small"
       label={label}
       value={displayVal}
-      placeholder="-"
+      placeholder={placeholder !== undefined ? placeholder : "-"}
       disabled={disabled}
       onChange={handleChange}
       onBlur={() => setLocalDisplay(null)}
       autoComplete="off"
+      error={error}
+      helperText={helperText}
+      required={required}
       InputProps={{
-        endAdornment: currency ? <InputAdornment position="end">{currency}</InputAdornment> : null,
+        startAdornment: finalStartAdornment,
+        endAdornment: finalEndAdornment,
         inputProps: { min: 0, step: 'any' }
       }}
+      sx={!displayVal && required ? { bgcolor: 'action.hover' } : undefined}
     />
   );
 
@@ -91,18 +108,21 @@ export const NumericField = React.memo(({ label, field, value, onChange, onUpdat
 
 interface PercentageFieldProps extends BaseFieldProps {
   field: string;
-  value: number;
+  value: number | string;
   onChange?: (val: number) => void;
   onUpdate?: (field: string, val: number) => void;
 }
 
-export const PercentageField = React.memo(({ label, field, value, onChange, onUpdate, tooltip, disabled }: PercentageFieldProps) => {
+export const PercentageField = React.memo(({ label, field, value, onChange, onUpdate, tooltip, disabled, error, helperText, required, startAdornment, endAdornment, placeholder }: PercentageFieldProps) => {
   const [localDisplay, setLocalDisplay] = useState<string | null>(null);
 
-  const pctValue = value * 100;
+  const numericVal = typeof value === 'string' ? parseFloat(value) : value;
+  const safeVal = isNaN(numericVal) ? 0 : numericVal;
+
+  const pctValue = safeVal * 100;
   const rounded = Math.round(pctValue * 10000) / 10000;
   
-  const displayVal = (value === 0 && localDisplay === null) ? '' : (localDisplay !== null ? localDisplay : rounded.toString());
+  const displayVal = (safeVal === 0 && localDisplay === null) ? '' : (localDisplay !== null ? localDisplay : rounded.toString());
 
   const fireChange = (val: number) => {
     if (onUpdate) {
@@ -145,13 +165,17 @@ export const PercentageField = React.memo(({ label, field, value, onChange, onUp
       size="small"
       label={label}
       value={displayVal}
-      placeholder="-"
+      placeholder={placeholder !== undefined ? placeholder : "-"}
       disabled={disabled}
       onChange={handleChange}
       onBlur={() => setLocalDisplay(null)}
       autoComplete="off"
+      error={error}
+      helperText={helperText}
+      required={required}
       InputProps={{
-        endAdornment: <InputAdornment position="end">%</InputAdornment>,
+        startAdornment: startAdornment,
+        endAdornment: endAdornment || <InputAdornment position="end">%</InputAdornment>,
         inputProps: { min: 0, step: 'any' }
       }}
     />
