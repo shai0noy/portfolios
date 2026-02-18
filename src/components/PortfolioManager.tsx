@@ -21,13 +21,6 @@ import { useLanguage } from '../lib/i18n';
 import { PortfolioWizard } from './PortfolioWizard';
 import { NumericField, PercentageField } from './PortfolioInputFields';
 
-const taxPolicyNames: { [key: string]: string } = {
-  IL_REAL_GAIN: "Israel (Real Gain - Inflation Adjusted)",
-  NOMINAL_GAIN: "Fixed (Nominal Gain)",
-  TAX_FREE: "Tax Free (Gemel/Hishtalmut)",
-  PENSION: "Pension (Income Taxed)"
-};
-
 interface Props {
   sheetId: string;
   onSuccess: () => void;
@@ -48,7 +41,6 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
   const [showTaxHistory, setShowTaxHistory] = useState(false);
   const [showFeeHistory, setShowFeeHistory] = useState(false);
   const { t } = useLanguage();
-
   // Form State
   const [template, setTemplate] = useState('');
   const [p, setP] = useState<Partial<Portfolio>>({
@@ -59,6 +51,16 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
     divPolicy: 'cash_taxed', divCommRate: 0,
     taxPolicy: 'IL_REAL_GAIN'
   });
+
+  const getTaxPolicyName = (key: string | undefined) => {
+    switch (key) {
+      case 'IL_REAL_GAIN': return t('Israel (Real Gain - Inflation Adjusted)', 'ישראל (רווח ריאלי - צמוד למדד)');
+      case 'NOMINAL_GAIN': return t('Fixed (Nominal Gain)', 'קבוע (רווח נומינלי)');
+      case 'TAX_FREE': return t('Tax Free (Gemel/Hishtalmut)', 'פטור ממס (גמל/השתלמות)');
+      case 'PENSION': return t('Pension (Income Taxed)', 'פנסיה (ממוסה כהכנסה)');
+      default: return key || '-';
+    }
+  };
 
   useEffect(() => {
     loadPortfolios();
@@ -533,8 +535,8 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                                 onChange={e => set('taxPolicy', e.target.value)}
                                 disabled={editMode}
                               >
-                                {Object.entries(taxPolicyNames).map(([key, name]) => (
-                                  <MenuItem key={key} value={key}>{name}</MenuItem>
+                                {['IL_REAL_GAIN', 'NOMINAL_GAIN', 'TAX_FREE', 'PENSION'].map((key) => (
+                                  <MenuItem key={key} value={key}>{getTaxPolicyName(key)}</MenuItem>
                                 ))}
                               </Select>
                             </FormControl>
@@ -920,8 +922,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
           <TableContainer component={Paper} variant="outlined">
             <Table size="small">
               <TableHead>
-                <TableRow>
-                  <TableCell>{t('ID', 'מזהה')}</TableCell>
+                  <TableRow>
                   <TableCell>{t('Name', 'שם')}</TableCell>
                   <TableCell>{t('Currency', 'מטבע')}</TableCell>
                   <TableCell>{t('Tax Policy', 'מדיניות מס')}</TableCell>
@@ -931,10 +932,9 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
               <TableBody>
                 {portfolios.map((port) => (
                   <TableRow key={port.id}>
-                    <TableCell>{port.id}</TableCell>
                     <TableCell>{port.name}</TableCell>
                     <TableCell>{port.currency}</TableCell>
-                    <TableCell>{taxPolicyNames[port.taxPolicy || 'IL_REAL_GAIN'] || port.taxPolicy}</TableCell>
+                    <TableCell>{getTaxPolicyName(port.taxPolicy)}</TableCell>
                     <TableCell>
                       <Button size="small" onClick={() => navigate(`/portfolios/${port.id}`)} sx={{ mr: 1 }}>{t('Edit', 'ערוך')}</Button>
                       <Button size="small" color="error" onClick={() => alert('Delete: ' + port.id)}>{t('Delete', 'מחק')}</Button>
