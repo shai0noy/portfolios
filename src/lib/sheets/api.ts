@@ -548,11 +548,12 @@ export const batchAddTransactions = withAuthHandling(async (spreadsheetId: strin
 });
 
 type HoldingNonGeneratedData = Omit<SheetHolding, 'portfolioId' | 'totalValue' | 'price' | 'currency' | 'name' | 'nameHe' | 'sector' | 'changePct1d' | 'changePctRecent' | 'changePct1m' | 'changePct3m' | 'changePctYtd' | 'changePct1y' | 'changePct3y' | 'changePct5y' | 'changePct10y'>;
-function createHoldingRow(h: HoldingNonGeneratedData, meta: TickerData | null, rowNum: number): any[] {
+
+// Note: h is typed as HoldingNonGeneratedData but we expect it to have 'qty' from the calculation in rebuildHoldingsSheet
+function createHoldingRow(h: HoldingNonGeneratedData & { qty: number }, meta: TickerData | null, rowNum: number): any[] {
     const tickerCell = `A${rowNum}`;
     const exchangeCell = `B${rowNum}`;
-    const qtyCell = `C${rowNum}`;
-    const priceCell = `D${rowNum}`;
+    const priceCell = `C${rowNum}`; // Moved from D to C
     const tickerAndExchange = `${exchangeCell}&":"&${tickerCell}`;
     const row = new Array(holdingsHeaders.length).fill('');
 
@@ -560,28 +561,28 @@ function createHoldingRow(h: HoldingNonGeneratedData, meta: TickerData | null, r
 
     row[0] = String(h.ticker).toUpperCase();
     row[1] = toGoogleSheetsExchangeCode(h.exchange);
-    row[2] = h.qty;
-    row[3] = `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}))`;
+    // Quantity column (index 2) is removed.
+    row[2] = `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}))`; // Live_Price
     const defaultCurrency = meta?.currency || (isTASE ? 'ILA' : '');
-    row[4] = (`=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "currency"), "${escapeSheetString(defaultCurrency)}")`);
-    row[5] = `=${qtyCell}*${priceCell}`;
-    row[6] = `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "name"), " ${escapeSheetString(meta?.name)}")`;
-    row[7] = meta?.nameHe || "";
-    row[8] = meta?.sector || "";
-    row[9] = meta?.type?.type || "";
-    row[10] = `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "changepct")/100, 0)`;
+    row[3] = (`=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "currency"), "${escapeSheetString(defaultCurrency)}")`); // Currency
+    row[4] = `=${h.qty}*${priceCell}`; // Total Holding Value (Inlined quantity)
+    row[5] = `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "name"), " ${escapeSheetString(meta?.name)}")`; // Name_En
+    row[6] = meta?.nameHe || "";
+    row[7] = meta?.sector || "";
+    row[8] = meta?.type?.type || "";
+    row[9] = `=IFERROR(GOOGLEFINANCE(${tickerAndExchange}, "changepct")/100, 0)`; // Day_Change
 
     const priceFormula = (dateExpr: string) => getHistoricalPriceFormula(tickerAndExchange, dateExpr);
-    row[11] = `=IFERROR((${priceCell}/${priceFormula("TODAY()-7")})-1, "")`; // Change_1W
-    row[12] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-1)")})-1, "")`; // Change_1M
-    row[13] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-3)")})-1, "")`; // Change_3M
-    row[14] = `=IFERROR(${priceCell} / ${priceFormula("DATE(YEAR(TODAY())-1, 12, 31)")} - 1, "")`; // Change_YTD
-    row[15] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-12)")})-1, "")`; // Change_1Y
-    row[16] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-36)")})-1, "")`; // Change_3Y
-    row[17] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-60)")})-1, "")`; // Change_5Y
-    row[18] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-120)")})-1, "")`; // Change_10Y
-    row[19] = h.numericId || '';
-    row[20] = meta?.recentChangeDays || 7;
+    row[10] = `=IFERROR((${priceCell}/${priceFormula("TODAY()-7")})-1, "")`; // Change_1W
+    row[11] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-1)")})-1, "")`; // Change_1M
+    row[12] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-3)")})-1, "")`; // Change_3M
+    row[13] = `=IFERROR(${priceCell} / ${priceFormula("DATE(YEAR(TODAY())-1, 12, 31)")} - 1, "")`; // Change_YTD
+    row[14] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-12)")})-1, "")`; // Change_1Y
+    row[15] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-36)")})-1, "")`; // Change_3Y
+    row[16] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-60)")})-1, "")`; // Change_5Y
+    row[17] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-120)")})-1, "")`; // Change_10Y
+    row[18] = h.numericId || '';
+    row[19] = meta?.recentChangeDays || 7;
     return row;
 }
 
