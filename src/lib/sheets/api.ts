@@ -307,7 +307,7 @@ export const fetchPortfolios = withAuthHandling(async (spreadsheetId: string): P
         mapRowToHolding<Omit<MappedSheetHolding, 'qty'>>(
             row as any[],
             holdingMapping,
-            holdingNumericKeys.filter(k => k !== 'qty') as any
+            holdingNumericKeys as any
         )
     );
     
@@ -331,7 +331,7 @@ export const fetchPortfolios = withAuthHandling(async (spreadsheetId: string): P
     // NOTE: This logic for aggregating transactions into holdings MUST be kept in sync with the logic in 
     // Dashboard.tsx (loadData function) which performs a similar client-side aggregation for the UI.
     // Any changes to how transactions affect holdings (e.g. splits, new transaction types) must be applied in both places.
-    const holdingsByPortfolio: Record<string, Record<string, SheetHolding>> = {};
+    const holdingsByPortfolio: Record<string, Record<string, SheetHolding & { qty: number }>> = {};
     transactions.forEach(txn => {
         if (txn.type === 'BUY' || txn.type === 'SELL' || txn.type === 'BUY_TRANSFER' || txn.type === 'SELL_TRANSFER') {
             if (!holdingsByPortfolio[txn.portfolioId]) {
@@ -361,12 +361,9 @@ export const fetchPortfolios = withAuthHandling(async (spreadsheetId: string): P
             .map(h => {
                 const key = `${h.ticker}-${h.exchange}`;
                 const priceInfo = priceMap[key];
-                // Explicitly exclude 'qty' from priceInfo to prevent overwriting the calculated quantity from transactions
-                // The 'qty' in priceInfo comes from the Holdings sheet which might be stale or aggregated.
-                const { qty: _ignoredQty, ...safePriceInfo } = (priceInfo || {}) as any;
                 return {
                     ...h,
-                    ...safePriceInfo, // Add price, currency, name etc. from the price map
+                    ...priceInfo, // Add price, currency, name etc. from the price map
                     totalValue: h.qty * (priceInfo?.price || 0)
                 };
             });
