@@ -903,10 +903,12 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   const selectedPortfolio = portfolios.find(p => p.id === portId);
 
 
-  const ownedDetails = selectedTicker ? portfolios.flatMap(p => {
-    const holding = p.holdings?.find(h => h.ticker === selectedTicker.symbol);
-    return holding ? [{ name: p.name, qty: holding.qty }] : [];
-  }) : [];
+  const ownedDetails = selectedTicker ? portfolios
+    .filter(p => !portId || p.id === portId)
+    .flatMap(p => {
+      const holding = p.holdings?.find(h => h.ticker === selectedTicker.symbol);
+      return holding ? [{ name: p.name, qty: holding.qty }] : [];
+    }) : [];
   const totalHeld = ownedDetails.reduce((sum, item) => sum + item.qty, 0);
 
   if (!isPortfoliosLoading && portfolios.length === 0) {
@@ -1101,7 +1103,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                                     </Typography>
                                   </Box>
                                   <Box textAlign="right">
-                                    <Typography variant="subtitle2" component="div" sx={{ fontWeight: 600, color: 'primary.main' }}>
+                                    <Typography variant="body2" component="div" sx={{ fontWeight: 600 }}>
                                       {(() => {
                                         const val = h.totalValue ?? (h.price ? h.qty * h.price : 0);
                                         const curr = h.currency || 'USD';
@@ -1321,7 +1323,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                                       ? (() => {
                                         const p = portfolios.find(po => po.id === portId);
                                         const h = p?.holdings?.find(h => h.ticker === selectedTicker.symbol);
-                                        return h ? `${t('Held:', 'מוחזק:')} ${h.qty}` : '';
+                                        return h ? `${t('Held:', 'מוחזק:')} ${h.qty}` : t('Not Held', 'לא מוחזק');
                                       })()
                                       : (!qty ? "Required" : "")
                                   }

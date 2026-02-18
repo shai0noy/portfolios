@@ -333,7 +333,7 @@ export const fetchPortfolios = withAuthHandling(async (spreadsheetId: string): P
     // Any changes to how transactions affect holdings (e.g. splits, new transaction types) must be applied in both places.
     const holdingsByPortfolio: Record<string, Record<string, SheetHolding>> = {};
     transactions.forEach(txn => {
-        if (txn.type === 'BUY' || txn.type === 'SELL') {
+        if (txn.type === 'BUY' || txn.type === 'SELL' || txn.type === 'BUY_TRANSFER' || txn.type === 'SELL_TRANSFER') {
             if (!holdingsByPortfolio[txn.portfolioId]) {
                 holdingsByPortfolio[txn.portfolioId] = {};
             }
@@ -347,7 +347,7 @@ export const fetchPortfolios = withAuthHandling(async (spreadsheetId: string): P
                     numericId: txn.numericId || null
                 };
             }
-            const multiplier = txn.type === 'BUY' ? 1 : -1;
+            const multiplier = (txn.type === 'BUY' || txn.type === 'BUY_TRANSFER') ? 1 : -1;
             const qty = parseFloat(String(txn.splitAdjustedQty || txn.originalQty));
             holdingsByPortfolio[txn.portfolioId][key].qty += qty * multiplier;
         }
