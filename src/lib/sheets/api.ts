@@ -361,9 +361,12 @@ export const fetchPortfolios = withAuthHandling(async (spreadsheetId: string): P
             .map(h => {
                 const key = `${h.ticker}-${h.exchange}`;
                 const priceInfo = priceMap[key];
+                // Explicitly exclude 'qty' from priceInfo to prevent overwriting the calculated quantity from transactions
+                // The 'qty' in priceInfo comes from the Holdings sheet which might be stale or aggregated.
+                const { qty: _ignoredQty, ...safePriceInfo } = (priceInfo || {}) as any;
                 return {
                     ...h,
-                    ...priceInfo, // Add price, currency, name etc. from the price map
+                    ...safePriceInfo, // Add price, currency, name etc. from the price map
                     totalValue: h.qty * (priceInfo?.price || 0)
                 };
             });

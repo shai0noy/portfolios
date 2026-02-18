@@ -133,7 +133,7 @@ export const portfolioHeaders = ['Portfolio_ID', 'Display_Name', 'Cap_Gains_Tax_
 
 // Merged Price_Unit into Currency logic, removed explicit Price_Unit column
 export const holdingsHeaders = [
-    'Ticker', 'Exchange', 'Quantity', 'Live_Price', 'Currency', 'Total Holding Value',
+    'Ticker', 'Exchange', 'Live_Price', 'Currency', 'Total Holding Value',
     'Name_En', 'Name_He', 'Sector', 'Type', 'Day_Change',
     'Change_1W', 'Change_1M', 'Change_3M', 'Change_YTD', 'Change_1Y', 'Change_3Y', 'Change_5Y', 'Change_10Y', 'Numeric_ID', 'Recent_Change_Days'
 ] as const;
@@ -164,7 +164,7 @@ export const EXTERNAL_DATASETS_RANGE = `${EXTERNAL_DATASETS_SHEET_NAME}!A2:E`;
 
 // Manually update this date (YYYY-MM-DD) whenever the schema (columns, formulas) changes.
 // The app will verify if the sheet's last setup date is older than this.
-export const SHEET_STRUCTURE_VERSION_DATE = '2026-02-05';
+export const SHEET_STRUCTURE_VERSION_DATE = '2026-02-19';
 
 // --- Mappings from Sheet Headers to Typescript Object Keys ---
 
@@ -177,10 +177,10 @@ export const portfolioMapping: Record<keyof Omit<Portfolio, 'holdings'>, typeof 
 export const portfolioNumericKeys: (keyof Omit<Portfolio, 'holdings'>)[] = ['cgt', 'incTax', 'mgmtVal', 'commRate', 'commMin', 'commMax', 'divCommRate'];
 
 // Define a type for the part of Holding that is mapped from the sheet
-export type SheetHolding = Omit<FullSheetHolding, 'portfolioId' | 'changeDate1d' | 'changeDateRecent' | 'changeDate1m' | 'changeDate3m' | 'changeDateYtd' | 'changeDate1y' | 'changeDate3y' | 'changeDate5y' | 'changePctMax' | 'changeDateMax' | 'changeDate10y' | 'meta' | 'openPrice' | 'volume' | 'subSector' | 'taseType' | 'globesTypeHe' | 'providentInfo'>;
+export type SheetHolding = Omit<FullSheetHolding, 'qty' | 'portfolioId' | 'changeDate1d' | 'changeDateRecent' | 'changeDate1m' | 'changeDate3m' | 'changeDateYtd' | 'changeDate1y' | 'changeDate3y' | 'changeDate5y' | 'changePctMax' | 'changeDateMax' | 'changeDate10y' | 'meta' | 'openPrice' | 'volume' | 'subSector' | 'taseType' | 'globesTypeHe' | 'providentInfo'>;
 
 export const holdingMapping: Record<keyof SheetHolding, typeof holdingsHeaders[number]> = {
-    ticker: 'Ticker', exchange: 'Exchange', qty: 'Quantity',
+    ticker: 'Ticker', exchange: 'Exchange',
     price: 'Live_Price', currency: 'Currency', totalValue: 'Total Holding Value',
     name: 'Name_En', nameHe: 'Name_He', sector: 'Sector', type: 'Type',
     changePct1d: 'Day_Change', changePctRecent: 'Change_1W', changePct1m: 'Change_1M', changePct3m: 'Change_3M',
@@ -188,6 +188,6 @@ export const holdingMapping: Record<keyof SheetHolding, typeof holdingsHeaders[n
     numericId: 'Numeric_ID', recentChangeDays: 'Recent_Change_Days'
 };
 export const holdingNumericKeys: (keyof SheetHolding)[] = [
-    'qty', 'price', 'totalValue', 'changePct1d', 'changePctRecent', 'changePct1m', 'changePct3m',
+    'price', 'totalValue', 'changePct1d', 'changePctRecent', 'changePct1m', 'changePct3m',
     'changePctYtd', 'changePct1y', 'changePct3y', 'changePct5y', 'changePct10y', 'numericId', 'recentChangeDays'
 ];

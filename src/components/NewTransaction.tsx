@@ -1236,8 +1236,12 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                               {!!(portId && ticker && !portfolios.find(p => p.id === portId)?.holdings?.some(h => h.ticker === ticker)) ? ` (${t('Not Held', 'לא מוחזק')})` : ''}
                             </MenuItem>
                             {(selectedPortfolio?.divPolicy === 'accumulate_tax_free') && (
-                              <MenuItem value="HOLDING_CHANGE">
+                              <MenuItem
+                                value="HOLDING_CHANGE"
+                                disabled={!!(portId && ticker && !portfolios.find(p => p.id === portId)?.holdings?.some(h => h.ticker === ticker))}
+                              >
                                 {t('Holding Change', 'החלפת החזקה')}
+                                {!!(portId && ticker && !portfolios.find(p => p.id === portId)?.holdings?.some(h => h.ticker === ticker)) ? ` (${t('Not Held', 'לא מוחזק')})` : ''}
                               </MenuItem>
                             )}
                             <MenuItem value="DIV_EVENT">{t('Record Dividend event', 'תיעוד אירוע דיבידנד')}</MenuItem>
