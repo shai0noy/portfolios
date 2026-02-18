@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { ensureGapi, findSpreadsheetByName } from '../google';
+import { clearFinanceCache } from '../data/loader';
 import { getTickerData, type TickerData } from '../fetching';
 import { toGoogleSheetDateFormat } from '../date';
 import { type Portfolio, type Transaction, type SheetHolding, Exchange, parseExchange, toGoogleSheetsExchangeCode, Currency } from '../types';
@@ -742,6 +743,7 @@ export const syncDividends = withAuthHandling(async (spreadsheetId: string, tick
             });
             // Update metadata
             await setMetadataValue(spreadsheetId, 'dividends_rebuild', toGoogleSheetDateFormat(new Date()));
+            clearFinanceCache(spreadsheetId);
         }
     } catch (error: unknown) {
         const err = error as GapiError;
@@ -883,6 +885,7 @@ export const updateDividend = withAuthHandling(async (spreadsheetId: string, row
         spreadsheetId, range, valueInputOption: 'USER_ENTERED',
         resource: { values: [row] }
     });
+    clearFinanceCache(spreadsheetId);
 });
 
 export const deleteTransaction = withAuthHandling(async (spreadsheetId: string, rowIndex: number, originalTxn: Transaction) => {
@@ -974,6 +977,7 @@ export const deleteDividend = withAuthHandling(async (spreadsheetId: string, row
             }]
         }
     });
+    clearFinanceCache(spreadsheetId);
 });
 
 
@@ -1054,6 +1058,7 @@ export const batchSyncDividends = withAuthHandling(async (spreadsheetId: string,
                 resource: { values: allNewRows }
             });
             await setMetadataValue(spreadsheetId, 'dividends_rebuild', toGoogleSheetDateFormat(new Date()));
+            clearFinanceCache(spreadsheetId);
         }
 
     } catch (error: unknown) {
@@ -1177,6 +1182,7 @@ export const rebuildHoldingsSheet = withAuthHandling(async (spreadsheetId: strin
         });
     }
     await setMetadataValue(spreadsheetId, 'holdings_rebuild', toGoogleSheetDateFormat(new Date()));
+    clearFinanceCache(spreadsheetId);
 });
 
 export const addPortfolio = withAuthHandling(async (spreadsheetId: string, p: Portfolio) => {
@@ -1193,6 +1199,7 @@ export const addPortfolio = withAuthHandling(async (spreadsheetId: string, p: Po
         spreadsheetId, range: `${PORTFOLIO_SHEET_NAME}!A:A`, valueInputOption: 'USER_ENTERED',
         resource: { values: [row] }
     });
+    clearFinanceCache(spreadsheetId);
 });
 
 export const updatePortfolio = withAuthHandling(async (spreadsheetId: string, p: Portfolio) => {
@@ -1223,6 +1230,7 @@ export const updatePortfolio = withAuthHandling(async (spreadsheetId: string, p:
     await gapi.client.sheets.spreadsheets.values.update({
         spreadsheetId, range: range, valueInputOption: 'USER_ENTERED', resource: { values: [rowData] }
     });
+    clearFinanceCache(spreadsheetId);
 });
 
 export const getMetadataValue = withAuthHandling(async function (spreadsheetId: string, key: string): Promise<string | null> {
@@ -1419,6 +1427,7 @@ export const addExternalPrice = withAuthHandling(async (spreadsheetId: string, t
         spreadsheetId, range: EXTERNAL_DATASETS_RANGE, valueInputOption: 'USER_ENTERED',
         insertDataOption: 'INSERT_ROWS', resource: { values: [row] }
     });
+    clearFinanceCache(spreadsheetId);
 });
 
 export const getExternalPrices = withAuthHandling(async (spreadsheetId: string): Promise<Record<string, { date: Date, price: number, currency: Currency }[]>> => {

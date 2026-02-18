@@ -28,7 +28,7 @@ async function fetchCPIData(_sheetId: string): Promise<TickerData | null> {
 }
 
 const CACHE_KEY = 'finance_engine_cache';
-const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+const CACHE_TTL = 1 * 60 * 1000; // 1 minute
 
 interface FinanceCache {
     timestamp: number;
@@ -39,6 +39,24 @@ interface FinanceCache {
     exchangeRates: ExchangeRates;
     cpiData: TickerData | null;
     livePrices: [string, TickerData][];
+}
+
+export function clearFinanceCache(sheetId?: string) {
+    try {
+        if (sheetId) {
+            const json = localStorage.getItem(CACHE_KEY);
+            if (json) {
+                const cache = JSON.parse(json) as FinanceCache;
+                if (cache.sheetId === sheetId) {
+                    localStorage.removeItem(CACHE_KEY);
+                }
+            }
+        } else {
+            localStorage.removeItem(CACHE_KEY);
+        }
+    } catch (e) {
+        console.warn('Failed to clear cache', e);
+    }
 }
 
 function saveToCache(sheetId: string, data: Omit<FinanceCache, 'timestamp' | 'sheetId'>) {
