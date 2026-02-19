@@ -25,6 +25,7 @@ export interface HoldingValues {
     unvestedValue: number;
     realizedTax: number;
     unrealizedTax: number;
+    totalQty: number;
 }
 
 export interface UnifiedLayer {

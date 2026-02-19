@@ -205,4 +205,60 @@ describe('FinanceEngine', () => {
         // Net Gain = 900 - 750 - 2.5 - 5 = 142.5.
         expect(h!.realizedGainNet.amount).toBeCloseTo(142.5);
     });
+    it('uses transaction price for orphan BUY_TRANSFER (no cost basis override)', () => {
+        const engine = new FinanceEngine([portfolio], mockRates as any, mockCPI as any);
+
+        // Orphan Transfer: No matching SELL_TRANSFER to populate the bucket.
+        // Price: 100. Qty: 10. Value: 1000.
+        // If cost basis override logic was buggy (defaulting to 0), cost would be 0.
+        // Fix should make it use 100 * 10 = 1000.
+        const transferBuy: Transaction = {
+            date: '2023-01-01', type: 'BUY_TRANSFER', portfolioId: 'p1', ticker: 'ORPHAN', exchange: Exchange.NASDAQ,
+            qty: 10, price: 100, originalQty: 10, originalPrice: 100, currency: Currency.USD
+        };
+
+        engine.processEvents([transferBuy], []);
+
+        const h = engine.holdings.get('p1_ORPHAN');
+        expect(h).toBeDefined();
+
+        // Check Cost Basis
+        // Should be 1000 (10 * 100) NOT 0.
+        expect(h!.costBasisVested.amount).toBe(1000);
+
+        // Active Lot should also have correct cost
+        expect(h!.activeLots.length).toBe(1);
+        expect(h!.activeLots[0].costTotal.amount).toBe(1000);
+    });
+    it('preserves cost basis in SELL_TRANSFER -> BUY_TRANSFER chain', () => {
+        const engine = new FinanceEngine([portfolio], mockRates as any, mockCPI as any);
+
+        // 1. Buy in P1: 10 @ 100. Cost 1000.
+        const buy: Transaction = {
+            date: '2023-01-01', type: 'BUY', portfolioId: 'p1', ticker: 'TRANS', exchange: Exchange.NASDAQ,
+            qty: 10, price: 100, originalQty: 10, originalPrice: 100, currency: Currency.USD
+        };
+
+        // 2. Sell Transfer from P1: 10 units.
+        // Should put 1000 Cost Basis into bucket.
+        const sellTransfer: Transaction = {
+            date: '2023-02-01', type: 'SELL_TRANSFER', portfolioId: 'p1', ticker: 'TRANS', exchange: Exchange.NASDAQ,
+            qty: 10, price: 150, originalQty: 10, originalPrice: 150, currency: Currency.USD
+        };
+
+        // 3. Buy Transfer to P1
+        const buyTransfer: Transaction = {
+            date: '2023-02-01', type: 'BUY_TRANSFER', portfolioId: 'p1', ticker: 'TRANS', exchange: Exchange.NASDAQ,
+            qty: 10, price: 150, originalQty: 10, originalPrice: 150, currency: Currency.USD
+        };
+
+        engine.processEvents([buy, sellTransfer, buyTransfer], []);
+
+        const h = engine.holdings.get('p1_TRANS');
+        expect(h).toBeDefined();
+
+        // Check that cost basis is preserved (1000) not reset to transfer price (1500)
+        expect(h!.qtyVested).toBe(10);
+        expect(h!.costBasisVested.amount).toBe(1000);
+    });
 });

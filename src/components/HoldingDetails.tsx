@@ -1,5 +1,5 @@
 import { Box, Typography, CircularProgress } from '@mui/material';
-import { convertCurrency, getExchangeRates, normalizeCurrency, convertMoney, calculatePerformanceInDisplayCurrency } from '../lib/currency';
+import { convertCurrency, getExchangeRates } from '../lib/currency';
 import { useLanguage } from '../lib/i18n';
 import { Currency } from '../lib/types';
 import type { Transaction, ExchangeRates, Portfolio } from '../lib/types';
@@ -10,7 +10,6 @@ import { useNavigate } from 'react-router-dom';
 
 import { aggregateDividends } from '../lib/dividends';
 import { aggregateHoldingValues, groupHoldingLayers, calculateHoldingWeights } from '../lib/data/holding_utils';
-import type { HoldingWeight } from '../lib/data/holding_utils';
 import { HoldingStats } from './holding-details/HoldingStats';
 import { HoldingDistribution } from './holding-details/HoldingDistribution';
 import { HoldingLayers } from './holding-details/HoldingLayers';

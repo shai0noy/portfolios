@@ -1,8 +1,8 @@
 
-import { convertCurrency, convertMoney, calculatePerformanceInDisplayCurrency } from '../currency';
+import { convertCurrency, convertMoney, calculatePerformanceInDisplayCurrency, normalizeCurrency } from '../currency';
 import { Currency } from '../types';
 import type { ExchangeRates, Portfolio } from '../types';
-import type { Lot, Holding, DividendRecord } from './model';
+import type { Holding, DividendRecord } from './model';
 import type { EnrichedDashboardHolding } from '../dashboard';
 import type { HoldingValues, PortfolioGroup, UnifiedLayer } from '../../components/holding-details/types';
 
@@ -14,6 +14,15 @@ export interface HoldingWeight {
     value: number;
 }
 
+/**
+ * Aggregates holding values across multiple portfolios/lots.
+ * Calculates totals, gains, and performance metrics.
+ * 
+ * @param matchingHoldings - List of holdings (raw or enriched) for the same ticker.
+ * @param exchangeRates - Current exchange rates.
+ * @param displayCurrency - The currency to display values in.
+ * @returns Aggregated HoldingValues object.
+ */
 export function aggregateHoldingValues(
     matchingHoldings: (Holding | EnrichedDashboardHolding)[],
     exchangeRates: ExchangeRates | null,
@@ -142,7 +151,7 @@ export function aggregateHoldingValues(
     agg.totalGainPct = (agg.costBasis + agg.costOfSold) > 0 ? agg.totalGain / (agg.costBasis + agg.costOfSold) : 0;
     agg.dayChangePct = agg.marketValue > 0 ? agg.dayChangeVal / (agg.marketValue - agg.dayChangeVal) : 0;
 
-    // Avg Cost
+    // Avg Cost (Based on Vested Qty, as Unvested has 0 cost)
     const totalVestedQty = matchingHoldings.reduce((s, h) => s + ((h as Holding).qtyVested || 0), 0);
     agg.avgCost = totalVestedQty > 0 ? agg.costBasis / totalVestedQty : 0;
 
@@ -180,10 +189,24 @@ export function aggregateHoldingValues(
         weightInGlobal: 0,
         unvestedValue: agg.unvestedValue,
         realizedTax: agg.realizedTaxBase,
-        unrealizedTax: agg.unrealizedTaxBase
+        unrealizedTax: agg.unrealizedTaxBase,
+        totalQty: agg.totalQty
     };
 }
 
+/**
+ * Groups holding layers (lots) by portfolio and unifies them.
+ * 
+ * @param layers - Active lots.
+ * @param realizedLayers - Realized lots.
+ * @param exchangeRates - Current exchange rates.
+ * @param displayCurrency - Target currency.
+ * @param portfolioNameMap - Map of ID to Portfolio Name.
+ * @param holding - The holding context.
+ * @param stockCurrency - Currency of the stock.
+ * @param holdingsWeights - Optional pre-calculated weights to inject.
+ * @returns Array of PortfolioGroup with stats and unified layers.
+ */
 export function groupHoldingLayers(
     layers: any[],
     realizedLayers: any[],
@@ -195,11 +218,7 @@ export function groupHoldingLayers(
     holdingsWeights: HoldingWeight[] = []
 ): PortfolioGroup[] {
     if (!exchangeRates) return [];
-    
-    // Use Base + Weights logic combined here for simplicity or split if needed.
-    // The component had them split for circular dependency fix.
-    // Here we can take weights as optional arg.
-    
+
     const allLots = [...layers, ...realizedLayers];
     // Key: portfolioId -> Key: originalTxnId -> UnifiedLayer
     const portfolioGroups: Record<string, {
@@ -336,6 +355,16 @@ export function groupHoldingLayers(
     });
 }
 
+/**
+ * Calculates portfolio weights for a specific holding, patching missing values with accurate Engine data.
+ * 
+ * @param portfolios - List of portfolios.
+ * @param holding - The holding to calculate weights for.
+ * @param exchangeRates - Current exchange rates.
+ * @param displayCurrency - Target currency.
+ * @param groupedLayersBase - Pre-calculated layers (containing accurate values).
+ * @returns Array of HoldingWeight.
+ */
 export function calculateHoldingWeights(
     portfolios: Portfolio[],
     holding: Holding | EnrichedDashboardHolding,
@@ -365,24 +394,24 @@ export function calculateHoldingWeights(
     }, {} as Record<string, number>);
 
     portfolios.forEach(p => {
-            const hRaw = p.holdings?.find(h => h.ticker === holding.ticker && (h.exchange === (holding as any).exchange || !h.exchange));
-            const hRawValue = hRaw ? convertCurrency(hRaw.totalValue || 0, hRaw.currency || 'USD', targetCurrency, exchangeRates) : 0;
-            const hRealValue = realValuesMap[p.id] || 0;
+        const hRaw = p.holdings?.find(h => h.ticker === holding.ticker && (h.exchange === (holding as any).exchange || !h.exchange));
+        const hRawValue = hRaw ? convertCurrency(hRaw.totalValue || 0, hRaw.currency || 'USD', targetCurrency, exchangeRates) : 0;
+        const hRealValue = realValuesMap[p.id] || 0;
 
-            // Adjusted Portfolio Total = RawTotal - RawHolding + RealHolding
-            const pTotalAdjusted = (portfolioTotalsRaw[p.id] || 0) - hRawValue + hRealValue;
+        // Adjusted Portfolio Total = RawTotal - RawHolding + RealHolding
+        const pTotalAdjusted = (portfolioTotalsRaw[p.id] || 0) - hRawValue + hRealValue;
 
-            // If this holding exists in this portfolio (either in Raw or Real)
-            if (hRaw || hRealValue > 0) {
-                results.push({
-                    portfolioId: p.id,
-                    portfolioName: p.name,
-                    weightInPortfolio: pTotalAdjusted > 0 ? hRealValue / pTotalAdjusted : 0,
-                    weightInGlobal: 0, // Will calc after summing AUM
-                    value: hRealValue
-                });
-                totalAum += pTotalAdjusted;
-            }
+        // If this holding exists in this portfolio (either in Raw or Real)
+        if (hRaw || hRealValue > 0) {
+            results.push({
+                portfolioId: p.id,
+                portfolioName: p.name,
+                weightInPortfolio: pTotalAdjusted > 0 ? hRealValue / pTotalAdjusted : 0,
+                weightInGlobal: 0, // Will calc after summing AUM
+                value: hRealValue
+            });
+            totalAum += pTotalAdjusted;
+        }
     });
 
     // 3. Update Global Weights
