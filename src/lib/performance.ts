@@ -1,7 +1,7 @@
 // src/lib/performance.ts
 import { fetchTickerHistory } from './fetching';
 import { convertCurrency } from './currency';
-import { Currency, Exchange, type DashboardHolding, type Transaction, type ExchangeRates } from './types';
+import { Currency, Exchange, type DashboardHolding, type Transaction, type ExchangeRates, isBuy, isSell } from './types';
 
 export interface PerformancePoint {
     date: Date;
@@ -170,13 +170,13 @@ export async function calculatePortfolioPerformance(
 
             const valInDisplay = getTxnValueInDisplay();
 
-            if (t.type === 'BUY') {
+            if (isBuy(t.type)) {
                 state.qty += tQty;
                 state.costBasis += valInDisplay;
                 if (!state.lots) state.lots = [];
                 state.lots.push({ date: tDate.getTime(), qty: tQty, cost: valInDisplay });
                 dayNetFlow += valInDisplay;
-            } else if (t.type === 'SELL') {
+            } else if (isSell(t.type)) {
                 // FIFO Logic: Consume from lots
                 let remainingToSell = tQty;
                 let costOfSoldPC = 0;

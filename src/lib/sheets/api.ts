@@ -3,7 +3,7 @@ import { ensureGapi, findSpreadsheetByName } from '../google';
 import { clearFinanceCache } from '../data/loader';
 import { getTickerData, type TickerData } from '../fetching';
 import { toGoogleSheetDateFormat } from '../date';
-import { type Portfolio, type Transaction, type SheetHolding, Exchange, parseExchange, toGoogleSheetsExchangeCode, Currency } from '../types';
+import { type Portfolio, type Transaction, type SheetHolding, Exchange, parseExchange, toGoogleSheetsExchangeCode, Currency, isBuy, isSell } from '../types';
 import { normalizeCurrency } from '../currency';
 import {
     TXN_COLS, transactionHeaders, transactionMapping, transactionNumericKeys,
@@ -334,7 +334,7 @@ export const fetchPortfolios = withAuthHandling(async (spreadsheetId: string): P
     // Any changes to how transactions affect holdings (e.g. splits, new transaction types) must be applied in both places.
     const holdingsByPortfolio: Record<string, Record<string, SheetHolding & { qty: number }>> = {};
     transactions.forEach(txn => {
-        if (txn.type === 'BUY' || txn.type === 'SELL' || txn.type === 'BUY_TRANSFER' || txn.type === 'SELL_TRANSFER') {
+        if (isBuy(txn.type) || isSell(txn.type)) {
             if (!holdingsByPortfolio[txn.portfolioId]) {
                 holdingsByPortfolio[txn.portfolioId] = {};
             }
@@ -348,7 +348,7 @@ export const fetchPortfolios = withAuthHandling(async (spreadsheetId: string): P
                     numericId: txn.numericId || null
                 };
             }
-            const multiplier = (txn.type === 'BUY' || txn.type === 'BUY_TRANSFER') ? 1 : -1;
+            const multiplier = isBuy(txn.type) ? 1 : -1;
             const qty = parseFloat(String(txn.splitAdjustedQty || txn.originalQty));
             holdingsByPortfolio[txn.portfolioId][key].qty += qty * multiplier;
         }

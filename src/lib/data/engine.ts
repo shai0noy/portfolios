@@ -1,6 +1,6 @@
 
 import {
-    Currency, Exchange, type Transaction, type Portfolio, type ExchangeRates, InstrumentType, type DashboardSummaryData
+    Currency, Exchange, type Transaction, type Portfolio, type ExchangeRates, InstrumentType, type DashboardSummaryData, isBuy, isSell
 } from '../types';
 import { Holding, getCPI, computeRealTaxableGain, type DividendRecord } from './model';
 import { getTaxRatesForDate, getFeeRatesForDate } from '../portfolioUtils';
@@ -533,13 +533,13 @@ export class FinanceEngine {
         for (const t of h.transactions) {
             if (new Date(t.date).getTime() > time) continue;
 
-            if (t.type === 'BUY') {
+            if (isBuy(t.type)) {
                 const qty = t.qty || 0;
                 const isVested = !t.vestDate || new Date(t.vestDate).getTime() <= time;
                 if (isVested) vested += qty;
                 else unvested += qty;
             }
-            if (t.type === 'SELL') {
+            if (isSell(t.type)) {
                 // assume sells come from vested
                 vested -= (t.qty || 0);
             }

@@ -4,6 +4,7 @@ import { useLanguage } from '../lib/i18n';
 import { getTaxRatesForDate } from '../lib/portfolioUtils';
 import { Currency } from '../lib/types';
 import type { DashboardHolding, Transaction, ExchangeRates, Portfolio } from '../lib/types';
+import { isBuy, isSell } from '../lib/types';
 import type { EnrichedDashboardHolding } from '../lib/dashboard';
 import type { Lot, Holding, DividendRecord } from '../lib/data/model';
 import { useMemo, useState, useEffect } from 'react';
@@ -1060,7 +1061,7 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
 
                                     // If vesting date exists and type is BUY, show Grant
                                     let typeLabel = txn.type;
-                                    if (txn.type === 'BUY' && txn.vestDate) {
+                                    if (isBuy(txn.type) && txn.vestDate) {
                                         typeLabel = 'Grant' as any;
                                     }
                                     const txnPortfolioName = portfolioNameMap[txn.portfolioId] || txn.portfolioId;
@@ -1069,8 +1070,8 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                                     // Handle BUY_TRANSFER -> Buy Transfer
                                     const displayLabel = titleCase(typeLabel).replace('_', ' ');
 
-                                    const isBuy = txn.type === 'BUY' || txn.type === 'BUY_TRANSFER';
-                                    const isSell = txn.type === 'SELL' || txn.type === 'SELL_TRANSFER';
+                                    const isBuyTxn = isBuy(txn.type);
+                                    const isSellTxn = isSell(txn.type);
 
                                     return (
                                         <TableRow key={i} hover>
@@ -1079,7 +1080,7 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                                                 <Typography
                                                     variant="caption"
                                                     fontWeight="bold"
-                                                    sx={{ color: isBuy ? 'primary.main' : isSell ? 'secondary.main' : 'text.secondary' }}
+                                                    sx={{ color: isBuyTxn ? 'primary.main' : isSellTxn ? 'secondary.main' : 'text.secondary' }}
                                                 >
                                                     {displayLabel}
                                                 </Typography>

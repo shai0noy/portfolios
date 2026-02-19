@@ -1,5 +1,5 @@
 
-import { Currency, Exchange, type Transaction, type ExchangeRates, type Portfolio } from '../types';
+import { Currency, Exchange, type Transaction, type ExchangeRates, type Portfolio, isBuy, isSell } from '../types';
 import { convertCurrency, toILS, normalizeCurrency } from '../currencyUtils';
 import { getTaxRatesForDate } from '../portfolioUtils';
 
@@ -348,9 +348,9 @@ export class Holding {
             // feeSC = convertCurrency(commAmount, commCurrency === Currency.ILA ? Currency.ILS : commCurrency, this.stockCurrency, rates);
         }
 
-        if (txn.type === 'BUY' || txn.type === 'BUY_TRANSFER') {
+        if (isBuy(txn.type)) {
             this.handleBuy(txn, rates, cpi, feePC, options);
-        } else if (txn.type === 'SELL' || txn.type === 'SELL_TRANSFER') {
+        } else if (isSell(txn.type)) {
             return this.handleSell(txn, rates, cpi, feePC, portfolio);
         } else if (txn.type === 'DIVIDEND') {
             // usually handled via addDividend

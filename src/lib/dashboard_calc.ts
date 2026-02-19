@@ -5,6 +5,7 @@ import { convertCurrency, calculatePerformanceInDisplayCurrency } from './curren
 import { INITIAL_SUMMARY, FinanceEngine } from './data/engine';
 import type { Lot, DividendRecord } from './data/model';
 import type { Transaction } from './types';
+import { isSell } from './types';
 
 
 
@@ -100,7 +101,7 @@ export function calculateDashboardSummary(data: any[], displayCurrency: string, 
     // Iterate SELL transactions
     // We use `h.transactions` which are filtered by ticker/exchange.
     const proceedsDisplay = h.transactions
-      .filter(t => t.type === 'SELL')
+      .filter(t => isSell(t.type))
       .reduce((sum, t) => {
         // Replicate `performance.ts` logic: prefer originalPriceILA/USD
         let val = 0;
