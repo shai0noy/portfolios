@@ -151,6 +151,67 @@ describe('holding_utils', () => {
             expect(w1!.weightInGlobal).toBeCloseTo(100 / 1400);
             expect(w2!.weightInGlobal).toBeCloseTo(400 / 1400);
         });
+        it('groups lots correctly - transferred vs sold', () => {
+            const layers = [
+                {
+                    portfolioId: 'p1',
+                    date: new Date('2023-01-01'),
+                    qty: 10,
+                    costPerUnit: { amount: 10, currency: Currency.USD },
+                    costTotal: { amount: 100, currency: Currency.USD },
+                    feesBuy: { amount: 0, currency: Currency.USD },
+                    unrealizedTax: 0,
+                    id: 'l1',
+                    originalTxnId: 'l1' // Must match realized layers
+                    // costPerUnit: { amount: 10, currency: Currency.USD, rateToPortfolio: 1 } // Removed duplicate
+                }
+            ];
+
+            const realizedLayers = [
+                {
+                    portfolioId: 'p1',
+                    date: new Date('2023-01-01'), // Same original date
+                    soldDate: new Date('2023-06-01'),
+                    qty: 5,
+                    costPerUnit: { amount: 10, currency: Currency.USD, rateToPortfolio: 1 },
+                    costTotal: { amount: 50, currency: Currency.USD },
+                    feesBuy: { amount: 0, currency: Currency.USD },
+                    realizedGainNet: 20,
+                    totalRealizedTaxPC: 5,
+                    soldFees: { amount: 0, currency: Currency.USD },
+                    id: 'l1_sold',
+                    originalTxnId: 'l1' // Links to same layer
+                },
+                {
+                    portfolioId: 'p1',
+                    date: new Date('2023-01-01'),
+                    soldDate: new Date('2023-07-01'),
+                    qty: 3,
+                    costPerUnit: { amount: 10, currency: Currency.USD, rateToPortfolio: 1 },
+                    costTotal: { amount: 30, currency: Currency.USD },
+                    feesBuy: { amount: 0, currency: Currency.USD },
+                    realizedGainNet: 0,
+                    totalRealizedTaxPC: 0,
+                    soldFees: { amount: 0, currency: Currency.USD },
+                    id: 'l1_transfer',
+                    originalTxnId: 'l1',
+                    disposalType: 'TRANSFER' // Test Transfer Logic
+                }
+            ];
+
+            const result = groupHoldingLayers(layers as any, realizedLayers, mockRates, Currency.USD, {}, {} as any, Currency.USD);
+
+            expect(result.length).toBe(1);
+            const p1 = result[0];
+            const keys = Object.keys(p1.layers);
+            expect(keys.length).toBe(1);
+            const l = p1.layers[keys[0]];
+
+            expect(l.originalQty).toBe(18); // 10 active + 5 sold + 3 transferred
+            expect(l.remainingQty).toBe(10);
+            expect(l.soldQty).toBe(5);
+            expect(l.transferredQty).toBe(3);
+        });
     });
 });
 

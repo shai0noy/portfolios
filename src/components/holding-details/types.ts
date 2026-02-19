@@ -37,6 +37,7 @@ export interface UnifiedLayer {
     originalQty: number;
     remainingQty: number;
     soldQty: number;
+    transferredQty?: number; // Tracked separately from soldQty
     originalCost: number; // in SC
     remainingCost: number; // in SC
     fees: number;

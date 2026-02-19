@@ -253,6 +253,7 @@ export function groupHoldingLayers(
                 originalQty: 0,
                 remainingQty: 0,
                 soldQty: 0,
+                transferredQty: 0,
                 originalCost: 0, // in SC
                 remainingCost: 0, // in SC
                 fees: 0,
@@ -291,7 +292,13 @@ export function groupHoldingLayers(
         if (lot.adjustmentDetails) g.adjustmentDetails = lot.adjustmentDetails;
 
         if (lot.soldDate) {
-            g.soldQty += lot.qty;
+            // Check disposal type
+            if (lot.disposalType === 'TRANSFER') {
+                g.transferredQty = (g.transferredQty || 0) + lot.qty;
+            } else {
+                g.soldQty += lot.qty;
+            }
+
             g.realizedGain += convertMoney(lot.realizedGainNet ? { amount: lot.realizedGainNet, currency: lot.costTotal.currency } : undefined, displayCurrency, exchangeRates || undefined).amount;
             const rTax = convertCurrency(lot.totalRealizedTaxPC || 0, lot.costTotal?.currency || Currency.USD, displayCurrency, exchangeRates || undefined);
             g.taxLiability += rTax;

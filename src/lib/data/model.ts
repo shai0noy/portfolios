@@ -88,6 +88,7 @@ export interface Lot {
         label: string;
         percentage: number;
     };
+    disposalType?: 'SELL' | 'TRANSFER'; // Track how the lot was disposed
 }
 
 export interface DividendRecord {
@@ -579,6 +580,7 @@ export class Holding {
 
             // Mark as Sold
             targetLot.soldDate = new Date(txn.date);
+            targetLot.disposalType = txn.type === 'SELL_TRANSFER' ? 'TRANSFER' : 'SELL';
 
             // Allocate Sell Fees Pro-Rata
             const allocatedSellFeePC = (portion / totalSellQty) * feePC;

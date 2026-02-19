@@ -116,12 +116,33 @@ export class FinanceEngine {
         events.sort((a, b) => {
             const timeDiff = new Date(a.data.date).getTime() - new Date(b.data.date).getTime();
             if (timeDiff !== 0) return timeDiff;
-            // secondary sort: SELL_TRANSFER before BUY_TRANSFER
-            const typeA = (a.kind === 'TXN') ? a.data.type : '';
-            const typeB = (b.kind === 'TXN') ? b.data.type : '';
-            if (typeA === 'SELL_TRANSFER' && typeB !== 'SELL_TRANSFER') return -1;
-            if (typeB === 'SELL_TRANSFER' && typeA !== 'SELL_TRANSFER') return 1;
-            return 0;
+
+            // Same Date: Priority Sort
+            // Order: BUY -> DIV -> SELL_TRANSFER -> BUY_TRANSFER -> SELL
+            // Rationale:
+            // 1. BUY: Must acquire before selling.
+            // 2. DIV: Receive dividends on held amount before selling? (Debatable, but usually Ex-Date is key. If same day, assume held).
+            // 3. SELL_TRANSFER: Must happen before BUY_TRANSFER to populate Cost Basis bucket.
+            // 4. BUY_TRANSFER: Consumes bucket.
+            // 5. SELL: Standard disposal.
+
+            const getPriority = (kind: string, data: any): number => {
+                if (kind === 'DIV') return 2;
+                const type = data.type;
+                switch (type) {
+                    case 'BUY': return 1;
+                    case 'SELL_TRANSFER': return 3;
+                    case 'BUY_TRANSFER': return 4;
+                    case 'SELL': return 5;
+                    case 'FEE': return 6;
+                    default: return 99;
+                }
+            };
+
+            const pA = getPriority(a.kind, a.data);
+            const pB = getPriority(b.kind, b.data);
+
+            return pA - pB;
         });
 
         // Reset Bucket

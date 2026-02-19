@@ -160,6 +160,170 @@ describe('FinanceEngine', () => {
         expect(l.realizedGainNet).toBe(240);
     });
 
+    it('calculates correct realized gains when multiple sells consume a single buy lot', () => {
+        const engine = new FinanceEngine([portfolio], mockRates as any, mockCPI as any);
+        const p1 = portfolio; // Using the existing portfolio
+
+        const tBuy: Transaction = {
+            portfolioId: p1.id,
+            ticker: 'SPLIT',
+            date: '2023-01-01',
+            type: 'BUY',
+            qty: 100,
+            price: 10, // Cost 1000
+            originalQty: 100,
+            originalPrice: 10,
+            currency: Currency.USD,
+            exchange: Exchange.NASDAQ
+        };
+
+        const tSell1: Transaction = {
+            portfolioId: p1.id,
+            ticker: 'SPLIT',
+            date: '2023-06-01',
+            type: 'SELL',
+            qty: 40,
+            price: 20, // 800 proceeds, Cost 400, Gain 400
+            originalQty: 40,
+            originalPrice: 20,
+            currency: Currency.USD,
+            exchange: Exchange.NASDAQ
+        };
+
+        const tSell2: Transaction = {
+            portfolioId: p1.id,
+            ticker: 'SPLIT',
+            date: '2023-07-01',
+            type: 'SELL',
+            qty: 60,
+            price: 25, // 1500 proceeds, Cost 600, Gain 900
+            originalQty: 60,
+            originalPrice: 25,
+            currency: Currency.USD,
+            exchange: Exchange.NASDAQ
+        };
+
+        engine.processEvents([tBuy, tSell1, tSell2], []);
+
+        const h = engine.holdings.get(`${p1.id}_SPLIT`);
+        expect(h).toBeDefined();
+        expect(h!.realizedGainNet.amount).toBeCloseTo(400 + 900); // 1300
+        expect(h!.qtyTotal).toBe(0);
+    });
+
+    it('full transfer out results in zero quantity and no ghost holding', () => {
+        const p1: Portfolio = { ...portfolio, id: 'p1_ghost', name: 'Fixed Inc' };
+        const p2: Portfolio = { ...portfolio, id: 'p2_ghost', name: 'Stocks' };
+        const engine = new FinanceEngine([p1, p2], mockRates as any, mockCPI as any);
+
+        // Buy 100 units in P1
+        const t1: Transaction = {
+            portfolioId: p1.id,
+            ticker: 'GHOST',
+            date: '2023-01-01',
+            type: 'BUY',
+            qty: 100,
+            price: 10,
+            originalQty: 100,
+            originalPrice: 10,
+            currency: Currency.USD,
+            exchange: Exchange.NASDAQ
+        };
+
+        // Transfer all 100 units to P2
+        const t2: Transaction = {
+            portfolioId: p1.id,
+            ticker: 'GHOST',
+            date: '2023-02-01',
+            type: 'SELL_TRANSFER',
+            qty: 100,
+            price: 15,
+            originalQty: 100,
+            originalPrice: 15,
+            currency: Currency.USD,
+            exchange: Exchange.NASDAQ
+        };
+
+        const t3: Transaction = {
+            portfolioId: p2.id,
+            ticker: 'GHOST',
+            date: '2023-02-01',
+            type: 'BUY_TRANSFER',
+            qty: 100,
+            price: 15,
+            originalQty: 100,
+            originalPrice: 15,
+            currency: Currency.USD,
+            exchange: Exchange.NASDAQ
+        };
+
+        // Manual rate injection for test
+        // (engine as any).exchangeRates = {
+        //      '2023-01-01': { 'ILS': 3.5 },
+        //      '2023-02-01': { 'ILS': 3.6 }
+        // }; // Not needed for this test as currency is USD
+
+        engine.processEvents([t1, t2, t3], []);
+
+        // Check P1 holding
+        const h1 = engine.holdings.get(`${p1.id}_GHOST`);
+        expect(h1).toBeDefined();
+        expect(h1!.qtyTotal).toBe(0);
+        expect(h1!.activeLots.length).toBe(0);
+
+        // Assert Realized Gain is 0 for the transfer
+        expect(h1!.realizedGainNet.amount).toBe(0);
+
+        // The engine.getHoldingsForPortfolio method is not directly available in this test setup.
+        // We can check the holdings map directly.
+        const p1HoldingsKeys = Array.from(engine.holdings.keys()).filter(key => key.startsWith(p1.id));
+        const ghostHoldingKey = p1HoldingsKeys.find(key => key.includes('GHOST'));
+
+        expect(ghostHoldingKey).toBeDefined(); // Should still exist in the map, but with 0 qty
+        const ghost = engine.holdings.get(ghostHoldingKey!);
+        expect(ghost).toBeDefined();
+        expect(ghost?.qtyTotal).toBe(0);
+        expect(ghost?.realizedGainNet.amount).toBe(0);
+    });
+
+    it('handles same-day BUY and SELL_TRANSFER correctly (BUY before SELL)', () => {
+        const engine = new FinanceEngine([portfolio], mockRates as any, mockCPI as any);
+        const p1 = portfolio;
+
+        const tBuy: Transaction = {
+            portfolioId: p1.id,
+            ticker: 'SAMEDAY',
+            date: '2023-01-01',
+            type: 'BUY',
+            qty: 100,
+            price: 10,
+            originalQty: 100,
+            originalPrice: 10,
+            currency: Currency.USD,
+            exchange: Exchange.NASDAQ
+        };
+
+        const tSellTransfer: Transaction = {
+            portfolioId: p1.id,
+            ticker: 'SAMEDAY',
+            date: '2023-01-01',
+            type: 'SELL_TRANSFER',
+            qty: 100,
+            price: 10,
+            originalQty: 100,
+            originalPrice: 10,
+            currency: Currency.USD,
+            exchange: Exchange.NASDAQ
+        };
+
+        engine.processEvents([tBuy, tSellTransfer], []);
+
+        const h = engine.holdings.get(`${p1.id}_SAMEDAY`);
+        expect(h).toBeDefined();
+        // Should be 0 if SELL happens AFTER BUY
+        expect(h!.qtyTotal).toBe(0);
+    });
+
     it('handles standard lifecycle: Buy, Dividend, Partial Sell', () => {
         const engine = new FinanceEngine([portfolio], mockRates as any, mockCPI as any);
 

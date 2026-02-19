@@ -68,7 +68,6 @@ export function HoldingLayers({ groupedLayers, displayCurrency, portfolios, exch
                                     const vestDate = layer.vestingDate;
                                     const isVested = !vestDate || new Date(vestDate) <= new Date(); // Ensure Date comparison
                                     const vestColor = vestDate ? (isVested ? 'success.main' : 'text.secondary') : 'inherit';
-                                    const soldPct = layer.originalQty > 0 ? layer.soldQty / layer.originalQty : 0;
 
                                     return (
                                         <TableRow key={layer.originalTxnId || `${group.portfolioId}-${i}`}>
@@ -76,7 +75,20 @@ export function HoldingLayers({ groupedLayers, displayCurrency, portfolios, exch
                                             <TableCell align="right">{formatNumber(layer.originalQty)}</TableCell>
                                             <TableCell align="right">
                                                 <Tooltip
-                                                    title={`${t('Sold:', 'נמכר:')} ${formatNumber(layer.soldQty)} (${formatPercent(soldPct)})`}
+                                                    title={
+                                                        <Box>
+                                                            {layer.soldQty > 0 && (
+                                                                <Typography variant="body2">
+                                                                    {t('Sold:', 'נמכר:')} {formatNumber(layer.soldQty)} ({formatPercent(layer.originalQty > 0 ? layer.soldQty / layer.originalQty : 0)})
+                                                                </Typography>
+                                                            )}
+                                                            {layer.transferredQty && layer.transferredQty > 0 && (
+                                                                <Typography variant="body2">
+                                                                    {t('Transferred:', 'הועבר:')} {formatNumber(layer.transferredQty)} ({formatPercent(layer.originalQty > 0 ? layer.transferredQty / layer.originalQty : 0)})
+                                                                </Typography>
+                                                            )}
+                                                        </Box>
+                                                    }
                                                     enterTouchDelay={0}
                                                     leaveTouchDelay={3000}
                                                 >
