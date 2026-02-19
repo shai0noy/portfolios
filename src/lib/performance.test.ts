@@ -151,7 +151,7 @@ async function testDRIP() {
     } as any];
     const txns: Transaction[] = [
         { date: '2024-01-02', portfolioId: 'p1', ticker: 'DRIP', exchange: Exchange.NASDAQ, type: 'BUY', qty: 10, price: 100 } as any,
-        { date: '2024-01-03', portfolioId: 'p1', ticker: 'DRIP', exchange: Exchange.NASDAQ, type: 'DIVIDEND', qty: 0.5, price: 50, originalPrice: 50 } as any
+        { date: '2024-01-03', portfolioId: 'p1', ticker: 'DRIP', exchange: Exchange.NASDAQ, type: 'DIVIDEND', qty: 0.5, price: 100, originalPrice: 100 } as any
     ];
     const { points } = await calculatePortfolioPerformance(holdings, txns, 'USD', mockRates, undefined, undefined, mockFetchHistory);
 

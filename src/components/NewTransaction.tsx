@@ -18,7 +18,7 @@ import { addTransaction, fetchPortfolios, addExternalPrice, syncDividends, addDi
 import { getTickerData, type TickerData } from '../lib/fetching';
 import { TickerSearch } from './TickerSearch';
 import { convertCurrency, formatPrice, getExchangeRates, normalizeCurrency } from '../lib/currency';
-import { Currency, type ExchangeRates } from '../lib/types';
+import { Currency, type ExchangeRates, isBuy, isSell, type TransactionType } from '../lib/types';
 import { useLanguage } from '../lib/i18n';
 import { NumericField } from './PortfolioInputFields';
 
@@ -265,12 +265,15 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
       return;
     }
 
-    if (currentType === 'BUY' || currentType === 'SELL') {
+    const isBuyType = (t: string) => t !== 'DIV_EVENT' && t !== 'HOLDING_CHANGE' && isBuy(t as TransactionType);
+    const isSellType = (t: string) => t !== 'DIV_EVENT' && t !== 'HOLDING_CHANGE' && isSell(t as TransactionType);
+
+    if (isBuyType(currentType) || isSellType(currentType)) {
       const exemption = selectedPort.commExemption;
       const isExempt =
         (exemption === 'all') ||
-        (exemption === 'buys' && currentType === 'BUY') ||
-        (exemption === 'sells' && currentType === 'SELL');
+        (exemption === 'buys' && isBuyType(currentType)) ||
+        (exemption === 'sells' && isSellType(currentType));
 
       if (isExempt) {
         setCommission('0');
@@ -368,8 +371,9 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     const q = val;
     const p = parseFloat(price);
 
+    const isSellType = (t: string) => t !== 'DIV_EVENT' && t !== 'HOLDING_CHANGE' && isSell(t as TransactionType);
     // Update Percent if Sell/Holding Change
-    if ((type === 'SELL' || type === 'HOLDING_CHANGE') && selectedTicker) {
+    if ((isSellType(type) || type === 'HOLDING_CHANGE') && selectedTicker) {
       const selectedPort = portfolios.find(p => p.id === portId);
       const holding = selectedPort?.holdings?.find(h => h.ticker === selectedTicker.symbol);
       if (holding && holding.qty > 0) {
@@ -480,7 +484,9 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     setPercent(valStr);
     const pct = val;
 
-    if ((type === 'SELL' || type === 'HOLDING_CHANGE') && selectedTicker) {
+    const isSellType = (t: string) => t !== 'DIV_EVENT' && t !== 'HOLDING_CHANGE' && isSell(t as TransactionType);
+
+    if ((isSellType(type) || type === 'HOLDING_CHANGE') && selectedTicker) {
       const selectedPort = portfolios.find(p => p.id === portId);
       const holding = selectedPort?.holdings?.find(h => h.ticker === selectedTicker.symbol);
 
@@ -555,8 +561,10 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
       if (!currentTotal || parseFloat(currentTotal) <= 0) errors.total = true;
     }
 
+    const isSellType = (t: string) => t !== 'DIV_EVENT' && t !== 'HOLDING_CHANGE' && isSell(t as TransactionType);
+
     // Additional Validations for SELL / HOLDING_CHANGE
-    if (currentType === 'SELL' || currentType === 'HOLDING_CHANGE') {
+    if (isSellType(currentType) || currentType === 'HOLDING_CHANGE') {
       const selectedPort = portfolios.find(p => p.id === currentPortId);
       const holding = selectedPort?.holdings?.find(h => h.ticker === currentTicker);
 
@@ -610,7 +618,8 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     const newType = e.target.value as any;
     setType(newType);
     updateCommission(total, portId, newType);
-    if (newType !== 'SELL' && newType !== 'HOLDING_CHANGE') {
+    const isSellType = (t: string) => t !== 'DIV_EVENT' && t !== 'HOLDING_CHANGE' && isSell(t as TransactionType);
+    if (!isSellType(newType) && newType !== 'HOLDING_CHANGE') {
       setPercent('');
     }
   };
@@ -696,8 +705,9 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     const errors = runValidation();
     setValidationErrors(errors);
 
+    const isSellType = (t: string) => t !== 'DIV_EVENT' && t !== 'HOLDING_CHANGE' && isSell(t as TransactionType);
     // Check specific alerts that might not be in "errors" object but block submit (like holding check alert)
-    if (type === 'SELL' || type === 'HOLDING_CHANGE') {
+    if (isSellType(type) || type === 'HOLDING_CHANGE') {
       const selectedPort = portfolios.find(p => p.id === portId);
       const holding = selectedPort?.holdings?.find(h => h.ticker === ticker);
 
@@ -1310,7 +1320,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                       ) : (
                         <>
                           {/* Dynamic Layout based on Type */}
-                          {(type === 'SELL' || type === 'HOLDING_CHANGE') ? (
+                            {(type !== 'DIV_EVENT' && type !== 'HOLDING_CHANGE' && isSell(type as TransactionType) || type === 'HOLDING_CHANGE') ? (
                             <>
                               {/* Row 1: Qty and Percent */}
                               <Grid item xs={12}><Divider sx={{ my: 1 }} /></Grid>

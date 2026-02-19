@@ -434,11 +434,13 @@ export interface Transaction {
   rowIndex?: number;
 }
 
-export function isBuy(type: Transaction['type']): boolean {
+export type TransactionType = Transaction['type'];
+
+export function isBuy(type: TransactionType): boolean {
   return type === 'BUY' || type === 'BUY_TRANSFER';
 }
 
-export function isSell(type: Transaction['type']): boolean {
+export function isSell(type: TransactionType): boolean {
   return type === 'SELL' || type === 'SELL_TRANSFER';
 }
 
