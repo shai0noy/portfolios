@@ -3,13 +3,24 @@ import { ensureGapi, findSpreadsheetByName } from '../google';
 import { clearFinanceCache } from '../data/loader';
 import { getTickerData, type TickerData } from '../fetching';
 import { toGoogleSheetDateFormat } from '../date';
-import { type Portfolio, type Transaction, type SheetHolding, Exchange, parseExchange, toGoogleSheetsExchangeCode, Currency, isBuy, isSell } from '../types';
+import {
+    Exchange,
+    isBuy,
+    isSell,
+    parseExchange,
+    type Portfolio,
+    type SheetHolding,
+    toGoogleSheetsExchangeCode,
+    type Transaction,
+    type TransactionType,
+    Currency
+} from '../types';
 import { normalizeCurrency } from '../currency';
 import {
     TXN_COLS, transactionHeaders, transactionMapping, transactionNumericKeys,
     portfolioHeaders, holdingsHeaders, configHeaders, portfolioMapping, portfolioNumericKeys,
     holdingMapping, holdingNumericKeys, type Headers, DEFAULT_SHEET_NAME, PORT_OPT_RANGE, type SheetHolding as MappedSheetHolding,
-    TX_SHEET_NAME, TX_FETCH_RANGE, CONFIG_SHEET_NAME, CONFIG_RANGE, METADATA_SHEET, 
+    TX_SHEET_NAME, TX_FETCH_RANGE, CONFIG_SHEET_NAME, CONFIG_RANGE, METADATA_SHEET,
     metadataHeaders, METADATA_RANGE, HOLDINGS_SHEET, HOLDINGS_RANGE, SHEET_STRUCTURE_VERSION_DATE,
     EXTERNAL_DATASETS_SHEET_NAME, externalDatasetsHeaders, EXTERNAL_DATASETS_RANGE,
     DIV_SHEET_NAME, dividendHeaders, DIVIDENDS_RANGE
@@ -72,19 +83,19 @@ const withAuthHandling = <A extends unknown[], R>(fn: (...args: A) => Promise<R>
 
 export const ensureSchema = withAuthHandling(async (spreadsheetId: string) => {
     const gapi = await ensureGapi();
-    
+
     // 1. Batch fetch/create all required sheets
     // We explicitly list all sheets we expect to exist.
     const requiredSheets = [
-        PORTFOLIO_SHEET_NAME, 
-        TX_SHEET_NAME, 
-        HOLDINGS_SHEET, 
-        CONFIG_SHEET_NAME, 
-        METADATA_SHEET, 
+        PORTFOLIO_SHEET_NAME,
+        TX_SHEET_NAME,
+        HOLDINGS_SHEET,
+        CONFIG_SHEET_NAME,
+        METADATA_SHEET,
         EXTERNAL_DATASETS_SHEET_NAME,
         DIV_SHEET_NAME
     ] as const;
-    
+
     // ensureSheets returns a map of { SheetName: SheetID }
     // This optimization replaces N sequential 'getSheetId' calls with 1 batch read + 1 batch write (if needed).
     const sheetIds = await ensureSheets(spreadsheetId, requiredSheets);
@@ -102,7 +113,7 @@ export const ensureSchema = withAuthHandling(async (spreadsheetId: string) => {
                 createHeaderUpdateRequest(sheetIds[METADATA_SHEET], metadataHeaders as unknown as Headers),
                 createHeaderUpdateRequest(sheetIds[EXTERNAL_DATASETS_SHEET_NAME], externalDatasetsHeaders as unknown as Headers),
                 createHeaderUpdateRequest(sheetIds[DIV_SHEET_NAME], dividendHeaders as unknown as Headers),
-                
+
                 // 3. Format Date columns in Transaction Log (A=date, K=vestDate, P=Creation_Date) to YYYY-MM-DD
                 // This ensures dates entered via code or UI appear correctly in the sheet.
                 {
@@ -144,7 +155,7 @@ export const ensureSchema = withAuthHandling(async (spreadsheetId: string) => {
     // New List: USDILS, ILSUSD, USDEUR, EURUSD, USDGBP, GBPUSD, EURILS, ILSEUR, GBPILS, ILSGBP
     const createCurrencyRow = (currencyPair: string) => {
         const getFormula = (dateExpr: string) => '=' + getHistoricalPriceFormula(currencyPair, dateExpr, true);
-        
+
         // We use simple GOOGLEFINANCE formulas. Robustness (fallback to inverted/chain) is handled in the app code.
         return [
             currencyPair,
@@ -167,7 +178,7 @@ export const ensureSchema = withAuthHandling(async (spreadsheetId: string) => {
         spreadsheetId, range: CONFIG_RANGE, valueInputOption: 'USER_ENTERED',
         resource: { values: initialConfig }
     });
-    
+
     // Mark schema as created/updated
     await setMetadataValue(spreadsheetId, 'schema_created', SHEET_STRUCTURE_VERSION_DATE);
 });
@@ -205,10 +216,10 @@ export const fetchHolding = withAuthHandling(async (spreadsheetId: string, ticke
         // Search for the holding in the mapped data
         const matchingHoldings = allHoldings.filter(h => h.ticker && String(h.ticker).toUpperCase() === ticker.toUpperCase());
         const targetExchange = parseExchange(exchange);
-        
+
         // Exact match on exchange
         let holding = matchingHoldings.find(h => h.exchange === targetExchange);
-        
+
         // Fallback: If no exact exchange match, but only one result exists for this ticker, use it.
         // This handles cases where the user/system might have inconsistent exchange codes (e.g. 'US' vs 'NASDAQ').
         if (!holding && matchingHoldings.length === 1) {
@@ -235,7 +246,7 @@ export const fetchHolding = withAuthHandling(async (spreadsheetId: string, ticke
 
 export const fetchPortfolios = withAuthHandling(async (spreadsheetId: string): Promise<Portfolio[]> => {
     const gapi = await ensureGapi();
-    
+
     // Batch fetch: Portfolios, Transactions, and Holdings (for price map)
     const ranges = [PORT_OPT_RANGE, TX_FETCH_RANGE, HOLDINGS_RANGE];
     const res = await gapi.client.sheets.spreadsheets.values.batchGet({
@@ -278,7 +289,7 @@ export const fetchPortfolios = withAuthHandling(async (spreadsheetId: string): P
     }).filter(Boolean);
 
     // 2. Process Transactions (Logic copied from fetchTransactions to avoid re-fetch, but reusing the mapper)
-    const transactions = transactionRows.map((row: unknown[]) => 
+    const transactions = transactionRows.map((row: unknown[]) =>
         mapRowToTransaction<Omit<Transaction, 'grossValue'>>(row as any[], transactionMapping, transactionNumericKeys)
     ).map((t) => {
         const cleanNumber = (val: unknown) => {
@@ -286,7 +297,7 @@ export const fetchPortfolios = withAuthHandling(async (spreadsheetId: string): P
             if (!val) return 0;
             return parseFloat(String(val).replace(/[^0-9.-]+/g, ""));
         };
-        
+
         const txn = t as Transaction;
         if (txn.exchange) {
             txn.exchange = parseExchange(String(txn.exchange));
@@ -311,7 +322,7 @@ export const fetchPortfolios = withAuthHandling(async (spreadsheetId: string): P
             holdingNumericKeys as any
         )
     );
-    
+
     priceData.forEach(item => {
         try {
             const holding = item as any;
@@ -384,17 +395,21 @@ export const fetchTransactions = withAuthHandling(async (spreadsheetId: string):
         'FORMATTED_VALUE' // Fetch formulas to get the raw formulas for calculation
     );
     return transactionsRaw.map(t_raw => {
-        const t = t_raw as Transaction; 
+        const t = t_raw as Transaction;
         const cleanNumber = (val: unknown) => {
             if (typeof val === 'number') return val;
             if (!val) return 0;
             return parseFloat(String(val).replace(/[^0-9.-]+/g, ""));
         };
-        
+
         if (t.exchange) {
             t.exchange = parseExchange(String(t.exchange));
         } else {
             t.exchange = undefined;
+        }
+
+        if (t.type) {
+            t.type = String(t.type).trim().toUpperCase() as TransactionType;
         }
 
         return {
@@ -456,11 +471,11 @@ export const batchAddTransactions = withAuthHandling(async (spreadsheetId: strin
     const gapi = await ensureGapi();
 
     const allValuesToAppend: (string | number | null)[][] = [];
-    
+
     // 2. Prepare data for appending
     transactions.forEach(t => {
         const rowData: Record<string, string | number | null | undefined> = { ...t as any };
-        
+
         // Normalize specific fields for the sheet
         rowData.date = t.date ? toGoogleSheetDateFormat(new Date(t.date)) : '';
         rowData.ticker = String(logIfFalsy(t.ticker, `Transaction ticker missing`, t)).toUpperCase();
@@ -468,7 +483,7 @@ export const batchAddTransactions = withAuthHandling(async (spreadsheetId: strin
         rowData.vestDate = t.vestDate ? toGoogleSheetDateFormat(new Date(t.vestDate)) : '';
         rowData.comment = t.comment || '';
         rowData.source = t.source || '';
-        
+
         // Commission handling: Convert to Agorot if currency is ILA
         const comm = t.commission || 0;
         const isILA = (t.currency || '').toUpperCase() === 'ILA';
@@ -477,7 +492,7 @@ export const batchAddTransactions = withAuthHandling(async (spreadsheetId: strin
         // Creation Date
         const cDate = t.creationDate ? new Date(t.creationDate) : new Date();
         rowData.creationDate = toGoogleSheetDateFormat(cDate);
-        
+
         // Numeric ID mapping
         rowData.numeric_id = t.numericId;
 
@@ -598,7 +613,7 @@ export const fetchDividends = withAuthHandling(async (spreadsheetId: string, tic
             valueRenderOption: 'UNFORMATTED_VALUE',
         });
         const rows = res.result.values || [];
-        
+
         const targetExchange = toGoogleSheetsExchangeCode(exchange);
         const targetTicker = ticker.toUpperCase();
 
@@ -635,28 +650,28 @@ export const fetchAllDividends = withAuthHandling(async (spreadsheetId: string):
             valueRenderOption: 'UNFORMATTED_VALUE',
         });
         const rows = res.result.values || [];
-        
-        return rows.map((row, index) => {
-                let date: Date;
-                const rawDate = row[2];
-                if (typeof rawDate === 'number') {
-                    date = new Date((rawDate - 25569) * 86400 * 1000);
-                } else {
-                    date = new Date(rawDate);
-                }
-                
-                let exchange: Exchange | undefined;
-                try { exchange = parseExchange(String(row[0])); } catch {}
 
-                return {
-                    exchange,
-                    ticker: String(row[1]).toUpperCase(),
-                    date,
-                    amount: Number(row[3]),
-                    source: String(row[4] || ''),
-                    rowIndex: index + 2
-                };
-            })
+        return rows.map((row, index) => {
+            let date: Date;
+            const rawDate = row[2];
+            if (typeof rawDate === 'number') {
+                date = new Date((rawDate - 25569) * 86400 * 1000);
+            } else {
+                date = new Date(rawDate);
+            }
+
+            let exchange: Exchange | undefined;
+            try { exchange = parseExchange(String(row[0])); } catch { }
+
+            return {
+                exchange,
+                ticker: String(row[1]).toUpperCase(),
+                date,
+                amount: Number(row[3]),
+                source: String(row[4] || ''),
+                rowIndex: index + 2
+            };
+        })
             .filter(div => div.exchange && !isNaN(div.date.getTime()) && !isNaN(div.amount)) as { ticker: string, exchange: Exchange, date: Date, amount: number, source: string, rowIndex: number }[];
     } catch (error: any) {
         if (error.result?.error?.code === 400) {
@@ -668,7 +683,7 @@ export const fetchAllDividends = withAuthHandling(async (spreadsheetId: string):
 
 export const syncDividends = withAuthHandling(async (spreadsheetId: string, ticker: string, exchange: Exchange, dividends: Dividend[], source: string) => {
     if (!dividends || dividends.length === 0) return;
-    
+
     const lockKey = `${exchange}:${ticker.toUpperCase()}`;
     if (dividendSyncLock.has(lockKey)) return;
     dividendSyncLock.add(lockKey);
@@ -685,14 +700,14 @@ export const syncDividends = withAuthHandling(async (spreadsheetId: string, tick
             valueRenderOption: 'UNFORMATTED_VALUE',
         });
         const rows = res.result.values || [];
-        
+
         const manualDates = new Set<string>();
         const exactMatches = new Set<string>();
 
         rows.forEach(row => {
             const rowEx = String(row[0]);
             const rowTicker = String(row[1]);
-            
+
             let rowDate: string;
             if (typeof row[2] === 'number') {
                 const date = new Date((row[2] - 25569) * 86400 * 1000);
@@ -700,12 +715,12 @@ export const syncDividends = withAuthHandling(async (spreadsheetId: string, tick
             } else {
                 rowDate = new Date(row[2]).toISOString().split('T')[0];
             }
-            
+
             const rowAmount = Number(row[3]).toFixed(6);
             const rowSource = String(row[4] || '').toUpperCase();
 
             const commonPrefix = `${rowEx}:${rowTicker}:${rowDate}`;
-            
+
             if (rowSource === 'MANUAL') {
                 manualDates.add(commonPrefix);
             }
@@ -717,14 +732,14 @@ export const syncDividends = withAuthHandling(async (spreadsheetId: string, tick
                 const dateStr = div.date.toISOString().split('T')[0];
                 const amountStr = div.amount.toFixed(6);
                 const prefix = `${toGoogleSheetsExchangeCode(exchange)}:${ticker.toUpperCase()}:${dateStr}`;
-                
+
                 // Rule 1: If a MANUAL entry exists for this date, ignore the incoming auto-dividend.
                 // This allows users to "override" Yahoo data by entering a manual row.
                 if (manualDates.has(prefix)) return null;
 
                 // Rule 2: If an exact match exists (same amount), ignore to prevent duplicates.
                 if (exactMatches.has(`${prefix}:${amountStr}`)) return null;
-                
+
                 return [
                     toGoogleSheetsExchangeCode(exchange),
                     ticker.toUpperCase(),
@@ -749,8 +764,8 @@ export const syncDividends = withAuthHandling(async (spreadsheetId: string, tick
     } catch (error: unknown) {
         const err = error as GapiError;
         if (err.result?.error?.code === 400) {
-             console.warn("Dividends sheet not found, skipping sync.");
-             return;
+            console.warn("Dividends sheet not found, skipping sync.");
+            return;
         }
         throw error;
     }
@@ -775,12 +790,12 @@ export const updateTransaction = withAuthHandling(async (spreadsheetId: string, 
         spreadsheetId, range: rangeVerify, valueRenderOption: 'UNFORMATTED_VALUE'
     });
     const rowVerify = resVerify.result.values?.[0];
-    
+
     if (!rowVerify) throw new Error("Row not found for update verification.");
 
     const sheetTicker = String(rowVerify[2]).toUpperCase();
     const origTicker = originalTxn.ticker.toUpperCase();
-    
+
     if (sheetTicker !== origTicker) {
         throw new Error(`Verification failed: Ticker mismatch. Expected ${origTicker}, found ${sheetTicker}. The sheet may have been modified externally.`);
     }
@@ -788,7 +803,7 @@ export const updateTransaction = withAuthHandling(async (spreadsheetId: string, 
     const sheetQty = Number(rowVerify[5]);
     const origQty = Number(originalTxn.originalQty);
     if (Math.abs(sheetQty - origQty) > 0.0001) {
-         throw new Error(`Verification failed: Quantity mismatch. Expected ${origQty}, found ${sheetQty}.`);
+        throw new Error(`Verification failed: Quantity mismatch. Expected ${origQty}, found ${sheetQty}.`);
     }
 
     // Prepare row data (same logic as batchAddTransactions)
@@ -799,7 +814,7 @@ export const updateTransaction = withAuthHandling(async (spreadsheetId: string, 
     rowData.vestDate = t.vestDate ? toGoogleSheetDateFormat(new Date(t.vestDate)) : '';
     rowData.comment = t.comment || '';
     rowData.source = t.source || '';
-    
+
     const comm = t.commission || 0;
     const isILA = (t.currency || '').toUpperCase() === 'ILA';
     rowData.commission = isILA ? comm * 100 : comm;
@@ -851,7 +866,7 @@ export const updateTransaction = withAuthHandling(async (spreadsheetId: string, 
 
 export const updateDividend = withAuthHandling(async (spreadsheetId: string, rowIndex: number, ticker: string, exchange: Exchange, date: Date, amount: number, source: string, originalDiv: { ticker: string, amount: number }) => {
     const gapi = await ensureGapi();
-    
+
     // Verification
     const rangeVerify = `${DIV_SHEET_NAME}!A${rowIndex}:D${rowIndex}`;
     const resVerify = await gapi.client.sheets.spreadsheets.values.get({
@@ -862,14 +877,14 @@ export const updateDividend = withAuthHandling(async (spreadsheetId: string, row
 
     const sheetTicker = String(rowVerify[1]).toUpperCase();
     const origTicker = originalDiv.ticker.toUpperCase();
-    
+
     if (sheetTicker !== origTicker) {
         throw new Error(`Verification failed: Ticker mismatch. Expected ${origTicker}, found ${sheetTicker}.`);
     }
-    
+
     const sheetAmount = Number(rowVerify[3]);
     if (Math.abs(sheetAmount - originalDiv.amount) > 0.000001) {
-         throw new Error(`Verification failed: Amount mismatch. Expected ${originalDiv.amount}, found ${sheetAmount}.`);
+        throw new Error(`Verification failed: Amount mismatch. Expected ${originalDiv.amount}, found ${sheetAmount}.`);
     }
 
     const dateStr = toGoogleSheetDateFormat(date);
@@ -880,7 +895,7 @@ export const updateDividend = withAuthHandling(async (spreadsheetId: string, row
         amount,
         source
     ];
-    
+
     const range = `${DIV_SHEET_NAME}!A${rowIndex}:E${rowIndex}`;
     await gapi.client.sheets.spreadsheets.values.update({
         spreadsheetId, range, valueInputOption: 'USER_ENTERED',
@@ -891,7 +906,7 @@ export const updateDividend = withAuthHandling(async (spreadsheetId: string, row
 
 export const deleteTransaction = withAuthHandling(async (spreadsheetId: string, rowIndex: number, originalTxn: Transaction) => {
     const gapi = await ensureGapi();
-    
+
     // Verification: Fetch row to check consistency
     const range = `${TX_SHEET_NAME}!A${rowIndex}:G${rowIndex}`; // Fetch up to Price
     // Use FORMATTED_VALUE to easily compare date string if possible, or UNFORMATTED for numbers.
@@ -900,13 +915,13 @@ export const deleteTransaction = withAuthHandling(async (spreadsheetId: string, 
         spreadsheetId, range, valueRenderOption: 'UNFORMATTED_VALUE'
     });
     const row = res.result.values?.[0];
-    
+
     if (!row) throw new Error("Row not found for deletion verification.");
 
     // Row Indices (A=0): A=Date, B=Portfolio, C=Ticker, D=Exchange, E=Type, F=Qty, G=Price
     const sheetTicker = String(row[2]).toUpperCase();
     const origTicker = originalTxn.ticker.toUpperCase();
-    
+
     if (sheetTicker !== origTicker) {
         throw new Error(`Verification failed: Ticker mismatch. Expected ${origTicker}, found ${sheetTicker}. The sheet may have been modified externally.`);
     }
@@ -914,11 +929,11 @@ export const deleteTransaction = withAuthHandling(async (spreadsheetId: string, 
     const sheetQty = Number(row[5]);
     const origQty = Number(originalTxn.originalQty);
     if (Math.abs(sheetQty - origQty) > 0.0001) {
-         throw new Error(`Verification failed: Quantity mismatch. Expected ${origQty}, found ${sheetQty}.`);
+        throw new Error(`Verification failed: Quantity mismatch. Expected ${origQty}, found ${sheetQty}.`);
     }
 
     const txSheetId = await getSheetId(spreadsheetId, TX_SHEET_NAME);
-    
+
     await gapi.client.sheets.spreadsheets.batchUpdate({
         spreadsheetId,
         resource: {
@@ -940,7 +955,7 @@ export const deleteTransaction = withAuthHandling(async (spreadsheetId: string, 
 
 export const deleteDividend = withAuthHandling(async (spreadsheetId: string, rowIndex: number, originalDiv: { ticker: string, amount: number }) => {
     const gapi = await ensureGapi();
-    
+
     // Verification
     const range = `${DIV_SHEET_NAME}!A${rowIndex}:D${rowIndex}`; // Exchange(A), Ticker(B), Date(C), Amount(D)
     const res = await gapi.client.sheets.spreadsheets.values.get({
@@ -951,18 +966,18 @@ export const deleteDividend = withAuthHandling(async (spreadsheetId: string, row
 
     const sheetTicker = String(row[1]).toUpperCase();
     const origTicker = originalDiv.ticker.toUpperCase();
-    
+
     if (sheetTicker !== origTicker) {
         throw new Error(`Verification failed: Ticker mismatch. Expected ${origTicker}, found ${sheetTicker}.`);
     }
-    
+
     const sheetAmount = Number(row[3]);
     if (Math.abs(sheetAmount - originalDiv.amount) > 0.000001) {
-         throw new Error(`Verification failed: Amount mismatch. Expected ${originalDiv.amount}, found ${sheetAmount}.`);
+        throw new Error(`Verification failed: Amount mismatch. Expected ${originalDiv.amount}, found ${sheetAmount}.`);
     }
 
     const divSheetId = await getSheetId(spreadsheetId, DIV_SHEET_NAME);
-    
+
     await gapi.client.sheets.spreadsheets.batchUpdate({
         spreadsheetId,
         resource: {
@@ -1337,11 +1352,11 @@ export const fetchSheetExchangeRates = withAuthHandling(async (spreadsheetId: st
     for (const period of sortedPeriods) {
         const periodRaw = rawPairs[period];
         const rates = allRates[period];
-        
+
         // Build adjacency list for this period
         const graph: Record<string, Record<string, number>> = {};
         const nodes = new Set<string>(['USD']);
-        
+
         // Helper to add edge
         const addEdge = (from: string, to: string, rate: number) => {
             if (!graph[from]) graph[from] = {};
@@ -1354,7 +1369,7 @@ export const fetchSheetExchangeRates = withAuthHandling(async (spreadsheetId: st
                 const from = pair.substring(0, 3);
                 const to = pair.substring(3, 6);
                 addEdge(from, to, val);
-                addEdge(to, from, 1/val);
+                addEdge(to, from, 1 / val);
                 nodes.add(from);
                 nodes.add(to);
             }
@@ -1387,17 +1402,17 @@ export const fetchSheetExchangeRates = withAuthHandling(async (spreadsheetId: st
         // If 'current' rate is missing, fallback to 'ago1d'. 
         // We do NOT fallback for other historical periods (user preference).
         if (period === 'current') {
-             const fallbackRates = allRates['ago1d'];
-             const knownCurrencies = Object.keys(fallbackRates);
-             knownCurrencies.forEach(curr => {
-                 // If current rate is missing (0 or undefined), but we have a 1-day-old rate, use it.
-                 if (curr !== 'USD' && (!rates[curr] || rates[curr] === 0)) {
-                     const fallback = fallbackRates[curr];
-                     if (fallback && fallback > 0) {
-                         rates[curr] = fallback;
-                     }
-                 }
-             });
+            const fallbackRates = allRates['ago1d'];
+            const knownCurrencies = Object.keys(fallbackRates);
+            knownCurrencies.forEach(curr => {
+                // If current rate is missing (0 or undefined), but we have a 1-day-old rate, use it.
+                if (curr !== 'USD' && (!rates[curr] || rates[curr] === 0)) {
+                    const fallback = fallbackRates[curr];
+                    if (fallback && fallback > 0) {
+                        rates[curr] = fallback;
+                    }
+                }
+            });
         }
     }
 
@@ -1443,27 +1458,27 @@ export const getExternalPrices = withAuthHandling(async (spreadsheetId: string):
         rows.forEach((r: unknown[]) => {
             const row = r as any[];
             if (!row[0] || !row[1] || !row[3]) return; // Ticker, Exchange, Price required
-            
+
             let exchange: Exchange;
             try {
-                 exchange = parseExchange(String(row[1]));
+                exchange = parseExchange(String(row[1]));
             } catch (e) {
                 return;
             }
-            
+
             const key = `${exchange}:${row[0].toString().toUpperCase()}`;
             if (!prices[key]) prices[key] = [];
-            
+
             // Date handling: Sheets might return number (OADate) or string
             let dateVal: Date;
             const rawDate = row[2];
             if (typeof rawDate === 'number') {
-                 // OADate conversion (approximate, Google Sheets base date Dec 30 1899)
-                 dateVal = new Date((rawDate - 25569) * 86400 * 1000);
+                // OADate conversion (approximate, Google Sheets base date Dec 30 1899)
+                dateVal = new Date((rawDate - 25569) * 86400 * 1000);
             } else {
-                 dateVal = new Date(rawDate);
+                dateVal = new Date(rawDate);
             }
-            
+
             if (isNaN(dateVal.getTime())) return; // Invalid date
 
             prices[key].push({
@@ -1472,10 +1487,10 @@ export const getExternalPrices = withAuthHandling(async (spreadsheetId: string):
                 currency: normalizeCurrency(row[4] || '')
             });
         });
-        
+
         // Sort by date descending
         Object.values(prices).forEach(list => list.sort((a, b) => b.date.getTime() - a.date.getTime()));
-        
+
         return prices;
     } catch (e: unknown) {
         const err = e as GapiError;
@@ -1488,4 +1503,4 @@ export const getExternalPrices = withAuthHandling(async (spreadsheetId: string):
     }
 });
 
-export {};
+export { };

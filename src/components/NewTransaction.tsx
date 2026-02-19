@@ -1320,7 +1320,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                       ) : (
                         <>
                           {/* Dynamic Layout based on Type */}
-                            {(type !== 'DIV_EVENT' && type !== 'HOLDING_CHANGE' && isSell(type as TransactionType) || type === 'HOLDING_CHANGE') ? (
+                            {(type !== 'HOLDING_CHANGE' && isSell(type as TransactionType) || type === 'HOLDING_CHANGE') ? (
                             <>
                               {/* Row 1: Qty and Percent */}
                               <Grid item xs={12}><Divider sx={{ my: 1 }} /></Grid>
