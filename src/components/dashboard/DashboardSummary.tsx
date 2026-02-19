@@ -1,4 +1,4 @@
-import { Box, Paper, Typography, Grid, Tooltip, ToggleButton, ToggleButtonGroup, IconButton, CircularProgress, Button, Menu, MenuItem, Chip, ListItemIcon, Dialog, DialogTitle, DialogContent } from '@mui/material';
+import { Box, Paper, Typography, Grid, Tooltip, ToggleButton, ToggleButtonGroup, IconButton, CircularProgress, Button, Menu, MenuItem, Chip, ListItemIcon, Dialog, DialogTitle, DialogContent, Fade } from '@mui/material';
 import { formatMoneyValue, normalizeCurrency } from '../../lib/currencyUtils';
 import { logIfFalsy } from '../../lib/utils';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
@@ -241,7 +241,9 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
 
         <Box sx={{ px: 4 }}>
           {activeStep === 0 && (
-            <Grid container spacing={2} alignItems="center">
+            <Fade in={true} timeout={700}>
+              <Box>
+                <Grid container spacing={2} alignItems="center">
               <Grid item xs={12} md={3}>
                 {!selectedPortfolio && (
                   <Typography variant="subtitle2" color="text.secondary">{t('TOTAL VALUE', 'שווי כולל')}</Typography>
@@ -355,9 +357,12 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                   </Box>
                 </Box>
               </Grid>
-            </Grid>
+                </Grid>
+              </Box>
+            </Fade>
           )}
           {activeStep === 1 && (
+            <Fade in={true} timeout={700}>
             <Box sx={{ height: 210, position: 'relative' }}>
               {isPerfLoading ? (
                 <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" height="100%" gap={1}>
@@ -526,9 +531,14 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                 </Box>
               )}
             </Box>
+            </Fade>
           )}
           {activeStep === 2 && (
-            <TopMovers holdings={holdings} displayCurrency={displayCurrency} exchangeRates={exchangeRates} />
+            <Fade in={true} timeout={700}>
+              <Box>
+                <TopMovers holdings={holdings} displayCurrency={displayCurrency} exchangeRates={exchangeRates} />
+              </Box>
+            </Fade>
           )}
         </Box>
       </Paper>
