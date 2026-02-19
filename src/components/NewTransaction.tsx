@@ -22,6 +22,9 @@ import { Currency, type ExchangeRates, isBuy, isSell, type TransactionType } fro
 import { useLanguage } from '../lib/i18n';
 import { NumericField } from './PortfolioInputFields';
 
+const isTxnBuy = (t: string) => isBuy(t as TransactionType);
+const isTxnSell = (t: string) => isSell(t as TransactionType);
+
 interface Props {
   sheetId: string;
   onSaveSuccess?: (message?: string, undoCallback?: () => void) => void;
@@ -265,15 +268,12 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
       return;
     }
 
-    const isBuyType = (t: string) => t !== 'DIV_EVENT' && t !== 'HOLDING_CHANGE' && isBuy(t as TransactionType);
-    const isSellType = (t: string) => t !== 'DIV_EVENT' && t !== 'HOLDING_CHANGE' && isSell(t as TransactionType);
-
-    if (isBuyType(currentType) || isSellType(currentType)) {
+    if (isTxnBuy(currentType) || isTxnSell(currentType)) {
       const exemption = selectedPort.commExemption;
       const isExempt =
         (exemption === 'all') ||
-        (exemption === 'buys' && isBuyType(currentType)) ||
-        (exemption === 'sells' && isSellType(currentType));
+        (exemption === 'buys' && isTxnBuy(currentType)) ||
+        (exemption === 'sells' && isTxnSell(currentType));
 
       if (isExempt) {
         setCommission('0');
@@ -358,12 +358,6 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
 
   const handleQtyChange = useCallback((val: number) => {
     // NumericField passes number (or 0 if invalid/empty)
-    // But we strictly need string state for "0." or empty
-    // Actually NumericField handles "0." internally and passes raw number.
-    // If val is 0, it might be 0 or empty.
-    // We should convert to string.
-    // Wait, if user types "0.", val is 0. We set "0".
-    // "0." state is handling in NumericField localDisplay.
 
     // Check for negative? NumericField already clamps to 0? Yes.
     const valStr = val.toString();
@@ -371,9 +365,8 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     const q = val;
     const p = parseFloat(price);
 
-    const isSellType = (t: string) => t !== 'DIV_EVENT' && t !== 'HOLDING_CHANGE' && isSell(t as TransactionType);
     // Update Percent if Sell/Holding Change
-    if ((isSellType(type) || type === 'HOLDING_CHANGE') && selectedTicker) {
+    if ((isTxnSell(type) || type === 'HOLDING_CHANGE') && selectedTicker) {
       const selectedPort = portfolios.find(p => p.id === portId);
       const holding = selectedPort?.holdings?.find(h => h.ticker === selectedTicker.symbol);
       if (holding && holding.qty > 0) {
@@ -484,9 +477,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     setPercent(valStr);
     const pct = val;
 
-    const isSellType = (t: string) => t !== 'DIV_EVENT' && t !== 'HOLDING_CHANGE' && isSell(t as TransactionType);
-
-    if ((isSellType(type) || type === 'HOLDING_CHANGE') && selectedTicker) {
+    if ((isTxnSell(type) || type === 'HOLDING_CHANGE') && selectedTicker) {
       const selectedPort = portfolios.find(p => p.id === portId);
       const holding = selectedPort?.holdings?.find(h => h.ticker === selectedTicker.symbol);
 
@@ -502,29 +493,11 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
           const displayTotal = convertCurrency(rawTotal, tickerCurrency, majorCurrency, exchangeRates);
           const totalStr = parseFloat(displayTotal.toFixed(6)).toString();
           setTotal(totalStr);
-          // We need updateCommission but it might not be in scope if not added to deps
-          // updateCommission is in deps.
-          // But updateCommission needs newTotal.
-          // We have totalStr.
-          // We can't call updateCommission directly if it wasn't hoisted or if we didn't pass it.
-          // updateCommission IS defined before.
-          // We need to pass it to deps.
-
-          // But wait, updateCommission is stable now?
-          // updateCommission depends on portfolios.
-          // So it's fine.
-
-          // Actually, we must call updateCommission(totalStr, portId, type)
-          // We need to define it first or access it via ref/callback?
-          // It's defined above.
+          updateCommission(totalStr, portId, type);
         }
       }
     }
-    // We can't easily call updateCommission here because it wasn't passed valid args in the snippet?
-    // updateCommission takes (total, portId, type).
-    // We have totalStr, portId, type.
-    // So distinct call is needed.
-  }, [type, selectedTicker, portId, portfolios, price, tickerCurrency, majorCurrency, exchangeRates]);
+  }, [type, selectedTicker, portId, portfolios, price, tickerCurrency, majorCurrency, exchangeRates, updateCommission]);
 
   // Validation Logic
   const runValidation = useCallback((
@@ -561,10 +534,8 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
       if (!currentTotal || parseFloat(currentTotal) <= 0) errors.total = true;
     }
 
-    const isSellType = (t: string) => t !== 'DIV_EVENT' && t !== 'HOLDING_CHANGE' && isSell(t as TransactionType);
-
     // Additional Validations for SELL / HOLDING_CHANGE
-    if (isSellType(currentType) || currentType === 'HOLDING_CHANGE') {
+    if (isTxnSell(currentType) || currentType === 'HOLDING_CHANGE') {
       const selectedPort = portfolios.find(p => p.id === currentPortId);
       const holding = selectedPort?.holdings?.find(h => h.ticker === currentTicker);
 
@@ -599,12 +570,6 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     return () => clearTimeout(timer);
   }, [runValidation]);
 
-  // We need to ensure we actually call updateCommission inside handlePercentChange.
-  // I'll add the call logic properly in separate edit if this chunk fails, or try here.
-  // The original code passed `val` (string). I am passing `val` (number).
-  // The logic `if (parseFloat(val) < 0)` is handled by NumericField.
-
-
   // Update commission when portfolio or type changes too
   const handlePortChange = (e: any) => {
     const newPortId = e.target.value;
@@ -618,8 +583,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     const newType = e.target.value as any;
     setType(newType);
     updateCommission(total, portId, newType);
-    const isSellType = (t: string) => t !== 'DIV_EVENT' && t !== 'HOLDING_CHANGE' && isSell(t as TransactionType);
-    if (!isSellType(newType) && newType !== 'HOLDING_CHANGE') {
+    if (!isTxnSell(newType) && newType !== 'HOLDING_CHANGE') {
       setPercent('');
     }
   };
@@ -676,7 +640,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
       // ... existing single undo ...
       if (data.action === 'delete') {
         if (data.type === 'txn') {
-          const { rowIndex, ...rest } = data.data;
+          const { rowIndex: _rowIndex, ...rest } = data.data;
           await addTransaction(sheetId, rest);
         } else {
           await addDividendEvent(sheetId, data.data.ticker, data.data.exchange, data.data.date, data.data.amount);
@@ -705,9 +669,8 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     const errors = runValidation();
     setValidationErrors(errors);
 
-    const isSellType = (t: string) => t !== 'DIV_EVENT' && t !== 'HOLDING_CHANGE' && isSell(t as TransactionType);
     // Check specific alerts that might not be in "errors" object but block submit (like holding check alert)
-    if (isSellType(type) || type === 'HOLDING_CHANGE') {
+    if (isTxnSell(type) || type === 'HOLDING_CHANGE') {
       const selectedPort = portfolios.find(p => p.id === portId);
       const holding = selectedPort?.holdings?.find(h => h.ticker === ticker);
 
@@ -1240,18 +1203,18 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                             <MenuItem value="BUY">{t('Buy', 'קנייה')}</MenuItem>
                             <MenuItem
                               value="SELL"
-                              disabled={!!(portId && ticker && !portfolios.find(p => p.id === portId)?.holdings?.some(h => h.ticker === ticker))}
+                              disabled={Boolean(portId && ticker && !portfolios.find(p => p.id === portId)?.holdings?.some(h => h.ticker === ticker))}
                             >
                               {t('Sell', 'מכירה')}
-                              {!!(portId && ticker && !portfolios.find(p => p.id === portId)?.holdings?.some(h => h.ticker === ticker)) ? ` (${t('Not Held', 'לא מוחזק')})` : ''}
+                              {(portId && ticker && !portfolios.find(p => p.id === portId)?.holdings?.some(h => h.ticker === ticker)) ? ` (${t('Not Held', 'לא מוחזק')})` : ''}
                             </MenuItem>
                             {(selectedPortfolio?.divPolicy === 'accumulate_tax_free') && (
                               <MenuItem
                                 value="HOLDING_CHANGE"
-                                disabled={!!(portId && ticker && !portfolios.find(p => p.id === portId)?.holdings?.some(h => h.ticker === ticker))}
+                                disabled={Boolean(portId && ticker && !portfolios.find(p => p.id === portId)?.holdings?.some(h => h.ticker === ticker))}
                               >
                                 {t('Holding Change', 'החלפת החזקה')}
-                                {!!(portId && ticker && !portfolios.find(p => p.id === portId)?.holdings?.some(h => h.ticker === ticker)) ? ` (${t('Not Held', 'לא מוחזק')})` : ''}
+                                {(portId && ticker && !portfolios.find(p => p.id === portId)?.holdings?.some(h => h.ticker === ticker)) ? ` (${t('Not Held', 'לא מוחזק')})` : ''}
                               </MenuItem>
                             )}
                             <MenuItem value="DIV_EVENT">{t('Record Dividend event', 'תיעוד אירוע דיבידנד')}</MenuItem>
@@ -1320,7 +1283,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                       ) : (
                         <>
                           {/* Dynamic Layout based on Type */}
-                            {(type !== 'HOLDING_CHANGE' && isSell(type as TransactionType) || type === 'HOLDING_CHANGE') ? (
+                          {(type !== 'HOLDING_CHANGE' && isSell(type as TransactionType) || type === 'HOLDING_CHANGE') ? (
                             <>
                               {/* Row 1: Qty and Percent */}
                               <Grid item xs={12}><Divider sx={{ my: 1 }} /></Grid>

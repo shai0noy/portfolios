@@ -118,7 +118,6 @@ export function useChartComparison({ portfolios, getPortfolioHistory }: UseChart
 
         // Add Portfolios if provided
         if (portfolios && portfolios.length > 0) {
-            // Add separator or header conceptually (UI handles rendering)
             // Add 'All Portfolios' option
             options.push({
                 type: 'PORTFOLIO',
@@ -199,8 +198,6 @@ export function useChartComparison({ portfolios, getPortfolioHistory }: UseChart
             });
 
             // Combine: Maintain order (Non-Portfolios first, then Portfolios)
-            // Or should we preserve specific placement?
-            // The initial options + search are at the top. Portfolios at the bottom is fine.
             return [...nonPortfolioOptions, ...newPortfolioOptions];
         });
     }, [portfolios]);

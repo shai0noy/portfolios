@@ -294,9 +294,12 @@ export class FinanceEngine {
                     // Complexity risk.
                     // I will IMPLEMENT SIMPLE CONSUME ALL for now.
 
-                    h.addTransaction(t, txnRates, this.cpiData, p, {
-                        costBasisOverride: availableCost
-                    });
+                    // Bug Fix: Only use costBasisOverride if we actually have a cost from the bucket.
+                    // If availableCost is 0 (orphan transfer or dates mismatch), fall back to standard Buy logic (uses txn.price).
+                    // This avoids 0 Cost Basis which leads to 100% Gain.
+                    const options = availableCost > 0 ? { costBasisOverride: availableCost } : undefined;
+
+                    h.addTransaction(t, txnRates, this.cpiData, p, options);
 
                     // Clear bucket for this date (consumed)
                     // If multiple buys, first takes all.
