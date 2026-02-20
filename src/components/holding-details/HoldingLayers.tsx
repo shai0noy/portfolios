@@ -5,7 +5,7 @@ import { useLanguage } from '../../lib/i18n';
 import { Currency } from '../../lib/types';
 import type { Portfolio } from '../../lib/types';
 import { getTaxRatesForDate } from '../../lib/portfolioUtils';
-import type { PortfolioGroup, UnifiedLayer } from './types';
+import type { PortfolioGroup } from './types';
 
 interface HoldingLayersProps {
     groupedLayers: PortfolioGroup[];

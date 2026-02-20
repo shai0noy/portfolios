@@ -35,7 +35,8 @@ function extractCommonGlobesData(element: Element) {
     instrumentId: getText(element, 'instrumentId'),
     instrumentTypeHe: getText(element, 'InstrumentTypeHe'),
     indexNumber: getText(element, 'Index_Number'),
-    rawType: getText(element, 'type')
+    rawType: getText(element, 'type'),
+    koteretAlName: getText(element, 'KoteretAlName')
   };
 }
 
@@ -133,7 +134,12 @@ export async function fetchGlobesTickersByType(type: string, exchange: Exchange,
       const common = extractCommonGlobesData(element);
       if (!common.symbol || !common.instrumentId) return null;
 
-      const classification = new InstrumentClassification(type, undefined, { he: common.instrumentTypeHe });
+    let effectiveType = type;
+    if (common.koteretAlName === 'קרן כספית') {
+      effectiveType = 'monetary_fund';
+    }
+
+    const classification = new InstrumentClassification(effectiveType, undefined, { he: common.instrumentTypeHe });
       
       let symbol = common.symbol;
       let rawSecurityId: string | undefined = common.symbol;
@@ -164,6 +170,7 @@ export async function fetchGlobesTickersByType(type: string, exchange: Exchange,
         name: common.nameEn,
         nameHe: common.nameHe,
         type: classification,
+        isFeeExempt: common.koteretAlName === 'קרן כספית',
         meta: {
           type: 'GLOBES',
           instrumentId: common.instrumentId,
@@ -215,7 +222,7 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
     }
   }
 
-  const cacheKey = `globes:quote:v2:${requestedExchangeCode}:${identifier}`;
+  const cacheKey = `globes:quote:v4:${requestedExchangeCode}:${identifier}`;
   if (!forceRefresh) {
     const cached = await loadFromCache<TickerData>(cacheKey);
     if (cached?.timestamp && (now - new Date(cached.timestamp).getTime() < CACHE_TTL)) {
@@ -307,7 +314,13 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
         globesInstrumentId: common.instrumentId || undefined,
         tradeTimeStatus,
         globesTypeHe: common.instrumentTypeHe || undefined,
-        volume
+        volume,
+        isFeeExempt: common.koteretAlName === 'קרן כספית',
+        type: new InstrumentClassification(
+          common.koteretAlName === 'קרן כספית' ? 'monetary_fund' : common.rawType || 'unknown',
+          undefined,
+          { he: common.instrumentTypeHe }
+        )
       };
 
       saveToCache(cacheKey, tickerData, now);

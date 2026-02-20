@@ -2,6 +2,7 @@ import { Box, Typography, CircularProgress } from '@mui/material';
 import { convertCurrency, getExchangeRates } from '../lib/currency';
 import { useLanguage } from '../lib/i18n';
 import { Currency } from '../lib/types';
+import { InstrumentType } from '../lib/types/instrument';
 import type { Transaction, ExchangeRates, Portfolio } from '../lib/types';
 import type { EnrichedDashboardHolding } from '../lib/dashboard';
 import type { Lot, Holding, DividendRecord } from '../lib/data/model';
@@ -250,6 +251,7 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                                     unvestedGain={unvestedGain}
                                     totalQty={totalQty}
                                     totalFeesDisplay={totalFeesDisplay}
+                                    isFeeExempt={enriched?.type?.type === InstrumentType.MONETARY_FUND || (holding as any).type?.type === InstrumentType.MONETARY_FUND || (enriched?.nameHe || (holding as any).nameHe || '').includes('קרן כספית')}
                                 />
 
                                 <HoldingDistribution
@@ -278,6 +280,7 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                     portfolioNameMap={portfolioNameMap}
                     formatDate={formatDate}
                     onEditTransaction={handleEditTransaction}
+                    isFeeExempt={enriched?.type?.type === InstrumentType.MONETARY_FUND || (holding as any).type?.type === InstrumentType.MONETARY_FUND || (enriched?.nameHe || (holding as any).nameHe || '').includes('קרן כספית')}
                 />
             )}
 

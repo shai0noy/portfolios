@@ -43,6 +43,8 @@ export interface TickerProfile extends TickerId {
   sector?: string;      // Unified sector/specialization
   subSector?: string;
   
+  isFeeExempt?: boolean; // If true, exempt from commissions (e.g. Monetary Funds in IL)
+
   meta?: ExchangeMetadata; // Source-specific details
 }
 

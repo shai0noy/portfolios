@@ -10,9 +10,10 @@ interface HoldingTransactionsProps {
     portfolioNameMap: Record<string, string>;
     formatDate: (d: string | Date | number) => string;
     onEditTransaction: (txn: Transaction) => void;
+    isFeeExempt?: boolean;
 }
 
-export function HoldingTransactions({ txnHistory, portfolioNameMap, formatDate, onEditTransaction }: HoldingTransactionsProps) {
+export function HoldingTransactions({ txnHistory, portfolioNameMap, formatDate, onEditTransaction, isFeeExempt }: HoldingTransactionsProps) {
     const { t } = useLanguage();
 
     return (
@@ -73,7 +74,17 @@ export function HoldingTransactions({ txnHistory, portfolioNameMap, formatDate, 
                                     <TableCell align="right">{formatNumber(txn.qty)}</TableCell>
                                     <TableCell align="right">{formatPrice(txn.price || 0, tickerCurrency)}</TableCell>
                                     <TableCell align="right">{formatValue(rawValue, tickerCurrency)}</TableCell>
-                                    <TableCell align="right" sx={{ color: 'text.secondary' }}>{fees > 0 ? formatValue(fees, tickerCurrency) : '-'}</TableCell>
+                                    <TableCell align="right" sx={{ color: 'text.secondary' }}>
+                                        {isFeeExempt
+                                            ? (
+                                                <Tooltip title={t("Monetary Funds are exempt from fees", "קרנות כספיות פטורות מעמלות")}>
+                                                    <span style={{ color: 'green', fontSize: '0.8em', cursor: 'help' }}>
+                                                        {t('Exempt', 'פטור')}
+                                                    </span>
+                                                </Tooltip>
+                                            )
+                                            : (fees > 0 ? formatValue(fees, tickerCurrency) : '-')}
+                                    </TableCell>
                                     <TableCell align="right">{txn.vestDate ? formatDate(txn.vestDate) : '-'}</TableCell>
                                     <TableCell align="center">
                                         <Tooltip title={t('Edit Transaction', 'ערוך עסקה')}>

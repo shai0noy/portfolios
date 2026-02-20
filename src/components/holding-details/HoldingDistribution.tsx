@@ -1,4 +1,4 @@
-import { Box, Paper, Table, TableHead, TableRow, TableCell, TableBody, Typography } from '@mui/material';
+import { Box, Paper, Table, TableHead, TableRow, TableCell, TableBody } from '@mui/material';
 import { formatPercent, formatNumber, formatValue } from '../../lib/currency';
 import { useLanguage } from '../../lib/i18n';
 import type { PortfolioGroup } from './types';

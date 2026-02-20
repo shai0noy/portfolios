@@ -13,6 +13,7 @@ import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { parseExchange, type Portfolio, type Transaction, Exchange } from '../lib/types';
+import { InstrumentType } from '../lib/types/instrument';
 import type { TickerProfile } from '../lib/types/ticker';
 import { addTransaction, fetchPortfolios, addExternalPrice, syncDividends, addDividendEvent, updateTransaction, updateDividend, deleteTransaction, deleteDividend } from '../lib/sheets/index';
 import { getTickerData, type TickerData } from '../lib/fetching';
@@ -272,8 +273,8 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
       const exemption = selectedPort.commExemption;
       const isExempt =
         (exemption === 'all') ||
-        (exemption === 'buys' && isTxnBuy(currentType)) ||
-        (exemption === 'sells' && isTxnSell(currentType));
+        (exemption === 'sells' && isTxnSell(currentType)) ||
+        (selectedTicker?.isFeeExempt || selectedTicker?.type?.type === InstrumentType.MONETARY_FUND);
 
       if (isExempt) {
         setCommission('0');
@@ -294,7 +295,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
       setCommission((t * rate).toFixed(2));
       setCommissionPct((rate * 100).toFixed(4));
     }
-  }, [portfolios]);
+  }, [portfolios, selectedTicker]);
 
   // Moved handleSellHoldingSelect here to access updateCommission
   const handleSellHoldingSelect = async (pid: string, tickerSymbol: string) => {
@@ -1403,27 +1404,40 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                           )}
                           <Grid item xs={12}><Divider sx={{ my: 1 }}> </Divider></Grid>
 
-                          <Grid item xs={4} sm={3}>
-                            <NumericField
-                              label={t("Commission", "עמלה")}
-                              field="commission"
-                              value={commission}
-                              onChange={handleCommissionChange}
-                              startAdornment={<InputAdornment position="start">{majorCurrency}</InputAdornment>}
-                              error={!!validationErrors.commission}
-                            />
-                          </Grid>
-                          <Grid item xs={4} sm={3}>
-                            <NumericField
-                              label={t("Commission %", "עמלה %")}
-                              field="commissionPct"
-                              value={commissionPct}
-                              onChange={handleCommissionPctChange}
-                              endAdornment={<InputAdornment position="end">%</InputAdornment>}
-                              error={!!validationErrors.commissionPct}
-                            />
-                          </Grid>
-                          <Grid item xs={12} sm={6}>
+                          {/* Commission Row - Hidden if Exempt */}
+                          {(!selectedTicker?.isFeeExempt && selectedTicker?.type?.type !== InstrumentType.MONETARY_FUND) ? (
+                            <>
+                              <Grid item xs={4} sm={3}>
+                                <NumericField
+                                  label={t("Commission", "עמלה")}
+                                  field="commission"
+                                  value={commission}
+                                  onChange={handleCommissionChange}
+                                  startAdornment={<InputAdornment position="start">{majorCurrency}</InputAdornment>}
+                                  error={!!validationErrors.commission}
+                                />
+                              </Grid>
+                              <Grid item xs={4} sm={3}>
+                                <NumericField
+                                  label={t("Commission %", "עמלה %")}
+                                  field="commissionPct"
+                                  value={commissionPct}
+                                  onChange={handleCommissionPctChange}
+                                  endAdornment={<InputAdornment position="end">%</InputAdornment>}
+                                  error={!!validationErrors.commissionPct}
+                                />
+                              </Grid>
+                            </>
+                          ) : (
+                            <Grid item xs={12}>
+                              <Box sx={{ p: 1.5, bgcolor: 'action.hover', borderRadius: 1, textAlign: 'center' }}>
+                                <Typography variant="body2" color="text.secondary">
+                                  {t("Monetary funds are exempt from fees by Israeli law.", "קרנות כספיות פטורות מעמלות על פי חוק.")}
+                                </Typography>
+                              </Box>
+                            </Grid>
+                          )}
+                          <Grid item xs={12} sm={(!selectedTicker?.isFeeExempt && selectedTicker?.type?.type !== InstrumentType.MONETARY_FUND) ? 6 : 12}>
                             <Tooltip title="Date when these shares vest (if applicable for RSUs/Options).">
                               <TextField
                                 label="Vesting Date" type="date" size="small" fullWidth

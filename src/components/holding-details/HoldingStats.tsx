@@ -2,7 +2,7 @@ import { Box, Typography, Paper, Divider, Stack, Grid, Tooltip } from '@mui/mate
 import { formatValue, formatNumber, formatPrice, formatPercent } from '../../lib/currency';
 import { useLanguage } from '../../lib/i18n';
 import type { HoldingValues } from './types';
-import type { HoldingWeight } from '../HoldingDetails';
+import type { HoldingWeight } from '../../lib/data/holding_utils';
 
 interface HoldingStatsProps {
     vals: HoldingValues;
@@ -15,6 +15,7 @@ interface HoldingStatsProps {
     unvestedGain: number;
     totalQty: number;
     totalFeesDisplay: number;
+    isFeeExempt?: boolean;
 }
 
 export function HoldingStats({
@@ -27,7 +28,8 @@ export function HoldingStats({
     unvestedGainDisplay,
     unvestedGain,
     totalQty,
-    totalFeesDisplay
+    totalFeesDisplay,
+    isFeeExempt
 }: HoldingStatsProps) {
     const { t } = useLanguage();
 
@@ -106,7 +108,12 @@ export function HoldingStats({
                 </Grid>
                 <Grid item xs={6} sm>
                     <Typography variant="caption" color="text.secondary">{t('Total Fees', 'סה"כ עמלות')}</Typography>
-                    <Typography variant="body2" fontWeight="500">{formatValue(totalFeesDisplay, displayCurrency)}</Typography>
+                    <Typography variant="body2" fontWeight="500">
+                        {isFeeExempt
+                            ? <Typography component="span" color="success.main" sx={{ fontWeight: 'bold', fontSize: '0.9em' }}>{t('Exempt', 'פטור')}</Typography>
+                            : formatValue(totalFeesDisplay, displayCurrency)
+                        }
+                    </Typography>
                 </Grid>
                 <Grid item xs={6} sm>
                     <Typography variant="caption" color="text.secondary">{t('Taxes Paid', 'מס ששולם')}</Typography>

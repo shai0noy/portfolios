@@ -1,4 +1,4 @@
-import { Currency } from '../../lib/types';
+
 
 export interface HoldingValues {
     marketValue: number;

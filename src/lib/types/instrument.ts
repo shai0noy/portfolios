@@ -7,6 +7,7 @@ export const InstrumentGroup = {
   STOCK: 'STOCK',           // Equities, REITs, Warrants
   ETF: 'ETF',               // Exchange Traded Funds/Notes (Sal, Mimka)
   MUTUAL_FUND: 'MUTUAL_FUND', // Mutual Funds (Neemanut) - "MTF"
+  MONETARY_FUND: 'MONETARY_FUND', // Keren Kaspit - "Monetary Fund"
   BOND: 'BOND',             // Government and Corporate Bonds, Bills
   SAVING: 'SAVING',         // Long-term savings (Gemel, Pension, Hishtalmut)
   DERIVATIVE: 'DERIVATIVE', // Options, Futures
@@ -35,6 +36,7 @@ export const InstrumentType = {
 
   // MUTUAL_FUND Group
   MUTUAL_FUND: 'MUTUAL_FUND',           // Keren Neemanut
+  MONETARY_FUND: 'MONETARY_FUND',       // Keren Kaspit
 
   // SAVING Group
   SAVING_PROVIDENT: 'SAVING_PROVIDENT', // Kupat Gemel
@@ -94,6 +96,7 @@ export const INSTRUMENT_METADATA: Record<InstrumentType, InstrumentMetadata> = {
   
   // Mutual Fund
   [InstrumentType.MUTUAL_FUND]: { group: InstrumentGroup.MUTUAL_FUND, nameEn: 'Mutual Fund', nameHe: 'קרן נאמנות', globesTypes: ['fund'] },
+  [InstrumentType.MONETARY_FUND]: { group: InstrumentGroup.MONETARY_FUND, nameEn: 'Monetary Fund', nameHe: 'קרן כספית', globesTypes: ['monetary_fund'] },
   
   // Saving
   [InstrumentType.SAVING_PROVIDENT]: { group: InstrumentGroup.SAVING, nameEn: 'Provident Fund', nameHe: 'קופת גמל', globesTypes: ['gemel_fund'] },
@@ -146,6 +149,7 @@ export const GLOBES_TYPE_MAPPING: Record<string, InstrumentType> = {
   'option_other': InstrumentType.OPTION,
   'currency': InstrumentType.CURRENCY,
   'index': InstrumentType.INDEX,
+  'monetary_fund': InstrumentType.MONETARY_FUND,
 };
 
 /**

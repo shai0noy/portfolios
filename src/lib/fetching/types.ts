@@ -62,6 +62,7 @@ export interface TickerData {
   fromCacheMax?: boolean;
   meta?: ExchangeMetadata;
   type?: InstrumentClassification;
+  isFeeExempt?: boolean;
 }
 
 export interface HistoricalDataPoint {

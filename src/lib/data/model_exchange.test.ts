@@ -1,8 +1,8 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { Currency, Exchange, Portfolio, Transaction } from '../types';
+import type { Portfolio, Transaction } from '../types';
+import { Currency, Exchange } from '../types';
 import { FinanceEngine } from './engine';
-import { Holding } from './model';
 
 // Mock Exchange Rates
 const RATES = {
@@ -38,6 +38,7 @@ class MockEngine extends FinanceEngine {
 
     // Public wrapper for protected method
     public getHoldingPublic(pid: string, ticker: string, exc: Exchange, curr: Currency) {
+        // @ts-ignore
         return this.getHolding(pid, ticker, exc, curr);
     }
 }
@@ -154,6 +155,8 @@ describe('Holding Change Logic', () => {
             // Buy C (Transfer): Uses 500 USD (25% of proceeds)
             { date: '2023-06-01', portfolioId: 'p1', ticker: 'C', exchange: Exchange.NYSE, type: 'BUY_TRANSFER', qty: 5, price: 100, currency: Currency.USD, originalQty: 5, originalPrice: 100 },
         ];
+        // Prevent unused warning
+        expect(txns.length).toBe(4);
 
         // Note: The current implementation of processEvents loop consumes the bucket as needed.
         // The bucket stores Total Cost from Sells.

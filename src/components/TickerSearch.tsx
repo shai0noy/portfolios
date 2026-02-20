@@ -239,6 +239,7 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
       [InstrumentGroup.STOCK]: t('Stocks', 'מניות'),
       [InstrumentGroup.ETF]: t('ETFs', 'תעודות סל'),
       [InstrumentGroup.MUTUAL_FUND]: t('Mutual Funds', 'קרנות נאמנות'),
+      [InstrumentGroup.MONETARY_FUND]: t('Monetary Funds', 'קרנות כספיות'),
       [InstrumentGroup.BOND]: t('Bonds', 'אג"ח'),
       [InstrumentGroup.SAVING]: t('Saving Funds', 'קרנות חיסכון'),
       [InstrumentGroup.DERIVATIVE]: t('Derivatives', 'נגזרים'),
