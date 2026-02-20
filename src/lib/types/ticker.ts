@@ -26,9 +26,9 @@ export type ExchangeMetadata =
       exposureProfile?: string,
       underlyingAssets?: { name: string, weight: number }[]
     }
-  | { type: 'GLOBES', instrumentId: string }
-  | { type: 'PROVIDENT', fundId: number, managementFee?: number, depositFee?: number, managingCompany?: string }
-  | { type: 'GENERIC' };
+  | { type: 'GLOBES', instrumentId: string, underlyingAssets?: { name: string, weight: number }[] }
+  | { type: 'PROVIDENT', fundId: number, managementFee?: number, depositFee?: number, managingCompany?: string, underlyingAssets?: { name: string, weight: number }[] }
+  | { type: 'GENERIC', underlyingAssets?: { name: string, weight: number }[] };
 
 /**
  * Static descriptive profile of a ticker.

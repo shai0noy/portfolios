@@ -12,6 +12,7 @@ import taseTypeIds from './tase_type_ids.json';
 import { Exchange } from '../types';
 import { fetchGlobesTickersByType } from './globes';
 import { WORKER_URL } from '../../config';
+import { normalizeTaseTicker } from './utils/normalization';
 
 // Pattern matching for TASE main type to our canonical InstrumentType
 const taseTypePatterns: [RegExp, InstrumentType][] = [
@@ -274,10 +275,14 @@ async function fetchTaseTickers(
 
       // --- Determine Symbol ---
       // Priority: TASE Stock List Symbol > TASE Fund ID > Globes Symbol
-      const symbol = (security?.symbol ? getEffectiveTicker(security.symbol, Exchange.TASE) : null) || 
+    let symbol = (security?.symbol ? getEffectiveTicker(security.symbol, Exchange.TASE) : null) || 
                      (fund?.fundId ? String(fund.fundId) : null) || 
                      globes?.symbol || 
                      id;
+
+    if (symbol) {
+      symbol = normalizeTaseTicker(symbol);
+    }
 
       // --- Determine Name ---
       // Priority: TASE Funds List (Long > Short) > Globes > TASE Stock List

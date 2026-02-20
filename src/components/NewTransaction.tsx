@@ -1115,7 +1115,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                     )}
                   </Box>
                   <Button variant="outlined" size="small" startIcon={<VisibilityIcon />} onClick={handleViewTicker}>
-                    {t('View Ticker', 'פרטי נייר')}
+                    {t('View Details', 'פרטי נייר')}
                   </Button>
                 </Box>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap', mb: 2 }}>

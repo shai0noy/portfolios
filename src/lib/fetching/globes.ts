@@ -145,6 +145,11 @@ export async function fetchGlobesTickersByType(type: string, exchange: Exchange,
         rawSecurityId = common.indexNumber;
       }
 
+    // Encode TASE normalization
+    if (exchange === Exchange.TASE) {
+      symbol = symbol.trim();
+    }
+
       if (exchange === Exchange.FOREX) {
         symbol = formatForexSymbol(symbol);
         rawSecurityId = undefined; // Forex doesn't have numeric security IDs in this context

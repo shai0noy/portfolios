@@ -234,6 +234,7 @@ export class Holding {
     public displayName?: string; // Short Name preferred
     public nameHe?: string;
     public type?: any; // InstrumentClassification
+    public underlyingAssets?: { name: string, weight: number }[];
 
 
     // Market Data (Mutable)

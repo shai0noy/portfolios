@@ -19,6 +19,7 @@ export interface EnrichedDashboardHolding extends DashboardHolding {
   // Meta
   taxPolicy?: string;
   taxOnBase?: boolean;
+  underlyingAssets?: { name: string, weight: number }[];
 }
 
 export function calculateDashboardSummary(data: any[], displayCurrency: string, exchangeRates: ExchangeRates, portfoliosMap: Map<string, Portfolio>, engine?: FinanceEngine | null): { summary: DashboardSummaryData, holdings: EnrichedDashboardHolding[] } {
@@ -226,6 +227,7 @@ export function calculateDashboardSummary(data: any[], displayCurrency: string, 
       dividends: h.dividends as DividendRecord[],
       qtyTotal: h.qtyTotal, // Mapped from getter
       realizedTax, // Added
+      underlyingAssets: h.underlyingAssets,
       display
     } as unknown as EnrichedDashboardHolding;
   });

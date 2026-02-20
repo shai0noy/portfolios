@@ -5,7 +5,7 @@ import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { useState, useMemo, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useParams } from 'react-router-dom';
 import { useLanguage } from '../lib/i18n';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
 import PieChartIcon from '@mui/icons-material/PieChart';
@@ -18,6 +18,7 @@ import { Exchange } from '../lib/types';
 import { formatMoneyPrice, formatPercent, normalizeCurrency, formatMoneyValue } from '../lib/currency';
 import { AnalysisDialog } from './AnalysisDialog';
 import { HoldingDetails } from './HoldingDetails';
+import { HoldingUnderlyingAssets } from './holding-details/HoldingUnderlyingAssets';
 import type { EnrichedDashboardHolding } from '../lib/dashboard';
 import { loadFinanceEngine } from '../lib/data/loader';
 import type { Holding } from '../lib/data/model';
@@ -41,13 +42,19 @@ const formatTimestamp = (timestamp?: Date | string | number | null) => {
 
 
 export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExchange, numericId: propNumericId, initialName: propInitialName, initialNameHe: propInitialNameHe, onClose, portfolios = [], isPortfoliosLoading = false }: TickerDetailsProps) {
+  const { ticker: paramTicker, exchange: paramExchange } = useParams();
+  const resolvedTickerInput = propTicker || paramTicker;
+  const resolvedExchangeInput = propExchange || (paramExchange as any);
+
   const { t, tTry } = useLanguage();
   const location = useLocation() as any;
+  const tickerDetailsResult = useTickerDetails({ sheetId, ticker: resolvedTickerInput, exchange: resolvedExchangeInput, numericId: propNumericId, initialName: propInitialName, initialNameHe: propInitialNameHe, portfolios, isPortfoliosLoading });
+
   const {
     ticker, exchange, data, holdingData, historicalData, loading, error, refreshing,
     sheetRebuildTime, handleRefresh, displayData, resolvedName, resolvedNameHe,
     ownedInPortfolios, externalLinks, formatVolume, state, navigate
-  } = useTickerDetails({ sheetId, ticker: propTicker, exchange: propExchange, numericId: propNumericId, initialName: propInitialName, initialNameHe: propInitialNameHe, portfolios, isPortfoliosLoading });
+  } = tickerDetailsResult;
 
   const getPortfolioHistory = async (portfolioId: string | null) => {
     try {
@@ -98,7 +105,8 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   const [chartMetric, setChartMetric] = useState<'percent' | 'price'>('percent');
   const [compareMenuAnchor, setCompareMenuAnchor] = useState<null | HTMLElement>(null);
   const [analysisOpen, setAnalysisOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState(0);
+  const [activeTab, setActiveTabRaw] = useState('analysis');
+  const handleTabChange = (_: any, v: string) => setActiveTabRaw(v);
   const [engineHoldings, setEngineHoldings] = useState<Holding[]>([]);
 
   // Resolve the "Active Holding" - from navigation state (enriched) or hook
@@ -323,11 +331,11 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
         </DialogTitle>
 
         <Box sx={{ borderBottom: 1, borderColor: 'divider', px: 2 }}>
-          <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)}>
-            <Tab label={t('Analysis', 'ניתוח')} />
-            {hasHolding && <Tab label={t('Holdings', 'אחזקות')} />}
-            {hasHolding && <Tab label={t('Transactions', 'עסקאות')} />}
-            {hasHolding && <Tab label={t('Dividends', 'דיבידנדים')} />}
+          <Tabs value={activeTab} onChange={handleTabChange}>
+            <Tab label={t('Analysis', 'ניתוח')} value="analysis" />
+            {hasHolding && <Tab label={t('Holdings', 'החזקות')} value="holdings" />}
+            {hasHolding && <Tab label={t('Transactions', 'עסקאות')} value="transactions" />}
+            {hasHolding && <Tab label={t('Dividends', 'דיבידנדים')} value="dividends" />}
           </Tabs>
         </Box>
 
@@ -336,7 +344,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
             error ? <Typography color="error">{error}</Typography> :
               !displayData && !resolvedName ? <Typography>{t('No data available.', 'אין נתונים זמינים.')}</Typography> :
                 <>
-                  {activeTab === 0 && (
+                  {activeTab === 'analysis' && (
                     <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                         {isStale && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>{t('Data is from', 'הנתונים מתאריך')}: {formatDate(dataTimestamp)}</Typography>}
                         <Typography variant="subtitle2" gutterBottom>{t('Performance', 'ביצועים')}</Typography>
@@ -472,6 +480,13 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                           </>
                         )}
 
+                      {/* Underlying Assets Section */}
+                      {displayData?.meta?.underlyingAssets && displayData.meta.underlyingAssets.length > 0 && (
+                        <Box sx={{ mt: 3, mb: 2 }}>
+                          <HoldingUnderlyingAssets assets={displayData.meta.underlyingAssets} />
+                        </Box>
+                      )}
+
                         {externalLinks.length > 0 && (
                             <>
                             <Typography variant="subtitle2" gutterBottom sx={{ mt: 3 }}>{t('External Links', 'קישורים חיצוניים')}</Typography>
@@ -485,18 +500,40 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                     </Box>
                   )}
 
-                  {activeTab > 0 && hasHolding && (
+                  {activeTab === 'assets' && displayData?.meta?.underlyingAssets && (
                     <Box sx={{ mt: 2, flex: 1, overflow: 'auto' }}>
-                        {(enrichedHolding || (engineHoldings && engineHoldings.length > 0) || holdingData) ? (
+                      <HoldingDetails
+                        sheetId={sheetId}
+                        holding={{ ...displayData, underlyingAssets: displayData.meta.underlyingAssets } as any}
+                        holdings={[]}
+                        displayCurrency={normalizeCurrency(localStorage.getItem('displayCurrency') || 'USD')}
+                        portfolios={portfolios}
+                        onPortfolioClick={handlePortfolioClick}
+                        section="assets" // specific section for just assets
+                      />
+                    </Box>
+                  )}
+
+                  {(activeTab === 'holdings' || activeTab === 'transactions' || activeTab === 'dividends') && hasHolding && (
+                    <Box sx={{ mt: 2, flex: 1, overflow: 'auto' }}>
+                      {(() => {
+                        const has = (engineHoldings && engineHoldings.length > 0) || !!enrichedHolding || !!holdingData;
+                        return has;
+                      })() ? (
+                        (() => {
+                          const h = (enrichedHolding || (engineHoldings && engineHoldings[0]) || holdingData)! as any;
+                          return (
                             <HoldingDetails
                             sheetId={sheetId}
-                            holding={(enrichedHolding || (engineHoldings && engineHoldings[0]) || holdingData)! as any}
+                              holding={h}
                           holdings={engineHoldings && engineHoldings.length > 0 ? engineHoldings as any[] : (enrichedHolding ? [enrichedHolding] : undefined)}
                             displayCurrency={normalizeCurrency(localStorage.getItem('displayCurrency') || 'USD')}
                             portfolios={portfolios}
                             onPortfolioClick={handlePortfolioClick}
-                            section={activeTab === 1 ? 'holdings' : activeTab === 2 ? 'transactions' : 'dividends'}
+                              section={activeTab === 'holdings' ? 'holdings' : activeTab === 'transactions' ? 'transactions' : 'dividends'}
                             />
+                            );
+                          })()
                         ) : (
                             <Box display="flex" justifyContent="center" p={5}><CircularProgress /></Box>
                         )}

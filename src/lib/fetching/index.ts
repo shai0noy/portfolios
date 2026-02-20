@@ -5,6 +5,7 @@ import { fetchAllTickers } from './stock_list';
 import { fetchGemelnetQuote } from './gemelnet';
 import { fetchPensyanetQuote } from './pensyanet';
 import { fetchCpi, getCbsTickers } from './cbs';
+import { normalizeTaseTicker } from './utils/normalization';
 import { getPredefinedYahooTickers } from './yahoo_tickers';
 import type { TickerData } from './types';
 import { Exchange, parseExchange } from '../types';
@@ -107,6 +108,12 @@ export async function getTickerData(
   }
 
   const secId = numericSecurityId ? Number(numericSecurityId) : undefined;
+
+  // Normalize TASE ticker if needed (remove leading zeros)
+  if (parsedExchange === Exchange.TASE && ticker) {
+    ticker = normalizeTaseTicker(ticker);
+  }
+
   const tickerNum = Number(ticker);
 
   // Lookup profile to determine group/type for smart fetching
@@ -114,7 +121,7 @@ export async function getTickerData(
     for (const list of Object.values(dataset)) {
       const found = list.find(t => 
         t.exchange === parsedExchange && 
-        (t.symbol === ticker || (secId && t.securityId === secId))
+        (t.symbol === ticker || (secId && t.securityId === secId) || (!isNaN(tickerNum) && t.securityId === tickerNum))
       );
       if (found) return found;
     }

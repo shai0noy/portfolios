@@ -15,9 +15,10 @@ import { HoldingDistribution } from './holding-details/HoldingDistribution';
 import { HoldingLayers } from './holding-details/HoldingLayers';
 import { HoldingTransactions } from './holding-details/HoldingTransactions';
 import { HoldingDividends } from './holding-details/HoldingDividends';
+import { HoldingUnderlyingAssets } from './holding-details/HoldingUnderlyingAssets';
 import type { HoldingValues } from './holding-details/types';
 
-export type HoldingSection = 'holdings' | 'transactions' | 'dividends';
+export type HoldingDetailsSection = 'holdings' | 'transactions' | 'dividends' | 'assets';
 
 interface HoldingDetailsProps {
     sheetId: string;
@@ -26,7 +27,7 @@ interface HoldingDetailsProps {
     displayCurrency: string;
     portfolios: Portfolio[];
     onPortfolioClick: (id: string) => void;
-    section?: HoldingSection;
+    section?: HoldingDetailsSection;
 }
 
 const formatDate = (dateInput: string | Date | number) => {
@@ -263,6 +264,8 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                                     exchangeRates={exchangeRates}
                                     formatDate={formatDate}
                                 />
+
+                                <HoldingUnderlyingAssets assets={enriched?.underlyingAssets || (holding as any).underlyingAssets || (holding as any).meta?.underlyingAssets} />
                         </>
                     )}
                 </Box>

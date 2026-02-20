@@ -477,6 +477,11 @@ export class FinanceEngine {
                 if (live.nameHe) h.nameHe = live.nameHe;
                 if (live.type) h.type = live.type;
                 if (live.sector) h.sector = live.sector;
+
+                // Populate Underlying Assets from Meta
+                if (live.meta && 'underlyingAssets' in live.meta && live.meta.underlyingAssets) {
+                    h.underlyingAssets = live.meta.underlyingAssets;
+                }
             }
         });
     }
