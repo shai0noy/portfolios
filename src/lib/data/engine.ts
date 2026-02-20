@@ -781,6 +781,11 @@ export class FinanceEngine {
                 const { taxPolicy } = p;
                 if (taxPolicy === 'TAX_FREE') { cgt = 0; incTax = 0; }
 
+                // RESTRICTION: Income Tax is ONLY for RSU_ACCOUNT
+                if (taxPolicy !== 'RSU_ACCOUNT') {
+                    incTax = 0;
+                }
+
                 // Calculate Unrealized Taxable Gain for ACTIVE lots
                 const currentPriceILS = convertCurrency(h.currentPrice, h.stockCurrency, Currency.ILS, this.exchangeRates);
                 const currentPriceSC = h.currentPrice;
@@ -817,7 +822,7 @@ export class FinanceEngine {
                     const isForeign = h.stockCurrency !== Currency.ILS;
 
                     if (p.taxOnBase) {
-                        // TAX ON BASE PRICE (Wealth Tax / Turnover Tax)
+                        // INCOME TAX (Wealth Tax / Turnover Tax)
                         // Tax is applied to the full market value, not just the gain.
                         taxableILS = mvILS;
                     } else if (isRealGainTaxed(taxPolicy)) {

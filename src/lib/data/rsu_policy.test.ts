@@ -99,4 +99,57 @@ describe('RSU Account Tax Policy Logic', () => {
         // Realized Tax in ILS
         expect(holding?.realizedCapitalGainsTax).toBeCloseTo(10, 0.01);
     });
+
+  // Scenario 3: Income Tax
+  // RSU_ACCOUNT should apply Income Tax if configured.
+  // IL_REAL_GAIN should NOT apply Income Tax even if configured.
+
+  it('should apply Income Tax for RSU_ACCOUNT when incTax is > 0', () => {
+    const engine = new FinanceEngine([pILS], mockRates, mockCPI);
+    const txns: Transaction[] = [
+      {
+        numericId: 1, portfolioId: 'p_rsu_il', ticker: 'RSU_STOCK', exchange: Exchange.TASE,
+        date: '2023-01-01T00:00:00.000Z', type: 'BUY', qty: 1, price: 100, currency: Currency.ILS,
+      },
+      {
+        numericId: 2, portfolioId: 'p_rsu_il', ticker: 'RSU_STOCK', exchange: Exchange.TASE,
+        date: '2023-06-01T00:00:00.000Z', type: 'SELL', qty: 1, price: 120, currency: Currency.ILS,
+      }
+    ] as any;
+
+    engine.processEvents(txns, []);
+    const holding = engine.holdings.get('p_rsu_il_RSU_STOCK');
+
+    // Cost: 100.
+    // IncTax Rate: 0.50 (from pILS setup).
+    // Expected Income Tax: 100 * 0.50 = 50.
+    expect(holding?.realizedIncomeTax).toBeCloseTo(50, 0.01);
+  });
+
+  it('should NOT apply Income Tax for IL_REAL_GAIN even if incTax is > 0', () => {
+    const pStandard: Portfolio = {
+      ...pILS,
+      id: 'p_standard',
+      taxPolicy: 'IL_REAL_GAIN', // Standard Policy
+      incTax: 0.50 // Configured but should be ignored for Income Tax
+    };
+
+    const engine = new FinanceEngine([pStandard], mockRates, mockCPI);
+    const txns: Transaction[] = [
+      {
+        numericId: 1, portfolioId: 'p_standard', ticker: 'NORMAL_STOCK', exchange: Exchange.TASE,
+        date: '2023-01-01T00:00:00.000Z', type: 'BUY', qty: 1, price: 100, currency: Currency.ILS,
+      },
+      {
+        numericId: 2, portfolioId: 'p_standard', ticker: 'NORMAL_STOCK', exchange: Exchange.TASE,
+        date: '2023-06-01T00:00:00.000Z', type: 'SELL', qty: 1, price: 120, currency: Currency.ILS,
+      }
+    ] as any;
+
+    engine.processEvents(txns, []);
+    const holding = engine.holdings.get('p_standard_NORMAL_STOCK');
+
+    // Expected Income Tax: 0 (Restricted to RSU_ACCOUNT).
+    expect(holding?.realizedIncomeTax).toBe(0);
+  });
 });

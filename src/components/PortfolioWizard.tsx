@@ -40,7 +40,7 @@ interface PresetConfig {
   fixedCurrency?: Currency;
   hasTaxSelection?: boolean; // If true, asks for 25% vs 28% vs Custom
   excludeSurtax?: boolean; // If true, hides 28% option
-  hasIncomeTax?: boolean; // For RSU (tax on base)
+  hasIncomeTax?: boolean; // For RSU (Income Tax)
   isPension?: boolean; // Special logic for pension tax
   mgmtFeeModes?: ('percentage' | 'fixed')[]; // If present, shows Mgmt Fee inputs with these modes
 }
@@ -263,7 +263,7 @@ export function PortfolioWizard({ onComplete, onCancel, onManual, existingNames 
 
     // Apply RSU Logic
     if (selectedPreset.id === 'rsu') {
-      // Income tax on base
+      // Income Tax
       initialPortfolio.incTax = parseFloat(incomeTax) / 100 || 0.50;
 
       // Dividends
@@ -384,7 +384,7 @@ export function PortfolioWizard({ onComplete, onCancel, onManual, existingNames 
                     <SettingsSuggestIcon fontSize="large" />
                   </Box>
                   <Typography variant="h6" gutterBottom color="text.primary">
-                    {t('Custom / Expert', 'מותאם אישית / מתקדם')}
+                    {t('Custom', 'מותאם אישית')}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     {t('Full control over all settings manually.', 'שליטה מלאה בכל ההגדרות באופן ידני.')}

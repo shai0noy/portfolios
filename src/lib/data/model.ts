@@ -716,7 +716,8 @@ export class Holding {
             }
 
             // INCOME TAX (RSU Vest Value Tax)
-            if (portfolio.incTax && portfolio.incTax > 0) {
+            // RESTRICTION: Only for RSU_ACCOUNT
+            if (taxPolicy === 'RSU_ACCOUNT' && portfolio.incTax && portfolio.incTax > 0) {
                 // Assuming IncTax applies to the Cost Basis (Grant Value)
                 // costPC is the cost of the SOLD portion.
                 const incomeTaxPC = costPC * portfolio.incTax;

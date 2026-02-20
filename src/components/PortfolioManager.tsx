@@ -546,7 +546,16 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                             <PercentageField label={t('Gains Tax', 'מס רווח הון')} field="cgt" value={p.cgt || 0} onUpdate={handleUpdate} tooltip={t("Capital Gains Tax", "מס רווחי הון")} disabled={p.taxPolicy === 'TAX_FREE' || p.taxPolicy === 'PENSION'} />
                           </Grid>
                           <Grid item xs={12} sm={6}>
-                            <PercentageField label={t('Tax on Base Price', 'מס הכנסה (בסיס)')} field="incTax" value={p.incTax || 0} onUpdate={handleUpdate} tooltip={t("Income Tax (for RSUs)", "מס הכנסה (עבור RSU)")} disabled={p.taxPolicy === 'TAX_FREE'} />
+                            <PercentageField
+                              label={t('Income Tax', 'מס הכנסה')}
+                              field="incTax"
+                              value={p.incTax || 0}
+                              onUpdate={handleUpdate}
+                              tooltip={p.taxPolicy === 'RSU_ACCOUNT'
+                                ? t("This is applied to the grant (base) price of the holding", "מס זה חל על מחיר המענק (הבסיס) של ההחזקה")
+                                : t("This is only applied to profits from specific assets, like REIT funds", "מס זה חל על רווחים מנכסים ספציפיים, כגון קרנות ריט")}
+                              disabled={p.taxPolicy === 'TAX_FREE'}
+                            />
                           </Grid>
                           <Grid item xs={12}>
                             <Button
