@@ -3,7 +3,7 @@ import {
     Currency, Exchange, type Transaction, type Portfolio, type ExchangeRates, InstrumentType, type DashboardSummaryData, isBuy, isSell
 } from '../types';
 import { Holding, getCPI, computeRealTaxableGain, type DividendRecord } from './model';
-import { getTaxRatesForDate, getFeeRatesForDate } from '../portfolioUtils';
+import { getTaxRatesForDate, getFeeRatesForDate, isRealGainTaxed } from '../portfolioUtils';
 import { convertCurrency, normalizeCurrency, calculatePerformanceInDisplayCurrency } from '../currencyUtils';
 import type { TickerData } from '../fetching/types';
 
@@ -683,7 +683,7 @@ export class FinanceEngine {
                         }
 
                         // Derived Tax Basis
-                        // If Policy is NOT IL_REAL_GAIN, this logic is irrelevant for TaxableGain, 
+                        // If Policy is NOT Real Gain Taxed, this logic is irrelevant for TaxableGain, 
                         // but we store it in adjustedCostILS as the "Real Scenario" basis.
                         // However, the User wants "Taxable Gain" field to be 0/Nominal/Real depending on policy.
                         // So `adjustedCostILS` should probably match the policy?
@@ -820,7 +820,7 @@ export class FinanceEngine {
                         // TAX ON BASE PRICE (Wealth Tax / Turnover Tax)
                         // Tax is applied to the full market value, not just the gain.
                         taxableILS = mvILS;
-                    } else if (taxPolicy === 'IL_REAL_GAIN') {
+                    } else if (isRealGainTaxed(taxPolicy)) {
                         // REAL GAIN POLICY (Inflation Adjusted)
                         // Domestic: Nominal Gain adjusted for CPI. Includes "Never Lose" protection (if Deflation, Taxable Gain is capped at Nominal).
                         // Foreign: "Never Lose" Rule -> Min(Nominal Gain in ILS, Real Gain in ILS).

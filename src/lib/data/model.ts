@@ -1,7 +1,7 @@
 
 import { Currency, Exchange, type Transaction, type ExchangeRates, type Portfolio, isBuy, isSell } from '../types';
 import { convertCurrency, toILS, normalizeCurrency } from '../currencyUtils';
-import { getTaxRatesForDate } from '../portfolioUtils';
+import { getTaxRatesForDate, isRealGainTaxed } from '../portfolioUtils';
 
 // --- Types ---
 import { MultiCurrencyValue } from './multiCurrency';
@@ -651,7 +651,7 @@ export class Holding {
 
             if (taxPolicy === 'TAX_FREE') {
                 taxableGainILS = 0;
-            } else if (taxPolicy === 'IL_REAL_GAIN') {
+            } else if (isRealGainTaxed(taxPolicy)) {
                 // Synthesize Historical Rates for Real Gain Calculation
                 let calcRates = rates;
                 if (proceedsSC > 0 && proceedsILS > 0) {

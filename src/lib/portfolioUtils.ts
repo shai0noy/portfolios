@@ -55,3 +55,7 @@ export function getFeeRatesForDate(p: Portfolio, date: Date | string): { mgmtVal
     
     return { mgmtVal: p.mgmtVal ?? 0, mgmtType: p.mgmtType ?? 'percentage', mgmtFreq: p.mgmtFreq ?? 'yearly', divCommRate: p.divCommRate, commRate: p.commRate, commMin: p.commMin, commMax: p.commMax };
 }
+
+export function isRealGainTaxed(policy?: import('./types').TaxPolicy): boolean {
+    return policy === 'IL_REAL_GAIN' || policy === 'RSU_ACCOUNT';
+}

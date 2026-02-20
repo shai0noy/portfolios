@@ -58,6 +58,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
       case 'NOMINAL_GAIN': return t('Fixed (Nominal Gain)', 'קבוע (רווח נומינלי)');
       case 'TAX_FREE': return t('Tax Free (Gemel/Hishtalmut)', 'פטור ממס (גמל/השתלמות)');
       case 'PENSION': return t('Pension (Income Taxed)', 'פנסיה (ממוסה כהכנסה)');
+      case 'RSU_ACCOUNT': return t('RSU Account (Real Gain)', 'חשבון RSU (רווח ריאלי)');
       default: return key || '-';
     }
   };
@@ -528,14 +529,14 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                         <Grid container spacing={3} mt={2}>
                           <Grid item xs={12}>
                             <FormControl fullWidth size="small">
-                              <InputLabel>{t('Cap. Gain Tax Policy', 'מדיניות מס רווחי הון')}</InputLabel>
+                              <InputLabel>{t('Tax Policy', 'מדיניות מס רווחי הון')}</InputLabel>
                               <Select
                                 value={p.taxPolicy}
-                                label={t('Cap. Gain Tax Policy', 'מדיניות מס רווחי הון')}
+                                label={t('Tax Policy', 'מדיניות מס רווחי הון')}
                                 onChange={e => set('taxPolicy', e.target.value)}
                                 disabled={editMode}
                               >
-                                {['IL_REAL_GAIN', 'NOMINAL_GAIN', 'TAX_FREE', 'PENSION'].map((key) => (
+                                {['IL_REAL_GAIN', 'NOMINAL_GAIN', 'TAX_FREE', 'PENSION', 'RSU_ACCOUNT'].map((key) => (
                                   <MenuItem key={key} value={key}>{getTaxPolicyName(key)}</MenuItem>
                                 ))}
                               </Select>
