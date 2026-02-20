@@ -152,4 +152,66 @@ describe('RSU Account Tax Policy Logic', () => {
     // Expected Income Tax: 0 (Restricted to RSU_ACCOUNT).
     expect(holding?.realizedIncomeTax).toBe(0);
   });
+
+  // Scenario 4: REITs
+  // REIT Dividends SHOULD use incTax if available.
+  // REIT Capital Gains SHOULD NOT use "Tax on Base".
+
+  it('should use incTax for REIT Dividends but NOT for Tax on Base in IL_REAL_GAIN', () => {
+    const pREIT: Portfolio = {
+      ...pILS,
+      id: 'p_reit',
+      taxPolicy: 'IL_REAL_GAIN',
+      incTax: 0.30, // 30% Tax for REIT Dividends
+      cgt: 0.25
+    };
+
+    const engine = new FinanceEngine([pREIT], mockRates, mockCPI);
+
+    // 1. Buy
+    const txnBuy: Transaction = {
+      numericId: 1, portfolioId: 'p_reit', ticker: 'REIT_STOCK', exchange: Exchange.TASE,
+      date: '2023-01-01T00:00:00.000Z', type: 'BUY', qty: 10, price: 100, currency: Currency.ILS
+    } as any;
+    engine.processEvents([txnBuy], []);
+
+    // Manually set type to REIT (mocking data provider enrichment)
+    const holding = engine.holdings.get('p_reit_REIT_STOCK');
+    if (holding) {
+      holding.type = { type: 'STOCK_REIT', group: 'STOCK', subType: 'n/a' } as any;
+    }
+
+    // 2. Dividend
+    // Must be passed as a Dividend Event, not a Transaction (Transactions of type DIVIDEND are ignored by addTransaction).
+    const divEvent = {
+      ticker: 'REIT_STOCK',
+      exchange: Exchange.TASE,
+      date: new Date('2023-03-01T00:00:00.000Z'),
+      amount: 10, // Per Share Amount (10 * 10 = 100 Total)
+      source: 'TEST'
+    };
+
+    // 3. Sell
+    const txnSell: Transaction = {
+      numericId: 3, portfolioId: 'p_reit', ticker: 'REIT_STOCK', exchange: Exchange.TASE,
+      date: '2023-06-01T00:00:00.000Z', type: 'SELL', qty: 10, price: 150, currency: Currency.ILS
+    } as any;
+
+    engine.processEvents([txnSell], [divEvent]);
+
+    // Check Dividend Tax (30% of 100 = 30)
+    // Accessing dividendsTotal (Net Amount check)
+    // Gross: 100. Tax: 30. Net: 70.
+    expect(holding?.dividendsTotal?.amount).toBeCloseTo(70, 0.01);
+
+    // Check Realized Income Tax (Tax on Base) -> Should be 0
+    expect(holding?.realizedIncomeTax).toBe(0);
+
+    // Check Capital Gains Tax (25% on Real Gain)
+    // Gain: 50 share profit * 10 = 500.
+    // Inflation: 10% (mockCPI Jan->Jun). Cost Adj: 100 * 1.1 = 110.
+    // Real Gain: (150 - 110) * 10 = 400.
+    // Tax: 400 * 0.25 = 100.
+    expect(holding?.realizedCapitalGainsTax).toBeCloseTo(100, 0.01);
+  });
 });

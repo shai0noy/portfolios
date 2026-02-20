@@ -1,4 +1,5 @@
-import { Box, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper } from '@mui/material';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import { Box, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Tooltip } from '@mui/material';
 import { useLanguage } from '../../lib/i18n';
 
 interface HoldingUnderlyingAssetsProps {
@@ -15,9 +16,14 @@ export function HoldingUnderlyingAssets({ assets }: HoldingUnderlyingAssetsProps
 
     return (
         <Box sx={{ mt: 3, mb: 2 }}>
-            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                {t('Underlying Assets', 'נכסי בסיס')}
-            </Typography>
+            <Box display="flex" alignItems="center" gap={1} mb={1}>
+                <Typography variant="subtitle2" color="text.secondary">
+                    {t('Underlying Assets', 'נכסי בסיס')}
+                </Typography>
+                <Tooltip title={t('Reported by TASE and might not accurately reflect all held assets', 'מדווח על ידי הבורסה ועשוי שלא לשקף במדויק את כל הנכסים המוחזקים')} arrow enterTouchDelay={0} leaveTouchDelay={3000}>
+                    <InfoOutlinedIcon fontSize="small" color="action" sx={{ opacity: 0.7, fontSize: '0.9rem' }} />
+                </Tooltip>
+            </Box>
             <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 300 }}>
                 <Table size="small" stickyHeader>
                     <TableHead>
