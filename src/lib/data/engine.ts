@@ -267,68 +267,7 @@ export class FinanceEngine {
                     };
                 }
 
-                // Handle Holding Change logic
-                if (t.type === 'SELL_TRANSFER') {
-                    // Call addTransaction -> handleSell -> returns { costOfSold }
-                    const result = h.addTransaction(t, txnRates, this.cpiData, p);
-                    if (result && result.costOfSold !== undefined) {
-                        const dateKey = t.date; // YYYY-MM-DD
-                        const current = this.transferBucket.get(dateKey) || 0;
-                        // costOfSold is in Portfolio Currency (since it's from CostTotal)
-                        this.transferBucket.set(dateKey, current + result.costOfSold);
-                    }
-                } else if (t.type === 'BUY_TRANSFER') {
-                    const dateKey = t.date;
-                    const availableCost = this.transferBucket.get(dateKey) || 0;
-
-                    // We need to decide how much cost to attribute.
-                    // If we have 1 buy, we take all.
-                    // If we have multiple, we might want to split?
-                    // For now, simpler: TAKE ALL available in bucket (FIFO/Greedy).
-                    // This implies the BUY must happen AFTER the SELL for the bucket to be populated.
-                    // (We sorted SELL_TRANSFER before BUY_TRANSFER for same date).
-
-                    // But wait, if there are multiple buys?
-                    // "selecting the asset to buy with the full amount".
-                    // If user splits into 2 buys, they should ideally split cost basis too.
-                    // Proportional split based on "Gross Value" of the buy?
-                    // We don't know the total Gross Value of all buys in advance easily without 2-pass.
-                    // Heuristic:
-                    // If availableCost > 0, we assign it.
-                    // If we assign ALL, next buy gets 0 cost basis (100% gain).
-                    // Maybe we should assume 1:1 mapping or 1:N where N buys consume the pot.
-                    // Let's implement proportional split if possible? No, too complex for now.
-                    // I will check if `t.grossValue` or similar exists or can be calc'd.
-                    // `t.price * t.qty` is the value.
-                    // Just consuming the bucket is safe for 1-to-1.
-                    // For 1-to-N, it correctly assigns cost to first, 0 to others? No that's bad tax wise.
-                    // But "does not count as realized gain" means we just defer.
-                    // If 2nd buy has 0 cost, it has huge gain deferred.
-                    // WE WILL CONSUME PROPORTIONALLY?
-                    // To do that we need total buy amount for the day.
-                    // For now, I will just CONSUME up to the transaction value?
-                    // No, Cost Basis is distinct from Value. Cost Basis can be higher or lower.
-                    // Rule: We transfer the Cost Basis.
-                    // If I buy 1000$ worth of B, and I have 800$ Cost Basis in bucket...
-                    // I should probably assign 800$ Cost Basis.
-                    // If I have 2 buys...
-                    // Complexity risk.
-                    // I will IMPLEMENT SIMPLE CONSUME ALL for now.
-
-                    // Bug Fix: Only use costBasisOverride if we actually have a cost from the bucket.
-                    // If availableCost is 0 (orphan transfer or dates mismatch), fall back to standard Buy logic (uses txn.price).
-                    // This avoids 0 Cost Basis which leads to 100% Gain.
-                    const options = availableCost > 0 ? { costBasisOverride: availableCost } : undefined;
-
-                    h.addTransaction(t, txnRates, this.cpiData, p, options);
-
-                    // Clear bucket for this date (consumed)
-                    // If multiple buys, first takes all.
-                    this.transferBucket.set(dateKey, 0);
-
-                } else {
-                    h.addTransaction(t, txnRates, this.cpiData, p);
-                }
+                h.addTransaction(t, txnRates, this.cpiData, p);
             }
         });
 

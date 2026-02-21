@@ -292,12 +292,8 @@ export function groupHoldingLayers(
         if (lot.adjustmentDetails) g.adjustmentDetails = lot.adjustmentDetails;
 
         if (lot.soldDate) {
-            // Check disposal type
-            if (lot.disposalType === 'TRANSFER') {
-                g.transferredQty = (g.transferredQty || 0) + lot.qty;
-            } else {
-                g.soldQty += lot.qty;
-            }
+
+            g.soldQty += lot.qty;
 
             g.realizedGain += convertMoney(lot.realizedGainNet ? { amount: lot.realizedGainNet, currency: lot.costTotal.currency } : undefined, displayCurrency, exchangeRates || undefined).amount;
             const rTax = convertCurrency(lot.totalRealizedTaxPC || 0, lot.costTotal?.currency || Currency.USD, displayCurrency, exchangeRates || undefined);
@@ -313,7 +309,8 @@ export function groupHoldingLayers(
                 addedCost = lot.costTotal.valILS;
             } else if (displayCurrency === Currency.USD && lot.costTotal.valUSD) {
                 addedCost = lot.costTotal.valUSD;
-            } else {
+
+
                 addedCost = convertCurrency(lot.costTotal.amount, lot.costTotal.currency, displayCurrency, exchangeRates || undefined);
             }
             g.remainingCost += addedCost;

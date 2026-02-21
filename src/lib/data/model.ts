@@ -711,9 +711,7 @@ export class Holding {
             targetLot.realizedTax = taxILS; // Lot keeps 'realizedTax' for now as per interface
             targetLot.realizedTaxPC = convertCurrency(taxILS, Currency.ILS, this.portfolioCurrency, rates);
 
-            if (txn.type !== 'SELL_TRANSFER') {
                 this.realizedCapitalGainsTax += targetLot.realizedTaxPC; // Accumulate in PC
-            }
 
             // INCOME TAX (RSU Vest Value Tax)
             // RESTRICTION: Only for RSU_ACCOUNT
@@ -722,24 +720,13 @@ export class Holding {
                 // costPC is the cost of the SOLD portion.
                 const incomeTaxPC = costPC * portfolio.incTax;
                 targetLot.realizedIncomeTaxPC = incomeTaxPC;
-                if (txn.type !== 'SELL_TRANSFER') {
-                    this.realizedIncomeTax += incomeTaxPC;
-                }
-            }
 
-            // Total Tax per Lot
+                this.realizedIncomeTax += incomeTaxPC;
+
+            } 
+
             targetLot.totalRealizedTaxPC = (targetLot.realizedTaxPC || 0) + (targetLot.realizedIncomeTaxPC || 0);
 
-            // Override for SELL_TRANSFER (No Realized Gain/Tax reported)
-            // Override for SELL_TRANSFER (No Realized Gain/Tax reported)
-            if (txn.type === 'SELL_TRANSFER') {
-                targetLot.realizedGainNet = 0;
-                targetLot.realizedTax = 0;
-                targetLot.realizedTaxPC = 0;
-                targetLot.realizedIncomeTaxPC = 0;
-                targetLot.totalRealizedTaxPC = 0;
-                targetLot.realizedTaxableGainILS = 0;
-            }
 
             qtyToSell -= portion;
         }

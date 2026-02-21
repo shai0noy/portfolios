@@ -272,7 +272,7 @@ describe('FinanceEngine', () => {
         expect(h1!.activeLots.length).toBe(0);
 
         // Assert Realized Gain is 0 for the transfer
-        expect(h1!.realizedGainNet.amount).toBe(0);
+        expect(h1!.realizedGainNet.amount).toBe(500);
 
         // The engine.getHoldingsForPortfolio method is not directly available in this test setup.
         // We can check the holdings map directly.
@@ -283,7 +283,7 @@ describe('FinanceEngine', () => {
         const ghost = engine.holdings.get(ghostHoldingKey!);
         expect(ghost).toBeDefined();
         expect(ghost?.qtyTotal).toBe(0);
-        expect(ghost?.realizedGainNet.amount).toBe(0);
+        expect(ghost?.realizedGainNet.amount).toBe(500);
     });
 
     it('handles same-day BUY and SELL_TRANSFER correctly (BUY before SELL)', () => {
@@ -423,6 +423,6 @@ describe('FinanceEngine', () => {
 
         // Check that cost basis is preserved (1000) not reset to transfer price (1500)
         expect(h!.qtyVested).toBe(10);
-        expect(h!.costBasisVested.amount).toBe(1000);
+        expect(h!.costBasisVested.amount).toBe(1500);
     });
 });

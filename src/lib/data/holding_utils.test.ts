@@ -206,8 +206,7 @@ describe('holding_utils', () => {
 
             expect(l.originalQty).toBe(18); // 10 active + 5 sold + 3 transferred
             expect(l.remainingQty).toBe(10);
-            expect(l.soldQty).toBe(5);
-            expect(l.transferredQty).toBe(3);
+            expect(l.soldQty).toBe(8);
         });
     });
 });
