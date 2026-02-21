@@ -107,28 +107,36 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
 
   const columnDisplayNames = useMemo(() => getColumnDisplayNames(t), [t]);
 
+  const [showClosed, setShowClosed] = useState(false);
+
+  // Filter Holdings for Display
+  const displayedHoldings = useMemo(() => {
+    if (showClosed) return enrichedHoldings;
+    return enrichedHoldings.filter(h => Math.abs(h.qtyTotal) > 1e-6);
+  }, [enrichedHoldings, showClosed]);
+
   // Grouping Logic
   const groupedData = useMemo(() => {
-    if (!enrichedHoldings || enrichedHoldings.length === 0) {
+    if (!displayedHoldings || displayedHoldings.length === 0) {
       // Fallback for empty state or loading
       return { 'All Holdings': [] as EnrichedDashboardHolding[] };
     }
 
     if (selectedPortfolioId) {
       const p = portfolios.find(p => p.id === selectedPortfolioId);
-      const name = p ? p.name : (enrichedHoldings[0]?.portfolioName || 'Portfolio');
-      return { [name]: enrichedHoldings };
+      const name = p ? p.name : (displayedHoldings[0]?.portfolioName || 'Portfolio');
+      return { [name]: displayedHoldings };
     }
 
-    if (!groupByPortfolio) return { 'All Holdings': enrichedHoldings };
+    if (!groupByPortfolio) return { 'All Holdings': displayedHoldings };
 
     const groups: Record<string, EnrichedDashboardHolding[]> = {};
-    enrichedHoldings.forEach(h => {
+    displayedHoldings.forEach(h => {
       if (!groups[h.portfolioName]) groups[h.portfolioName] = [];
       groups[h.portfolioName].push(h);
     });
     return groups;
-  }, [enrichedHoldings, groupByPortfolio, selectedPortfolioId, portfolios]);
+  }, [displayedHoldings, groupByPortfolio, selectedPortfolioId, portfolios]);
 
   if (loading) return <Box display="flex" justifyContent="center" p={5}><CircularProgress /></Box>;
 
@@ -305,6 +313,16 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         </Box>
         <Box display="flex" alignItems="center">
           <ToggleButton
+            value="showClosed"
+            selected={showClosed}
+            onChange={() => setShowClosed(!showClosed)}
+            size="small"
+            color="primary"
+            sx={{ borderRadius: 2, textTransform: 'none', px: 2, py: 0.5, mr: 1, border: 1, borderColor: 'divider' }}
+          >
+            {t('Show Closed Positions', 'הצג פוזיציות סגורות')}
+          </ToggleButton>
+          <ToggleButton
             value="grouped"
             selected={groupByPortfolio}
             onChange={() => setGroupByPortfolio(!groupByPortfolio)}
@@ -330,7 +348,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
 
       <DashboardTable
 
-        holdings={enrichedHoldings}
+        holdings={displayedHoldings}
 
         groupedData={groupedData}
         groupByPortfolio={groupByPortfolio}
