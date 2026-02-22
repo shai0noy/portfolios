@@ -76,8 +76,8 @@ export const TopMovers = ({ holdings, displayCurrency, exchangeRates }: TopMover
     const [sortBy, setSortBy] = useState<'change' | 'pct'>('change');
 
     const allMovers = useMemo(() => {
-        return calculateTopMovers(holdings, displayCurrency, exchangeRates);
-    }, [holdings, displayCurrency, exchangeRates]);
+        return calculateTopMovers(holdings, displayCurrency, exchangeRates, sortBy);
+    }, [holdings, displayCurrency, exchangeRates, sortBy]);
 
     const periodLabels = {
         '1d': t('Daily', 'יומי'),

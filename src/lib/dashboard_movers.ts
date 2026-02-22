@@ -17,7 +17,8 @@ export interface Mover {
 export function calculateTopMovers(
   holdings: DashboardHolding[],
   displayCurrency: string,
-  exchangeRates: ExchangeRates
+  exchangeRates: ExchangeRates,
+  sortBy: 'change' | 'pct' = 'change'
 ): Record<TimePeriod, Mover[]> {
   const periods: TimePeriod[] = ['1d', '1w', '1m'];
   const result: Record<TimePeriod, Mover[]> = { '1d': [], '1w': [], '1m': [] };
@@ -26,6 +27,18 @@ export function calculateTopMovers(
     // Return empty structure immediately if no holdings
     return result;
   }
+
+  // Calculate Thresholds
+  // Value threshold: 100 NIS / 25 USD
+  const valueThreshold = (() => {
+    if (displayCurrency === 'ILS') return 100;
+    if (displayCurrency === 'USD') return 25;
+    // Fallback: convert 25 USD to displayCurrency
+    return convertCurrency(25, 'USD', displayCurrency, exchangeRates);
+  })();
+
+  // Pct threshold: 0.05%
+  const pctThreshold = 0.0005;
 
   // Helper to get change value and percentage for a single holding
   const getHoldingMetrics = (h: DashboardHolding, period: TimePeriod) => {
@@ -122,8 +135,23 @@ export function calculateTopMovers(
     });
 
     result[period] = movers
-      .filter(m => m.change !== 0 && !isNaN(m.change))
-      .sort((a, b) => Math.abs(b.change) - Math.abs(a.change))
+      .filter(m => {
+        if (isNaN(m.change) || m.change === 0) return false;
+
+        // Threshold Filtering
+        if (sortBy === 'change') {
+          return Math.abs(m.change) >= valueThreshold;
+        } else {
+          return Math.abs(m.pct) >= pctThreshold;
+        }
+      })
+      .sort((a, b) => {
+        if (sortBy === 'change') {
+          return Math.abs(b.change) - Math.abs(a.change);
+        } else {
+          return Math.abs(b.pct) - Math.abs(a.pct);
+        }
+      })
       .slice(0, 6);
   }
 

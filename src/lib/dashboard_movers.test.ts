@@ -91,4 +91,37 @@ describe('calculateTopMovers', () => {
     expect(mover?.change).toBeCloseTo(50, 1);
     expect(mover?.pct).toBeCloseTo(0.3333, 2);
   });
+
+  it('should filter movers by value threshold', () => {
+    const hBig = mockHolding('BIG', 'p1', 0.1, 10, 100); // Val 1000, Change ~90 (depends on math, let's say 100)
+    const hSmall = mockHolding('SML', 'p1', 0.1, 1, 100); // Val 100, Change ~9
+
+    // Threshold is 25 USD for USD display currency
+    const result = calculateTopMovers([hBig, hSmall], 'USD', exchangeRates, 'change');
+
+    expect(result['1d'].find(m => m.ticker === 'BIG')).toBeDefined();
+    expect(result['1d'].find(m => m.ticker === 'SML')).toBeUndefined();
+  });
+
+  it('should filter movers by pct threshold', () => {
+    const hBigPct = mockHolding('BIGP', 'p1', 0.01, 100, 100); // 1% change
+    const hSmallPct = mockHolding('SMLP', 'p1', 0.0001, 100, 100); // 0.01% change
+
+    // Threshold is 0.05% (0.0005)
+    const result = calculateTopMovers([hBigPct, hSmallPct], 'USD', exchangeRates, 'pct');
+
+    expect(result['1d'].find(m => m.ticker === 'BIGP')).toBeDefined();
+    expect(result['1d'].find(m => m.ticker === 'SMLP')).toBeUndefined();
+  });
+
+  it('should use ILS threshold correctly', () => {
+    const h1 = mockHolding('ILS1', 'p1', 0.1, 1, 100); // Change ~9 USD = ~36 ILS (if rate 4)
+    const h2 = mockHolding('ILS2', 'p1', 0.5, 1, 100); // Change ~33 USD = ~132 ILS
+
+    // threshold is 100 ILS
+    const result = calculateTopMovers([h1, h2], 'ILS', exchangeRates, 'change');
+
+    expect(result['1d'].find(m => m.ticker === 'ILS2')).toBeDefined();
+    expect(result['1d'].find(m => m.ticker === 'ILS1')).toBeUndefined();
+  });
 });
