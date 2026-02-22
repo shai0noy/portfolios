@@ -82,11 +82,11 @@ export function HoldingLayers({ groupedLayers, displayCurrency, portfolios, exch
                                                                     {t('Sold:', 'נמכר:')} {formatNumber(layer.soldQty)} ({formatPercent(layer.originalQty > 0 ? layer.soldQty / layer.originalQty : 0)})
                                                                 </Typography>
                                                             )}
-                                                            {layer.transferredQty && layer.transferredQty > 0 && (
+                                                            {layer.transferredQty && layer.transferredQty > 0 ? (
                                                                 <Typography variant="body2">
-                                                                    {t('Transferred:', 'הועבר:')} {formatNumber(layer.transferredQty)} ({formatPercent(layer.originalQty > 0 ? layer.transferredQty / layer.originalQty : 0)})
+                                                                    {t('Transferred:', 'הועבר:')} {formatNumber(layer.transferredQty!)} ({formatPercent(layer.originalQty > 0 ? layer.transferredQty! / layer.originalQty : 0)})
                                                                 </Typography>
-                                                            )}
+                                                            ) : null}
                                                         </Box>
                                                     }
                                                     enterTouchDelay={0}

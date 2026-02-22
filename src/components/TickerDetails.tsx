@@ -117,9 +117,11 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   }, [location.state, ticker]);
 
   useEffect(() => {
-    if (ownedInPortfolios && ownedInPortfolios.length > 0) {
+    // Note: To always show closed positions, we must try loading engineHoldings
+    // even if `ownedInPortfolios` is empty (as it might be filtered by qty > 0 upstream).
+    if (sheetId && ticker) {
       loadFinanceEngine(sheetId).then(eng => {
-        const matches: Holding[] = []; // UnifiedHolding was Holding | SheetHolding, but Engine only has Holding
+        const matches: Holding[] = [];
         eng.holdings.forEach((h: Holding) => {
           if (h.ticker === ticker && (h.exchange === exchange || !exchange)) {
             matches.push(h);
@@ -128,11 +130,11 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
         setEngineHoldings(matches);
       }).catch(console.error);
     }
-  }, [sheetId, ownedInPortfolios, ticker, exchange]);
+  }, [sheetId, ticker, exchange]);
 
   const hasHolding = useMemo(() => {
-    return !!(enrichedHolding || (ownedInPortfolios && ownedInPortfolios.length > 0));
-  }, [enrichedHolding, ownedInPortfolios]);
+    return !!(enrichedHolding || (ownedInPortfolios && ownedInPortfolios.length > 0) || (engineHoldings && engineHoldings.length > 0) || holdingData);
+  }, [enrichedHolding, ownedInPortfolios, engineHoldings, holdingData]);
 
   const handlePortfolioClick = (id: string) => {
     onClose?.(); 
