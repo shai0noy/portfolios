@@ -107,7 +107,11 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
 
   const columnDisplayNames = useMemo(() => getColumnDisplayNames(t), [t]);
 
-  const [showClosed, setShowClosed] = useState(false);
+  const [showClosed, setShowClosed] = useState(() => localStorage.getItem('showClosedPositions') === 'true');
+
+  useEffect(() => {
+    localStorage.setItem('showClosedPositions', String(showClosed));
+  }, [showClosed]);
 
   // Filter Holdings for Display
   const displayedHoldings = useMemo(() => {

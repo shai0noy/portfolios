@@ -41,6 +41,12 @@ const formatDate = (dateInput: string | Date | number) => {
     return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
 };
 
+const coerceDate = (d: any): Date | null => {
+    if (!d) return null;
+    if (d instanceof Date) return d;
+    return new Date(d);
+};
+
 export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, portfolios, section = 'holdings' }: HoldingDetailsProps & { section?: string }) {
     const { t } = useLanguage();
     const navigate = useNavigate();
@@ -98,7 +104,7 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
 
     // Transactions are already filtered for this holding in UnifiedHolding
     const txnHistory = useMemo(() => {
-        return [...transactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        return [...transactions].sort((a, b) => (coerceDate(b.date)?.getTime() || 0) - (coerceDate(a.date)?.getTime() || 0));
     }, [transactions]);
 
     const divHistory = useMemo(() => {
@@ -115,7 +121,7 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                 lots = ((h as any)._lots as Lot[]).filter(l => !l.soldDate && l.qty > 0);
             }
             return lots.map(l => ({ ...l, portfolioId: h.portfolioId }));
-        }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        }).sort((a, b) => (coerceDate(a.date)?.getTime() || 0) - (coerceDate(b.date)?.getTime() || 0));
     }, [matchingHoldings]);
 
     const realizedLayers = useMemo(() => {
@@ -125,15 +131,11 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
             if (enrichedH?.realizedLots) lots = enrichedH.realizedLots;
             else if ((h as any).realizedLots) lots = (h as any).realizedLots;
             else if ((h as any)._lots) {
-                lots = ((h as any)._lots as Lot[]).filter(l => l.soldDate);
-            }
-            else if ((h as any).realizedLots) lots = (h as any).realizedLots;
-            else if ((h as any)._lots) {
-                // Fallback for raw internal lots (less safe but works for now)
-                lots = ((h as any)._lots as Lot[]).filter(l => l.soldDate);
+                // Fallback for raw internal lots
+                lots = ((h as any)._lots as Lot[]).filter(l => !!l.soldDate);
             }
             return lots.map(l => ({ ...l, portfolioId: h.portfolioId }));
-        }).sort((a, b) => (b.soldDate?.getTime() || 0) - (a.soldDate?.getTime() || 0));
+        }).sort((a, b) => (coerceDate(b.soldDate)?.getTime() || 0) - (coerceDate(a.soldDate)?.getTime() || 0));
     }, [matchingHoldings]);
 
     // For current holding context: currentHolding was unused.
@@ -177,8 +179,8 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
         if (hasGrants) {
             const currentPrice = (holding as any).currentPrice || 0;
             layers.forEach(l => {
-                const vDate = l.vestingDate || (l as any).vestDate;
-                if (vDate && new Date(vDate) > new Date()) {
+                const vDate = coerceDate(l.vestingDate || (l as any).vestDate);
+                if (vDate && vDate > new Date()) {
                     const qty = l.qty || 0;
                     const layerVal = qty * currentPrice;
                     const costVal = l.costPerUnit?.amount ?? (l as any).price ?? 0;
@@ -214,17 +216,27 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
         return groupHoldingLayers(layers, realizedLayers, exchangeRates, displayCurrency, portfolioNameMap, holding, stockCurrency, holdingsWeights);
     }, [layers, realizedLayers, displayCurrency, exchangeRates, portfolioNameMap, holding, stockCurrency, holdingsWeights]);
 
+    const isFeeExempt = useMemo(() => {
+        const h = holding as any;
+        const type = enriched?.type?.type || h.type?.type || h.instrumentType;
+        const nameHe = enriched?.nameHe || h.nameHe || '';
+        return type === InstrumentType.MONETARY_FUND || nameHe.includes('קרן כספית') || nameHe.includes('כספית');
+    }, [enriched, holding]);
+
 
     if (loading) {
         return <Box sx={{ p: 4, display: 'flex', justifyContent: 'center' }}><CircularProgress /></Box>;
     }
+
+    const HoldingStatsComponent = HoldingStats as any;
+    const HoldingTransactionsComponent = HoldingTransactions as any;
 
     return (
         <Box sx={{ mt: 2 }}>
             {/* SECTION: HOLDINGS */}
             {section === 'holdings' && (
                 <Box>
-                    {!vals || !vals.marketValue && vals.costBasis === 0 ? (
+                    {!vals || (vals.marketValue === 0 && vals.costBasis === 0 && realizedLayers.length === 0 && divHistory.length === 0) ? (
                         <Box sx={{ p: 2, textAlign: 'center' }}>
                             <Typography color="text.secondary">{t('Calculating holding details...', 'מחשב פרטי החזקה...')}</Typography>
                         </Box>
@@ -240,7 +252,7 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                                     </Typography>
                                 )}
 
-                                <HoldingStats
+                                <HoldingStatsComponent
                                     vals={vals as HoldingValues}
                                     displayCurrency={displayCurrency}
                                     holdingsWeights={holdingsWeights}
@@ -251,7 +263,7 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                                     unvestedGain={unvestedGain}
                                     totalQty={totalQty}
                                     totalFeesDisplay={totalFeesDisplay}
-                                    isFeeExempt={enriched?.type?.type === InstrumentType.MONETARY_FUND || (holding as any).type?.type === InstrumentType.MONETARY_FUND || (enriched?.nameHe || (holding as any).nameHe || '').includes('קרן כספית')}
+                                    isFeeExempt={isFeeExempt}
                                 />
 
                                 <HoldingDistribution
@@ -275,12 +287,12 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
 
             {/* SECTION: TRANSACTIONS */}
             {section === 'transactions' && (
-                <HoldingTransactions
+                <HoldingTransactionsComponent
                     txnHistory={txnHistory}
                     portfolioNameMap={portfolioNameMap}
                     formatDate={formatDate}
                     onEditTransaction={handleEditTransaction}
-                    isFeeExempt={enriched?.type?.type === InstrumentType.MONETARY_FUND || (holding as any).type?.type === InstrumentType.MONETARY_FUND || (enriched?.nameHe || (holding as any).nameHe || '').includes('קרן כספית')}
+                    isFeeExempt={isFeeExempt}
                 />
             )}
 
