@@ -15,10 +15,11 @@ interface TableProps {
   onSelectPortfolio: (id: string | null) => void;
   columnVisibility: Record<string, boolean>;
   onHideColumn: (column: string) => void;
+  preventColumnHide?: boolean;
 }
 
 export function DashboardTable(props: TableProps) {
-  const { groupedData, groupByPortfolio, displayCurrency, exchangeRates, onSelectPortfolio, columnVisibility, onHideColumn } = props;
+  const { groupedData, groupByPortfolio, displayCurrency, exchangeRates, onSelectPortfolio, columnVisibility, onHideColumn, preventColumnHide } = props;
   const { t } = useLanguage();
 
   const [sortBy, setSortBy] = useState<string>('marketValue');
@@ -90,7 +91,7 @@ export function DashboardTable(props: TableProps) {
         anchorReference="anchorPosition"
         anchorPosition={contextMenu ? { top: contextMenu.mouseY, left: contextMenu.mouseX } : undefined}
       >
-        <MenuItem onClick={handleHideColumn}>{t('Hide Column', 'הסתר עמודה')}</MenuItem>
+        <MenuItem onClick={handleHideColumn} disabled={preventColumnHide}>{t('Hide Column', 'הסתר עמודה')}</MenuItem>
       </Menu>
     </>
   );

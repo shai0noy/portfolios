@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, Link as RouterLink, useNavigate, useLocation } from 'react-router-dom';
 import {
-  Box, CircularProgress, IconButton, Tooltip, Typography, ToggleButton, Divider, Button, ToggleButtonGroup
+  Box, CircularProgress, IconButton, Tooltip, Typography, ToggleButton, Divider, Button, ToggleButtonGroup, Select, MenuItem, FormControl
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
@@ -14,7 +14,7 @@ import { DashboardSummary } from './dashboard/DashboardSummary';
 import { DashboardTable } from './DashboardTable';
 import { useLanguage } from '../lib/i18n';
 import { useDashboardData, calculateDashboardSummary, INITIAL_SUMMARY, type EnrichedDashboardHolding } from '../lib/dashboard';
-import { getDefaultColumnVisibility, getColumnDisplayNames } from '../lib/dashboardColumns';
+import { getDefaultColumnVisibility, getColumnDisplayNames, getPresetVisibility, type ColumnPresetType } from '../lib/dashboardColumns';
 import { TickerSearch } from './TickerSearch';
 import { useSession } from '../lib/SessionContext';
 
@@ -95,15 +95,33 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
   }, [holdings, displayCurrency, exchangeRates, selectedPortfolioId, portfolios, loading, error, engine]);
 
   // Column Configuration
-  const [columnVisibility, setColumnVisibility] = useState(() => {
+  const [columnPreset, setColumnPreset] = useState<ColumnPresetType>(() => {
+    let saved = localStorage.getItem('columnPreset') as ColumnPresetType | 'basic' | 'holdings_gains';
+    if (saved === 'basic') return 'overview';
+    if (saved === 'holdings_gains') return 'gains';
+    return (saved as ColumnPresetType) || 'custom';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('columnPreset', columnPreset);
+  }, [columnPreset]);
+
+  const [customColumnVisibility, setCustomColumnVisibility] = useState(() => {
     const saved = localStorage.getItem('columnVisibility');
     const defaults = getDefaultColumnVisibility();
     return saved ? { ...defaults, ...JSON.parse(saved) } : defaults;
   });
 
   useEffect(() => {
-    localStorage.setItem('columnVisibility', JSON.stringify(columnVisibility));
-  }, [columnVisibility]);
+    localStorage.setItem('columnVisibility', JSON.stringify(customColumnVisibility));
+  }, [customColumnVisibility]);
+
+  const columnVisibility = useMemo(() => {
+    if (columnPreset === 'custom') {
+      return customColumnVisibility;
+    }
+    return getPresetVisibility(columnPreset);
+  }, [columnPreset, customColumnVisibility]);
 
   const columnDisplayNames = useMemo(() => getColumnDisplayNames(t), [t]);
 
@@ -302,18 +320,34 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
       {/* CONTROLS */}
       <Box display="flex" justifyContent="space-between" mb={2} alignItems="center">
         <Box display="flex" gap={1}>
-          <ColumnSelector
-            columns={columnVisibility}
-            columnDisplayNames={columnDisplayNames}
-            onColumnChange={(key, value) =>
-              setColumnVisibility((prev: any) => ({ ...prev, [key]: value }))
-            }
-            label={t("Select Columns", "בחר עמודות")}
-            anchorEl={anchorEl}
-            open={openColSelector}
-            onClick={handleClickColSelector}
-            onClose={handleCloseColSelector}
-          />
+          <FormControl size="small" sx={{ minWidth: 140 }}>
+            <Select
+              value={columnPreset}
+              onChange={(e) => setColumnPreset(e.target.value as ColumnPresetType)}
+              displayEmpty
+            >
+              <MenuItem value="custom">{t('Custom', 'מותאם אישית')}</MenuItem>
+              <MenuItem value="overview">{t('Overview', 'מבט כללי')}</MenuItem>
+              <MenuItem value="gains">{t('Gains', 'רווחים')}</MenuItem>
+              <MenuItem value="analytics">{t('Analytics', 'אנליטיקה')}</MenuItem>
+              <MenuItem value="technical">{t('Technical', 'טכני')}</MenuItem>
+              <MenuItem value="all">{t('All', 'הכל')}</MenuItem>
+            </Select>
+          </FormControl>
+          {columnPreset === 'custom' && (
+            <ColumnSelector
+              columns={columnVisibility}
+              columnDisplayNames={columnDisplayNames}
+              onColumnChange={(key, value) => {
+                setCustomColumnVisibility((prev: any) => ({ ...prev, [key]: value }));
+              }}
+              label={t("Select Columns", "בחר עמודות")}
+              anchorEl={anchorEl}
+              open={openColSelector}
+              onClick={handleClickColSelector}
+              onClose={handleCloseColSelector}
+            />
+          )}
         </Box>
         <Box display="flex" alignItems="center">
           <ToggleButton
@@ -363,7 +397,12 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         exchangeRates={exchangeRates}
         onSelectPortfolio={handleSelectPortfolio} // Updated prop
         columnVisibility={columnVisibility}
-        onHideColumn={(col) => setColumnVisibility((prev: any) => ({ ...prev, [col]: false }))}
+        onHideColumn={(col) => {
+          if (columnPreset === 'custom') {
+            setCustomColumnVisibility((prev: any) => ({ ...prev, [col]: false }));
+          }
+        }}
+        preventColumnHide={columnPreset !== 'custom'}
       />
     </Box>
   );

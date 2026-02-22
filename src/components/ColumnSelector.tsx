@@ -15,6 +15,7 @@ interface ColumnSelectorProps {
   onClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onClose: () => void;
   label: string;
+  disabled?: boolean;
 }
 
 export function ColumnSelector({
@@ -26,6 +27,7 @@ export function ColumnSelector({
   onClick,
   onClose,
   label,
+  disabled,
 }: ColumnSelectorProps) {
   return (
     <div>
@@ -46,17 +48,26 @@ export function ColumnSelector({
         MenuListProps={{
           "aria-labelledby": "basic-button",
         }}
+        sx={{
+          '.MuiMenuItem-root': {
+            opacity: disabled ? 0.7 : 1
+          }
+        }}
       >
         {Object.entries(columns).map(([key, value]) => (
-          <MenuItem key={key}>
+          <MenuItem key={key} disabled={disabled} sx={{ py: 0, minHeight: 32 }}>
             <FormControlLabel
               control={
                 <Checkbox
+                  size="small"
                   checked={value}
                   onChange={(e) => onColumnChange(key, e.target.checked)}
+                  disabled={disabled}
+                  sx={{ p: 0.5, mr: 0.5 }}
                 />
               }
               label={columnDisplayNames[key] || key}
+              sx={{ '& .MuiFormControlLabel-label': { fontSize: '0.85rem' }, m: 0 }}
             />
           </MenuItem>
         ))}
