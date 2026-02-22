@@ -714,6 +714,7 @@ export function TickerChart({ series, currency, mode = 'percent', height = 300, 
             width: '100%',
             height,
             minWidth: 0,
+            minHeight: 0,
             position: 'relative',
             userSelect: 'none',
             '& *': {

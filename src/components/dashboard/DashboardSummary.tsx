@@ -363,14 +363,14 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
           )}
           {activeStep === 1 && (
             <Fade in={true} timeout={700}>
-            <Box sx={{ height: 210, position: 'relative' }}>
+              <Box sx={{ height: 210, position: 'relative', minWidth: 0, minHeight: 0 }}>
               {isPerfLoading ? (
                 <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" height="100%" gap={1}>
                   <CircularProgress size={30} />
                   <Typography variant="caption" color="text.secondary">{t('Calculating Portfolio Performance...', 'מחשב ביצועי תיק...')}</Typography>
                 </Box>
               ) : portfolioSeries.length > 0 ? (
-                <Box sx={{ height: '100%', mt: -1 }}>
+                    <Box sx={{ height: '100%', mt: -1, minWidth: 0, minHeight: 0 }}>
                   <Box display="flex" justifyContent="space-between" alignItems="center" sx={{ mb: 1, px: 2, flexWrap: 'wrap', gap: 1 }}>
                     <Box display="flex" gap={1} alignItems="center">
                       <ToggleButtonGroup
@@ -515,7 +515,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                     </Box>
                   )}
 
-                  <Box sx={{ height: isComparison ? 120 : 140 }}>
+                      <Box sx={{ height: isComparison ? 120 : 140, minWidth: 0, minHeight: 0 }}>
                       <TickerChart
                         series={portfolioSeries}
                         currency={displayCurrency}

@@ -6,6 +6,8 @@ import { getTickerData, type TickerData } from '../fetching';
 import { fetchGlobesStockQuote } from '../fetching/globes';
 import { fetchYahooTickerData } from '../fetching/yahoo';
 
+import { getCacheItem, setCacheItem, removeCacheItem, CACHE_KEY } from './idb-helper';
+
 async function fetchLivePrices(tickers: { ticker: string, exchange: Exchange }[]): Promise<Map<string, TickerData>> {
     const results = new Map<string, TickerData>();
     await Promise.all(tickers.map(async ({ ticker, exchange }) => {
@@ -27,7 +29,6 @@ async function fetchCPIData(_sheetId: string): Promise<TickerData | null> {
     return null;
 }
 
-const CACHE_KEY = 'finance_engine_cache';
 const CACHE_TTL = 1 * 60 * 1000; // 1 minute
 
 interface FinanceCache {
@@ -41,132 +42,42 @@ interface FinanceCache {
     livePrices: [string, TickerData][];
 }
 
-export function clearFinanceCache(sheetId?: string) {
+export async function clearFinanceCache(sheetId?: string) {
     try {
         if (sheetId) {
-            const json = localStorage.getItem(CACHE_KEY);
-            if (json) {
-                const cache = JSON.parse(json) as FinanceCache;
-                if (cache.sheetId === sheetId) {
-                    localStorage.removeItem(CACHE_KEY);
-                }
+            const cache = await getCacheItem<FinanceCache>(CACHE_KEY);
+            if (cache && cache.sheetId === sheetId) {
+                await removeCacheItem(CACHE_KEY);
             }
         } else {
-            localStorage.removeItem(CACHE_KEY);
+            await removeCacheItem(CACHE_KEY);
         }
     } catch (e) {
         console.warn('Failed to clear cache', e);
     }
 }
 
-function saveToCache(sheetId: string, data: Omit<FinanceCache, 'timestamp' | 'sheetId'>) {
+async function saveToCache(sheetId: string, data: Omit<FinanceCache, 'timestamp' | 'sheetId'>) {
     const timestamp = Date.now();
 
-    // 1. Try to save full cache
     try {
         const cache: FinanceCache = {
             timestamp,
             sheetId,
             ...data
         };
-        const json = JSON.stringify(cache);
-        localStorage.setItem(CACHE_KEY, json);
-        return; // Success
+        await setCacheItem(CACHE_KEY, cache);
+        console.log('Successfully saved full cache to IndexedDB.');
     } catch (e) {
-        // Continue to fallback
-        console.warn('Failed to save full cache (likely QuotaExceeded), attempting to strip history...', e);
-    }
-
-    // 2. Fallback: optimize livePrices by downsampling history
-    try {
-        const optimizedLivePrices = data.livePrices.map(([key, tickerData]) => {
-            const { historical, ...rest } = tickerData;
-
-            // Keep only essential history points to save space but allow some perf calc?
-            // Engine uses history for calculatePersonalPerf (1w, 1m, 3m, 1y, 3y, 5y).
-            // We can keep just the points needed for these dates.
-            let optimizedHistory = undefined;
-            if (historical && historical.length > 0) {
-                const now = new Date();
-                const targets = [
-                    now.getTime() - 7 * 24 * 3600 * 1000, // 1w
-                    new Date(now.getFullYear(), now.getMonth() - 1, now.getDate()).getTime(), // 1m
-                    new Date(now.getFullYear(), now.getMonth() - 3, now.getDate()).getTime(), // 3m
-                    new Date(now.getFullYear(), 0, 1).getTime(), // YTD
-                    new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()).getTime(), // 1y
-                    new Date(now.getFullYear() - 3, now.getMonth(), now.getDate()).getTime(), // 3y
-                    new Date(now.getFullYear() - 5, now.getMonth(), now.getDate()).getTime(), // 5y
-                ];
-
-                // Find closest points
-                const keepIndices = new Set<number>();
-                keepIndices.add(historical.length - 1); // Always keep latest
-
-                targets.forEach(t => {
-                    // Binary search or simple scan (history is sorted?) usually sorted by date asc.
-                    // Let's assume sorted.
-                    // Find first point >= t
-                    let bestIdx = -1;
-                    // Simple scan for now (arrays are usually < 5000 items, fast enough)
-                    // Optimization: Binary search would be better but this runs once on save.
-                    for (let i = 0; i < historical.length; i++) {
-                        if (historical[i].date.getTime() >= t) {
-                            bestIdx = i;
-                            break;
-                        }
-                    }
-                    if (bestIdx !== -1) keepIndices.add(bestIdx);
-                });
-
-                optimizedHistory = historical.filter((_, i) => keepIndices.has(i));
-            }
-
-            // If we still want to be aggressive, we can just strip it. 
-            // But User asked to be "generous".
-            // If optimizedHistory is still too big (unlikely, it's < 10 points), we could strip.
-            // Let's try to save with optimized history.
-
-            return [key, { ...rest, historical: optimizedHistory }] as [string, TickerData];
-        });
-
-        const cache: FinanceCache = {
-            timestamp,
-            sheetId,
-            ...data,
-            livePrices: optimizedLivePrices
-        };
-
-        localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
-        console.log('Successfully saved optimized cache (downsampled history).');
-    } catch (e) {
-        console.warn('Failed to save optimized cache. Retrying with stripped history...', e);
-
-        // 3. Ultimate Fallback: Strip All History
-        try {
-            const strippedLivePrices = data.livePrices.map(([key, tickerData]) => {
-                const { historical, ...rest } = tickerData;
-                return [key, rest] as [string, TickerData];
-            });
-            const cache: FinanceCache = {
-                timestamp,
-                sheetId,
-                ...data,
-                livePrices: strippedLivePrices
-            };
-            localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
-            console.log('Successfully saved stripped cache (no history).');
-        } catch (e2) {
-            console.warn('Failed to save fully stripped cache.', e2);
-        }
+        console.warn('Failed to save to IndexedDB', e);
     }
 }
 
-function loadFromCache(sheetId: string): FinanceCache | null {
+async function loadFromCache(sheetId: string): Promise<FinanceCache | null> {
     try {
-        const json = localStorage.getItem(CACHE_KEY);
-        if (!json) return null;
+        const cache = await getCacheItem<FinanceCache>(CACHE_KEY);
+        if (!cache) return null;
 
-        const cache = JSON.parse(json) as FinanceCache;
         if (cache.sheetId !== sheetId) return null;
         if (Date.now() - cache.timestamp > CACHE_TTL) return null;
 
@@ -180,7 +91,7 @@ function loadFromCache(sheetId: string): FinanceCache | null {
 export const loadFinanceEngine = async (sheetId: string, forceRefresh = false) => {
     // 0. Try Load from Cache
     if (!forceRefresh) {
-        const cached = loadFromCache(sheetId);
+        const cached = await loadFromCache(sheetId);
         if (cached) {
             console.log('Loader: Using cached data');
             const { transactions, portfolios, rawDivs, exchangeRates, cpiData, livePrices } = cached;
@@ -339,8 +250,8 @@ export const loadFinanceEngine = async (sheetId: string, forceRefresh = false) =
         }));
     }
 
-    // Save to Cache
-    saveToCache(sheetId, {
+    // Save to Cache (no longer blocks or fails on quota size due to IndexedDB)
+    await saveToCache(sheetId, {
         transactions,
         portfolios,
         rawDivs,
