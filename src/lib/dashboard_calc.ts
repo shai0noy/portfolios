@@ -175,6 +175,25 @@ export function calculateDashboardSummary(data: any[], displayCurrency: string, 
       dayChangeVal = changeVal * h.qtyVested;
     }
 
+    // 1Y Dividend Yield
+    let dividendYield1y: number | undefined;
+    if (marketValue > 0) {
+      const oneYearAgo = new Date();
+      oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+
+      const lastYearDivs = h.dividends.reduce((sum, d) => {
+        if (d.date >= oneYearAgo) {
+          const rawAmount = (d as any).amount !== undefined ? (d as any).amount : d.netAmountPC;
+          return sum + convertCurrency(rawAmount, h.portfolioCurrency, displayCurrency, exchangeRates);
+        }
+        return sum;
+      }, 0);
+
+      if (lastYearDivs > 0) {
+        dividendYield1y = lastYearDivs / marketValue;
+      }
+    }
+
     const display: DashboardHoldingDisplay = {
       marketValue,
       unrealizedGain, // Use definition from line 69
@@ -194,6 +213,8 @@ export function calculateDashboardSummary(data: any[], displayCurrency: string, 
       costOfSold: costOfSoldDisplay,
       proceeds: proceedsDisplay,
       dividends: dividendsNet, // Net
+      fees: feesDisplay,
+      dividendYield1y,
       currentPrice: convertCurrency(h.currentPrice, h.stockCurrency, displayCurrency, exchangeRates),
       avgCost: h.qtyVested > 0 ? costBasisDisplay / h.qtyVested : 0,
       weightInPortfolio: 0, 

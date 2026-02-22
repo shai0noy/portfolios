@@ -259,14 +259,16 @@ export interface DashboardHoldingDisplay {
   costOfSold: number;
   proceeds: number;
   dividends: number;
+  fees: number;
+  dividendYield1y?: number;
   currentPrice: number;
   avgCost: number;
   weightInPortfolio: number;
   weightInGlobal: number;
   unvestedValue: number;
   adjustedCost?: number;
-  realizedTax?: number;
-  unrealizedTax?: number;
+  realizedTax: number;
+  unrealizedTax: number;
 }
 
 export interface DashboardSummaryData {

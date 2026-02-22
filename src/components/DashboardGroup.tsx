@@ -63,7 +63,16 @@ export const DashboardGroup = memo(function DashboardGroup(props: DashboardGroup
       case 'weight': return h.display.weightInPortfolio;
       case 'dayChangePct': return h.display.dayChangePct;
       case 'dayChangeVal': return h.display.dayChangeVal;
+      case 'perf1w': return h.perf1w;
+      case 'perf1m': return h.perf1m;
+      case 'perfYtd': return h.perfYtd;
+      case 'perf1y': return h.perf1y;
       case 'marketValue': return h.display.marketValue;
+      case 'dividends': return h.display.dividends;
+      case 'dividendYield1y': return h.display.dividendYield1y || 0;
+      case 'fees': return h.display.fees;
+      case 'realizedTax': return h.display.realizedTax;
+      case 'unrealizedTax': return h.display.unrealizedTax;
       case 'unrealizedGain': return h.display.unrealizedGain;
       case 'realizedGain': return h.display.realizedGain;
       case 'totalGain': return h.display.totalGain;

@@ -14,8 +14,8 @@ Check crypto 1d change?...
 Discovery/selling points splash page
 tase types vs globes types??
 If there is no sheet document ID, do not show the "create first portfolio" screen, rather, you should send the user to exisitng the screen to enter an existing sheet ID or create one
-Handle RSU style and Gemmel/Pension style div policy 
-Support IRS/Gemmel/Pension sell/reassign model
+!! Handle RSU style and Gemmel/Pension style div policy 
+DONE: Support IRS/Gemmel/Pension sell/reassign model
 ON HOLD: Handle splits, etc, name changes
 ON HOLD: Support mobile screen sizes
 ON HOLD: Use Finhub or marketstack over yahoo if possible or in addition (will reuqire to guide use rto create API key and add it to spreadsheet as part of setup)
@@ -23,7 +23,7 @@ When changing fields in "Add portfolio", it is very slow and laggy. Need a way t
 Refine set of defaults columns shown
 Check why seeing negative realized reutrn in LUMI
 Update test data (no more divs there) need DIV test data too
-Add all potfolios + "total" portfolio as comperission options to tickers and to the analysis table. Make sure not to allow comperission of portfolio to itself in the summary component
+DONE?: Add all potfolios + "total" portfolio as comperission options to tickers and to the analysis table. Make sure not to allow comperission of portfolio to itself in the summary component
 
 Low priority:
 - Smart layer based tax calc (FIFO selling and per layer taxing)

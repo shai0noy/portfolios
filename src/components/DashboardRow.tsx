@@ -59,10 +59,28 @@ export const DashboardRow = memo(function DashboardRow({
         return <TableCell align="left" sx={{ color: getValueColor(vals.dayChangePct) }}>{formatMoneyValue({ amount: vals.dayChangeVal, currency: normalizeCurrency(displayCurrency) }, t)}</TableCell>;
       case 'dayChangePct':
         return <TableCell align="left" sx={{ color: getValueColor(vals.dayChangePct) }}>{formatPct(vals.dayChangePct)}</TableCell>;
+      case 'perf1w':
+        return <TableCell align="left" sx={{ color: getValueColor(h.perf1w) }}>{formatPct(h.perf1w)}</TableCell>;
+      case 'perf1m':
+        return <TableCell align="left" sx={{ color: getValueColor(h.perf1m) }}>{formatPct(h.perf1m)}</TableCell>;
+      case 'perfYtd':
+        return <TableCell align="left" sx={{ color: getValueColor(h.perfYtd) }}>{formatPct(h.perfYtd)}</TableCell>;
+      case 'perf1y':
+        return <TableCell align="left" sx={{ color: getValueColor(h.perf1y) }}>{formatPct(h.perf1y)}</TableCell>;
       case 'mv':
         return <TableCell align="left">{formatMoneyValue({ amount: vals.marketValue, currency: normalizeCurrency(displayCurrency) }, t)}</TableCell>;
       case 'unvestedValue':
         return <TableCell align="left" sx={{ color: 'text.secondary' }}>{h.display.unvestedValue > 0 ? formatMoneyValue({ amount: h.display.unvestedValue, currency: normalizeCurrency(displayCurrency) }, t) : '-'}</TableCell>;
+      case 'dividends':
+        return <TableCell align="left" sx={{ color: 'success.main' }}>{vals.dividends > 0 ? formatMoneyValue({ amount: vals.dividends, currency: normalizeCurrency(displayCurrency) }, t) : '-'}</TableCell>;
+      case 'dividendYield1y':
+        return <TableCell align="left">{vals.dividendYield1y !== undefined ? formatPct(vals.dividendYield1y) : '-'}</TableCell>;
+      case 'fees':
+        return <TableCell align="left" sx={{ color: 'error.main' }}>{vals.fees > 0 ? formatMoneyValue({ amount: vals.fees, currency: normalizeCurrency(displayCurrency) }, t) : '-'}</TableCell>;
+      case 'realizedTax':
+        return <TableCell align="left" sx={{ color: 'error.main' }}>{vals.realizedTax > 0 ? formatMoneyValue({ amount: vals.realizedTax, currency: normalizeCurrency(displayCurrency) }, t) : '-'}</TableCell>;
+      case 'unrealizedTax':
+        return <TableCell align="left" sx={{ color: 'error.main' }}>{vals.unrealizedTax > 0 ? formatMoneyValue({ amount: vals.unrealizedTax, currency: normalizeCurrency(displayCurrency) }, t) : '-'}</TableCell>;
       case 'unrealizedGain':
         return <TableCell align="left"><Typography variant="body2" color={getValueColor(vals.unrealizedGain)}>{formatMoneyValue({ amount: vals.unrealizedGain, currency: normalizeCurrency(displayCurrency) }, t)}</Typography></TableCell>;
       case 'unrealizedGainPct':

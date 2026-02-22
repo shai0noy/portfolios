@@ -26,6 +26,10 @@ export const DASHBOARD_COLUMNS: DashboardColumnConfig[] = [
   { key: 'mv', labelEn: 'Market Value', labelHe: 'שווי שוק', defaultVisible: true, sortKey: 'marketValue', numeric: true },
   { key: 'unvestedValue', labelEn: 'Unvested Value', labelHe: 'שווי לא מובשל', defaultVisible: false, sortKey: 'mvUnvested', numeric: true },
   { key: 'dividends', labelEn: 'Dividends', labelHe: 'דיבידנדים', defaultVisible: false, numeric: true },
+  { key: 'dividendYield1y', labelEn: '1Y Div Yield', labelHe: 'תשואת דיבידנד לשנה', defaultVisible: false, numeric: true },
+  { key: 'fees', labelEn: 'Fees Paid', labelHe: 'עמלות', defaultVisible: false, numeric: true },
+  { key: 'realizedTax', labelEn: 'Realized Tax', labelHe: 'מס ממומש', defaultVisible: false, numeric: true },
+  { key: 'unrealizedTax', labelEn: 'Unrealized Tax', labelHe: 'מס לא ממומש', defaultVisible: false, numeric: true },
   { key: 'unrealizedGain', labelEn: 'Unrealized Gain', labelHe: 'רווח לא ממומש', defaultVisible: true, numeric: true },
   { key: 'unrealizedGainPct', labelEn: 'Unrealized Gain %', labelHe: '% רווח לא ממומש', defaultVisible: true, numeric: true },
   { key: 'realizedGain', labelEn: 'Realized Gain', labelHe: 'רווח ממומש', defaultVisible: true, numeric: true },
@@ -47,13 +51,14 @@ export function getColumnDisplayNames(t: (en: string, he: string) => string): Re
   }, {} as Record<string, string>);
 }
 
-export type ColumnPresetType = 'custom' | 'overview' | 'gains' | 'analytics' | 'technical' | 'all';
+export type ColumnPresetType = 'custom' | 'overview' | 'gains' | 'analytics' | 'technical' | 'income_costs' | 'all';
 
 export const PRESET_COLUMNS: Record<Exclude<ColumnPresetType, 'custom' | 'all'>, string[]> = {
-  overview: ['displayName', 'ticker', 'type', 'qty', 'currentPrice', 'dayChangeVal', 'dayChangePct', 'mv', 'totalGainPct'],
+  overview: ['displayName', 'ticker', 'type', 'qty', 'currentPrice', 'dayChangeVal', 'dayChangePct', 'perfYtd', 'perf1y', 'mv', 'totalGainPct'],
   gains: ['displayName', 'ticker', 'avgCost', 'currentPrice', 'costBasis', 'mv', 'dividends', 'unrealizedGain', 'unrealizedGainPct', 'realizedGain', 'realizedGainPct', 'totalGain', 'totalGainPct'],
   analytics: ['displayName', 'ticker', 'type', 'sector', 'weight', 'avgCost', 'currentPrice', 'costBasis', 'mv', 'unvestedValue', 'realizedGainAfterTax', 'valueAfterTax'],
-  technical: ['displayName', 'ticker', 'type', 'sector', 'weight', 'mv', 'perf1w', 'perf1m', 'perfYtd', 'perf1y']
+  technical: ['displayName', 'ticker', 'type', 'sector', 'weight', 'mv', 'perf1w', 'perf1m', 'perfYtd', 'perf1y', 'dividendYield1y'],
+  income_costs: ['displayName', 'ticker', 'type', 'qty', 'avgCost', 'currentPrice', 'mv', 'dividends', 'dividendYield1y', 'fees', 'realizedTax', 'unrealizedTax']
 };
 
 export function getPresetVisibility(preset: Exclude<ColumnPresetType, 'custom'>): Record<string, boolean> {

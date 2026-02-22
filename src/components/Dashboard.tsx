@@ -319,18 +319,48 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
 
       {/* CONTROLS */}
       <Box display="flex" justifyContent="space-between" mb={2} alignItems="center">
-        <Box display="flex" gap={1}>
-          <FormControl size="small" sx={{ minWidth: 140 }}>
+        <Box display="flex" gap={1} alignItems="center">
+          <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
+            {t('View:', 'תצוגה:')}
+          </Typography>
+          <FormControl size="small" sx={{ minWidth: 120 }}>
             <Select
               value={columnPreset}
               onChange={(e) => setColumnPreset(e.target.value as ColumnPresetType)}
               displayEmpty
+              variant="standard"
+              disableUnderline
+              renderValue={(selected) => {
+                const presetTitles: Record<string, string> = {
+                  custom: t('Custom', 'מותאם אישית'),
+                  overview: t('Overview', 'מבט כללי'),
+                  gains: t('Gains', 'רווחים'),
+                  analytics: t('Analytics', 'אנליטיקה'),
+                  technical: t('Technical', 'טכני'),
+                  income_costs: t('Income & Costs', 'הכנסות ועלויות'),
+                  all: t('All', 'הכל')
+                };
+                return (
+                  <Typography variant="body2" sx={{ fontWeight: 600, color: 'primary.main', py: 0.5 }}>
+                    {presetTitles[selected as string]}
+                  </Typography>
+                );
+              }}
+              sx={{
+                bgcolor: 'transparent',
+                '&:hover': {
+                  bgcolor: 'action.hover',
+                  borderRadius: 1,
+                },
+                px: 1,
+              }}
             >
               <MenuItem value="custom">{t('Custom', 'מותאם אישית')}</MenuItem>
               <MenuItem value="overview">{t('Overview', 'מבט כללי')}</MenuItem>
               <MenuItem value="gains">{t('Gains', 'רווחים')}</MenuItem>
               <MenuItem value="analytics">{t('Analytics', 'אנליטיקה')}</MenuItem>
               <MenuItem value="technical">{t('Technical', 'טכני')}</MenuItem>
+              <MenuItem value="income_costs">{t('Income & Costs', 'הכנסות ועלויות')}</MenuItem>
               <MenuItem value="all">{t('All', 'הכל')}</MenuItem>
             </Select>
           </FormControl>
