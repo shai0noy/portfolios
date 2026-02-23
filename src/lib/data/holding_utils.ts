@@ -88,13 +88,29 @@ export function aggregateHoldingValues(
         } else {
             // Raw Holding
             const raw = h as Holding;
-            acc.marketValue += convertMoney(raw.marketValueVested, displayCurrency, exchangeRates).amount;
-            acc.unvestedValue += convertMoney(raw.marketValueUnvested, displayCurrency, exchangeRates).amount;
-            acc.costBasis += convertMoney(raw.costBasisVested, displayCurrency, exchangeRates).amount;
-            acc.costOfSold += convertMoney(raw.costOfSoldTotal, displayCurrency, exchangeRates).amount;
-            acc.proceeds += convertMoney(raw.proceedsTotal, displayCurrency, exchangeRates).amount;
 
-            const rGainNetDisplay = convertMoney(raw.realizedGainNet, displayCurrency, exchangeRates).amount;
+            const getHistoricalMoney = (m: any): number => {
+                if (!m) return 0;
+                if (displayCurrency === Currency.ILS && m.valILS !== undefined) return m.valILS;
+                if (displayCurrency === Currency.USD && m.valUSD !== undefined) return m.valUSD;
+                return convertMoney(m, displayCurrency, exchangeRates).amount;
+            };
+
+            const mvVested = convertMoney(raw.marketValueVested, displayCurrency, exchangeRates).amount;
+            acc.marketValue += mvVested;
+            acc.unvestedValue += convertMoney(raw.marketValueUnvested, displayCurrency, exchangeRates).amount;
+
+            // Use historical values for cost and proceeds
+            const costBasisDisplay = getHistoricalMoney(raw.costBasisVested);
+            acc.costBasis += costBasisDisplay;
+
+            const costOfSoldDisplay = getHistoricalMoney(raw.costOfSoldTotal);
+            acc.costOfSold += costOfSoldDisplay;
+
+            const proceedsDisplay = getHistoricalMoney(raw.proceedsTotal);
+            acc.proceeds += proceedsDisplay;
+
+            const rGainNetDisplay = raw.realizedGainNet ? convertCurrency(raw.realizedGainNet.amount, raw.realizedGainNet.currency, displayCurrency, exchangeRates) : 0;
             // raw.realizedGainNet is After-Fee, Pre-Tax.
 
             const taxPC = raw.totalTaxPaidPC ?? 0;
@@ -112,9 +128,7 @@ export function aggregateHoldingValues(
                 divsGross = rawDivs.reduce((s, d) => s + convertCurrency(d.grossAmount.amount, d.grossAmount.currency, displayCurrency, exchangeRates), 0);
             }
 
-            // Gross Sells
-            const proceedsDisplay = convertMoney(raw.proceedsTotal, displayCurrency, exchangeRates).amount;
-            const costOfSoldDisplay = convertMoney(raw.costOfSoldTotal, displayCurrency, exchangeRates).amount;
+            // Gross Sells (Using Historical)
             const sellsGross = proceedsDisplay - costOfSoldDisplay;
 
             acc.realizedGain += sellsGross + divsGross;
@@ -130,8 +144,8 @@ export function aggregateHoldingValues(
                 acc.dayChangeVal += changeVal * (raw.qtyVested || 0);
             }
 
-            // Unrealized Gain
-            const unrealizedGain = convertMoney(raw.unrealizedGain, displayCurrency, exchangeRates).amount;
+            // Unrealized Gain (Nominal using Display Currency)
+            const unrealizedGain = mvVested - costBasisDisplay;
             acc.unrealizedGain += unrealizedGain;
 
             acc.totalQty += raw.qtyVested || 0;
@@ -219,6 +233,13 @@ export function groupHoldingLayers(
 ): PortfolioGroup[] {
     if (!exchangeRates) return [];
 
+    const getHistoricalMoney = (m: any): number => {
+        if (!m) return 0;
+        if (displayCurrency === 'ILS' && m.valILS !== undefined) return m.valILS;
+        if (displayCurrency === 'USD' && m.valUSD !== undefined) return m.valUSD;
+        return convertMoney(m, displayCurrency, exchangeRates).amount;
+    };
+
     const allLots = [...layers, ...realizedLayers];
     // Key: portfolioId -> Key: originalTxnId -> UnifiedLayer
     const portfolioGroups: Record<string, {
@@ -249,13 +270,13 @@ export function groupHoldingLayers(
                 date: new Date(lot.date),
                 vestingDate: lot.vestingDate ? new Date(lot.vestingDate) : undefined,
                 price: originalPriceSC,
-                currency: lot.costPerUnit.currency,
+                currency: stockCurrency,
                 originalQty: 0,
                 remainingQty: 0,
                 soldQty: 0,
                 transferredQty: 0,
-                originalCost: 0, // in SC
-                remainingCost: 0, // in SC
+                originalCost: 0,
+                remainingCost: 0,
                 fees: 0,
                 currentValue: 0,
                 realizedGain: 0,
@@ -276,7 +297,7 @@ export function groupHoldingLayers(
         g.originalQty += lot.qty;
 
         // Accumulate other fields...
-        g.originalCost += lot.costTotal.amount / (lot.costTotal.rateToPortfolio || 1);
+        g.originalCost += getHistoricalMoney(lot.costTotal);
         g.fees += lot.feesBuy.amount;
 
         if (lot.adjustedCostILS) g.adjustedCostILS += lot.adjustedCostILS;
@@ -309,8 +330,7 @@ export function groupHoldingLayers(
                 addedCost = lot.costTotal.valILS;
             } else if (displayCurrency === Currency.USD && lot.costTotal.valUSD) {
                 addedCost = lot.costTotal.valUSD;
-
-
+            } else {
                 addedCost = convertCurrency(lot.costTotal.amount, lot.costTotal.currency, displayCurrency, exchangeRates || undefined);
             }
             g.remainingCost += addedCost;

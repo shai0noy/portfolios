@@ -23,6 +23,16 @@ export interface SimpleMoney {
   currency: Currency;
 }
 
+/**
+ * Represents a monetary value with explicit conversions.
+ */
+export interface Money extends SimpleMoney {
+  rateToPortfolio?: number; // Historical rate at transaction time
+  // Historical values in base currencies (computed at transaction time)
+  valUSD?: number;
+  valILS?: number;
+}
+
 
 const EXCHANGES = [
   'NASDAQ', 'NYSE', 'TASE', 'LSE', 'FWB',
@@ -176,7 +186,8 @@ export function toGoogleFinanceExchangeCode(exchange: Exchange): string {
 
 export interface ExchangeRates {
   current: Record<string, number>;
-  [key: string]: Record<string, number> | number;
+  history?: Record<string, Record<string, number>>;
+  [key: string]: Record<string, number> | number | Record<string, Record<string, number>> | undefined;
 }
 
 export interface DashboardHolding {
@@ -196,18 +207,18 @@ export interface DashboardHolding {
   currentPrice: number; // ALWAYS in Major Unit
   stockCurrency: Currency;
 
-  // SimpleMoney Fields (Matching Holding where possible)
-  costBasisVested: SimpleMoney; // Portfolio Currency
-  costOfSoldTotal: SimpleMoney;
-  proceedsTotal: SimpleMoney;
-  dividendsTotal: SimpleMoney; // Net/Gross? Net usually.
-  unrealizedGain: SimpleMoney; // Gross, PC
-  realizedGainNet: SimpleMoney; // Net, PC
-  feesTotal: SimpleMoney;
+  // Money Fields (Matching Holding where possible)
+  costBasisVested: Money; // Portfolio Currency
+  costOfSoldTotal: Money;
+  proceedsTotal: Money;
+  dividendsTotal: Money; // Net/Gross? Net usually.
+  unrealizedGain: Money; // Gross, PC
+  realizedGainNet: Money; // Net, PC
+  feesTotal: Money;
 
   // Market Value in Stock Currency (from Holding)
-  marketValueVested: SimpleMoney;
-  marketValueUnvested: SimpleMoney;
+  marketValueVested: Money;
+  marketValueUnvested: Money;
 
   // Tax
   realizedTax: number;

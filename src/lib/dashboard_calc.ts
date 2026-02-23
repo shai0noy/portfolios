@@ -5,7 +5,7 @@ import { convertCurrency, calculatePerformanceInDisplayCurrency } from './curren
 import { INITIAL_SUMMARY, FinanceEngine } from './data/engine';
 import type { Lot, DividendRecord } from './data/model';
 import type { Transaction } from './types';
-import { isSell } from './types';
+
 
 
 
@@ -51,8 +51,8 @@ export function calculateDashboardSummary(data: any[], displayCurrency: string, 
     const marketValue = convertCurrency(mvVested.amount, mvVested.currency, displayCurrency, exchangeRates);
 
     // Cost Basis Vested (Historical)
-    // Sum from vested lots
-    const costBasisDisplay = h.vestedLots.reduce((sum, lot) => sum + getHistoricalVal(lot.costTotal), 0);
+    // Pull from the engine directly since it correctly stores valUSD/valILS natively 
+    const costBasisDisplay = getHistoricalVal(h.costBasisVested);
 
     // Unrealized Gain (Nominal) = MarketValue - HistoricalCost
     const unrealizedGain = marketValue - costBasisDisplay;
@@ -96,39 +96,12 @@ export function calculateDashboardSummary(data: any[], displayCurrency: string, 
     }
 
     // Cost Of Sold (Historical)
-    const costOfSoldDisplay = h.realizedLots.reduce((sum, lot) => sum + getHistoricalVal(lot.costTotal), 0);
+    // The engine captures exact lot sale values so we pull directly.
+    const costOfSoldDisplay = getHistoricalVal(h.costOfSoldTotal);
 
     // Proceeds (Historical)
-    // Iterate SELL transactions
-    // We use `h.transactions` which are filtered by ticker/exchange.
-    const proceedsDisplay = h.transactions
-      .filter(t => isSell(t.type))
-      .reduce((sum, t) => {
-        // Replicate `performance.ts` logic: prefer originalPriceILA/USD
-        let val = 0;
-        if (displayCurrency === Currency.ILS && (t.originalPriceILA || t.currency === Currency.ILS)) {
-          if (t.originalPriceILA) {
-            val = (t.originalPriceILA / 100) * (t.qty || 0); // originalPriceILA is unit price in Agorot? 
-            // performance.ts: `const priceILS = t.originalPriceILA / 100; return tQty * priceILS;`
-            // Yes.
-          } else {
-            // ILS native
-            val = (t.price || 0) * (t.qty || 0);
-          }
-        } else if (displayCurrency === Currency.USD && (t.originalPriceUSD || t.currency === Currency.USD)) {
-          if (t.originalPriceUSD) {
-            val = t.originalPriceUSD * (t.qty || 0);
-          } else {
-            val = (t.price || 0) * (t.qty || 0);
-          }
-        } else {
-          // Fallback: Convert at current rate (Suboptimal but necessary if no history)
-          // Or ideally we use `grossValue` converted?
-          const gross = (t.price || 0) * (t.qty || 0);
-          val = convertCurrency(gross, t.currency || h.stockCurrency, displayCurrency, exchangeRates);
-        }
-        return sum + val;
-      }, 0);
+    // The engine captures exact sale conversion history so we pull directly.
+    const proceedsDisplay = getHistoricalVal(h.proceedsTotal);
 
     // Realized Gain from Sells (Gross)
     const realizedSellsGross = proceedsDisplay - costOfSoldDisplay;

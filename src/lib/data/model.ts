@@ -2,10 +2,8 @@
 import { Currency, Exchange, type Transaction, type ExchangeRates, type Portfolio, isBuy, isSell } from '../types';
 import { convertCurrency, toILS, normalizeCurrency } from '../currencyUtils';
 import { getTaxRatesForDate, isRealGainTaxed } from '../portfolioUtils';
-
-// --- Types ---
 import { MultiCurrencyValue } from './multiCurrency';
-export { MultiCurrencyValue };
+import type { SimpleMoney, Money } from '../types';
 
 export interface DividendEvent {
     ticker: string;
@@ -33,19 +31,12 @@ export function getHistoricalRates(rates: ExchangeRates, period: '1w' | '1m' | '
     return undefined;
 }
 
-import type { SimpleMoney } from '../types';
 
 /**
  * Represents a monetary value with explicit conversions.
  * TODO: Consider converting this interface to a class (e.g., extending MultiCurrencyValue) 
  * in the future to encapsulate conversion logic and arithmetic operations directly.
  */
-export interface Money extends SimpleMoney {
-    rateToPortfolio: number; // Historical rate at transaction time
-    // Historical values in base currencies (computed at txn time to avoid drift)
-    valUSD?: number;
-    valILS?: number;
-}
 
 // Single Lot Structure
 export interface Lot {
@@ -171,12 +162,12 @@ export function computeRealTaxableGain(
     if (portfolioCurrency === Currency.ILS && (stockCurrency === Currency.ILS || stockCurrency === Currency.ILA)) {
         // Calculate Inflation Rate
         const inflationRate = (cpiStart > 0) ? (cpiEnd / cpiStart) - 1 : 0;
-        
+
         // Real Gain (y) = Nominal Gain - Inflation Adjustment
         // Note: If Deflation (Rate < 0), InflationAdj is negative, so we subtract a negative (add) -> y > x.
         const inflationAdj = costBasisPC * inflationRate;
         y = nominalGainPC - inflationAdj;
-        
+
     } else if (portfolioCurrency !== stockCurrency) {
         // FOREIGN (Exchange Rate Adjusted)
         // Real Gain (y) is the Gain in Stock Currency converted to Portfolio Currency (current rates)
@@ -196,7 +187,7 @@ export function computeRealTaxableGain(
     if (x >= 0 && y >= 0) {
         return Math.min(x, y);
     }
-    
+
     // 3. Both Negative -> Nominal Loss (x)
     // We ignore the Real Loss value (even if it's "closer to 0") and use the full Nominal Loss.
     return x;
@@ -255,19 +246,19 @@ export class Holding {
     public qtyTotal: number;
 
     // Metrics (in Stock Currency or Portfolio Currency - now Explicit)
-    marketValueVested: SimpleMoney; // Stock Currency
-    marketValueUnvested: SimpleMoney; // Stock Currency
-    costBasisVested: SimpleMoney; // Portfolio Currency
+    marketValueVested: Money; // Stock Currency
+    marketValueUnvested: Money; // Stock Currency
+    costBasisVested: Money; // Portfolio Currency
 
     // Gains (Portfolio Currency)
-    unrealizedGain: SimpleMoney; // Gross
-    realizedGainNet: SimpleMoney;
+    unrealizedGain: Money; // Gross
+    realizedGainNet: Money;
 
     // Totals (Portfolio Currency)
-    proceedsTotal: SimpleMoney;
-    dividendsTotal: SimpleMoney;
-    feesTotal: SimpleMoney;
-    costOfSoldTotal: SimpleMoney;
+    proceedsTotal: Money;
+    dividendsTotal: Money;
+    feesTotal: Money;
+    costOfSoldTotal: Money;
 
     // Tax (Portfolio Currency - usually ILS)
     realizedCapitalGainsTax: number;
@@ -381,10 +372,16 @@ export class Holding {
         // Lookup historical rates for the transaction date
         let effectiveRates = rates ? (rates as any).current : undefined;
         if (rates && txn.date) {
-            const d = txn.date;
-            const dateKey = (typeof d === 'object' && 'toISOString' in d) ? (d as Date).toISOString().split('T')[0] : String(d).substring(0, 10);
-            if ((rates as any)[dateKey]) {
-                effectiveRates = (rates as any)[dateKey];
+            const d = typeof txn.date === 'string' ? new Date(txn.date) : (txn.date as Date);
+            // Search backwards up to 7 days for a valid exchange rate
+            for (let i = 0; i <= 7; i++) {
+                const searchDate = new Date(d);
+                searchDate.setDate(searchDate.getDate() - i);
+                const dateKey = searchDate.toISOString().split('T')[0];
+                if ((rates as any)[dateKey]) {
+                    effectiveRates = (rates as any)[dateKey];
+                    break;
+                }
             }
         }
 
@@ -583,13 +580,23 @@ export class Holding {
             targetLot.soldDate = new Date(txn.date);
             targetLot.disposalType = txn.type === 'SELL_TRANSFER' ? 'TRANSFER' : 'SELL';
 
+            targetLot.soldPricePerUnit = {
+                amount: sellPricePC,
+                currency: this.portfolioCurrency,
+                rateToPortfolio: 1, // sellPricePC is already PC
+                valUSD: convertCurrency(sellPricePC, this.portfolioCurrency, Currency.USD, rates),
+                valILS: convertCurrency(sellPricePC, this.portfolioCurrency, Currency.ILS, rates)
+            };
+
             // Allocate Sell Fees Pro-Rata
             const allocatedSellFeePC = (portion / totalSellQty) * feePC;
 
             targetLot.soldFees = {
                 amount: allocatedSellFeePC,
                 currency: this.portfolioCurrency,
-                rateToPortfolio: 1
+                rateToPortfolio: 1,
+                valUSD: convertCurrency(allocatedSellFeePC, this.portfolioCurrency, Currency.USD, rates),
+                valILS: convertCurrency(allocatedSellFeePC, this.portfolioCurrency, Currency.ILS, rates)
             };
 
             // Calculate Metrics
@@ -711,7 +718,7 @@ export class Holding {
             targetLot.realizedTax = taxILS; // Lot keeps 'realizedTax' for now as per interface
             targetLot.realizedTaxPC = convertCurrency(taxILS, Currency.ILS, this.portfolioCurrency, rates);
 
-                this.realizedCapitalGainsTax += targetLot.realizedTaxPC; // Accumulate in PC
+            this.realizedCapitalGainsTax += targetLot.realizedTaxPC; // Accumulate in PC
 
             // INCOME TAX (RSU Vest Value Tax)
             // RESTRICTION: Only for RSU_ACCOUNT
@@ -723,7 +730,7 @@ export class Holding {
 
                 this.realizedIncomeTax += incomeTaxPC;
 
-            } 
+            }
 
             targetLot.totalRealizedTaxPC = (targetLot.realizedTaxPC || 0) + (targetLot.realizedIncomeTaxPC || 0);
 

@@ -533,7 +533,9 @@ export class FinanceEngine {
             // 3. Metrics in Portfolio Currency (Cost Basis, Total Cost)
             // costBasisVested
             const cbVestedVal = activeLots.reduce((acc, l) => acc + (l.isVested ? l.costTotal.amount : 0), 0);
-            h.costBasisVested = { amount: cbVestedVal, currency: h.portfolioCurrency };
+            const cbVestedUSD = activeLots.reduce((acc, l) => acc + (l.isVested ? (l.costTotal.valUSD || 0) : 0), 0);
+            const cbVestedILS = activeLots.reduce((acc, l) => acc + (l.isVested ? (l.costTotal.valILS || 0) : 0), 0);
+            h.costBasisVested = { amount: cbVestedVal, currency: h.portfolioCurrency, valUSD: cbVestedUSD, valILS: cbVestedILS };
 
             // 4. Realized Stats (Portfolio Currency)
             const realizedGainNetVal = realizedLots.reduce((acc, l) => acc + (l.realizedGainNet || 0), 0);
@@ -682,11 +684,15 @@ export class FinanceEngine {
                 const gain = l.realizedGainNet || 0;
                 return acc + gain + cost + buyFee + sellFee;
             }, 0);
-            h.proceedsTotal = { amount: proceedsVal, currency: h.portfolioCurrency };
+            const proceedsUSD = realizedLots.reduce((acc, l) => acc + ((l.soldPricePerUnit?.valUSD || 0) * l.qty), 0) || undefined;
+            const proceedsILS = realizedLots.reduce((acc, l) => acc + ((l.soldPricePerUnit?.valILS || 0) * l.qty), 0) || undefined;
+            h.proceedsTotal = { amount: proceedsVal, currency: h.portfolioCurrency, valUSD: proceedsUSD, valILS: proceedsILS };
 
             // Cost of Sold
             const cosVal = realizedLots.reduce((acc, l) => acc + l.costTotal.amount, 0);
-            h.costOfSoldTotal = { amount: cosVal, currency: h.portfolioCurrency };
+            const cosUSD = realizedLots.reduce((acc, l) => acc + (l.costTotal.valUSD || 0), 0) || undefined;
+            const cosILS = realizedLots.reduce((acc, l) => acc + (l.costTotal.valILS || 0), 0) || undefined;
+            h.costOfSoldTotal = { amount: cosVal, currency: h.portfolioCurrency, valUSD: cosUSD, valILS: cosILS };
 
             // Fees
             const activeBuyFees = activeLots.reduce((acc, l) => acc + l.feesBuy.amount, 0);
