@@ -560,6 +560,7 @@ export const batchAddTransactions = withAuthHandling(async (spreadsheetId: strin
     // 4. Rebuild Holdings
     // This is a full sync of the holdings sheet based on all transactions.
     await rebuildHoldingsSheet(spreadsheetId);
+    clearFinanceCache(spreadsheetId);
 });
 
 type HoldingNonGeneratedData = Omit<SheetHolding, 'portfolioId' | 'totalValue' | 'price' | 'currency' | 'name' | 'nameHe' | 'sector' | 'changePct1d' | 'changePctRecent' | 'changePct1m' | 'changePct3m' | 'changePctYtd' | 'changePct1y' | 'changePct3y' | 'changePct5y' | 'changePct10y'>;
@@ -862,6 +863,7 @@ export const updateTransaction = withAuthHandling(async (spreadsheetId: string, 
     }
 
     await rebuildHoldingsSheet(spreadsheetId);
+    clearFinanceCache(spreadsheetId);
 });
 
 export const updateDividend = withAuthHandling(async (spreadsheetId: string, rowIndex: number, ticker: string, exchange: Exchange, date: Date, amount: number, source: string, originalDiv: { ticker: string, amount: number }) => {
@@ -951,6 +953,7 @@ export const deleteTransaction = withAuthHandling(async (spreadsheetId: string, 
     });
 
     await rebuildHoldingsSheet(spreadsheetId);
+    clearFinanceCache(spreadsheetId);
 });
 
 export const deleteDividend = withAuthHandling(async (spreadsheetId: string, rowIndex: number, originalDiv: { ticker: string, amount: number }) => {
