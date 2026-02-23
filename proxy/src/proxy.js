@@ -17,6 +17,26 @@ const API_MAP = {
   "pensyanet_list": "https://pensyanet.cma.gov.il/Parameters/ExportToXML",
 };
 
+const CACHE_TTL_MAP = {
+  "yahoo_hist": 1800, // 30 minutes
+  "globes_data": 1800, // 30 minutes
+  "globes_list": 43200, // 12 hours
+  "globes_exchange_state": 1800, // 30 mins
+  "globes_get_exchanges": 43200, // 12 hours
+  "globes_get_exchanges_details": 43200, // 12 hours
+  "globes_articles": 1800, // 30 mins
+  "cbs_price_index": 43200, // 12 hours
+  "tase_list_stocks": 43200, // 12 hours
+  "tase_list_funds": 43200, // 12 hours
+  "tase_list_indices": 43200, // 12 hours
+  "tase_index_comp": 43200, // 12 hours
+  "gemelnet_fund": 43200, // 12 hours
+  "gemelnet_list": 43200, // 12 hours
+  "pensyanet_fund": 43200, // 12 hours
+  "pensyanet_list": 43200, // 12 hours
+};
+
+
 // Rate limiting state (in-memory, per-isolate)
 const IP_LIMITS = new Map();
 const SHORT_LIMIT = 75;
@@ -28,7 +48,7 @@ function isRateLimited(ip) {
   if (!ip) return false;
   const now = Date.now();
   let record = IP_LIMITS.get(ip);
-  
+
   if (!record) {
     record = {
       short: { count: 1, startTime: now },
@@ -194,7 +214,7 @@ async function invokeApi(apiId, params, env, ctx, corsHeaders) {
   const cacheUrl = new URL(targetUrl.toString());
   if (method === "POST") {
     params.forEach((v, k) => {
-        if (k !== 'apiId') cacheUrl.searchParams.append(`_p_${k}`, v);
+      if (k !== 'apiId') cacheUrl.searchParams.append(`_p_${k}`, v);
     });
   }
   const cacheKey = new Request(cacheUrl.toString(), { method: "GET" });
@@ -218,7 +238,7 @@ async function invokeApi(apiId, params, env, ctx, corsHeaders) {
       },
       cf: {
         cacheEverything: true,
-        cacheTtl: 12 * 3600,
+        cacheTtl: CACHE_TTL_MAP[apiId] || 43200,
       }
     };
 
@@ -253,7 +273,8 @@ async function invokeApi(apiId, params, env, ctx, corsHeaders) {
 
     const newResponse = new Response(response.body, response);
     // Explicitly set cache headers for Cloudflare Cache API
-    newResponse.headers.set("Cache-Control", "public, max-age=43200"); // 12 hours
+    const ttl = CACHE_TTL_MAP[apiId] || 43200;
+    newResponse.headers.set("Cache-Control", `public, max-age=${ttl}`);
     newResponse.headers.set("X-Proxy-Cache", "MISS");
     Object.keys(corsHeaders).forEach(key => newResponse.headers.set(key, corsHeaders[key]));
 

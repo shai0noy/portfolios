@@ -8,6 +8,7 @@ function getCorsHeaders(request) {
     "Access-Control-Allow-Methods": "GET, HEAD, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, apiKey", 
     "Access-Control-Allow-Credentials": "true",
+    "Access-Control-Max-Age": "86400",
   };
 }
 
