@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { getTickerData, getTickersDataset, fetchTickerHistory, getVerifiedYahooSymbol, type TickerData } from '../fetching';
 import { fetchHolding, getMetadataValue, syncDividends, fetchDividends } from '../sheets';
-import { Exchange, parseExchange, toGoogleFinanceExchangeCode, type Portfolio, type SheetHolding, isUSExchange } from '../types';
+import { Exchange, parseExchange, toGoogleFinanceExchangeCode, type Portfolio, type SheetHolding } from '../types';
 
 import { formatPrice, toILS, normalizeCurrency } from '../currency';
 import { useLanguage } from '../i18n';
@@ -36,8 +36,8 @@ export const useTickerDetails = ({ sheetId, ticker: propTicker, exchange: propEx
 
     const ticker = propTicker || params.ticker;
     const itemsExchange = parseExchange(propExchange || params.exchange || '');
-    // Normalize US exchanges to NASDAQ for consistent lookup/fetching
-    const exchange = isUSExchange(itemsExchange) ? Exchange.NASDAQ : itemsExchange;
+    // Removed forced normalization to NASDAQ to support NYSE auto-correction
+    const exchange = itemsExchange;
     const explicitNumericId = propNumericId || params.numericId || state?.numericId;
     const [derivedNumericId, setDerivedNumericId] = useState<string | undefined>(undefined);
     const numericId = explicitNumericId || derivedNumericId;
@@ -78,21 +78,41 @@ export const useTickerDetails = ({ sheetId, ticker: propTicker, exchange: propEx
 
         try {
             let currentNumericId = numericId;
-            if (!currentNumericId && (exchange === Exchange.TASE || exchange === Exchange.GEMEL || exchange === Exchange.PENSION)) {
+            if (!currentNumericId) {
                 const dataset = await getTickersDataset();
+                const allItems = Object.values(dataset).flat();
                 const tickerNum = parseInt(ticker, 10);
-                const foundItem = Object.values(dataset).flat().find(item =>
-                    item.exchange === exchange &&
-                    (item.symbol === ticker || (!isNaN(tickerNum) && item.securityId === tickerNum))
+
+                // Find all potential matches across all exchanges
+                // Match by Symbol (exact) or Security ID (numeric)
+                const matches = allItems.filter(item =>
+                    item.symbol === ticker ||
+                    (!isNaN(tickerNum) && item.securityId === tickerNum)
                 );
 
-                if (foundItem) {
-                    if (foundItem.securityId) {
-                        currentNumericId = foundItem.securityId.toString();
-                        setDerivedNumericId(currentNumericId);
-                    }
-                    if (foundItem.symbol && foundItem.symbol !== ticker) {
-                        navigate(`/ticker/${exchange}/${foundItem.symbol}`, { replace: true, state: { ...state, numericId: currentNumericId } });
+                if (matches.length > 0) {
+                    // Persistent Redirect Logic:
+                    // 1. Prefer match on the CURRENT exchange (to avoid unnecessary redirects)
+                    const onCurrent = matches.find(t => t.exchange === exchange);
+
+                    if (onCurrent) {
+                        // Found on current exchange!
+                        if (onCurrent.securityId) {
+                            currentNumericId = onCurrent.securityId.toString();
+                            setDerivedNumericId(currentNumericId);
+                        }
+                        // Normalize symbol case if needed (e.g. user typed lowercase)
+                        if (onCurrent.symbol && onCurrent.symbol !== ticker) {
+                            navigate(`/ticker/${exchange}/${onCurrent.symbol}`, { replace: true, state: { ...state, numericId: currentNumericId } });
+                            return;
+                        }
+                    } else {
+                        // Not found on current exchange -> Auto-correct to different exchange
+                        // (e.g. User typed NASDAQ/IBM -> Redirect to NYSE/IBM)
+                        const bestMatch = matches[0];
+
+                        console.log(`[AutoCorrect] Redirecting ${ticker} from ${exchange} to ${bestMatch.exchange}`);
+                        navigate(`/ticker/${bestMatch.exchange}/${bestMatch.symbol}`, { replace: true, state: { ...state, numericId: bestMatch.securityId?.toString() } });
                         return;
                     }
                 }
