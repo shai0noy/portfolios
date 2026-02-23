@@ -1,6 +1,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { loadFinanceEngine } from './data/loader';
+import { clearAllCache } from './fetching/utils/cache';
 import { SessionExpiredError } from './errors';
 import { useSession } from './SessionContext';
 // import { Currency } from './types'; // Unused
@@ -34,6 +35,9 @@ export function useDashboardData(sheetId: string) {
     setLoading(true);
     setError(null);
     try {
+      if (force) {
+        await clearAllCache();
+      }
       const eng = await loadFinanceEngine(sheetId, force);
       setEngine(eng);
       setPortfolios(Array.from(eng.portfolios.values()));

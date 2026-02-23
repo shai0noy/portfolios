@@ -103,7 +103,7 @@ async function fetchTaseSecurities(signal?: AbortSignal): Promise<TaseSecurity[]
     const url = `${WORKER_URL}/?apiId=tase_list_stocks`;
     try {
         console.log(`Fetching TASE securities...`);
-        const response = await fetch(url, { signal });
+        const response = await fetch(url, { signal, cache: 'force-cache' });
         if (!response.ok) {
             console.error(`Failed to fetch TASE securities: ${response.statusText}`);
             return [];
@@ -126,7 +126,7 @@ async function fetchTaseFunds(signal?: AbortSignal): Promise<any[]> {
     const url = `${WORKER_URL}/?apiId=tase_list_funds`;
     try {
         console.log(`Fetching TASE funds...`);
-        const response = await fetch(url, { signal });
+        const response = await fetch(url, { signal, cache: 'force-cache' });
         if (!response.ok) {
             console.error(`Failed to fetch TASE funds: ${response.statusText}`);
             return [];

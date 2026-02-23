@@ -1,5 +1,4 @@
 // src/lib/fetching/globes.ts
-import { CACHE_TTL, saveToCache, loadFromCache, TASE_CACHE_TTL } from './utils/cache';
 import { WORKER_URL } from '../../config';
 import { deduplicateRequest } from './utils/request_deduplicator';
 import { fetchXml, parseXmlString, extractDataFromXmlNS } from './utils/xml_parser';
@@ -114,18 +113,11 @@ function calculateChangePct(current: number, previousStr: string): number | unde
 
 export async function fetchGlobesTickersByType(type: string, exchange: Exchange, signal?: AbortSignal): Promise<TickerProfile[]> {
   const exchangeCode = toGlobesExchangeCode(exchange);
-  const cacheKey = `globes:tickers:v17:${exchangeCode}:${type}`; // Incremented cache version
-  const now = Date.now();
 
-  try {
-      const cached = await loadFromCache<TickerProfile[]>(cacheKey);
-      if (cached && (now - cached.timestamp < TASE_CACHE_TTL)) {
-          if (Array.isArray(cached.data)) return cached.data;
-      }
-  } catch (e) { console.warn('Globes tickers cache read failed', e); }
+
 
   const globesApiUrl = `${WORKER_URL}/?apiId=globes_list&exchange=${exchangeCode}&type=${type}`;
-  const xmlString = await fetchXml(globesApiUrl, signal);
+  const xmlString = await fetchXml(globesApiUrl, signal, { cache: 'force-cache' });
   const xmlDoc = parseXmlString(xmlString);
   
   const data = extractDataFromXmlNS(xmlDoc, GLOBES_API_NAMESPACE, 'anyType', (element): TickerProfile | null => {
@@ -178,7 +170,7 @@ export async function fetchGlobesTickersByType(type: string, exchange: Exchange,
       };
     });
 
-    if (data && data.length > 0) await saveToCache(cacheKey, data);
+
     return data;
 }
 
@@ -223,19 +215,14 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
   }
 
   const cacheKey = `globes:quote:v4:${requestedExchangeCode}:${identifier}`;
-  if (!forceRefresh) {
-    const cached = await loadFromCache<TickerData>(cacheKey);
-    if (cached?.timestamp && (now - new Date(cached.timestamp).getTime() < CACHE_TTL)) {
-      return cached.data;
-    }
-  }
+
 
   const globesApiUrl = `${WORKER_URL}/?apiId=globes_data&exchange=${requestedExchangeCode}&ticker=${identifier}`;
 
   return deduplicateRequest(cacheKey, async () => {
     let text;
     try {
-      text = await fetchXml(globesApiUrl, signal);
+      text = await fetchXml(globesApiUrl, signal, { cache: forceRefresh ? 'no-cache' : 'force-cache' });
     } catch {
       return null;
     }
@@ -323,7 +310,7 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
         )
       };
 
-      saveToCache(cacheKey, tickerData, now);
+
       return tickerData;
 
     } catch (error) {

@@ -66,9 +66,9 @@ export function getTextContent(element: Element | Document, tagName: string, nam
  * @returns The XML string.
  * @throws Error if fetch fails.
  */
-export async function fetchXml(url: string, signal?: AbortSignal): Promise<string> {
+export async function fetchXml(url: string, signal?: AbortSignal, options?: RequestInit): Promise<string> {
     try {
-        const response = await fetch(url, { signal });
+        const response = await fetch(url, { signal, ...options });
         if (!response.ok) {
             const errorBody = await response.text();
             console.error(`Fetch failed for ${url} with status ${response.status}:`, errorBody);

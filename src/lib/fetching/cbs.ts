@@ -170,7 +170,7 @@ export async function fetchCpi(
     while (morePages) {
       const url = `${WORKER_URL}/?apiId=cbs_price_index&id=${id}&page=${currentPage}`;
       
-      const res = await fetch(url, { signal });
+      const res = await fetch(url, { signal, cache: 'force-cache' });
       if (!res.ok) {
         throw new Error(`CBS API fetch failed with status ${res.status}`);
       }

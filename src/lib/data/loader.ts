@@ -8,12 +8,12 @@ import { fetchYahooTickerData } from '../fetching/yahoo';
 
 import { getCacheItem, setCacheItem, removeCacheItem, CACHE_KEY } from './idb-helper';
 
-async function fetchLivePrices(tickers: { ticker: string, exchange: Exchange }[]): Promise<Map<string, TickerData>> {
+async function fetchLivePrices(tickers: { ticker: string, exchange: Exchange }[], forceRefresh: boolean = false): Promise<Map<string, TickerData>> {
     const results = new Map<string, TickerData>();
     await Promise.all(tickers.map(async ({ ticker, exchange }) => {
         try {
             // Note: getTickerData expects exchange as string (e.g. 'TASE').
-            const data = await getTickerData(ticker, exchange, null);
+            const data = await getTickerData(ticker, exchange, null, undefined, forceRefresh);
             if (data) {
                 results.set(`${exchange}:${ticker}`, data);
             }
@@ -164,7 +164,7 @@ export const loadFinanceEngine = async (sheetId: string, forceRefresh = false) =
     const livePricesMap = await fetchLivePrices(Array.from(tickers).map(t => {
         const [exchange, ticker] = t.split(':');
         return { ticker, exchange: exchange as Exchange };
-    }));
+    }), forceRefresh);
     console.log(`Loader: Fetched ${livePricesMap.size} prices.`);
 
     // 3. Initialize Engine

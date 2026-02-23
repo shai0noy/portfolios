@@ -1,3 +1,4 @@
+import { clearAllCache } from '../fetching/utils/cache';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { getTickerData, getTickersDataset, fetchTickerHistory, getVerifiedYahooSymbol, type TickerData } from '../fetching';
@@ -157,6 +158,7 @@ export const useTickerDetails = ({ sheetId, ticker: propTicker, exchange: propEx
     const handleRefresh = useCallback(async () => {
         setRefreshing(true);
         if (ticker && exchange) {
+            await clearAllCache();
             await fetchData(true);
             const historyResponse = await fetchTickerHistory(ticker, exchange, undefined, true);
             setHistoricalData(historyResponse?.historical || []);

@@ -155,7 +155,7 @@ export async function fetchYahooTickerData(
     const results = await Promise.all(candidates.map(async (yahooTicker) => {
       const url = `https://portfolios.noy-shai.workers.dev/?apiId=yahoo_hist&ticker=${yahooTicker}&range=${range}`;
       try {
-        const res = await fetch(url, { signal });
+        const res = await fetch(url, { signal, cache: forceRefresh ? 'no-cache' : 'force-cache' });
         if (!res.ok) return null;
         const data = await res.json();
         const result = data?.chart?.result?.[0];
