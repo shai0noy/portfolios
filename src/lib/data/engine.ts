@@ -421,6 +421,17 @@ export class FinanceEngine {
                 if (live.meta && 'underlyingAssets' in live.meta && live.meta.underlyingAssets) {
                     h.underlyingAssets = live.meta.underlyingAssets;
                 }
+
+                if (live.dividends && Array.isArray(live.dividends)) {
+                    const oneYearAgo = new Date();
+                    oneYearAgo.setUTCFullYear(oneYearAgo.getUTCFullYear() - 1);
+                    const lastYearDivs = live.dividends.reduce((sum, d) => {
+                        return new Date(d.date) >= oneYearAgo ? sum + (d.amount || 0) : sum;
+                    }, 0);
+                    if (lastYearDivs > 0 && (h.currentPrice || 0) > 0) {
+                        h.divYield = lastYearDivs / (h.currentPrice || 1);
+                    }
+                }
             }
         });
     }

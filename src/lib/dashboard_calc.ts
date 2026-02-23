@@ -148,24 +148,8 @@ export function calculateDashboardSummary(data: any[], displayCurrency: string, 
       dayChangeVal = changeVal * h.qtyVested;
     }
 
-    // 1Y Dividend Yield
-    let dividendYield1y: number | undefined;
-    if (marketValue > 0) {
-      const oneYearAgo = new Date();
-      oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-
-      const lastYearDivs = h.dividends.reduce((sum, d) => {
-        if (d.date >= oneYearAgo) {
-          const rawAmount = (d as any).amount !== undefined ? (d as any).amount : d.netAmountPC;
-          return sum + convertCurrency(rawAmount, h.portfolioCurrency, displayCurrency, exchangeRates);
-        }
-        return sum;
-      }, 0);
-
-      if (lastYearDivs > 0) {
-        dividendYield1y = lastYearDivs / marketValue;
-      }
-    }
+    // 1Y Dividend Yield (From Engine, fallback to undefined)
+    let dividendYield1y: number | undefined = h.divYield;
 
     const display: DashboardHoldingDisplay = {
       marketValue,

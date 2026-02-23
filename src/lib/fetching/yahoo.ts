@@ -277,7 +277,7 @@ export async function fetchYahooTickerData(
           const res3y = calcChange(y3); changePct3y = res3y.pct; changeDate3y = res3y.date;
           const res5y = calcChange(y5); changePct5y = res5y.pct; changeDate5y = res5y.date;
 
-          const targetYtd = new Date(lastPoint.time * 1000); targetYtd.setUTCMonth(0, 0); targetYtd.setUTCHours(0, 0, 0, 0);
+          const targetYtd = new Date(lastPoint.time * 1000); targetYtd.setUTCMonth(0, 1); targetYtd.setUTCHours(0, 0, 0, 0);
           const resYtd = calcChange(findClosestPoint(targetYtd.getTime() / 1000)); changePctYtd = resYtd.pct; changeDateYtd = resYtd.date;
           const resMax = calcChange(points[0]); changePctMax = resMax.pct; changeDateMax = resMax.date;
         }

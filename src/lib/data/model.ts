@@ -239,6 +239,7 @@ export class Holding {
     public perf3y?: number;
     public perf5y?: number;
     public perfAll?: number;
+    public divYield?: number;
 
     // Quantities
     public qtyVested: number;
