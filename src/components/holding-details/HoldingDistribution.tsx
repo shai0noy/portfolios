@@ -1,14 +1,13 @@
 import { Box, Paper, Table, TableHead, TableRow, TableCell, TableBody } from '@mui/material';
-import { formatPercent, formatNumber, formatValue } from '../../lib/currency';
+import { formatPercent, formatNumber, formatMoneyValue } from '../../lib/currency';
 import { useLanguage } from '../../lib/i18n';
 import type { PortfolioGroup } from './types';
 
 interface HoldingDistributionProps {
     groupedLayers: PortfolioGroup[];
-    displayCurrency: string;
 }
 
-export function HoldingDistribution({ groupedLayers, displayCurrency }: HoldingDistributionProps) {
+export function HoldingDistribution({ groupedLayers }: HoldingDistributionProps) {
     const { t } = useLanguage();
 
     return (
@@ -32,8 +31,8 @@ export function HoldingDistribution({ groupedLayers, displayCurrency }: HoldingD
                                 <TableCell align="right">{formatPercent(group.stats.weight)}</TableCell>
                                 <TableCell align="right">{formatNumber(group.stats.originalQty)}</TableCell>
                                 <TableCell align="right">{formatNumber(group.stats.currentQty)}</TableCell>
-                                <TableCell align="right">{formatValue(group.stats.cost, displayCurrency)}</TableCell>
-                                <TableCell align="right">{formatValue(group.stats.value, displayCurrency)}</TableCell>
+                                <TableCell align="right">{formatMoneyValue(group.stats.cost)}</TableCell>
+                                <TableCell align="right">{formatMoneyValue(group.stats.value)}</TableCell>
                             </TableRow>
                         ))}
                     </TableBody>

@@ -1,8 +1,8 @@
 
-import { convertCurrency, convertMoney, calculatePerformanceInDisplayCurrency, normalizeCurrency } from '../currency';
+import { convertCurrency, convertMoney, normalizeCurrency } from '../currency';
 import { Currency } from '../types';
 import type { ExchangeRates, Portfolio, SimpleMoney } from '../types';
-import type { Holding, DividendRecord } from './model';
+import type { Holding } from './model';
 import type { EnrichedDashboardHolding } from '../dashboard';
 import type { HoldingValues, PortfolioGroup, UnifiedLayer } from '../../components/holding-details/types';
 
@@ -28,33 +28,34 @@ export function aggregateHoldingValues(
     exchangeRates: ExchangeRates | null,
     displayCurrency: string
 ): HoldingValues {
+    const currency = normalizeCurrency(displayCurrency);
     const defaultVals = {
-        marketValue: { amount: 0, currency: displayCurrency },
-        unrealizedGain: { amount: 0, currency: displayCurrency },
-        realizedGain: { amount: 0, currency: displayCurrency },
-        realizedGainGross: { amount: 0, currency: displayCurrency },
-        realizedGainNet: { amount: 0, currency: displayCurrency },
-        realizedGainAfterTax: { amount: 0, currency: displayCurrency },
-        totalGain: { amount: 0, currency: displayCurrency },
-        valueAfterTax: { amount: 0, currency: displayCurrency },
-        dayChangeVal: { amount: 0, currency: displayCurrency },
-        costBasis: { amount: 0, currency: displayCurrency },
-        costOfSold: { amount: 0, currency: displayCurrency },
-        proceeds: { amount: 0, currency: displayCurrency },
-        dividends: { amount: 0, currency: displayCurrency },
-        unvestedValue: { amount: 0, currency: displayCurrency },
+        marketValue: { amount: 0, currency },
+        unrealizedGain: { amount: 0, currency },
+        realizedGain: { amount: 0, currency },
+        realizedGainGross: { amount: 0, currency },
+        realizedGainNet: { amount: 0, currency },
+        realizedGainAfterTax: { amount: 0, currency },
+        totalGain: { amount: 0, currency },
+        valueAfterTax: { amount: 0, currency },
+        dayChangeVal: { amount: 0, currency },
+        costBasis: { amount: 0, currency },
+        costOfSold: { amount: 0, currency },
+        proceeds: { amount: 0, currency },
+        dividends: { amount: 0, currency },
+        unvestedValue: { amount: 0, currency },
         totalQty: 0,
-        realizedTax: { amount: 0, currency: displayCurrency },
-        unrealizedTax: { amount: 0, currency: displayCurrency },
+        realizedTax: { amount: 0, currency },
+        unrealizedTax: { amount: 0, currency },
         unrealizedGainPct: 0,
         realizedGainPct: 0,
         totalGainPct: 0,
         dayChangePct: 0,
-        avgCost: { amount: 0, currency: displayCurrency },
-        currentPrice: { amount: 0, currency: displayCurrency },
+        avgCost: { amount: 0, currency },
+        currentPrice: { amount: 0, currency },
         weightInPortfolio: 0,
         weightInGlobal: 0,
-        realCost: { amount: 0, currency: displayCurrency }
+        realCost: { amount: 0, currency }
     };
 
     if (!matchingHoldings || matchingHoldings.length === 0 || !exchangeRates) return defaultVals;
@@ -284,26 +285,25 @@ export function groupHoldingLayers(
                 originalTxnId: layerKey,
                 date: new Date(lot.date),
                 vestingDate: lot.vestingDate ? new Date(lot.vestingDate) : undefined,
-                price: originalPriceSC,
-                currency: stockCurrency,
+                price: { amount: originalPriceSC, currency: normalizeCurrency(stockCurrency) },
                 originalQty: 0,
                 remainingQty: 0,
                 soldQty: 0,
                 transferredQty: 0,
-                originalCost: 0,
-                remainingCost: 0,
-                fees: 0,
-                currentValue: 0,
-                realizedGain: 0,
-                taxLiability: 0,
-                realizedTax: 0,
-                unrealizedTax: 0,
-                adjustedCost: 0,
-                adjustedCostILS: 0,
-                originalCostILS: 0, // Base Cost in ILS
-                currentValueILS: 0,
-                realCostILS: 0,
-                unrealizedTaxableGainILS: 0,
+                originalCost: { amount: 0, currency: normalizeCurrency(displayCurrency) },
+                remainingCost: { amount: 0, currency: normalizeCurrency(displayCurrency) },
+                fees: { amount: 0, currency: normalizeCurrency(displayCurrency) },
+                currentValue: { amount: 0, currency: normalizeCurrency(displayCurrency) },
+                realizedGain: { amount: 0, currency: normalizeCurrency(displayCurrency) },
+                taxLiability: { amount: 0, currency: normalizeCurrency(displayCurrency) },
+                realizedTax: { amount: 0, currency: normalizeCurrency(displayCurrency) },
+                unrealizedTax: { amount: 0, currency: normalizeCurrency(displayCurrency) },
+                adjustedCost: { amount: 0, currency: normalizeCurrency(displayCurrency) },
+                adjustedCostILS: { amount: 0, currency: Currency.ILS },
+                originalCostILS: { amount: 0, currency: Currency.ILS }, // Base Cost in ILS
+                currentValueILS: { amount: 0, currency: Currency.ILS },
+                realCostILS: { amount: 0, currency: Currency.ILS },
+                unrealizedTaxableGainILS: { amount: 0, currency: Currency.ILS },
                 adjustmentDetails: undefined
             };
         }
@@ -312,20 +312,18 @@ export function groupHoldingLayers(
         g.originalQty += lot.qty;
 
         // Accumulate other fields...
-        g.originalCost += getHistoricalMoney(lot.costTotal);
-        // Fees Buying - Use historical if available (feesBuy should be Money now? No, it's SimpleMoney in Lot but we might have valILS)
-        // Actually Lot properties: feesBuy: { amount, currency, valILS?, valUSD? }
-        // Let's safe cast or assumes it follows Money patterns if we updated Engine.
-        g.fees += getHistoricalMoney(lot.feesBuy);
+        g.originalCost.amount += getHistoricalMoney(lot.costTotal);
+        // Fees Buying
+        g.fees.amount += getHistoricalMoney(lot.feesBuy);
 
-        if (lot.adjustedCostILS) g.adjustedCostILS += lot.adjustedCostILS;
-        if (lot.realCostILS) g.realCostILS += lot.realCostILS;
-        if (lot.unrealizedTaxableGainILS) g.unrealizedTaxableGainILS += lot.unrealizedTaxableGainILS;
+        if (lot.adjustedCostILS) g.adjustedCostILS.amount += lot.adjustedCostILS;
+        if (lot.realCostILS) g.realCostILS.amount += lot.realCostILS;
+        if (lot.unrealizedTaxableGainILS) g.unrealizedTaxableGainILS.amount += lot.unrealizedTaxableGainILS;
 
         if (lot.costTotal.valILS) {
-            g.originalCostILS += lot.costTotal.valILS;
+            g.originalCostILS.amount += lot.costTotal.valILS;
         } else {
-            g.originalCostILS += convertCurrency(lot.costTotal.amount, lot.costTotal.currency, Currency.ILS, exchangeRates || undefined);
+            g.originalCostILS.amount += convertCurrency(lot.costTotal.amount, lot.costTotal.currency, Currency.ILS, exchangeRates || undefined);
         }
 
         if (lot.adjustmentDetails) g.adjustmentDetails = lot.adjustmentDetails;
@@ -334,21 +332,16 @@ export function groupHoldingLayers(
 
             g.soldQty += lot.qty;
 
-            g.realizedGain += convertMoney(lot.realizedGainNet ? { amount: lot.realizedGainNet, currency: lot.costTotal.currency } : undefined, displayCurrency, exchangeRates || undefined).amount;
+            g.realizedGain.amount += convertMoney(lot.realizedGainNet ? { amount: lot.realizedGainNet, currency: lot.costTotal.currency } : undefined, displayCurrency, exchangeRates || undefined).amount;
 
             // Tax Paid:
-            // We use 'totalRealizedTaxPC' (Portfolio Currency) which includes Capital Gains Tax + Income Tax (if any).
-            // We convert it to the requested 'displayCurrency'.
-            // Note: 'totalRealizedTaxPC' is calculated at the time of sale (historical), but stored as a number.
-            // We convert it using *current* rates here for display, which introduces some drift vs historical value in display currency.
-            // Ideally, we would store Tax as a Money object with historical values (valUSD, valILS).
             const taxSourceCurrency = lot.costTotal?.currency || Currency.ILS;
             const rTax = convertCurrency(lot.totalRealizedTaxPC || lot.realizedTax || 0, taxSourceCurrency, displayCurrency, exchangeRates || undefined);
-            g.taxLiability += rTax;
-            g.realizedTax += rTax;
+            g.taxLiability.amount += rTax;
+            g.realizedTax.amount += rTax;
 
             // Sold Fees
-            g.fees += getHistoricalMoney(lot.soldFees);
+            g.fees.amount += getHistoricalMoney(lot.soldFees);
         } else {
             g.remainingQty += lot.qty;
 
@@ -361,20 +354,20 @@ export function groupHoldingLayers(
             } else {
                 addedCost = convertCurrency(lot.costTotal.amount, lot.costTotal.currency, displayCurrency, exchangeRates || undefined);
             }
-            g.remainingCost += addedCost;
+            g.remainingCost.amount += addedCost;
 
             const currentPrice = (holding as any).currentPrice || 0;
             const valSC = lot.qty * currentPrice;
             const valDisplay = convertCurrency(valSC, stockCurrency, displayCurrency, exchangeRates || undefined);
-            g.currentValue += valDisplay;
-            g.currentValueILS += convertCurrency(valSC, stockCurrency, Currency.ILS, exchangeRates || undefined);
+            g.currentValue.amount += valDisplay;
+            g.currentValueILS.amount += convertCurrency(valSC, stockCurrency, Currency.ILS, exchangeRates || undefined);
 
             const uTax = convertCurrency(lot.unrealizedTax || 0, lot.costTotal.currency, displayCurrency, exchangeRates || undefined);
-            g.taxLiability += uTax;
-            g.unrealizedTax += uTax;
+            g.taxLiability.amount += uTax;
+            g.unrealizedTax.amount += uTax;
 
             if (lot.adjustedCost) {
-                g.adjustedCost += convertCurrency(lot.adjustedCost, lot.costTotal.currency, displayCurrency, exchangeRates || undefined);
+                g.adjustedCost.amount += convertCurrency(lot.adjustedCost, lot.costTotal.currency, displayCurrency, exchangeRates || undefined);
             }
         }
     });
@@ -443,7 +436,7 @@ export function calculateHoldingWeights(
 
     // Helper map for Grouped Layer Values
     const realValuesMap = groupedLayersBase.reduce((acc, g) => {
-        acc[g.portfolioId] = g.stats.value; // Value in Display Currency
+        acc[g.portfolioId] = g.stats.value.amount; // Value in Display Currency
         return acc;
     }, {} as Record<string, number>);
 

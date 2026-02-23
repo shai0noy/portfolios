@@ -35,26 +35,26 @@ export interface UnifiedLayer {
     originalTxnId: string;
     date: Date;
     vestingDate?: Date;
-    price: number;
-    currency: string;
+    price: SimpleMoney;
+    // currency: string; // Removed, redundant if price has currency
     originalQty: number;
     remainingQty: number;
     soldQty: number;
     transferredQty?: number; // Tracked separately from soldQty
-    originalCost: number; // in SC
-    remainingCost: number; // in SC
-    fees: number;
-    currentValue: number;
-    realizedGain: number;
-    taxLiability: number;
-    realizedTax: number;
-    unrealizedTax: number;
-    adjustedCost: number;
-    adjustedCostILS: number;
-    originalCostILS: number; // Base Cost in ILS
-    currentValueILS: number;
-    realCostILS: number;
-    unrealizedTaxableGainILS: number;
+    originalCost: SimpleMoney; // in Display Currency (usually)
+    remainingCost: SimpleMoney; // in Display Currency
+    fees: SimpleMoney;
+    currentValue: SimpleMoney;
+    realizedGain: SimpleMoney;
+    taxLiability: SimpleMoney;
+    realizedTax: SimpleMoney;
+    unrealizedTax: SimpleMoney;
+    adjustedCost: SimpleMoney;
+    adjustedCostILS: SimpleMoney;
+    originalCostILS: SimpleMoney; // Base Cost in ILS
+    currentValueILS: SimpleMoney;
+    realCostILS: SimpleMoney;
+    unrealizedTaxableGainILS: SimpleMoney;
     adjustmentDetails?: { label: string; percentage: number };
 }
 

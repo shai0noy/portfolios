@@ -875,7 +875,6 @@ export class FinanceEngine {
         });
 
         this.holdings.forEach(h => {
-            console.error('DEBUG_ADJ: Loop Entry', h.ticker, h.qtyVested);
             if (filterIds && !filterIds.has(h.id)) return;
 
             // Values in Display Currency

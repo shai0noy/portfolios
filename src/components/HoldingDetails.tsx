@@ -1,5 +1,5 @@
 import { Box, Typography, CircularProgress } from '@mui/material';
-import { convertCurrency, getExchangeRates } from '../lib/currency';
+import { convertCurrency, getExchangeRates, normalizeCurrency } from '../lib/currency';
 import { useLanguage } from '../lib/i18n';
 import { Currency } from '../lib/types';
 import { InstrumentType } from '../lib/types/instrument';
@@ -89,15 +89,22 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
 
 
     const vals = useMemo(() => {
+        const zeroMoney = { amount: 0, currency: normalizeCurrency(displayCurrency) };
+        const zeroMoneyILS = { amount: 0, currency: Currency.ILS };
         if (!displayCurrency || !exchangeRates) return {
-            marketValue: 0, unrealizedGain: 0, realizedGain: 0, realizedGainGross: 0,
-            realizedGainNet: 0, realizedGainAfterTax: 0, totalGain: 0, valueAfterTax: 0,
-            dayChangeVal: 0, costBasis: 0, costOfSold: 0, proceeds: 0, dividends: 0,
-            unvestedValue: 0, totalQty: 0, totalCost: 0, realizedNetBase: 0,
-            realizedTaxBase: 0, unrealizedTaxBase: 0, realizedTax: 0, unrealizedTax: 0,
+            marketValue: zeroMoney, unrealizedGain: zeroMoney, realizedGain: zeroMoney, realizedGainGross: zeroMoney,
+            realizedGainNet: zeroMoney, realizedGainAfterTax: zeroMoney, totalGain: zeroMoney, valueAfterTax: zeroMoney,
+            dayChangeVal: zeroMoney, costBasis: zeroMoney, costOfSold: zeroMoney, proceeds: zeroMoney, dividends: zeroMoney,
+            unvestedValue: zeroMoney, totalQty: 0,
+            realizedTax: zeroMoney, unrealizedTax: zeroMoney,
             unrealizedGainPct: 0, realizedGainPct: 0, totalGainPct: 0, dayChangePct: 0,
-            avgCost: 0, currentPrice: 0, weightInPortfolio: 0, weightInGlobal: 0,
-            realCost: 0
+            avgCost: zeroMoney, currentPrice: zeroMoney, weightInPortfolio: 0, weightInGlobal: 0,
+            realCost: zeroMoney,
+            adjustedCostILS: zeroMoneyILS, // Add missing fields if needed by HoldingValues
+            originalCostILS: zeroMoneyILS,
+            currentValueILS: zeroMoneyILS,
+            realCostILS: zeroMoneyILS,
+            unrealizedTaxableGainILS: zeroMoneyILS
         } as HoldingValues;
 
         return aggregateHoldingValues(matchingHoldings, exchangeRates, displayCurrency);
@@ -273,7 +280,6 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
 
                                 <HoldingDistribution
                                     groupedLayers={groupedLayers}
-                                    displayCurrency={displayCurrency}
                                 />
 
                                 <HoldingLayers

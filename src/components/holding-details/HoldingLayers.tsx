@@ -1,6 +1,6 @@
 import { Box, Paper, Table, TableHead, TableRow, TableCell, TableBody, Typography, Tooltip } from '@mui/material';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
-import { formatValue, formatNumber, formatPrice, formatPercent, convertCurrency } from '../../lib/currency';
+import { formatValue, formatNumber, formatPercent, convertCurrency, formatMoneyValue, formatMoneyPrice } from '../../lib/currency';
 import { useLanguage } from '../../lib/i18n';
 import { Currency } from '../../lib/types';
 import type { Portfolio } from '../../lib/types';
@@ -100,7 +100,7 @@ export function HoldingLayers({ groupedLayers, displayCurrency, portfolios, exch
                                                     </Box>
                                                 </Tooltip>
                                             </TableCell>
-                                            <TableCell align="right">{formatPrice(layer.price, layer.currency)}</TableCell>
+                                            <TableCell align="right">{formatMoneyPrice(layer.price)}</TableCell>
                                             <TableCell align="right">
                                                 {displayCurrency !== Currency.ILS ? (
                                                     <Tooltip
@@ -109,43 +109,43 @@ export function HoldingLayers({ groupedLayers, displayCurrency, portfolios, exch
                                                         title={
                                                             <Box sx={{ p: 1 }}>
                                                                 <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>{t('Nominal Cost (ILS)', 'עלות נומינלית (ש"ח)')}</Typography>
-                                                                <Typography variant="body2">{formatValue(layer.originalCostILS, Currency.ILS)}</Typography>
-                                                                {layer.originalCost > 0 && (
+                                                                <Typography variant="body2">{formatMoneyValue(layer.originalCostILS)}</Typography>
+                                                                {layer.originalCost.amount > 0 && (
                                                                     <Typography variant="caption" display="block" sx={{ mt: 0.5, color: 'text.secondary' }}>
-                                                                        {t('Implied Rate:', 'שער רכישה:')} {formatNumber(layer.originalCostILS / layer.originalCost)}
+                                                                        {t('Implied Rate:', 'שער רכישה:')} {formatNumber(layer.originalCostILS.amount / layer.originalCost.amount)}
                                                                     </Typography>
                                                                 )}
                                                             </Box>
                                                         }
                                                     >
                                                         <Box component="span" sx={{ cursor: 'help', borderBottom: '1px dotted', borderColor: 'text.secondary', display: 'inline-block' }}>
-                                                            {formatValue(layer.originalCost, displayCurrency)}
+                                                            {formatMoneyValue(layer.originalCost)}
                                                         </Box>
                                                     </Tooltip>
                                                 ) : (
-                                                    formatValue(layer.originalCost, displayCurrency)
+                                                        formatMoneyValue(layer.originalCost)
                                                 )}
                                             </TableCell>
 
                                             <TableCell align="right">
                                                 {(() => {
                                                     const isILS = displayCurrency === Currency.ILS;
-                                                    const valContent = layer.remainingQty > 0 ? formatValue(layer.currentValue, displayCurrency) : '-';
+                                                    const valContent = layer.remainingQty > 0 ? formatMoneyValue(layer.currentValue) : '-';
 
                                                     if (layer.remainingQty <= 0) return valContent;
 
                                                     // Nominal Gain
-                                                    const nominalCostILS = layer.originalCostILS;
-                                                    const nominalGainILS = layer.currentValueILS - nominalCostILS;
+                                                    const nominalCostILS = layer.originalCostILS.amount;
+                                                    const nominalGainILS = layer.currentValueILS.amount - nominalCostILS;
                                                     const nominalGainPct = nominalCostILS > 0 ? nominalGainILS / nominalCostILS : 0;
 
                                                     // Real Gain
-                                                    const realCostILS = layer.realCostILS || nominalCostILS;
-                                                    const realGainILS = layer.currentValueILS - realCostILS;
+                                                    const realCostILS = layer.realCostILS.amount || nominalCostILS;
+                                                    const realGainILS = layer.currentValueILS.amount - realCostILS;
                                                     const realGainPct = realCostILS > 0 ? realGainILS / realCostILS : 0;
 
                                                     // Taxable Gain
-                                                    const taxableGainILS = layer.unrealizedTaxableGainILS;
+                                                    const taxableGainILS = layer.unrealizedTaxableGainILS.amount;
 
                                                     return (
                                                         <Tooltip
@@ -156,7 +156,7 @@ export function HoldingLayers({ groupedLayers, displayCurrency, portfolios, exch
                                                                     {!isILS && (
                                                                         <>
                                                                             <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>{t('Value (ILS)', 'שווי (ש"ח)')}</Typography>
-                                                                            <Typography variant="body2" sx={{ mb: 1 }}>{formatValue(layer.currentValueILS, Currency.ILS)}</Typography>
+                                                                            <Typography variant="body2" sx={{ mb: 1 }}>{formatMoneyValue(layer.currentValueILS)}</Typography>
                                                                         </>
                                                                     )}
 
@@ -187,8 +187,8 @@ export function HoldingLayers({ groupedLayers, displayCurrency, portfolios, exch
                                                 })()}
                                             </TableCell>
                                             {/* Color Realized Gain: Green/Red if non-zero */}
-                                            <TableCell align="right" sx={{ color: layer.realizedGain > 0 ? 'success.main' : layer.realizedGain < 0 ? 'error.main' : 'inherit' }}>
-                                                {layer.soldQty > 0 || layer.realizedGain !== 0 ? formatValue(layer.realizedGain, displayCurrency) : '-'}
+                                            <TableCell align="right" sx={{ color: layer.realizedGain.amount > 0 ? 'success.main' : layer.realizedGain.amount < 0 ? 'error.main' : 'inherit' }}>
+                                                {layer.soldQty > 0 || layer.realizedGain.amount !== 0 ? formatMoneyValue(layer.realizedGain) : '-'}
                                             </TableCell>
                                             <TableCell align="right">
                                                 {(() => {
@@ -215,7 +215,7 @@ export function HoldingLayers({ groupedLayers, displayCurrency, portfolios, exch
                                                                 }
                                                             >
                                                                 <Box component="span" sx={{ cursor: 'help', borderBottom: '1px dotted', borderColor: 'text.secondary', display: 'inline-block' }}>
-                                                                    {formatValue(layer.adjustedCostILS, Currency.ILS)}
+                                                                    {formatMoneyValue(layer.adjustedCostILS)}
                                                                 </Box>
                                                             </Tooltip>
                                                         );
@@ -231,31 +231,31 @@ export function HoldingLayers({ groupedLayers, displayCurrency, portfolios, exch
                                                     );
                                                 })()}
                                             </TableCell>
-                                            <TableCell align="right" sx={{ color: (layer.currentValue - layer.remainingCost) >= 0 ? 'success.main' : 'error.main' }}>
+                                            <TableCell align="right" sx={{ color: (layer.currentValue.amount - layer.remainingCost.amount) >= 0 ? 'success.main' : 'error.main' }}>
                                                 {(() => {
                                                     if (displayCurrency === Currency.ILS && layer.remainingQty > 0) {
-                                                        const curVal = layer.currentValueILS || 0;
-                                                        const cost = layer.originalCostILS;
+                                                        const curVal = layer.currentValueILS.amount || 0;
+                                                        const cost = layer.originalCostILS.amount;
                                                         const gain = curVal - cost;
                                                         return formatValue(gain, Currency.ILS);
                                                     }
-                                                    return layer.remainingQty > 0 ? formatValue(layer.currentValue - layer.remainingCost, displayCurrency) : '-';
+                                                    return layer.remainingQty > 0 ? formatValue(layer.currentValue.amount - layer.remainingCost.amount, displayCurrency) : '-';
                                                 })()}
                                             </TableCell>
 
                                             <TableCell align="right">
                                                 {(() => {
                                                     const p = portfolios.find(p => p.id === group.portfolioId);
-                                                    const taxILS = convertCurrency(layer.unrealizedTax, displayCurrency, Currency.ILS, exchangeRates || undefined);
-                                                    const totalTax = layer.realizedTax + layer.unrealizedTax;
+                                                    const taxILS = convertCurrency(layer.unrealizedTax.amount, layer.unrealizedTax.currency, Currency.ILS, exchangeRates || undefined);
+                                                    const totalTax = layer.realizedTax.amount + layer.unrealizedTax.amount;
                                                     const isNegativeTax = totalTax < -0.01; // tax credit
 
                                                     // Breakdown Calculation (Duplicated for Tooltip)
                                                     const { incTax } = p ? getTaxRatesForDate(p, new Date()) : { incTax: 0 };
                                                     let estimatedIncTaxILS = 0;
                                                     if (incTax > 0) {
-                                                        const costILS = layer.originalCostILS;
-                                                        const feesILS = convertCurrency(layer.fees, layer.currency, Currency.ILS, exchangeRates || undefined);
+                                                        const costILS = layer.originalCostILS.amount;
+                                                        const feesILS = convertCurrency(layer.fees.amount, layer.fees.currency, Currency.ILS, exchangeRates || undefined);
                                                         estimatedIncTaxILS = (costILS + feesILS) * incTax;
                                                     }
                                                     const estimatedCapTaxILS = taxILS - estimatedIncTaxILS;
@@ -285,7 +285,7 @@ export function HoldingLayers({ groupedLayers, displayCurrency, portfolios, exch
                                                                         <Typography variant="body2" fontWeight="bold">{formatValue(taxILS, Currency.ILS)}</Typography>
 
                                                                         <Box sx={{ gridColumn: '1 / -1', borderTop: '1px dotted', borderColor: 'divider', my: 0.5, pt: 0.5 }}>
-                                                                            <Typography variant="body2" color="text.secondary">{t('Realized Tax Paid:', 'מס ששולם:')} {formatValue(layer.realizedTax, displayCurrency)}</Typography>
+                                                                            <Typography variant="body2" color="text.secondary">{t('Realized Tax Paid:', 'מס ששולם:')} {formatMoneyValue(layer.realizedTax)}</Typography>
                                                                         </Box>
                                                                     </Box>
                                                                 </Box>
