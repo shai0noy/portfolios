@@ -141,6 +141,13 @@ export const EXCHANGE_SETTINGS: Record<Exchange, ExchangeSettings> = {
   },
 };
 
+export function isUSExchange(exchange: Exchange | string): boolean {
+  if (!exchange) return false;
+  const ex = exchange.toString().toUpperCase();
+  return ex === 'NASDAQ' || ex === 'NYSE';
+}
+
+
 /**
  * Parses an exchange identifier string into a known Exchange type.
  * The matching is case-insensitive.

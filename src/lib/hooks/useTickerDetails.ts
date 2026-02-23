@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { getTickerData, getTickersDataset, fetchTickerHistory, getVerifiedYahooSymbol, type TickerData } from '../fetching';
 import { fetchHolding, getMetadataValue, syncDividends, fetchDividends } from '../sheets';
-import { Exchange, parseExchange, toGoogleFinanceExchangeCode, type Portfolio, type SheetHolding } from '../types';
+import { Exchange, parseExchange, toGoogleFinanceExchangeCode, type Portfolio, type SheetHolding, isUSExchange } from '../types';
 
 import { formatPrice, toILS, normalizeCurrency } from '../currency';
 import { useLanguage } from '../i18n';
@@ -35,7 +35,9 @@ export const useTickerDetails = ({ sheetId, ticker: propTicker, exchange: propEx
     const state = location.state as { from?: string, numericId?: string, initialName?: string, initialNameHe?: string, returnState?: any } | null;
 
     const ticker = propTicker || params.ticker;
-    const exchange = parseExchange(propExchange || params.exchange || '');
+    const itemsExchange = parseExchange(propExchange || params.exchange || '');
+    // Normalize US exchanges to NASDAQ for consistent lookup/fetching
+    const exchange = isUSExchange(itemsExchange) ? Exchange.NASDAQ : itemsExchange;
     const explicitNumericId = propNumericId || params.numericId || state?.numericId;
     const [derivedNumericId, setDerivedNumericId] = useState<string | undefined>(undefined);
     const numericId = explicitNumericId || derivedNumericId;

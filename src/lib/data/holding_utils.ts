@@ -1,7 +1,7 @@
 
 import { convertCurrency, convertMoney, calculatePerformanceInDisplayCurrency, normalizeCurrency } from '../currency';
 import { Currency } from '../types';
-import type { ExchangeRates, Portfolio } from '../types';
+import type { ExchangeRates, Portfolio, SimpleMoney } from '../types';
 import type { Holding, DividendRecord } from './model';
 import type { EnrichedDashboardHolding } from '../dashboard';
 import type { HoldingValues, PortfolioGroup, UnifiedLayer } from '../../components/holding-details/types';
@@ -29,40 +29,37 @@ export function aggregateHoldingValues(
     displayCurrency: string
 ): HoldingValues {
     const defaultVals = {
-        marketValue: 0,
-        unrealizedGain: 0,
-        realizedGain: 0,
-        realizedGainGross: 0,
-        realizedGainNet: 0,
-        realizedGainAfterTax: 0,
-        totalGain: 0,
-        valueAfterTax: 0,
-        dayChangeVal: 0,
-        costBasis: 0,
-        costOfSold: 0,
-        proceeds: 0,
-        dividends: 0,
-        unvestedValue: 0,
+        marketValue: { amount: 0, currency: displayCurrency },
+        unrealizedGain: { amount: 0, currency: displayCurrency },
+        realizedGain: { amount: 0, currency: displayCurrency },
+        realizedGainGross: { amount: 0, currency: displayCurrency },
+        realizedGainNet: { amount: 0, currency: displayCurrency },
+        realizedGainAfterTax: { amount: 0, currency: displayCurrency },
+        totalGain: { amount: 0, currency: displayCurrency },
+        valueAfterTax: { amount: 0, currency: displayCurrency },
+        dayChangeVal: { amount: 0, currency: displayCurrency },
+        costBasis: { amount: 0, currency: displayCurrency },
+        costOfSold: { amount: 0, currency: displayCurrency },
+        proceeds: { amount: 0, currency: displayCurrency },
+        dividends: { amount: 0, currency: displayCurrency },
+        unvestedValue: { amount: 0, currency: displayCurrency },
         totalQty: 0,
-        totalCost: 0,
-        realizedNetBase: 0,
-        realizedTaxBase: 0,
-        unrealizedTaxBase: 0,
-        realizedTax: 0,
-        unrealizedTax: 0,
+        realizedTax: { amount: 0, currency: displayCurrency },
+        unrealizedTax: { amount: 0, currency: displayCurrency },
         unrealizedGainPct: 0,
         realizedGainPct: 0,
         totalGainPct: 0,
         dayChangePct: 0,
-        avgCost: 0,
-        currentPrice: 0,
+        avgCost: { amount: 0, currency: displayCurrency },
+        currentPrice: { amount: 0, currency: displayCurrency },
         weightInPortfolio: 0,
-        weightInGlobal: 0
+        weightInGlobal: 0,
+        realCost: { amount: 0, currency: displayCurrency }
     };
 
     if (!matchingHoldings || matchingHoldings.length === 0 || !exchangeRates) return defaultVals;
 
-    const agg = matchingHoldings.reduce((acc, h) => {
+    const aggValues = matchingHoldings.reduce((acc, h) => {
         // Check if Enriched
         const enriched = h as EnrichedDashboardHolding;
         if (enriched.display) {
@@ -82,6 +79,9 @@ export function aggregateHoldingValues(
             acc.dividends += d.dividends;
             acc.realizedTaxBase += (d as any).realizedTax || 0;
             acc.unrealizedTaxBase += (d as any).unrealizedTax || 0;
+            acc.realizedGainAfterTax += d.realizedGainAfterTax || 0;
+            acc.valueAfterTax += d.valueAfterTax || 0;
+            acc.totalGain += d.totalGain || 0;
 
             // Day Change
             acc.dayChangeVal += d.dayChangeVal;
@@ -100,111 +100,125 @@ export function aggregateHoldingValues(
             acc.marketValue += mvVested;
             acc.unvestedValue += convertMoney(raw.marketValueUnvested, displayCurrency, exchangeRates).amount;
 
-            // Use historical values for cost and proceeds
-            const costBasisDisplay = getHistoricalMoney(raw.costBasisVested);
-            acc.costBasis += costBasisDisplay;
+            acc.costBasis += getHistoricalMoney(raw.costBasisVested);
+            acc.costOfSold += getHistoricalMoney(raw.costOfSoldTotal);
+            acc.proceeds += getHistoricalMoney(raw.proceedsTotal);
 
-            const costOfSoldDisplay = getHistoricalMoney(raw.costOfSoldTotal);
-            acc.costOfSold += costOfSoldDisplay;
+            const ug = convertMoney(raw.unrealizedGain, displayCurrency, exchangeRates).amount;
+            acc.unrealizedGain += ug;
 
             const proceedsDisplay = getHistoricalMoney(raw.proceedsTotal);
-            acc.proceeds += proceedsDisplay;
-
-            const rGainNetDisplay = raw.realizedGainNet ? convertCurrency(raw.realizedGainNet.amount, raw.realizedGainNet.currency, displayCurrency, exchangeRates) : 0;
-            // raw.realizedGainNet is After-Fee, Pre-Tax.
-
-            const taxPC = raw.totalTaxPaidPC ?? 0;
-            const taxDisplay = convertCurrency(taxPC, raw.portfolioCurrency || 'USD', displayCurrency, exchangeRates);
-            acc.realizedTaxBase += taxDisplay;
-
-            // Dividends Net
-            const divNet = convertMoney(raw.dividendsTotal, displayCurrency, exchangeRates).amount;
-            acc.dividends += divNet;
-
-            // Calculate Gross Divs for Raw
-            let divsGross = divNet; // fallback
-            const rawDivs = ((raw as any)._dividends || []) as DividendRecord[];
-            if (rawDivs.length > 0) {
-                divsGross = rawDivs.reduce((s, d) => s + convertCurrency(d.grossAmount.amount, d.grossAmount.currency, displayCurrency, exchangeRates), 0);
-            }
-
-            // Gross Sells (Using Historical)
+            const costOfSoldDisplay = getHistoricalMoney(raw.costOfSoldTotal);
             const sellsGross = proceedsDisplay - costOfSoldDisplay;
 
-            acc.realizedGain += sellsGross + divsGross;
-            acc.realizedGainGross += sellsGross + divsGross;
+            acc.realizedGain += sellsGross;
+            acc.realizedGainGross += sellsGross;
+            acc.realizedGainNet += convertMoney(raw.realizedGainNet, displayCurrency, exchangeRates).amount;
 
-            const cgtDisplay = convertCurrency(raw.realizedCapitalGainsTax || 0, raw.portfolioCurrency || 'USD', displayCurrency, exchangeRates);
-            acc.realizedGainNet += (rGainNetDisplay - cgtDisplay) + divNet;
-
-            // Day Change
-            const dcPct = raw.dayChangePct || 0;
-            if (dcPct !== 0) {
-                const { changeVal } = calculatePerformanceInDisplayCurrency(raw.currentPrice, raw.stockCurrency, dcPct, displayCurrency, exchangeRates);
-                acc.dayChangeVal += changeVal * (raw.qtyVested || 0);
+            // Dividends
+            if (raw.dividends) {
+                const totalDivs = raw.dividends.reduce((sum, d) => sum + convertCurrency(d.netAmountPC, raw.portfolioCurrency, displayCurrency, exchangeRates), 0);
+                acc.dividends += totalDivs;
             }
 
-            // Unrealized Gain (Nominal using Display Currency)
-            const unrealizedGain = mvVested - costBasisDisplay;
-            acc.unrealizedGain += unrealizedGain;
+            const rawHolding = raw as Holding;
+            const taxPC = rawHolding.totalTaxPaidPC ?? 0;
+            const taxDisplay = convertCurrency(taxPC, rawHolding.portfolioCurrency || 'USD', displayCurrency, exchangeRates);
+            acc.realizedTaxBase += taxDisplay;
 
-            acc.totalQty += raw.qtyVested || 0;
+            // Real Cost Aggregation (Iterate lots if available to sum realCostILS)
+            // Use activeLots public accessor
+            if (rawHolding.activeLots) {
+                rawHolding.activeLots.forEach((l) => {
+                    // activeLots already filters for qty > 0 and !soldDate
+                    const rcILS = l.realCostILS || 0;
+                    // Convert ILS to Display Currency
+                    acc.realCost += rcILS ? convertCurrency(rcILS, Currency.ILS, displayCurrency, exchangeRates) : 0;
+                });
+            }
         }
+
         return acc;
-    }, { ...defaultVals });
+    }, {
+        marketValue: 0,
+        unvestedValue: 0,
+        costBasis: 0,
+        costOfSold: 0,
+        proceeds: 0,
+        unrealizedGain: 0,
+        realizedGain: 0,
+        realizedGainGross: 0,
+        realizedGainNet: 0,
+        dividends: 0,
+        realizedTaxBase: 0,
+        unrealizedTaxBase: 0,
+        realizedGainAfterTax: 0,
+        valueAfterTax: 0,
+        totalGain: 0,
+        dayChangeVal: 0,
+        realCost: 0
+    });
 
     // Derived Totals (in Display Currency)
-    agg.realizedGainAfterTax = agg.realizedGainNet;
-    agg.totalGain = agg.unrealizedGain + agg.realizedGain;
-    agg.valueAfterTax = agg.marketValue - agg.unrealizedTaxBase;
+    const realizedGainAfterTax = aggValues.realizedGainNet; // Simplified fallback logic
+    const totalGain = aggValues.unrealizedGain + aggValues.realizedGain;
+    const valueAfterTax = aggValues.marketValue - aggValues.unrealizedTaxBase;
 
     // Derived Pcts
-    agg.unrealizedGainPct = agg.costBasis > 0 ? agg.unrealizedGain / agg.costBasis : 0;
-    const realizedSellsGross = agg.proceeds - agg.costOfSold;
-    agg.realizedGainPct = agg.costOfSold > 0 ? realizedSellsGross / agg.costOfSold : 0;
-    agg.totalGainPct = (agg.costBasis + agg.costOfSold) > 0 ? agg.totalGain / (agg.costBasis + agg.costOfSold) : 0;
-    agg.dayChangePct = agg.marketValue > 0 ? agg.dayChangeVal / (agg.marketValue - agg.dayChangeVal) : 0;
+    // For Raw Holdings, we need to calculate them, for Enriched we might want to aggregate but summing percentages is wrong.
+    // Re-calculating from totals is generally safer.
+    const unrealizedGainPct = aggValues.costBasis > 0 ? aggValues.unrealizedGain / aggValues.costBasis : 0;
+    const realizedSellsGross = aggValues.proceeds - aggValues.costOfSold;
+    const realizedGainPct = aggValues.costOfSold > 0 ? realizedSellsGross / aggValues.costOfSold : 0;
+    const totalGainPct = (aggValues.costBasis + aggValues.costOfSold) > 0 ? totalGain / (aggValues.costBasis + aggValues.costOfSold) : 0;
+    const dayChangePct = (aggValues.marketValue - aggValues.dayChangeVal) > 0 ? aggValues.dayChangeVal / (aggValues.marketValue - aggValues.dayChangeVal) : 0;
 
     // Avg Cost (Based on Vested Qty, as Unvested has 0 cost)
     const totalVestedQty = matchingHoldings.reduce((s, h) => s + ((h as Holding).qtyVested || 0), 0);
-    agg.avgCost = totalVestedQty > 0 ? agg.costBasis / totalVestedQty : 0;
+    const avgCost = totalVestedQty > 0 ? aggValues.costBasis / totalVestedQty : 0;
+
+    // Total Qty
+    const totalQty = matchingHoldings.reduce((s, h) => s + ((h as Holding).qtyVested || 0) + ((h as Holding).qtyUnvested || 0), 0);
 
     let currentPrice = 0;
-    const totalStockCurrency = (matchingHoldings[0] as any).stockCurrency || 'USD';
+    const totalStockCurrency = (matchingHoldings[0] as Holding).stockCurrency || 'USD';
     const enrichedHolding = matchingHoldings.find(h => (h as EnrichedDashboardHolding).display) as EnrichedDashboardHolding;
     if (enrichedHolding?.display?.currentPrice) {
         currentPrice = enrichedHolding.display.currentPrice;
     } else if (matchingHoldings[0]) {
         currentPrice = (matchingHoldings[0] as Holding).currentPrice || 0;
     }
-    agg.currentPrice = convertCurrency(currentPrice, totalStockCurrency, displayCurrency, exchangeRates);
+    const currentPriceDisplay = convertCurrency(currentPrice, totalStockCurrency, displayCurrency, exchangeRates);
+
+    const toMoney = (amount: number): SimpleMoney => ({ amount, currency: displayCurrency as Currency });
 
     return {
-        marketValue: agg.marketValue,
-        unrealizedGain: agg.unrealizedGain,
-        unrealizedGainPct: agg.unrealizedGainPct,
-        realizedGain: agg.realizedGain,
-        realizedGainGross: agg.realizedGain,
-        realizedGainNet: agg.realizedGainNet,
-        realizedGainPct: agg.realizedGainPct,
-        realizedGainAfterTax: agg.realizedGainAfterTax,
-        totalGain: agg.totalGain,
-        totalGainPct: agg.totalGainPct,
-        valueAfterTax: agg.valueAfterTax,
-        dayChangeVal: agg.dayChangeVal,
-        dayChangePct: agg.dayChangePct,
-        costBasis: agg.costBasis,
-        costOfSold: agg.costOfSold,
-        proceeds: agg.proceeds,
-        dividends: agg.dividends,
-        currentPrice: agg.currentPrice,
-        avgCost: agg.avgCost,
+        marketValue: toMoney(aggValues.marketValue),
+        unrealizedGain: toMoney(aggValues.unrealizedGain),
+        unrealizedGainPct: unrealizedGainPct,
+        realizedGain: toMoney(aggValues.realizedGain),
+        realizedGainGross: toMoney(aggValues.realizedGainGross),
+        realizedGainNet: toMoney(aggValues.realizedGainNet),
+        realizedGainPct: realizedGainPct,
+        realizedGainAfterTax: toMoney(realizedGainAfterTax),
+        totalGain: toMoney(totalGain),
+        totalGainPct: totalGainPct,
+        valueAfterTax: toMoney(valueAfterTax),
+        dayChangeVal: toMoney(aggValues.dayChangeVal),
+        dayChangePct: dayChangePct,
+        costBasis: toMoney(aggValues.costBasis),
+        costOfSold: toMoney(aggValues.costOfSold),
+        proceeds: toMoney(aggValues.proceeds),
+        dividends: toMoney(aggValues.dividends),
+        currentPrice: toMoney(currentPriceDisplay),
+        avgCost: toMoney(avgCost),
         weightInPortfolio: 0,
         weightInGlobal: 0,
-        unvestedValue: agg.unvestedValue,
-        realizedTax: agg.realizedTaxBase,
-        unrealizedTax: agg.unrealizedTaxBase,
-        totalQty: agg.totalQty
+        unvestedValue: toMoney(aggValues.unvestedValue),
+        realizedTax: toMoney(aggValues.realizedTaxBase),
+        unrealizedTax: toMoney(aggValues.unrealizedTaxBase),
+        totalQty: totalQty,
+        realCost: toMoney(aggValues.realCost || aggValues.costBasis) // Fallback to costBasis if not calculated
     };
 }
 
@@ -247,6 +261,7 @@ export function groupHoldingLayers(
             qty: number;
             value: number;
             cost: number;
+            realCost: number;
         };
         layers: Record<string, UnifiedLayer>;
     }> = {};
@@ -255,16 +270,16 @@ export function groupHoldingLayers(
         const pid = lot.portfolioId || 'unknown';
         if (!portfolioGroups[pid]) {
             portfolioGroups[pid] = {
-                stats: { qty: 0, value: 0, cost: 0 },
+                stats: { qty: 0, value: 0, cost: 0, realCost: 0 },
                 layers: {}
             };
         }
 
         const pGroup = portfolioGroups[pid];
-        const layerKey = lot.originalTxnId || `unknown_${lot.date.getTime()}_${lot.costPerUnit.amount}`;
+        const layerKey = lot.originalTxnId || getFallbackLayerKey(lot);
 
         if (!pGroup.layers[layerKey]) {
-            const originalPriceSC = lot.costPerUnit.amount / (lot.costPerUnit.rateToPortfolio || 1);
+            const originalPriceSC = (lot.costPerUnit?.amount || 0) / (lot.costPerUnit?.rateToPortfolio || 1);
             pGroup.layers[layerKey] = {
                 originalTxnId: layerKey,
                 date: new Date(lot.date),
@@ -298,7 +313,10 @@ export function groupHoldingLayers(
 
         // Accumulate other fields...
         g.originalCost += getHistoricalMoney(lot.costTotal);
-        g.fees += lot.feesBuy.amount;
+        // Fees Buying - Use historical if available (feesBuy should be Money now? No, it's SimpleMoney in Lot but we might have valILS)
+        // Actually Lot properties: feesBuy: { amount, currency, valILS?, valUSD? }
+        // Let's safe cast or assumes it follows Money patterns if we updated Engine.
+        g.fees += getHistoricalMoney(lot.feesBuy);
 
         if (lot.adjustedCostILS) g.adjustedCostILS += lot.adjustedCostILS;
         if (lot.realCostILS) g.realCostILS += lot.realCostILS;
@@ -317,10 +335,20 @@ export function groupHoldingLayers(
             g.soldQty += lot.qty;
 
             g.realizedGain += convertMoney(lot.realizedGainNet ? { amount: lot.realizedGainNet, currency: lot.costTotal.currency } : undefined, displayCurrency, exchangeRates || undefined).amount;
-            const rTax = convertCurrency(lot.totalRealizedTaxPC || 0, lot.costTotal?.currency || Currency.USD, displayCurrency, exchangeRates || undefined);
+
+            // Tax Paid:
+            // We use 'totalRealizedTaxPC' (Portfolio Currency) which includes Capital Gains Tax + Income Tax (if any).
+            // We convert it to the requested 'displayCurrency'.
+            // Note: 'totalRealizedTaxPC' is calculated at the time of sale (historical), but stored as a number.
+            // We convert it using *current* rates here for display, which introduces some drift vs historical value in display currency.
+            // Ideally, we would store Tax as a Money object with historical values (valUSD, valILS).
+            const taxSourceCurrency = lot.costTotal?.currency || Currency.ILS;
+            const rTax = convertCurrency(lot.totalRealizedTaxPC || lot.realizedTax || 0, taxSourceCurrency, displayCurrency, exchangeRates || undefined);
             g.taxLiability += rTax;
             g.realizedTax += rTax;
-            g.fees += convertCurrency(lot.soldFees?.amount || 0, lot.soldFees?.currency || Currency.ILS, displayCurrency, exchangeRates || undefined);
+
+            // Sold Fees
+            g.fees += getHistoricalMoney(lot.soldFees);
         } else {
             g.remainingQty += lot.qty;
 
@@ -363,6 +391,7 @@ export function groupHoldingLayers(
         const currentQty = sortedLayers.reduce((sum: number, l: any) => sum + l.remainingQty, 0);
         const totalValue = sortedLayers.reduce((sum: number, l: any) => sum + l.currentValue, 0); // Value of remaining
         const totalRemainingCost = sortedLayers.reduce((sum: number, l: any) => sum + l.remainingCost, 0);
+        const totalRealCost = sortedLayers.reduce((sum: number, l: any) => sum + (l.realCostILS || l.remainingCost), 0);
 
         return {
             portfolioId: pid,
@@ -370,8 +399,9 @@ export function groupHoldingLayers(
             stats: {
                 originalQty: totalOriginalQty,
                 currentQty: currentQty,
-                value: totalValue,
-                cost: totalRemainingCost,
+                value: { amount: totalValue, currency: displayCurrency as Currency },
+                cost: { amount: totalRemainingCost, currency: displayCurrency as Currency },
+                realCost: { amount: totalRealCost, currency: displayCurrency as Currency },
                 weight: pWeightData?.weightInPortfolio || 0
             },
             layers: sortedLayers
@@ -443,4 +473,10 @@ export function calculateHoldingWeights(
         ...r,
         weightInGlobal: totalAum > 0 ? r.value / totalAum : 0
     }));
+}
+
+function getFallbackLayerKey(lot: any): string {
+    const time = lot.date instanceof Date ? lot.date.getTime() : new Date(lot.date).getTime();
+    const cost = lot.costPerUnit?.amount ?? 'NA';
+    return `unknown_${time}_${cost}`;
 }

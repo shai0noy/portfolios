@@ -1,31 +1,34 @@
 
 
+import type { SimpleMoney } from '../../lib/types';
+
 export interface HoldingValues {
-    marketValue: number;
-    unrealizedGain: number;
+    marketValue: SimpleMoney;
+    unrealizedGain: SimpleMoney;
     unrealizedGainPct: number;
-    realizedGain: number;
-    realizedGainGross: number;
-    realizedGainNet: number;
+    realizedGain: SimpleMoney;
+    realizedGainGross: SimpleMoney;
+    realizedGainNet: SimpleMoney;
     realizedGainPct: number;
-    realizedGainAfterTax: number;
-    totalGain: number;
+    realizedGainAfterTax: SimpleMoney;
+    totalGain: SimpleMoney;
     totalGainPct: number;
-    valueAfterTax: number;
-    dayChangeVal: number;
+    valueAfterTax: SimpleMoney;
+    dayChangeVal: SimpleMoney;
     dayChangePct: number;
-    costBasis: number;
-    costOfSold: number;
-    proceeds: number;
-    dividends: number;
-    currentPrice: number;
-    avgCost: number;
+    costBasis: SimpleMoney;
+    costOfSold: SimpleMoney;
+    proceeds: SimpleMoney;
+    dividends: SimpleMoney;
+    currentPrice: SimpleMoney;
+    avgCost: SimpleMoney;
     weightInPortfolio: number;
     weightInGlobal: number;
-    unvestedValue: number;
-    realizedTax: number;
-    unrealizedTax: number;
+    unvestedValue: SimpleMoney;
+    realizedTax: SimpleMoney;
+    unrealizedTax: SimpleMoney;
     totalQty: number;
+    realCost: SimpleMoney; // Inflation/Forex adjusted cost for remaining quantity
 }
 
 export interface UnifiedLayer {
@@ -61,8 +64,9 @@ export interface PortfolioGroup {
     stats: {
         originalQty: number;
         currentQty: number;
-        value: number;
-        cost: number;
+        value: SimpleMoney;
+        cost: SimpleMoney;
+        realCost: SimpleMoney;
         weight: number;
     };
     layers: UnifiedLayer[];

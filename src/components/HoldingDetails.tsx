@@ -96,7 +96,8 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
             unvestedValue: 0, totalQty: 0, totalCost: 0, realizedNetBase: 0,
             realizedTaxBase: 0, unrealizedTaxBase: 0, realizedTax: 0, unrealizedTax: 0,
             unrealizedGainPct: 0, realizedGainPct: 0, totalGainPct: 0, dayChangePct: 0,
-            avgCost: 0, currentPrice: 0, weightInPortfolio: 0, weightInGlobal: 0
+            avgCost: 0, currentPrice: 0, weightInPortfolio: 0, weightInGlobal: 0,
+            realCost: 0
         } as HoldingValues;
 
         return aggregateHoldingValues(matchingHoldings, exchangeRates, displayCurrency);
@@ -193,8 +194,12 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
         return { unvestedVal: uVal, unvestedGain: uGain };
     }, [hasGrants, layers, holding]);
 
-    const unvestedValDisplay = convertCurrency(unvestedVal, stockCurrency, displayCurrency, exchangeRates || undefined);
-    const unvestedGainDisplay = convertCurrency(unvestedGain, stockCurrency, displayCurrency, exchangeRates || undefined);
+    const unvestedValDisplay = (exchangeRates && stockCurrency && displayCurrency)
+        ? convertCurrency(unvestedVal, stockCurrency, displayCurrency, exchangeRates)
+        : 0;
+    const unvestedGainDisplay = (exchangeRates && stockCurrency && displayCurrency)
+        ? convertCurrency(unvestedGain, stockCurrency, displayCurrency, exchangeRates)
+        : 0;
     const vestedValDisplay = vals.marketValue;
 
     // Unified Layers Logic grouped by Portfolio (Base - No Weights)
@@ -236,7 +241,7 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
             {/* SECTION: HOLDINGS */}
             {section === 'holdings' && (
                 <Box>
-                    {!vals || (vals.marketValue === 0 && vals.costBasis === 0 && realizedLayers.length === 0 && divHistory.length === 0) ? (
+                    {!vals || (layers.length === 0 && realizedLayers.length === 0) ? (
                         <Box sx={{ p: 2, textAlign: 'center' }}>
                             <Typography color="text.secondary">{t('Calculating holding details...', 'מחשב פרטי החזקה...')}</Typography>
                         </Box>

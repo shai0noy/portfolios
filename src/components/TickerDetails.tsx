@@ -82,13 +82,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
 
       return points.map(p => ({
         date: new Date(p.date),
-        price: p.twr // TWR is cumulative (e.g. 1.05), Chart Percent Mode expects 0.05 for 5%? 
-        // WAIT. TickerChart receives "price" data. 
-        // If mode is 'percent', TickerChart calculates (val / base - 1).
-        // IF we pass raw TWR factor (1.0, 1.05), TickerChart will do (1.05 / 1.0 - 1) = 0.05 = 5%. Correct.
-        // SO WE SHOULD PASS RAW TWR.
-        // BUT `p.twr` from `calculatePortfolioPerformance` starts at 1.0? Yes.
-        // So just passing `p.twr` as price should work if we want the chart to treat it like a price history starting at 1.0.
+        price: p.twr
       }));
     } catch (e) {
       console.error("Failed to calc portfolio history", e);
@@ -105,6 +99,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   const [chartMetric, setChartMetric] = useState<'percent' | 'price'>('percent');
   const [compareMenuAnchor, setCompareMenuAnchor] = useState<null | HTMLElement>(null);
   const [analysisOpen, setAnalysisOpen] = useState(false);
+
   const [activeTab, setActiveTabRaw] = useState('analysis');
   const handleTabChange = (_: any, v: string) => setActiveTabRaw(v);
   const [engineHoldings, setEngineHoldings] = useState<Holding[]>([]);
@@ -116,19 +111,37 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
     return null;
   }, [location.state, ticker]);
 
+  const [isEngineLoading, setIsEngineLoading] = useState(true);
+
   useEffect(() => {
-    // Note: To always show closed positions, we must try loading engineHoldings
-    // even if `ownedInPortfolios` is empty (as it might be filtered by qty > 0 upstream).
     if (sheetId && ticker) {
+      setIsEngineLoading(true);
       loadFinanceEngine(sheetId).then(eng => {
         const matches: Holding[] = [];
         eng.holdings.forEach((h: Holding) => {
-          if (h.ticker === ticker && (h.exchange === exchange || !exchange)) {
+          const isTickerMatch = h.ticker.toUpperCase() === ticker.toUpperCase();
+          const engineExchange = h.exchange;
+          const targetExchange = exchange?.toUpperCase();
+
+          let isExchangeMatch = !targetExchange || (engineExchange === targetExchange);
+
+          // Relaxed matching for "US" region: If target is 'US', match 'NASDAQ' or 'NYSE'
+          if (!isExchangeMatch && targetExchange === 'US' && (engineExchange === Exchange.NASDAQ || engineExchange === Exchange.NYSE)) {
+            isExchangeMatch = true;
+          }
+          // Also reverse: if target is 'NASDAQ'/'NYSE' but engine (rarely) has 'US'
+          if (!isExchangeMatch && (targetExchange === Exchange.NASDAQ || targetExchange === Exchange.NYSE) && (engineExchange as any) === 'US') {
+            isExchangeMatch = true;
+          }
+
+          if (isTickerMatch && isExchangeMatch) {
             matches.push(h);
           }
         });
         setEngineHoldings(matches);
-      }).catch(console.error);
+      }).catch(console.error).finally(() => setIsEngineLoading(false));
+    } else {
+      setIsEngineLoading(false);
     }
   }, [sheetId, ticker, exchange]);
 
@@ -136,8 +149,16 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
     return !!(enrichedHolding || (ownedInPortfolios && ownedInPortfolios.length > 0) || (engineHoldings && engineHoldings.length > 0) || holdingData);
   }, [enrichedHolding, ownedInPortfolios, engineHoldings, holdingData]);
 
+  // Force activeTab to 'analysis' if hasHolding is false and we are on a holding tab
+  // Force activeTab to 'analysis' if hasHolding is false AND we are done loading.
+  useEffect(() => {
+    if (!isEngineLoading && !hasHolding && activeTab !== 'analysis') {
+      setActiveTabRaw('analysis');
+    }
+  }, [isEngineLoading, hasHolding, activeTab]);
+
   const handlePortfolioClick = (id: string) => {
-    onClose?.(); 
+    onClose?.();
     navigate(`/portfolios/${id}`);
   };
 
@@ -229,35 +250,35 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
 
   const dividendGains = useMemo(() => {
     if (!data?.dividends || !displayData?.price) return {};
-    
+
     const now = new Date();
     const result: Record<string, { pct: number, amount: number }> = {};
     const ranges = {
-        '1Y': new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()),
-        '3Y': new Date(now.getFullYear() - 3, now.getMonth(), now.getDate()),
-        '5Y': new Date(now.getFullYear() - 5, now.getMonth(), now.getDate()),
-        'Max': new Date(0)
+      '1Y': new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()),
+      '3Y': new Date(now.getFullYear() - 3, now.getMonth(), now.getDate()),
+      '5Y': new Date(now.getFullYear() - 5, now.getMonth(), now.getDate()),
+      'Max': new Date(0)
     };
 
     const sortedDivs = [...data.dividends].sort((a, b) => b.date.getTime() - a.date.getTime());
     const currentPrice = displayData.price;
 
     Object.entries(ranges).forEach(([range, cutoff]) => {
-        const divsInRange = sortedDivs.filter(d => d.date >= cutoff);
-        if (divsInRange.length === 0) return;
-        
-        const totalAmount = divsInRange.reduce((sum, d) => sum + d.amount, 0);
-        if (currentPrice && currentPrice > 0) {
-            result[range] = { pct: totalAmount / currentPrice, amount: totalAmount };
-        }
+      const divsInRange = sortedDivs.filter(d => d.date >= cutoff);
+      if (divsInRange.length === 0) return;
+
+      const totalAmount = divsInRange.reduce((sum, d) => sum + d.amount, 0);
+      if (currentPrice && currentPrice > 0) {
+        result[range] = { pct: totalAmount / currentPrice, amount: totalAmount };
+      }
     });
-    
+
     return result;
   }, [data?.dividends, displayData?.price]);
 
   return (
     <>
-      <Dialog open={true} onClose={handleClose} maxWidth="lg" fullWidth 
+      <Dialog open={true} onClose={handleClose} maxWidth="lg" fullWidth
         sx={{ '& .MuiDialog-container': { alignItems: { xs: 'flex-start', md: 'center' }, pt: { xs: 4, md: 0 } } }}
         PaperProps={{ sx: { width: 'min(900px, 96%)', m: 1, maxHeight: '90vh', minHeight: { xs: 'auto', md: '600px' }, display: 'flex', flexDirection: 'column' } }}>
         <DialogTitle sx={{ p: 2 }}>
@@ -348,9 +369,9 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                 <>
                   {activeTab === 'analysis' && (
                     <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                        {isStale && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>{t('Data is from', 'הנתונים מתאריך')}: {formatDate(dataTimestamp)}</Typography>}
-                        <Typography variant="subtitle2" gutterBottom>{t('Performance', 'ביצועים')}</Typography>
-                        <Box display="flex" flexWrap="wrap" gap={1} sx={{ mb: 2 }}>
+                      {isStale && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>{t('Data is from', 'הנתונים מתאריך')}: {formatDate(dataTimestamp)}</Typography>}
+                      <Typography variant="subtitle2" gutterBottom>{t('Performance', 'ביצועים')}</Typography>
+                      <Box display="flex" flexWrap="wrap" gap={1} sx={{ mb: 2 }}>
                         {(() => {
                           const getDuration = (p: string) => {
                             const now = new Date();
@@ -386,21 +407,21 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                                   label={<><Typography variant="caption" color="text.secondary">{translateRange(range)}</Typography><Typography variant="body2" sx={{ fontWeight: 600 }}>{formatPercent(item.val)}</Typography></>}
                                 />
                               </Tooltip>
-                                    ));
+                            ));
                         })()}
                       </Box>
-                                                
-                                                                        {historicalData && historicalData.length > 0 && (                            <>
-                            <Box display="flex" justifyContent="flex-start" alignItems="center" gap={1} flexWrap="wrap">
-                                <ToggleButtonGroup value={chartRange} exclusive onChange={(_, v) => v && setChartRange(v)} size="small">
-                                {availableRanges.map(r => <ToggleButton key={r} value={r}>{r === 'ALL' ? maxLabel : r}</ToggleButton>)}
-                                </ToggleButtonGroup>
-                                <ToggleButtonGroup value={effectiveChartMetric} exclusive onChange={(_, v) => v && setChartMetric(v)} size="small" disabled={isComparison}>
-                                <ToggleButton value="percent">%</ToggleButton>
-                                <ToggleButton value="price">$</ToggleButton>
-                                </ToggleButtonGroup>
-                                <Button onClick={(e) => setCompareMenuAnchor(e.currentTarget)}>{t('Compare', 'השווה')}</Button>
-                                <Menu anchorEl={compareMenuAnchor} open={Boolean(compareMenuAnchor)} onClose={() => setCompareMenuAnchor(null)}>
+
+                      {historicalData && historicalData.length > 0 && (<>
+                        <Box display="flex" justifyContent="flex-start" alignItems="center" gap={1} flexWrap="wrap">
+                          <ToggleButtonGroup value={chartRange} exclusive onChange={(_, v) => v && setChartRange(v)} size="small">
+                            {availableRanges.map(r => <ToggleButton key={r} value={r}>{r === 'ALL' ? maxLabel : r}</ToggleButton>)}
+                          </ToggleButtonGroup>
+                          <ToggleButtonGroup value={effectiveChartMetric} exclusive onChange={(_, v) => v && setChartMetric(v)} size="small" disabled={isComparison}>
+                            <ToggleButton value="percent">%</ToggleButton>
+                            <ToggleButton value="price">$</ToggleButton>
+                          </ToggleButtonGroup>
+                          <Button onClick={(e) => setCompareMenuAnchor(e.currentTarget)}>{t('Compare', 'השווה')}</Button>
+                          <Menu anchorEl={compareMenuAnchor} open={Boolean(compareMenuAnchor)} onClose={() => setCompareMenuAnchor(null)}>
                             {(() => {
                               let lastGroup = '';
                               return comparisonOptions.map((opt) => {
@@ -434,53 +455,53 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                                 ];
                               });
                             })()}
-                                </Menu>
-                                <Button onClick={() => setAnalysisOpen(true)}>{t('Analysis', 'ניתוח')}</Button>
-                            </Box>
-                            {comparisonSeries.length > 0 && <Box display="flex" flexWrap="wrap" gap={1} sx={{ mt: 1, mb: 1 }}>{comparisonSeries.map(s => <Chip key={s.name} label={s.name} onDelete={() => handleRemoveComparison(s.name)} variant="outlined" size="small" sx={{ color: s.color, borderColor: s.color }} />)}</Box>}
-                            <Box sx={{ height: 400 }}>
-                                <TickerChart series={[{ name: resolvedName || ticker || 'Main', data: displayHistory }, ...displayComparisonSeries]} currency={displayData?.currency || 'USD'} mode={effectiveChartMetric} height="100%" />
-                            </Box>
-                            </>
-                        )}
+                          </Menu>
+                          <Button onClick={() => setAnalysisOpen(true)}>{t('Analysis', 'ניתוח')}</Button>
+                        </Box>
+                        {comparisonSeries.length > 0 && <Box display="flex" flexWrap="wrap" gap={1} sx={{ mt: 1, mb: 1 }}>{comparisonSeries.map(s => <Chip key={s.name} label={s.name} onDelete={() => handleRemoveComparison(s.name)} variant="outlined" size="small" sx={{ color: s.color, borderColor: s.color }} />)}</Box>}
+                        <Box sx={{ height: 400 }}>
+                          <TickerChart series={[{ name: resolvedName || ticker || 'Main', data: displayHistory }, ...displayComparisonSeries]} currency={displayData?.currency || 'USD'} mode={effectiveChartMetric} height="100%" />
+                        </Box>
+                      </>
+                      )}
 
-                        {data?.dividends && data.dividends.length > 0 && (
-                          <>
-                            <Typography variant="subtitle2" gutterBottom sx={{ mt: 0.5 }}>{t('Dividend Gains', 'רווחי דיבידנד')}</Typography>
-                            <Box display="flex" flexWrap="wrap" gap={1} sx={{ mb: 2 }}>
-                              {Object.entries(dividendGains).map(([range, info]) => {
-                                const value = info.pct;
-                                if (value === undefined || value === null || isNaN(value) || value === 0) {
-                                  return null;
-                                }
-                                const isPositive = value > 0;
-                                const textColor = isPositive ? 'success.main' : 'error.main';
-                                return (
-                                  <Chip
-                                    key={range}
-                                    variant="outlined"
-                                    size="small"
-                                    sx={{
-                                      minWidth: 80,
-                                      py: 0.5,
-                                      px: 0.75,
-                                      height: 'auto',
-                                      '& .MuiChip-label': { display: 'flex', flexDirection: 'column', alignItems: 'center', overflow: 'hidden' },
-                                      '& .MuiTypography-caption, & .MuiTypography-body2': { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 84 }
-                                    }}
-                                    label={
-                                      <>
-                                        <Typography variant="caption" color="text.secondary">{translateRange(range)}</Typography>
-                                        <Typography variant="body2" sx={{ fontWeight: 600, color: textColor }}>{formatPercent(value)}</Typography>
-                                        <Typography variant="caption" sx={{ fontSize: '0.7rem', opacity: 0.8 }}>{formatMoneyValue({ amount: info.amount, currency: normalizeCurrency(displayData?.currency || 'USD') })}</Typography>
-                                      </>
-                                    }
-                                  />
-                                );
-                              })}
-                            </Box>
-                          </>
-                        )}
+                      {data?.dividends && data.dividends.length > 0 && (
+                        <>
+                          <Typography variant="subtitle2" gutterBottom sx={{ mt: 0.5 }}>{t('Dividend Gains', 'רווחי דיבידנד')}</Typography>
+                          <Box display="flex" flexWrap="wrap" gap={1} sx={{ mb: 2 }}>
+                            {Object.entries(dividendGains).map(([range, info]) => {
+                              const value = info.pct;
+                              if (value === undefined || value === null || isNaN(value) || value === 0) {
+                                return null;
+                              }
+                              const isPositive = value > 0;
+                              const textColor = isPositive ? 'success.main' : 'error.main';
+                              return (
+                                <Chip
+                                  key={range}
+                                  variant="outlined"
+                                  size="small"
+                                  sx={{
+                                    minWidth: 80,
+                                    py: 0.5,
+                                    px: 0.75,
+                                    height: 'auto',
+                                    '& .MuiChip-label': { display: 'flex', flexDirection: 'column', alignItems: 'center', overflow: 'hidden' },
+                                    '& .MuiTypography-caption, & .MuiTypography-body2': { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 84 }
+                                  }}
+                                  label={
+                                    <>
+                                      <Typography variant="caption" color="text.secondary">{translateRange(range)}</Typography>
+                                      <Typography variant="body2" sx={{ fontWeight: 600, color: textColor }}>{formatPercent(value)}</Typography>
+                                      <Typography variant="caption" sx={{ fontSize: '0.7rem', opacity: 0.8 }}>{formatMoneyValue({ amount: info.amount, currency: normalizeCurrency(displayData?.currency || 'USD') })}</Typography>
+                                    </>
+                                  }
+                                />
+                              );
+                            })}
+                          </Box>
+                        </>
+                      )}
 
                       {/* Underlying Assets Section */}
                       {displayData?.meta?.underlyingAssets && displayData.meta.underlyingAssets.length > 0 && (
@@ -489,16 +510,16 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                         </Box>
                       )}
 
-                        {externalLinks.length > 0 && (
-                            <>
-                            <Typography variant="subtitle2" gutterBottom sx={{ mt: 3 }}>{t('External Links', 'קישורים חיצוניים')}</Typography>
-                            <Box display="flex" flexWrap="wrap" gap={1}>
-                                {externalLinks.map(link => (
-                                <Button key={link.name} variant="outlined" size="small" href={link.url} target="_blank" endIcon={<OpenInNewIcon />} sx={{ borderRadius: 2, textTransform: 'none' }}>{link.name}</Button>
-                                ))}
-                            </Box>
-                            </>
-                        )}
+                      {externalLinks.length > 0 && (
+                        <>
+                          <Typography variant="subtitle2" gutterBottom sx={{ mt: 3 }}>{t('External Links', 'קישורים חיצוניים')}</Typography>
+                          <Box display="flex" flexWrap="wrap" gap={1}>
+                            {externalLinks.map(link => (
+                              <Button key={link.name} variant="outlined" size="small" href={link.url} target="_blank" endIcon={<OpenInNewIcon />} sx={{ borderRadius: 2, textTransform: 'none' }}>{link.name}</Button>
+                            ))}
+                          </Box>
+                        </>
+                      )}
                     </Box>
                   )}
 
@@ -526,19 +547,19 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                           const h = (enrichedHolding || (engineHoldings && engineHoldings[0]) || holdingData)! as any;
                           return (
                             <HoldingDetails
-                            sheetId={sheetId}
+                              sheetId={sheetId}
                               holding={h}
-                          holdings={engineHoldings && engineHoldings.length > 0 ? engineHoldings as any[] : (enrichedHolding ? [enrichedHolding] : undefined)}
-                            displayCurrency={normalizeCurrency(localStorage.getItem('displayCurrency') || 'USD')}
-                            portfolios={portfolios}
-                            onPortfolioClick={handlePortfolioClick}
+                              holdings={engineHoldings && engineHoldings.length > 0 ? engineHoldings as any[] : (enrichedHolding ? [enrichedHolding] : undefined)}
+                              displayCurrency={normalizeCurrency(localStorage.getItem('displayCurrency') || 'USD')}
+                              portfolios={portfolios}
+                              onPortfolioClick={handlePortfolioClick}
                               section={activeTab === 'holdings' ? 'holdings' : activeTab === 'transactions' ? 'transactions' : 'dividends'}
                             />
-                            );
-                          })()
-                        ) : (
-                            <Box display="flex" justifyContent="center" p={5}><CircularProgress /></Box>
-                        )}
+                          );
+                        })()
+                      ) : (
+                        <Box display="flex" justifyContent="center" p={5}><CircularProgress /></Box>
+                      )}
                     </Box>
                   )}
                 </>}

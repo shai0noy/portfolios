@@ -87,6 +87,9 @@ export function HoldingLayers({ groupedLayers, displayCurrency, portfolios, exch
                                                                     {t('Transferred:', 'הועבר:')} {formatNumber(layer.transferredQty!)} ({formatPercent(layer.originalQty > 0 ? layer.transferredQty! / layer.originalQty : 0)})
                                                                 </Typography>
                                                             ) : null}
+                                                            {layer.soldQty === 0 && (!layer.transferredQty || layer.transferredQty === 0) && (
+                                                                <Typography variant="body2">{t('No sells', 'לא נרשמו מכירות')}</Typography>
+                                                            )}
                                                         </Box>
                                                     }
                                                     enterTouchDelay={0}

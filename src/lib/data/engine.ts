@@ -590,7 +590,15 @@ export class FinanceEngine {
                         } else if (h.stockCurrency === Currency.ILS && l.costTotal.valILS) {
                             costSC = l.costTotal.valILS;
                         } else {
-                            costSC = l.costTotal.amount / (l.costTotal.rateToPortfolio || 1);
+                            // Try to use historical costPerUnit if in correct currency
+                            if (l.costPerUnit && l.costPerUnit.currency === h.stockCurrency) {
+                                costSC = l.costPerUnit.amount * l.qty;
+                            } else if (l.costTotal.currency === h.stockCurrency) {
+                                costSC = l.costTotal.amount;
+                            } else {
+                                // Fallback: Convert using current rules (Neutralizes forex adjustment)
+                                costSC = convertCurrency(l.costTotal.amount, l.costTotal.currency, h.stockCurrency, this.exchangeRates);
+                            }
                         }
 
                         // Pure Real Cost = CostSC * Rate_Now
