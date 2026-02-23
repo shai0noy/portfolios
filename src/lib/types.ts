@@ -245,6 +245,16 @@ export interface DashboardHolding {
   perf3y: number;
   perf5y: number;
   perfAll: number;
+
+  tickerChangePct1w?: number;
+  tickerChangePct1m?: number;
+  tickerChangePct3m?: number;
+  tickerChangePctYtd?: number;
+  tickerChangePct1y?: number;
+  tickerChangePct3y?: number;
+  tickerChangePct5y?: number;
+  tickerChangePctAll?: number;
+
   type?: InstrumentClassification;
   generateGainForPeriod?: (
     startDate: Date,

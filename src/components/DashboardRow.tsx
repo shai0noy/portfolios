@@ -60,13 +60,13 @@ export const DashboardRow = memo(function DashboardRow({
       case 'dayChangePct':
         return <TableCell align="left" sx={{ color: getValueColor(vals.dayChangePct) }}>{formatPct(vals.dayChangePct)}</TableCell>;
       case 'perf1w':
-        return <TableCell align="left" sx={{ color: getValueColor(h.perf1w) }}>{formatPct(h.perf1w)}</TableCell>;
+        return <TableCell align="left" sx={{ color: getValueColor(h.tickerChangePct1w) }}>{formatPct(h.tickerChangePct1w)}</TableCell>;
       case 'perf1m':
-        return <TableCell align="left" sx={{ color: getValueColor(h.perf1m) }}>{formatPct(h.perf1m)}</TableCell>;
+        return <TableCell align="left" sx={{ color: getValueColor(h.tickerChangePct1m) }}>{formatPct(h.tickerChangePct1m)}</TableCell>;
       case 'perfYtd':
-        return <TableCell align="left" sx={{ color: getValueColor(h.perfYtd) }}>{formatPct(h.perfYtd)}</TableCell>;
+        return <TableCell align="left" sx={{ color: getValueColor(h.tickerChangePctYtd) }}>{formatPct(h.tickerChangePctYtd)}</TableCell>;
       case 'perf1y':
-        return <TableCell align="left" sx={{ color: getValueColor(h.perf1y) }}>{formatPct(h.perf1y)}</TableCell>;
+        return <TableCell align="left" sx={{ color: getValueColor(h.tickerChangePct1y) }}>{formatPct(h.tickerChangePct1y)}</TableCell>;
       case 'mv':
         return <TableCell align="left">{formatMoneyValue({ amount: vals.marketValue, currency: normalizeCurrency(displayCurrency) }, t)}</TableCell>;
       case 'unvestedValue':

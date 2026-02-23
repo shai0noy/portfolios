@@ -241,6 +241,18 @@ export class Holding {
     public perfAll?: number;
     public divYield?: number;
 
+    // Ticker intrinsic performance (not personal holding performance)
+    public tickerChangePct1w?: number;
+    public tickerChangePct1m?: number;
+    public tickerChangePct3m?: number;
+    public tickerChangePctYtd?: number;
+    public tickerChangePct1y?: number;
+    public tickerChangePct3y?: number;
+    public tickerChangePct5y?: number;
+    public tickerChangePctAll?: number;
+
+    // Ticker intrinsic performance (not personal holding performance)
+
     // Quantities
     public qtyVested: number;
     public qtyUnvested: number;

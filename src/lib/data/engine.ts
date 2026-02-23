@@ -410,6 +410,16 @@ export class FinanceEngine {
                 h.perf5y = calculatePersonalPerf(h, '5y', live.changePct5y ?? live.perf5y);
                 h.perfAll = calculatePersonalPerf(h, 'all', live.changePctMax ?? live.perfAll);
 
+                // Add ticker-level intrinsic performance
+                h.tickerChangePct1w = live.changePctRecent;
+                h.tickerChangePct1m = live.changePct1m;
+                h.tickerChangePct3m = live.changePct3m;
+                h.tickerChangePctYtd = live.changePctYtd;
+                h.tickerChangePct1y = live.changePct1y;
+                h.tickerChangePct3y = live.changePct3y;
+                h.tickerChangePct5y = live.changePct5y;
+                h.tickerChangePctAll = live.changePctMax;
+
                 if (live.name) {
                     h.marketName = live.name;
                 }
