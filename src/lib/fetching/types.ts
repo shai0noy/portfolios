@@ -50,7 +50,7 @@ export interface TickerData {
   numericId : number|null; // Numeric ID for TASE
   source?: string;
   globesInstrumentId?: string;
-  historical?: { date: Date; price: number; adjClose?: number }[];
+  historical?: { date: Date; price: number; adjClose?: number; open?: number; high?: number; low?: number; volume?: number }[];
   dividends?: Dividend[];
   splits?: Split[];
   tradeTimeStatus?: string;

@@ -1,20 +1,21 @@
-import { ResponsiveContainer, AreaChart, Area, Line, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceDot, ReferenceLine } from 'recharts';
+import { ResponsiveContainer, AreaChart, Area, Line, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceDot, ReferenceLine, ComposedChart, Bar, Cell } from 'recharts';
 import { useLanguage } from '../lib/i18n';
 import { formatPrice, formatPercent } from '../lib/currency';
 import { Paper, Typography, Box } from '@mui/material';
-import { useTheme } from '@mui/material/styles';import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useTheme } from '@mui/material/styles';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 
 
 export interface ChartSeries {
     name: string;
-    data: { date: Date; price: number; adjClose?: number }[];
+    data: { date: Date; price: number; adjClose?: number; open?: number; high?: number; low?: number; volume?: number }[];
     color?: string;
 }
 
 interface TickerChartProps {
     series: ChartSeries[];
     currency: string;
-    mode?: 'percent' | 'price';
+    mode?: 'percent' | 'price' | 'candle';
     height?: number | string;
     hideCurrentPrice?: boolean;
 }
@@ -36,9 +37,67 @@ interface CustomTooltipProps {
     basePrice: number;
     isComparison: boolean;
     series: ChartSeries[];
-    mode: 'percent' | 'price';
+    mode: 'percent' | 'price' | 'candle';
     hideCurrentPrice?: boolean;
 }
+
+const CandleStickShape = (props: any) => {
+    // Recharts passes `y` (y-coord of value) and `height` (length of bar from baseValue).
+    // We assume dataKey="price" (close).
+    // So y = scale(close), y + height = scale(0).
+    const { x, width, height, y, payload, successColor, errorColor } = props;
+    // VERY IMPORTANT: Our payload contains `{ open, price, high, low }`
+    // "price" maps to "close" based on mainSeries mapping.
+    const { open, price: close, high, low } = payload;
+
+    // Safety check
+    if (open == null || close == null || high == null || low == null) return null;
+
+    const isUp = close >= open;
+    const color = isUp ? successColor : errorColor;
+
+    // Derived scale function:
+    // If the chart uses yMin, then baseValue might be different. 
+    // Usually it defaults to bounded values or 0.
+    // scale(v) = (y + height) - (height / close) * v
+    // Let's use a very safe fallback:
+
+    // Let's protect against div/0
+    if (Math.abs(close) < 0.000001 || !height) return null;
+
+    const scale = (v: number) => (y + height) - (height / close) * v;
+
+    const yOpen = scale(open);
+    const yClose = scale(close);
+    const yHigh = scale(high);
+    const yLow = scale(low);
+
+    const bodyTop = Math.min(yOpen, yClose);
+    const bodyBottom = Math.max(yOpen, yClose);
+    const bodyHeight = Math.max(1, bodyBottom - bodyTop);
+
+    const wickX = x + width / 2;
+
+    return (
+        <g>
+            <line
+                x1={wickX} y1={yHigh}
+                x2={wickX} y2={yLow}
+                stroke={color}
+                strokeWidth={1}
+            />
+            <rect
+                x={x}
+                y={bodyTop}
+                width={width}
+                height={bodyHeight}
+                fill={color}
+                stroke={color}
+                strokeWidth={0}
+            />
+        </g>
+    );
+};
 
 const CustomTooltip = ({ active, payload, currency, t, basePrice, isComparison, series, mode, hideCurrentPrice }: CustomTooltipProps) => {
     if (active && payload && payload.length) {
@@ -143,6 +202,53 @@ const CustomTooltip = ({ active, payload, currency, t, basePrice, isComparison, 
     return null;
 };
 
+const CandleTooltip = ({ active, payload, currency, t, mode }: any) => {
+    if (active && payload && payload.length) {
+        // Find the payload with the candle data (source data)
+        const point = payload[0].payload;
+        const { date, open, high, low, close, volume } = point;
+        const dateStr = date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+
+        // Use close if price is missing, or price
+        const currentPrice = close || point.price;
+
+        return (
+            <Paper elevation={3} sx={{ padding: '10px', minWidth: 140 }}>
+                <Typography variant="caption" display="block" sx={{ mb: 1, borderBottom: 1, borderColor: 'divider', pb: 0.5 }}>
+                    {dateStr}
+                </Typography>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography variant="caption">Open:</Typography>
+                        <Typography variant="caption" fontWeight="bold">{formatPrice(open, currency, undefined, t)}</Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography variant="caption">High:</Typography>
+                        <Typography variant="caption" fontWeight="bold">{formatPrice(high, currency, undefined, t)}</Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography variant="caption">Low:</Typography>
+                        <Typography variant="caption" fontWeight="bold">{formatPrice(low, currency, undefined, t)}</Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography variant="caption">Close:</Typography>
+                        <Typography variant="caption" fontWeight="bold">{formatPrice(currentPrice, currency, undefined, t)}</Typography>
+                    </Box>
+                    {volume !== undefined && (
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 0.5 }}>
+                            <Typography variant="caption">Volume:</Typography>
+                            <Typography variant="caption" fontWeight="bold">
+                                {new Intl.NumberFormat(undefined, { notation: "compact", compactDisplay: "short" }).format(volume)}
+                            </Typography>
+                        </Box>
+                    )}
+                </Box>
+            </Paper>
+        );
+    }
+    return null;
+};
+
 interface SelectionSummaryProps {
     startPoint: ChartPoint | null;
     endPoint: ChartPoint | null;
@@ -151,7 +257,7 @@ interface SelectionSummaryProps {
     isComparison: boolean;
     series: ChartSeries[];
     mainLineColor: string;
-    mode: 'percent' | 'price';
+    mode: 'percent' | 'price' | 'candle';
     hideCurrentPrice?: boolean;
 }
 
@@ -312,8 +418,13 @@ export function TickerChart({ series, currency, mode = 'percent', height = 300, 
         isSelecting: false,
     });
 
+
+
     const mainSeries = displaySeries?.[0];
     const isComparison = displaySeries.length > 1;
+
+    // Force line mode if comparison
+    const currentMode = (mode === 'candle' && isComparison) ? 'percent' : mode;
 
     const dateRangeDays = useMemo(() => {
         if (!mainSeries?.data || mainSeries.data.length < 2) return 0;
@@ -368,7 +479,7 @@ export function TickerChart({ series, currency, mode = 'percent', height = 300, 
             const pct = basePrice > 0 ? (val / basePrice - 1) : 0;
             return {
                 ...p,
-                yValue: mode === 'percent' ? pct : val,
+                yValue: currentMode === 'percent' ? pct : val,
                 pctValue: pct,
             };
         });
@@ -437,7 +548,7 @@ export function TickerChart({ series, currency, mode = 'percent', height = 300, 
                     // Calculate "aligned value" for price mode? 
                     // Price mode usually shows absolute prices. Aligning prices is confusing (1.0 vs 150).
                     // Only align in 'percent' mode.
-                    if (mode === 'price') {
+                    if (currentMode === 'price' || currentMode === 'candle') {
                         point[`series_${i}`] = val;
                     } else {
                         point[`series_${i}`] = pct;
@@ -449,17 +560,18 @@ export function TickerChart({ series, currency, mode = 'percent', height = 300, 
                     point[`series_${i}_pct`] = pct;
 
                     // Store RAW value for tooltip display
-                    point[`series_${i}_raw`] = mode === 'percent' ? rawPct : val;
+                    point[`series_${i}_raw`] = currentMode === 'percent' ? rawPct : val;
                 }
             });
             return point;
         });
-    }, [displaySeries, mode, mainSeries]);
+    }, [displaySeries, currentMode, mainSeries, mode]);
 
-    const { yMin, yMax, dataMin, dataMax } = useMemo(() => {
-        if (!chartData || chartData.length === 0) return { yMin: 0, yMax: 0, dataMin: 0, dataMax: 0 };
+    const { yMin, yMax, dataMin, dataMax, volMax } = useMemo(() => {
+        if (!chartData || chartData.length === 0) return { yMin: 0, yMax: 0, dataMin: 0, dataMax: 0, volMax: 0 };
         let min = Infinity;
         let max = -Infinity;
+        let vMax = 0;
         
         const updateMinMax = (val: any) => {
             if (typeof val === 'number' && !isNaN(val)) {
@@ -470,6 +582,13 @@ export function TickerChart({ series, currency, mode = 'percent', height = 300, 
 
         chartData.forEach((p) => {
             updateMinMax(p.yValue);
+
+            if (currentMode === 'candle') {
+                if (p.high != null) updateMinMax(p.high);
+                if (p.low != null) updateMinMax(p.low);
+                if (p.volume != null && p.volume > vMax) vMax = p.volume;
+            }
+
             Object.keys(p).forEach(k => {
                 if (k.startsWith('series_') && !k.endsWith('_pct') && !k.endsWith('_raw')) {
                     updateMinMax(p[k]);
@@ -477,17 +596,17 @@ export function TickerChart({ series, currency, mode = 'percent', height = 300, 
             });
         });
         
-        if (min === Infinity || max === -Infinity) return { yMin: 0, yMax: 0, dataMin: 0, dataMax: 0 };
+        if (min === Infinity || max === -Infinity) return { yMin: 0, yMax: 0, dataMin: 0, dataMax: 0, volMax: 0 };
 
-        // Add padding to the domain so the line doesn't touch the edges
+        // Add padding to the domain so the line/candles doesn't touch the edges
         const padding = (max - min) * 0.05;
         const effectivePadding = padding === 0 ? (Math.abs(max) * 0.05 || 0.01) : padding;
 
-        return { yMin: min - effectivePadding, yMax: max + effectivePadding, dataMin: min, dataMax: max };
-    }, [chartData]);
+        return { yMin: min - effectivePadding, yMax: max + effectivePadding, dataMin: min, dataMax: max, volMax: vMax };
+    }, [chartData, currentMode]);
 
     const formatYAxis = useCallback((tick: number) => {
-        if (mode === 'price') {
+        if (currentMode === 'price' || currentMode === 'candle') {
             return formatPrice(tick, currency, 0, t);
         }
         const range = yMax - yMin;
@@ -497,7 +616,7 @@ export function TickerChart({ series, currency, mode = 'percent', height = 300, 
             minimumFractionDigits: 0,
             maximumFractionDigits: decimals,
         }).format(tick);
-    }, [yMin, yMax, mode, currency, t]);
+    }, [yMin, yMax, currentMode, currency, t]);
 
     const findClosestPoint = useCallback((date: number): ChartPoint | null => {
         const data = chartData;
@@ -649,7 +768,7 @@ export function TickerChart({ series, currency, mode = 'percent', height = 300, 
     const mainLineColor = isComparison ? theme.palette.text.primary : chartColor;
 
     // Determine the split threshold
-    const threshold = mode === 'price' ? basePrice : 0;
+    const threshold = (currentMode === 'price' || currentMode === 'candle') ? basePrice : 0;
 
     // Calculate the offset for the gradient. This value represents the position
     // of the threshold on the Y-axis, where 0 is the top of the chart (yMax)
@@ -710,7 +829,8 @@ export function TickerChart({ series, currency, mode = 'percent', height = 300, 
     const showZeroLine = yMin <= 0 && yMax >= 0;
 
     return (
-        <Box sx={{
+        <Box
+            sx={{
             width: '100%',
             height,
             minWidth: 0,
@@ -721,8 +841,69 @@ export function TickerChart({ series, currency, mode = 'percent', height = 300, 
                 outline: 'none !important',
             }
         }}>
-            <SelectionSummary startPoint={startPoint} endPoint={endPoint} currency={currency} t={t} isComparison={isComparison} series={displaySeries} mainLineColor={mainLineColor} mode={mode} hideCurrentPrice={hideCurrentPrice} />
+            <SelectionSummary startPoint={startPoint} endPoint={endPoint} currency={currency} t={t} isComparison={isComparison} series={displaySeries} mainLineColor={mainLineColor} mode={currentMode} hideCurrentPrice={hideCurrentPrice} />
             <ResponsiveContainer width="100%" height="100%">
+                {currentMode === 'candle' ? (
+                    <ComposedChart
+                        data={finalData}
+                        onClick={handleClick}
+                        onMouseMove={handleMouseMove}
+                        margin={{ top: 10, right: 5, left: 0, bottom: 0 }}
+                    >
+                        <defs>
+                            {/* Gradients are not used in candle mode generally, but we can keep defs if needed */}
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} />
+                        <XAxis
+                            dataKey="date"
+                            type="number"
+                            domain={[xMin ?? 'dataMin', xMax ?? 'dataMax']}
+                            scale="time"
+                            tickFormatter={formatXAxis}
+                            tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
+                            ticks={xAxisTicks}
+                            dy={5}
+                        />
+                        {/* Price Axis */}
+                        <YAxis
+                            yAxisId="price"
+                            orientation="right"
+                            tickFormatter={formatYAxis}
+                            width={60}
+                            tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
+                            dx={3}
+                            domain={[yMin, yMax]}
+                            ticks={yTicks}
+                        />
+                        {/* Volume Axis (hidden or scaled) */}
+                        <YAxis
+                            yAxisId="volume"
+                            orientation="left"
+                            hide={true}
+                            domain={[0, volMax * 4]} // Scale so max volume is 1/4th height
+                        />
+                        <Tooltip content={<CandleTooltip currency={currency} t={t} mode={currentMode} />} />
+
+                        <Bar
+                            dataKey="volume"
+                            yAxisId="volume"
+                            fill={theme.palette.text.secondary}
+                            opacity={0.5}
+                            barSize={6} // Fixed width, wider than before
+                            isAnimationActive={false}
+                        />
+
+                        {/* Candle Bar - using custom shape. use barSize to guarantee width. */}
+                        <Bar
+                            dataKey="price"
+                            yAxisId="price"
+                            shape={<CandleStickShape successColor={successColor} errorColor={errorColor} />}
+                            barSize={8} // 2x volume width
+                            isAnimationActive={false}
+                        />
+
+                    </ComposedChart>
+                ) : (
                 <AreaChart
                     data={finalData}
                     onClick={handleClick}
@@ -757,7 +938,7 @@ export function TickerChart({ series, currency, mode = 'percent', height = 300, 
                         domain={[yMin, yMax]}
                         ticks={yTicks}
                     />
-                    <Tooltip content={<CustomTooltip currency={currency} t={t} basePrice={basePrice} isComparison={isComparison} series={displaySeries} mode={mode} hideCurrentPrice={hideCurrentPrice} />} />
+                            <Tooltip content={<CustomTooltip currency={currency} t={t} basePrice={basePrice} isComparison={isComparison} series={displaySeries} mode={currentMode} hideCurrentPrice={hideCurrentPrice} />} />
 
                     {/* Zero line (solid, semi-opaque) - only if 0 is in range */}
                     {showZeroLine && (
@@ -830,6 +1011,7 @@ export function TickerChart({ series, currency, mode = 'percent', height = 300, 
                         </>
                     )}
                 </AreaChart>
+                )}
             </ResponsiveContainer>
         </Box>
     );

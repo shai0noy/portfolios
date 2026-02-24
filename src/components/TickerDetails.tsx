@@ -11,6 +11,7 @@ import { useLocation, useParams } from 'react-router-dom';
 import { useLanguage } from '../lib/i18n';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
 import PieChartIcon from '@mui/icons-material/PieChart';
+import CandlestickChartIcon from '@mui/icons-material/CandlestickChart';
 import { TickerChart } from './TickerChart';
 import type { TickerProfile } from '../lib/types/ticker';
 import { useChartComparison, getAvailableRanges, getMaxLabel, SEARCH_OPTION_TICKER } from '../lib/hooks/useChartComparison';
@@ -99,7 +100,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
     getClampedData, isSearchOpen, setIsSearchOpen
   } = useChartComparison({ portfolios, getPortfolioHistory });
 
-  const [chartMetric, setChartMetric] = useState<'percent' | 'price'>('percent');
+  const [chartMetric, setChartMetric] = useState<'percent' | 'price' | 'candle'>('percent');
   const [compareMenuAnchor, setCompareMenuAnchor] = useState<null | HTMLElement>(null);
   const [analysisOpen, setAnalysisOpen] = useState(false);
 
@@ -427,6 +428,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                           <ToggleButtonGroup value={effectiveChartMetric} exclusive onChange={(_, v) => v && setChartMetric(v)} size="small" disabled={isComparison}>
                             <ToggleButton value="percent">%</ToggleButton>
                             <ToggleButton value="price">$</ToggleButton>
+                            <ToggleButton value="candle"><CandlestickChartIcon fontSize="small" /></ToggleButton>
                           </ToggleButtonGroup>
                           <Button onClick={(e) => setCompareMenuAnchor(e.currentTarget)}>{t('Compare', 'השווה')}</Button>
                           <Menu anchorEl={compareMenuAnchor} open={Boolean(compareMenuAnchor)} onClose={() => setCompareMenuAnchor(null)}>

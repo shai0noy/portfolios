@@ -182,6 +182,9 @@ export async function fetchYahooTickerData(
       const volume = (shareVolume && price) ? shareVolume * price : undefined;
       const quote = result.indicators?.quote?.[0];
       const openPrices = quote?.open || [];
+      const highPrices = quote?.high || [];
+      const lowPrices = quote?.low || [];
+      const periodVolumes = quote?.volume || [];
       const openPrice = openPrices.length > 0 ? openPrices[openPrices.length - 1] : null;
       const currency = meta.currency;
       const exchangeCode = meta.exchangeName || 'OTHER';
@@ -238,13 +241,21 @@ export async function fetchYahooTickerData(
         const points = timestamps.map((t: number, i: number) => ({
           time: t,
           close: closes[i],
-          adjClose: adjCloses[i]
+          adjClose: adjCloses[i],
+          open: openPrices[i],
+          high: highPrices[i],
+          low: lowPrices[i],
+          volume: periodVolumes[i]
         })).filter((p: any) => p.close != null && p.time != null);
 
         historical = points.map((p: any) => ({
           date: new Date(p.time * 1000),
           price: p.close,
-          adjClose: p.adjClose
+          adjClose: p.adjClose,
+          open: p.open,
+          high: p.high,
+          low: p.low,
+          volume: p.volume
         }));
 
         if (points.length > 0) {
