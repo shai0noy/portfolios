@@ -1,38 +1,40 @@
 ### Pleae be carful not to override entire file when updating tasks ###
 
 In details of gemel funds, handle gains display/calc - and cost basis!
-DONE?: Show holdings of funds
 דמי ניהול - לחשב בגמל וכו'
 refactor code....
-Consider if request deduping is needed in places (cuurently in yahoo, globes)
 verify adj price of results from sheet and globes? is it adj or not? need to know for unrealized gains
 Include mgmt fee in gemel calc
 fetch mgmt fee from tase and also show
-CPI data parsing, solve issue where values before 1985 are weird - 200x too large
+
 Mobile viewing is all over the place
 Check crypto 1d change?...
 Discovery/selling points splash page
 tase types vs globes types??
 If there is no sheet document ID, do not show the "create first portfolio" screen, rather, you should send the user to exisitng the screen to enter an existing sheet ID or create one
 !! Handle RSU style and Gemmel/Pension style div policy 
-DONE: Support IRS/Gemmel/Pension sell/reassign model
 ON HOLD: Handle splits, etc, name changes
 ON HOLD: Support mobile screen sizes
 ON HOLD: Use Finhub or marketstack over yahoo if possible or in addition (will reuqire to guide use rto create API key and add it to spreadsheet as part of setup)
-When changing fields in "Add portfolio", it is very slow and laggy. Need a way to verify faster/with less laf (but on edit, not on focus loss)
-Refine set of defaults columns shown
+
 Check why seeing negative realized reutrn in LUMI
 Update test data (no more divs there) need DIV test data too
 DONE?: Add all potfolios + "total" portfolio as comperission options to tickers and to the analysis table. Make sure not to allow comperission of portfolio to itself in the summary component
 
 Low priority:
 - Smart layer based tax calc (FIFO selling and per layer taxing)
-- ON HOLD: Add portfolio sum chart for dashboard view
-- ON HOLD: Allow comparing portfolios to common indices, eg CPI, SP500, TLV-125
 - ON HOLD: Use Gemini for anlysis and insight
 - ON HOLD: Forcast mode, where future txns, vesting are taken into account, and growth of holding is predicted based on custom uesr input or recent trends. Should also include taxes
 - Support cash holding for IRS accounts
 
+DONE: When changing fields in "Add portfolio", it is very slow and laggy. Need a way to verify faster/with less laf (but on edit, not on focus loss)
+DONE: Show holdings of funds
+DONE: Consider if request deduping is needed in places (cuurently in yahoo, globes)
+DONE: Support IRS/Gemmel/Pension sell/reassign model
+DONE: Refine set of defaults columns shown
+DONE: Add portfolio sum chart for dashboard view
+DONE: Allow comparing portfolios to common indices, eg CPI, SP500, TLV-125
+DONE: CPI data parsing, solve issue where values before 1985 are weird - 200x too large
 DONE: Make sure that div sheet rebuilding handles duplicates well.
 DONE: Use taxetion. real gains, etc logic from summary in the dashboard table
 DONE: Handle Reit taxing

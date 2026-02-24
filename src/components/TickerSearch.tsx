@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   TextField, Grid, Typography, CircularProgress, MenuItem, Select, FormControl, InputLabel,
   List, ListItemButton, ListItemText, Paper, Box, Divider, Chip, Tooltip, InputAdornment
@@ -6,11 +6,29 @@ import {
 import { getTickersDataset } from '../lib/fetching';
 import type { TickerProfile } from '../lib/types/ticker';
 import { InstrumentGroup, INSTRUMENT_METADATA } from '../lib/types/instrument';
-import { type Portfolio, Exchange } from '../lib/types';
+import { type Portfolio } from '../lib/types';
 import SearchIcon from '@mui/icons-material/Search';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
 import { useLanguage } from '../lib/i18n';
-import { getOwnedInPortfolios } from '../lib/portfolioUtils';
+
+// Pre-compute ownership map to avoid O(N*P*H) complexity during search
+function useOwnedTickers(portfolios: Portfolio[]) {
+  return useMemo(() => {
+    const map = new Map<string, string[]>();
+    if (!portfolios) return map;
+
+    for (const p of portfolios) {
+      if (!p.holdings) continue;
+      for (const h of p.holdings) {
+        const key = `${h.exchange}:${h.ticker}`;
+        const existing = map.get(key) || [];
+        existing.push(p.name);
+        map.set(key, existing);
+      }
+    }
+    return map;
+  }, [portfolios]);
+}
 
 interface TickerSearchProps {
   onTickerSelect: (profile: TickerProfile) => void;
@@ -44,138 +62,153 @@ interface SearchResult {
   ownedInPortfolios?: string[];
 }
 
-/**
- * Searches the dataset for tickers matching the term.
- * Filters by exchange if specified.
- */
-async function performSearch(
-  searchTerm: string,
-  exchange: string,
-  dataset: Record<string, TickerProfile[]>,
-  portfolios: Portfolio[]
-): Promise<SearchResult[]> {
-  const termUC = searchTerm.toUpperCase();
-  const isNumeric = /^\d+$/.test(termUC);
-  const resultsMap = new Map<string, SearchResult>();
-
-  // Iterate over all groups in the dataset
-  Object.values(dataset).flat().forEach((profile) => {
-    // Basic filtering: Exchange
-    if (exchange !== 'ALL' && profile.exchange !== exchange) return;
-
-    // Search Logic: Match Symbol, Name (En/He), or Security ID
-    const matchesSymbol = profile.symbol.toUpperCase().includes(termUC);
-    const matchesId = profile.securityId !== undefined && profile.securityId.toString().includes(termUC);
-    const matchesNameEn = (profile.name || '').toUpperCase().includes(termUC);
-    const matchesNameHe = (profile.nameHe || '').toUpperCase().includes(termUC);
-
-    if (matchesSymbol || matchesId || matchesNameEn || matchesNameHe) {
-      const key = `${profile.exchange}:${profile.symbol}`;
-      if (!resultsMap.has(key)) {
-        resultsMap.set(key, {
-          profile,
-          ownedInPortfolios: getOwnedInPortfolios(profile.symbol, portfolios, profile.exchange),
-        });
-      }
-    }
-  });
-
-  const uniqueResults = Array.from(resultsMap.values());
-  const termNum = isNumeric ? parseInt(termUC, 10) : NaN;
-
-  // Sorting Logic
-  return uniqueResults.sort((a, b) => {
-    const pA = a.profile;
-    const pB = b.profile;
-    
-    // 1. Exact Match Priority (Symbol or ID)
-    const aExact = pA.symbol.toUpperCase() === termUC || (!isNaN(termNum) && pA.securityId === termNum);
-    const bExact = pB.symbol.toUpperCase() === termUC || (!isNaN(termNum) && pB.securityId === termNum);
-    if (aExact && !bExact) return -1;
-    if (!aExact && bExact) return 1;
-
-    // 2. Starts With Priority
-    const aPrefix = pA.symbol.toUpperCase().startsWith(termUC);
-    const bPrefix = pB.symbol.toUpperCase().startsWith(termUC);
-    if (aPrefix && !bPrefix) return -1;
-    if (!aPrefix && bPrefix) return 1;
-
-    // 3. Ownership Priority
-    const aOwned = a.ownedInPortfolios && a.ownedInPortfolios.length > 0;
-    const bOwned = b.ownedInPortfolios && b.ownedInPortfolios.length > 0;
-    if (aOwned && !bOwned) return -1;
-    if (!aOwned && bOwned) return 1;
-
-    // 4. CBS Priority (Lowest)
-    const aIsCBS = pA.exchange === Exchange.CBS;
-    const bIsCBS = pB.exchange === Exchange.CBS;
-    if (aIsCBS && !bIsCBS) return 1;
-    if (!aIsCBS && bIsCBS) return -1;
-
-    // 5. Instrument Group Priority
-    const priorityOrder: InstrumentGroup[] = [
-      InstrumentGroup.STOCK, 
-      InstrumentGroup.ETF, 
-      InstrumentGroup.SAVING,
-      InstrumentGroup.MUTUAL_FUND, 
-      InstrumentGroup.FOREX,
-      InstrumentGroup.INDEX,
-      InstrumentGroup.BOND, 
-      InstrumentGroup.DERIVATIVE,
-      InstrumentGroup.OTHER
-    ];
-
-    // If searching for a numeric ID, prioritize SAVING (Gemel/Pension) higher
-    if (isNumeric && termUC.length >= 3) {
-        if (pA.type.group === InstrumentGroup.SAVING && pB.type.group !== InstrumentGroup.SAVING) return -1;
-        if (pA.type.group !== InstrumentGroup.SAVING && pB.type.group === InstrumentGroup.SAVING) return 1;
-    }
-    
-    const idxA = priorityOrder.indexOf(pA.type.group);
-    const idxB = priorityOrder.indexOf(pB.type.group);
-    
-    if (idxA !== -1 && idxB !== -1 && idxA !== idxB) return idxA - idxB;
-    if (idxA !== -1 && idxB === -1) return -1;
-    if (idxA === -1 && idxB !== -1) return 1;
-
-    // 5. Name Length
-    const lenA = (pA.name || '').length;
-    const lenB = (pB.name || '').length;
-    if (lenA !== lenB) return lenA - lenB;
-
-    return 0;
-  });
+// Pre-computed search item to avoid repeated toUpperCase() calls
+interface SearchItem {
+  profile: TickerProfile;
+  // Pre-computed upper-case strings
+  sSymbol: string;
+  sNameEn: string;
+  sNameHe: string;
+  sSecId: string;
+  key: string;
 }
 
-export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchange, portfolios, isPortfoliosLoading, collapsible, sx }: TickerSearchProps) {
+interface Bucket {
+  exact: SearchResult[];
+  startOwned: SearchResult[];
+  start: SearchResult[];
+  owned: SearchResult[];
+  other: SearchResult[];
+}
+
+function performSearch(
+  searchTerm: string,
+  exchange: string,
+  flatDataset: SearchItem[],
+  ownedTickers: Map<string, string[]>
+): SearchResult[] {
+  if (!searchTerm) return [];
+
+  const termUC = searchTerm.toUpperCase();
+  const isNumeric = /^\d+$/.test(termUC);
+  const termNum = isNumeric ? parseInt(termUC, 10) : NaN;
+
+  // Use buckets to avoid complex sort
+  const buckets: Bucket = {
+    exact: [],
+    startOwned: [],
+    start: [],
+    owned: [],
+    other: []
+  };
+
+  const addedKeys = new Set<string>();
+
+  for (let i = 0; i < flatDataset.length; i++) {
+    const item = flatDataset[i];
+
+    if (exchange !== 'ALL' && item.profile.exchange !== exchange) continue;
+
+    const matchesSymbol = item.sSymbol.includes(termUC);
+    const matchesId = item.sSecId.includes(termUC);
+    const matchesNameEn = item.sNameEn.includes(termUC);
+    const matchesNameHe = item.sNameHe.includes(termUC);
+
+    if (matchesSymbol || matchesId || matchesNameEn || matchesNameHe) {
+      if (!addedKeys.has(item.key)) {
+        addedKeys.add(item.key);
+
+        const owned = ownedTickers.get(item.key);
+        const res: SearchResult = { profile: item.profile, ownedInPortfolios: owned };
+
+        // Bucketing Logic
+        const isExact = item.sSymbol === termUC || (!isNaN(termNum) && item.profile.securityId === termNum);
+        const isStart = item.sSymbol.startsWith(termUC);
+        const isOwned = !!owned;
+
+        if (isExact) {
+          buckets.exact.push(res);
+        } else if (isStart && isOwned) {
+          buckets.startOwned.push(res);
+        } else if (isStart) {
+          buckets.start.push(res);
+        } else if (isOwned) {
+          buckets.owned.push(res);
+        } else {
+          buckets.other.push(res);
+        }
+      }
+    }
+  }
+
+  // Sort small buckets if needed
+  const lenSort = (a: SearchResult, b: SearchResult) => (a.profile.symbol.length - b.profile.symbol.length);
+
+  buckets.startOwned.sort(lenSort);
+  buckets.start.sort(lenSort);
+
+  return [
+    ...buckets.exact,
+    ...buckets.startOwned,
+    ...buckets.start,
+    ...buckets.owned,
+    ...buckets.other
+  ];
+}
+
+
+// Pre-compute dataset for fast search
+function useFlatDataset(dataset: Record<string, TickerProfile[]>) {
+  return useMemo(() => {
+    const flat: SearchItem[] = [];
+    Object.values(dataset).flat().forEach(profile => {
+      flat.push({
+        profile,
+        sSymbol: profile.symbol.toUpperCase(),
+        sNameEn: (profile.name || '').toUpperCase(),
+        sNameHe: (profile.nameHe || '').toUpperCase(),
+        sSecId: (profile.securityId !== undefined ? profile.securityId.toString() : ''),
+        key: `${profile.exchange}:${profile.symbol}`
+      });
+    });
+    return flat;
+  }, [dataset]);
+}
+
+export const TickerSearch = React.memo(function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchange, portfolios, isPortfoliosLoading, collapsible, sx }: TickerSearchProps) {
   // Dataset is Record<string, TickerProfile[]>
   const [dataset, setDataset] = useState<Record<string, TickerProfile[]>>({});
   const [isDatasetLoading, setIsDatasetLoading] = useState(false);
-  
+
+  const flatDataset = useFlatDataset(dataset);
+  const ownedTickers = useOwnedTickers(portfolios);
+
   const [isFocused, setIsFocused] = useState(false);
   const [inputValue, setInputValue] = useState(prefilledTicker || '');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
-  
+
   const [selectedExchange, setSelectedExchange] = useState(prefilledExchange || 'ALL');
   const [selectedGroup, setSelectedGroup] = useState<InstrumentGroup | 'ALL'>('ALL');
 
   const isIdle = collapsible && !inputValue && !isFocused;
-  
-  const [isLoading, setIsLoading] = useState(false);
+
+  const [isPending, startTransition] = React.useTransition();
   const [error, setError] = useState<string | null>(null);
   const { t, tTry } = useLanguage();
 
-  const searchTickers = useCallback(async (term: string, exchange: string) => {
-    try {
-      const results = await performSearch(term, exchange, dataset, portfolios);
-      setSearchResults(results);
-    } catch (err) {
-      console.error("Search failed", err);
-      setError("Search failed");
-    }
-  }, [dataset, portfolios]);
+  const searchTickers = useCallback((term: string, exchange: string) => {
+    startTransition(() => {
+      try {
+        const results = performSearch(term, exchange, flatDataset, ownedTickers);
+        setSearchResults(results);
+      } catch (err) {
+        console.error("Search failed", err);
+        setError("Search failed");
+      }
+    });
+  }, [flatDataset, ownedTickers]);
 
-  const debouncedInput = useDebounce(inputValue, 300);
+  const debouncedInput = useDebounce(inputValue, 150);
 
   // Load the full ticker dataset once on mount/visibility
   useEffect(() => {
@@ -208,22 +241,14 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
         setSearchResults([]);
         return;
       }
-      const doSearch = async () => {
-        setIsLoading(true);
-        try {
-          await searchTickers(debouncedInput, selectedExchange);
-        } finally {
-          setIsLoading(false);
-        }
-      };
-      doSearch();
+      searchTickers(debouncedInput, selectedExchange);
     }
   }, [debouncedInput, selectedExchange, isPortfoliosLoading, isDatasetLoading, isFocused, searchTickers]);
 
   // Filter results by selected Instrument Group
   const filteredResults = useMemo(() => {
-    const filtered = selectedGroup === 'ALL' 
-      ? searchResults 
+    const filtered = selectedGroup === 'ALL'
+      ? searchResults
       : searchResults.filter(res => res.profile.type.group === selectedGroup);
     return filtered.slice(0, limit);
   }, [searchResults, selectedGroup, limit]);
@@ -265,12 +290,12 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
 
   return (
     <Box sx={{ mt: -2, mb: isIdle ? 3 : 4, ...sx }}>
-      <Paper 
-        elevation={0} 
-        sx={{ 
-          p: isIdle ? 0 : 1.5, 
-          borderRadius: 3, 
-          border: isIdle ? 'none' : 1, 
+      <Paper
+        elevation={0}
+        sx={{
+          p: isIdle ? 0 : 1.5,
+          borderRadius: 3,
+          border: isIdle ? 'none' : 1,
           borderColor: 'divider',
           bgcolor: isIdle ? 'transparent' : 'background.paper',
           transition: 'all 0.2s ease-in-out'
@@ -301,11 +326,11 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
                 ),
                 endAdornment: (
                   <>
-                    {(isLoading || isDatasetLoading || isPortfoliosLoading) ? <CircularProgress color="inherit" size={20} /> : null}
+                    {(isPending || isDatasetLoading || isPortfoliosLoading) ? <CircularProgress color="inherit" size={20} /> : null}
                   </>
                 ),
-                sx: isIdle ? { 
-                  borderRadius: 2, 
+                sx: isIdle ? {
+                  borderRadius: 2,
                   height: 32,
                   bgcolor: 'action.hover',
                   '& fieldset': { border: 'none' }
@@ -360,8 +385,8 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
         </Grid>
 
         {(filteredResults.length > 0) && (
-          <Paper 
-            elevation={2} 
+          <Paper
+            elevation={2}
             className="visible-scrollbar"
             sx={{ maxHeight: 300, overflowY: 'auto', my: 1, border: 1, borderColor: 'divider' }}
           >
@@ -377,14 +402,14 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
                     <ListItemButton onClick={() => handleOptionSelect(option)}>
                       <ListItemText
                         primary={<Typography variant="body1">{tTry(profile.name, profile.nameHe)}</Typography>}
-                        secondaryTypographyProps={{ component: 'div' }} 
+                        secondaryTypographyProps={{ component: 'div' }}
                         secondary={
                           <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mt: 0.5 }}>
-                                                      <Chip
-                                                        label={`${profile.exchange}:${profile.symbol}${profile.securityId !== undefined && profile.securityId.toString() !== profile.symbol ? ` (${profile.securityId})` : ''}`} size="small" variant="outlined" />
-                            
+                            <Chip
+                              label={`${profile.exchange}:${profile.symbol}${profile.securityId !== undefined && profile.securityId.toString() !== profile.symbol ? ` (${profile.securityId})` : ''}`} size="small" variant="outlined" />
+
                             {displayType && <Chip label={displayType} size="small" color="primary" variant="outlined" />}
-                            {profile.sector && <Chip label={profile.sector} size="small" variant="outlined" />}  
+                            {profile.sector && <Chip label={profile.sector} size="small" variant="outlined" />}
                             {option.ownedInPortfolios && option.ownedInPortfolios.length > 0 && (
                               <Tooltip title={`Owned in: ${option.ownedInPortfolios.join(', ')}`} enterTouchDelay={0} leaveTouchDelay={3000}>
                                 <BusinessCenterIcon color="success" sx={{ fontSize: 16, ml: 1 }} />
@@ -413,5 +438,4 @@ export function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchang
       </Paper>
     </Box>
   );
-}
-        
+});
