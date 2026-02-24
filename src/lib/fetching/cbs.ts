@@ -77,7 +77,7 @@ export function getCbsTickers(): TickerProfile[] {
 
 // --- Normalization Logic ---
 
-function normalizeCpiSeries(series: CbsDatePoint[], id: number): FundDataPoint[] {
+export function normalizeCpiSeries(series: CbsDatePoint[], id: number): FundDataPoint[] {
   // 1. Sort Chronologically (Oldest -> Newest)
   const sorted = [...series].sort((a, b) => (a.year - b.year) || (a.month - b.month));
 
@@ -121,6 +121,22 @@ function normalizeCpiSeries(series: CbsDatePoint[], id: number): FundDataPoint[]
       // New Factor = (Value of new base in old terms) / 100
       chainFactor = prevBaseVal / 100;
       currentBase = entry.currBase.baseDesc;
+    }
+
+    // SPECIAL CASE: 1985 Currency Change (Old Shekel -> New Shekel)
+    // The index dropped from ~11,000 to ~100 but the base description didn't change enough to trigger logic?
+    // Actually, looking at the data:
+    // Dec 1984: 10754.8 (Base: 1980 avg)
+    // Jan 1985: 113.2 (Base: 1980 avg) -> Wait, if base desc is same, we don't chain?
+    // exact issue: The API says "1980 ממוצע" for BOTH, but the value dropped 100x.
+    // We must manually detect this transition and apply the 100x factor to the chain.
+    if (entry.year === 1985 && entry.month === 1) {
+      // We need to re-adjust the chain factor because the raw values dropped by 100
+      // meaning the previous chainFactor is now 100x too small for these new small values?
+      // No, previous chainFactor was 1.0 (if starting from 1951).
+      // The values are now small (113.2). We want them to be big (11,320).
+      // So we need to multiply the *values* by 100, OR multiply the chainFactor by 100.
+      chainFactor *= 100;
     }
 
     // Calculate & Store
