@@ -491,7 +491,7 @@ function AppContent() {
           {sheetId && (
             <>
               <Box sx={{ display: currentTab === 0 ? 'block' : 'none' }}>
-                <Dashboard sheetId={sheetId} key={refreshKey} />
+                  <Dashboard sheetId={sheetId} key={`dash_${refreshKey}`} />
               </Box>
               <Box sx={{ display: currentTab === 1 ? 'block' : 'none' }}>
                 <TransactionForm 
@@ -514,6 +514,7 @@ function AppContent() {
               {/* Routes for components that should not be hidden, but mounted on navigation */}
               <Routes>
                 <Route path="/dashboard" element={null} /> {/* Dummy route */}
+                  <Route path="/favorites" element={null} /> {/* Dummy route */}
                 <Route path="/transaction" element={null} /> {/* Dummy route */}
                 <Route path="/portfolios" element={<PortfolioManager sheetId={sheetId} onSuccess={() => setRefreshKey(k => k + 1)} />} />
                 <Route path="/portfolios/:portfolioId" element={<PortfolioManager sheetId={sheetId} onSuccess={() => setRefreshKey(k => k + 1)} />} />

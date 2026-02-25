@@ -23,12 +23,14 @@ import {
     TX_SHEET_NAME, TX_FETCH_RANGE, CONFIG_SHEET_NAME, CONFIG_RANGE, METADATA_SHEET,
     metadataHeaders, METADATA_RANGE, HOLDINGS_SHEET, HOLDINGS_RANGE, SHEET_STRUCTURE_VERSION_DATE,
     EXTERNAL_DATASETS_SHEET_NAME, externalDatasetsHeaders, EXTERNAL_DATASETS_RANGE,
-    DIV_SHEET_NAME, dividendHeaders, DIVIDENDS_RANGE
+    DIV_SHEET_NAME, dividendHeaders, DIVIDENDS_RANGE,
+    TRACKING_LISTS_SHEET_NAME, trackingListsHeaders, TRACKING_LISTS_RANGE,
+    PORTFOLIO_SHEET_NAME
 } from './config';
 import { getHistoricalPriceFormula } from './formulas';
 import { logIfFalsy } from '../utils';
 import { createRowMapper, fetchSheetData, objectToRow, createHeaderUpdateRequest, getSheetId, ensureSheets, escapeSheetString } from './utils';
-import { PORTFOLIO_SHEET_NAME } from './config';
+import type { TrackingListItem } from './types';
 
 import type { Dividend } from '../fetching/types';
 import { InstrumentClassification } from '../types/instrument';
@@ -93,7 +95,8 @@ export const ensureSchema = withAuthHandling(async (spreadsheetId: string) => {
         CONFIG_SHEET_NAME,
         METADATA_SHEET,
         EXTERNAL_DATASETS_SHEET_NAME,
-        DIV_SHEET_NAME
+        DIV_SHEET_NAME,
+        TRACKING_LISTS_SHEET_NAME
     ] as const;
 
     // ensureSheets returns a map of { SheetName: SheetID }
@@ -113,6 +116,7 @@ export const ensureSchema = withAuthHandling(async (spreadsheetId: string) => {
                 createHeaderUpdateRequest(sheetIds[METADATA_SHEET], metadataHeaders as unknown as Headers),
                 createHeaderUpdateRequest(sheetIds[EXTERNAL_DATASETS_SHEET_NAME], externalDatasetsHeaders as unknown as Headers),
                 createHeaderUpdateRequest(sheetIds[DIV_SHEET_NAME], dividendHeaders as unknown as Headers),
+                createHeaderUpdateRequest(sheetIds[TRACKING_LISTS_SHEET_NAME], trackingListsHeaders as unknown as Headers),
 
                 // 3. Format Date columns in Transaction Log (A=date, K=vestDate, P=Creation_Date) to YYYY-MM-DD
                 // This ensures dates entered via code or UI appear correctly in the sheet.
@@ -140,6 +144,13 @@ export const ensureSchema = withAuthHandling(async (spreadsheetId: string) => {
                 {
                     repeatCell: {
                         range: { sheetId: sheetIds[DIV_SHEET_NAME], startColumnIndex: 2, endColumnIndex: 3, startRowIndex: 1 },
+                        cell: { userEnteredFormat: { numberFormat: { type: 'DATE', pattern: 'yyyy-mm-dd' } } },
+                        fields: 'userEnteredFormat.numberFormat'
+                    }
+                },
+                {
+                    repeatCell: {
+                        range: { sheetId: sheetIds[TRACKING_LISTS_SHEET_NAME], startColumnIndex: 3, endColumnIndex: 4, startRowIndex: 1 },
                         cell: { userEnteredFormat: { numberFormat: { type: 'DATE', pattern: 'yyyy-mm-dd' } } },
                         fields: 'userEnteredFormat.numberFormat'
                     }
@@ -1503,6 +1514,82 @@ export const getExternalPrices = withAuthHandling(async (spreadsheetId: string):
             return {};
         }
         throw e;
+    }
+});
+
+export const fetchTickerLists = withAuthHandling(async (spreadsheetId: string): Promise<TrackingListItem[]> => {
+    const gapi = await ensureGapi();
+    try {
+        const res = await gapi.client.sheets.spreadsheets.values.get({
+            spreadsheetId, range: TRACKING_LISTS_RANGE, valueRenderOption: 'UNFORMATTED_VALUE'
+        });
+        const rows = res.result.values || [];
+        const results = rows.map((r: unknown[], index: number): TrackingListItem | null => {
+            const row = r as any[];
+            if (!row[0] || !row[1] || !row[2]) return null;
+            let exchange: Exchange;
+            try {
+                exchange = parseExchange(String(row[2]));
+            } catch (e) {
+                return null;
+            }
+            let dateAdded: Date;
+            if (typeof row[3] === 'number') {
+                dateAdded = new Date((row[3] - 25569) * 86400 * 1000);
+            } else {
+                dateAdded = new Date(row[3]);
+            }
+            return {
+                listName: String(row[0]),
+                ticker: String(row[1]).toUpperCase(),
+                exchange,
+                dateAdded,
+                rowIndex: index + 2
+            };
+        });
+        return results.filter((item): item is TrackingListItem => item !== null);
+    } catch (e: unknown) {
+        const err = e as GapiError;
+        if (err.result?.error?.code === 400) return [];
+        throw e;
+    }
+});
+
+export const toggleTickerListMembership = withAuthHandling(async (spreadsheetId: string, listName: string, ticker: string, exchange: Exchange) => {
+    const gapi = await ensureGapi();
+    const existing = await fetchTickerLists(spreadsheetId);
+    const tickerUpper = ticker.toUpperCase();
+    const match = existing.find(item => item.listName === listName && item.ticker === tickerUpper && item.exchange === exchange);
+
+    if (match) {
+        // Remove
+        if (!match.rowIndex) throw new Error("Cannot remove ticker without rowIndex");
+        const sheetId = await getSheetId(spreadsheetId, TRACKING_LISTS_SHEET_NAME);
+        await gapi.client.sheets.spreadsheets.batchUpdate({
+            spreadsheetId,
+            resource: {
+                requests: [{
+                    deleteDimension: {
+                        range: {
+                            sheetId,
+                            dimension: 'ROWS',
+                            startIndex: match.rowIndex - 1,
+                            endIndex: match.rowIndex
+                        }
+                    }
+                }]
+            }
+        });
+    } else {
+        // Add
+        const row = [listName, tickerUpper, toGoogleSheetsExchangeCode(exchange), toGoogleSheetDateFormat(new Date())];
+        await gapi.client.sheets.spreadsheets.values.append({
+            spreadsheetId,
+            range: `${TRACKING_LISTS_SHEET_NAME}!A:A`,
+            valueInputOption: 'USER_ENTERED',
+            insertDataOption: 'INSERT_ROWS',
+            resource: { values: [row] }
+        });
     }
 });
 

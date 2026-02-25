@@ -58,7 +58,7 @@ export function getYahooTickerCandidates(ticker: string, exchange: Exchange, gro
   // 3. Reject numeric-only symbols for stocks early.
   const isNumeric = /^\d+$/.test(u);
   if (isNumeric && (exchange !== Exchange.TASE || group !== InstrumentGroup.INDEX)) {
-      return [];
+    return [];
   }
 
   // 4. Generate a set of "base" candidates from the clean symbol.
@@ -136,7 +136,7 @@ export async function fetchYahooTickerData(
   }
 
   const now = Date.now();
-  const cacheKey = `yahoo:quote:v3:${exchange}:${ticker}:${range}`;
+  const cacheKey = `yahoo:quote:v4:${exchange}:${ticker}:${range}`;
   const successKey = `${exchange}:${ticker.toUpperCase()}`;
   const knownSymbol = symbolSuccessMap.get(successKey);
 
@@ -211,7 +211,7 @@ export async function fetchYahooTickerData(
         }
       }
 
-      let changePct1m, changeDate1m, changePct3m, changeDate3m, changePct1y, changeDate1y, changePct3y, changeDate3y, changePct5y, changeDate5y, changePctYtd, changeDateYtd, changePctMax, changeDateMax;
+      let changePctRecent, changePct1m, changeDate1m, changePct3m, changeDate3m, changePct1y, changeDate1y, changePct3y, changeDate3y, changePct5y, changeDate5y, changePctYtd, changeDateYtd, changePctMax, changeDateMax;
 
       const closes = quote?.close || [];
       const adjCloses = result.indicators?.adjclose?.[0]?.adjclose || [];
@@ -260,14 +260,19 @@ export async function fetchYahooTickerData(
             return closest;
           };
 
-          const getDateAgo = (amount: number, unit: string) => {
+          const getDateAgo = (amount: number, unit: 'days' | 'months' | 'years') => {
             const d = new Date(lastPoint.time * 1000);
-            if (unit === 'months') d.setUTCMonth(d.getUTCMonth() - amount);
+            if (unit === 'days') d.setUTCDate(d.getUTCDate() - amount);
+            else if (unit === 'months') d.setUTCMonth(d.getUTCMonth() - amount);
             else if (unit === 'years') d.setUTCFullYear(d.getUTCFullYear() - amount);
             return d.getTime() / 1000;
           };
 
           const calcChange = (p: any) => (!p ? { pct: undefined, date: undefined } : { pct: (currentClose - p.close) / p.close, date: new Date(p.time * 1000) });
+
+          // Calculate 1 Week Ago (Recent)
+          const w1 = findClosestPoint(getDateAgo(7, 'days'));
+          const res1w = calcChange(w1); changePctRecent = res1w.pct;
 
           const m1 = findClosestPoint(getDateAgo(1, 'months')), m3 = findClosestPoint(getDateAgo(3, 'months')), y1 = findClosestPoint(getDateAgo(1, 'years')), y3 = findClosestPoint(getDateAgo(3, 'years')), y5 = findClosestPoint(getDateAgo(5, 'years'));
 
@@ -287,7 +292,7 @@ export async function fetchYahooTickerData(
 
       const tickerData: TickerData = {
         price, openPrice, name: longName, currency, exchange: mappedExchange,
-        changePct1d, changePct1m, changeDate1m, changePct3m, changeDate3m, changePct1y, changeDate1y,
+        changePct1d, changePctRecent, changePct1m, changeDate1m, changePct3m, changeDate3m, changePct1y, changeDate1y,
         changePct3y, changeDate3y, changePct5y, changeDate5y, changePctYtd, changeDateYtd, changePctMax, changeDateMax,
         timestamp: new Date(now), ticker, numericId: null, source: 'Yahoo Finance', historical, dividends, splits, volume,
       };

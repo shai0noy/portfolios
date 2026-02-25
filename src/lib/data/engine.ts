@@ -58,6 +58,7 @@ export class FinanceEngine {
     exchangeRates: ExchangeRates;
     cpiData: TickerData | null;
     transferBucket: Map<string, number> = new Map();
+    livePrices: Map<string, any> = new Map();
 
     constructor(
         portfolios: Portfolio[],
@@ -277,7 +278,17 @@ export class FinanceEngine {
     priceHistory: Map<string, { date: Date, price: number }[]> = new Map();
 
     public hydrateLivePrices(priceMap: Map<string, any>) {
-        // First pass: Populate Price History
+        // Store ALL live prices first (including those not in holdings, e.g. Favorites)
+        priceMap.forEach((live, key) => {
+            this.livePrices.set(key, live);
+            // Also populate history if available (needed for charts/sparklines potentially)
+            if (live?.historical) {
+                const ticker = key.split(':')[1];
+                if (ticker) this.priceHistory.set(ticker, live.historical);
+            }
+        });
+
+        // Update Holdings with latest price data
         this.holdings.forEach(h => {
             const key = `${h.exchange}:${h.ticker}`;
             const live = priceMap.get(key);

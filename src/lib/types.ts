@@ -4,8 +4,22 @@ import { InstrumentType } from './types/instrument';
 import type { ProvidentInfo } from './fetching/types';
 import type { MultiCurrencyValue } from './data/multiCurrency';
 
-export type { ExchangeMetadata, InstrumentClassification, ProvidentInfo };
+export type { ExchangeMetadata, InstrumentClassification, ProvidentInfo, MultiCurrencyValue };
 export { InstrumentType };
+
+export const TrackingListId = {
+  Favorites: 'favorites_virtual',
+} as const;
+
+export type TrackingListId = typeof TrackingListId[keyof typeof TrackingListId];
+
+export interface TrackingListItem {
+  listName: string;
+  ticker: string;
+  exchange: Exchange;
+  dateAdded: Date;
+  rowIndex?: number;
+}
 
 export type PriceUnit = 'base' | 'agorot';
 
@@ -200,7 +214,8 @@ export interface ExchangeRates {
 export interface DashboardHolding {
   id: string; // Added to match Holding
   key: string;
-  portfolioId: string;
+  isFavoritesList?: boolean;
+  portfolioId: string | TrackingListId;
   portfolioName: string;
   portfolioCurrency: Currency;
   ticker: string;
@@ -437,7 +452,7 @@ export interface SheetHolding {
 
 export interface Transaction {
   date: string;
-  portfolioId: string;
+  portfolioId: string | TrackingListId;
   ticker: string;
   exchange?: Exchange;
   type: 'BUY' | 'SELL' | 'DIVIDEND' | 'FEE' | 'ITEM_CLOSE' | 'BUY_TRANSFER' | 'SELL_TRANSFER';

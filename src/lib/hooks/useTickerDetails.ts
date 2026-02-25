@@ -2,8 +2,8 @@ import { clearAllCache } from '../fetching/utils/cache';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { getTickerData, getTickersDataset, fetchTickerHistory, getVerifiedYahooSymbol, type TickerData } from '../fetching';
-import { fetchHolding, getMetadataValue, syncDividends, fetchDividends } from '../sheets';
-import { Exchange, parseExchange, toGoogleFinanceExchangeCode, type Portfolio, type SheetHolding } from '../types';
+import { fetchHolding, getMetadataValue, syncDividends, fetchDividends, fetchTickerLists, toggleTickerListMembership } from '../sheets';
+import { Exchange, parseExchange, toGoogleFinanceExchangeCode, type Portfolio, type SheetHolding, type TrackingListItem } from '../types';
 
 import { formatPrice, toILS, normalizeCurrency } from '../currency';
 import { useLanguage } from '../i18n';
@@ -52,6 +52,9 @@ export const useTickerDetails = ({ sheetId, ticker: propTicker, exchange: propEx
     const [error, setError] = useState<string | null>(null);
     const [refreshing, setRefreshing] = useState(false);
     const [sheetRebuildTime, setSheetRebuildTime] = useState<string | null>(null);
+    const [isFavorite, setIsFavorite] = useState(false);
+    const [trackingLists, setTrackingLists] = useState<TrackingListItem[]>([]);
+    const [isUpdatingFavorite, setIsUpdatingFavorite] = useState(false);
 
     const { t, language } = useLanguage();
 
@@ -173,6 +176,29 @@ export const useTickerDetails = ({ sheetId, ticker: propTicker, exchange: propEx
         }
         setRefreshing(false);
     }, [ticker, exchange, fetchData, mergeDividends]);
+
+    const toggleFavorite = useCallback(async () => {
+        if (isUpdatingFavorite || !sheetId || !ticker || !exchange) return;
+        setIsUpdatingFavorite(true);
+        try {
+            await toggleTickerListMembership(sheetId, 'Favorites', ticker, exchange);
+            setIsFavorite(prev => !prev);
+        } catch (e) {
+            console.error("Failed to toggle favorite", e);
+        } finally {
+            setIsUpdatingFavorite(false);
+        }
+    }, [sheetId, ticker, exchange, isUpdatingFavorite]);
+
+    useEffect(() => {
+        if (sheetId && ticker && exchange) {
+            fetchTickerLists(sheetId).then(lists => {
+                setTrackingLists(lists);
+                const favorite = lists.some(item => item.listName === 'Favorites' && item.ticker === ticker.toUpperCase() && item.exchange === exchange);
+                setIsFavorite(favorite);
+            }).catch(e => console.warn("Failed to fetch favorite status", e));
+        }
+    }, [sheetId, ticker, exchange]);
 
 
     useEffect(() => {
@@ -309,5 +335,9 @@ export const useTickerDetails = ({ sheetId, ticker: propTicker, exchange: propEx
         formatVolume,
         state,
         navigate,
+        isFavorite,
+        toggleFavorite,
+        isUpdatingFavorite,
+        trackingLists
     };
 };

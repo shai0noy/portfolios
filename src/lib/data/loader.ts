@@ -1,7 +1,8 @@
-import { fetchTransactions, fetchPortfolios, fetchAllDividends, fetchSheetExchangeRates } from '../sheets/api';
+import { fetchTransactions, fetchPortfolios, fetchAllDividends, fetchSheetExchangeRates, fetchTickerLists } from '../sheets/api';
 import { FinanceEngine } from './engine';
 import type { DividendEvent } from './model';
 import { Exchange, type ExchangeRates } from '../types';
+import type { TrackingListItem } from '../sheets/types';
 import { getTickerData, type TickerData } from '../fetching';
 import { fetchGlobesStockQuote } from '../fetching/globes';
 import { fetchYahooTickerData } from '../fetching/yahoo';
@@ -40,6 +41,7 @@ interface FinanceCache {
     exchangeRates: ExchangeRates;
     cpiData: TickerData | null;
     livePrices: [string, TickerData][];
+    trackingLists: TrackingListItem[];
 }
 
 export async function clearFinanceCache(sheetId?: string) {
@@ -127,16 +129,17 @@ export const loadFinanceEngine = async (sheetId: string, forceRefresh = false) =
             }
 
             engine.calculateSnapshot();
-            return engine;
+            return { engine, trackingLists: cached.trackingLists || [] };
         }
     }
 
     console.log('Loader: Fetching fresh data');
 
     // 1. Fetch Base Data
-    const [transactions, portfolios] = await Promise.all([
+    const [transactions, portfolios, trackingLists] = await Promise.all([
         fetchTransactions(sheetId),
-        fetchPortfolios(sheetId)
+        fetchPortfolios(sheetId),
+        fetchTickerLists(sheetId)
     ]);
 
     // Load auxiliary data
@@ -161,6 +164,12 @@ export const loadFinanceEngine = async (sheetId: string, forceRefresh = false) =
     });
 
     console.log(`Loader: Fetching prices for ${tickers.size} tickers:`, Array.from(tickers));
+
+    // Add tracking list tickers to the set of tickers to fetch prices for
+    trackingLists.forEach(item => {
+        tickers.add(`${item.exchange}:${item.ticker}`);
+    });
+
     const livePricesMap = await fetchLivePrices(Array.from(tickers).map(t => {
         const [exchange, ticker] = t.split(':');
         return { ticker, exchange: exchange as Exchange };
@@ -257,7 +266,8 @@ export const loadFinanceEngine = async (sheetId: string, forceRefresh = false) =
         rawDivs,
         exchangeRates: exchangeRates as unknown as ExchangeRates,
         cpiData,
-        livePrices: Array.from(livePricesMap.entries())
+        livePrices: Array.from(livePricesMap.entries()),
+        trackingLists
     });
 
     // Create Engine
@@ -286,5 +296,5 @@ export const loadFinanceEngine = async (sheetId: string, forceRefresh = false) =
     // 7. Calculate Final Snapshot
     engine.calculateSnapshot();
 
-    return engine;
+    return { engine, trackingLists };
 };

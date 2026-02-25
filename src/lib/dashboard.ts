@@ -8,6 +8,7 @@ import { useSession } from './SessionContext';
 
 import type { DashboardHolding, DashboardSummaryData, Portfolio, ExchangeRates } from './types';
 // import { convertCurrency, calculatePerformanceInDisplayCurrency } from './currencyUtils'; // Unused
+import type { TrackingListItem } from './sheets/types';
 
 import { INITIAL_SUMMARY, FinanceEngine } from './data/engine';
 // import type { Lot, DividendRecord } from './data/model'; // Unused
@@ -29,6 +30,7 @@ export function useDashboardData(sheetId: string) {
   const [error, setError] = useState<any>(null);
   const { showLoginModal } = useSession();
   const [engine, setEngine] = useState<FinanceEngine | null>(null);
+  const [trackingLists, setTrackingLists] = useState<TrackingListItem[]>([]);
 
   const loadData = useCallback(async (force = false) => {
     if (!sheetId) return;
@@ -38,8 +40,9 @@ export function useDashboardData(sheetId: string) {
       if (force) {
         await clearAllCache();
       }
-      const eng = await loadFinanceEngine(sheetId, force);
+      const { engine: eng, trackingLists: lists } = await loadFinanceEngine(sheetId, force);
       setEngine(eng);
+      setTrackingLists(lists);
       setPortfolios(Array.from(eng.portfolios.values()));
       setExchangeRates(eng.exchangeRates);
 
@@ -59,7 +62,7 @@ export function useDashboardData(sheetId: string) {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  return { holdings, loading, error, portfolios, exchangeRates, hasFutureTxns, refresh: (force = false) => loadData(force), engine };
+  return { holdings, loading, error, portfolios, exchangeRates, hasFutureTxns, refresh: (force = false) => loadData(force), engine, trackingLists };
 }
 
 export { calculateDashboardSummary };

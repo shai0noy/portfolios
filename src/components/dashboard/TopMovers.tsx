@@ -54,7 +54,7 @@ const MoverItem = ({ mover, navigate, displayCurrency }: { mover: Mover, navigat
                     {formatMoneyValue({ amount: mover.change, currency: normalizeCurrency(displayCurrency) }, undefined)}
                 </Typography>
                 <Typography variant="caption" color={color} sx={{ fontWeight: 'bold', opacity: 0.9 }}>
-                    {isPositive ? '+' : ''}{formatPercent(mover.pct)}
+                    {formatPercent(mover.pct, true)}
                 </Typography>
             </Box>
         </Paper>
@@ -65,15 +65,21 @@ interface TopMoversProps {
     holdings: DashboardHolding[];
     displayCurrency: string;
     exchangeRates: ExchangeRates;
+    lockedMetric?: 'change' | 'pct';
 }
 
 /**
  * Displays the top moving assets for 1D, 1W, and 1M periods.
  */
-export const TopMovers = ({ holdings, displayCurrency, exchangeRates }: TopMoversProps) => {
+export const TopMovers = ({ holdings, displayCurrency, exchangeRates, lockedMetric }: TopMoversProps) => {
     const { t } = useLanguage();
     const navigate = useNavigate();
-    const [sortBy, setSortBy] = useState<'change' | 'pct'>('change');
+    const [sortBy, setSortBy] = useState<'change' | 'pct'>(lockedMetric || 'change');
+
+    // Sync state if lockedMetric changes
+    useMemo(() => {
+        if (lockedMetric) setSortBy(lockedMetric);
+    }, [lockedMetric]);
 
     const allMovers = useMemo(() => {
         return calculateTopMovers(holdings, displayCurrency, exchangeRates, sortBy);
@@ -112,17 +118,21 @@ export const TopMovers = ({ holdings, displayCurrency, exchangeRates }: TopMover
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={0.5} px={0.5}>
                 <Typography variant="subtitle2" color="text.secondary">{t('Top Movers', 'המניות הבולטות')}</Typography>
                 <Box display="flex" alignItems="center">
-                    <Typography variant="caption" color="text.secondary" sx={{ mr: 1, display: { xs: 'none', sm: 'block' } }}>{t('Sort by:', 'מיין לפי:')}</Typography>
-                    <ToggleButtonGroup
-                        value={sortBy}
-                        exclusive
-                        size="small"
-                        onChange={(_, newSortBy) => { if (newSortBy) setSortBy(newSortBy as 'change' | 'pct'); }}
-                        aria-label="Sort by"
-                    >
-                        <ToggleButton value="change" sx={{ px: 1, fontSize: '0.7rem', textTransform: 'none' }} aria-label="Sort by value">{t('Value', 'ערך')}</ToggleButton>
-                        <ToggleButton value="pct" sx={{ px: 1, fontSize: '0.7rem', textTransform: 'none' }} aria-label="Sort by percentage">{t('%', '%')}</ToggleButton>
-                    </ToggleButtonGroup>
+                    {!lockedMetric && (
+                        <>
+                            <Typography variant="caption" color="text.secondary" sx={{ mr: 1, display: { xs: 'none', sm: 'block' } }}>{t('Sort by:', 'מיין לפי:')}</Typography>
+                            <ToggleButtonGroup
+                                value={sortBy}
+                                exclusive
+                                size="small"
+                                onChange={(_, newSortBy) => { if (newSortBy) setSortBy(newSortBy as 'change' | 'pct'); }}
+                                aria-label="Sort by"
+                            >
+                                <ToggleButton value="change" sx={{ px: 1, fontSize: '0.7rem', textTransform: 'none' }} aria-label="Sort by value">{t('Value', 'ערך')}</ToggleButton>
+                                <ToggleButton value="pct" sx={{ px: 1, fontSize: '0.7rem', textTransform: 'none' }} aria-label="Sort by percentage">{t('%', '%')}</ToggleButton>
+                            </ToggleButtonGroup>
+                        </>
+                    )}
                 </Box>
             </Box>
             <Box>

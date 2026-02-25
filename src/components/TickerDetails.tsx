@@ -4,6 +4,8 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import StarIcon from '@mui/icons-material/Star';
+import StarBorderIcon from '@mui/icons-material/StarBorder';
 import { useState, useMemo, useEffect } from 'react';
 import { useLocation, useParams } from 'react-router-dom';
 import { useLanguage } from '../lib/i18n';
@@ -53,12 +55,13 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   const {
     ticker, exchange, data, holdingData, historicalData, loading, error, refreshing,
     sheetRebuildTime, handleRefresh, displayData, resolvedName, resolvedNameHe,
-    ownedInPortfolios, externalLinks, formatVolume, state, navigate
+    ownedInPortfolios, externalLinks, formatVolume, state, navigate,
+    isFavorite, toggleFavorite, isUpdatingFavorite, trackingLists
   } = tickerDetailsResult;
 
   const getPortfolioHistory = async (portfolioId: string | null) => {
     try {
-      const engine = await loadFinanceEngine(sheetId);
+      const { engine } = await loadFinanceEngine(sheetId);
 
       // FinanceEngine holdings/transactions are Maps, convert to Arrays
       const allHoldings = Array.from(engine.holdings.values());
@@ -116,7 +119,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   useEffect(() => {
     if (sheetId && ticker) {
       setIsEngineLoading(true);
-      loadFinanceEngine(sheetId).then(eng => {
+      loadFinanceEngine(sheetId).then(({ engine: eng }) => {
         const matches: Holding[] = [];
         eng.holdings.forEach((h: Holding) => {
           const isTickerMatch = h.ticker.toUpperCase() === ticker.toUpperCase();
@@ -287,6 +290,11 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
               <Box display="flex" alignItems="center" gap={1}>
                 <Tooltip title={tTry(resolvedName || ticker, resolvedNameHe)} arrow enterTouchDelay={0} leaveTouchDelay={3000}>
                   <Typography variant={(resolvedName || '').length > 30 ? 'h5' : 'h4'} component="div" fontWeight="bold" noWrap>{tTry(resolvedName || ticker, resolvedNameHe)}</Typography>
+                </Tooltip>
+                <Tooltip title={isFavorite ? t('Remove from favorites', 'הסר ממועדפים') : t('Add to favorites', 'הוסף למועדפים')} enterTouchDelay={0} leaveTouchDelay={3000}>
+                  <IconButton onClick={toggleFavorite} disabled={isUpdatingFavorite} size="small" sx={{ color: isFavorite ? 'success.main' : 'action.disabled' }}>
+                    {isFavorite ? <StarIcon /> : <StarBorderIcon />}
+                  </IconButton>
                 </Tooltip>
                 {ownedInPortfolios && ownedInPortfolios.length > 0 && (
                   <Tooltip title={`${t('Owned in', 'מוחזק ב')}: ${ownedInPortfolios.join(', ')}`} enterTouchDelay={0} leaveTouchDelay={3000}><BusinessCenterIcon color="action" /></Tooltip>
@@ -576,7 +584,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
       <Dialog open={isSearchOpen} onClose={() => setIsSearchOpen(false)} maxWidth="md" fullWidth>
         <DialogTitle>{t('Search to Compare', 'חפש להשוואה')}</DialogTitle>
         <DialogContent>
-          <TickerSearch portfolios={portfolios} isPortfoliosLoading={isPortfoliosLoading} onTickerSelect={handleTickerSearchSelect} sx={{ mt: 1 }} />
+          <TickerSearch portfolios={portfolios} isPortfoliosLoading={isPortfoliosLoading} trackingLists={trackingLists} onTickerSelect={handleTickerSearchSelect} sx={{ mt: 1 }} />
         </DialogContent>
       </Dialog>
       <AnalysisDialog

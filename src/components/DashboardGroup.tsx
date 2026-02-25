@@ -7,7 +7,7 @@ import { useTheme } from '@mui/material/styles';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { formatPercent as formatPct, formatMoneyValue, normalizeCurrency } from '../lib/currencyUtils';
 import type { EnrichedDashboardHolding } from '../lib/dashboard';
-import type { ExchangeRates } from '../lib/types';
+import { TrackingListId, type ExchangeRates } from '../lib/types';
 import { useLanguage } from '../lib/i18n';
 import { DASHBOARD_COLUMNS } from '../lib/dashboardColumns';
 import { DashboardRow } from './DashboardRow';
@@ -105,15 +105,19 @@ export const DashboardGroup = memo(function DashboardGroup(props: DashboardGroup
             <Typography variant="subtitle1" color="primary" sx={{ fontWeight: 600 }}>{groupName}</Typography>
           </Box>
           <Box display="flex" alignItems="center" gap={2} flexWrap="wrap" pr={1}>
-            <Typography variant="body2">
-              {t('Total:', 'סה"כ:')} {formatMoneyValue({ amount: groupSummary.totalMV, currency: normalizeCurrency(displayCurrency) }, t)}
-            </Typography>
-            <Typography variant="body2" color={groupSummary.totalDayChange >= 0 ? 'success.main' : 'error.main'}>
-              {t('Day:', 'יומי:')} {formatMoneyValue({ amount: groupSummary.totalDayChange, currency: normalizeCurrency(displayCurrency) }, t)} ({formatPct(groupDayChangePct)})
-            </Typography>
-            <Typography variant="body2" color={groupSummary.totalUnrealizedGain >= 0 ? 'success.main' : 'error.main'}>
-              {t('Unrealized:', 'לא ממומש:')} {formatMoneyValue({ amount: groupSummary.totalUnrealizedGain, currency: normalizeCurrency(displayCurrency) }, t)}
-            </Typography>
+            {groupHoldings[0]?.portfolioId !== TrackingListId.Favorites && (
+              <>
+                <Typography variant="body2">
+                  {t('Total:', 'סה"כ:')} {formatMoneyValue({ amount: groupSummary.totalMV, currency: normalizeCurrency(displayCurrency) }, t)}
+                </Typography>
+                <Typography variant="body2" color={groupSummary.totalDayChange >= 0 ? 'success.main' : 'error.main'}>
+                  {t('Day:', 'יומי:')} {formatMoneyValue({ amount: groupSummary.totalDayChange, currency: normalizeCurrency(displayCurrency) }, t)} ({formatPct(groupDayChangePct)})
+                </Typography>
+                <Typography variant="body2" color={groupSummary.totalUnrealizedGain >= 0 ? 'success.main' : 'error.main'}>
+                  {t('Unrealized:', 'לא ממומש:')} {formatMoneyValue({ amount: groupSummary.totalUnrealizedGain, currency: normalizeCurrency(displayCurrency) }, t)}
+                </Typography>
+              </>
+            )}
           </Box>
         </Box>
       )}

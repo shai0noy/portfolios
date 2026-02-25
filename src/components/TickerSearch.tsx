@@ -6,9 +6,10 @@ import {
 import { getTickersDataset } from '../lib/fetching';
 import type { TickerProfile } from '../lib/types/ticker';
 import { InstrumentGroup, INSTRUMENT_METADATA } from '../lib/types/instrument';
-import { type Portfolio } from '../lib/types';
+import { type TrackingListItem, type Portfolio } from '../lib/types';
 import SearchIcon from '@mui/icons-material/Search';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
+import StarIcon from '@mui/icons-material/Star';
 import { useLanguage } from '../lib/i18n';
 
 // Pre-compute ownership map to avoid O(N*P*H) complexity during search
@@ -20,7 +21,7 @@ function useOwnedTickers(portfolios: Portfolio[]) {
     for (const p of portfolios) {
       if (!p.holdings) continue;
       for (const h of p.holdings) {
-        const key = `${h.exchange}:${h.ticker}`;
+        const key = `${h.exchange}:${h.ticker.toUpperCase()}`;
         const existing = map.get(key) || [];
         existing.push(p.name);
         map.set(key, existing);
@@ -36,6 +37,7 @@ interface TickerSearchProps {
   prefilledExchange?: string;
   portfolios: Portfolio[];
   isPortfoliosLoading: boolean;
+  trackingLists: TrackingListItem[];
   collapsible?: boolean;
   sx?: any;
 }
@@ -60,6 +62,7 @@ function useDebounce(value: string, delay: number) {
 interface SearchResult {
   profile: TickerProfile;
   ownedInPortfolios?: string[];
+  isFavorite?: boolean;
 }
 
 // Pre-computed search item to avoid repeated toUpperCase() calls
@@ -85,7 +88,8 @@ function performSearch(
   searchTerm: string,
   exchange: string,
   flatDataset: SearchItem[],
-  ownedTickers: Map<string, string[]>
+  ownedTickers: Map<string, string[]>,
+  favoriteTickers: Set<string>
 ): SearchResult[] {
   if (!searchTerm) return [];
 
@@ -119,7 +123,8 @@ function performSearch(
         addedKeys.add(item.key);
 
         const owned = ownedTickers.get(item.key);
-        const res: SearchResult = { profile: item.profile, ownedInPortfolios: owned };
+        const favorite = favoriteTickers.has(item.key);
+        const res: SearchResult = { profile: item.profile, ownedInPortfolios: owned, isFavorite: favorite };
 
         // Bucketing Logic
         const isExact = item.sSymbol === termUC || (!isNaN(termNum) && item.profile.securityId === termNum);
@@ -168,20 +173,31 @@ function useFlatDataset(dataset: Record<string, TickerProfile[]>) {
         sNameEn: (profile.name || '').toUpperCase(),
         sNameHe: (profile.nameHe || '').toUpperCase(),
         sSecId: (profile.securityId !== undefined ? profile.securityId.toString() : ''),
-        key: `${profile.exchange}:${profile.symbol}`
+        key: `${profile.exchange}:${profile.symbol.toUpperCase()}`
       });
     });
     return flat;
   }, [dataset]);
 }
 
-export const TickerSearch = React.memo(function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchange, portfolios, isPortfoliosLoading, collapsible, sx }: TickerSearchProps) {
+export const TickerSearch = React.memo(function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchange, portfolios, isPortfoliosLoading, trackingLists, collapsible, sx }: TickerSearchProps) {
   // Dataset is Record<string, TickerProfile[]>
   const [dataset, setDataset] = useState<Record<string, TickerProfile[]>>({});
   const [isDatasetLoading, setIsDatasetLoading] = useState(false);
 
   const flatDataset = useFlatDataset(dataset);
   const ownedTickers = useOwnedTickers(portfolios);
+  const favoriteTickers = useMemo(() => {
+    const set = new Set<string>();
+    if (trackingLists) {
+      trackingLists.forEach(item => {
+        if (item.listName === 'Favorites') {
+          set.add(`${item.exchange}:${item.ticker.toUpperCase()}`);
+        }
+      });
+    }
+    return set;
+  }, [trackingLists]);
 
   const [isFocused, setIsFocused] = useState(false);
   const [inputValue, setInputValue] = useState(prefilledTicker || '');
@@ -199,7 +215,7 @@ export const TickerSearch = React.memo(function TickerSearch({ onTickerSelect, p
   const searchTickers = useCallback((term: string, exchange: string) => {
     startTransition(() => {
       try {
-        const results = performSearch(term, exchange, flatDataset, ownedTickers);
+        const results = performSearch(term, exchange, flatDataset, ownedTickers, favoriteTickers);
         setSearchResults(results);
       } catch (err) {
         console.error("Search failed", err);
@@ -413,6 +429,11 @@ export const TickerSearch = React.memo(function TickerSearch({ onTickerSelect, p
                             {option.ownedInPortfolios && option.ownedInPortfolios.length > 0 && (
                               <Tooltip title={`Owned in: ${option.ownedInPortfolios.join(', ')}`} enterTouchDelay={0} leaveTouchDelay={3000}>
                                 <BusinessCenterIcon color="success" sx={{ fontSize: 16, ml: 1 }} />
+                              </Tooltip>
+                            )}
+                            {option.isFavorite && (
+                              <Tooltip title={t('Favorite', 'מועדף')} enterTouchDelay={0} leaveTouchDelay={3000}>
+                                <StarIcon color="warning" sx={{ fontSize: 16, ml: 1 }} />
                               </Tooltip>
                             )}
                           </Box>

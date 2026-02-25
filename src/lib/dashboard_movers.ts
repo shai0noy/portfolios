@@ -24,21 +24,19 @@ export function calculateTopMovers(
   const result: Record<TimePeriod, Mover[]> = { '1d': [], '1w': [], '1m': [] };
 
   if (!holdings || holdings.length === 0) {
-    // Return empty structure immediately if no holdings
     return result;
   }
 
   // Calculate Thresholds
-  // Value threshold: 100 NIS / 25 USD
+  // Value threshold: 1 USD / 4 ILS (Lowered to show even small movers)
   const valueThreshold = (() => {
-    if (displayCurrency === 'ILS') return 100;
-    if (displayCurrency === 'USD') return 25;
-    // Fallback: convert 25 USD to displayCurrency
-    return convertCurrency(25, 'USD', displayCurrency, exchangeRates);
+    if (displayCurrency === 'ILS') return 1;
+    if (displayCurrency === 'USD') return 1;
+    return convertCurrency(1, 'USD', displayCurrency, exchangeRates);
   })();
 
-  // Pct threshold: 0.05%
-  const pctThreshold = 0.0005;
+  // Pct threshold: 0.01%
+  const pctThreshold = 0.0001;
 
   // Helper to get change value and percentage for a single holding
   const getHoldingMetrics = (h: DashboardHolding, period: TimePeriod) => {
@@ -105,22 +103,16 @@ export function calculateTopMovers(
 
     // Convert groups to Mover objects
     const movers: Mover[] = Array.from(groups.values()).map(g => {
+      // Use the first holding's raw performance metric for all periods
+      // This ensures we show the asset's performance regardless of user's holding history
+      const h = g.holdings[0];
       let pct = 0;
-      if (period === '1d') {
-        // For 1d, rely on market data (should be identical for all)
-        // Use the first holding's dayChangePct as it's the most accurate source for "Day Change"
-        pct = g.holdings[0]?.dayChangePct || 0;
-      } else {
-        // For other periods, use weighted average via Initial Value
-        // Pct = TotalChange / TotalInitial
-        if (Math.abs(g.totalInitial) > 1e-6) {
-          pct = g.totalChange / g.totalInitial;
-        } else if (g.totalCurrent > 0) {
-          // If initial is ~0 but current > 0 (e.g. infinite gain), cap or 0? 
-          // Usually implies 100% gain if it was 0? Or infinite?
-          // Let's stick to 0 or maybe undefined fallback.
-          pct = 0;
-        }
+
+      switch (period) {
+        case '1d': pct = h.dayChangePct || 0; break;
+        case '1w': pct = h.perf1w || 0; break;
+        case '1m': pct = h.perf1m || 0; break;
+        default: pct = 0;
       }
 
       return {
@@ -136,14 +128,14 @@ export function calculateTopMovers(
 
     result[period] = movers
       .filter(m => {
-        if (isNaN(m.change) || m.change === 0) return false;
-
-        // Threshold Filtering
         if (sortBy === 'change') {
-          return Math.abs(m.change) >= valueThreshold;
-        } else {
-          return Math.abs(m.pct) >= pctThreshold;
+          // Filter out small changes (noise)
+          return !isNaN(m.change) && Math.abs(m.change) >= valueThreshold;
         }
+
+        // Sort by PCT
+        // Filter out small percentages
+        return !isNaN(m.pct) && Math.abs(m.pct) >= pctThreshold;
       })
       .sort((a, b) => {
         if (sortBy === 'change') {

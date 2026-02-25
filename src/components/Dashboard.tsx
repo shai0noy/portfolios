@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, Link as RouterLink, useNavigate, useLocation } from 'react-router-dom';
 import {
-  Box, CircularProgress, IconButton, Tooltip, Typography, ToggleButton, Divider, Button, ToggleButtonGroup, Select, MenuItem, FormControl
+  Box, CircularProgress, IconButton, Tooltip, Typography, ToggleButton, Divider, Button, ToggleButtonGroup, Select, MenuItem, FormControl, Paper
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
@@ -11,21 +11,25 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { ColumnSelector } from './ColumnSelector';
 import { normalizeCurrency } from '../lib/currency';
 import { DashboardSummary } from './dashboard/DashboardSummary';
+import { TopMovers } from './dashboard/TopMovers';
 import { DashboardTable } from './DashboardTable';
 import { useLanguage } from '../lib/i18n';
 import { useDashboardData, calculateDashboardSummary, INITIAL_SUMMARY, type EnrichedDashboardHolding } from '../lib/dashboard';
+import { Currency, TrackingListId } from '../lib/types';
 import { getDefaultColumnVisibility, getColumnDisplayNames, getPresetVisibility, type ColumnPresetType } from '../lib/dashboardColumns';
 import { TickerSearch } from './TickerSearch';
 import { useSession } from '../lib/SessionContext';
 
 interface DashboardProps {
   sheetId: string;
+  isFavoritesOnly?: boolean;
 }
 
-export const Dashboard = ({ sheetId }: DashboardProps) => {
+export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: DashboardProps) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const isFavoritesOnly = propIsFavoritesOnly || location.pathname === '/favorites';
   const [groupByPortfolio, setGroupByPortfolio] = useState(true);
   // Persist Currency - normalize initial value
   const [displayCurrency, setDisplayCurrency] = useState<string>(() => normalizeCurrency(localStorage.getItem('displayCurrency') || 'USD'));
@@ -36,7 +40,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
   const openColSelector = Boolean(anchorEl);
   const { t, isRtl } = useLanguage();
 
-  const { holdings, loading, error, portfolios, exchangeRates, hasFutureTxns, refresh, engine } = useDashboardData(sheetId);
+  const { holdings, loading, error, portfolios, exchangeRates, hasFutureTxns, refresh, engine, trackingLists } = useDashboardData(sheetId);
   const { showLoginModal } = useSession();
 
   const handleClickColSelector = (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -65,6 +69,13 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
   }, [searchParams, portfolios]);
 
   const handleSelectPortfolio = (portfolioId: string | null) => {
+    // Check if the selected portfolio is actually the Favorites group
+    // The DashboardGroup passes the groupName as portfolioId if it's not a real portfolio
+    if (portfolioId === TrackingListId.Favorites) {
+      navigate('/favorites');
+      return;
+    }
+
     if (portfolioId) {
       setSearchParams({ portfolioId });
     } else {
@@ -93,6 +104,97 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
     const newPortMap = new Map(portfolios.map(p => [p.id, p]));
     return calculateDashboardSummary(filteredHoldings, displayCurrency, exchangeRates, newPortMap, engine);
   }, [holdings, displayCurrency, exchangeRates, selectedPortfolioId, portfolios, loading, error, engine]);
+
+  const favoriteHoldings = useMemo(() => {
+    if (!trackingLists || trackingLists.length === 0 || !engine) return [];
+
+    return trackingLists.map(item => {
+      const tickerKey = `${item.exchange}:${item.ticker}`;
+      const liveData = engine.livePrices.get(tickerKey);
+
+      const h: EnrichedDashboardHolding = {
+        nameHe: liveData?.nameHe || '',
+        qtyTotal: 0,
+        currentPrice: liveData?.price || 0,
+        portfolioId: TrackingListId.Favorites,
+        isFavoritesList: true,
+        portfolioName: t('Favorites', 'מועדפים'),
+        activeLots: [],
+        realizedLots: [],
+        transactions: [],
+        dividends: [],
+        id: `fav_${item.exchange}_${item.ticker}`,
+        key: `fav_${item.exchange}_${item.ticker}`,
+        portfolioCurrency: (liveData?.currency as Currency) || Currency.USD,
+        ticker: item.ticker,
+        exchange: item.exchange,
+        displayName: liveData?.nameMarket || liveData?.name || item.ticker,
+        longName: liveData?.name || item.ticker,
+        qtyVested: 0,
+        qtyUnvested: 0,
+        stockCurrency: (liveData?.currency as Currency) || Currency.USD,
+        costBasisVested: { amount: 0, currency: Currency.USD },
+        costOfSoldTotal: { amount: 0, currency: Currency.USD },
+        proceedsTotal: { amount: 0, currency: Currency.USD },
+        dividendsTotal: { amount: 0, currency: Currency.USD },
+        unrealizedGain: { amount: 0, currency: Currency.USD },
+        realizedGainNet: { amount: 0, currency: Currency.USD },
+        feesTotal: { amount: 0, currency: Currency.USD },
+        marketValueVested: { amount: 0, currency: Currency.USD },
+        marketValueUnvested: { amount: 0, currency: Currency.USD },
+        realizedTax: 0,
+        unrealizedTaxLiabilityILS: 0,
+        unrealizedTaxableGainILS: 0,
+        sector: liveData?.sector,
+        dayChangePct: liveData?.changePct1d || 0,
+        perf1w: liveData?.changePctRecent || 0,
+        perf1m: liveData?.changePct1m || 0,
+        perf3m: liveData?.changePct3m || 0,
+        perfYtd: liveData?.changePctYtd || 0,
+        perf1y: liveData?.changePct1y || 0,
+        perf3y: liveData?.changePct3y || 0,
+        perf5y: liveData?.changePct5y || 0,
+        perfAll: liveData?.changePctMax || 0,
+        tickerChangePct1w: liveData?.changePctRecent || 0,
+        tickerChangePct1m: liveData?.changePct1m || 0,
+        tickerChangePct3m: liveData?.changePct3m || 0,
+        tickerChangePctYtd: liveData?.changePctYtd || 0,
+        tickerChangePct1y: liveData?.changePct1y || 0,
+        tickerChangePct3y: liveData?.changePct3y || 0,
+        tickerChangePct5y: liveData?.changePct5y || 0,
+        tickerChangePctAll: liveData?.changePctMax || 0,
+        display: {
+          marketValue: 0,
+          unrealizedGain: 0,
+          unrealizedGainPct: 0,
+          realizedGain: 0,
+          realizedGainGross: 0,
+          realizedGainNet: 0,
+          realizedGainPct: 0,
+          realizedGainAfterTax: 0,
+          totalGain: 0,
+          totalGainPct: 0,
+          valueAfterTax: 0,
+          dayChangeVal: 0,
+          dayChangePct: liveData?.changePct1d || 0,
+          costBasis: 0,
+          costOfSold: 0,
+          proceeds: 0,
+          dividends: 0,
+          fees: 0,
+          dividendYield1y: liveData?.dividendYield,
+          currentPrice: liveData?.price || 0,
+          avgCost: 0,
+          weightInPortfolio: 0,
+          weightInGlobal: 0,
+          unvestedValue: 0,
+          realizedTax: 0,
+          unrealizedTax: 0
+        }
+      };
+      return h;
+    });
+  }, [trackingLists, engine, t]);
 
   // Column Configuration
   const [columnPreset, setColumnPreset] = useState<ColumnPresetType>(() => {
@@ -133,9 +235,10 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
 
   // Filter Holdings for Display
   const displayedHoldings = useMemo(() => {
+    if (isFavoritesOnly) return favoriteHoldings;
     if (showClosed) return enrichedHoldings;
     return enrichedHoldings.filter(h => Math.abs(h.qtyTotal) > 1e-6);
-  }, [enrichedHoldings, showClosed]);
+  }, [enrichedHoldings, showClosed, isFavoritesOnly, favoriteHoldings]);
 
   // Grouping Logic
   const groupedData = useMemo(() => {
@@ -157,8 +260,19 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
       if (!groups[h.portfolioName]) groups[h.portfolioName] = [];
       groups[h.portfolioName].push(h);
     });
+
+    // Add Favorites group if not empty and not already in favorites-only mode
+    if (!isFavoritesOnly && favoriteHoldings.length > 0) {
+      const heldKeys = new Set(enrichedHoldings.filter(h => Math.abs(h.qtyTotal) > 1e-6).map(h => `${h.exchange}:${h.ticker}`));
+      const orphanFavorites = favoriteHoldings.filter(f => !heldKeys.has(`${f.exchange}:${f.ticker}`));
+
+      if (orphanFavorites.length > 0) {
+        groups[t('Favorites', 'מועדפים')] = orphanFavorites;
+      }
+    }
+
     return groups;
-  }, [displayedHoldings, groupByPortfolio, selectedPortfolioId, portfolios]);
+  }, [displayedHoldings, groupByPortfolio, selectedPortfolioId, portfolios, favoriteHoldings, isFavoritesOnly, enrichedHoldings, t]);
 
   if (loading) return <Box display="flex" justifyContent="center" p={5}><CircularProgress /></Box>;
 
@@ -218,7 +332,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
     );
   }
 
-  if (holdings.length === 0) {
+  if (holdings.length === 0 && !isFavoritesOnly) {
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', textAlign: 'center', p: 3 }}>
         <CloudUploadIcon sx={{ fontSize: 80, color: 'text.secondary', mb: 2, opacity: 0.5 }} />
@@ -257,15 +371,18 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
   return (
     <Box sx={{ maxWidth: 1400, mx: 'auto', mt: 4 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-        {selectedPortfolioId && (
+        {(selectedPortfolioId || isFavoritesOnly) && (
           <Button
             variant="text"
             size="small"
-            onClick={() => handleSelectPortfolio(null)}
+            onClick={() => {
+              if (isFavoritesOnly) navigate('/dashboard');
+              else handleSelectPortfolio(null);
+            }}
             startIcon={<ArrowBackIcon fontSize="small" sx={{ transform: isRtl ? 'rotate(180deg)' : 'none' }} />}
             sx={{ textTransform: 'none', color: 'text.secondary', minWidth: 'auto', whiteSpace: 'nowrap', mt: -1 }}
           >
-            {t('All Portfolios', 'כל התיקים')}
+            {isFavoritesOnly ? t('Dashboard', 'לוח בקרה') : t('All Portfolios', 'כל התיקים')}
           </Button>
         )}
 
@@ -273,6 +390,7 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
           <TickerSearch
             portfolios={portfolios}
             isPortfoliosLoading={loading}
+            trackingLists={trackingLists}
             collapsible={true}
             sx={{ mt: 0, mb: 0 }}
             onTickerSelect={(ticker) => {
@@ -301,16 +419,27 @@ export const Dashboard = ({ sheetId }: DashboardProps) => {
         </ToggleButtonGroup>
       </Box>
 
-      <DashboardSummary
-        summary={summary}
-        holdings={selectedPortfolioId ? holdings.filter(h => h.portfolioId === selectedPortfolioId) : holdings}
-        displayCurrency={displayCurrency}
-        exchangeRates={exchangeRates}
-        selectedPortfolio={portfolios.find(p => p.id === (selectedPortfolioId || ''))?.name || null}
-        portfolios={portfolios}
-        isPortfoliosLoading={loading}
-        transactions={selectedPortfolioId ? (engine?.transactions?.filter(t => t.portfolioId === selectedPortfolioId) || []) : (engine?.transactions || [])}
-      />
+      {!isFavoritesOnly ? (
+        <DashboardSummary
+          summary={summary}
+          holdings={selectedPortfolioId ? holdings.filter(h => h.portfolioId === selectedPortfolioId) : holdings}
+          displayCurrency={displayCurrency}
+          exchangeRates={exchangeRates}
+          selectedPortfolio={portfolios.find(p => p.id === (selectedPortfolioId || ''))?.name || null}
+          portfolios={portfolios}
+          isPortfoliosLoading={loading}
+          transactions={selectedPortfolioId ? (engine?.transactions?.filter(t => t.portfolioId === selectedPortfolioId) || []) : (engine?.transactions || [])}
+        />
+      ) : (
+        <Paper variant="outlined" sx={{ p: 3, mb: 4, position: 'relative' }}>
+          <TopMovers
+            holdings={displayedHoldings}
+            displayCurrency={displayCurrency}
+            exchangeRates={exchangeRates}
+            lockedMetric='pct'
+          />
+        </Paper>
+      )}
       {hasFutureTxns && (
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'right', mt: 0.5, mb: 1, fontSize: '0.7rem' }}>
           {t('Note: Some transactions with future dates exist and are not included in the calculations.', 'הערה: קיימות עסקאות עם תאריך עתידי שאינן נכללות בחישובים.')}

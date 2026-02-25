@@ -155,12 +155,13 @@ export function formatValue(n: number, currency: string | Currency, decimals = 2
   }
 }
 
-export function formatPercent(n: number): string {
+export function formatPercent(n: number, alwaysShowSign = false): string {
   if (n === undefined || n === null || isNaN(n)) return '-';
   const formatter = new Intl.NumberFormat(undefined, {
     style: 'percent',
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
+    signDisplay: alwaysShowSign ? 'exceptZero' : 'auto',
   });
   return LTR_MARK + formatter.format(n);
 }

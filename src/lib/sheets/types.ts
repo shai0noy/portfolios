@@ -35,3 +35,13 @@ export type TransactionColumns = {
 };
 
 export type TxnKey = keyof TransactionColumns;
+
+import type { Exchange } from '../types';
+
+export interface TrackingListItem {
+    listName: string;
+    ticker: string;
+    exchange: Exchange;
+    dateAdded: Date;
+    rowIndex?: number;
+}
