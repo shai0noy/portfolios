@@ -174,7 +174,7 @@ export function Login({ onLogin }: { onLogin: (sheetId: string) => void }) {
                 {t('If this is your first time, create a new spreadsheet. This app will store all data in this private Google Sheet.', 'אם זו הפעם הראשונה שלך, צור גיליון חדש. האפליקציה תשמור את כל הנתונים בגיליון Google פרטי זה.')}
               </Typography>
               <Button variant="outlined" onClick={handleCreateNew} disabled={loading} fullWidth>
-                {t('Create New Sheet ("Portfolios_App_Data")', 'יצירת גיליון חדש ("Portfolios_App_Data")')}
+                  {t(`Create New Sheet ("${DEFAULT_SHEET_NAME}")`, `יצירת גיליון חדש ("${DEFAULT_SHEET_NAME}")`)}
               </Button>
               
               <Typography variant="body2" color="text.secondary" sx={{ my: 2 }}>{t('OR', 'או')}</Typography>

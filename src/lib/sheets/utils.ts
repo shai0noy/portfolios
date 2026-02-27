@@ -133,11 +133,19 @@ export async function ensureSheets(spreadsheetId: string, sheetNames: readonly s
  * @param headers The headers to set.
  */
 export function createHeaderUpdateRequest(sheetId: number, headers: Headers) {
+    const isDev = (import.meta as any).env?.DEV;
+    const bgColor = isDev ? { red: 1.0, green: 0.9, blue: 0.9 } : { red: 0.9, green: 0.9, blue: 1.0 };
+
     return {
         updateCells: {
             range: { sheetId, startRowIndex: 0, endRowIndex: 1 },
-            rows: [{ values: headers.map(h => ({ userEnteredValue: { stringValue: h } })) }],
-            fields: 'userEnteredValue'
+            rows: [{
+                values: headers.map(h => ({
+                    userEnteredValue: { stringValue: h },
+                    userEnteredFormat: { backgroundColor: bgColor }
+                }))
+            }],
+            fields: 'userEnteredValue,userEnteredFormat.backgroundColor'
         }
     };
 }

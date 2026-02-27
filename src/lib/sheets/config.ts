@@ -141,7 +141,7 @@ export const configHeaders = ['Key', 'Value', '1D Ago', '1W Ago', '1M Ago', '3M 
 
 export type Headers = readonly string[];
 
-export const DEFAULT_SHEET_NAME = 'Portfolios_App_Data';
+export const DEFAULT_SHEET_NAME = (import.meta as any).env?.DEV ? 'Portfolios_App_Data_Dev' : 'Portfolios_App_Data';
 export const PORTFOLIO_SHEET_NAME = 'Portfolio_Options';
 export const PORT_OPT_RANGE = `${PORTFOLIO_SHEET_NAME}!A2:${String.fromCharCode(65 + portfolioHeaders.length - 1)}`;
 export const TX_SHEET_NAME = 'Transaction_Log';
