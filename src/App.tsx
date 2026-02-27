@@ -10,7 +10,6 @@ import { ensureSchema, populateTestData, fetchTransactions, rebuildHoldingsSheet
 import { initializeGapi, signOut, signIn } from './lib/google';
 import { Box, AppBar, Toolbar, Typography, Container, Tabs, Tab, IconButton, CircularProgress, ThemeProvider, CssBaseline, Menu, MenuItem, Snackbar, Alert, ListItemIcon, ListItemText, Button, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions } from '@mui/material';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
-import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import BuildIcon from '@mui/icons-material/Build';
 import LogoutIcon from '@mui/icons-material/Logout';
@@ -152,26 +151,26 @@ function AppContent() {
   useEffect(() => {
     if (sheetId && googleReady) {
       getMetadataValue(sheetId, 'schema_created').then(val => {
-         if (!val) {
-             setSchemaVersionMismatch('old');
-             return;
-         }
-         const sheetDate = new Date(val);
-         const codeDate = new Date(SHEET_STRUCTURE_VERSION_DATE);
-         
-         if (isNaN(sheetDate.getTime())) {
-             setSchemaVersionMismatch('old');
-             return;
-         }
+        if (!val) {
+          setSchemaVersionMismatch('old');
+          return;
+        }
+        const sheetDate = new Date(val);
+        const codeDate = new Date(SHEET_STRUCTURE_VERSION_DATE);
 
-         sheetDate.setHours(0,0,0,0);
-         codeDate.setHours(0,0,0,0);
+        if (isNaN(sheetDate.getTime())) {
+          setSchemaVersionMismatch('old');
+          return;
+        }
 
-         if (sheetDate < codeDate) {
-             setSchemaVersionMismatch('old');
-         } else if (sheetDate > codeDate) {
-             setSchemaVersionMismatch('new');
-         }
+        sheetDate.setHours(0, 0, 0, 0);
+        codeDate.setHours(0, 0, 0, 0);
+
+        if (sheetDate < codeDate) {
+          setSchemaVersionMismatch('old');
+        } else if (sheetDate > codeDate) {
+          setSchemaVersionMismatch('new');
+        }
       }).catch(e => console.warn("Failed to check schema version", e));
     }
   }, [sheetId, googleReady]);
@@ -192,7 +191,7 @@ function AppContent() {
   const handleSetupSheet = async () => {
     if (!sheetId) return;
     if (!schemaVersionMismatch && !confirm(t("This will reset sheet headers and rebuild all live data formulas. This can fix issues but is a heavy operation. Are you sure?", "פעולה זו תאפס את כותרות הגיליון ותבנה מחדש את כל הנוסחאות. זוהי פעולה כבדה. האם אתה בטוח?"))) return;
-    
+
     setRebuilding(true);
     try {
       await ensureSchema(sheetId);
@@ -362,11 +361,11 @@ function AppContent() {
         </ListItemIcon>
         <ListItemText>{t('Setup Sheet', 'הגדרות גיליון')}</ListItemText>
       </MenuItem>
-      <MenuItem onClick={() => { 
+      <MenuItem onClick={() => {
         if (confirm(t('This will clear all locally cached market data (prices, history, ticker lists). Your session and settings will be preserved. Continue?', 'פעולה זו תנקה את כל המידע המאוחסן מקומית (מחירים, היסטוריה, רשימות ניירות). החיבור וההגדרות שלך יישמרו. להמשיך?'))) {
-          clearAllCache().then(() => window.location.reload()); 
+          clearAllCache().then(() => window.location.reload());
         }
-        handleMobileMenuClose(); 
+        handleMobileMenuClose();
       }}>
         <ListItemIcon>
           <DeleteSweepIcon fontSize="small" />
@@ -392,202 +391,216 @@ function AppContent() {
 
   return (
     <CacheProvider value={isRtl ? cacheRtl : cacheLtr}>
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <Box sx={{ flexGrow: 1, minHeight: '100vh', bgcolor: 'background.default' }}>
-        <AppBar position="static" color="inherit" elevation={0} sx={{ borderBottom: 1, borderColor: 'divider' }}>
-          <Toolbar sx={{ flexWrap: { xs: 'wrap', sm: 'nowrap' }, gap: { xs: 1, sm: 0 } }}>
-            <AccountBalanceWalletIcon sx={{ color: 'primary.main', mr: 1.5 }} />
-            <Typography variant="h5" component="div" sx={{ flexGrow: 0, flexShrink: 1, minWidth: 0, color: 'text.primary', fontWeight: 700, letterSpacing: '-0.5px', mr: { xs: 1, sm: 4 }, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: { xs: 140, sm: 'none' } }}>
-              {t('My Portfolios', 'My Portfolios')}
-            </Typography>
-            
-            <Tabs value={currentTab} onChange={handleTabChange} textColor="primary" indicatorColor="primary" variant="scrollable" scrollButtons="auto" allowScrollButtonsMobile sx={{ flexGrow: 1, minWidth: 0 }}>
-              <Tab label={t("Dashboard", "דאשבורד")} sx={{ textTransform: 'none', fontSize: { xs: '0.9rem', sm: '1rem' }, minHeight: 64, minWidth: 64 }} component={RouterLink} to="/dashboard" />
-              <Tab label={t("Add Trade", "הוסף עסקה")} sx={{ textTransform: 'none', fontSize: { xs: '0.9rem', sm: '1rem' }, minHeight: 64, minWidth: 64 }} component={RouterLink} to="/transaction" />
-              <Tab label={t("Manage Portfolios", "ניהול תיקים")} sx={{ textTransform: 'none', fontSize: { xs: '0.9rem', sm: '1rem' }, minHeight: 64, minWidth: 80 }} component={RouterLink} to="/portfolios" />
-            </Tabs>
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <Box sx={{ flexGrow: 1, minHeight: '100vh', bgcolor: 'background.default' }}>
+          <AppBar position="sticky" color="inherit" elevation={0} sx={{
+            borderBottom: 1,
+            borderColor: 'divider',
+            backdropFilter: 'blur(12px)',
+            backgroundColor: (theme) => theme.palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.8)' : 'rgba(255, 255, 255, 0.8)',
+            boxShadow: 'none',
+            zIndex: (theme) => theme.zIndex.drawer + 1,
+            transition: 'all 0.3s ease'
+          }}>
+            <Toolbar sx={{ flexWrap: { xs: 'wrap', sm: 'nowrap' }, gap: { xs: 1, sm: 0 }, py: { xs: 1, sm: 0.5 } }}>
+              <Typography variant="h5" component="div" sx={{
+                flexGrow: 0, flexShrink: 1, minWidth: 0,
+                color: 'text.primary',
+                fontWeight: 800,
+                letterSpacing: '-0.5px',
+                mr: { xs: 1, sm: 4 },
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: { xs: 140, sm: 'none' }
+              }}>
+                {t('My Portfolios', 'My Portfolios')}
+              </Typography>
 
-            <Box sx={{ display: 'flex' }}>
-              <IconButton
-                size="large"
-                aria-label="show more"
-                aria-controls={mobileMenuId}
-                aria-haspopup="true"
-                onClick={handleMobileMenuOpen}
-                color="inherit"
-              >
-                <MenuIcon />
-              </IconButton>
-            </Box>
-          </Toolbar>
-        </AppBar>
-        {renderMobileMenu}
+              <Tabs value={currentTab} onChange={handleTabChange} textColor="primary" indicatorColor="primary" variant="scrollable" scrollButtons="auto" allowScrollButtonsMobile sx={{ flexGrow: 1, minWidth: 0 }}>
+                <Tab label={t("Dashboard", "דאשבורד")} sx={{ textTransform: 'none', fontSize: { xs: '0.9rem', sm: '1rem' }, minHeight: 64, minWidth: 64 }} component={RouterLink} to="/dashboard" />
+                <Tab label={t("Add Trade", "הוסף עסקה")} sx={{ textTransform: 'none', fontSize: { xs: '0.9rem', sm: '1rem' }, minHeight: 64, minWidth: 64 }} component={RouterLink} to="/transaction" />
+                <Tab label={t("Manage Portfolios", "ניהול תיקים")} sx={{ textTransform: 'none', fontSize: { xs: '0.9rem', sm: '1rem' }, minHeight: 64, minWidth: 80 }} component={RouterLink} to="/portfolios" />
+              </Tabs>
 
-        <Menu
-          id="app-export-menu"
-          anchorEl={exportMenuAnchorElApp}
-          open={Boolean(exportMenuAnchorElApp)}
-          onClose={() => setExportMenuAnchorElApp(null)}
-        >
-          <MenuItem disabled={exportInProgress} onClick={() => {
-            setExportMenuAnchorElApp(null);
-            setExportInProgress(true);
-            exportDashboardData({ type: 'holdings', format: 'csv', sheetId, setLoading: setExportInProgress, onSuccess: (msg) => { setSnackbarMessage(msg); setSnackbarSeverity('success'); setSnackbarOpen(true); setExportInProgress(false); }, onError: (msg) => { setSnackbarMessage(msg); setSnackbarSeverity('error'); setSnackbarOpen(true); setExportInProgress(false); } });
-          }}>{t('Holdings (CSV)', 'החזקות (CSV)')}</MenuItem>
-          <MenuItem disabled={exportInProgress} onClick={() => {
-            setExportMenuAnchorElApp(null);
-            setExportInProgress(true);
-            exportDashboardData({
-              type: 'holdings', format: 'sheet', sheetId, setLoading: setExportInProgress, 
-              onSuccess: (msg, url) => {
-                setSnackbarMessage(msg);
-                setSnackbarSeverity('success');
-                setSnackbarAction(<Button color="inherit" size="small" onClick={() => window.open(url, '_blank')}>Open Sheet</Button>);
-                setSnackbarOpen(true);
-                setExportInProgress(false); 
-              },
-              onError: (msg) => { setSnackbarMessage(msg); setSnackbarSeverity('error'); setSnackbarAction(null); setSnackbarOpen(true); setExportInProgress(false); }
-            });
-          }}>{t('Holdings (Google Sheet)', 'החזקות (Google Sheet)')}</MenuItem>
-          <MenuItem disabled={exportInProgress} onClick={() => {
-            setExportMenuAnchorElApp(null);
-            setExportInProgress(true);
-            exportDashboardData({ type: 'transactions', format: 'csv', sheetId, setLoading: setExportInProgress, onSuccess: (msg) => { setSnackbarMessage(msg); setSnackbarSeverity('success'); setSnackbarOpen(true); setExportInProgress(false); }, onError: (msg) => { setSnackbarMessage(msg); setSnackbarSeverity('error'); setSnackbarOpen(true); setExportInProgress(false); } });
-          }}>{t('Transactions (CSV)', 'עסקאות (CSV)')}</MenuItem>
-          <MenuItem disabled={exportInProgress} onClick={() => {
-            setExportMenuAnchorElApp(null);
-            setExportInProgress(true);
-            exportDashboardData({
-              type: 'transactions', format: 'sheet', sheetId, setLoading: setExportInProgress, 
-              onSuccess: (msg, url) => {
-                setSnackbarMessage(msg);
-                setSnackbarSeverity('success');
-                setSnackbarAction(<Button color="inherit" size="small" onClick={() => window.open(url, '_blank')}>Open Sheet</Button>);
-                setSnackbarOpen(true);
-                setExportInProgress(false); 
-              },
-              onError: (msg) => { setSnackbarMessage(msg); setSnackbarSeverity('error'); setSnackbarAction(null); setSnackbarOpen(true); setExportInProgress(false); }
-            });
-          }}>{t('Transactions (Google Sheet)', 'עסקאות (Google Sheet)')}</MenuItem>
-          <MenuItem disabled={exportInProgress} onClick={() => {
-            setExportMenuAnchorElApp(null);
-            setExportInProgress(true);
-            exportDashboardData({
-              type: 'both', format: 'sheet', sheetId, setLoading: setExportInProgress, 
-              onSuccess: (msg, url) => {
-                setSnackbarMessage(msg);
-                setSnackbarSeverity('success');
-                setSnackbarAction(<Button color="inherit" size="small" onClick={() => window.open(url, '_blank')}>Open Sheet</Button>);
-                setSnackbarOpen(true);
-                setExportInProgress(false); 
-              },
-              onError: (msg) => { setSnackbarMessage(msg); setSnackbarSeverity('error'); setSnackbarAction(null); setSnackbarOpen(true); setExportInProgress(false); }
-            });
-          }}>{t('Export transactions & holdings (to Sheet)', 'ייצוא הכל (לגיליון)')}</MenuItem>
-        </Menu>
-        
-        <Container maxWidth="xl" sx={{ mt: 5, pb: 8 }}>
-          {sheetId && (
-            <>
-              <Box sx={{ display: currentTab === 0 ? 'block' : 'none' }}>
+              <Box sx={{ display: 'flex' }}>
+                <IconButton
+                  size="large"
+                  aria-label="show more"
+                  aria-controls={mobileMenuId}
+                  aria-haspopup="true"
+                  onClick={handleMobileMenuOpen}
+                  color="inherit"
+                >
+                  <MenuIcon />
+                </IconButton>
+              </Box>
+            </Toolbar>
+          </AppBar>
+          {renderMobileMenu}
+
+          <Menu
+            id="app-export-menu"
+            anchorEl={exportMenuAnchorElApp}
+            open={Boolean(exportMenuAnchorElApp)}
+            onClose={() => setExportMenuAnchorElApp(null)}
+          >
+            <MenuItem disabled={exportInProgress} onClick={() => {
+              setExportMenuAnchorElApp(null);
+              setExportInProgress(true);
+              exportDashboardData({ type: 'holdings', format: 'csv', sheetId, setLoading: setExportInProgress, onSuccess: (msg) => { setSnackbarMessage(msg); setSnackbarSeverity('success'); setSnackbarOpen(true); setExportInProgress(false); }, onError: (msg) => { setSnackbarMessage(msg); setSnackbarSeverity('error'); setSnackbarOpen(true); setExportInProgress(false); } });
+            }}>{t('Holdings (CSV)', 'החזקות (CSV)')}</MenuItem>
+            <MenuItem disabled={exportInProgress} onClick={() => {
+              setExportMenuAnchorElApp(null);
+              setExportInProgress(true);
+              exportDashboardData({
+                type: 'holdings', format: 'sheet', sheetId, setLoading: setExportInProgress,
+                onSuccess: (msg, url) => {
+                  setSnackbarMessage(msg);
+                  setSnackbarSeverity('success');
+                  setSnackbarAction(<Button color="inherit" size="small" onClick={() => window.open(url, '_blank')}>Open Sheet</Button>);
+                  setSnackbarOpen(true);
+                  setExportInProgress(false);
+                },
+                onError: (msg) => { setSnackbarMessage(msg); setSnackbarSeverity('error'); setSnackbarAction(null); setSnackbarOpen(true); setExportInProgress(false); }
+              });
+            }}>{t('Holdings (Google Sheet)', 'החזקות (Google Sheet)')}</MenuItem>
+            <MenuItem disabled={exportInProgress} onClick={() => {
+              setExportMenuAnchorElApp(null);
+              setExportInProgress(true);
+              exportDashboardData({ type: 'transactions', format: 'csv', sheetId, setLoading: setExportInProgress, onSuccess: (msg) => { setSnackbarMessage(msg); setSnackbarSeverity('success'); setSnackbarOpen(true); setExportInProgress(false); }, onError: (msg) => { setSnackbarMessage(msg); setSnackbarSeverity('error'); setSnackbarOpen(true); setExportInProgress(false); } });
+            }}>{t('Transactions (CSV)', 'עסקאות (CSV)')}</MenuItem>
+            <MenuItem disabled={exportInProgress} onClick={() => {
+              setExportMenuAnchorElApp(null);
+              setExportInProgress(true);
+              exportDashboardData({
+                type: 'transactions', format: 'sheet', sheetId, setLoading: setExportInProgress,
+                onSuccess: (msg, url) => {
+                  setSnackbarMessage(msg);
+                  setSnackbarSeverity('success');
+                  setSnackbarAction(<Button color="inherit" size="small" onClick={() => window.open(url, '_blank')}>Open Sheet</Button>);
+                  setSnackbarOpen(true);
+                  setExportInProgress(false);
+                },
+                onError: (msg) => { setSnackbarMessage(msg); setSnackbarSeverity('error'); setSnackbarAction(null); setSnackbarOpen(true); setExportInProgress(false); }
+              });
+            }}>{t('Transactions (Google Sheet)', 'עסקאות (Google Sheet)')}</MenuItem>
+            <MenuItem disabled={exportInProgress} onClick={() => {
+              setExportMenuAnchorElApp(null);
+              setExportInProgress(true);
+              exportDashboardData({
+                type: 'both', format: 'sheet', sheetId, setLoading: setExportInProgress,
+                onSuccess: (msg, url) => {
+                  setSnackbarMessage(msg);
+                  setSnackbarSeverity('success');
+                  setSnackbarAction(<Button color="inherit" size="small" onClick={() => window.open(url, '_blank')}>Open Sheet</Button>);
+                  setSnackbarOpen(true);
+                  setExportInProgress(false);
+                },
+                onError: (msg) => { setSnackbarMessage(msg); setSnackbarSeverity('error'); setSnackbarAction(null); setSnackbarOpen(true); setExportInProgress(false); }
+              });
+            }}>{t('Export transactions & holdings (to Sheet)', 'ייצוא הכל (לגיליון)')}</MenuItem>
+          </Menu>
+
+          <Container maxWidth="xl" sx={{ mt: 5, pb: 8 }}>
+            {sheetId && (
+              <>
+                <Box sx={{ display: currentTab === 0 ? 'block' : 'none' }}>
                   <Dashboard sheetId={sheetId} key={`dash_${refreshKey}`} />
-              </Box>
-              <Box sx={{ display: currentTab === 1 ? 'block' : 'none' }}>
-                <TransactionForm 
-                  sheetId={sheetId} 
-                  refreshTrigger={refreshKey}
-                  onSaveSuccess={(msg, undoCb) => {
-                    setRefreshKey(k => k + 1);
-                    setSnackbarMessage(msg || t('Transaction saved!', 'העסקה נשמרה!'));
-                    setSnackbarSeverity('success');
-                    setSnackbarAction(undoCb ? (
+                </Box>
+                <Box sx={{ display: currentTab === 1 ? 'block' : 'none' }}>
+                  <TransactionForm
+                    sheetId={sheetId}
+                    refreshTrigger={refreshKey}
+                    onSaveSuccess={(msg, undoCb) => {
+                      setRefreshKey(k => k + 1);
+                      setSnackbarMessage(msg || t('Transaction saved!', 'העסקה נשמרה!'));
+                      setSnackbarSeverity('success');
+                      setSnackbarAction(undoCb ? (
                         <Button color="inherit" size="small" onClick={() => { undoCb(); setSnackbarOpen(false); }}>
-                            {t('Undo', 'בטל')}
+                          {t('Undo', 'בטל')}
                         </Button>
-                    ) : null);
-                    setSnackbarOpen(true);
-                  }} 
-                />
-              </Box>
-      
-              {/* Routes for components that should not be hidden, but mounted on navigation */}
-              <Routes>
-                <Route path="/dashboard" element={null} /> {/* Dummy route */}
+                      ) : null);
+                      setSnackbarOpen(true);
+                    }}
+                  />
+                </Box>
+
+                {/* Routes for components that should not be hidden, but mounted on navigation */}
+                <Routes>
+                  <Route path="/dashboard" element={null} /> {/* Dummy route */}
                   <Route path="/favorites" element={null} /> {/* Dummy route */}
-                <Route path="/transaction" element={null} /> {/* Dummy route */}
-                <Route path="/portfolios" element={<PortfolioManager sheetId={sheetId} onSuccess={() => setRefreshKey(k => k + 1)} />} />
-                <Route path="/portfolios/:portfolioId" element={<PortfolioManager sheetId={sheetId} onSuccess={() => setRefreshKey(k => k + 1)} />} />
-                <Route path="/ticker/:exchange/:ticker" element={<TickerDetails sheetId={sheetId} portfolios={portfolios} />} />
-              </Routes>
-            </>
+                  <Route path="/transaction" element={null} /> {/* Dummy route */}
+                  <Route path="/portfolios" element={<PortfolioManager sheetId={sheetId} onSuccess={() => setRefreshKey(k => k + 1)} />} />
+                  <Route path="/portfolios/:portfolioId" element={<PortfolioManager sheetId={sheetId} onSuccess={() => setRefreshKey(k => k + 1)} />} />
+                  <Route path="/ticker/:exchange/:ticker" element={<TickerDetails sheetId={sheetId} portfolios={portfolios} />} />
+                </Routes>
+              </>
+            )}
+          </Container>
+
+          {importOpen && (
+            <ImportCSV
+              sheetId={sheetId}
+              open={importOpen}
+              onClose={() => setImportOpen(false)}
+              onSuccess={() => { setRefreshKey(k => k + 1); setImportOpen(false); }}
+            />
           )}
-        </Container>
-  
-        {importOpen && (
-          <ImportCSV 
-            sheetId={sheetId} 
-            open={importOpen} 
-            onClose={() => setImportOpen(false)} 
-            onSuccess={() => { setRefreshKey(k => k + 1); setImportOpen(false); }} 
-          />
-        )}
 
-        <Snackbar open={snackbarOpen} autoHideDuration={10000} onClose={handleSnackbarClose}>
-          <Alert onClose={handleSnackbarClose} severity={snackbarSeverity} sx={{ width: '100%' }} action={snackbarAction}>
-            {snackbarMessage}
-          </Alert>
-        </Snackbar>
+          <Snackbar open={snackbarOpen} autoHideDuration={10000} onClose={handleSnackbarClose}>
+            <Alert onClose={handleSnackbarClose} severity={snackbarSeverity} sx={{ width: '100%' }} action={snackbarAction}>
+              {snackbarMessage}
+            </Alert>
+          </Snackbar>
 
-        <Dialog open={isSessionExpired} onClose={() => {}}>
-          <DialogTitle>{t('Session Expired', 'הפעלתך פגה')}</DialogTitle>
-          <DialogContent>
-            <DialogContentText>
-              {t('Your session has expired. Please sign in again to continue.', 'הפעלתך פגה. אנא התחבר מחדש כדי להמשיך.')}
-            </DialogContentText>
-          </DialogContent>
-          <DialogActions>
-             <Button onClick={handleReconnect} variant="contained" color="primary" autoFocus>
-                {t('Sign In', 'התחבר')}
-             </Button>
-          </DialogActions>
-        </Dialog>
-
-        {/* Schema Version Dialog */}
-        <Dialog open={!!schemaVersionMismatch} onClose={() => {}}>
-          <DialogTitle>{schemaVersionMismatch === 'old' ? t('Sheet Structure Update Required', 'נדרש עדכון מבנה גיליון') : t('Sheet Structure Mismatch', 'אי-התאמה במבנה הגיליון')}</DialogTitle>
-          <DialogContent>
-            {rebuilding ? (
-              <Box display="flex" flexDirection="column" alignItems="center" py={2}>
-                <CircularProgress size={40} sx={{ mb: 2 }} />
-                <DialogContentText align="center">
-                  {t('Updating spreadsheet structure and formulas...', 'מעדכן מבנה גיליון ונוסחאות...')}<br/>
-                  {t('Please wait, this may take a few moments.', 'אנא המתן, זה עשוי לקחת מספר רגעים.')}
-                </DialogContentText>
-              </Box>
-            ) : (
+          <Dialog open={isSessionExpired} onClose={() => { }}>
+            <DialogTitle>{t('Session Expired', 'הפעלתך פגה')}</DialogTitle>
+            <DialogContent>
               <DialogContentText>
-                {schemaVersionMismatch === 'old' 
-                  ? t("Your Google Sheet structure is outdated. A new version of the application requires schema updates to function correctly.", "מבנה הגיליון שלך מיושן. גרסה חדשה של האפליקציה דורשת עדכוני סכמה כדי לפעול כראוי.")
-                  : t("Warning: Your Google Sheet's structure version is newer than this application's version. This is an unexpected situation and may cause parts of the app to not function as expected. Please consider updating the application.", "אזהרה: גרסת מבנה הגיליון שלך חדשה יותר מגרסת האפליקציה. זהו מצב לא צפוי ועשוי לגרום לחלקים מהאפליקציה לא לפעול כצפוי.")}
-                <br /><br />
-                {schemaVersionMismatch === 'old' && t("Please perform a 'Setup Sheet' to upgrade the columns and formulas. This will rewrite headers and rebuild live data, but your transaction history is safe (unless columns were removed).", "אנא בצע 'הגדרת גיליון' כדי לשדרג את העמודות והנוסחאות. פעולה זו תכתוב מחדש כותרות ותבנה מחדש נתונים חיים, אך היסטוריית העסקאות שלך בטוחה.")}
+                {t('Your session has expired. Please sign in again to continue.', 'הפעלתך פגה. אנא התחבר מחדש כדי להמשיך.')}
               </DialogContentText>
-            )}
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setSchemaVersionMismatch(null)} color="primary" disabled={rebuilding}>
-              {schemaVersionMismatch === 'old' ? t('Ignore (Risky)', 'התעלם (מסוכן)') : t('Acknowledge', 'אישור')}
-            </Button>
-            {schemaVersionMismatch === 'old' && (
-              <Button onClick={handleSetupSheet} variant="contained" color="primary" autoFocus disabled={rebuilding}>
-                {rebuilding ? t("Updating...", "מעדכן...") : t("Setup Sheet (Upgrade)", "הגדרת גיליון (שדרוג)")}
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={handleReconnect} variant="contained" color="primary" autoFocus>
+                {t('Sign In', 'התחבר')}
               </Button>
-            )}
-          </DialogActions>
-        </Dialog>
-      </Box>
-    </ThemeProvider>
+            </DialogActions>
+          </Dialog>
+
+          {/* Schema Version Dialog */}
+          <Dialog open={!!schemaVersionMismatch} onClose={() => { }}>
+            <DialogTitle>{schemaVersionMismatch === 'old' ? t('Sheet Structure Update Required', 'נדרש עדכון מבנה גיליון') : t('Sheet Structure Mismatch', 'אי-התאמה במבנה הגיליון')}</DialogTitle>
+            <DialogContent>
+              {rebuilding ? (
+                <Box display="flex" flexDirection="column" alignItems="center" py={2}>
+                  <CircularProgress size={40} sx={{ mb: 2 }} />
+                  <DialogContentText align="center">
+                    {t('Updating spreadsheet structure and formulas...', 'מעדכן מבנה גיליון ונוסחאות...')}<br />
+                    {t('Please wait, this may take a few moments.', 'אנא המתן, זה עשוי לקחת מספר רגעים.')}
+                  </DialogContentText>
+                </Box>
+              ) : (
+                <DialogContentText>
+                  {schemaVersionMismatch === 'old'
+                    ? t("Your Google Sheet structure is outdated. A new version of the application requires schema updates to function correctly.", "מבנה הגיליון שלך מיושן. גרסה חדשה של האפליקציה דורשת עדכוני סכמה כדי לפעול כראוי.")
+                    : t("Warning: Your Google Sheet's structure version is newer than this application's version. This is an unexpected situation and may cause parts of the app to not function as expected. Please consider updating the application.", "אזהרה: גרסת מבנה הגיליון שלך חדשה יותר מגרסת האפליקציה. זהו מצב לא צפוי ועשוי לגרום לחלקים מהאפליקציה לא לפעול כצפוי.")}
+                  <br /><br />
+                  {schemaVersionMismatch === 'old' && t("Please perform a 'Setup Sheet' to upgrade the columns and formulas. This will rewrite headers and rebuild live data, but your transaction history is safe (unless columns were removed).", "אנא בצע 'הגדרת גיליון' כדי לשדרג את העמודות והנוסחאות. פעולה זו תכתוב מחדש כותרות ותבנה מחדש נתונים חיים, אך היסטוריית העסקאות שלך בטוחה.")}
+                </DialogContentText>
+              )}
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setSchemaVersionMismatch(null)} color="primary" disabled={rebuilding}>
+                {schemaVersionMismatch === 'old' ? t('Ignore (Risky)', 'התעלם (מסוכן)') : t('Acknowledge', 'אישור')}
+              </Button>
+              {schemaVersionMismatch === 'old' && (
+                <Button onClick={handleSetupSheet} variant="contained" color="primary" autoFocus disabled={rebuilding}>
+                  {rebuilding ? t("Updating...", "מעדכן...") : t("Setup Sheet (Upgrade)", "הגדרת גיליון (שדרוג)")}
+                </Button>
+              )}
+            </DialogActions>
+          </Dialog>
+        </Box>
+      </ThemeProvider>
     </CacheProvider>
   );
 }
