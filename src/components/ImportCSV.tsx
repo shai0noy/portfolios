@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   Box, Button, Typography, TextField, FormControl, InputLabel, Select, MenuItem,
   Dialog, DialogTitle, DialogContent, DialogActions, Table, TableHead, TableRow, TableCell, TableBody, Alert, Stepper, Step, StepLabel,
-  Grid,
+
   Stack,
   RadioGroup,
   Radio,
@@ -479,40 +479,79 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
         )}
 
         {activeStep === 1 && (
-          <Stack spacing={2} sx={{ pt: 1 }}>
-            <Typography gutterBottom>{t('Map CSV Columns to Transaction Fields:', 'התאמת עמודות לשדות:')}</Typography>
-            <Grid container spacing={2}>
-              {['ticker', 'exchange', 'date', 'type', 'qty', 'price', 'commission', 'currency', 'vestDate', 'comment'].map(field => {
-                const fieldLabels: Record<string, { en: string, he: string }> = {
-                  ticker: { en: 'Ticker', he: 'סימול' },
-                  exchange: { en: 'Exchange', he: 'בורסה' },
-                  date: { en: 'Date', he: 'תאריך' },
-                  type: { en: 'Type', he: 'סוג' },
-                  qty: { en: 'Qty', he: 'כמות' },
-                  price: { en: 'Price', he: 'מחיר' },
-                  commission: { en: 'Commission', he: 'עמלה' },
-                  currency: { en: 'Currency', he: 'מטבע' },
-                  vestDate: { en: 'Vest Date', he: 'תאריך הבשלה' },
-                  comment: { en: 'Comment', he: 'הערה' }
-                };
-                const label = t(fieldLabels[field].en, fieldLabels[field].he);
-                return (
-                  <Grid item key={field} xs={12} sm={6} md={4}>
-                    <FormControl fullWidth size="small">
-                      <InputLabel>{label}</InputLabel>
-                      <Select
-                        value={mapping[field]}
-                        label={label}
-                        onChange={e => setMapping(prev => ({ ...prev, [field]: e.target.value }))}
-                      >
-                        <MenuItem value="">-- {t('Ignore', 'התעלם')} --</MenuItem>
-                        {headers.map(h => <MenuItem key={h} value={h}>{h}</MenuItem>)}
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                );
-              })}
-            </Grid>
+          <Stack spacing={3} sx={{ pt: 1 }}>
+            <Typography gutterBottom variant="body2" color="text.secondary">
+              {t('Match the columns from your CSV to the correct fields below. Auto-matched fields are pre-selected.', 'התאם את העמודות מתמונת ה-CSV לשדות מתחת. שדות שזוהו אוטומטית נבחרו מראש.')}
+            </Typography>
+
+            <TableContainer component={Paper} variant="outlined">
+              <Table size="small" sx={{ minWidth: 600 }}>
+                <TableHead>
+                  <TableRow sx={{ bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)' }}>
+                    <TableCell>{t('Target Field', 'שדה יעד')}</TableCell>
+                    <TableCell sx={{ width: '25%' }}>{t('CSV Column', 'עמודה ב-CSV')}</TableCell>
+                    <TableCell sx={{ width: '25%' }}>{t('Data Preview (Row 1)', 'תצוגת נתונים (שורה 1)')}</TableCell>
+                    <TableCell>{t('Description', 'תיאור')}</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {[
+                    { id: 'ticker', labelEn: 'Ticker', labelHe: 'סימול', req: true, descEn: 'Asset symbol (e.g., AAPL)', descHe: 'סימול הנכס (למשל AAPL)' },
+                    { id: 'date', labelEn: 'Date', labelHe: 'תאריך', req: true, descEn: 'Transaction date', descHe: 'תאריך העסקה' },
+                    { id: 'qty', labelEn: 'Quantity', labelHe: 'כמות', req: true, descEn: 'Positive for BUY, Negative for SELL', descHe: 'חיובי לקנייה, שלילי למכירה' },
+                    { id: 'price', labelEn: 'Price', labelHe: 'מחיר', req: true, descEn: 'Price per share/unit', descHe: 'מחיר ליחידה' },
+                    { id: 'exchange', labelEn: 'Exchange', labelHe: 'בורסה', req: false, descEn: 'NASDAQ, TLV, etc.', descHe: 'בורסת המסחר (למשל NASDAQ)' },
+                    { id: 'type', labelEn: 'Type', labelHe: 'סוג פעולה', req: false, descEn: 'BUY, SELL, DIVIDEND, FEE', descHe: 'קנייה, מכירה, דיבידנד או עמלה' },
+                    { id: 'commission', labelEn: 'Commission', labelHe: 'עמלה', req: false, descEn: 'Broker fee / commission', descHe: 'עמלת ברוקר' },
+                    { id: 'currency', labelEn: 'Currency', labelHe: 'מטבע', req: false, descEn: 'Transaction currency (USD, ILS...)', descHe: 'מטבע העסקה' },
+                    { id: 'vestDate', labelEn: 'Vest Date', labelHe: 'תאריך הבשלה', req: false, descEn: 'For RSUs / Options', descHe: 'עבור הבשלת מניות / אופציות' },
+                    { id: 'comment', labelEn: 'Comment', labelHe: 'הערה', req: false, descEn: 'Free text note', descHe: 'הערה חופשית' }
+                  ].map(def => {
+                    const mappedHeader = mapping[def.id];
+                    const mappedIdx = mappedHeader ? headers.indexOf(mappedHeader) : -1;
+                    const previewData = mappedIdx >= 0 && rows.length > 0 ? rows[0][mappedIdx] : '';
+
+                    return (
+                      <TableRow key={def.id} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+                        <TableCell>
+                          <Typography variant="body2" sx={{ fontWeight: def.req ? 'bold' : 'normal', color: def.req ? 'text.primary' : 'text.secondary' }}>
+                            {t(def.labelEn, def.labelHe)}
+                            {def.req && <Typography component="span" color="error" sx={{ fontWeight: 'bold' }}> *</Typography>}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <FormControl fullWidth size="small">
+                            <Select
+                              value={mapping[def.id] || ''}
+                              onChange={e => setMapping(prev => ({ ...prev, [def.id]: e.target.value }))}
+                              displayEmpty
+                              sx={{
+                                bgcolor: 'background.paper',
+                                fontSize: '0.875rem',
+                                color: mapping[def.id] ? 'text.primary' : 'text.disabled'
+                              }}
+                            >
+                              <MenuItem value=""><em>-- {t('Ignore', 'התעלם')} --</em></MenuItem>
+                              {headers.map(h => <MenuItem key={h} value={h}>{h}</MenuItem>)}
+                            </Select>
+                          </FormControl>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" color={previewData ? 'text.primary' : 'text.disabled'} sx={{ fontFamily: 'monospace', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {previewData || '-'}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="caption" color="text.secondary">
+                            {t(def.descEn, def.descHe)}
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </TableContainer>
 
             {mapping.exchange ? (
               <Alert severity="success" sx={{ mt: 2 }}>
