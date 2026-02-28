@@ -51,7 +51,7 @@ const MoverItem = ({ mover, navigate, displayCurrency }: { mover: Mover, navigat
 
             <Box display="flex" alignItems="baseline" justifyContent="space-between">
                 <Typography variant="body2" fontWeight="500" color={color}>
-                    {formatMoneyValue({ amount: mover.change, currency: normalizeCurrency(displayCurrency) }, undefined)}
+                    {formatMoneyValue({ amount: mover.change, currency: normalizeCurrency(displayCurrency) }, undefined, Math.abs(mover.change) > 9999 ? 0 : 2)}
                 </Typography>
                 <Typography variant="caption" color={color} sx={{ fontWeight: 'bold', opacity: 0.9 }}>
                     {formatPercent(mover.pct, true)}

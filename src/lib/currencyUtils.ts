@@ -203,10 +203,10 @@ export function convertMoney(money: SimpleMoney | undefined, targetCurrency: str
   return { amount, currency: target };
 }
 
-export function formatMoneyValue(m: SimpleMoney | undefined, t?: any): string {
+export function formatMoneyValue(m: SimpleMoney | undefined, t?: any, decimals = 2): string {
   if (!m) return '-';
   // Use formatValue default
-  return formatValue(m.amount, m.currency, 2, t);
+  return formatValue(m.amount, m.currency, decimals, t);
 }
 
 export function formatMoneyPrice(m: SimpleMoney | undefined, t?: any): string {
