@@ -301,7 +301,7 @@ export const fetchPortfolios = withAuthHandling(async (spreadsheetId: string): P
 
     // 2. Process Transactions (Logic copied from fetchTransactions to avoid re-fetch, but reusing the mapper)
     const transactions = transactionRows.map((row: unknown[]) =>
-        mapRowToTransaction<Omit<Transaction, 'grossValue'>>(row as any[], transactionMapping, transactionNumericKeys)
+        mapRowToTransaction<Transaction>(row as any[], transactionMapping, transactionNumericKeys)
     ).map((t) => {
         const cleanNumber = (val: unknown) => {
             if (typeof val === 'number') return val;
@@ -319,8 +319,7 @@ export const fetchPortfolios = withAuthHandling(async (spreadsheetId: string): P
         return {
             ...txn,
             qty: cleanNumber(txn.splitAdjustedQty || txn.originalQty),
-            price: cleanNumber(txn.splitAdjustedPrice || txn.originalPrice),
-            grossValue: cleanNumber(txn.originalQty) * cleanNumber(txn.originalPrice)
+            price: cleanNumber(txn.splitAdjustedPrice || txn.originalPrice)
         };
     });
 
@@ -399,7 +398,7 @@ export const fetchTransactions = withAuthHandling(async (spreadsheetId: string):
     const transactionsRaw = await fetchSheetData(
         spreadsheetId, TX_FETCH_RANGE,
         (row, index) => {
-            const t = mapRowToTransaction<Omit<Transaction, 'grossValue'>>(row, transactionMapping, transactionNumericKeys) as any;
+            const t = mapRowToTransaction<Transaction>(row, transactionMapping, transactionNumericKeys) as any;
             t.rowIndex = index + 2;
             return t;
         },
@@ -413,22 +412,21 @@ export const fetchTransactions = withAuthHandling(async (spreadsheetId: string):
             return parseFloat(String(val).replace(/[^0-9.-]+/g, ""));
         };
 
-        if (t.exchange) {
-            t.exchange = parseExchange(String(t.exchange));
-        } else {
-            t.exchange = undefined;
-        }
+    if (t.exchange) {
+        t.exchange = parseExchange(String(t.exchange));
+    } else {
+        t.exchange = undefined;
+    }
 
-        if (t.type) {
-            t.type = String(t.type).trim().toUpperCase() as TransactionType;
-        }
+    if (t.type) {
+        t.type = String(t.type).trim().toUpperCase() as TransactionType;
+    }
 
-        return {
-            ...t,
-            qty: cleanNumber(t.splitAdjustedQty || t.originalQty),
-            price: cleanNumber(t.splitAdjustedPrice || t.originalPrice),
-            grossValue: cleanNumber(t.originalQty) * cleanNumber(t.originalPrice)
-        } as Transaction;
+    return {
+        ...t,
+        qty: cleanNumber(t.splitAdjustedQty || t.originalQty),
+        price: cleanNumber(t.splitAdjustedPrice || t.originalPrice)
+    } as Transaction;
     }).filter(t => t.date && t.portfolioId && t.ticker);
 });
 

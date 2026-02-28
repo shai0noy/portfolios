@@ -129,14 +129,12 @@ export async function calculatePortfolioPerformance(
                 }
             }
 
-            // Calculate Value: Prefer grossValue, fallback to qty*price, or price if div/fee with 0 qty
-            let tValue = t.grossValue || 0;
-            if (!tValue) {
-                if ((t.type === 'DIVIDEND' || t.type === 'FEE') && Math.abs(tQty) < 1e-9) {
-                    tValue = tPrice;
-                } else {
-                    tValue = tQty * tPrice;
-                }
+            // Calculate Value: fallback to price if div/fee with 0 qty
+            let tValue = 0;
+            if ((t.type === 'DIVIDEND' || t.type === 'FEE') && Math.abs(tQty) < 1e-9) {
+                tValue = tPrice;
+            } else {
+                tValue = tQty * tPrice;
             }
 
             // Helper to get transaction value in Display Currency using Historical Data if available

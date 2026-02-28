@@ -446,7 +446,7 @@ export class FinanceEngine {
                 if (live.dividends && Array.isArray(live.dividends)) {
                     const oneYearAgo = new Date();
                     oneYearAgo.setUTCFullYear(oneYearAgo.getUTCFullYear() - 1);
-                    const lastYearDivs = live.dividends.reduce((sum, d) => {
+                    const lastYearDivs = live.dividends.reduce((sum: number, d: any) => {
                         return new Date(d.date) >= oneYearAgo ? sum + (d.amount || 0) : sum;
                     }, 0);
                     if (lastYearDivs > 0 && (h.currentPrice || 0) > 0) {

@@ -49,7 +49,7 @@ export interface Money extends SimpleMoney {
 
 
 const EXCHANGES = [
-  'NASDAQ', 'NYSE', 'TASE', 'LSE', 'FWB',
+  'NASDAQ', 'NYSE', 'NYSEARCA', 'TASE', 'LSE', 'FWB',
   'EURONEXT', 'JPX', 'HKEX', 'TSX', 'ASX', 'GEMEL', 'PENSION',
   'FOREX', 'CBS',
 ] as const;
@@ -76,9 +76,15 @@ export const EXCHANGE_SETTINGS: Record<Exchange, ExchangeSettings> = {
     yahooFinanceSuffix: ''
   },
   [Exchange.NYSE]: {
-    aliases: ['XNYS', 'ARCA', 'WCB', 'ASE', 'AMEX', 'NYQ'],
+    aliases: ['XNYS', 'WCB', 'ASE', 'AMEX', 'NYQ'],
     googleFinanceCode: 'NYSE',
     googleSheetsCode: 'NYSE',
+    yahooFinanceSuffix: ''
+  },
+  [Exchange.NYSEARCA]: {
+    aliases: ['ARCA'],
+    googleFinanceCode: 'NYSEARCA',
+    googleSheetsCode: 'NYSEARCA',
     yahooFinanceSuffix: ''
   },
   [Exchange.TASE]: {
@@ -158,7 +164,7 @@ export const EXCHANGE_SETTINGS: Record<Exchange, ExchangeSettings> = {
 export function isUSExchange(exchange: Exchange | string): boolean {
   if (!exchange) return false;
   const ex = exchange.toString().toUpperCase();
-  return ex === 'NASDAQ' || ex === 'NYSE';
+  return ex === 'NASDAQ' || ex === 'NYSE' || ex === 'NYSEARCA';
 }
 
 
@@ -460,7 +466,6 @@ export interface Transaction {
   originalPrice: number;
   qty?: number;
   price?: number;
-  grossValue?: number;
   currency?: Currency;
   vestDate?: string;
   comment?: string;

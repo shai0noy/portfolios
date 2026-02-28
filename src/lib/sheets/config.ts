@@ -96,18 +96,7 @@ export const TXN_COLS: TransactionColumns = {
         colName: 'Numeric_ID',
         colId: 'U',
         numeric: true
-    },
-    grossValue: {
-        key: 'grossValue',
-        colName: 'Gross_Value',
-        colId: 'V',
-        numeric: true,
-        formula: (rowNum, cols) => {
-            const exchange = `${cols.exchange.colId}${rowNum}`;
-            const ticker = `${cols.ticker.colId}${rowNum}`;
-            return `=IFERROR(GOOGLEFINANCE(${exchange}&":"&${ticker})*${cols.splitAdjustedQty.colId}${rowNum})`;
-        }
-    },
+    }
 };
 
 export const transactionHeaders = Object.values(TXN_COLS)
@@ -116,16 +105,16 @@ export const transactionHeaders = Object.values(TXN_COLS)
         return lenDiff !== 0 ? lenDiff : a.colId.localeCompare(b.colId);
     })
     .map(c => c.colName) as unknown as readonly string[];
-export const transactionMapping: Record<keyof Omit<Transaction, 'grossValue'>, string> =
+export const transactionMapping: Record<keyof Transaction, string> =
     Object.keys(TXN_COLS).reduce((acc, key) => {
         const k = key as import('./types').TxnKey;
         if (TXN_COLS[k]) {
             (acc as any)[k] = TXN_COLS[k].colName;
         }
         return acc;
-    }, {} as Record<keyof Omit<Transaction, 'grossValue'>, string>);
+    }, {} as Record<keyof Transaction, string>);
 
-export const transactionNumericKeys = Object.keys(TXN_COLS).filter(key => TXN_COLS[key as import('./types').TxnKey].numeric).map(key => key) as unknown as (keyof Omit<Transaction, 'grossValue'>)[];
+export const transactionNumericKeys = Object.keys(TXN_COLS).filter(key => TXN_COLS[key as import('./types').TxnKey].numeric).map(key => key) as unknown as (keyof Transaction)[];
 
 // --- Canonical Headers & Ranges ---
 
