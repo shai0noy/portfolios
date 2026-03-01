@@ -1130,12 +1130,12 @@ export const rebuildHoldingsSheet = withAuthHandling(async (spreadsheetId: strin
         const cachedMeta: any = {
             ticker,
             exchange,
-            name: row[6] === 'Loading...' ? undefined : row[6],
-            nameHe: row[7],
-            sector: row[8],
-            type: row[9] ? new InstrumentClassification(row[9]) : undefined,
-            numericId: row[19] ? Number(row[19]) : null,
-            recentChangeDays: row[20] ? Number(row[20]) : 7
+            name: row[5] === 'Loading...' ? undefined : row[5],
+            nameHe: undefined, // Force refresh from API to fix misalignment
+            sector: undefined, // Force refresh from API
+            type: undefined,   // Force refresh from API
+            numericId: row[18] ? Number(row[18]) : null,
+            recentChangeDays: row[19] ? Number(row[19]) : 7
         };
 
         if (cachedMeta.name && cachedMeta.name.trim() !== '') {
@@ -1170,24 +1170,32 @@ export const rebuildHoldingsSheet = withAuthHandling(async (spreadsheetId: strin
         const cacheKey = `${h.ticker.toUpperCase()}:${h.exchange}`;
         let meta: TickerData | null | undefined = metadataCache.get(cacheKey);
 
-        if (meta) {
-            if (h.numericId && !meta.numericId) {
-                meta.numericId = h.numericId;
+        // If meta matches but is incomplete (missing hebrew name or sector due to our force-refresh above), fetch it.
+        if (meta && (!meta.nameHe || !meta.sector)) {
+            try {
+                const fresh = await getTickerData(h.ticker, h.exchange, h.numericId);
+                if (fresh) {
+                    meta = { ...meta, ...fresh };
+                    // Preserve any overrides if necessary, but here we prefer API
+                }
+            } catch (e) {
+                console.warn("Failed to refresh metadata for " + h.ticker, e);
             }
-        } else {
+        } else if (!meta) {
             try {
                 meta = await getTickerData(h.ticker, h.exchange, h.numericId);
-                if (meta?.dividends && meta.dividends.length > 0) {
-                    dividendsToSync.push({
-                        ticker: h.ticker,
-                        exchange: h.exchange,
-                        dividends: meta.dividends,
-                        source: 'YAHOO'
-                    });
-                }
             } catch (e) {
                 console.warn("Failed to fetch metadata for " + h.ticker, e);
             }
+        }
+
+        if (meta?.dividends && meta.dividends.length > 0) {
+            dividendsToSync.push({
+                ticker: h.ticker,
+                exchange: h.exchange,
+                dividends: meta.dividends,
+                source: 'YAHOO'
+            });
         }
 
         return { h, meta: meta || null };
