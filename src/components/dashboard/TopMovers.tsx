@@ -14,6 +14,17 @@ import { useNavigate } from 'react-router-dom';
 const MoverItem = ({ mover, navigate, displayCurrency }: { mover: Mover, navigate: any, displayCurrency: string }) => {
     const isPositive = mover.change >= 0;
     const color = isPositive ? 'success.main' : 'error.main';
+    let displayTicker = mover.ticker;
+    const isNumericOrF = /^\d+$/.test(mover.ticker) || (mover.exchange === 'TASE' && /\.?[Ff]\d+$/.test(mover.ticker));
+
+    if (isNumericOrF) {
+        const potentialName = mover.holding.nameHe || mover.holding.longName || mover.holding.displayName || mover.name;
+        if (potentialName && potentialName !== mover.ticker) {
+            displayTicker = potentialName;
+        }
+    }
+
+    const tooltipTitle = mover.holding.nameHe || mover.holding.longName || mover.holding.displayName || mover.name || mover.ticker;
 
     return (
         <Paper
@@ -38,10 +49,12 @@ const MoverItem = ({ mover, navigate, displayCurrency }: { mover: Mover, navigat
             }}
         >
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={0.5}>
-                <Tooltip title={mover.name} enterTouchDelay={0} leaveTouchDelay={3000}>
-                    <Typography variant="body2" fontWeight="bold" noWrap sx={{ maxWidth: 80 }}>
-                        {mover.ticker}
-                    </Typography>
+                <Tooltip title={tooltipTitle} enterTouchDelay={0} leaveTouchDelay={3000} arrow>
+                    <Box sx={{ maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <Typography component="span" variant="body2" fontWeight="bold">
+                            {displayTicker}
+                        </Typography>
+                    </Box>
                 </Tooltip>
                 {isPositive ?
                     <TrendingUpIcon fontSize="small" color="success" sx={{ opacity: 0.8, fontSize: '1rem' }} /> :
@@ -51,7 +64,7 @@ const MoverItem = ({ mover, navigate, displayCurrency }: { mover: Mover, navigat
 
             <Box display="flex" alignItems="baseline" justifyContent="space-between">
                 <Typography variant="body2" fontWeight="500" color={color}>
-                    {formatMoneyValue({ amount: mover.change, currency: normalizeCurrency(displayCurrency) }, undefined, Math.abs(mover.change) > 9999 ? 0 : 2)}
+                    {formatMoneyValue({ amount: mover.change, currency: normalizeCurrency(displayCurrency) }, undefined, Math.abs(mover.change) >= 1000 ? 0 : 2)}
                 </Typography>
                 <Typography variant="caption" color={color} sx={{ fontWeight: 'bold', opacity: 0.9 }}>
                     {formatPercent(mover.pct, true)}

@@ -134,6 +134,9 @@ export async function fetchYahooTickerData(
   if (exchange === Exchange.GEMEL || exchange === Exchange.PENSION || exchange === Exchange.CBS) {
     return null;
   }
+  if (exchange === Exchange.TASE && ticker.includes('.')) {
+    return null;
+  }
 
   const now = Date.now();
   const cacheKey = `yahoo:quote:v4:${exchange}:${ticker}:${range}`;
