@@ -412,21 +412,21 @@ export const fetchTransactions = withAuthHandling(async (spreadsheetId: string):
             return parseFloat(String(val).replace(/[^0-9.-]+/g, ""));
         };
 
-    if (t.exchange) {
-        t.exchange = parseExchange(String(t.exchange));
-    } else {
-        t.exchange = undefined;
-    }
+        if (t.exchange) {
+            t.exchange = parseExchange(String(t.exchange));
+        } else {
+            t.exchange = undefined;
+        }
 
-    if (t.type) {
-        t.type = String(t.type).trim().toUpperCase() as TransactionType;
-    }
+        if (t.type) {
+            t.type = String(t.type).trim().toUpperCase() as TransactionType;
+        }
 
-    return {
-        ...t,
-        qty: cleanNumber(t.splitAdjustedQty || t.originalQty),
-        price: cleanNumber(t.splitAdjustedPrice || t.originalPrice)
-    } as Transaction;
+        return {
+            ...t,
+            qty: cleanNumber(t.splitAdjustedQty || t.originalQty),
+            price: cleanNumber(t.splitAdjustedPrice || t.originalPrice)
+        } as Transaction;
     }).filter(t => t.date && t.portfolioId && t.ticker);
 });
 
@@ -607,7 +607,6 @@ function createHoldingRow(h: HoldingNonGeneratedData & { qty: number }, meta: Ti
     row[16] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-60)")})-1, "")`; // Change_5Y
     row[17] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-120)")})-1, "")`; // Change_10Y
     row[18] = h.numericId || '';
-    row[19] = meta?.recentChangeDays || 7;
     return row;
 }
 
@@ -1134,8 +1133,7 @@ export const rebuildHoldingsSheet = withAuthHandling(async (spreadsheetId: strin
             nameHe: undefined, // Force refresh from API to fix misalignment
             sector: undefined, // Force refresh from API
             type: undefined,   // Force refresh from API
-            numericId: row[18] ? Number(row[18]) : null,
-            recentChangeDays: row[19] ? Number(row[19]) : 7
+            numericId: row[18] ? Number(row[18]) : null
         };
 
         if (cachedMeta.name && cachedMeta.name.trim() !== '') {
