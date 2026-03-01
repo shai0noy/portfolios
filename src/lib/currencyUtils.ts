@@ -193,6 +193,37 @@ export function formatPrice(n: number, currency: string | Currency, decimals = 2
   }
 }
 
+/**
+ * Formats a value using compact notation (K, M, etc.) for large numbers.
+ * Useful for chart axes and summary stats.
+ */
+export function formatCompactPrice(n: number, currency: string | Currency, t?: (key: string, fallback: string) => string): string {
+  if (n === undefined || n === null || isNaN(n)) return '-';
+
+  // For small values, use standard pricing format
+  if (Math.abs(n) < 1000) {
+    return formatPrice(n, currency, 0, t);
+  }
+
+  const norm = normalizeCurrency(currency as string);
+
+  if (norm === Currency.ILA) {
+    return formatPrice(n, currency, 0, t);
+  }
+
+  try {
+    return LTR_MARK + new Intl.NumberFormat(['en-US', 'en'], {
+      style: 'currency',
+      currency: norm,
+      notation: 'compact',
+      compactDisplay: 'short',
+      maximumFractionDigits: 1,
+    }).format(n);
+  } catch (e) {
+    return formatPrice(n, currency, 0, t);
+  }
+}
+
 // Helpers for SimpleMoney
 import type { SimpleMoney } from './types';
 

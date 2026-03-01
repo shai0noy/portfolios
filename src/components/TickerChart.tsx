@@ -1,6 +1,6 @@
 import { ResponsiveContainer, AreaChart, Area, Line, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceDot, ReferenceLine, ComposedChart, Bar } from 'recharts';
 import { useLanguage } from '../lib/i18n';
-import { formatPrice, formatPercent } from '../lib/currency';
+import { formatPrice, formatPercent, formatCompactPrice } from '../lib/currency';
 import { Paper, Typography, Box } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -607,7 +607,7 @@ export function TickerChart({ series, currency, mode = 'percent', height = 300, 
 
     const formatYAxis = useCallback((tick: number) => {
         if (currentMode === 'price' || currentMode === 'candle') {
-            return formatPrice(tick, currency, 0, t);
+            return formatCompactPrice(tick, currency, t);
         }
         const range = yMax - yMin;
         const decimals = range > 0.1 ? 0 : 1;
@@ -788,9 +788,6 @@ export function TickerChart({ series, currency, mode = 'percent', height = 300, 
     const clampedOffset = Math.max(0, Math.min(1, offset));
 
     const yTicks = useMemo(() => {
-        // If 0 is not in the visible range, let Recharts handle ticks automatically
-        if (yMin > 0 || yMax < 0) return undefined;
-
         // If 0 is in range, we want to ensure a tick at 0
         const range = yMax - yMin;
         if (range === 0) return [0];

@@ -62,7 +62,7 @@ export function getYahooTickerCandidates(ticker: string, exchange: Exchange, gro
 
   // 3. Reject numeric-only symbols for stocks early.
   const isNumeric = /^\d+$/.test(u);
-  if (isNumeric && (exchange !== Exchange.TASE || group !== InstrumentGroup.INDEX)) {
+  if (isNumeric && (exchange !== Exchange.TASE && group !== InstrumentGroup.INDEX)) {
     return [];
   }
 
