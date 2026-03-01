@@ -1,3 +1,4 @@
+import { interpolateSparseHistory } from './utils/interpolate';
 // src/lib/fetching/index.ts
 import { fetchGlobesStockQuote } from './globes';
 import { fetchYahooTickerData } from './yahoo';
@@ -76,8 +77,8 @@ function combineHistory(histShort: { date: Date; price: number }[] | undefined, 
   const hMax = histMax || [];
 
   if (hShort.length === 0 && hMax.length === 0) return undefined;
-  if (hShort.length === 0) return hMax;
-  if (hMax.length === 0) return hShort;
+  if (hShort.length === 0) return interpolateSparseHistory(hMax);
+  if (hMax.length === 0) return interpolateSparseHistory(hShort);
 
   // Assume hMax covers the full range but might be lower resolution.
   // We want to use hShort (e.g. 5y daily) for the recent period and hMax for older data.
@@ -88,7 +89,7 @@ function combineHistory(histShort: { date: Date; price: number }[] | undefined, 
   const olderData = hMax.filter(p => p.date.getTime() < shortStartDate);
 
   const combined = [...olderData, ...hShort];
-  return combined.sort((a, b) => a.date.getTime() - b.date.getTime());
+  return interpolateSparseHistory(combined.sort((a, b) => a.date.getTime() - b.date.getTime()));
 }
 
 export async function getTickerData(
@@ -133,17 +134,17 @@ export async function getTickerData(
 
   // GEMEL has its own dedicated fetcher
   if (parsedExchange === Exchange.GEMEL) {
-    return fetchGemelnetQuote(tickerNum, signal, forceRefresh);
+    return fetchGemelnetQuote(tickerNum, signal, forceRefresh).then((data: any) => data ? { ...data, historical: interpolateSparseHistory(data.historical) } : data);
   }
 
   // PENSION has its own dedicated fetcher
   if (parsedExchange === Exchange.PENSION) {
-    return fetchPensyanetQuote(tickerNum, signal, forceRefresh);
+    return fetchPensyanetQuote(tickerNum, signal, forceRefresh).then((data: any) => data ? { ...data, historical: interpolateSparseHistory(data.historical) } : data);
   }
 
   // CBS has its own dedicated fetcher
   if (parsedExchange === Exchange.CBS) {
-    return fetchCpi(tickerNum, signal);
+    return fetchCpi(tickerNum, signal).then((data: any) => data ? { ...data, historical: interpolateSparseHistory(data.historical) } : data);
   }
 
   const profile = await profileLookupPromise;
@@ -312,17 +313,17 @@ export async function fetchTickerHistory(
 
   if (exchange === Exchange.GEMEL) {
     const data = await fetchGemelnetQuote(tickerNum, signal, forceRefresh);
-    return { historical: data?.historical, dividends: data?.dividends, splits: data?.splits, fromCache: data?.fromCache, fromCacheMax: data?.fromCacheMax };
+    return { historical: interpolateSparseHistory(data?.historical), dividends: data?.dividends, splits: data?.splits, fromCache: data?.fromCache, fromCacheMax: data?.fromCacheMax };
   }
 
   if (exchange === Exchange.PENSION) {
     const data = await fetchPensyanetQuote(tickerNum, signal, forceRefresh);
-    return { historical: data?.historical, dividends: data?.dividends, splits: data?.splits, fromCache: data?.fromCache, fromCacheMax: data?.fromCacheMax };
+    return { historical: interpolateSparseHistory(data?.historical), dividends: data?.dividends, splits: data?.splits, fromCache: data?.fromCache, fromCacheMax: data?.fromCacheMax };
   }
 
   if (exchange === Exchange.CBS) {
     const data = await fetchCpi(tickerNum, signal);
-    return { historical: data?.historical, fromCache: data?.fromCache, fromCacheMax: data?.fromCacheMax };
+    return { historical: interpolateSparseHistory(data?.historical), fromCache: data?.fromCache, fromCacheMax: data?.fromCacheMax };
   }
 
   // Lookup profile to determine group for smart fetching

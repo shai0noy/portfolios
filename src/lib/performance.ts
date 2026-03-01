@@ -1,3 +1,4 @@
+import { interpolateSparseHistory } from './fetching/utils/interpolate';
 // src/lib/performance.ts
 import { fetchTickerHistory } from './fetching';
 import { convertCurrency } from './currency';
@@ -73,7 +74,7 @@ export function synthesizeHistory(holding: DashboardHolding | undefined, tickerD
         }
     });
 
-    return deduped;
+    return interpolateSparseHistory(deduped) as { date: Date, adjClose: number, price: number }[];
 }
 
 /**
