@@ -10,6 +10,7 @@ import { useLanguage } from '../i18n';
 import { getOwnedInPortfolios } from '../portfolioUtils';
 import type { Dividend } from '../fetching/types';
 import { Currency } from '../types';
+import { synthesizeHistory } from '../performance';
 
 export interface TickerDetailsProps {
     sheetId: string;
@@ -164,7 +165,12 @@ export const useTickerDetails = ({ sheetId, ticker: propTicker, exchange: propEx
             await clearAllCache();
             await fetchData(true);
             const historyResponse = await fetchTickerHistory(ticker, exchange, undefined, true);
-            setHistoricalData(historyResponse?.historical || []);
+            let hist = historyResponse?.historical || [];
+                if (hist.length === 0) {
+                    hist = synthesizeHistory(holdingData as any, historyResponse, []);
+                    if (historyResponse) historyResponse.historical = hist;
+                }
+                setHistoricalData(hist);
             setData(prev => {
                 if (!prev) return null;
                 return {
@@ -208,7 +214,12 @@ export const useTickerDetails = ({ sheetId, ticker: propTicker, exchange: propEx
                 fetchTickerHistory(ticker, exchange),
                 fetchDividends(sheetId, ticker, exchange)
             ]).then(([historyResponse, sheetDividends]) => {
-                setHistoricalData(historyResponse?.historical || []);
+                let hist = historyResponse?.historical || [];
+                if (hist.length === 0) {
+                    hist = synthesizeHistory(holdingData as any, historyResponse, []);
+                    if (historyResponse) historyResponse.historical = hist;
+                }
+                setHistoricalData(hist);
                 setData(prev => {
                     if (!prev && !historyResponse) return null;
                     return {

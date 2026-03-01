@@ -934,7 +934,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
               <Typography variant="h6" gutterBottom>
                 {t('Search ticker to buy or sell', 'חפש נייר לקנייה או מכירה')}
               </Typography>
-              <TickerSearch
+              <TickerSearch trackingLists={[]}
                 onTickerSelect={handleTickerSelect}
                 portfolios={portfolios}
                 isPortfoliosLoading={isPortfoliosLoading}
@@ -1229,7 +1229,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                           <Box sx={{ border: '1px dashed grey', p: 1, borderRadius: 1 }}>
                             <Typography variant="subtitle2" gutterBottom>{t('Switch To (Target Asset):', 'החלף ל (נכס יעד):')}</Typography>
                             {!buyTicker ? (
-                              <TickerSearch
+                              <TickerSearch trackingLists={[]}
                                 onTickerSelect={(p) => {
                                   setLoading(true);
                                   getTickerData(p.symbol, p.exchange, p.securityId ?? null).then(d => {

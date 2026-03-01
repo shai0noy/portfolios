@@ -11,6 +11,71 @@ export interface PerformancePoint {
     twr: number;
 }
 
+
+
+export function synthesizeHistory(holding: DashboardHolding | undefined, tickerData: any, txns: Transaction[]): { date: Date, adjClose: number, price: number }[] {
+    const points: { date: Date, adjClose: number, price: number }[] = [];
+
+    // Add transaction prices mapping to date
+    txns.forEach(t => {
+        const d = new Date(t.date);
+        d.setUTCHours(0, 0, 0, 0);
+        points.push({ date: d, adjClose: t.price || 0, price: t.price || 0 });
+    });
+
+    const cp = tickerData?.price || holding?.currentPrice;
+
+    if (cp > 0) {
+        const now = new Date();
+        now.setUTCHours(0, 0, 0, 0);
+        points.push({ date: now, adjClose: cp, price: cp });
+
+        const addPast = (pct: number | undefined, targetDate: Date) => {
+            if (pct !== undefined && pct !== null) {
+                const priceTarget = cp / (1 + pct);
+                points.push({ date: targetDate, adjClose: priceTarget, price: priceTarget });
+            }
+        };
+
+        const d1w = new Date(now); d1w.setUTCDate(d1w.getUTCDate() - 7);
+        const d1m = new Date(now); d1m.setUTCMonth(d1m.getUTCMonth() - 1);
+        const d3m = new Date(now); d3m.setUTCMonth(d3m.getUTCMonth() - 3);
+        const dytd = new Date(now); dytd.setUTCMonth(0, 1); dytd.setUTCHours(0, 0, 0, 0);
+        const d1y = new Date(now); d1y.setUTCFullYear(d1y.getUTCFullYear() - 1);
+        const d3y = new Date(now); d3y.setUTCFullYear(d3y.getUTCFullYear() - 3);
+        const d5y = new Date(now); d5y.setUTCFullYear(d5y.getUTCFullYear() - 5);
+
+        addPast(tickerData?.changePctRecent || holding?.tickerChangePct1w, d1w);
+        addPast(tickerData?.changePct1m || holding?.tickerChangePct1m, d1m);
+        addPast(tickerData?.changePct3m || holding?.tickerChangePct3m, d3m);
+        addPast(tickerData?.changePctYtd || holding?.tickerChangePctYtd, dytd);
+        addPast(tickerData?.changePct1y || holding?.tickerChangePct1y, d1y);
+        addPast(tickerData?.changePct3y || holding?.tickerChangePct3y, d3y);
+        addPast(tickerData?.changePct5y || holding?.tickerChangePct5y, d5y);
+    }
+
+    if (points.length === 0) return [];
+
+    points.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+    const deduped: { date: Date, adjClose: number, price: number }[] = [];
+    points.forEach(p => {
+        if (deduped.length === 0) {
+            deduped.push(p);
+        } else {
+            const last = deduped[deduped.length - 1];
+            if (last.date.getTime() === p.date.getTime()) {
+                last.adjClose = p.adjClose;
+                last.price = p.price;
+            } else {
+                deduped.push(p);
+            }
+        }
+    });
+
+    return deduped;
+}
+
 /**
  * Computes historical portfolio performance (Market Value and Gains) over time.
  */
@@ -33,6 +98,7 @@ export async function calculatePortfolioPerformance(
     const relevantPortIds = new Set([...holdings.map(h => h.portfolioId), ...effectiveTxns.map(t => t.portfolioId)]);
     const sortedTxns = effectiveTxns
         .filter(t => relevantPortIds.has(t.portfolioId))
+        .filter(t => t.date && !isNaN(new Date(t.date).getTime())) // Skip invalid dates
         .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     if (sortedTxns.length === 0) return { points: [], historyMap: new Map() };
@@ -51,8 +117,23 @@ export async function calculatePortfolioPerformance(
             .catch(() => ({ key: `${info.exchange}:${info.ticker}`, data: null }))
     ));
 
+
     const historyMap = new Map<string, any>();
-    histories.forEach(h => historyMap.set(h.key, h.data));
+    histories.forEach(h => {
+        let historical = h.data?.historical;
+        if (!historical || historical.length === 0) {
+            const [ex, tic] = h.key.split(':');
+            const holding = holdings.find(hd => hd.ticker === tic && hd.exchange === ex);
+            const myTxns = sortedTxns.filter(t => t.ticker === tic && t.exchange === ex && t.type !== 'DIVIDEND' && t.type !== 'FEE' && (t.price || 0) > 0);
+            const synth = synthesizeHistory(holding, h.data, myTxns);
+            if (synth.length > 0) {
+                if (!h.data) h.data = {} as any;
+                h.data!.historical = synth;
+            }
+        }
+        historyMap.set(h.key, h.data);
+    });
+
 
     // 2. Build a unique set of all dates across all histories
     const allTimestamps = new Set<number>();
@@ -73,7 +154,22 @@ export async function calculatePortfolioPerformance(
     const firstTxnDate = fDate.getTime();
     const activeTimestamps = sortedTimestamps.filter(ts => ts >= firstTxnDate);
 
-    if (activeTimestamps.length === 0) return { points: [], historyMap: new Map() };
+    // If activeTimestamps is empty (e.g., only bought today and no history yet),
+    // or if the latest timestamp doesn't cover today, ensure today is in the timeline
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    const todayTs = today.getTime();
+
+    if (activeTimestamps.length === 0 || activeTimestamps[activeTimestamps.length - 1] < todayTs) {
+        if (todayTs >= firstTxnDate) {
+            activeTimestamps.push(todayTs);
+        }
+    }
+
+    if (activeTimestamps.length === 0) {
+        // Fallback: at least show the purchase date
+        activeTimestamps.push(firstTxnDate);
+    }
 
     // 4. Time-series aggregation
     const points: PerformancePoint[] = [];

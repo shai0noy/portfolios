@@ -1,4 +1,4 @@
-import { ResponsiveContainer, AreaChart, Area, Line, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceDot, ReferenceLine, ComposedChart, Bar, Cell } from 'recharts';
+import { ResponsiveContainer, AreaChart, Area, Line, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceDot, ReferenceLine, ComposedChart, Bar } from 'recharts';
 import { useLanguage } from '../lib/i18n';
 import { formatPrice, formatPercent } from '../lib/currency';
 import { Paper, Typography, Box } from '@mui/material';
@@ -26,7 +26,7 @@ interface ChartPoint {
     adjClose?: number;
     yValue: number;
     highlightedY?: number;
-    [key: string]: any; 
+    [key: string]: any;
 }
 
 interface CustomTooltipProps {
@@ -153,8 +153,8 @@ const CustomTooltip = ({ active, payload, currency, t, basePrice, isComparison, 
                                     </Box>
                                     <Box sx={{ textAlign: 'right', display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
                                         <Typography variant="caption" sx={{ fontWeight: 'bold' }}>
-                                            {(value !== null && value !== undefined) 
-                                                ? (mode === 'percent' ? formatPercent(value) : formatPrice(value, currency, undefined, t)) 
+                                            {(value !== null && value !== undefined)
+                                                ? (mode === 'percent' ? formatPercent(value) : formatPrice(value, currency, undefined, t))
                                                 : 'N/A'}
                                             {index === 0 && (
                                                 <Box component="span" sx={{ opacity: 0.6, ml: 0.5, fontSize: '0.65rem', fontWeight: 'normal' }}>
@@ -163,8 +163,8 @@ const CustomTooltip = ({ active, payload, currency, t, basePrice, isComparison, 
                                             )}
                                         </Typography>
                                         {diff !== undefined && !isNaN(diff) && (
-                                            <Typography variant="caption" sx={{ 
-                                                fontSize: '0.65rem', 
+                                            <Typography variant="caption" sx={{
+                                                fontSize: '0.65rem',
                                                 opacity: 0.7,
                                                 fontWeight: 500
                                             }}>
@@ -179,7 +179,7 @@ const CustomTooltip = ({ active, payload, currency, t, basePrice, isComparison, 
                 </Paper>
             );
         }
-        
+
         const val = point.adjClose || point.price;
         const percentChange = basePrice ? (val / basePrice - 1) : 0;
 
@@ -202,7 +202,7 @@ const CustomTooltip = ({ active, payload, currency, t, basePrice, isComparison, 
     return null;
 };
 
-const CandleTooltip = ({ active, payload, currency, t, mode }: any) => {
+const CandleTooltip = ({ active, payload, currency, t }: any) => {
     if (active && payload && payload.length) {
         // Find the payload with the candle data (source data)
         const point = payload[0].payload;
@@ -293,7 +293,7 @@ const SelectionSummary = ({ startPoint, endPoint, currency, t, isComparison, ser
         const changes = series.map((s: ChartSeries, index: number) => {
             let startVal: number | undefined;
             let endVal: number | undefined;
-            
+
             if (index === 0) { // Main series
                 startVal = startPoint.yValue;
                 endVal = endPoint.yValue;
@@ -310,7 +310,7 @@ const SelectionSummary = ({ startPoint, endPoint, currency, t, isComparison, ser
             if (startVal === undefined || endVal === undefined || startVal === null || endVal === null) {
                 return { name: s.name, change: NaN, color: index === 0 ? mainLineColor : s.color };
             }
-            
+
             let change: number;
             if (mode === 'percent') {
                 change = (1 + endVal) / (1 + startVal) - 1;
@@ -354,8 +354,8 @@ const SelectionSummary = ({ startPoint, endPoint, currency, t, isComparison, ser
                                         )}
                                     </Typography>
                                     {diff !== undefined && !isNaN(diff) && (
-                                        <Typography variant="caption" sx={{ 
-                                            fontSize: '0.65rem', 
+                                        <Typography variant="caption" sx={{
+                                            fontSize: '0.65rem',
                                             opacity: 0.7,
                                             fontWeight: 500
                                         }}>
@@ -369,8 +369,8 @@ const SelectionSummary = ({ startPoint, endPoint, currency, t, isComparison, ser
                 </Box>
             </Box>
         );
-    } 
-    
+    }
+
     // Single-line mode logic (existing)
     const startVal = startPoint.adjClose || startPoint.price;
     const endVal = endPoint.adjClose || endPoint.price;
@@ -381,7 +381,7 @@ const SelectionSummary = ({ startPoint, endPoint, currency, t, isComparison, ser
     const color = isPositive ? 'success.main' : 'error.main';
 
     return (
-        <Box sx={{...boxStyle, textAlign: 'center', minWidth: 'auto'}}>
+        <Box sx={{ ...boxStyle, textAlign: 'center', minWidth: 'auto' }}>
             <Typography variant="caption" sx={{ fontWeight: 'bold', display: 'block', color: isDarkMode ? 'white' : 'black' }}>
                 {startDateStr} to {endDateStr} ({duration} days)
             </Typography>
@@ -396,7 +396,7 @@ export function TickerChart({ series, currency, mode = 'percent', height = 300, 
     const FADE_MS = 170;          // Speed of the opacity transition
     const TRANSFORM_MS = 360;     // Speed of the line movement (Very fast)
     const BUFFER_MS = 30;        // Safety window for browser paint
-    
+
     // Relation Enforcement: Total delay before fading back in
     const FADE_IN_DELAY = TRANSFORM_MS + BUFFER_MS;
 
@@ -407,7 +407,7 @@ export function TickerChart({ series, currency, mode = 'percent', height = 300, 
 
     const [displaySeries, setDisplaySeries] = useState(series);
     const [shadeOpacity, setShadeOpacity] = useState(1);
-    
+
     const [selection, setSelection] = useState<{
         start: ChartPoint | null;
         end: ChartPoint | null;
@@ -458,7 +458,7 @@ export function TickerChart({ series, currency, mode = 'percent', height = 300, 
             // 3. Re-enable shade ONLY after transform is guaranteed finished
             const fadeInTimer = setTimeout(() => {
                 setShadeOpacity(1);
-            }, FADE_IN_DELAY); 
+            }, FADE_IN_DELAY);
 
             return () => clearTimeout(fadeInTimer);
         }, FADE_MS);
@@ -473,7 +473,7 @@ export function TickerChart({ series, currency, mode = 'percent', height = 300, 
         // Important: Must use consistent field for base and current to get correct % change.
         const first = mainSeries.data[0];
         const basePrice = first.adjClose || first.price;
-        
+
         const processedMain = mainSeries.data.map(p => {
             const val = p.adjClose || p.price;
             const pct = basePrice > 0 ? (val / basePrice - 1) : 0;
@@ -487,7 +487,7 @@ export function TickerChart({ series, currency, mode = 'percent', height = 300, 
         // Merge other series
         const otherSeries = displaySeries.slice(1);
         if (otherSeries.length === 0) return processedMain;
-        
+
         // Create pointers for each comparison series for an efficient merge
         const seriesPointers = otherSeries.map(() => 0);
 
@@ -572,7 +572,7 @@ export function TickerChart({ series, currency, mode = 'percent', height = 300, 
         let min = Infinity;
         let max = -Infinity;
         let vMax = 0;
-        
+
         const updateMinMax = (val: any) => {
             if (typeof val === 'number' && !isNaN(val)) {
                 if (val < min) min = val;
@@ -595,7 +595,7 @@ export function TickerChart({ series, currency, mode = 'percent', height = 300, 
                 }
             });
         });
-        
+
         if (min === Infinity || max === -Infinity) return { yMin: 0, yMax: 0, dataMin: 0, dataMax: 0, volMax: 0 };
 
         // Add padding to the domain so the line/candles doesn't touch the edges
@@ -610,7 +610,7 @@ export function TickerChart({ series, currency, mode = 'percent', height = 300, 
             return formatPrice(tick, currency, 0, t);
         }
         const range = yMax - yMin;
-        const decimals = range > 0.1 ? 0 : 1; 
+        const decimals = range > 0.1 ? 0 : 1;
         return '\u200E' + new Intl.NumberFormat(undefined, {
             style: 'percent',
             minimumFractionDigits: 0,
@@ -624,7 +624,7 @@ export function TickerChart({ series, currency, mode = 'percent', height = 300, 
         // Optimization: Binary search for O(log N) lookup
         let low = 0;
         let high = data.length - 1;
-        
+
         if (date <= data[0].date.getTime()) return data[0];
         if (date >= data[high].date.getTime()) return data[high];
 
@@ -636,7 +636,7 @@ export function TickerChart({ series, currency, mode = 'percent', height = 300, 
                 high = mid;
             }
         }
-        
+
         // After loop, data[low] is the first point with date >= hovered date.
         // We want the point at or before the hovered date (the "floor").
         if (data[low].date.getTime() > date && low > 0) {
@@ -667,12 +667,12 @@ export function TickerChart({ series, currency, mode = 'percent', height = 300, 
         }
     }, [selection.isSelecting, selection.end, findClosestPoint]);
 
-    const selectionPoints = selection.start && selection.end ? [selection.start, selection.end].sort((a,b) => a.date.getTime() - b.date.getTime()) : [];
+    const selectionPoints = selection.start && selection.end ? [selection.start, selection.end].sort((a, b) => a.date.getTime() - b.date.getTime()) : [];
     const [startPoint, endPoint] = selectionPoints;
 
     const finalData = useMemo(() => {
         if (!startPoint || !endPoint || startPoint === endPoint) return chartData;
-        
+
         const startIndex = chartData.indexOf(startPoint);
         const endIndex = chartData.indexOf(endPoint);
 
@@ -705,7 +705,7 @@ export function TickerChart({ series, currency, mode = 'percent', height = 300, 
             currentTick.setHours(0, 0, 0, 0);
             // Start from the Monday of the week of the start date
             currentTick.setDate(currentTick.getDate() - (currentTick.getDay() + 6) % 7);
-            
+
             while (currentTick <= endDate) {
                 if (currentTick >= startDate) { // Only add ticks within the domain
                     ticks.push(currentTick.getTime());
@@ -716,7 +716,7 @@ export function TickerChart({ series, currency, mode = 'percent', height = 300, 
             const monthInterval = dateRangeDays <= 366 ? 1 : 2;
             let currentTick = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
             currentTick.setHours(0, 0, 0, 0);
-            
+
             while (currentTick <= endDate) {
                 if (currentTick >= startDate) {
                     ticks.push(currentTick.getTime());
@@ -831,16 +831,16 @@ export function TickerChart({ series, currency, mode = 'percent', height = 300, 
     return (
         <Box
             sx={{
-            width: '100%',
-            height,
-            minWidth: 0,
-            minHeight: 0,
-            position: 'relative',
-            userSelect: 'none',
-            '& *': {
-                outline: 'none !important',
-            }
-        }}>
+                width: '100%',
+                height,
+                minWidth: 0,
+                minHeight: 0,
+                position: 'relative',
+                userSelect: 'none',
+                '& *': {
+                    outline: 'none !important',
+                }
+            }}>
             <SelectionSummary startPoint={startPoint} endPoint={endPoint} currency={currency} t={t} isComparison={isComparison} series={displaySeries} mainLineColor={mainLineColor} mode={currentMode} hideCurrentPrice={hideCurrentPrice} />
             <ResponsiveContainer width="100%" height="100%">
                 {currentMode === 'candle' ? (
@@ -904,113 +904,113 @@ export function TickerChart({ series, currency, mode = 'percent', height = 300, 
 
                     </ComposedChart>
                 ) : (
-                <AreaChart
-                    data={finalData}
-                    onClick={handleClick}
-                    onMouseMove={handleMouseMove}
-                    margin={{ top: 10, right: 5, left: 0, bottom: 0 }}
-                >
-                    <defs>
-                        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0" stopColor={theme.palette.success.main} stopOpacity={0.4} />
-                            <stop offset={clampedOffset} stopColor={theme.palette.success.main} stopOpacity={0.05} />
-                            <stop offset={clampedOffset} stopColor={theme.palette.error.main} stopOpacity={0.05} />
-                            <stop offset="1" stopColor={theme.palette.error.main} stopOpacity={0.4} />
-                        </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} />
-                    <XAxis
-                        dataKey="date"
-                        type="number"
-                        domain={[xMin ?? 'dataMin', xMax ?? 'dataMax']}
-                        scale="time"
-                        tickFormatter={formatXAxis}
-                        tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
-                        ticks={xAxisTicks}
-                        dy={5}
-                    />
-                    <YAxis
-                        orientation="right"
-                        tickFormatter={formatYAxis}
-                        width={mode === 'price' ? 60 : 50}
-                        tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
-                        dx={3}
-                        domain={[yMin, yMax]}
-                        ticks={yTicks}
-                    />
-                            <Tooltip content={<CustomTooltip currency={currency} t={t} basePrice={basePrice} isComparison={isComparison} series={displaySeries} mode={currentMode} hideCurrentPrice={hideCurrentPrice} />} />
-
-                    {/* Zero line (solid, semi-opaque) - only if 0 is in range */}
-                    {showZeroLine && (
-                        <ReferenceLine y={0} stroke={theme.palette.text.secondary} strokeOpacity={0.4} strokeWidth={1} />
-                    )}
-
-                    {/* Threshold line (dashed) - used for base price in price mode. Avoid if it duplicates 0 (which is covered above) */}
-                    {threshold !== 0 && (
-                        <ReferenceLine y={threshold} stroke={theme.palette.text.secondary} strokeDasharray="3 3" />
-                    )}
-                    
-                    {displaySeries.slice(1).map((s, i) => (
-                        <Line
-                            key={i}
-                            type="monotone" 
-                            dataKey={`series_${i}`} 
-                            stroke={s.color} 
-                            strokeWidth={1.2} 
-                            dot={false}
-                            isAnimationActive={true}
-                            connectNulls
-                            animationDuration={TRANSFORM_MS}
-                            animationEasing="ease-in-out"
+                    <AreaChart
+                        data={finalData}
+                        onClick={handleClick}
+                        onMouseMove={handleMouseMove}
+                        margin={{ top: 10, right: 5, left: 0, bottom: 0 }}
+                    >
+                        <defs>
+                            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0" stopColor={theme.palette.success.main} stopOpacity={0.4} />
+                                <stop offset={clampedOffset} stopColor={theme.palette.success.main} stopOpacity={0.05} />
+                                <stop offset={clampedOffset} stopColor={theme.palette.error.main} stopOpacity={0.05} />
+                                <stop offset="1" stopColor={theme.palette.error.main} stopOpacity={0.4} />
+                            </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} />
+                        <XAxis
+                            dataKey="date"
+                            type="number"
+                            domain={[xMin ?? 'dataMin', xMax ?? 'dataMax']}
+                            scale="time"
+                            tickFormatter={formatXAxis}
+                            tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
+                            ticks={xAxisTicks}
+                            dy={5}
                         />
-                    ))}
+                        <YAxis
+                            orientation="right"
+                            tickFormatter={formatYAxis}
+                            width={mode === 'price' ? 60 : 50}
+                            tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
+                            dx={3}
+                            domain={[yMin, yMax]}
+                            ticks={yTicks}
+                        />
+                        <Tooltip content={<CustomTooltip currency={currency} t={t} basePrice={basePrice} isComparison={isComparison} series={displaySeries} mode={currentMode} hideCurrentPrice={hideCurrentPrice} />} />
 
-                    <Area 
-                        type="monotone" 
-                        dataKey="yValue" 
-                        stroke={mainLineColor} 
-                        strokeWidth={2} 
-                        fill={isComparison ? "none" : `url(#${gradientId})`}
-                        baseValue={threshold}
-                        fillOpacity={shadeOpacity}
-                        isAnimationActive={true}
-                        animationDuration={TRANSFORM_MS}
-                        animationBegin={0}
-                        animationEasing="ease-in-out"
-                        style={{ 
-                            transition: `fill-opacity ${FADE_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`,
-                            pointerEvents: 'none' 
-                        }}
-                    />
+                        {/* Zero line (solid, semi-opaque) - only if 0 is in range */}
+                        {showZeroLine && (
+                            <ReferenceLine y={0} stroke={theme.palette.text.secondary} strokeOpacity={0.4} strokeWidth={1} />
+                        )}
 
-                    {startPoint && endPoint && startPoint !== endPoint && (
+                        {/* Threshold line (dashed) - used for base price in price mode. Avoid if it duplicates 0 (which is covered above) */}
+                        {threshold !== 0 && (
+                            <ReferenceLine y={threshold} stroke={theme.palette.text.secondary} strokeDasharray="3 3" />
+                        )}
+
+                        {displaySeries.slice(1).map((s, i) => (
+                            <Line
+                                key={i}
+                                type="monotone"
+                                dataKey={`series_${i}`}
+                                stroke={s.color}
+                                strokeWidth={1.2}
+                                dot={false}
+                                isAnimationActive={true}
+                                connectNulls
+                                animationDuration={TRANSFORM_MS}
+                                animationEasing="ease-in-out"
+                            />
+                        ))}
+
                         <Area
                             type="monotone"
-                            dataKey="highlightedY"
-                            stroke="none"
-                            fill={mainLineColor}
-                            fillOpacity={0.2}
-                            isAnimationActive={false}
-                            activeDot={false}
-                            style={{ pointerEvents: 'none' }}
+                            dataKey="yValue"
+                            stroke={mainLineColor}
+                            strokeWidth={2}
+                            fill={isComparison ? "none" : `url(#${gradientId})`}
+                            baseValue={threshold}
+                            fillOpacity={shadeOpacity}
+                            isAnimationActive={true}
+                            animationDuration={TRANSFORM_MS}
+                            animationBegin={0}
+                            animationEasing="ease-in-out"
+                            style={{
+                                transition: `fill-opacity ${FADE_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`,
+                                pointerEvents: 'none'
+                            }}
                         />
-                    )}
 
-                    {startPoint && (
-                        <ReferenceDot x={startPoint.date.getTime()} y={startPoint.yValue} r={6} fill={chartColor} stroke="white" strokeWidth={2} />
-                    )}
-                    {endPoint && (
-                        <ReferenceDot x={endPoint.date.getTime()} y={endPoint.yValue} r={6} fill={chartColor} stroke="white" strokeWidth={2} />
-                    )}
+                        {startPoint && endPoint && startPoint !== endPoint && (
+                            <Area
+                                type="monotone"
+                                dataKey="highlightedY"
+                                stroke="none"
+                                fill={mainLineColor}
+                                fillOpacity={0.2}
+                                isAnimationActive={false}
+                                activeDot={false}
+                                style={{ pointerEvents: 'none' }}
+                            />
+                        )}
 
-                    {/* Vertical lines for selection range */}
-                    {startPoint && endPoint && startPoint !== endPoint && (
-                        <>
-                            <ReferenceLine x={startPoint.date.getTime()} stroke={theme.palette.text.secondary} strokeWidth={1} strokeDasharray="2 2" strokeOpacity={0.5} />
-                            <ReferenceLine x={endPoint.date.getTime()} stroke={theme.palette.text.secondary} strokeWidth={1} strokeDasharray="2 2" strokeOpacity={0.5} />
-                        </>
-                    )}
-                </AreaChart>
+                        {startPoint && (
+                            <ReferenceDot x={startPoint.date.getTime()} y={startPoint.yValue} r={6} fill={chartColor} stroke="white" strokeWidth={2} />
+                        )}
+                        {endPoint && (
+                            <ReferenceDot x={endPoint.date.getTime()} y={endPoint.yValue} r={6} fill={chartColor} stroke="white" strokeWidth={2} />
+                        )}
+
+                        {/* Vertical lines for selection range */}
+                        {startPoint && endPoint && startPoint !== endPoint && (
+                            <>
+                                <ReferenceLine x={startPoint.date.getTime()} stroke={theme.palette.text.secondary} strokeWidth={1} strokeDasharray="2 2" strokeOpacity={0.5} />
+                                <ReferenceLine x={endPoint.date.getTime()} stroke={theme.palette.text.secondary} strokeWidth={1} strokeDasharray="2 2" strokeOpacity={0.5} />
+                            </>
+                        )}
+                    </AreaChart>
                 )}
             </ResponsiveContainer>
         </Box>

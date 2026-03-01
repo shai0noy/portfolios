@@ -548,6 +548,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
           <TickerSearch
             portfolios={portfolios}
             isPortfoliosLoading={isPortfoliosLoading}
+            trackingLists={[]}
             onTickerSelect={handleTickerSearchSelect}
             sx={{ mt: 0, mb: 0 }}
           />
