@@ -42,7 +42,12 @@ export const ISRAEL_TICKER_OVERRIDES: Record<string, string> = {
  * Merges symbol formatting logic and probing logic into a single streamlined flow.
  */
 export function getYahooTickerCandidates(ticker: string, exchange: Exchange, group?: InstrumentGroup): string[] {
-  const u = ticker.toUpperCase();
+  let u = ticker.toUpperCase();
+
+  // Fix for broken TASE tickers (MTF.F30 -> MTF-F30)
+  if (exchange === Exchange.TASE) {
+    u = u.replace(/\.(F\d+)/, '-$1');
+  }
 
   // 1. Handle overrides first. These are considered final.
   if (exchange === Exchange.TASE && u in ISRAEL_TICKER_OVERRIDES) {
@@ -134,9 +139,7 @@ export async function fetchYahooTickerData(
   if (exchange === Exchange.GEMEL || exchange === Exchange.PENSION || exchange === Exchange.CBS) {
     return null;
   }
-  if (exchange === Exchange.TASE && ticker.includes('.')) {
-    return null;
-  }
+
 
   const now = Date.now();
   const cacheKey = `yahoo:quote:v4:${exchange}:${ticker}:${range}`;

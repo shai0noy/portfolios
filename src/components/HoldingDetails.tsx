@@ -57,7 +57,35 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
 
     const matchingHoldings = useMemo(() => {
         if (!holdings || holdings.length === 0) return [holding];
-        return holdings.filter(h => h.ticker === holding.ticker && (h.exchange === holding.exchange || !h.exchange));
+        const rawMatches = holdings.filter(h => h.ticker === holding.ticker && (h.exchange === holding.exchange || !h.exchange));
+
+        // Apply fresh price from the 'holding' prop (API data) if available
+        const freshPrice = (holding as any).price;
+        const freshChange = (holding as any).changePct1d;
+
+        if (!freshPrice) return rawMatches;
+
+        return rawMatches.map(h => {
+            const stockCurrency = h.stockCurrency || 'USD';
+            const qtyVested = h.qtyVested || 0;
+            const qtyUnvested = h.qtyUnvested || 0;
+            const totalQty = qtyVested + qtyUnvested;
+
+            // Recalculate values based on fresh price
+            const marketValue = freshPrice * totalQty;
+            const costBasisTotal = (h.costBasisVested?.amount || 0) + (h.costBasisUnvested?.amount || 0);
+
+            return {
+                ...h,
+                price: freshPrice,
+                currentPrice: freshPrice,
+                changePct1d: freshChange ?? h.changePct1d,
+                marketValue,
+                marketValueVested: { amount: freshPrice * qtyVested, currency: stockCurrency },
+                marketValueUnvested: { amount: freshPrice * qtyUnvested, currency: stockCurrency },
+                unrealizedGain: { amount: marketValue - costBasisTotal, currency: stockCurrency }
+            };
+        });
     }, [holding, holdings]);
 
     const transactions = useMemo(() => {
@@ -185,7 +213,7 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
         let uVal = 0;
         let uGain = 0;
         if (hasGrants) {
-            const currentPrice = (holding as any).currentPrice || 0;
+            const currentPrice = (holding as any).currentPrice || (holding as any).price || 0;
             layers.forEach(l => {
                 const vDate = coerceDate(l.vestingDate || (l as any).vestDate);
                 if (vDate && vDate > new Date()) {
@@ -212,7 +240,9 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
     // Unified Layers Logic grouped by Portfolio (Base - No Weights)
     const groupedLayersBase = useMemo(() => {
         if (!exchangeRates || !displayCurrency) return [];
-        return groupHoldingLayers(layers, realizedLayers, exchangeRates, displayCurrency, portfolioNameMap, holding, stockCurrency);
+        // Ensure holding has currentPrice for layer grouping logic
+        const holdingWithPrice = { ...holding, currentPrice: (holding as any).price || (holding as any).currentPrice } as Holding | EnrichedDashboardHolding;
+        return groupHoldingLayers(layers, realizedLayers, exchangeRates, displayCurrency, portfolioNameMap, holdingWithPrice, stockCurrency);
     }, [layers, realizedLayers, displayCurrency, exchangeRates, portfolioNameMap, holding, stockCurrency]);
 
     // Calculate Weights across all portfolios (using groupedLayersBase for accurate values)
@@ -253,44 +283,44 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                             <Typography color="text.secondary">{t('Calculating holding details...', 'מחשב פרטי החזקה...')}</Typography>
                         </Box>
                     ) : (
-                            <>
-                                <Typography variant="h6" gutterBottom color="primary" sx={{ fontWeight: 'bold' }}>
-                                    {t('My Position', 'הפוזיציה שלי')}
+                        <>
+                            <Typography variant="h6" gutterBottom color="primary" sx={{ fontWeight: 'bold' }}>
+                                {t('My Position', 'הפוזיציה שלי')}
+                            </Typography>
+
+                            {(enriched?.sector || (holding as any).sector) && (
+                                <Typography variant="body2" color="text.secondary" sx={{ mt: -0.5, mb: 2 }}>
+                                    {t('Sector:', 'מגזר:')} {enriched?.sector || (holding as any).sector}
                                 </Typography>
+                            )}
 
-                                {(enriched?.sector || (holding as any).sector) && (
-                                    <Typography variant="body2" color="text.secondary" sx={{ mt: -0.5, mb: 2 }}>
-                                        {t('Sector:', 'מגזר:')} {enriched?.sector || (holding as any).sector}
-                                    </Typography>
-                                )}
+                            <HoldingStatsComponent
+                                vals={vals as HoldingValues}
+                                displayCurrency={displayCurrency}
+                                holdingsWeights={holdingsWeights}
+                                hasGrants={hasGrants}
+                                vestedValDisplay={vestedValDisplay}
+                                unvestedValDisplay={unvestedValDisplay}
+                                unvestedGainDisplay={unvestedGainDisplay}
+                                unvestedGain={unvestedGain}
+                                totalQty={totalQty}
+                                totalFeesDisplay={totalFeesDisplay}
+                                isFeeExempt={isFeeExempt}
+                            />
 
-                                <HoldingStatsComponent
-                                    vals={vals as HoldingValues}
-                                    displayCurrency={displayCurrency}
-                                    holdingsWeights={holdingsWeights}
-                                    hasGrants={hasGrants}
-                                    vestedValDisplay={vestedValDisplay}
-                                    unvestedValDisplay={unvestedValDisplay}
-                                    unvestedGainDisplay={unvestedGainDisplay}
-                                    unvestedGain={unvestedGain}
-                                    totalQty={totalQty}
-                                    totalFeesDisplay={totalFeesDisplay}
-                                    isFeeExempt={isFeeExempt}
-                                />
+                            <HoldingDistribution
+                                groupedLayers={groupedLayers}
+                            />
 
-                                <HoldingDistribution
-                                    groupedLayers={groupedLayers}
-                                />
+                            <HoldingLayers
+                                groupedLayers={groupedLayers}
+                                displayCurrency={displayCurrency}
+                                portfolios={portfolios}
+                                exchangeRates={exchangeRates}
+                                formatDate={formatDate}
+                            />
 
-                                <HoldingLayers
-                                    groupedLayers={groupedLayers}
-                                    displayCurrency={displayCurrency}
-                                    portfolios={portfolios}
-                                    exchangeRates={exchangeRates}
-                                    formatDate={formatDate}
-                                />
-
-                                <HoldingUnderlyingAssets assets={enriched?.underlyingAssets || (holding as any).underlyingAssets || (holding as any).meta?.underlyingAssets} />
+                            <HoldingUnderlyingAssets assets={enriched?.underlyingAssets || (holding as any).underlyingAssets || (holding as any).meta?.underlyingAssets} />
                         </>
                     )}
                 </Box>
