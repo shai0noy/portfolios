@@ -1,6 +1,6 @@
 import { ResponsiveContainer, AreaChart, Area, Line, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceDot, ReferenceLine, ComposedChart, Bar } from 'recharts';
 import { useLanguage } from '../lib/i18n';
-import { formatPrice, formatPercent, formatCompactPrice } from '../lib/currency';
+import { formatPrice, formatPercent, formatCompactPrice, formatValue, formatCompactValue } from '../lib/currency';
 import { Paper, Typography, Box } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -16,6 +16,7 @@ interface TickerChartProps {
     series: ChartSeries[];
     currency: string;
     mode?: 'percent' | 'price' | 'candle';
+    valueType?: 'price' | 'value';
     height?: number | string;
     hideCurrentPrice?: boolean;
 }
@@ -38,6 +39,7 @@ interface CustomTooltipProps {
     isComparison: boolean;
     series: ChartSeries[];
     mode: 'percent' | 'price' | 'candle';
+    valueType?: 'price' | 'value';
     hideCurrentPrice?: boolean;
 }
 
@@ -99,7 +101,7 @@ const CandleStickShape = (props: any) => {
     );
 };
 
-const CustomTooltip = ({ active, payload, currency, t, basePrice, isComparison, series, mode, hideCurrentPrice }: CustomTooltipProps) => {
+const CustomTooltip = ({ active, payload, currency, t, basePrice, isComparison, series, mode, valueType = 'price', hideCurrentPrice }: CustomTooltipProps) => {
     if (active && payload && payload.length) {
         const point = payload[0].payload as ChartPoint;
         const date = point.date; // It's already a Date object
@@ -154,7 +156,7 @@ const CustomTooltip = ({ active, payload, currency, t, basePrice, isComparison, 
                                     <Box sx={{ textAlign: 'right', display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
                                         <Typography variant="caption" sx={{ fontWeight: 'bold' }}>
                                             {(value !== null && value !== undefined)
-                                                ? (mode === 'percent' ? formatPercent(value) : formatPrice(value, currency, undefined, t))
+                                                ? (mode === 'percent' ? formatPercent(value) : (valueType === 'value' ? formatValue(value, currency, undefined, t) : formatPrice(value, currency, undefined, t)))
                                                 : 'N/A'}
                                             {index === 0 && (
                                                 <Box component="span" sx={{ opacity: 0.6, ml: 0.5, fontSize: '0.65rem', fontWeight: 'normal' }}>
@@ -188,7 +190,7 @@ const CustomTooltip = ({ active, payload, currency, t, basePrice, isComparison, 
                 <Typography variant="caption" display="block">{dateStr}</Typography>
                 {!hideCurrentPrice && (
                     <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                        {formatPrice(val, currency, undefined, t)}
+                        {valueType === 'value' ? formatValue(val, currency, undefined, t) : formatPrice(val, currency, undefined, t)}
                     </Typography>
                 )}
                 {basePrice !== 0 && (
@@ -258,10 +260,11 @@ interface SelectionSummaryProps {
     series: ChartSeries[];
     mainLineColor: string;
     mode: 'percent' | 'price' | 'candle';
+    valueType?: 'price' | 'value';
     hideCurrentPrice?: boolean;
 }
 
-const SelectionSummary = ({ startPoint, endPoint, currency, t, isComparison, series, mainLineColor, mode, hideCurrentPrice }: SelectionSummaryProps) => {
+const SelectionSummary = ({ startPoint, endPoint, currency, t, isComparison, series, mainLineColor, mode, valueType = 'price', hideCurrentPrice }: SelectionSummaryProps) => {
     if (!startPoint || !endPoint) return null;
 
     const theme = useTheme();
@@ -386,13 +389,13 @@ const SelectionSummary = ({ startPoint, endPoint, currency, t, isComparison, ser
                 {startDateStr} to {endDateStr} ({duration} days)
             </Typography>
             <Typography variant="body2" sx={{ fontWeight: 'bold', color }}>
-                {!hideCurrentPrice && formatPrice(priceChange, currency, undefined, t)} ({formatPercent(percentChange)})
+                {!hideCurrentPrice && (valueType === 'value' ? formatValue(priceChange, currency, undefined, t) : formatPrice(priceChange, currency, undefined, t))} ({formatPercent(percentChange)})
             </Typography>
         </Box>
     );
 };
 
-export function TickerChart({ series, currency, mode = 'percent', height = 300, hideCurrentPrice }: TickerChartProps) {
+export function TickerChart({ series, currency, mode = 'percent', valueType = 'price', height = 300, hideCurrentPrice }: TickerChartProps) {
     const FADE_MS = 170;          // Speed of the opacity transition
     const TRANSFORM_MS = 360;     // Speed of the line movement (Very fast)
     const BUFFER_MS = 30;        // Safety window for browser paint
@@ -607,7 +610,7 @@ export function TickerChart({ series, currency, mode = 'percent', height = 300, 
 
     const formatYAxis = useCallback((tick: number) => {
         if (currentMode === 'price' || currentMode === 'candle') {
-            return formatCompactPrice(tick, currency, t);
+            return valueType === 'value' ? formatCompactValue(tick, currency, t) : formatCompactPrice(tick, currency, t);
         }
         const range = yMax - yMin;
         const decimals = range > 0.1 ? 0 : 1;

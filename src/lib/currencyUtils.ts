@@ -205,20 +205,27 @@ export function formatPrice(n: number, currency: string | Currency, decimals = 2
 export function formatCompactPrice(n: number, currency: string | Currency, t?: (key: string, fallback: string) => string): string {
   if (n === undefined || n === null || isNaN(n)) return '-';
 
+  const norm = normalizeCurrency(currency as string);
+
+  // Israeli prices are always Agorot (ILA). 1 ILS = 100 ILA.
+  if (norm === Currency.ILS) {
+    return formatCompactPrice(n * 100, Currency.ILA, t);
+  }
+
+  // Now we are dealing with ILA or another standard currency.
   // For small values, use standard pricing format
   if (Math.abs(n) < 1000) {
     return formatPrice(n, currency, 0, t);
   }
 
-  const norm = normalizeCurrency(currency as string);
-
-  if (norm === Currency.ILS) {
-    // Israeli prices are always Agorot (ILA). 1 ILS = 100 ILA.
-    return formatCompactPrice(n * 100, Currency.ILA, t);
-  }
-
   if (norm === Currency.ILA) {
-    return formatPrice(n, currency, 0, t);
+    const val = n.toLocaleString('en-US', {
+      notation: 'compact',
+      compactDisplay: 'short',
+      maximumFractionDigits: 1
+    });
+    const agorotText = t ? t('ag.', "א'") : 'ag.';
+    return `${LTR_MARK}${val} ${agorotText}`;
   }
 
   try {
@@ -253,6 +260,44 @@ export function formatMoneyValue(m: SimpleMoney | undefined, t?: any, decimals =
 export function formatMoneyPrice(m: SimpleMoney | undefined, t?: any): string {
   if (!m) return '-';
   return formatPrice(m.amount, m.currency, 2, t);
+}
+
+/**
+ * Formats a value using compact notation (K, M, etc.) while ensuring 
+ * it stays in the major currency unit (e.g. converting ILA to ILS).
+ */
+export function formatCompactValue(n: number, currency: string | Currency, t?: (key: string, fallback: string) => string): string {
+  if (n === undefined || n === null || isNaN(n)) return '-';
+
+  let norm = normalizeCurrency(currency as string);
+  let val = n;
+
+  if (norm === Currency.ILA) {
+    norm = Currency.ILS;
+    val = toILS(n, Currency.ILA);
+  }
+
+  // For small values, use standard value format
+  if (Math.abs(val) < 1000) {
+    return formatValue(val, norm, 0, t);
+  }
+
+  try {
+    return LTR_MARK + new Intl.NumberFormat(['en-US', 'en'], {
+      style: 'currency',
+      currency: norm,
+      notation: 'compact',
+      compactDisplay: 'short',
+      maximumFractionDigits: 1,
+    }).format(val);
+  } catch (e) {
+    return formatValue(val, norm, 0, t);
+  }
+}
+
+export function formatMoneyCompactValue(m: SimpleMoney | undefined, t?: any): string {
+  if (!m) return '-';
+  return formatCompactValue(m.amount, m.currency, t);
 }
 
 

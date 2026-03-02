@@ -520,6 +520,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                         series={portfolioSeries}
                         currency={displayCurrency}
                         mode={effectiveChartMetric}
+                          valueType={chartView === 'holdings' || chartView === 'gains' ? 'value' : 'price'}
                         height="100%"
                         hideCurrentPrice={chartView === 'twr'}
                       />
