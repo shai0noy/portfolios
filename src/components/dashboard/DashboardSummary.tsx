@@ -363,175 +363,175 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
           )}
           {activeStep === 1 && (
             <Fade in={true} timeout={700}>
-              <Box sx={{ height: 210, position: 'relative', minWidth: 0, minHeight: 0 }}>
-              {isPerfLoading ? (
-                <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" height="100%" gap={1}>
-                  <CircularProgress size={30} />
-                  <Typography variant="caption" color="text.secondary">{t('Calculating Portfolio Performance...', 'מחשב ביצועי תיק...')}</Typography>
-                </Box>
-              ) : portfolioSeries.length > 0 ? (
+              <Box sx={{ height: 230, position: 'relative', minWidth: 0, minHeight: 0 }}>
+                {isPerfLoading ? (
+                  <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" height="100%" gap={1}>
+                    <CircularProgress size={30} />
+                    <Typography variant="caption" color="text.secondary">{t('Calculating Portfolio Performance...', 'מחשב ביצועי תיק...')}</Typography>
+                  </Box>
+                ) : portfolioSeries.length > 0 ? (
                     <Box sx={{ height: '100%', mt: -1, minWidth: 0, minHeight: 0 }}>
-                  <Box display="flex" justifyContent="space-between" alignItems="center" sx={{ mb: 1, px: 2, flexWrap: 'wrap', gap: 1 }}>
-                    <Box display="flex" gap={1} alignItems="center">
-                      <ToggleButtonGroup
-                        value={chartView}
-                        exclusive
-                        onChange={(_, val) => {
-                          if (val) {
-                            setChartView(val);
-                            if (val === 'gains') {
-                              setComparisonSeries([]);
-                            }
-                          }
-                        }}
-                        size="small"
-                        sx={{ height: 26 }}
-                      >
-                        <ToggleButton value="holdings" sx={{ px: 1, fontSize: '0.65rem' }}>{t('Holdings', 'החזקות')}</ToggleButton>
-                        <ToggleButton value="twr" sx={{ px: 1, fontSize: '0.65rem' }}>{t('TWR', 'TWR')}</ToggleButton>
-                        <ToggleButton value="gains" sx={{ px: 1, fontSize: '0.65rem' }}>{t('Gains', 'רווחים')}</ToggleButton>
-                      </ToggleButtonGroup>
+                      <TickerChart
+                        series={portfolioSeries}
+                        currency={displayCurrency}
+                        mode={effectiveChartMetric}
+                        valueType={chartView === 'holdings' || chartView === 'gains' ? 'value' : 'price'}
+                        height={200}
+                        hideCurrentPrice={chartView === 'twr'}
+                        topControls={
+                          <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column' }}>
+                            <Box display="flex" justifyContent="space-between" alignItems="center" sx={{ width: '100%', flexWrap: 'wrap', gap: 1, mb: isComparison ? 1 : 0 }}>
+                              <Box display="flex" gap={1} alignItems="center">
+                                <ToggleButtonGroup
+                                  value={chartView}
+                                  exclusive
+                                  onChange={(_, val) => {
+                                    if (val) {
+                                      setChartView(val);
+                                      if (val === 'gains') {
+                                        setComparisonSeries([]);
+                                      }
+                                    }
+                                  }}
+                                  size="small"
+                                  sx={{ height: 26 }}
+                                >
+                                  <ToggleButton value="holdings" sx={{ px: 1, fontSize: '0.65rem' }}>{t('Holdings', 'החזקות')}</ToggleButton>
+                                  <ToggleButton value="twr" sx={{ px: 1, fontSize: '0.65rem' }}>{t('TWR', 'TWR')}</ToggleButton>
+                                  <ToggleButton value="gains" sx={{ px: 1, fontSize: '0.65rem' }}>{t('Gains', 'רווחים')}</ToggleButton>
+                                </ToggleButtonGroup>
 
-                      <Tooltip
-                        enterTouchDelay={0}
-                        leaveTouchDelay={3000}
-                        title={
-                          chartView === 'holdings'
-                            ? t("Market Value over time. Tracks the total worth of your portfolio assets.", "שווי שוק לאורך זמן. עוקב אחר השווי הכולל של הנכסים בתיק.")
-                            : (chartView === 'twr'
-                              ? t("Time-Weighted Return. Tracks the performance of your portfolio filtering out deposits/withdrawals. Best for comparing against benchmarks.", "תשואה משוקללת זמן. עוקב אחר ביצועי התיק ללא השפעת הפקדות/משיכות. המדד הטוב ביותר להשוואה מול מדדים.")
-                              : t("Absolute Gains over time. (Market Value - Net Cost). Shows exactly how much money you made.", "רווח אבסולוטי לאורך זמן (שווי שוק פחות עלות נטו). מציג בדיוק כמה כסף הרווחת.")
-                            )
+                                <Tooltip
+                                  enterTouchDelay={0}
+                                  leaveTouchDelay={3000}
+                                  title={
+                                    chartView === 'holdings'
+                                      ? t("Market Value over time. Tracks the total worth of your portfolio assets.", "שווי שוק לאורך זמן. עוקב אחר השווי הכולל של הנכסים בתיק.")
+                                      : (chartView === 'twr'
+                                        ? t("Time-Weighted Return. Tracks the performance of your portfolio filtering out deposits/withdrawals. Best for comparing against benchmarks.", "תשואה משוקללת זמן. עוקב אחר ביצועי התיק ללא השפעת הפקדות/משיכות. המדד הטוב ביותר להשוואה מול מדדים.")
+                                        : t("Absolute Gains over time. (Market Value - Net Cost). Shows exactly how much money you made.", "רווח אבסולוטי לאורך זמן (שווי שוק פחות עלות נטו). מציג בדיוק כמה כסף הרווחת.")
+                                      )
+                                  }
+                                >
+                                  <InfoOutlinedIcon sx={{ fontSize: '0.9rem', color: 'text.secondary', cursor: 'help' }} />
+                                </Tooltip>
+
+                                <ToggleButtonGroup
+                                  value={effectiveChartMetric}
+                                  exclusive
+                                  onChange={(_, val) => val && setChartMetric(val)}
+                                  size="small"
+                                  sx={{ height: 26 }}
+                                  disabled={isComparison || chartView === 'twr' || chartView === 'gains'}
+                                >
+                                  <ToggleButton value="price" sx={{ px: 1, fontSize: '0.65rem' }}>$</ToggleButton>
+                                  <ToggleButton value="percent" sx={{ px: 1, fontSize: '0.65rem' }}>%</ToggleButton>
+                                </ToggleButtonGroup>
+
+                                <Button
+                                  size="small"
+                                  variant="outlined"
+                                  startIcon={<AddIcon sx={{ fontSize: '1rem !important' }} />}
+                                  onClick={(e) => setCompareMenuAnchor(e.currentTarget)}
+                                  sx={{ height: 26, fontSize: '0.65rem', textTransform: 'none' }}
+                                  disabled={isComparisonDisabled}
+                                >
+                                  {t('Compare', 'השווה')}
+                                </Button>
+                                <Button
+                                  onClick={() => setAnalysisOpen(true)}
+                                  size="small"
+                                  variant="outlined"
+                                  sx={{ height: 26, fontSize: '0.65rem', textTransform: 'none' }}
+                                >
+                                  {t('Analysis', 'ניתוח')}
+                                </Button>
+                              </Box>
+
+                              <ToggleButtonGroup
+                                value={chartRange}
+                                exclusive
+                                onChange={(_, val) => val && setChartRange(val)}
+                                size="small"
+                                sx={{ height: 26 }}
+                              >
+                                {availableRanges.map(r => (
+                                  <ToggleButton key={r} value={r} sx={{ px: 1, fontSize: '0.65rem' }}>
+                                    {r === 'ALL' ? maxLabel : r}
+                                  </ToggleButton>
+                                ))}
+                              </ToggleButtonGroup>
+                            </Box>
+                            {isComparison && (
+                              <Box display="flex" flexWrap="wrap" gap={0.5} sx={{ mb: 1 }}>
+                                {comparisonSeries.map(s => (
+                                  <Chip
+                                    key={s.name}
+                                    label={s.name}
+                                    size="small"
+                                    onDelete={() => setComparisonSeries(prev => prev.filter(x => x.name !== s.name))}
+                                    sx={{ fontSize: '0.65rem', color: s.color, borderColor: s.color, height: 20 }}
+                                    variant="outlined"
+                                  />
+                                ))}
+                              </Box>
+                            )}
+                          </Box>
                         }
-                      >
-                        <InfoOutlinedIcon sx={{ fontSize: '0.9rem', color: 'text.secondary', cursor: 'help' }} />
-                      </Tooltip>
-
-                      <ToggleButtonGroup
-                        value={effectiveChartMetric}
-                        exclusive
-                        onChange={(_, val) => val && setChartMetric(val)}
-                        size="small"
-                        sx={{ height: 26 }}
-                        disabled={isComparison || chartView === 'twr' || chartView === 'gains'}
-                      >
-                        <ToggleButton value="price" sx={{ px: 1, fontSize: '0.65rem' }}>$</ToggleButton>
-                        <ToggleButton value="percent" sx={{ px: 1, fontSize: '0.65rem' }}>%</ToggleButton>
-                      </ToggleButtonGroup>
-                    </Box>
-
-                    <ToggleButtonGroup
-                      value={chartRange}
-                      exclusive
-                      onChange={(_, val) => val && setChartRange(val)}
-                      size="small"
-                      sx={{ height: 26 }}
-                    >
-                      {availableRanges.map(r => (
-                        <ToggleButton key={r} value={r} sx={{ px: 0.8, fontSize: '0.65rem' }}>{r === 'ALL' ? maxLabel : r}</ToggleButton>
-                      ))}
-                    </ToggleButtonGroup>
-
-                    <Box>
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        startIcon={<AddIcon sx={{ fontSize: '1rem !important' }} />}
-                        onClick={(e) => setCompareMenuAnchor(e.currentTarget)}
-                        sx={{ height: 26, fontSize: '0.65rem', textTransform: 'none' }}
-                        disabled={isComparisonDisabled}
-                      >
-                        {t('Compare', 'השווה')}
-                      </Button>
+                      />
                       <Menu
                         anchorEl={compareMenuAnchor}
                         open={Boolean(compareMenuAnchor)}
                         onClose={() => setCompareMenuAnchor(null)}
                       >
-                          {(() => {
-                            let lastGroup = '';
-                            return comparisonOptions.map((opt) => {
-                              const showHeader = opt.group && opt.group !== lastGroup;
-                              if (showHeader) lastGroup = opt.group!;
+                        {(() => {
+                          let lastGroup = '';
+                          return comparisonOptions.map((opt) => {
+                            const showHeader = opt.group && opt.group !== lastGroup;
+                            if (showHeader) lastGroup = opt.group!;
 
-                              return [
-                                showHeader && (
-                                  <Box key={`header - ${opt.group}`} sx={{ px: 2, py: 1, bgcolor: 'background.default', typography: 'caption', color: 'text.secondary', fontWeight: 'bold' }}>
-                                    {opt.group}
-                                  </Box>
-                                ),
-                                <MenuItem
-                                  key={opt.name}
-                                  onClick={() => {
-                                    handleSelectComparison(opt);
-                                    setCompareMenuAnchor(null);
-                                  }}
-                                  disabled={comparisonSeries.some(s => s.name === opt.name) || comparisonLoading[opt.name]}
-                                  sx={{ fontSize: '0.8125rem', minWidth: 120, pl: opt.group ? 3 : 2, minHeight: 32 }}
-                                  dense
-                                >
-                                  {opt.icon === 'search' && (
-                                    <ListItemIcon sx={{ minWidth: 28 }}>
-                                      <SearchIcon fontSize="small" sx={{ fontSize: '1.1rem' }} />
-                                    </ListItemIcon>
-                                  )}
-                                  {opt.icon && opt.icon !== 'search' && (
-                                    <ListItemIcon sx={{ minWidth: 28 }}>
-                                      {opt.icon === 'pie_chart' ? <PieChartIcon fontSize="small" sx={{ fontSize: '1.1rem' }} /> :
-                                        opt.icon === 'business_center' ? <BusinessCenterIcon fontSize="small" sx={{ fontSize: '1.1rem' }} /> :
-                                          null}
-                                    </ListItemIcon>
-                                  )}
-                                  {opt.name}
-                                  {comparisonLoading[opt.name] && <CircularProgress size={12} sx={{ ml: 'auto', pl: 1 }} />}
-                                </MenuItem>
-                              ];
-                            });
-                          })()}
+                            return [
+                              showHeader && (
+                                <Box key={`header - ${opt.group}`} sx={{ px: 2, py: 1, bgcolor: 'background.default', typography: 'caption', color: 'text.secondary', fontWeight: 'bold' }}>
+                                  {opt.group}
+                                </Box>
+                              ),
+                              <MenuItem
+                                key={opt.name}
+                                onClick={() => {
+                                  handleSelectComparison(opt);
+                                  setCompareMenuAnchor(null);
+                                }}
+                                disabled={comparisonSeries.some(s => s.name === opt.name) || comparisonLoading[opt.name]}
+                                sx={{ fontSize: '0.8125rem', minWidth: 120, pl: opt.group ? 3 : 2, minHeight: 32 }}
+                                dense
+                              >
+                                {opt.icon === 'search' && (
+                                  <ListItemIcon sx={{ minWidth: 28 }}>
+                                    <SearchIcon fontSize="small" sx={{ fontSize: '1.1rem' }} />
+                                  </ListItemIcon>
+                                )}
+                                {opt.icon && opt.icon !== 'search' && (
+                                  <ListItemIcon sx={{ minWidth: 28 }}>
+                                    {opt.icon === 'pie_chart' ? <PieChartIcon fontSize="small" sx={{ fontSize: '1.1rem' }} /> :
+                                      opt.icon === 'business_center' ? <BusinessCenterIcon fontSize="small" sx={{ fontSize: '1.1rem' }} /> :
+                                        null}
+                                  </ListItemIcon>
+                                )}
+                                {opt.name}
+                                {comparisonLoading[opt.name] && <CircularProgress size={12} sx={{ ml: 'auto', pl: 1 }} />}
+                              </MenuItem>
+                            ];
+                          });
+                        })()}
                       </Menu>
-                      <Button
-                        onClick={() => setAnalysisOpen(true)}
-                        size="small"
-                        variant="outlined"
-                        sx={{ height: 26, fontSize: '0.65rem', textTransform: 'none', ml: 0.5 }}
-                      >
-                        {t('Analysis', 'ניתוח')}
-                      </Button>
-                    </Box>
                   </Box>
-
-                  {isComparison && (
-                    <Box display="flex" flexWrap="wrap" gap={0.5} sx={{ px: 2, mb: 1 }}>
-                      {comparisonSeries.map(s => (
-                        <Chip
-                          key={s.name}
-                          label={s.name}
-                          size="small"
-                          onDelete={() => setComparisonSeries(prev => prev.filter(x => x.name !== s.name))}
-                          sx={{ fontSize: '0.65rem', color: s.color, borderColor: s.color }}
-                          variant="outlined"
-                        />
-                      ))}
-                    </Box>
-                  )}
-
-                      <Box sx={{ height: isComparison ? 120 : 140, minWidth: 0, minHeight: 0 }}>
-                      <TickerChart
-                        series={portfolioSeries}
-                        currency={displayCurrency}
-                        mode={effectiveChartMetric}
-                          valueType={chartView === 'holdings' || chartView === 'gains' ? 'value' : 'price'}
-                        height="100%"
-                        hideCurrentPrice={chartView === 'twr'}
-                      />
+                ) : (
+                  <Box display="flex" alignItems="center" justifyContent="center" height="100%">
+                    <Typography variant="body2" color="text.secondary">{t('No historical data available for these holdings.', 'אין מידע היסטורי זמין עבור החזקות אלו.')}</Typography>
                   </Box>
-                </Box>
-              ) : (
-                <Box display="flex" alignItems="center" justifyContent="center" height="100%">
-                  <Typography variant="body2" color="text.secondary">{t('No historical data available for these holdings.', 'אין מידע היסטורי זמין עבור החזקות אלו.')}</Typography>
-                </Box>
-              )}
-            </Box>
+                )}
+              </Box>
             </Fade>
           )}
           {activeStep === 2 && (

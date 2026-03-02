@@ -420,17 +420,32 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                         })()}
                       </Box>
 
-                      {historicalData && historicalData.length > 0 && (<>
-                        <Box display="flex" justifyContent="flex-start" alignItems="center" gap={1} flexWrap="wrap">
-                          <ToggleButtonGroup value={chartRange} exclusive onChange={(_, v) => v && setChartRange(v)} size="small">
-                            {availableRanges.map(r => <ToggleButton key={r} value={r}>{r === 'ALL' ? maxLabel : r}</ToggleButton>)}
-                          </ToggleButtonGroup>
-                          <ToggleButtonGroup value={effectiveChartMetric} exclusive onChange={(_, v) => v && setChartMetric(v)} size="small" disabled={isComparison}>
-                            <ToggleButton value="percent">%</ToggleButton>
-                            <ToggleButton value="price">$</ToggleButton>
-                            <ToggleButton value="candle"><CandlestickChartIcon fontSize="small" /></ToggleButton>
-                          </ToggleButtonGroup>
-                          <Button onClick={(e) => setCompareMenuAnchor(e.currentTarget)}>{t('Compare', 'השווה')}</Button>
+                      {historicalData && historicalData.length > 0 && (
+                        <Box sx={{ height: 440 }}>
+                          <TickerChart
+                            series={[{ name: resolvedName || ticker || 'Main', data: displayHistory }, ...displayComparisonSeries]}
+                            currency={displayData?.currency || 'USD'}
+                            mode={effectiveChartMetric}
+                            valueType="price"
+                            height="100%"
+                            topControls={
+                              <Box sx={{ width: '100%' }}>
+                                <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: comparisonSeries.length > 0 ? 1 : 0, flexWrap: 'wrap' }}>
+                                  <ToggleButtonGroup value={chartRange} exclusive onChange={(_, v) => v && setChartRange(v)} size="small" sx={{ height: 26 }}>
+                                    {availableRanges.map(r => <ToggleButton key={r} value={r} sx={{ px: 1, fontSize: '0.65rem' }}>{r === 'ALL' ? maxLabel : r}</ToggleButton>)}
+                                  </ToggleButtonGroup>
+                                  <ToggleButtonGroup value={effectiveChartMetric} exclusive onChange={(_, v) => v && setChartMetric(v)} size="small" disabled={isComparison} sx={{ height: 26 }}>
+                                    <ToggleButton value="percent" sx={{ px: 1, fontSize: '0.65rem' }}>%</ToggleButton>
+                                    <ToggleButton value="price" sx={{ px: 1, fontSize: '0.65rem' }}>$</ToggleButton>
+                                    <ToggleButton value="candle" sx={{ px: 1, fontSize: '0.65rem' }}><CandlestickChartIcon sx={{ fontSize: '1rem' }} /></ToggleButton>
+                                  </ToggleButtonGroup>
+                                  <Button size="small" sx={{ height: 26, fontSize: '0.65rem', minWidth: 0 }} onClick={(e) => setCompareMenuAnchor(e.currentTarget)}>{t('Compare', 'השווה')}</Button>
+                                  <Button size="small" sx={{ height: 26, fontSize: '0.65rem', minWidth: 0 }} onClick={() => setAnalysisOpen(true)}>{t('Analysis', 'ניתוח')}</Button>
+                                </Box>
+                                {comparisonSeries.length > 0 && <Box display="flex" flexWrap="wrap" gap={0.5} sx={{ mb: 1 }}>{comparisonSeries.map(s => <Chip key={s.name} label={s.name} onDelete={() => handleRemoveComparison(s.name)} variant="outlined" size="small" sx={{ color: s.color, borderColor: s.color, fontSize: '0.65rem', height: 20 }} />)}</Box>}
+                              </Box>
+                            }
+                          />
                           <Menu anchorEl={compareMenuAnchor} open={Boolean(compareMenuAnchor)} onClose={() => setCompareMenuAnchor(null)}>
                             {(() => {
                               let lastGroup = '';
@@ -466,13 +481,8 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                               });
                             })()}
                           </Menu>
-                          <Button onClick={() => setAnalysisOpen(true)}>{t('Analysis', 'ניתוח')}</Button>
+                          {null}
                         </Box>
-                        {comparisonSeries.length > 0 && <Box display="flex" flexWrap="wrap" gap={1} sx={{ mt: 1, mb: 1 }}>{comparisonSeries.map(s => <Chip key={s.name} label={s.name} onDelete={() => handleRemoveComparison(s.name)} variant="outlined" size="small" sx={{ color: s.color, borderColor: s.color }} />)}</Box>}
-                        <Box sx={{ height: 400 }}>
-                          <TickerChart series={[{ name: resolvedName || ticker || 'Main', data: displayHistory }, ...displayComparisonSeries]} currency={displayData?.currency || 'USD'} mode={effectiveChartMetric} height="100%" />
-                        </Box>
-                      </>
                       )}
 
                       {data?.dividends && data.dividends.length > 0 && (
@@ -592,7 +602,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
       <AnalysisDialog
         open={analysisOpen}
         onClose={() => setAnalysisOpen(false)}
-        mainSeries={historicalData ? { name: resolvedName || ticker || 'Main', data: historicalData } : null}
+        mainSeries={historicalData && historicalData.length > 0 ? { name: resolvedName || ticker || 'Main', data: historicalData as any } : null}
         comparisonSeries={comparisonSeries}
         title={`${t('Overview', 'סקירה')}: ${tTry(resolvedName || ticker || '', resolvedNameHe)}`}
         initialRange={chartRange}

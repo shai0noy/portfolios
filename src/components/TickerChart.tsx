@@ -22,6 +22,7 @@ interface TickerChartProps {
     height?: number | string;
     hideCurrentPrice?: boolean;
     allowFullscreen?: boolean;
+    topControls?: React.ReactNode;
 }
 
 interface ChartPoint {
@@ -398,7 +399,7 @@ const SelectionSummary = ({ startPoint, endPoint, currency, t, isComparison, ser
     );
 };
 
-export function TickerChart({ series, currency, mode = 'percent', valueType = 'price', height = 300, hideCurrentPrice, allowFullscreen = true }: TickerChartProps) {
+export function TickerChart({ series, currency, mode = 'percent', valueType = 'price', height = 300, hideCurrentPrice, allowFullscreen = true, topControls }: TickerChartProps) {
     const FADE_MS = 170;          // Speed of the opacity transition
     const TRANSFORM_MS = 360;     // Speed of the line movement (Very fast)
     const BUFFER_MS = 30;        // Safety window for browser paint
@@ -845,7 +846,7 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
             curr -= step;
         }
 
-        return ticks;
+        return ticks.filter(t => t >= yMin && t <= yMax);
     }, [yMin, yMax]);
 
     const showZeroLine = yMin <= 0 && yMax >= 0;
@@ -863,22 +864,24 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                     outline: 'none !important',
                 }
             }}>
-            {allowFullscreen && (
-                <IconButton
-                    size="small"
-                    onClick={() => setIsFullscreen(true)}
-                    sx={{
-                        position: 'absolute',
-                        top: 5,
-                        right: 5,
-                        zIndex: 11,
-                        bgcolor: 'rgba(255,255,255,0.1)',
-                        backdropFilter: 'blur(4px)',
-                        '&:hover': { bgcolor: 'rgba(255,255,255,0.2)' }
-                    }}
-                >
-                    <FullscreenIcon fontSize="small" />
-                </IconButton>
+            {(topControls || allowFullscreen) && !isFullscreen && (
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1, gap: 1, flexWrap: 'wrap' }}>
+                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+                        {topControls}
+                    </Box>
+                    {allowFullscreen && (
+                        <IconButton
+                            size="small"
+                            onClick={() => setIsFullscreen(true)}
+                            sx={{
+                                bgcolor: 'rgba(255,255,255,0.05)',
+                                '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' }
+                            }}
+                        >
+                            <FullscreenIcon fontSize="small" />
+                        </IconButton>
+                    )}
+                </Box>
             )}
 
             {isFullscreen && (
@@ -895,12 +898,15 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                         }
                     }}
                 >
-                    <Box sx={{ p: 1, display: 'flex', justifyContent: 'flex-end', borderBottom: 1, borderColor: 'divider' }}>
+                    <Box sx={{ p: 1, px: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: 1, borderColor: 'divider' }}>
+                        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+                            {topControls}
+                        </Box>
                         <IconButton onClick={() => setIsFullscreen(false)}>
                             <FullscreenExitIcon />
                         </IconButton>
                     </Box>
-                    <DialogContent sx={{ flex: 1, p: 2, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                    <DialogContent sx={{ flex: 1, p: 2, pt: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                         <Box sx={{ flex: 1, minHeight: 0 }}>
                             <TickerChart
                                 series={series}
@@ -910,6 +916,7 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                                 height="100%"
                                 hideCurrentPrice={hideCurrentPrice}
                                 allowFullscreen={false}
+                                topControls={null} // Don't double render controls inside the inner chart
                             />
                         </Box>
                     </DialogContent>
@@ -936,7 +943,7 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                             tickFormatter={formatXAxis}
                             tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
                             ticks={xAxisTicks}
-                            dy={5}
+                            dy={7}
                         />
                         {/* Price Axis */}
                         <YAxis
@@ -997,11 +1004,11 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                             dataKey="date"
                             type="number"
                             domain={[xMin ?? 'dataMin', xMax ?? 'dataMax']}
-                            scale="time"
-                            tickFormatter={formatXAxis}
-                            tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
+                                scale="time"
+                                tickFormatter={formatXAxis}
+                                tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
                             ticks={xAxisTicks}
-                            dy={5}
+                                dy={7}
                         />
                         <YAxis
                             orientation="right"
