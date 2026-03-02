@@ -440,6 +440,10 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
         return range / (1000 * 60 * 60 * 24);
     }, [mainSeries]);
 
+    const hasData = useMemo(() => {
+        return displaySeries[0]?.data && displaySeries[0].data.length > 0;
+    }, [displaySeries]);
+
     const formatXAxis = useCallback((tickItem: number) => {
         const date = new Date(tickItem);
         if (dateRangeDays <= 95) { // ~3 months
@@ -455,23 +459,36 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
     useEffect(() => {
         if (!series || series === displaySeries) return;
 
+        let swapTimer: ReturnType<typeof setTimeout>;
+        let fadeInTimer: ReturnType<typeof setTimeout>;
+
+        // If we are transitioning from nothing to data, just show it immediately without blinking
+        const incomingHasData = series[0]?.data && series[0].data.length > 0;
+
+        if (!hasData && incomingHasData) {
+            setDisplaySeries(series);
+            setShadeOpacity(1);
+            return;
+        }
+
         // 1. Instant fade out
         setShadeOpacity(0);
         setSelection({ start: null, end: null, isSelecting: false });
 
         // 2. Wait for fade-out, then swap data (Triggers TRANSFORM_MS line move)
-        const swapTimer = setTimeout(() => {
+        swapTimer = setTimeout(() => {
             setDisplaySeries(series);
 
             // 3. Re-enable shade ONLY after transform is guaranteed finished
-            const fadeInTimer = setTimeout(() => {
+            fadeInTimer = setTimeout(() => {
                 setShadeOpacity(1);
             }, FADE_IN_DELAY);
-
-            return () => clearTimeout(fadeInTimer);
         }, FADE_MS);
 
-        return () => clearTimeout(swapTimer);
+        return () => {
+            clearTimeout(swapTimer);
+            clearTimeout(fadeInTimer);
+        };
     }, [series, displaySeries]);
 
     // Move hooks above the conditional return
@@ -1030,7 +1047,7 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                             fill={isComparison ? "none" : `url(#${gradientId})`}
                             baseValue={threshold}
                             fillOpacity={shadeOpacity}
-                            isAnimationActive={true}
+                            isAnimationActive={hasData}
                             animationDuration={TRANSFORM_MS}
                             animationBegin={0}
                             animationEasing="ease-in-out"
