@@ -382,9 +382,9 @@ export function groupHoldingLayers(
 
         const totalOriginalQty = sortedLayers.reduce((sum: number, l: any) => sum + l.originalQty, 0);
         const currentQty = sortedLayers.reduce((sum: number, l: any) => sum + l.remainingQty, 0);
-        const totalValue = sortedLayers.reduce((sum: number, l: any) => sum + l.currentValue, 0); // Value of remaining
-        const totalRemainingCost = sortedLayers.reduce((sum: number, l: any) => sum + l.remainingCost, 0);
-        const totalRealCost = sortedLayers.reduce((sum: number, l: any) => sum + (l.realCostILS || l.remainingCost), 0);
+        const totalValue = sortedLayers.reduce((sum: number, l: any) => sum + (l.currentValue?.amount || 0), 0); // Value of remaining
+        const totalRemainingCost = sortedLayers.reduce((sum: number, l: any) => sum + (l.remainingCost?.amount || 0), 0);
+        const totalRealCost = sortedLayers.reduce((sum: number, l: any) => sum + (l.realCostILS?.amount || l.remainingCost?.amount || 0), 0);
 
         return {
             portfolioId: pid,
@@ -448,16 +448,18 @@ export function calculateHoldingWeights(
         // Adjusted Portfolio Total = RawTotal - RawHolding + RealHolding
         const pTotalAdjusted = (portfolioTotalsRaw[p.id] || 0) - hRawValue + hRealValue;
 
-        // If this holding exists in this portfolio (either in Raw or Real)
+        // Sum total AUM across ALL portfolios
+        totalAum += pTotalAdjusted;
+
+        // If this holding exists in this portfolio
         if (hRaw || hRealValue > 0) {
             results.push({
                 portfolioId: p.id,
                 portfolioName: p.name,
                 weightInPortfolio: pTotalAdjusted > 0 ? hRealValue / pTotalAdjusted : 0,
-                weightInGlobal: 0, // Will calc after summing AUM
+                weightInGlobal: 0, // Will calc after full AUM sum
                 value: hRealValue
             });
-            totalAum += pTotalAdjusted;
         }
     });
 
