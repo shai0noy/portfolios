@@ -1,9 +1,11 @@
 import { ResponsiveContainer, AreaChart, Area, Line, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceDot, ReferenceLine, ComposedChart, Bar } from 'recharts';
 import { useLanguage } from '../lib/i18n';
 import { formatPrice, formatPercent, formatCompactPrice, formatValue, formatCompactValue } from '../lib/currency';
-import { Paper, Typography, Box } from '@mui/material';
+import { Paper, Typography, Box, IconButton, Dialog, DialogContent } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import FullscreenIcon from '@mui/icons-material/Fullscreen';
+import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
 
 
 export interface ChartSeries {
@@ -19,6 +21,7 @@ interface TickerChartProps {
     valueType?: 'price' | 'value';
     height?: number | string;
     hideCurrentPrice?: boolean;
+    allowFullscreen?: boolean;
 }
 
 interface ChartPoint {
@@ -395,7 +398,7 @@ const SelectionSummary = ({ startPoint, endPoint, currency, t, isComparison, ser
     );
 };
 
-export function TickerChart({ series, currency, mode = 'percent', valueType = 'price', height = 300, hideCurrentPrice }: TickerChartProps) {
+export function TickerChart({ series, currency, mode = 'percent', valueType = 'price', height = 300, hideCurrentPrice, allowFullscreen = true }: TickerChartProps) {
     const FADE_MS = 170;          // Speed of the opacity transition
     const TRANSFORM_MS = 360;     // Speed of the line movement (Very fast)
     const BUFFER_MS = 30;        // Safety window for browser paint
@@ -420,6 +423,8 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
         end: null,
         isSelecting: false,
     });
+
+    const [isFullscreen, setIsFullscreen] = useState(false);
 
 
 
@@ -841,6 +846,58 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                     outline: 'none !important',
                 }
             }}>
+            {allowFullscreen && (
+                <IconButton
+                    size="small"
+                    onClick={() => setIsFullscreen(true)}
+                    sx={{
+                        position: 'absolute',
+                        top: 5,
+                        right: 5,
+                        zIndex: 11,
+                        bgcolor: 'rgba(255,255,255,0.1)',
+                        backdropFilter: 'blur(4px)',
+                        '&:hover': { bgcolor: 'rgba(255,255,255,0.2)' }
+                    }}
+                >
+                    <FullscreenIcon fontSize="small" />
+                </IconButton>
+            )}
+
+            {isFullscreen && (
+                <Dialog
+                    fullScreen
+                    open={isFullscreen}
+                    onClose={() => setIsFullscreen(false)}
+                    PaperProps={{
+                        sx: {
+                            bgcolor: 'background.default',
+                            backgroundImage: 'none',
+                            display: 'flex',
+                            flexDirection: 'column'
+                        }
+                    }}
+                >
+                    <Box sx={{ p: 1, display: 'flex', justifyContent: 'flex-end', borderBottom: 1, borderColor: 'divider' }}>
+                        <IconButton onClick={() => setIsFullscreen(false)}>
+                            <FullscreenExitIcon />
+                        </IconButton>
+                    </Box>
+                    <DialogContent sx={{ flex: 1, p: 2, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                        <Box sx={{ flex: 1, minHeight: 0 }}>
+                            <TickerChart
+                                series={series}
+                                currency={currency}
+                                mode={mode}
+                                valueType={valueType}
+                                height="100%"
+                                hideCurrentPrice={hideCurrentPrice}
+                                allowFullscreen={false}
+                            />
+                        </Box>
+                    </DialogContent>
+                </Dialog>
+            )}
             <SelectionSummary startPoint={startPoint} endPoint={endPoint} currency={currency} t={t} isComparison={isComparison} series={displaySeries} mainLineColor={mainLineColor} mode={currentMode} hideCurrentPrice={hideCurrentPrice} />
             <ResponsiveContainer width="100%" height="100%">
                 {currentMode === 'candle' ? (
