@@ -105,7 +105,7 @@ function parseVolume(instrument: Element, last: number, baseCurrency: Currency, 
 
 function calculateChangePct(current: number, previousStr: string): number | undefined {
     const prev = parseFloat(previousStr || '0');
-    if (!prev) return undefined;
+  if (!prev || current === prev) return undefined;
     return (current - prev) / prev;
 }
 

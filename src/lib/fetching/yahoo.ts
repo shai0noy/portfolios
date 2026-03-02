@@ -269,6 +269,7 @@ export async function fetchYahooTickerData(
           const currentClose = price || lastPoint.close;
 
           const findClosestPoint = (targetTs: number) => {
+            if (targetTs < points[0].time - 86400 * 5) return null; // Too far back
             let closest = points[0], minDiff = Math.abs(points[0].time - targetTs);
             for (let i = 1; i < points.length; i++) {
               const diff = Math.abs(points[i].time - targetTs);
@@ -285,7 +286,7 @@ export async function fetchYahooTickerData(
             return d.getTime() / 1000;
           };
 
-          const calcChange = (p: any) => (!p ? { pct: undefined, date: undefined } : { pct: (currentClose - p.close) / p.close, date: new Date(p.time * 1000) });
+          const calcChange = (p: any) => (!p || Math.abs(p.time * 1000 - lastPoint.time * 1000) < 86400 * 1000) ? { pct: undefined, date: undefined } : { pct: (currentClose - p.close) / p.close, date: new Date(p.time * 1000) };
 
           // Calculate 1 Week Ago (Recent)
           const w1 = findClosestPoint(getDateAgo(7, 'days'));

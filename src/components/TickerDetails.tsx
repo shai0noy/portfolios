@@ -216,7 +216,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   const lastUpdated = formatTimestamp(dataTimestamp || undefined);
   const isStale = dataTimestamp ? (Date.now() - dataTimestamp.getTime()) > 1000 * 60 * 60 * 24 * 3 : false;
 
-  const getPerf = (val?: number, date?: Date) => val != null && !isNaN(val) ? { val, date } : undefined;
+  const getPerf = (val?: number, date?: Date) => val != null && isFinite(val) ? { val, date } : undefined;
   const perfData: Record<string, { val: number, date?: Date } | undefined> = {
     '1D': getPerf(data?.changePct1d ?? holdingData?.changePct1d, data?.changeDate1d ?? holdingData?.changeDate1d),
     [data?.recentChangeDays ? `${data.recentChangeDays}D` : '1W']: getPerf(data?.changePctRecent ?? holdingData?.changePctRecent, data?.changeDateRecent ?? holdingData?.changeDateRecent),
