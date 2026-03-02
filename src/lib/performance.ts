@@ -360,11 +360,9 @@ export async function calculatePortfolioPerformance(
             const tickerKey = `${exchange}:${ticker}`;
             const history = historyMap.get(tickerKey);
             if (!history?.historical) {
-                // If no history, we might still want to add Cost Basis?
-                // But Market Value is 0.
-                // If we add Cost Basis, we show huge unrealized loss?
-                // Usually if no price, we skip or use Cost as Value?
-                // Existing logic returned.
+                // If no history, assume value is the cost basis so we don't realize an artificial 100% loss
+                totalHoldingsValue += state.costBasis;
+                totalCostBasis += state.costBasis;
                 return;
             }
 
@@ -388,7 +386,13 @@ export async function calculatePortfolioPerformance(
 
                     totalHoldingsValue += valDisplay;
                     totalCostBasis += costDisplay;
+                } else {
+                    totalHoldingsValue += state.costBasis;
+                    totalCostBasis += state.costBasis;
                 }
+            } else {
+                totalHoldingsValue += state.costBasis;
+                totalCostBasis += state.costBasis;
             }
         });
 
