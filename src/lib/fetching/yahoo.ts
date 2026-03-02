@@ -44,11 +44,6 @@ export const ISRAEL_TICKER_OVERRIDES: Record<string, string> = {
 export function getYahooTickerCandidates(ticker: string, exchange: Exchange, group?: InstrumentGroup): string[] {
   let u = ticker.toUpperCase();
 
-  // Fix for broken TASE tickers (MTF.F30 -> MTF-F30)
-  if (exchange === Exchange.TASE) {
-    u = u.replace(/\.(F\d+)/, '-$1');
-  }
-
   // 1. Handle overrides first. These are considered final.
   if (exchange === Exchange.TASE && u in ISRAEL_TICKER_OVERRIDES) {
     return [ISRAEL_TICKER_OVERRIDES[u]];
@@ -62,8 +57,13 @@ export function getYahooTickerCandidates(ticker: string, exchange: Exchange, gro
 
   // 3. Reject numeric-only symbols for stocks early.
   const isNumeric = /^\d+$/.test(u);
-  if (isNumeric && (exchange !== Exchange.TASE && group !== InstrumentGroup.INDEX)) {
+  if (isNumeric && (exchange !== Exchange.TASE || group !== InstrumentGroup.INDEX)) {
     return [];
+  }
+
+  // Fix for MTF TASE tickers (MTF.F30 -> MTF-F30)
+  if (exchange === Exchange.TASE) {
+    u = u.replace(/\.(F\d+)/, '-$1');
   }
 
   // 4. Generate a set of "base" candidates from the clean symbol.

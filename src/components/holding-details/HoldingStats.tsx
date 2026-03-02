@@ -1,5 +1,5 @@
 import { Box, Typography, Paper, Divider, Stack, Grid, Tooltip } from '@mui/material';
-import { formatValue, formatMoneyValue, formatMoneyPrice, formatPercent, formatNumber } from '../../lib/currency';
+import { formatValue, formatMoneyValue, formatMoneyPrice, formatPercent, formatNumber, convertCurrency, normalizeCurrency } from '../../lib/currency';
 import { useLanguage } from '../../lib/i18n';
 import type { HoldingValues } from './types';
 import type { HoldingWeight } from '../../lib/data/holding_utils';
@@ -17,6 +17,8 @@ interface HoldingStatsProps {
     totalQty: number;
     totalFeesDisplay: number;
     isFeeExempt?: boolean;
+    stockCurrency?: string;
+    exchangeRates?: any;
 }
 
 export function HoldingStats({
@@ -30,7 +32,9 @@ export function HoldingStats({
     unvestedGain,
     totalQty,
     totalFeesDisplay,
-    isFeeExempt
+    isFeeExempt,
+    stockCurrency,
+    exchangeRates
 }: HoldingStatsProps) {
     const { t } = useLanguage();
 
@@ -95,7 +99,17 @@ export function HoldingStats({
                 </Grid>
                 <Grid item xs={6} sm>
                     <Typography variant="caption" color="text.secondary">{t('Avg Cost', 'מחיר ממוצע')}</Typography>
-                    <Typography variant="body2" fontWeight="500">{formatMoneyPrice(vals.avgCost)}</Typography>
+                    <Box>
+                        <Typography variant="body2" fontWeight="500" sx={{ display: 'inline-block' }}>
+                            {stockCurrency && exchangeRates
+                                ? formatMoneyPrice({
+                                    amount: convertCurrency(vals.avgCost.amount, displayCurrency, stockCurrency as any, exchangeRates),
+                                    currency: stockCurrency as any
+                                }, t)
+                                : formatMoneyPrice(vals.avgCost, t)
+                            }
+                        </Typography>
+                    </Box>
                 </Grid>
                 <Grid item xs={6} sm>
                     <Typography variant="caption" color="text.secondary">{t('Quantity', 'כמות')}</Typography>

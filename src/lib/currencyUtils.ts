@@ -172,6 +172,11 @@ export function formatPrice(n: number, currency: string | Currency, decimals = 2
 
   const norm = normalizeCurrency(currency as string);
 
+  if (norm === Currency.ILS) {
+    // Israeli stocks are quoted in Agorot (ILA). 1 ILS = 100 ILA.
+    return formatPrice(n * 100, Currency.ILA, decimals, t);
+  }
+
   if (norm === Currency.ILA) {
     const val = n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: decimals, useGrouping: false });
     const agorotText = t ? t('ag.', "א'") : 'ag.';
@@ -206,6 +211,11 @@ export function formatCompactPrice(n: number, currency: string | Currency, t?: (
   }
 
   const norm = normalizeCurrency(currency as string);
+
+  if (norm === Currency.ILS) {
+    // Israeli prices are always Agorot (ILA). 1 ILS = 100 ILA.
+    return formatCompactPrice(n * 100, Currency.ILA, t);
+  }
 
   if (norm === Currency.ILA) {
     return formatPrice(n, currency, 0, t);

@@ -306,6 +306,8 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                                 totalQty={totalQty}
                                 totalFeesDisplay={totalFeesDisplay}
                                 isFeeExempt={isFeeExempt}
+                                    stockCurrency={stockCurrency}
+                                    exchangeRates={exchangeRates}
                             />
 
                             <HoldingDistribution
