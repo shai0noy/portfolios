@@ -859,13 +859,15 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                 minWidth: 0,
                 minHeight: 0,
                 position: 'relative',
+                display: 'flex',
+                flexDirection: 'column',
                 userSelect: 'none',
                 '& *': {
                     outline: 'none !important',
                 }
             }}>
             {(topControls || allowFullscreen) && !isFullscreen && (
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1, gap: 1, flexWrap: 'wrap' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5, gap: 1, flexWrap: 'wrap' }}>
                     <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
                         {topControls}
                     </Box>
@@ -922,178 +924,180 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                     </DialogContent>
                 </Dialog>
             )}
-            <SelectionSummary startPoint={startPoint} endPoint={endPoint} currency={currency} t={t} isComparison={isComparison} series={displaySeries} mainLineColor={mainLineColor} mode={currentMode} hideCurrentPrice={hideCurrentPrice} />
-            <ResponsiveContainer width="100%" height="100%">
-                {currentMode === 'candle' ? (
-                    <ComposedChart
-                        data={finalData}
-                        onClick={handleClick}
-                        onMouseMove={handleMouseMove}
-                        margin={{ top: 10, right: 5, left: 0, bottom: 0 }}
-                    >
-                        <defs>
-                            {/* Gradients are not used in candle mode generally, but we can keep defs if needed */}
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} />
-                        <XAxis
-                            dataKey="date"
-                            type="number"
-                            domain={[xMin ?? 'dataMin', xMax ?? 'dataMax']}
-                            scale="time"
-                            tickFormatter={formatXAxis}
-                            tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
-                            ticks={xAxisTicks}
-                            dy={7}
-                        />
-                        {/* Price Axis */}
-                        <YAxis
-                            yAxisId="price"
-                            orientation="right"
-                            tickFormatter={formatYAxis}
-                            width={60}
-                            tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
-                            dx={3}
-                            domain={[yMin, yMax]}
-                            ticks={yTicks}
-                        />
-                        {/* Volume Axis (hidden or scaled) */}
-                        <YAxis
-                            yAxisId="volume"
-                            orientation="left"
-                            hide={true}
-                            domain={[0, volMax * 4]} // Scale so max volume is 1/4th height
-                        />
-                        <Tooltip content={<CandleTooltip currency={currency} t={t} mode={currentMode} />} />
-
-                        <Bar
-                            dataKey="volume"
-                            yAxisId="volume"
-                            fill={theme.palette.text.secondary}
-                            opacity={0.5}
-                            barSize={6} // Fixed width, wider than before
-                            isAnimationActive={false}
-                        />
-
-                        {/* Candle Bar - using custom shape. use barSize to guarantee width. */}
-                        <Bar
-                            dataKey="price"
-                            yAxisId="price"
-                            shape={<CandleStickShape successColor={successColor} errorColor={errorColor} />}
-                            barSize={8} // 2x volume width
-                            isAnimationActive={false}
-                        />
-
-                    </ComposedChart>
-                ) : (
-                    <AreaChart
-                        data={finalData}
-                        onClick={handleClick}
-                        onMouseMove={handleMouseMove}
-                        margin={{ top: 10, right: 5, left: 0, bottom: 0 }}
-                    >
-                        <defs>
-                            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="0" stopColor={theme.palette.success.main} stopOpacity={0.4} />
-                                <stop offset={clampedOffset} stopColor={theme.palette.success.main} stopOpacity={0.05} />
-                                <stop offset={clampedOffset} stopColor={theme.palette.error.main} stopOpacity={0.05} />
-                                <stop offset="1" stopColor={theme.palette.error.main} stopOpacity={0.4} />
-                            </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} />
-                        <XAxis
-                            dataKey="date"
-                            type="number"
-                            domain={[xMin ?? 'dataMin', xMax ?? 'dataMax']}
+            <Box sx={{ flex: 1, minHeight: 0, position: 'relative' }}>
+                <SelectionSummary startPoint={startPoint} endPoint={endPoint} currency={currency} t={t} isComparison={isComparison} series={displaySeries} mainLineColor={mainLineColor} mode={currentMode} hideCurrentPrice={hideCurrentPrice} />
+                <ResponsiveContainer width="100%" height="100%">
+                    {currentMode === 'candle' ? (
+                        <ComposedChart
+                            data={finalData}
+                            onClick={handleClick}
+                            onMouseMove={handleMouseMove}
+                            margin={{ top: 10, right: 5, left: 0, bottom: 0 }}
+                        >
+                            <defs>
+                                {/* Gradients are not used in candle mode generally, but we can keep defs if needed */}
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} />
+                            <XAxis
+                                dataKey="date"
+                                type="number"
+                                domain={[xMin ?? 'dataMin', xMax ?? 'dataMax']}
                                 scale="time"
                                 tickFormatter={formatXAxis}
                                 tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
-                            ticks={xAxisTicks}
+                                ticks={xAxisTicks}
                                 dy={7}
-                        />
-                        <YAxis
-                            orientation="right"
-                            tickFormatter={formatYAxis}
-                            width={mode === 'price' ? 60 : 50}
-                            tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
-                            dx={3}
-                            domain={[yMin, yMax]}
-                            ticks={yTicks}
-                        />
-                        <Tooltip content={<CustomTooltip currency={currency} t={t} basePrice={basePrice} isComparison={isComparison} series={displaySeries} mode={currentMode} hideCurrentPrice={hideCurrentPrice} />} />
-
-                        {/* Zero line (solid, semi-opaque) - only if 0 is in range */}
-                        {showZeroLine && (
-                            <ReferenceLine y={0} stroke={theme.palette.text.secondary} strokeOpacity={0.4} strokeWidth={1} />
-                        )}
-
-                        {/* Threshold line (dashed) - used for base price in price mode. Avoid if it duplicates 0 (which is covered above) */}
-                        {threshold !== 0 && (
-                            <ReferenceLine y={threshold} stroke={theme.palette.text.secondary} strokeDasharray="3 3" />
-                        )}
-
-                        {displaySeries.slice(1).map((s, i) => (
-                            <Line
-                                key={i}
-                                type="monotone"
-                                dataKey={`series_${i}`}
-                                stroke={s.color}
-                                strokeWidth={1.2}
-                                dot={false}
-                                isAnimationActive={true}
-                                connectNulls
-                                animationDuration={TRANSFORM_MS}
-                                animationEasing="ease-in-out"
                             />
-                        ))}
+                            {/* Price Axis */}
+                            <YAxis
+                                yAxisId="price"
+                                orientation="right"
+                                tickFormatter={formatYAxis}
+                                width={60}
+                                tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
+                                dx={3}
+                                domain={[yMin, yMax]}
+                                ticks={yTicks}
+                            />
+                            {/* Volume Axis (hidden or scaled) */}
+                            <YAxis
+                                yAxisId="volume"
+                                orientation="left"
+                                hide={true}
+                                domain={[0, volMax * 4]} // Scale so max volume is 1/4th height
+                            />
+                            <Tooltip content={<CandleTooltip currency={currency} t={t} mode={currentMode} />} />
 
-                        <Area
-                            type="monotone"
-                            dataKey="yValue"
-                            stroke={mainLineColor}
-                            strokeWidth={2}
-                            fill={isComparison ? "none" : `url(#${gradientId})`}
-                            baseValue={threshold}
-                            fillOpacity={shadeOpacity}
-                            isAnimationActive={hasData}
-                            animationDuration={TRANSFORM_MS}
-                            animationBegin={0}
-                            animationEasing="ease-in-out"
-                            style={{
-                                transition: `fill-opacity ${FADE_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`,
-                                pointerEvents: 'none'
-                            }}
-                        />
+                            <Bar
+                                dataKey="volume"
+                                yAxisId="volume"
+                                fill={theme.palette.text.secondary}
+                                opacity={0.5}
+                                barSize={6} // Fixed width, wider than before
+                                isAnimationActive={false}
+                            />
 
-                        {startPoint && endPoint && startPoint !== endPoint && (
+                            {/* Candle Bar - using custom shape. use barSize to guarantee width. */}
+                            <Bar
+                                dataKey="price"
+                                yAxisId="price"
+                                shape={<CandleStickShape successColor={successColor} errorColor={errorColor} />}
+                                barSize={8} // 2x volume width
+                                isAnimationActive={false}
+                            />
+
+                        </ComposedChart>
+                    ) : (
+                        <AreaChart
+                            data={finalData}
+                            onClick={handleClick}
+                            onMouseMove={handleMouseMove}
+                            margin={{ top: 10, right: 5, left: 0, bottom: 0 }}
+                        >
+                            <defs>
+                                <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0" stopColor={theme.palette.success.main} stopOpacity={0.4} />
+                                    <stop offset={clampedOffset} stopColor={theme.palette.success.main} stopOpacity={0.05} />
+                                    <stop offset={clampedOffset} stopColor={theme.palette.error.main} stopOpacity={0.05} />
+                                    <stop offset="1" stopColor={theme.palette.error.main} stopOpacity={0.4} />
+                                </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} />
+                            <XAxis
+                                dataKey="date"
+                                type="number"
+                                domain={[xMin ?? 'dataMin', xMax ?? 'dataMax']}
+                                scale="time"
+                                tickFormatter={formatXAxis}
+                                tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
+                                ticks={xAxisTicks}
+                                dy={7}
+                            />
+                            <YAxis
+                                orientation="right"
+                                tickFormatter={formatYAxis}
+                                width={mode === 'price' ? 60 : 50}
+                                tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
+                                dx={3}
+                                domain={[yMin, yMax]}
+                                ticks={yTicks}
+                            />
+                            <Tooltip content={<CustomTooltip currency={currency} t={t} basePrice={basePrice} isComparison={isComparison} series={displaySeries} mode={currentMode} hideCurrentPrice={hideCurrentPrice} />} />
+
+                            {/* Zero line (solid, semi-opaque) - only if 0 is in range */}
+                            {showZeroLine && (
+                                <ReferenceLine y={0} stroke={theme.palette.text.secondary} strokeOpacity={0.4} strokeWidth={1} />
+                            )}
+
+                            {/* Threshold line (dashed) - used for base price in price mode. Avoid if it duplicates 0 (which is covered above) */}
+                            {threshold !== 0 && (
+                                <ReferenceLine y={threshold} stroke={theme.palette.text.secondary} strokeDasharray="3 3" />
+                            )}
+
+                            {displaySeries.slice(1).map((s, i) => (
+                                <Line
+                                    key={i}
+                                    type="monotone"
+                                    dataKey={`series_${i}`}
+                                    stroke={s.color}
+                                    strokeWidth={1.2}
+                                    dot={false}
+                                    isAnimationActive={true}
+                                    connectNulls
+                                    animationDuration={TRANSFORM_MS}
+                                    animationEasing="ease-in-out"
+                                />
+                            ))}
+
                             <Area
                                 type="monotone"
-                                dataKey="highlightedY"
-                                stroke="none"
-                                fill={mainLineColor}
-                                fillOpacity={0.2}
-                                isAnimationActive={false}
-                                activeDot={false}
-                                style={{ pointerEvents: 'none' }}
+                                dataKey="yValue"
+                                stroke={mainLineColor}
+                                strokeWidth={2}
+                                fill={isComparison ? "none" : `url(#${gradientId})`}
+                                baseValue={threshold}
+                                fillOpacity={shadeOpacity}
+                                isAnimationActive={hasData}
+                                animationDuration={TRANSFORM_MS}
+                                animationBegin={0}
+                                animationEasing="ease-in-out"
+                                style={{
+                                    transition: `fill-opacity ${FADE_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`,
+                                    pointerEvents: 'none'
+                                }}
                             />
-                        )}
 
-                        {startPoint && (
-                            <ReferenceDot x={startPoint.date.getTime()} y={startPoint.yValue} r={6} fill={chartColor} stroke="white" strokeWidth={2} />
-                        )}
-                        {endPoint && (
-                            <ReferenceDot x={endPoint.date.getTime()} y={endPoint.yValue} r={6} fill={chartColor} stroke="white" strokeWidth={2} />
-                        )}
+                            {startPoint && endPoint && startPoint !== endPoint && (
+                                <Area
+                                    type="monotone"
+                                    dataKey="highlightedY"
+                                    stroke="none"
+                                    fill={mainLineColor}
+                                    fillOpacity={0.2}
+                                    isAnimationActive={false}
+                                    activeDot={false}
+                                    style={{ pointerEvents: 'none' }}
+                                />
+                            )}
 
-                        {/* Vertical lines for selection range */}
-                        {startPoint && endPoint && startPoint !== endPoint && (
-                            <>
-                                <ReferenceLine x={startPoint.date.getTime()} stroke={theme.palette.text.secondary} strokeWidth={1} strokeDasharray="2 2" strokeOpacity={0.5} />
-                                <ReferenceLine x={endPoint.date.getTime()} stroke={theme.palette.text.secondary} strokeWidth={1} strokeDasharray="2 2" strokeOpacity={0.5} />
-                            </>
-                        )}
-                    </AreaChart>
-                )}
-            </ResponsiveContainer>
+                            {startPoint && (
+                                <ReferenceDot x={startPoint.date.getTime()} y={startPoint.yValue} r={6} fill={chartColor} stroke="white" strokeWidth={2} />
+                            )}
+                            {endPoint && (
+                                <ReferenceDot x={endPoint.date.getTime()} y={endPoint.yValue} r={6} fill={chartColor} stroke="white" strokeWidth={2} />
+                            )}
+
+                            {/* Vertical lines for selection range */}
+                            {startPoint && endPoint && startPoint !== endPoint && (
+                                <>
+                                    <ReferenceLine x={startPoint.date.getTime()} stroke={theme.palette.text.secondary} strokeWidth={1} strokeDasharray="2 2" strokeOpacity={0.5} />
+                                    <ReferenceLine x={endPoint.date.getTime()} stroke={theme.palette.text.secondary} strokeWidth={1} strokeDasharray="2 2" strokeOpacity={0.5} />
+                                </>
+                            )}
+                        </AreaChart>
+                    )}
+                </ResponsiveContainer>
+            </Box>
         </Box>
     );
 }

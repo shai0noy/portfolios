@@ -1,4 +1,4 @@
-import { Box, Paper, Typography, Grid, Tooltip, ToggleButton, ToggleButtonGroup, IconButton, CircularProgress, Button, Menu, MenuItem, Chip, ListItemIcon, Dialog, DialogTitle, DialogContent, Fade } from '@mui/material';
+import { Box, Paper, Typography, Grid, Tooltip, ToggleButton, ToggleButtonGroup, IconButton, CircularProgress, Button, Menu, MenuItem, Chip, ListItemIcon, Dialog, DialogTitle, DialogContent, Fade, Alert } from '@mui/material';
 import { formatMoneyValue, normalizeCurrency } from '../../lib/currencyUtils';
 import { logIfFalsy } from '../../lib/utils';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
@@ -363,7 +363,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
           )}
           {activeStep === 1 && (
             <Fade in={true} timeout={700}>
-              <Box sx={{ height: 230, position: 'relative', minWidth: 0, minHeight: 0 }}>
+              <Box sx={{ height: isComparison ? (chartView === 'holdings' ? 320 : 260) : 230, position: 'relative', minWidth: 0, minHeight: 0, transition: 'height 0.3s ease' }}>
                 {isPerfLoading ? (
                   <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" height="100%" gap={1}>
                     <CircularProgress size={30} />
@@ -376,7 +376,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                         currency={displayCurrency}
                         mode={effectiveChartMetric}
                         valueType={chartView === 'holdings' || chartView === 'gains' ? 'value' : 'price'}
-                        height={200}
+                        height="100%"
                         hideCurrentPrice={chartView === 'twr'}
                         topControls={
                           <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -443,6 +443,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                                   size="small"
                                   variant="outlined"
                                   sx={{ height: 26, fontSize: '0.65rem', textTransform: 'none' }}
+                                  disabled={isComparisonDisabled}
                                 >
                                   {t('Analysis', 'ניתוח')}
                                 </Button>
@@ -462,15 +463,20 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                                 ))}
                               </ToggleButtonGroup>
                             </Box>
+                            {chartView === 'holdings' && isComparison && (
+                              <Alert severity="warning" variant="standard" sx={{ py: 0, px: 1, mb: 1, mt: 1, '& .MuiAlert-message': { py: 0.5, fontSize: '0.7rem' }, '& .MuiAlert-icon': { py: 0.5, fontSize: '1rem' } }}>
+                                {t("Note: 'Holdings' view includes deposits/withdrawals which may skew analysis. Use 'TWR' for pure performance.", "שים לב: תצוגת 'החזקות' כוללת הפקדות/משיכות שעשויות לעוות את הניתוח. השתמש ב-'TWR' לביצועים נטו.")}
+                              </Alert>
+                            )}
                             {isComparison && (
-                              <Box display="flex" flexWrap="wrap" gap={0.5} sx={{ mb: 1 }}>
+                              <Box display="flex" flexWrap="wrap" gap={0.5} sx={{ mb: 0 }}>
                                 {comparisonSeries.map(s => (
                                   <Chip
                                     key={s.name}
                                     label={s.name}
                                     size="small"
                                     onDelete={() => setComparisonSeries(prev => prev.filter(x => x.name !== s.name))}
-                                    sx={{ fontSize: '0.65rem', color: s.color, borderColor: s.color, height: 20 }}
+                                    sx={{ fontSize: '0.65rem', color: s.color, borderColor: s.color, height: 20, '& .MuiChip-label': { paddingLeft: '6px', paddingRight: '6px', paddingTop: '2px' } }}
                                     variant="outlined"
                                   />
                                 ))}
@@ -564,6 +570,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
         initialRange={chartRange}
         currency={displayCurrency}
         subjectName={selectedPortfolio ? t('Portfolio', 'התיק') : t('All Portfolios', 'כל התיקים')}
+        isHoldingsView={chartView === 'holdings'}
       />
     </>
   );

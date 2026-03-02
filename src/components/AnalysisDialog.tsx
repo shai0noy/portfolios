@@ -1,4 +1,4 @@
-import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Table, TableBody, TableCell, TableHead, TableRow, Box, Typography, ToggleButton, ToggleButtonGroup, Tooltip, Select, MenuItem, FormControl, InputLabel, CircularProgress } from '@mui/material';
+import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Table, TableBody, TableCell, TableHead, TableRow, Box, Typography, ToggleButton, ToggleButtonGroup, Tooltip, Select, MenuItem, FormControl, InputLabel, CircularProgress, Alert } from '@mui/material';
 import { useLanguage } from '../lib/i18n';
 import type { ChartSeries } from './TickerChart';
 import { useMemo, useState, useEffect } from 'react';
@@ -18,6 +18,7 @@ interface AnalysisDialogProps {
     initialRange?: string;
     currency?: string;
     subjectName?: string;
+    isHoldingsView?: boolean;
 }
 
 const DEFAULT_BENCHMARKS = [
@@ -62,7 +63,7 @@ interface ExtendedAnalysisMetrics extends AnalysisMetrics {
     activeReturn: number;
 }
 
-export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, title, initialRange, currency, subjectName }: AnalysisDialogProps) {
+export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, title, initialRange, currency, subjectName, isHoldingsView }: AnalysisDialogProps) {
     const { t } = useLanguage();
     const theme = useTheme();
     const [range, setRange] = useState(initialRange || '1Y');
@@ -462,6 +463,11 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
                         </Select>
                     </FormControl>
                 </Box>
+                {isHoldingsView && (
+                    <Alert severity="warning" variant="standard" sx={{ mb: 2, '& .MuiAlert-message': { fontSize: '0.75rem', py: 0.5 }, '& .MuiAlert-icon': { fontSize: '1rem', py: 0.5 } }}>
+                        {t("Note: Analysis on 'Holdings' view includes deposits/withdrawals which may skew metrics. Use 'TWR' for pure performance.", "שים לב: ניתוח בתצוגת 'החזקות' כולל הפקדות/משיכות שעשויות לעוות את המדדים. מומלץ להשתמש ב-'TWR' לביצועים נטו.")}
+                    </Alert>
+                )}
                 {loading ? (
                     <Box display="flex" justifyContent="center" alignItems="center" minHeight={200}>
                         <CircularProgress />
