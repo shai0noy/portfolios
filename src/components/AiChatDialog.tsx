@@ -59,7 +59,7 @@ interface AiChatDialogProps {
 
 const ChatMessageItem = React.memo(({ msg, t, onRetry, lastPrompt }: {
   msg: ExtendedChatMessage,
-  t: (e: string, h?: string) => string,
+  t: (e: string, h: string) => string,
   onRetry: (prompt: string) => void,
   lastPrompt: string
 }) => {
@@ -115,7 +115,7 @@ const ChatMessageItem = React.memo(({ msg, t, onRetry, lastPrompt }: {
 const ChatInputSection = React.memo(({ onSend, isLoading, t, initialValue }: {
   onSend: (val: string) => void,
   isLoading: boolean,
-  t: (e: string, h?: string) => string,
+  t: (e: string, h: string) => string,
   initialValue: string
 }) => {
   const [value, setValue] = useState(initialValue);
@@ -160,7 +160,7 @@ const ProfileForm = React.memo(({ initialProfile, loadingProfile, displayCurrenc
   initialProfile: UserFinancialProfile,
   loadingProfile: boolean,
   displayCurrency: string,
-  t: (e: string, h?: string) => string,
+  t: (e: string, h: string) => string,
   onSave: (p: UserFinancialProfile) => void,
   onCancel: () => void,
   savingProfile: boolean
@@ -449,12 +449,17 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({ open, onClose, apiKe
     lastPromptRef.current = userMsg;
     if (input) setInput(''); // Clear suggestion if it was used
 
+    if (customPrompt) {
+      // Remove any existing error messages before retrying
+      setMessages(prev => prev.filter(m => !m.isError));
+    }
+
     if (!messages.some(m => m.parts[0].text === userMsg && m.role === 'user')) {
       setMessages(prev => [...prev, { role: 'user', parts: [{ text: userMsg }] }]);
     }
 
     try {
-      // Filter history to remove error messages and ensure proper role alternation
+      // Ensure error messages are NOT sent to the model history
       const history = messages.filter((m) => !m.isError);
 
       const profileContext = userProfile && Object.keys(userProfile).length > 0
@@ -476,11 +481,21 @@ ${summarizePortfolio()}
 
       const response = await askGemini(apiKey, history, userMsg, selectedModel, systemInstruction);
       setMessages(prev => [...prev, { role: 'model', parts: [{ text: response }] }]);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Gemini Error:", err);
+      let errorMsg = t('Sorry, I encountered an error while processing your request.', 'מצטער, נתקלתי בשגיאה בעיבוד הבקשה שלך.');
+
+      const errMsg = err.message?.toLowerCase() || '';
+      if (errMsg.includes('quota') || errMsg.includes('rate limit') || errMsg.includes('exceeded')) {
+        errorMsg = t(
+          'Quota exceeded for this model. Try switching to "Fast" mode for higher limits.',
+          'חריגה ממכסת המודל. נסה לעבור למצב "מהיר" לקבלת מגבלות גבוהות יותר.'
+        );
+      }
+
       setMessages(prev => [...prev, {
         role: 'model',
-        parts: [{ text: t('Sorry, I encountered an error while processing your request.', 'מצטער, נתקלתי בשגיאה בעיבוד הבקשה שלך.') }],
+        parts: [{ text: errorMsg }],
         isError: true
       }]);
     } finally {
@@ -565,9 +580,15 @@ ${summarizePortfolio()}
           </Box>
           <Box>
             <Tooltip title={t("User Profile", "פרופיל משתמש")}>
-              <IconButton onClick={() => setOpenProfile(true)} size="small" sx={{ mr: 1 }}>
-                <ManageAccountsIcon />
-              </IconButton>
+              <Button
+                onClick={() => setOpenProfile(true)}
+                size="small"
+                color="inherit"
+                startIcon={<ManageAccountsIcon />}
+                sx={{ mr: 1, textTransform: 'none', opacity: 0.7 }}
+              >
+                {t('Profile', 'פרופיל')}
+              </Button>
             </Tooltip>
             <Tooltip title={t('Clear History', 'נקה היסטוריה')}>
               <Button
@@ -575,7 +596,7 @@ ${summarizePortfolio()}
                 size="small"
                 color="inherit"
                 startIcon={<DeleteOutlineIcon />}
-                sx={{ mr: 1, textTransform: 'none' }}
+                sx={{ mr: 1, textTransform: 'none', opacity: 0.7 }}
               >
                 {t('Clear Chat', 'נקה שיחה')}
               </Button>
