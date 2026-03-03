@@ -23,6 +23,7 @@ import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
 import { useLanguage } from '../lib/i18n';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { type ChatMessage, askGemini, fetchModels, type GeminiModel, getModelByCapability } from '../lib/gemini';
 import type { EnrichedDashboardHolding } from '../lib/dashboard_calc';
 import type { DashboardSummaryData } from '../lib/types';
@@ -88,10 +89,29 @@ const ChatMessageItem = React.memo(({ msg, t, onRetry, lastPrompt }: {
           whiteSpace: 'normal',
           '& p': { m: 0, mb: 1, '&:last-child': { mb: 0 } },
           '& ul, & ol': { m: 0, pl: 2, mb: 1 },
-          '& code': { bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5, fontFamily: 'monospace' }
+          '& code': { bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5, fontFamily: 'monospace' },
+          '& table': {
+            width: '100%',
+            borderCollapse: 'collapse',
+            mb: 1,
+            direction: 'inherit',
+            '& th, & td': {
+              border: '1px solid',
+              borderColor: 'divider',
+              p: 1,
+              textAlign: 'inherit'
+            },
+            '& th': {
+              bgcolor: 'action.hover',
+              fontWeight: 'bold'
+            },
+            '& tr:nth-of-type(even)': {
+              bgcolor: 'action.hover'
+            }
+          }
         }}>
           {msg.role === 'model' ? (
-            <ReactMarkdown>{msg.parts[0].text}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.parts[0].text}</ReactMarkdown>
           ) : (
             msg.parts[0].text
           )}
@@ -515,6 +535,7 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({ open, onClose, apiKe
       const systemInstruction = `
 You are a financial assistant. Be professional, objective, and direct. Avoid excessive praise or flattery. Focus on data-driven analysis and facts. 
 Please be careful in your wording around suggestions - you are just an AI.
+-Use Markdown tables for comparing numbers or performance periods when beneficial.
 Suggest one concrete follow-up question or action.
 
 ==User Context==
