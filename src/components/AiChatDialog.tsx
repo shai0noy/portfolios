@@ -3,7 +3,8 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions,
   Button, TextField, Box, Typography, IconButton,
   CircularProgress, Paper, Tooltip, Select, MenuItem, FormControl,
-  FormControlLabel, Chip, Stack, ToggleButton, ToggleButtonGroup, Switch, Alert
+  FormControlLabel, Chip, Stack, ToggleButton, ToggleButtonGroup, Switch, Alert,
+  InputAdornment
 } from '@mui/material';
 import BoltIcon from '@mui/icons-material/Bolt';
 import PsychologyIcon from '@mui/icons-material/Psychology';
@@ -13,6 +14,12 @@ import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import PersonIcon from '@mui/icons-material/Person';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import CakeIcon from '@mui/icons-material/Cake';
+import EventIcon from '@mui/icons-material/Event';
+import ChildCareIcon from '@mui/icons-material/ChildCare';
+import HomeIcon from '@mui/icons-material/Home';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
 import { useLanguage } from '../lib/i18n';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import ReactMarkdown from 'react-markdown';
@@ -20,6 +27,8 @@ import { type ChatMessage, askGemini, fetchModels, type GeminiModel, getModelByC
 import type { EnrichedDashboardHolding } from '../lib/dashboard_calc';
 import type { DashboardSummaryData } from '../lib/types';
 import { formatPercent } from '../lib/currencyUtils';
+import ManageAccountsIcon from '@mui/icons-material/ManageAccounts';
+import { getMetadataValue, setMetadataValue } from '../lib/sheets/api';
 
 interface AiChatDialogPortfolioData {
   holdings: EnrichedDashboardHolding[];
@@ -31,14 +40,79 @@ interface ExtendedChatMessage extends ChatMessage {
   isError?: boolean;
 }
 
+interface UserFinancialProfile {
+  age?: number;
+  retirementAge?: number;
+  numChildren?: number;
+  netYearlyEarnings?: number;
+  yearlySpending?: number;
+  ownsHome?: boolean;
+}
+
 interface AiChatDialogProps {
   open: boolean;
   onClose: () => void;
   apiKey: string;
+  sheetId: string;
   portfolioData: AiChatDialogPortfolioData;
 }
 
-export const AiChatDialog: React.FC<AiChatDialogProps> = ({ open, onClose, apiKey, portfolioData }) => {
+const ChatMessageItem = React.memo(({ msg, t, onRetry, lastPrompt }: {
+  msg: ExtendedChatMessage,
+  t: (e: string, h?: string) => string,
+  onRetry: (prompt: string) => void,
+  lastPrompt: string
+}) => {
+  return (
+    <Box
+      sx={{
+        display: 'flex',
+        justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
+        gap: 1.5,
+        mb: 1
+      }}
+    >
+      {msg.role === 'model' && <SmartToyIcon color="primary" sx={{ mt: 1 }} />}
+      <Paper
+        sx={{
+          p: 1.5,
+          maxWidth: '92%',
+          bgcolor: msg.role === 'user' ? 'primary.main' : 'background.paper',
+          color: msg.role === 'user' ? 'primary.contrastText' : 'text.primary',
+          borderRadius: 2
+        }}
+      >
+        <Typography component="div" variant="body2" sx={{
+          whiteSpace: 'normal',
+          '& p': { m: 0, mb: 1, '&:last-child': { mb: 0 } },
+          '& ul, & ol': { m: 0, pl: 2, mb: 1 },
+          '& code': { bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5, fontFamily: 'monospace' }
+        }}>
+          {msg.role === 'model' ? (
+            <ReactMarkdown>{msg.parts[0].text}</ReactMarkdown>
+          ) : (
+            msg.parts[0].text
+          )}
+        </Typography>
+        {msg.isError && (
+          <Button
+            startIcon={<RefreshIcon />}
+            size="small"
+            variant="outlined"
+            color="error"
+            onClick={() => onRetry(lastPrompt)}
+            sx={{ mt: 1, textTransform: 'none', py: 0, fontSize: '0.7rem' }}
+          >
+            {t('Retry', 'נסה שוב')}
+          </Button>
+        )}
+      </Paper>
+      {msg.role === 'user' && <PersonIcon color="action" sx={{ mt: 1 }} />}
+    </Box>
+  );
+});
+
+export const AiChatDialog: React.FC<AiChatDialogProps> = ({ open, onClose, apiKey, sheetId, portfolioData }) => {
   const { t } = useLanguage();
   const [messages, setMessages] = useState<ExtendedChatMessage[]>(() => {
     const saved = localStorage.getItem('ai_chat_history');
@@ -54,6 +128,43 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({ open, onClose, apiKe
   const [chatMode, setChatMode] = useState<'fast' | 'thinking'>('fast');
   const [isExpertMode, setIsExpertMode] = useState(false);
   const [openDisclaimer, setOpenDisclaimer] = useState(true);
+  const [openProfile, setOpenProfile] = useState(false);
+  const [userProfile, setUserProfile] = useState<UserFinancialProfile>({});
+  const [loadingProfile, setLoadingProfile] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+
+  useEffect(() => {
+    if (open && sheetId && !userProfile.age) {
+      setLoadingProfile(true);
+      getMetadataValue(sheetId, 'user_financial_profile')
+        .then(val => {
+          if (val) {
+            try {
+              const parsed = JSON.parse(val);
+              setUserProfile(parsed);
+            } catch (e) {
+              console.error("Failed to parse user profile: " + val, e);
+            }
+          }
+        })
+        .catch(e => console.error("Failed to load user profile", e))
+        .finally(() => setLoadingProfile(false));
+    }
+  }, [open, sheetId]);
+
+  const handleSaveProfile = async () => {
+    if (!sheetId) return;
+    setSavingProfile(true);
+    try {
+      await setMetadataValue(sheetId, 'user_financial_profile', JSON.stringify(userProfile));
+      setOpenProfile(false);
+    } catch (e) {
+      console.error("Failed to save profile", e);
+      alert(t('Failed to save profile', 'שמירת הפרופיל נכשלה'));
+    } finally {
+      setSavingProfile(false);
+    }
+  };
 
   useEffect(() => {
     if (open && apiKey) {
@@ -161,7 +272,22 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({ open, onClose, apiKe
       // Filter history to remove error messages and ensure proper role alternation
       const history = messages.filter((m) => !m.isError);
 
-      const systemInstruction = `You are a financial assistant. Be professional, objective, and direct. Avoid excessive praise or flattery. Focus on data-driven analysis and facts. \nIf your response includes specific investment or tax handling advice, please add a brief disclaimer at the end. \nAlso, please suggest one concrete follow-up question or action the user could take based on your analysis.\nCurrent Portfolio Data: ${summarizePortfolio()}.\nUser Session Start.`;
+      const profileContext = userProfile && Object.keys(userProfile).length > 0
+        ? `\nUser Profile: ${JSON.stringify(userProfile)}`
+        : '';
+
+      const systemInstruction = `
+You are a financial assistant. Be professional, objective, and direct. Avoid excessive praise or flattery. Focus on data-driven analysis and facts. 
+If your response includes specific investment or tax handling advice, please add a brief disclaimer at the end. 
+Suggest one concrete follow-up question or action.
+
+==User Context==
+${profileContext}
+
+==Current Portfolio Data==
+${summarizePortfolio()}
+
+==User Session Start==`;
 
       const response = await askGemini(apiKey, history, userMsg, selectedModel, systemInstruction);
       setMessages(prev => [...prev, { role: 'model', parts: [{ text: response }] }]);
@@ -185,7 +311,13 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({ open, onClose, apiKe
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+    <>
+      <Dialog
+        open={open}
+        onClose={onClose}
+        maxWidth="lg"
+        fullWidth
+      >
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexGrow: 1 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -247,6 +379,11 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({ open, onClose, apiKe
           />
         </Box>
         <Box>
+            <Tooltip title={t("User Profile", "פרופיל משתמש")}>
+              <IconButton onClick={() => setOpenProfile(true)} size="small" sx={{ mr: 1 }}>
+                <ManageAccountsIcon />
+              </IconButton>
+            </Tooltip>
           <Tooltip title={t('Clear History', 'נקה היסטוריה')}>
             <Button
               onClick={clearHistory}
@@ -284,7 +421,7 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({ open, onClose, apiKe
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                 {t('Try asking one of these:', 'נסה לשאול את אחת השאלות הבאות:')}
               </Typography>
-              <Stack direction="row" flexWrap="wrap" gap={1} justifyContent="center" sx={{ maxWidth: 600, mx: 'auto' }}>
+                <Stack direction="row" flexWrap="wrap" gap={1} justifyContent="center" sx={{ maxWidth: 800, mx: 'auto' }}>
                 {[
                   t("What are the key risks in my portfolio?", "מהם הסיכונים המרכזיים בתיק?"),
                   t("How is my asset allocation distributed?", "איך נראית הקצאת הנכסים שלי?"),
@@ -306,51 +443,13 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({ open, onClose, apiKe
             </Box>
           )}
           {messages.map((msg, i) => (
-            <Box
-              key={i}
-              sx={{
-                display: 'flex',
-                justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
-                gap: 1
-              }}
-            >
-              {msg.role === 'model' && <SmartToyIcon color="primary" sx={{ mt: 1 }} />}
-              <Paper
-                sx={{
-                  p: 1.5,
-                  maxWidth: '80%',
-                  bgcolor: msg.role === 'user' ? 'primary.main' : 'background.paper',
-                  color: msg.role === 'user' ? 'primary.contrastText' : 'text.primary',
-                  borderRadius: 2
-                }}
-              >
-                <Typography component="div" variant="body2" sx={{
-                  whiteSpace: 'normal',
-                  '& p': { m: 0, mb: 1, '&:last-child': { mb: 0 } },
-                  '& ul, & ol': { m: 0, pl: 2, mb: 1 },
-                  '& code': { bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5, fontFamily: 'monospace' }
-                }}>
-                  {msg.role === 'model' ? (
-                    <ReactMarkdown>{msg.parts[0].text}</ReactMarkdown>
-                  ) : (
-                    msg.parts[0].text
-                  )}
-                </Typography>
-                {msg.isError && (
-                  <Button
-                    startIcon={<RefreshIcon />}
-                    size="small"
-                    variant="outlined"
-                    color="error"
-                    onClick={() => handleSend(lastPromptRef.current)}
-                    sx={{ mt: 1, textTransform: 'none', py: 0, fontSize: '0.7rem' }}
-                  >
-                    {t('Retry', 'נסה שוב')}
-                  </Button>
-                )}
-              </Paper>
-              {msg.role === 'user' && <PersonIcon color="action" sx={{ mt: 1 }} />}
-            </Box>
+            <ChatMessageItem
+              key={i} 
+              msg={msg}
+              t={t}
+              onRetry={handleSend}
+              lastPrompt={lastPromptRef.current}
+            />
           ))}
           {isLoading && (
             <Box sx={{ display: 'flex', gap: 1 }}>
@@ -396,5 +495,114 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({ open, onClose, apiKe
         </Button>
       </DialogActions>
     </Dialog>
+
+      {/* Profile Dialog */}
+      <Dialog open={openProfile} onClose={() => setOpenProfile(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>{t('User Financial Profile', 'פרופיל פיננסי אישי')}</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <Typography variant="body2" color="text.secondary">
+              {t('Providing this information helps the AI give more personalized advice.', 'מסירת מידע זה תעזור ל-AI לתת עצות מותאמות אישית יותר.')}
+            </Typography>
+            {loadingProfile && <CircularProgress size={24} sx={{ alignSelf: 'center' }} />}
+
+            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+              <TextField
+                label={t('Age', 'גיל')}
+                type="number"
+                disabled={loadingProfile}
+                value={userProfile.age ?? ''}
+                onChange={(e) => setUserProfile({ ...userProfile, age: e.target.value === '' ? undefined : parseInt(e.target.value) })}
+                fullWidth
+                size="small"
+                placeholder={t('Not provided', 'לא צוין')}
+              />
+              <TextField
+                label={t('Desired Retirement Age', 'גיל פרישה רצוי')}
+                type="number"
+                disabled={loadingProfile}
+                value={userProfile.retirementAge ?? ''}
+                onChange={(e) => setUserProfile({ ...userProfile, retirementAge: e.target.value === '' ? undefined : parseInt(e.target.value) })}
+                fullWidth
+                size="small"
+                placeholder={t('Not provided', 'לא צוין')}
+              />
+            </Box>
+
+            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+              <TextField
+                label={t('Number of Children', 'מספר ילדים')}
+                type="number"
+                disabled={loadingProfile}
+                value={userProfile.numChildren ?? ''}
+                onChange={(e) => setUserProfile({ ...userProfile, numChildren: e.target.value === '' ? undefined : parseInt(e.target.value) })}
+                fullWidth
+                size="small"
+                placeholder={t('Not provided', 'לא צוין')}
+              />
+              <FormControl size="small" fullWidth>
+                <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+                  {t('Owns Primary Residence', 'בעל דירה למגורים')}
+                </Typography>
+                <Select
+                  value={userProfile.ownsHome === undefined ? 'unknown' : (userProfile.ownsHome ? 'yes' : 'no')}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setUserProfile({
+                      ...userProfile,
+                      ownsHome: val === 'unknown' ? undefined : (val === 'yes')
+                    });
+                  }}
+                  size="small"
+                  disabled={loadingProfile}
+                >
+                  <MenuItem value="unknown">{t('Unknown / Not provided', 'לא ידוע / לא צוין')}</MenuItem>
+                  <MenuItem value="yes">{t('Yes', 'כן')}</MenuItem>
+                  <MenuItem value="no">{t('No', 'לא')}</MenuItem>
+                </Select>
+              </FormControl>
+            </Box>
+
+            <TextField
+              label={t('Avg. Yearly Net Earnings', 'הכנסה שנתית נטו ממוצעת')}
+              type="number"
+              disabled={loadingProfile}
+              value={userProfile.netYearlyEarnings ?? ''}
+              onChange={(e) => setUserProfile({ ...userProfile, netYearlyEarnings: e.target.value === '' ? undefined : parseFloat(e.target.value) })}
+              fullWidth
+              size="small"
+              placeholder={t('Not provided', 'לא צוין')}
+              InputProps={{ startAdornment: <Typography variant="caption" sx={{ mr: 1, opacity: 0.7 }}>$</Typography> }}
+            />
+            <TextField
+              label={t('Avg. Yearly Spending', 'הוצאה שנתית ממוצעת')}
+              type="number"
+              disabled={loadingProfile}
+              value={userProfile.yearlySpending ?? ''}
+              onChange={(e) => setUserProfile({ ...userProfile, yearlySpending: e.target.value === '' ? undefined : parseFloat(e.target.value) })}
+              fullWidth
+              size="small"
+              placeholder={t('Not provided', 'לא צוין')}
+              InputProps={{ startAdornment: <Typography variant="caption" sx={{ mr: 1, opacity: 0.7 }}>$</Typography> }}
+            />
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={userProfile.ownsHome || false}
+                  onChange={(e) => setUserProfile({ ...userProfile, ownsHome: e.target.checked })}
+                />
+              }
+              label={t('Owns Primary Residence', 'בעל דירה למגורים')}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenProfile(false)}>{t('Cancel', 'ביטול')}</Button>
+          <Button onClick={handleSaveProfile} variant="contained" disabled={savingProfile}>
+            {savingProfile ? <CircularProgress size={24} /> : t('Save', 'שמור')}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </>
   );
 };

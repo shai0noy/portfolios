@@ -25,6 +25,7 @@ import { exportDashboardData } from './lib/exporter';
 import { clearAllCache } from './lib/fetching/utils/cache';
 import { ApiKeyDialog } from './components/ApiKeyDialog';
 import VpnKeyIcon from '@mui/icons-material/VpnKey';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 
 import { useLanguage } from './lib/i18n';
 import { CacheProvider } from '@emotion/react';
@@ -374,6 +375,12 @@ function AppContent() {
           <DeleteSweepIcon fontSize="small" />
         </ListItemIcon>
         <ListItemText>{t('Clear Cache', 'נקה מטמון')}</ListItemText>
+      </MenuItem>
+      <MenuItem onClick={() => { navigate('/dashboard?ai=true'); handleMobileMenuClose(); }}>
+        <ListItemIcon>
+          <AutoAwesomeIcon fontSize="small" color="primary" />
+        </ListItemIcon>
+        <ListItemText sx={{ color: 'primary.main', fontWeight: 600 }}>{t('AI Assistant', 'עוזר AI')}</ListItemText>
       </MenuItem>
       <MenuItem onClick={() => { setApiKeyDialogOpen(true); handleMobileMenuClose(); }}>
         <ListItemIcon>

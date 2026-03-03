@@ -106,6 +106,16 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
     }
   };
 
+  useEffect(() => {
+    if (searchParams.get('ai') === 'true' && !aiChatOpen && !loading) {
+      handleAiClick();
+      // Remove the param but keep other params
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete('ai');
+      setSearchParams(newParams, { replace: true });
+    }
+  }, [searchParams, loading]);
+
   const { summary, holdings: enrichedHoldings } = useMemo(() => {
     // Default empty return
     const emptyResult = { summary: INITIAL_SUMMARY, holdings: [] as EnrichedDashboardHolding[] };
@@ -555,14 +565,16 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
           </ToggleButton>
           <Divider orientation="vertical" flexItem sx={{ mx: 1, height: 20, alignSelf: 'center' }} />
           <Tooltip title={t("AI Portfolio Assistant", "עוזר תיק השקעות AI")}>
-            <IconButton
+            <Button
               onClick={handleAiClick}
+              variant="outlined"
               size="small"
               color="primary"
-              sx={{ border: '1px solid', borderColor: 'primary.main', borderRadius: 2, mr: 1 }}
+              startIcon={<AutoAwesomeIcon fontSize="small" />}
+              sx={{ borderRadius: 2, mr: 1, textTransform: 'none', fontWeight: 600 }}
             >
-              <AutoAwesomeIcon fontSize="small" />
-            </IconButton>
+              {t('AI Assistant', 'עוזר AI')}
+            </Button>
           </Tooltip>
           <Tooltip title={t("Refresh Data", "רענן נתונים")}>
             <IconButton
@@ -603,6 +615,7 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
           open={aiChatOpen}
           onClose={() => setAiChatOpen(false)}
           apiKey={decryptedKey}
+          sheetId={sheetId || ''}
           portfolioData={{
             holdings: displayedHoldings,
             summary,
