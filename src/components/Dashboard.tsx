@@ -12,6 +12,10 @@ import { ColumnSelector } from './ColumnSelector';
 import { normalizeCurrency } from '../lib/currency';
 import { DashboardSummary } from './dashboard/DashboardSummary';
 import { TopMovers } from './dashboard/TopMovers';
+import { AiChatDialog } from './AiChatDialog';
+import { ApiKeyDialog } from './ApiKeyDialog';
+import { checkGeminiKey } from '../lib/gemini';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import { DashboardTable } from './DashboardTable';
 import { useLanguage } from '../lib/i18n';
 import { useDashboardData, calculateDashboardSummary, INITIAL_SUMMARY, type EnrichedDashboardHolding } from '../lib/dashboard';
@@ -42,6 +46,10 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
 
   const { holdings, loading, error, portfolios, exchangeRates, hasFutureTxns, refresh, engine, trackingLists } = useDashboardData(sheetId);
   const { showLoginModal } = useSession();
+
+  const [aiChatOpen, setAiChatOpen] = useState(false);
+  const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
+  const [decryptedKey, setDecryptedKey] = useState<string | null>(null);
 
   const handleClickColSelector = (event: React.MouseEvent<HTMLButtonElement>) => {
     setAnchorEl(event.currentTarget);
@@ -80,6 +88,21 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
       setSearchParams({ portfolioId });
     } else {
       setSearchParams({});
+    }
+  };
+
+  const handleAiClick = async () => {
+    try {
+      const key = await checkGeminiKey(sheetId);
+      if (!key) {
+        setApiKeyDialogOpen(true);
+        return;
+      }
+      setDecryptedKey(key);
+      setAiChatOpen(true);
+    } catch (err) {
+      console.error("AI Key Check Error:", err);
+      setApiKeyDialogOpen(true);
     }
   };
 
@@ -425,10 +448,11 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
           holdings={selectedPortfolioId ? holdings.filter(h => h.portfolioId === selectedPortfolioId) : holdings}
           displayCurrency={displayCurrency}
           exchangeRates={exchangeRates}
-          sheetId={sheetId} selectedPortfolio={portfolios.find(p => p.id === (selectedPortfolioId || ''))?.name || null}
+          selectedPortfolio={portfolios.find(p => p.id === (selectedPortfolioId || ''))?.name || null}
           portfolios={portfolios}
           isPortfoliosLoading={loading}
           transactions={selectedPortfolioId ? (engine?.transactions?.filter(t => t.portfolioId === selectedPortfolioId) || []) : (engine?.transactions || [])}
+          hasFutureTxns={hasFutureTxns}
         />
       ) : (
         <Paper variant="outlined" sx={{ p: 3, mb: 4, position: 'relative' }}>
@@ -437,13 +461,13 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
             displayCurrency={displayCurrency}
             exchangeRates={exchangeRates}
             lockedMetric='pct'
-          />
-        </Paper>
-      )}
-      {hasFutureTxns && (
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'right', mt: 0.5, mb: 1, fontSize: '0.7rem' }}>
-          {t('Note: Some transactions with future dates exist and are not included in the calculations.', 'הערה: קיימות עסקאות עם תאריך עתידי שאינן נכללות בחישובים.')}
-        </Typography>
+            />
+            {hasFutureTxns && (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'right', mt: 1, mr: 2, mb: -1, fontSize: '0.7rem' }}>
+                {t('Note: Some transactions with future dates exist and are not included in the calculations.', 'הערה: קיימות עסקאות עם תאריך עתידי שאינן נכללות בחישובים.')}
+              </Typography>
+            )}
+          </Paper>
       )}
 
       {/* CONTROLS */}
@@ -530,6 +554,16 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
             {t('Group by Portfolio', 'קבץ לפי תיק')}
           </ToggleButton>
           <Divider orientation="vertical" flexItem sx={{ mx: 1, height: 20, alignSelf: 'center' }} />
+          <Tooltip title={t("AI Portfolio Assistant", "עוזר תיק השקעות AI")}>
+            <IconButton
+              onClick={handleAiClick}
+              size="small"
+              color="primary"
+              sx={{ border: '1px solid', borderColor: 'primary.main', borderRadius: 2, mr: 1 }}
+            >
+              <AutoAwesomeIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
           <Tooltip title={t("Refresh Data", "רענן נתונים")}>
             <IconButton
               onClick={() => refresh(true)}
@@ -563,6 +597,27 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
         }}
         preventColumnHide={columnPreset !== 'custom'}
       />
+
+      {decryptedKey && (
+        <AiChatDialog
+          open={aiChatOpen}
+          onClose={() => setAiChatOpen(false)}
+          apiKey={decryptedKey}
+          portfolioData={{
+            holdings: displayedHoldings,
+            summary,
+            displayCurrency
+          }}
+        />
+      )}
+
+      {sheetId && (
+        <ApiKeyDialog
+          open={apiKeyDialogOpen}
+          onClose={() => setApiKeyDialogOpen(false)}
+          sheetId={sheetId}
+        />
+      )}
     </Box>
   );
 }
