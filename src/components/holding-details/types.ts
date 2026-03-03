@@ -41,6 +41,7 @@ export interface UnifiedLayer {
     remainingQty: number;
     soldQty: number;
     transferredQty?: number; // Tracked separately from soldQty
+    isDrip?: boolean;
     originalCost: SimpleMoney; // in Display Currency (usually)
     remainingCost: SimpleMoney; // in Display Currency
     fees: SimpleMoney;

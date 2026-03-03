@@ -61,20 +61,20 @@ export function calculateDashboardSummary(data: any[], displayCurrency: string, 
     // We should ideally sum historical dividends too?
     // h.dividends is DividendRecord[].
     const dividendsNet = h.dividends.reduce((sum, d) => {
-    // DividendRecord has netAmountPC (number) in portfolio currency.
-    // We want to convert this to display currency closely matching historical rates.
-    // We have d.grossAmount (Money) which HAS historical values (valILS, valUSD).
-    // We can use the implied rate from grossAmount to convert netAmountPC.
-
       let netValDisplay = 0;
       const grossValDisplay = getHistoricalVal(d.grossAmount);
 
-      if (d.grossAmount.amount !== 0) {
-        const ratio = d.netAmountPC / d.grossAmount.amount;
-        netValDisplay = grossValDisplay * ratio;
+      const cashedNet = (d.cashedAmount !== undefined) ? d.cashedAmount : d.netAmountPC;
+
+      if (d.grossAmount.amount !== 0 && d.netAmountPC > 0) {
+        // Only sum the cashed out portion!
+        const ratio = cashedNet / d.netAmountPC;
+        const originalRatio = d.netAmountPC / d.grossAmount.amount;
+
+        netValDisplay = grossValDisplay * originalRatio * ratio;
       } else {
         // Fallback
-        netValDisplay = convertCurrency(d.netAmountPC, h.portfolioCurrency, displayCurrency, exchangeRates);
+        netValDisplay = convertCurrency(cashedNet, h.portfolioCurrency, displayCurrency, exchangeRates);
       }
 
       return sum + netValDisplay;
@@ -85,7 +85,16 @@ export function calculateDashboardSummary(data: any[], displayCurrency: string, 
 
     // Sum Gross Dividends
     if (rawDivs.length > 0) {
-      dividendsGross = rawDivs.reduce((sum, d) => sum + getHistoricalVal(d.grossAmount), 0);
+      dividendsGross = rawDivs.reduce((sum, d) => {
+        const grossValDisplay = getHistoricalVal(d.grossAmount);
+        if (d.cashedAmount !== undefined) {
+          const cashedGrossPC = d.cashedAmount + (d.taxCashedPC || 0) + (d.feeCashedPC || 0);
+          const totalGrossPC = cashedGrossPC + (d.reinvestedAmount || 0) + (d.taxReinvestedPC || 0) + (d.feeReinvestedPC || 0);
+          const ratio = totalGrossPC > 0 ? cashedGrossPC / totalGrossPC : 0;
+          return sum + (grossValDisplay * ratio);
+        }
+        return sum + grossValDisplay;
+      }, 0);
     } else {
       // Fallback
       const divTaxToDeduct = (h as any)._dividends

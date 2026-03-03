@@ -304,7 +304,8 @@ export function groupHoldingLayers(
                 currentValueILS: { amount: 0, currency: Currency.ILS },
                 realCostILS: { amount: 0, currency: Currency.ILS },
                 unrealizedTaxableGainILS: { amount: 0, currency: Currency.ILS },
-                adjustmentDetails: undefined
+                adjustmentDetails: undefined,
+                isDrip: lot.isDrip
             };
         }
 

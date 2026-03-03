@@ -167,6 +167,13 @@ async function testDRIP() {
         assertClose(p.costBasis, 1050, 0.01, 'Cost Basis (inc DRIP)');
         assertClose(p.gainsValue, 50, 0.01, 'Total Gains (Div Income)');
     }
+
+    const policies = new Map([['p1', { divPolicy: 'accumulate_tax_free' as 'cash_taxed' | 'accumulate_tax_free' | 'hybrid_rsu' }]]);
+    const { points: pointsAcc } = await calculatePortfolioPerformance(holdings, txns, 'USD', mockRates, policies, undefined, mockFetchHistory);
+    const pAcc = pointsAcc.find(p => p.date.toISOString().startsWith('2024-01-03'));
+    if (pAcc) {
+        assertClose(pAcc.gainsValue, 50, 0.01, 'Total Gains (Accumulate Tax Free)');
+    }
 }
 
 async function testTWR() {

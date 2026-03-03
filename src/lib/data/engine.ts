@@ -172,6 +172,9 @@ export class FinanceEngine {
                             const feePC = convertCurrency(feeSC, h.stockCurrency, h.portfolioCurrency, this.exchangeRates);
                             const grossPC = convertCurrency(grossSC, h.stockCurrency, h.portfolioCurrency, this.exchangeRates);
 
+                            let ratioCashed = totalQty > 0 ? vested / totalQty : 0;
+                            let ratioReinvested = totalQty > 0 ? unvested / totalQty : 0;
+
                             // Tax Estimate
                             let taxRateCashed = 0;
                             let taxRateReinvested = 0;
@@ -200,8 +203,10 @@ export class FinanceEngine {
                                 const valILS = convertCurrency(grossSC, h.stockCurrency, Currency.ILS, this.exchangeRates);
 
                                 // Proportional Tax Calculation
-                                const ratioCashed = totalQty > 0 ? vested / totalQty : 0;
-                                const ratioReinvested = totalQty > 0 ? unvested / totalQty : 0;
+                                if (divPolicy === 'accumulate_tax_free') {
+                                    ratioCashed = 0;
+                                    ratioReinvested = 1.0;
+                                }
 
                                 const grossILS = valILS;
                                 const taxILSCashed = (grossILS * ratioCashed) * taxRateCashed;
@@ -214,7 +219,6 @@ export class FinanceEngine {
                             }
 
                             // Proportional Fee Calculation (simple split)
-                            const ratioCashed = totalQty > 0 ? vested / totalQty : 0;
                             const feeCashedPC = feePC * ratioCashed;
                             const feeReinvestedPC = feePC - feeCashedPC;
 
@@ -235,8 +239,8 @@ export class FinanceEngine {
                                 unitsHeld: totalQty,
                                 pricePerUnit: d.amount,
                                 cashedAmount: totalQty > 0 ? (grossPC * ratioCashed) - feeCashedPC - taxCashedPC : 0,
-                                reinvestedAmount: totalQty > 0 ? (grossPC * (unvested / totalQty)) - feeReinvestedPC - taxReinvestedPC : 0,
-                                isReinvested: unvested > 0,
+                                reinvestedAmount: totalQty > 0 ? (grossPC * ratioReinvested) - feeReinvestedPC - taxReinvestedPC : 0,
+                                isReinvested: ratioReinvested > 0,
                                 taxCashedPC,
                                 taxReinvestedPC,
                                 feeCashedPC,

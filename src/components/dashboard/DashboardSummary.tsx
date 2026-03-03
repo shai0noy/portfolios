@@ -104,7 +104,8 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
       setIsPerfLoading(true);
 
       // Use passed transactions directly
-      calculatePortfolioPerformance(holdings, transactions, displayCurrency, exchangeRates)
+      const portfolioPolicies = new Map(portfolios.map(p => [p.id, { divPolicy: p.divPolicy as any }]));
+      calculatePortfolioPerformance(holdings, transactions, displayCurrency, exchangeRates, portfolioPolicies)
         .then(({ points }) => {
           setPerfData(points);
           setIsPerfLoading(false);
@@ -114,7 +115,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
           setIsPerfLoading(false);
         });
     }
-  }, [holdings, displayCurrency, exchangeRates, transactions]);
+  }, [holdings, displayCurrency, exchangeRates, transactions, portfolios]);
 
   const handleManualStep = (direction: 'next' | 'prev') => {
     isManualRef.current = true;

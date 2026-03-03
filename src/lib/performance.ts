@@ -326,17 +326,27 @@ export async function calculatePortfolioPerformance(
                 // 2. Acquisition: Reinvested quantity added to `state.qty` and `state.costBasis`.
                 // This ensures TWR captures the income, and future price moves capture compounding.
 
+                const policy = portfolioPolicies?.get(t.portfolioId)?.divPolicy;
+                const isAccumulating = (policy === 'accumulate_tax_free' || policy === 'hybrid_rsu');
+
                 const divVal = valInDisplay;
-                otherGains += divVal;
-                dayDividends += divVal;
+                if (!isAccumulating) {
+                    otherGains += divVal;
+                    dayDividends += divVal;
+                }
 
                 if (tQty > 0) {
                     state.qty += tQty;
-                    // For DRIP acquisition cost, we use the Dividend Value (Reinvested Amount)
-                    state.costBasis += divVal;
+                    // For accumulating policies, we don't treat this as new cost basis or external flow
+                    if (!isAccumulating) {
+                        state.costBasis += divVal;
+                        dayNetFlow += divVal;
+                    }
                     if (!state.lots) state.lots = [];
-                    state.lots.push({ date: tDate.getTime(), qty: tQty, cost: divVal });
-                    dayNetFlow += divVal;
+                    // Keep a 0-cost or original cost lot? Usually the lot takes the divVal for tax tracking, 
+                    // but since tax basis is 0 for accumulating policies we could use 0, but divVal is 
+                    // fine as it's tracked separately from total cost basis here.
+                    state.lots.push({ date: tDate.getTime(), qty: tQty, cost: isAccumulating ? 0 : divVal });
                 }
             } else if (t.type === 'FEE') {
                 const feeVal = valInDisplay;
