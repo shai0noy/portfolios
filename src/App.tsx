@@ -23,6 +23,8 @@ import { getTheme } from './theme';
 import { usePortfolios } from './lib/hooks'; // Assuming we'll create this hook or reuse existing logic
 import { exportDashboardData } from './lib/exporter';
 import { clearAllCache } from './lib/fetching/utils/cache';
+import { ApiKeyDialog } from './components/ApiKeyDialog';
+import VpnKeyIcon from '@mui/icons-material/VpnKey';
 
 import { useLanguage } from './lib/i18n';
 import { CacheProvider } from '@emotion/react';
@@ -73,6 +75,7 @@ function AppContent() {
   const { isSessionExpired, hideLoginModal } = useSession();
   const [schemaVersionMismatch, setSchemaVersionMismatch] = useState<'old' | 'new' | null>(null);
   const [colorblindMode, setColorblindMode] = useState<boolean>(() => localStorage.getItem('colorblindMode') === 'true');
+  const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
 
   const { t, toggleLanguage, language, isRtl } = useLanguage();
   const theme = useMemo(() => getTheme(mode, isRtl ? 'rtl' : 'ltr', colorblindMode), [mode, isRtl, colorblindMode]);
@@ -372,6 +375,12 @@ function AppContent() {
         </ListItemIcon>
         <ListItemText>{t('Clear Cache', 'נקה מטמון')}</ListItemText>
       </MenuItem>
+      <MenuItem onClick={() => { setApiKeyDialogOpen(true); handleMobileMenuClose(); }}>
+        <ListItemIcon>
+          <VpnKeyIcon fontSize="small" />
+        </ListItemIcon>
+        <ListItemText>{t('AI Studio API Key', 'מפתח ה-API של AI Studio')}</ListItemText>
+      </MenuItem>
       <MenuItem onClick={() => { handleLogout(); handleMobileMenuClose(); }}>
         <ListItemIcon>
           <LogoutIcon fontSize="small" />
@@ -599,6 +608,15 @@ function AppContent() {
               )}
             </DialogActions>
           </Dialog>
+
+          {sheetId && (
+            <ApiKeyDialog
+              open={apiKeyDialogOpen}
+              onClose={() => setApiKeyDialogOpen(false)}
+              sheetId={sheetId}
+            />
+          )}
+
         </Box>
       </ThemeProvider>
     </CacheProvider>
