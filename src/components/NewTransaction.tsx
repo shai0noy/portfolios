@@ -1,11 +1,12 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTheme } from '@mui/material/styles';
 import {
   Box, TextField, Button, MenuItem, Select, InputLabel, FormControl,
   Typography, Alert, InputAdornment, Grid, Card, CardContent, Divider, Tooltip, Chip,
-  Backdrop, CircularProgress
+  Backdrop, CircularProgress, IconButton
 } from '@mui/material';
+import RestoreIcon from '@mui/icons-material/Restore';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import SearchIcon from '@mui/icons-material/Search';
@@ -16,7 +17,7 @@ import { parseExchange, type Portfolio, type Transaction, Exchange } from '../li
 import { InstrumentType } from '../lib/types/instrument';
 import type { TickerProfile } from '../lib/types/ticker';
 import { addTransaction, fetchPortfolios, addExternalPrice, syncDividends, addDividendEvent, updateTransaction, updateDividend, deleteTransaction, deleteDividend } from '../lib/sheets/index';
-import { getTickerData, type TickerData } from '../lib/fetching';
+import { getTickerData, fetchTickerHistory, type TickerData } from '../lib/fetching';
 import { TickerSearch } from './TickerSearch';
 import { convertCurrency, formatPrice, getExchangeRates, normalizeCurrency } from '../lib/currency';
 import { Currency, type ExchangeRates, isBuy, isSell, type TransactionType } from '../lib/types';
@@ -87,7 +88,26 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   const [validationErrors, setValidationErrors] = useState<{ [key: string]: boolean }>({});
   const [commissionPct, setCommissionPct] = useState<string>('');
 
+  const [hasManuallyEditedPrice, setHasManuallyEditedPrice] = useState(false);
+
   // Undo State
+
+  useEffect(() => {
+    if (selectedTicker && (!selectedTicker.historical || selectedTicker.historical.length === 0)) {
+      const fetchHistory = async () => {
+        try {
+          const histData = await fetchTickerHistory(selectedTicker.symbol, selectedTicker.exchange, undefined, false);
+          if (histData && histData.historical && histData.historical.length > 0) {
+            setSelectedTicker(prev => prev ? { ...prev, historical: histData.historical } : prev);
+          }
+        } catch (err) {
+          console.error("Failed to fetch historical data for", selectedTicker.symbol, err);
+        }
+      };
+      fetchHistory();
+    }
+  }, [selectedTicker?.symbol, selectedTicker?.exchange, selectedTicker?.historical]);
+
   const [undoData, setUndoData] = useState<{ type: 'txn' | 'div', action: 'update' | 'delete' | 'add', data: any, originalData?: any } | null>(null);
   const undoDataRef = useRef<{ type: 'txn' | 'div', action: 'update' | 'delete' | 'add', data: any, originalData?: any } | null>(null);
 
@@ -128,6 +148,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
           setShowForm(true);
 
           if (editTxn) {
+            setHasManuallyEditedPrice(true);
             setPortId(editTxn.portfolioId);
             setType(editTxn.type as any); // BUY/SELL/FEE/DIVIDEND
             setDate(editTxn.date); // Assuming stored as ISO string YYYY-MM-DD or readable? toGoogleSheetDateFormat converts to DD/MM/YYYY. 
@@ -152,6 +173,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
             setCommission(editTxn.commission?.toString() || '');
             setTickerCurrency(normalizeCurrency(editTxn.currency || data.currency || ''));
           } else if (editDiv) {
+            setHasManuallyEditedPrice(true);
             setType('DIV_EVENT');
             const d = new Date(editDiv.date);
             setDate(d.toISOString().split('T')[0]);
@@ -246,6 +268,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
       setType('BUY');
       setDate(new Date().toISOString().split('T')[0]);
       setSaveSuccess(false);
+      setHasManuallyEditedPrice(false);
 
     } else {
       setPriceError(`${t('Could not fetch data for', 'לא ניתן היה לטעון מידע עבור')} ${profile.symbol}`);
@@ -355,6 +378,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
 
     setShowForm(true);
     setActionMode('search');
+    setHasManuallyEditedPrice(false);
   };
 
   const handleQtyChange = useCallback((val: number) => {
@@ -396,6 +420,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   }, [price, type, selectedTicker, portId, portfolios, tickerCurrency, majorCurrency, exchangeRates, updateCommission]);
 
   const handlePriceChange = useCallback((val: number) => {
+    setHasManuallyEditedPrice(true);
     const valStr = val.toString();
     setPrice(valStr);
     const q = parseFloat(qty);
@@ -438,6 +463,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
         setQty(parseFloat((tRaw / p).toFixed(6)).toString());
       } else if (Number.isFinite(q) && Math.abs(q) > EPS) {
         setPrice(parseFloat((tRaw / q).toFixed(6)).toString());
+        setHasManuallyEditedPrice(true);
       }
     }
   }, [qty, price, portId, type, buyPrice, buyTicker, majorCurrency, exchangeRates, updateCommission, tickerCurrency, EPS]);
@@ -499,6 +525,70 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
       }
     }
   }, [type, selectedTicker, portId, portfolios, price, tickerCurrency, majorCurrency, exchangeRates, updateCommission]);
+
+  const applyPrice = useCallback((newPrice: number) => {
+    setPrice(parseFloat(newPrice.toFixed(6)).toString());
+    const q = parseFloat(qty);
+    if (Number.isFinite(q) && Number.isFinite(newPrice)) {
+      const rawTotal = q * newPrice;
+      const displayTotal = convertCurrency(rawTotal, tickerCurrency, majorCurrency, exchangeRates);
+      const totalStr = parseFloat(displayTotal.toFixed(6)).toString();
+      setTotal(totalStr);
+      updateCommission(totalStr, portId, type);
+    } else {
+      updateCommission('0', portId, type);
+    }
+  }, [qty, tickerCurrency, majorCurrency, exchangeRates, updateCommission, portId, type]);
+
+  const getPriceForDate = useCallback((dateStr: string) => {
+    if (!selectedTicker) return null;
+    let closestPrice = null;
+    if (selectedTicker.historical) {
+      const targetTime = new Date(`${dateStr}T23:59:59Z`).getTime();
+      let minDiff = Infinity;
+      for (const h of selectedTicker.historical) {
+        const t = (h.date instanceof Date) ? h.date.getTime() : new Date(h.date).getTime();
+        if (t <= targetTime) {
+          const diff = targetTime - t;
+          if (diff < minDiff) {
+            minDiff = diff;
+            closestPrice = h.price;
+          }
+        }
+      }
+    }
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (dateStr === todayStr && selectedTicker.price) {
+      // Use live price for today
+      closestPrice = selectedTicker.price;
+    }
+
+    return closestPrice;
+  }, [selectedTicker]);
+
+  const priceAtDate = useMemo(() => {
+    if (!date) return null;
+    return getPriceForDate(date);
+  }, [date, getPriceForDate]);
+
+  const handleDateChange = useCallback((newDateStr: string) => {
+    console.log("handleDateChange", newDateStr, selectedTicker?.historical?.length);
+    setDate(newDateStr);
+    if (!hasManuallyEditedPrice) {
+      const p = getPriceForDate(newDateStr);
+      if (p !== null) {
+        applyPrice(p);
+      }
+    }
+  }, [hasManuallyEditedPrice, selectedTicker, applyPrice, getPriceForDate]);
+
+  const handleResetPrice = useCallback(() => {
+    if (priceAtDate !== null) {
+      applyPrice(priceAtDate);
+      setHasManuallyEditedPrice(false);
+    }
+  }, [priceAtDate, applyPrice]);
 
   // Validation Logic
   const runValidation = useCallback((
@@ -838,6 +928,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
         setType('BUY');
         setDate(new Date().toISOString().split('T')[0]);
         setShowForm(false); // Hide form, show summary card again
+        setHasManuallyEditedPrice(false);
       }
       setValidationErrors({});
     } catch (e) {
@@ -1192,7 +1283,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                       <Grid item xs={12} sm={4}>
                         <TextField
                           type="date" label="Date" size="small" fullWidth
-                          value={date} onChange={e => setDate(e.target.value)}
+                          value={date} onChange={e => handleDateChange(e.target.value)}
                           InputLabelProps={{ shrink: true }}
                           sx={{ '& .MuiInputBase-input': { colorScheme: theme.palette.mode } }}
                         />
@@ -1335,7 +1426,20 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                                   field="price"
                                   value={price}
                                   onChange={handlePriceChange}
-                                  endAdornment={tickerCurrency === 'ILA' ? <InputAdornment position="end">{t('ag.', "א'")}</InputAdornment> : undefined}
+                                    endAdornment={
+                                      <>
+                                        {tickerCurrency === 'ILA' && <InputAdornment position="end">{t('ag.', "א'")}</InputAdornment>}
+                                        {(priceAtDate !== null && parseFloat(price).toString() !== priceAtDate.toString()) && (
+                                          <InputAdornment position="end">
+                                            <Tooltip title={`${t('Reset to closing price on', 'אפס למחיר סגירה ב-')} ${date}: ${priceAtDate.toFixed(2)}`}>
+                                              <IconButton size="small" onClick={handleResetPrice} edge="end">
+                                                <RestoreIcon fontSize="small" />
+                                              </IconButton>
+                                            </Tooltip>
+                                          </InputAdornment>
+                                        )}
+                                      </>
+                                    }
                                   startAdornment={tickerCurrency !== 'ILA' ? <InputAdornment position="start">{tickerCurrency}</InputAdornment> : undefined}
                                   error={!!validationErrors.price}
                                   required
@@ -1379,7 +1483,20 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                                   field="price"
                                   value={price}
                                   onChange={handlePriceChange}
-                                  endAdornment={tickerCurrency === 'ILA' ? <InputAdornment position="end">{t('ag.', "א'")}</InputAdornment> : undefined}
+                                      endAdornment={
+                                        <>
+                                          {tickerCurrency === 'ILA' && <InputAdornment position="end">{t('ag.', "א'")}</InputAdornment>}
+                                          {(priceAtDate !== null && parseFloat(price).toString() !== priceAtDate.toString()) && (
+                                            <InputAdornment position="end">
+                                              <Tooltip title={`${t('Reset to closing price on', 'אפס למחיר סגירה ב-')} ${date}: ${priceAtDate.toFixed(2)}`}>
+                                                <IconButton size="small" onClick={handleResetPrice} edge="end">
+                                                  <RestoreIcon fontSize="small" />
+                                                </IconButton>
+                                              </Tooltip>
+                                            </InputAdornment>
+                                          )}
+                                        </>
+                                      }
                                   startAdornment={tickerCurrency !== 'ILA' ? <InputAdornment position="start">{tickerCurrency}</InputAdornment> : undefined}
                                   error={!!validationErrors.price}
                                   required
