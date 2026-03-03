@@ -43,16 +43,13 @@ export function DashboardTable(props: TableProps) {
   logIfFalsy(exchangeRates, "DashboardTable: exchangeRates missing");
 
   const handleSort = useCallback((key: string) => {
-    setSortBy(prev => {
-      if (prev === key) {
-        setSortDir(d => d === 'asc' ? 'desc' : 'asc');
-        return prev;
-      } else {
-        setSortDir('desc');
-        return key;
-      }
-    });
-  }, []);
+    if (sortBy === key) {
+      setSortDir(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(key);
+      setSortDir('desc');
+    }
+  }, [sortBy]);
 
   const handleContextMenu = useCallback((event: React.MouseEvent, column: string) => {
     event.preventDefault();

@@ -57,6 +57,7 @@ export const DashboardGroup = memo(function DashboardGroup(props: DashboardGroup
       case 'displayName': return h.displayName || '';
       case 'type': return h.type ? t(h.type.nameEn, h.type.nameHe) : '';
       case 'qty': return h.qtyTotal;
+      case 'sector': return h.sector || '';
       case 'avgCost': return h.display.avgCost;
       case 'costBasis': return h.display.costBasis;
       case 'currentPrice': return h.display.currentPrice;
@@ -77,7 +78,8 @@ export const DashboardGroup = memo(function DashboardGroup(props: DashboardGroup
       case 'realizedGain': return h.display.realizedGain;
       case 'totalGain': return h.display.totalGain;
       case 'valueAfterTax': return h.display.valueAfterTax;
-      case 'unvestedValue': return h.display.unvestedValue;
+      case 'unvestedValue':
+      case 'mvUnvested': return h.display.unvestedValue;
       default: return (h.display as any)[key] || 0;
     }
   };

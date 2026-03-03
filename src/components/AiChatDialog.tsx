@@ -536,6 +536,7 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({ open, onClose, apiKe
 You are a financial assistant. Be professional, objective, and direct. Avoid excessive praise or flattery. Focus on data-driven analysis and facts. 
 Please be careful in your wording around suggestions - you are just an AI.
 -Use Markdown tables for comparing numbers or performance periods when beneficial.
+-When asked for FIRE analysis, use the User Profile (spending, earnings, ages) and portfolio value to calculate withdrawal rates, estimated years to retirement, and provide personalized insights.
 Suggest one concrete follow-up question or action.
 
 ==User Context==
@@ -699,11 +700,13 @@ ${marketOverview}
                 </Typography>
                 <Stack direction="row" flexWrap="wrap" gap={1} justifyContent="center" sx={{ maxWidth: 800, mx: 'auto' }}>
                   {[
+                    t("Perform a FIRE (Financial Independence) analysis", "בצע ניתוח FIRE (עצמאות כלכלית)"),
                     t("What are the key risks in my portfolio?", "מהם הסיכונים המרכזיים בתיק?"),
                     t("How is my asset allocation distributed?", "איך נראית הקצאת הנכסים שלי?"),
+                    t("Check for sector over-exposure", "בדוק חשיפת יתר למגזרים מסוימים"),
+                    t("Stress test: What if the market drops 20%?", "בדיקת עמידות: מה אם השוק יירד ב-20%?"),
                     t("Suggest 3 improvements for my portfolio", "הצע 3 שיפורים לתיק שלי"),
                     t("Compare my performance to the S&P 500", "השווה את הביצועים שלי ל-S&P 500"),
-                    t("Summarize my portfolio performance", "סכם את ביצועי התיק שלי")
                   ].map((text, i) => (
                     <Chip
                       key={i}
@@ -713,6 +716,7 @@ ${marketOverview}
                       color="primary"
                       variant="outlined"
                       size="small"
+                      sx={{ py: 1.5, height: 'auto', '& .MuiChip-label': { whiteSpace: 'normal', px: 2 } }}
                     />
                   ))}
                 </Stack>
