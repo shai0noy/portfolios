@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useTheme } from '@mui/material/styles';
 import {
   Box, TextField, Button, MenuItem, Select, InputLabel, FormControl,
-  Typography, Alert, InputAdornment, Grid, Card, CardContent, Divider, Tooltip, Chip,
+  Typography, Alert, InputAdornment, Grid, Card, CardContent, Divider, Tooltip, Chip, ToggleButton, ToggleButtonGroup,
   Backdrop, CircularProgress, IconButton
 } from '@mui/material';
 import RestoreIcon from '@mui/icons-material/Restore';
@@ -16,16 +16,22 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import { parseExchange, type Portfolio, type Transaction, Exchange } from '../lib/types';
 import { InstrumentType } from '../lib/types/instrument';
 import type { TickerProfile } from '../lib/types/ticker';
-import { addTransaction, fetchPortfolios, addExternalPrice, syncDividends, addDividendEvent, updateTransaction, updateDividend, deleteTransaction, deleteDividend } from '../lib/sheets/index';
+import { addTransaction, batchAddTransactions, fetchPortfolios, addExternalPrice, syncDividends, addDividendEvent, updateTransaction, updateDividend, deleteTransaction, deleteDividend } from '../lib/sheets/index';
 import { getTickerData, fetchTickerHistory, type TickerData } from '../lib/fetching';
 import { TickerSearch } from './TickerSearch';
 import { convertCurrency, formatPrice, getExchangeRates, normalizeCurrency } from '../lib/currency';
 import { Currency, type ExchangeRates, isBuy, isSell, type TransactionType } from '../lib/types';
 import { useLanguage } from '../lib/i18n';
 import { NumericField } from './PortfolioInputFields';
+import { formatDate, coerceDate } from '../lib/date';
 
 const isTxnBuy = (t: string) => isBuy(t as TransactionType);
 const isTxnSell = (t: string) => isSell(t as TransactionType);
+const monthNames = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December"
+];
+
 
 interface Props {
   sheetId: string;
@@ -56,11 +62,19 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   const [selectedTicker, setSelectedTicker] = useState<(TickerData & { symbol: string }) | null>(null);
   const [showForm, setShowForm] = useState(!!locationState?.prefilledTicker);
 
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(formatDate(new Date()));
   const [portId, setPortId] = useState('');
   const [ticker, setTicker] = useState(locationState?.prefilledTicker || '');
   const [exchange, setExchange] = useState(locationState?.prefilledExchange || '');
-  const [type, setType] = useState<'BUY' | 'SELL' | 'DIVIDEND' | 'FEE' | 'DIV_EVENT' | 'HOLDING_CHANGE'>('BUY');
+  const [type, setType] = useState<'BUY' | 'SELL' | 'DIVIDEND' | 'FEE' | 'DIV_EVENT' | 'HOLDING_CHANGE' | 'GRANT'>('BUY');
+  const [grantFrequency, setGrantFrequency] = useState<'MONTHLY' | 'QUARTERLY' | 'YEARLY'>('YEARLY');
+  const [grantDuration, setGrantDuration] = useState<string>('');
+  const [grantDurationUnit, setGrantDurationUnit] = useState<'YEARS' | 'QUARTER' | 'MONTHS'>('YEARS');
+  const [vestingDay, setVestingDay] = useState<string>('');
+  const [vestingMonth, setVestingMonth] = useState<number>(new Date().getMonth());
+  const [vestingYear, setVestingYear] = useState<number>(new Date().getFullYear());
+  const [previewTxns, setPreviewTxns] = useState<Transaction[] | null>(null);
+  
   const [qty, setQty] = useState<string>('');
 
   // Sell Existing Holding Flow State
@@ -81,7 +95,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   });
   const [total, setTotal] = useState<string>('');
   const [percent, setPercent] = useState<string>(''); // New Percent State
-  const [vestDate, setVestDate] = useState('');
+  const [vestDate, setVestDate] = useState(formatDate(new Date()));
   const [comment, setComment] = useState('');
   const [commission, setCommission] = useState<string>('');
   const [tickerCurrency, setTickerCurrency] = useState<Currency>(normalizeCurrency(locationState?.initialCurrency || ''));
@@ -118,6 +132,35 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   useEffect(() => {
     getExchangeRates(sheetId).then(setExchangeRates);
   }, [sheetId]);
+  useEffect(() => {
+    if (type === 'GRANT' && date) {
+      const d = coerceDate(date) || new Date();
+      let nextM = d.getMonth();
+      let nextY = d.getFullYear();
+      
+      if (grantFrequency === 'YEARLY') {
+        nextY++;
+        nextM = 0;
+      } else if (grantFrequency === 'QUARTERLY') {
+        nextM = Math.floor(nextM / 3 + 1) * 3;
+        if (nextM >= 12) {
+          nextY++;
+          nextM = 0;
+        }
+      } else {
+        nextM++;
+        if (nextM >= 12) {
+          nextY++;
+          nextM = 0;
+        }
+      }
+      
+      setVestingYear(nextY);
+      setVestingMonth(nextM);
+      setVestingDay('1');
+    }
+  }, [type, date, grantFrequency]);
+
 
   useEffect(() => {
     setSaveSuccess(false);
@@ -175,8 +218,8 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
           } else if (editDiv) {
             setHasManuallyEditedPrice(true);
             setType('DIV_EVENT');
-            const d = new Date(editDiv.date);
-            setDate(d.toISOString().split('T')[0]);
+            const d = coerceDate(editDiv.date);
+            setDate(d ? formatDate(d) : '');
             setPrice(editDiv.amount.toString());
             setTickerCurrency(normalizeCurrency(data.currency || '')); // Dividends usually in stock currency
           } else {
@@ -266,7 +309,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
       setCommissionPct('');
       setVestDate('');
       setType('BUY');
-      setDate(new Date().toISOString().split('T')[0]);
+      setDate(formatDate(new Date()));
       setSaveSuccess(false);
       setHasManuallyEditedPrice(false);
 
@@ -544,7 +587,9 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     if (!selectedTicker) return null;
     let closestPrice = null;
     if (selectedTicker.historical) {
-      const targetTime = new Date(`${dateStr}T23:59:59Z`).getTime();
+      const coDate = coerceDate(dateStr);
+      if (!coDate) return null;
+      const targetTime = new Date(coDate.toDateString() + ' 23:59:59Z').getTime();
       let minDiff = Infinity;
       for (const h of selectedTicker.historical) {
         const t = (h.date instanceof Date) ? h.date.getTime() : new Date(h.date).getTime();
@@ -558,7 +603,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
       }
     }
 
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = formatDate(new Date());
     if (dateStr === todayStr && selectedTicker.price) {
       // Use live price for today
       closestPrice = selectedTicker.price;
@@ -751,6 +796,99 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     } catch (e) {
       console.error(e);
       alert(t("Error undoing: ", "שגיאה בביטול: ") + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
+  const handlePreviewGrant = () => {
+    const totalUnits = parseFloat(qty);
+    const grantPrice = parseFloat(price) || 0;
+    const duration = parseFloat(grantDuration);
+    const baseDay = vestingDay ? parseInt(vestingDay, 10) : 1;
+    const baseDate = new Date(Date.UTC(vestingYear, vestingMonth, baseDay));
+    const day = vestingDay ? parseInt(vestingDay, 10) : baseDate.getDate();
+
+    if (!totalUnits || !duration || !day || isNaN(baseDate.getTime()) || !ticker || !portId) {
+      alert("Please fill all required grant fields (Units, Duration, Vesting Day, Ticker).");
+      return;
+    }
+
+    const freqMonths = grantFrequency === 'MONTHLY' ? 1 : grantFrequency === 'QUARTERLY' ? 3 : 12;
+
+    // Calculate total vests based on duration and frequency
+    // Duration could be in YEARS, QUARTERS, MONTHS
+    let totalMonths = 0;
+    if (grantDurationUnit === 'YEARS') totalMonths = duration * 12;
+    else if (grantDurationUnit === 'QUARTER') totalMonths = duration * 3;
+    else totalMonths = duration;
+
+    const vests = Math.ceil(totalMonths / freqMonths);
+
+    let remainingUnits = totalUnits;
+    const genTxns: Transaction[] = [];
+    const tickerName = selectedTicker?.symbol || ticker;
+    const exch = selectedTicker?.exchange || parseExchange('US') || 'US';
+
+    for (let i = 0; i < vests; i++) {
+      const m = baseDate.getMonth() + i * freqMonths;
+      const y = baseDate.getFullYear();
+      const maxDays = new Date(y, m + 1, 0).getDate();
+      const actualDay = Math.min(day, maxDays);
+      const vestDateObj = new Date(Date.UTC(y, m, actualDay));
+
+      let periodQty = Number((totalUnits / vests).toFixed(6));
+      if (i === vests - 1) {
+        periodQty = Number(remainingUnits.toFixed(6));
+      }
+      remainingUnits -= periodQty;
+
+      genTxns.push({
+        date: date,
+        portfolioId: portId,
+        ticker: tickerName,
+        exchange: exch,
+        type: 'BUY',
+        originalQty: periodQty,
+        originalPrice: grantPrice,
+        qty: periodQty,
+        price: grantPrice,
+        currency: tickerCurrency,
+        vestDate: vestDateObj.toISOString().split('T')[0],
+        comment: comment ? `${comment} (${i + 1}/${vests})` : `Grant Vest ${i + 1}/${vests}`,
+        commission: 0,
+        creationDate: new Date().toISOString()
+      });
+    }
+
+    setPreviewTxns(genTxns);
+  };
+
+  const handleApproveGrant = async () => {
+    if (!previewTxns || previewTxns.length === 0) return;
+    setLoading(true);
+    try {
+      await batchAddTransactions(sheetId, previewTxns);
+      if (onSaveSuccess) {
+        onSaveSuccess(t(`Added ${previewTxns.length} vesting transactions`, `התווספו ${previewTxns.length} מנות הבשלה`));
+      }
+
+      setType('BUY');
+      setDate(new Date().toISOString().split('T')[0]);
+      setVestingMonth(new Date().getMonth());
+      setVestingYear(new Date().getFullYear());
+      setGrantDuration('');
+      setVestingDay('');
+      setQty('');
+      setPrice('');
+      setTotal('');
+      setComment('');
+      setPreviewTxns(null);
+      setShowForm(false);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to save grant transactions');
     } finally {
       setLoading(false);
     }
@@ -1282,10 +1420,11 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                       )}
                       <Grid item xs={12} sm={4}>
                         <TextField
-                          type="date" label="Date" size="small" fullWidth
+                          label="Date" size="small" fullWidth
                           value={date} onChange={e => handleDateChange(e.target.value)}
                           InputLabelProps={{ shrink: true }}
                           sx={{ '& .MuiInputBase-input': { colorScheme: theme.palette.mode } }}
+                          placeholder="dd/mm/yyyy"
                         />
                       </Grid>
                       <Grid item xs={12} sm={4}>
@@ -1309,6 +1448,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                                 {(portId && ticker && !portfolios.find(p => p.id === portId)?.holdings?.some(h => h.ticker === ticker)) ? ` (${t('Not Held', 'לא מוחזק')})` : ''}
                               </MenuItem>
                             )}
+                            <MenuItem value="GRANT">{t('Grant (RSU / Vesting)', 'הענקה (RSU / תוכנית)')}</MenuItem>
                             <MenuItem value="DIV_EVENT">{t('Record Dividend event', 'תיעוד אירוע דיבידנד')}</MenuItem>
                           </Select>
                         </FormControl>
@@ -1357,7 +1497,147 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                         </Grid>
                       )}
 
-                      {type === 'DIV_EVENT' ? (
+                      {type === 'GRANT' ? (
+                        <Grid item xs={12}>
+                          <Box sx={{ p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 1, bgcolor: 'background.paper' }}>
+                            <Typography variant="subtitle2" color="primary" gutterBottom>
+                              {t("Vesting Plan Details", "פרטי תוכנית הקצאה")}
+                            </Typography>
+                            {!previewTxns ? (
+                              <Grid container spacing={2}>
+                                <Grid item xs={6} sm={4}>
+                                  <NumericField label={t("Total Units", "סך יחידות")} field="qty" value={qty} onChange={v => handleQtyChange(v)} required />
+                                </Grid>
+                                <Grid item xs={6} sm={4}>
+                                  <NumericField label={t("Price", "מחיר")} field="price" value={price} onChange={v => handlePriceChange(v)} />
+                                </Grid>
+                                <Grid item xs={6} sm={4}>
+                                  <NumericField label={t("Total Value", "שווי כולל")} field="total" value={total} onChange={v => handleTotalChange(v)} />
+                                </Grid>
+
+                                                                                                <Grid item xs={12} sm={8}>
+                                  <NumericField 
+                                    label={t("Vesting Start (Month/Year)", "תחילת הבשלה (חודש/שנה)")} 
+                                    field="vestingYear" 
+                                    value={vestingYear.toString()} 
+                                    onChange={v => setVestingYear(parseInt(v.toString()) || new Date().getFullYear())} 
+                                    required 
+                                    InputLabelProps={{ shrink: true }}
+                                    startAdornment={
+                                      <InputAdornment position="start">
+                                        <Select
+                                          value={vestingMonth}
+                                          onChange={e => setVestingMonth(e.target.value as number)}
+                                          size="small"
+                                          variant="standard"
+                                          disableUnderline
+                                          sx={{ 
+                                            mr: 1, 
+                                            fontSize: '0.875rem',
+                                            '& .MuiSelect-select': { py: 0 }
+                                          }}
+                                        >
+                                          {[0,1,2,3,4,5,6,7,8,9,10,11].map(m => (
+                                            <MenuItem key={m} value={m}>{t(monthNames[m], "") || monthNames[m]}</MenuItem>
+                                          ))}
+                                        </Select>
+                                      </InputAdornment>
+                                    }
+                                  />
+                                </Grid>
+
+                                <Grid item xs={6} sm={4}>
+                                  <NumericField label={t("Vesting Day of Month", "יום הבשלה בחודש")} field="vestingDay" value={vestingDay} onChange={v => setVestingDay(v.toString())} placeholder="1-31" required />
+                                </Grid>
+
+                                                                <Grid item xs={12} sm={8}>
+                                  <NumericField 
+                                    label={t("Vesting Spread Period", "תקופת פריסת הבשלה")} 
+                                    field="grantDuration" 
+                                    value={grantDuration} 
+                                    onChange={v => setGrantDuration(v.toString())} 
+                                    required 
+                                    InputLabelProps={{ shrink: true }}
+                                    endAdornment={
+                                      <InputAdornment position="end">
+                                        <ToggleButtonGroup
+                                          value={grantDurationUnit}
+                                          exclusive
+                                          onChange={(_, v) => v && setGrantDurationUnit(v)}
+                                          size="small"
+                                          color="primary"
+                                          sx={{ height: 32, '& .MuiToggleButton-root': { py: 0, px: 1, minWidth: 40, border: 'none', borderRadius: '4px !important', ml: '4px !important' } }}
+                                        >
+                                          <ToggleButton value="MONTHS">{t("M", "ח")}</ToggleButton>
+                                          <ToggleButton value="QUARTER">{t("Q", "ר")}</ToggleButton>
+                                          <ToggleButton value="YEARS">{t("Y", "ש")}</ToggleButton>
+                                        </ToggleButtonGroup>
+                                      </InputAdornment>
+                                    }
+                                  />
+                                </Grid>
+
+                                                                <Grid item xs={6} sm={4}>
+                                  <FormControl size="small" fullWidth>
+                                    <InputLabel>{t("Vesting Frequency", "תדירות הבשלה")}</InputLabel>
+                                    <Select 
+                                      value={grantFrequency} 
+                                      onChange={e => setGrantFrequency(e.target.value as any)} 
+                                      label={t("Vesting Frequency", "תדירות הבשלה")}
+                                    >
+                                      <MenuItem value="MONTHLY">{t("Monthly", "חודשי")}</MenuItem>
+                                      <MenuItem value="QUARTERLY">{t("Quarterly", "רבעוני")}</MenuItem>
+                                      <MenuItem value="YEARLY">{t("Yearly", "שנתי")}</MenuItem>
+                                    </Select>
+                                  </FormControl>
+                                </Grid>
+
+
+
+                                <Grid item xs={12}>
+                                  <Button variant="outlined" onClick={handlePreviewGrant} fullWidth>
+                                    {t("Preview Vesting Plan", "תצוגה מקדימה של תוכנית הבשלה")}
+                                  </Button>
+                                </Grid>
+                              </Grid>
+                            ) : (
+                              <Box>
+                                <Typography variant="body2" sx={{ mb: 2 }}>
+                                  {t("Review and edit the generated vesting schedule below before saving:", "יש לוודא ולערוך את תוכנית ההבשלה להלן לפני השמירה:")}
+                                </Typography>
+                                {previewTxns.map((txn, idx) => (
+                                  <Grid container spacing={1} key={idx} sx={{ mb: 1, alignItems: 'center' }}>
+                                    <Grid item xs={1}><Typography variant="body2">#{idx + 1}</Typography></Grid>
+                                    <Grid item xs={4}><TextField value={txn.vestDate} onChange={e => {
+                                      const copy = [...previewTxns]; copy[idx].vestDate = e.target.value; setPreviewTxns(copy);
+                                    }} size="small" fullWidth placeholder="dd/mm/yyyy" /></Grid>
+                                    <Grid item xs={3}><NumericField label="" value={txn.qty ? txn.qty.toString() : "0"} field={`qty-${idx}`} onChange={v => {
+                                      const copy = [...previewTxns]; copy[idx].qty = v || 0; copy[idx].originalQty = v || 0; setPreviewTxns(copy);
+                                    }} /></Grid>
+                                    <Grid item xs={4}><TextField value={txn.comment || ''} onChange={e => {
+                                      const copy = [...previewTxns]; copy[idx].comment = e.target.value; setPreviewTxns(copy);
+                                    }} size="small" fullWidth /></Grid>
+                                  </Grid>
+                                ))}
+                                <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <Typography variant="body2" fontWeight="bold">
+                                    {t("Total Units: ", "סך חתיכות: ")}
+                                    {previewTxns.reduce((sum, txn) => sum + (txn.qty || 0), 0).toFixed(6)} / {qty}
+                                  </Typography>
+                                  <Box>
+                                    <Button onClick={() => setPreviewTxns(null)} sx={{ mr: 1 }}>
+                                      {t("Back", "אחורה")}
+                                    </Button>
+                                    <Button variant="contained" color="success" onClick={handleApproveGrant} disabled={loading}>
+                                      {loading ? t("Saving...", "שומר...") : t("Approve & Save", "אישור ושמירה")}
+                                    </Button>
+                                  </Box>
+                                </Box>
+                              </Box>
+                            )}
+                          </Box>
+                        </Grid>
+                      ) : type === 'DIV_EVENT' ? (
                         <Grid item xs={12} sm={4}>
                           <NumericField
                             label={t("Dividend Amount", "סכום דיבידנד")}
@@ -1557,7 +1837,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                           <Grid item xs={12} sm={(!selectedTicker?.isFeeExempt && selectedTicker?.type?.type !== InstrumentType.MONETARY_FUND) ? 6 : 12}>
                             <Tooltip title="Date when these shares vest (if applicable for RSUs/Options).">
                               <TextField
-                                label="Vesting Date" type="date" size="small" fullWidth
+                                    label="Vesting Date" size="small" fullWidth placeholder="dd/mm/yyyy"
                                 value={vestDate} onChange={e => setVestDate(e.target.value)}
                                 InputLabelProps={{ shrink: true }}
                                 sx={{ '& .MuiInputBase-input': { colorScheme: theme.palette.mode } }}
@@ -1570,7 +1850,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                         <TextField label="Comment" size="small" fullWidth value={comment} onChange={e => setComment(e.target.value)} />
                       </Grid>
                     </Grid>
-                    <Box mt={2} display="flex" gap={2}>
+                    <Box mt={2} display="flex" gap={2} sx={{ display: type === 'GRANT' ? 'none' : undefined }}>
                       {(locationState?.editTransaction || locationState?.editDividend) && (
                         <Button variant="outlined" color="error" size="large" startIcon={<DeleteIcon />} onClick={handleDelete} disabled={loading} sx={{ flex: 1 }}>
                           {t('Delete', 'מחק')}

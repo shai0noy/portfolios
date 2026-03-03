@@ -13,6 +13,7 @@ interface BaseFieldProps {
   startAdornment?: React.ReactNode;
   endAdornment?: React.ReactNode;
   placeholder?: string;
+  InputLabelProps?: any;
 }
 
 interface NumericFieldProps extends BaseFieldProps {
@@ -23,7 +24,7 @@ interface NumericFieldProps extends BaseFieldProps {
   currency?: string;
 }
 
-export const NumericField = React.memo(({ label, field, value, onChange, onUpdate, currency, tooltip, disabled, error, helperText, required, startAdornment, endAdornment, placeholder }: NumericFieldProps) => {
+export const NumericField = React.memo(({ label, field, value, onChange, onUpdate, currency, tooltip, disabled, error, helperText, required, startAdornment, endAdornment, placeholder, InputLabelProps }: NumericFieldProps) => {
   const [localDisplay, setLocalDisplay] = useState<string | null>(null);
 
   const numericVal = typeof value === 'string' ? parseFloat(value) : value;
@@ -87,6 +88,7 @@ export const NumericField = React.memo(({ label, field, value, onChange, onUpdat
       error={error}
       helperText={helperText}
       required={required}
+      InputLabelProps={InputLabelProps}
       InputProps={{
         startAdornment: finalStartAdornment,
         endAdornment: finalEndAdornment,
