@@ -3,8 +3,10 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions,
   Button, TextField, Box, Typography, IconButton,
   CircularProgress, Paper, Tooltip, Select, MenuItem, FormControl,
-  FormControlLabel, Checkbox, Chip, Stack
+  FormControlLabel, Chip, Stack, ToggleButton, ToggleButtonGroup, Switch, Alert
 } from '@mui/material';
+import BoltIcon from '@mui/icons-material/Bolt';
+import PsychologyIcon from '@mui/icons-material/Psychology';
 import CloseIcon from '@mui/icons-material/Close';
 import SendIcon from '@mui/icons-material/Send';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
@@ -14,32 +16,43 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import { useLanguage } from '../lib/i18n';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import ReactMarkdown from 'react-markdown';
-import { type ChatMessage, askGemini, fetchModels, type GeminiModel } from '../lib/gemini';
+import { type ChatMessage, askGemini, fetchModels, type GeminiModel, getModelByCapability } from '../lib/gemini';
+import type { EnrichedDashboardHolding } from '../lib/dashboard_calc';
+import type { DashboardSummaryData } from '../lib/types';
+
+interface AiChatDialogPortfolioData {
+  holdings: EnrichedDashboardHolding[];
+  summary: DashboardSummaryData;
+  displayCurrency: string;
+}
+
+interface ExtendedChatMessage extends ChatMessage {
+  isError?: boolean;
+}
 
 interface AiChatDialogProps {
   open: boolean;
   onClose: () => void;
   apiKey: string;
-  portfolioData: {
-    holdings: any[];
-    summary: any;
-    displayCurrency: string;
-  };
+  portfolioData: AiChatDialogPortfolioData;
 }
 
 export const AiChatDialog: React.FC<AiChatDialogProps> = ({ open, onClose, apiKey, portfolioData }) => {
   const { t } = useLanguage();
-  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+  const [messages, setMessages] = useState<ExtendedChatMessage[]>(() => {
     const saved = localStorage.getItem('ai_chat_history');
     return saved ? JSON.parse(saved) : [];
   });
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [availableModels, setAvailableModels] = useState<GeminiModel[]>([]);
-  const [showAllModels, setShowAllModels] = useState(false);
   const [selectedModel, setSelectedModel] = useState<string>(localStorage.getItem('gemini_selected_model') || 'models/gemini-1.5-flash');
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastPromptRef = useRef<string>('');
+
+  const [chatMode, setChatMode] = useState<'fast' | 'thinking'>('fast');
+  const [isExpertMode, setIsExpertMode] = useState(false);
+  const [openDisclaimer, setOpenDisclaimer] = useState(true);
 
   useEffect(() => {
     if (open && apiKey) {
@@ -51,19 +64,27 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({ open, onClose, apiKe
     }
   }, [open, apiKey]);
 
-  // Ensure initial model selection is valid
+  // Sync chat mode with model selection when NOT in expert mode
+  useEffect(() => {
+    if (!isExpertMode && availableModels.length > 0) {
+      const bestModel = getModelByCapability(availableModels, chatMode);
+      if (bestModel !== selectedModel) {
+        setSelectedModel(bestModel);
+      }
+    }
+  }, [chatMode, availableModels, isExpertMode]); // Intentionally not depending on selectedModel to avoid loops
+
+  // Ensure initial model selection/validation (only once or when list loads)
   useEffect(() => {
     if (!availableModels.length) return;
     const currentExists = availableModels.some(m => m.name === selectedModel);
-    if (!currentExists) {
-      // If current selection is invalid, try to find a Gemini model
-      const defaultModel = availableModels.find(m => m.name.includes('gemini-1.5-flash'))
-        || availableModels.find(m => m.name.includes('gemini-pro'))
-        || availableModels[0];
 
-      if (defaultModel) setSelectedModel(defaultModel.name);
+    if (!currentExists && !isExpertMode) {
+      // Default init
+      const bestModel = getModelByCapability(availableModels, chatMode);
+      setSelectedModel(bestModel);
     }
-  }, [availableModels, selectedModel]);
+  }, [availableModels]);
 
   useEffect(() => {
     localStorage.setItem('gemini_selected_model', selectedModel);
@@ -81,10 +102,10 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({ open, onClose, apiKe
 
   const summarizePortfolio = () => {
     const hSummary = portfolioData.holdings.map(h => ({
-      symbol: h.ticker,
-      exchange: h.exchange,
-      qty: h.qtyTotal,
-      price: h.currentPrice,
+      symbol: `${h.exchange}:${h.ticker}`,
+      name: h.displayName,
+      // qty: h.qtyTotal,
+      // price: h.currentPrice,
       value: h.display.marketValue,
       gain: h.display.totalGain,
       gainPct: h.display.totalGainPct,
@@ -93,7 +114,7 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({ open, onClose, apiKe
 
     return JSON.stringify({
       totalValue: portfolioData.summary.aum,
-      totalGain: portfolioData.summary.totalGain,
+      totalGain: portfolioData.summary.totalReturn,
       currency: portfolioData.displayCurrency,
       holdings: hSummary
     });
@@ -116,7 +137,7 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({ open, onClose, apiKe
 
     try {
       // Filter history to remove error messages and ensure proper role alternation
-      const history = messages.filter((m: any) => !m.isError);
+      const history = messages.filter((m) => !m.isError);
 
       const systemInstruction = `You are a professional financial advisor assistant. Analyze the following portfolio data and provide insights.\nCurrent Portfolio Data: ${summarizePortfolio()}.\nUser Session Start.`;
 
@@ -128,7 +149,7 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({ open, onClose, apiKe
         role: 'model',
         parts: [{ text: t('Sorry, I encountered an error while processing your request.', 'מצטער, נתקלתי בשגיאה בעיבוד הבקשה שלך.') }],
         isError: true
-      } as any]);
+      }]);
     } finally {
       setIsLoading(false);
     }
@@ -148,51 +169,71 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({ open, onClose, apiKe
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <AutoAwesomeIcon color="primary" /> {t('AI Portfolio Assistant', 'עוזר תיק השקעות AI')}
           </Box>
-          <FormControl size="small" sx={{ minWidth: 150 }}>
-            <Select
-              value={selectedModel}
-              onChange={(e) => setSelectedModel(e.target.value)}
-              sx={{ height: 32, fontSize: '0.8rem' }}
-              displayEmpty
+
+          {!isExpertMode ? (
+            <ToggleButtonGroup
+              value={chatMode}
+              exclusive
+              onChange={(_, newVal) => { if (newVal) setChatMode(newVal); }}
+              size="small"
+              sx={{ height: 32 }}
             >
-              {availableModels.length > 0 ? (
-                availableModels
-                  .filter(m => showAllModels || m.name.toLowerCase().includes('gemini'))
-                  .map(m => (
-                    <MenuItem key={m.name} value={m.name} sx={{ fontSize: '0.8rem' }}>
-                      {m.displayName}
+              <ToggleButton value="fast" sx={{ px: 2, py: 0, textTransform: 'none', gap: 0.5 }}>
+                <BoltIcon fontSize="small" /> {t('Fast', 'מהיר')}
+              </ToggleButton>
+              <ToggleButton value="thinking" sx={{ px: 2, py: 0, textTransform: 'none', gap: 0.5 }}>
+                <PsychologyIcon fontSize="small" /> {t('Thinking', 'חושב')}
+              </ToggleButton>
+            </ToggleButtonGroup>
+          ) : (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <FormControl size="small" sx={{ minWidth: 200 }}>
+                <Select
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                  sx={{ height: 32, fontSize: '0.8rem' }}
+                  displayEmpty
+                >
+                  {availableModels.length > 0 ? (
+                    availableModels
+                      .map(m => (
+                        <MenuItem key={m.name} value={m.name} sx={{ fontSize: '0.8rem' }}>
+                          {m.displayName}
+                        </MenuItem>
+                      ))
+                  ) : (
+                    <MenuItem value={selectedModel} disabled sx={{ fontSize: '0.8rem' }}>
+                      {selectedModel.replace('models/', '')}
                     </MenuItem>
-                  ))
-              ) : (
-                <MenuItem value={selectedModel} disabled sx={{ fontSize: '0.8rem' }}>
-                  {selectedModel.replace('models/', '')}
-                </MenuItem>
-              )}
-            </Select>
-          </FormControl>
+                  )}
+                </Select>
+              </FormControl>
+            </Box>
+          )}
+
+
           <FormControlLabel
             control={
-              <Checkbox
+              <Switch
                 size="small"
-                checked={showAllModels}
-                onChange={(e) => setShowAllModels(e.target.checked)}
-                sx={{ p: 0.5 }}
+                checked={isExpertMode}
+                onChange={(e) => setIsExpertMode(e.target.checked)}
               />
             }
-            label={<Typography variant="caption">{t('Show all', 'הצג הכל')}</Typography>}
-            sx={{ ml: 0, mr: 0 }}
+            label={<Typography variant="caption">{t('Expert Mode', 'מצב מומחה')}</Typography>}
+            sx={{ ml: 1 }}
           />
         </Box>
         <Box>
           <Tooltip title={t('Clear History', 'נקה היסטוריה')}>
-            <Button 
-                onClick={clearHistory} 
-                size="small" 
-                color="inherit" 
-                startIcon={<DeleteOutlineIcon />}
-                sx={{ mr: 1, textTransform: 'none' }}
+            <Button
+              onClick={clearHistory}
+              size="small"
+              color="inherit"
+              startIcon={<DeleteOutlineIcon />}
+              sx={{ mr: 1, textTransform: 'none' }}
             >
-                {t('Clear Chat', 'נקה שיחה')}
+              {t('Clear Chat', 'נקה שיחה')}
             </Button>
           </Tooltip>
           <IconButton onClick={onClose} size="small">
@@ -219,23 +260,23 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({ open, onClose, apiKe
                 {t('Hello! I can help you analyze your portfolio.', 'שלום! אני יכול לעזור לך לנתח את התיק שלך.')}
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  {t('Try asking one of these:', 'נסה לשאול את אחת השאלות הבאות:')}
+                {t('Try asking one of these:', 'נסה לשאול את אחת השאלות הבאות:')}
               </Typography>
               <Stack direction="column" spacing={1} alignItems="center">
-                  <Chip 
-                    label={t("How is my portfolio performing?", "איך הביצועים של התיק שלי?")} 
-                    onClick={() => setInput(t("How is my portfolio performing?", "איך הביצועים של התיק שלי?"))}
-                    clickable
-                    color="primary"
-                    variant="outlined"
-                  />
-                  <Chip 
-                    label={t("What are my riskiest holdings?", "מהן ההחזקות הכי מסוכנות שלי?")} 
-                    onClick={() => setInput(t("What are my riskiest holdings?", "מהן ההחזקות הכי מסוכנות שלי?"))}
-                    clickable
-                    color="primary"
-                    variant="outlined"
-                  />
+                <Chip
+                  label={t("How is my portfolio performing?", "איך הביצועים של התיק שלי?")}
+                  onClick={() => setInput(t("How is my portfolio performing?", "איך הביצועים של התיק שלי?"))}
+                  clickable
+                  color="primary"
+                  variant="outlined"
+                />
+                <Chip
+                  label={t("What are my riskiest holdings?", "מהן ההחזקות הכי מסוכנות שלי?")}
+                  onClick={() => setInput(t("What are my riskiest holdings?", "מהן ההחזקות הכי מסוכנות שלי?"))}
+                  clickable
+                  color="primary"
+                  variant="outlined"
+                />
               </Stack>
             </Box>
           )}
@@ -270,7 +311,7 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({ open, onClose, apiKe
                     msg.parts[0].text
                   )}
                 </Typography>
-                {(msg as any).isError && (
+                {msg.isError && (
                   <Button
                     startIcon={<RefreshIcon />}
                     size="small"
@@ -294,7 +335,20 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({ open, onClose, apiKe
               </Paper>
             </Box>
           )}
+          <Box ref={scrollRef} />
         </Box>
+        {openDisclaimer && (
+          <Alert
+            severity="info"
+            onClose={() => setOpenDisclaimer(false)}
+            sx={{ mt: 0, mb: 0, py: 0, '& .MuiAlert-message': { fontSize: '0.75rem' } }}
+          >
+            {t(
+              'Disclaimer: This AI assistant provides analysis for informational purposes only and does not constitute financial advice. Always consult with a qualified financial expert before making investment decisions.',
+              'הבהרה: עוזר ה-AI מספק ניתוח למטרות מידע בלבד ואינו מהווה ייעוץ פיננסי. תמיד התייעץ עם מומחה פיננסי מוסמך לפני קבלת החלטות השקעה.'
+            )}
+          </Alert>
+        )}
       </DialogContent>
       <DialogActions sx={{ p: 2 }}>
         <TextField
