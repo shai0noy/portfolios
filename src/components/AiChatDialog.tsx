@@ -19,6 +19,7 @@ import ReactMarkdown from 'react-markdown';
 import { type ChatMessage, askGemini, fetchModels, type GeminiModel, getModelByCapability } from '../lib/gemini';
 import type { EnrichedDashboardHolding } from '../lib/dashboard_calc';
 import type { DashboardSummaryData } from '../lib/types';
+import { formatPercent } from '../lib/currencyUtils';
 
 interface AiChatDialogPortfolioData {
   holdings: EnrichedDashboardHolding[];
@@ -104,18 +105,39 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({ open, onClose, apiKe
     const hSummary = portfolioData.holdings.map(h => ({
       symbol: `${h.exchange}:${h.ticker}`,
       name: h.displayName,
-      // qty: h.qtyTotal,
-      // price: h.currentPrice,
       value: h.display.marketValue,
-      gain: h.display.totalGain,
-      gainPct: h.display.totalGainPct,
-      weight: h.display.weightInGlobal
+      unrealizedGain: h.display.unrealizedGain,
+      unrealizedGainPct: formatPercent(h.display.unrealizedGainPct),
+      dayChangePct: formatPercent(h.display.dayChangePct),
+      realizedGain: h.display.realizedGain,
+      realizedGainPct: formatPercent(h.display.realizedGainPct),
+      weightInAllHoldings: h.display.weightInGlobal,
+      sector: h.sector,
+      perf1w: formatPercent(h.perf1w),
+      perf1m: formatPercent(h.perf1m),
+      perf3m: formatPercent(h.perf3m),
+      perf1y: formatPercent(h.perf1y),
+      perf5y: formatPercent(h.perf5y),
+      lots: h.activeLots.map(l => ({
+        date: l.date,
+        vestingDate: l.vestingDate,
+        soldDate: l.soldDate,
+        cost: l.costTotal
+      }))    
     }));
 
     return JSON.stringify({
       totalValue: portfolioData.summary.aum,
       totalGain: portfolioData.summary.totalReturn,
       currency: portfolioData.displayCurrency,
+      perf1d: formatPercent(portfolioData.summary.perf1d),
+      perf1w: formatPercent(portfolioData.summary.perf1w),
+      perf1m: formatPercent(portfolioData.summary.perf1m),
+      perf3m: formatPercent(portfolioData.summary.perf3m),
+      perf1y: formatPercent(portfolioData.summary.perf1y),
+      perf5y: formatPercent(portfolioData.summary.perf5y),
+      totalUnvestedValue: portfolioData.summary.totalUnvestedValue,
+      valueAfterTax: portfolioData.summary.valueAfterTax,
       holdings: hSummary
     });
   };
@@ -139,7 +161,7 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({ open, onClose, apiKe
       // Filter history to remove error messages and ensure proper role alternation
       const history = messages.filter((m) => !m.isError);
 
-      const systemInstruction = `You are a professional financial advisor assistant. Analyze the following portfolio data and provide insights.\nCurrent Portfolio Data: ${summarizePortfolio()}.\nUser Session Start.`;
+      const systemInstruction = `You are a financial assistant. Be professional, objective, and direct. Avoid excessive praise or flattery. Focus on data-driven analysis and facts. \nIf your response includes specific investment or tax handling advice, please add a brief disclaimer at the end. \nAlso, please suggest one concrete follow-up question or action the user could take based on your analysis.\nCurrent Portfolio Data: ${summarizePortfolio()}.\nUser Session Start.`;
 
       const response = await askGemini(apiKey, history, userMsg, selectedModel, systemInstruction);
       setMessages(prev => [...prev, { role: 'model', parts: [{ text: response }] }]);
@@ -262,21 +284,24 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({ open, onClose, apiKe
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                 {t('Try asking one of these:', 'נסה לשאול את אחת השאלות הבאות:')}
               </Typography>
-              <Stack direction="column" spacing={1} alignItems="center">
-                <Chip
-                  label={t("How is my portfolio performing?", "איך הביצועים של התיק שלי?")}
-                  onClick={() => setInput(t("How is my portfolio performing?", "איך הביצועים של התיק שלי?"))}
-                  clickable
-                  color="primary"
-                  variant="outlined"
-                />
-                <Chip
-                  label={t("What are my riskiest holdings?", "מהן ההחזקות הכי מסוכנות שלי?")}
-                  onClick={() => setInput(t("What are my riskiest holdings?", "מהן ההחזקות הכי מסוכנות שלי?"))}
-                  clickable
-                  color="primary"
-                  variant="outlined"
-                />
+              <Stack direction="row" flexWrap="wrap" gap={1} justifyContent="center" sx={{ maxWidth: 600, mx: 'auto' }}>
+                {[
+                  t("What are the key risks in my portfolio?", "מהם הסיכונים המרכזיים בתיק?"),
+                  t("How is my asset allocation distributed?", "איך נראית הקצאת הנכסים שלי?"),
+                  t("Suggest 3 improvements for my portfolio", "הצע 3 שיפורים לתיק שלי"),
+                  t("Compare my performance to the S&P 500", "השווה את הביצועים שלי ל-S&P 500"),
+                  t("Summarize my portfolio performance", "סכם את ביצועי התיק שלי")
+                ].map((text, i) => (
+                  <Chip 
+                    key={i}
+                    label={text}
+                    onClick={() => setInput(text)}
+                    clickable
+                    color="primary"
+                    variant="outlined"
+                    size="small"
+                  />
+                ))}
               </Stack>
             </Box>
           )}
