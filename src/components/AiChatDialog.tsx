@@ -112,6 +112,190 @@ const ChatMessageItem = React.memo(({ msg, t, onRetry, lastPrompt }: {
   );
 });
 
+const ChatInputSection = React.memo(({ onSend, isLoading, t, initialValue }: {
+  onSend: (val: string) => void,
+  isLoading: boolean,
+  t: (e: string, h?: string) => string,
+  initialValue: string
+}) => {
+  const [value, setValue] = useState(initialValue);
+
+  // Sync when initialValue changes from outside (suggestion chips)
+  useEffect(() => {
+    setValue(initialValue);
+  }, [initialValue]);
+
+  const handleSend = () => {
+    if (value.trim() && !isLoading) {
+      onSend(value);
+      setValue('');
+    }
+  };
+
+  return (
+    <DialogActions sx={{ p: 2 }}>
+      <TextField
+        fullWidth
+        placeholder={t('Ask a question...', 'שאל שאלה...')}
+        variant="outlined"
+        size="small"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+        disabled={isLoading}
+      />
+      <Button
+        variant="contained"
+        onClick={handleSend}
+        disabled={isLoading || !value.trim()}
+        endIcon={<SendIcon />}
+      >
+        {t('Send', 'שלח')}
+      </Button>
+    </DialogActions>
+  );
+});
+
+const ProfileForm = React.memo(({ initialProfile, loadingProfile, displayCurrency, t, onSave, onCancel, savingProfile }: {
+  initialProfile: UserFinancialProfile,
+  loadingProfile: boolean,
+  displayCurrency: string,
+  t: (e: string, h?: string) => string,
+  onSave: (p: UserFinancialProfile) => void,
+  onCancel: () => void,
+  savingProfile: boolean
+}) => {
+  const [draftProfile, setDraftProfile] = useState<UserFinancialProfile>(initialProfile);
+
+  // Sync if initialProfile changes from outside load
+  useEffect(() => {
+    setDraftProfile(initialProfile);
+  }, [initialProfile]);
+
+  const handleSave = () => onSave(draftProfile);
+
+  return (
+    <Dialog open={true} onClose={onCancel} maxWidth="sm" fullWidth>
+      <DialogTitle>{t('User Financial Profile', 'פרופיל פיננסי אישי')}</DialogTitle>
+      <DialogContent dividers>
+        <Stack spacing={3} sx={{ mt: 1 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+            {t('Providing this information helps the AI give more personalized advice.', 'מסירת מידע זה תעזור ל-AI לתת עצות מותאמות אישית יותר.')}
+          </Typography>
+
+          {loadingProfile && <CircularProgress size={24} sx={{ alignSelf: 'center' }} />}
+
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 3 }}>
+            <TextField
+              label={t('Age', 'גיל')}
+              type="number"
+              disabled={loadingProfile}
+              value={draftProfile.age ?? ''}
+              onChange={(e) => setDraftProfile({ ...draftProfile, age: e.target.value === '' ? undefined : parseInt(e.target.value) })}
+              fullWidth
+              size="small"
+              placeholder={t('Not provided', 'לא צוין')}
+              InputProps={{
+                startAdornment: <InputAdornment position="start"><CakeIcon fontSize="small" color="primary" /></InputAdornment>,
+              }}
+            />
+            <TextField
+              label={t('Desired Retirement Age', 'גיל פרישה רצוי')}
+              type="number"
+              disabled={loadingProfile}
+              value={draftProfile.retirementAge ?? ''}
+              onChange={(e) => setDraftProfile({ ...draftProfile, retirementAge: e.target.value === '' ? undefined : parseInt(e.target.value) })}
+              fullWidth
+              size="small"
+              placeholder={t('Not provided', 'לא צוין')}
+              InputProps={{
+                startAdornment: <InputAdornment position="start"><EventIcon fontSize="small" color="primary" /></InputAdornment>,
+              }}
+            />
+          </Box>
+
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 3 }}>
+            <TextField
+              label={t('Number of Children', 'מספר ילדים')}
+              type="number"
+              disabled={loadingProfile}
+              value={draftProfile.numChildren ?? ''}
+              onChange={(e) => setDraftProfile({ ...draftProfile, numChildren: e.target.value === '' ? undefined : parseInt(e.target.value) })}
+              fullWidth
+              size="small"
+              placeholder={t('Not provided', 'לא צוין')}
+              InputProps={{
+                startAdornment: <InputAdornment position="start"><ChildCareIcon fontSize="small" color="primary" /></InputAdornment>,
+              }}
+            />
+            <FormControl size="small" fullWidth>
+              <Select
+                value={draftProfile.ownsHome === undefined ? 'unknown' : (draftProfile.ownsHome ? 'yes' : 'no')}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setDraftProfile({
+                    ...draftProfile,
+                    ownsHome: val === 'unknown' ? undefined : (val === 'yes')
+                  });
+                }}
+                size="small"
+                disabled={loadingProfile}
+                sx={{ mt: 0 }}
+                startAdornment={
+                  <InputAdornment position="start">
+                    <HomeIcon fontSize="small" color="primary" />
+                  </InputAdornment>
+                }
+              >
+                <MenuItem value="unknown">{t('Home Ownership: Unknown', 'בעלות על דירה: לא ידוע')}</MenuItem>
+                <MenuItem value="yes">{t('Yes, owns home', 'כן, בעל דירה')}</MenuItem>
+                <MenuItem value="no">{t('No, does not own', 'לא, אינו בעל דירה')}</MenuItem>
+              </Select>
+            </FormControl>
+          </Box>
+
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 3 }}>
+            <TextField
+              label={t('Avg. Yearly Net Earnings', 'הכנסה שנתית נטו ממוצעת')}
+              type="number"
+              disabled={loadingProfile}
+              value={draftProfile.netYearlyEarnings ?? ''}
+              onChange={(e) => setDraftProfile({ ...draftProfile, netYearlyEarnings: e.target.value === '' ? undefined : parseFloat(e.target.value) })}
+              fullWidth
+              size="small"
+              placeholder={t('Not provided', 'לא צוין')}
+              InputProps={{
+                startAdornment: <InputAdornment position="start"><AccountBalanceWalletIcon fontSize="small" color="primary" /></InputAdornment>,
+                endAdornment: <InputAdornment position="end"><Typography variant="caption" sx={{ fontWeight: 600 }}>{displayCurrency}</Typography></InputAdornment>
+              }}
+            />
+            <TextField
+              label={t('Avg. Yearly Spending', 'הוצאה שנתית ממוצעת')}
+              type="number"
+              disabled={loadingProfile}
+              value={draftProfile.yearlySpending ?? ''}
+              onChange={(e) => setDraftProfile({ ...draftProfile, yearlySpending: e.target.value === '' ? undefined : parseFloat(e.target.value) })}
+              fullWidth
+              size="small"
+              placeholder={t('Not provided', 'לא צוין')}
+              InputProps={{
+                startAdornment: <InputAdornment position="start"><ShoppingCartIcon fontSize="small" color="primary" /></InputAdornment>,
+                endAdornment: <InputAdornment position="end"><Typography variant="caption" sx={{ fontWeight: 600 }}>{displayCurrency}</Typography></InputAdornment>
+              }}
+            />
+          </Box>
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onCancel}>{t('Cancel', 'ביטול')}</Button>
+        <Button onClick={handleSave} variant="contained" disabled={savingProfile}>
+          {savingProfile ? <CircularProgress size={24} /> : t('Save', 'שמור')}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+});
+
 export const AiChatDialog: React.FC<AiChatDialogProps> = ({ open, onClose, apiKey, sheetId, portfolioData }) => {
   const { t } = useLanguage();
   const [messages, setMessages] = useState<ExtendedChatMessage[]>(() => {
@@ -152,11 +336,12 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({ open, onClose, apiKe
     }
   }, [open, sheetId]);
 
-  const handleSaveProfile = async () => {
+  const handleSaveProfile = async (profile: UserFinancialProfile) => {
     if (!sheetId) return;
     setSavingProfile(true);
     try {
-      await setMetadataValue(sheetId, 'user_financial_profile', JSON.stringify(userProfile));
+      await setMetadataValue(sheetId, 'user_financial_profile', JSON.stringify(profile));
+      setUserProfile(profile);
       setOpenProfile(false);
     } catch (e) {
       console.error("Failed to save profile", e);
@@ -234,7 +419,7 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({ open, onClose, apiKe
         vestingDate: l.vestingDate,
         soldDate: l.soldDate,
         cost: l.costTotal
-      }))    
+      }))
     }));
 
     return JSON.stringify({
@@ -253,20 +438,20 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({ open, onClose, apiKe
     });
   };
 
-  const handleSend = async (retryPrompt?: string) => {
-    const userMsg = retryPrompt || input.trim();
-    if (!userMsg || isLoading) return;
+  const handleSend = async (customPrompt?: string) => {
+    if (!apiKey) return;
+    // Use prompt if provided (chips/retry); otherwise use cached state if it was a chip, 
+    // but ChatInputSection actually calls this with the text.
+    const userMsg = (customPrompt || input).trim();
+    if (!userMsg) return;
 
-    if (!retryPrompt) setInput('');
+    setIsLoading(true);
+    lastPromptRef.current = userMsg;
+    if (input) setInput(''); // Clear suggestion if it was used
 
-    // If not a retry, add to messages. If retry, maybe we want to remove the previous error message?
-    // Let's just append for now but filter history when sending.
-    if (!retryPrompt) {
+    if (!messages.some(m => m.parts[0].text === userMsg && m.role === 'user')) {
       setMessages(prev => [...prev, { role: 'user', parts: [{ text: userMsg }] }]);
     }
-
-    lastPromptRef.current = userMsg;
-    setIsLoading(true);
 
     try {
       // Filter history to remove error messages and ensure proper role alternation
@@ -278,7 +463,7 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({ open, onClose, apiKe
 
       const systemInstruction = `
 You are a financial assistant. Be professional, objective, and direct. Avoid excessive praise or flattery. Focus on data-driven analysis and facts. 
-If your response includes specific investment or tax handling advice, please add a brief disclaimer at the end. 
+Please be careful in your wording around suggestions - you are just an AI.
 Suggest one concrete follow-up question or action.
 
 ==User Context==
@@ -318,291 +503,183 @@ ${summarizePortfolio()}
         maxWidth="lg"
         fullWidth
       >
-      <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexGrow: 1 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <AutoAwesomeIcon color="primary" /> {t('AI Portfolio Assistant', 'עוזר תיק השקעות AI')}
-          </Box>
-
-          {!isExpertMode ? (
-            <ToggleButtonGroup
-              value={chatMode}
-              exclusive
-              onChange={(_, newVal) => { if (newVal) setChatMode(newVal); }}
-              size="small"
-              sx={{ height: 32 }}
-            >
-              <ToggleButton value="fast" sx={{ px: 2, py: 0, textTransform: 'none', gap: 0.5 }}>
-                <BoltIcon fontSize="small" /> {t('Fast', 'מהיר')}
-              </ToggleButton>
-              <ToggleButton value="thinking" sx={{ px: 2, py: 0, textTransform: 'none', gap: 0.5 }}>
-                <PsychologyIcon fontSize="small" /> {t('Thinking', 'חושב')}
-              </ToggleButton>
-            </ToggleButtonGroup>
-          ) : (
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexGrow: 1 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <FormControl size="small" sx={{ minWidth: 200 }}>
-                <Select
-                  value={selectedModel}
-                  onChange={(e) => setSelectedModel(e.target.value)}
-                  sx={{ height: 32, fontSize: '0.8rem' }}
-                  displayEmpty
-                >
-                  {availableModels.length > 0 ? (
-                    availableModels
-                      .map(m => (
-                        <MenuItem key={m.name} value={m.name} sx={{ fontSize: '0.8rem' }}>
-                          {m.displayName}
-                        </MenuItem>
-                      ))
-                  ) : (
-                    <MenuItem value={selectedModel} disabled sx={{ fontSize: '0.8rem' }}>
-                      {selectedModel.replace('models/', '')}
-                    </MenuItem>
-                  )}
-                </Select>
-              </FormControl>
+              <AutoAwesomeIcon color="primary" /> {t('AI Portfolio Assistant', 'עוזר תיק השקעות AI')}
             </Box>
-          )}
 
-
-          <FormControlLabel
-            control={
-              <Switch
+            {!isExpertMode ? (
+              <ToggleButtonGroup
+                value={chatMode}
+                exclusive
+                onChange={(_, newVal) => { if (newVal) setChatMode(newVal); }}
                 size="small"
-                checked={isExpertMode}
-                onChange={(e) => setIsExpertMode(e.target.checked)}
-              />
-            }
-            label={<Typography variant="caption">{t('Expert Mode', 'מצב מומחה')}</Typography>}
-            sx={{ ml: 1 }}
-          />
-        </Box>
-        <Box>
+                sx={{ height: 32 }}
+              >
+                <ToggleButton value="fast" sx={{ px: 2, py: 0, textTransform: 'none', gap: 0.5 }}>
+                  <BoltIcon fontSize="small" /> {t('Fast', 'מהיר')}
+                </ToggleButton>
+                <ToggleButton value="thinking" sx={{ px: 2, py: 0, textTransform: 'none', gap: 0.5 }}>
+                  <PsychologyIcon fontSize="small" /> {t('Thinking', 'חושב')}
+                </ToggleButton>
+              </ToggleButtonGroup>
+            ) : (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <FormControl size="small" sx={{ minWidth: 200 }}>
+                  <Select
+                    value={selectedModel}
+                    onChange={(e) => setSelectedModel(e.target.value)}
+                    sx={{ height: 32, fontSize: '0.8rem' }}
+                    displayEmpty
+                  >
+                    {availableModels.length > 0 ? (
+                      availableModels
+                        .map(m => (
+                          <MenuItem key={m.name} value={m.name} sx={{ fontSize: '0.8rem' }}>
+                            {m.displayName}
+                          </MenuItem>
+                        ))
+                    ) : (
+                      <MenuItem value={selectedModel} disabled sx={{ fontSize: '0.8rem' }}>
+                        {selectedModel.replace('models/', '')}
+                      </MenuItem>
+                    )}
+                  </Select>
+                </FormControl>
+              </Box>
+            )}
+
+
+            <FormControlLabel
+              control={
+                <Switch
+                  size="small"
+                  checked={isExpertMode}
+                  onChange={(e) => setIsExpertMode(e.target.checked)}
+                />
+              }
+              label={<Typography variant="caption">{t('Expert Mode', 'מצב מומחה')}</Typography>}
+              sx={{ ml: 1 }}
+            />
+          </Box>
+          <Box>
             <Tooltip title={t("User Profile", "פרופיל משתמש")}>
               <IconButton onClick={() => setOpenProfile(true)} size="small" sx={{ mr: 1 }}>
                 <ManageAccountsIcon />
               </IconButton>
             </Tooltip>
-          <Tooltip title={t('Clear History', 'נקה היסטוריה')}>
-            <Button
-              onClick={clearHistory}
-              size="small"
-              color="inherit"
-              startIcon={<DeleteOutlineIcon />}
-              sx={{ mr: 1, textTransform: 'none' }}
-            >
-              {t('Clear Chat', 'נקה שיחה')}
-            </Button>
-          </Tooltip>
-          <IconButton onClick={onClose} size="small">
-            <CloseIcon />
-          </IconButton>
-        </Box>
-      </DialogTitle>
-      <DialogContent dividers>
-        <Box
-          ref={scrollRef}
-          sx={{
-            height: '400px',
-            overflowY: 'auto',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 2,
-            p: 1
-          }}
-        >
-          {messages.length === 0 && (
-            <Box sx={{ textAlign: 'center', mt: 4, opacity: 0.8 }}>
-              <SmartToyIcon sx={{ fontSize: 60, mb: 2, color: 'primary.main', opacity: 0.5 }} />
-              <Typography variant="body1" gutterBottom>
-                {t('Hello! I can help you analyze your portfolio.', 'שלום! אני יכול לעזור לך לנתח את התיק שלך.')}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                {t('Try asking one of these:', 'נסה לשאול את אחת השאלות הבאות:')}
-              </Typography>
-                <Stack direction="row" flexWrap="wrap" gap={1} justifyContent="center" sx={{ maxWidth: 800, mx: 'auto' }}>
-                {[
-                  t("What are the key risks in my portfolio?", "מהם הסיכונים המרכזיים בתיק?"),
-                  t("How is my asset allocation distributed?", "איך נראית הקצאת הנכסים שלי?"),
-                  t("Suggest 3 improvements for my portfolio", "הצע 3 שיפורים לתיק שלי"),
-                  t("Compare my performance to the S&P 500", "השווה את הביצועים שלי ל-S&P 500"),
-                  t("Summarize my portfolio performance", "סכם את ביצועי התיק שלי")
-                ].map((text, i) => (
-                  <Chip 
-                    key={i}
-                    label={text}
-                    onClick={() => setInput(text)}
-                    clickable
-                    color="primary"
-                    variant="outlined"
-                    size="small"
-                  />
-                ))}
-              </Stack>
-            </Box>
-          )}
-          {messages.map((msg, i) => (
-            <ChatMessageItem
-              key={i} 
-              msg={msg}
-              t={t}
-              onRetry={handleSend}
-              lastPrompt={lastPromptRef.current}
-            />
-          ))}
-          {isLoading && (
-            <Box sx={{ display: 'flex', gap: 1 }}>
-              <SmartToyIcon color="primary" sx={{ mt: 1 }} />
-              <Paper sx={{ p: 1.5, borderRadius: 2 }}>
-                <CircularProgress size={20} />
-              </Paper>
-            </Box>
-          )}
-          <Box ref={scrollRef} />
-        </Box>
-        {openDisclaimer && (
-          <Alert
-            severity="info"
-            onClose={() => setOpenDisclaimer(false)}
-            sx={{ mt: 0, mb: 0, py: 0, '& .MuiAlert-message': { fontSize: '0.75rem' } }}
+            <Tooltip title={t('Clear History', 'נקה היסטוריה')}>
+              <Button
+                onClick={clearHistory}
+                size="small"
+                color="inherit"
+                startIcon={<DeleteOutlineIcon />}
+                sx={{ mr: 1, textTransform: 'none' }}
+              >
+                {t('Clear Chat', 'נקה שיחה')}
+              </Button>
+            </Tooltip>
+            <IconButton onClick={onClose} size="small">
+              <CloseIcon />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+        <DialogContent dividers>
+          <Box
+            ref={scrollRef}
+            sx={{
+              height: '400px',
+              overflowY: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 2,
+              p: 1
+            }}
           >
-            {t(
-              'Disclaimer: This AI assistant provides analysis for informational purposes only and does not constitute financial advice. Always consult with a qualified financial expert before making investment decisions.',
-              'הבהרה: עוזר ה-AI מספק ניתוח למטרות מידע בלבד ואינו מהווה ייעוץ פיננסי. תמיד התייעץ עם מומחה פיננסי מוסמך לפני קבלת החלטות השקעה.'
+            {messages.length === 0 && (
+              <Box sx={{ textAlign: 'center', mt: 4, opacity: 0.8 }}>
+                <SmartToyIcon sx={{ fontSize: 60, mb: 2, color: 'primary.main', opacity: 0.5 }} />
+                <Typography variant="body1" gutterBottom>
+                  {t('Hello! I can help you analyze your portfolio.', 'שלום! אני יכול לעזור לך לנתח את התיק שלך.')}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  {t('Try asking one of these:', 'נסה לשאול את אחת השאלות הבאות:')}
+                </Typography>
+                <Stack direction="row" flexWrap="wrap" gap={1} justifyContent="center" sx={{ maxWidth: 800, mx: 'auto' }}>
+                  {[
+                    t("What are the key risks in my portfolio?", "מהם הסיכונים המרכזיים בתיק?"),
+                    t("How is my asset allocation distributed?", "איך נראית הקצאת הנכסים שלי?"),
+                    t("Suggest 3 improvements for my portfolio", "הצע 3 שיפורים לתיק שלי"),
+                    t("Compare my performance to the S&P 500", "השווה את הביצועים שלי ל-S&P 500"),
+                    t("Summarize my portfolio performance", "סכם את ביצועי התיק שלי")
+                  ].map((text, i) => (
+                    <Chip
+                      key={i}
+                      label={text}
+                      onClick={() => setInput(text)}
+                      clickable
+                      color="primary"
+                      variant="outlined"
+                      size="small"
+                    />
+                  ))}
+                </Stack>
+              </Box>
             )}
-          </Alert>
-        )}
-      </DialogContent>
-      <DialogActions sx={{ p: 2 }}>
-        <TextField
-          fullWidth
-          placeholder={t('Ask a question...', 'שאל שאלה...')}
-          variant="outlined"
-          size="small"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-          disabled={isLoading}
+            {messages.map((msg, i) => (
+              <ChatMessageItem
+                key={i}
+                msg={msg}
+                t={t}
+                onRetry={handleSend}
+                lastPrompt={lastPromptRef.current}
+              />
+            ))}
+            {isLoading && (
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <SmartToyIcon color="primary" sx={{ mt: 1 }} />
+                <Paper sx={{ p: 1.5, borderRadius: 2 }}>
+                  <CircularProgress size={20} />
+                </Paper>
+              </Box>
+            )}
+            <Box ref={scrollRef} />
+          </Box>
+          {openDisclaimer && (
+            <Alert
+              severity="info"
+              onClose={() => setOpenDisclaimer(false)}
+              sx={{ mt: 0, mb: 0, py: 0, '& .MuiAlert-message': { fontSize: '0.75rem' } }}
+            >
+              {t(
+                'Disclaimer: This AI assistant provides analysis for informational purposes only and does not constitute financial advice. Always consult with a qualified financial expert before making investment decisions.',
+                'הבהרה: עוזר ה-AI מספק ניתוח למטרות מידע בלבד ואינו מהווה ייעוץ פיננסי. תמיד התייעץ עם מומחה פיננסי מוסמך לפני קבלת החלטות השקעה.'
+              )}
+            </Alert>
+          )}
+        </DialogContent>
+        <ChatInputSection
+          onSend={handleSend}
+          isLoading={isLoading}
+          t={t}
+          initialValue={input}
         />
-        <Button
-          variant="contained"
-          onClick={() => handleSend()}
-          disabled={isLoading || !input.trim()}
-          endIcon={<SendIcon />}
-        >
-          {t('Send', 'שלח')}
-        </Button>
-      </DialogActions>
-    </Dialog>
+      </Dialog>
+
 
       {/* Profile Dialog */}
-      <Dialog open={openProfile} onClose={() => setOpenProfile(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>{t('User Financial Profile', 'פרופיל פיננסי אישי')}</DialogTitle>
-        <DialogContent dividers>
-          <Stack spacing={2} sx={{ mt: 1 }}>
-            <Typography variant="body2" color="text.secondary">
-              {t('Providing this information helps the AI give more personalized advice.', 'מסירת מידע זה תעזור ל-AI לתת עצות מותאמות אישית יותר.')}
-            </Typography>
-            {loadingProfile && <CircularProgress size={24} sx={{ alignSelf: 'center' }} />}
-
-            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
-              <TextField
-                label={t('Age', 'גיל')}
-                type="number"
-                disabled={loadingProfile}
-                value={userProfile.age ?? ''}
-                onChange={(e) => setUserProfile({ ...userProfile, age: e.target.value === '' ? undefined : parseInt(e.target.value) })}
-                fullWidth
-                size="small"
-                placeholder={t('Not provided', 'לא צוין')}
-              />
-              <TextField
-                label={t('Desired Retirement Age', 'גיל פרישה רצוי')}
-                type="number"
-                disabled={loadingProfile}
-                value={userProfile.retirementAge ?? ''}
-                onChange={(e) => setUserProfile({ ...userProfile, retirementAge: e.target.value === '' ? undefined : parseInt(e.target.value) })}
-                fullWidth
-                size="small"
-                placeholder={t('Not provided', 'לא צוין')}
-              />
-            </Box>
-
-            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
-              <TextField
-                label={t('Number of Children', 'מספר ילדים')}
-                type="number"
-                disabled={loadingProfile}
-                value={userProfile.numChildren ?? ''}
-                onChange={(e) => setUserProfile({ ...userProfile, numChildren: e.target.value === '' ? undefined : parseInt(e.target.value) })}
-                fullWidth
-                size="small"
-                placeholder={t('Not provided', 'לא צוין')}
-              />
-              <FormControl size="small" fullWidth>
-                <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
-                  {t('Owns Primary Residence', 'בעל דירה למגורים')}
-                </Typography>
-                <Select
-                  value={userProfile.ownsHome === undefined ? 'unknown' : (userProfile.ownsHome ? 'yes' : 'no')}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setUserProfile({
-                      ...userProfile,
-                      ownsHome: val === 'unknown' ? undefined : (val === 'yes')
-                    });
-                  }}
-                  size="small"
-                  disabled={loadingProfile}
-                >
-                  <MenuItem value="unknown">{t('Unknown / Not provided', 'לא ידוע / לא צוין')}</MenuItem>
-                  <MenuItem value="yes">{t('Yes', 'כן')}</MenuItem>
-                  <MenuItem value="no">{t('No', 'לא')}</MenuItem>
-                </Select>
-              </FormControl>
-            </Box>
-
-            <TextField
-              label={t('Avg. Yearly Net Earnings', 'הכנסה שנתית נטו ממוצעת')}
-              type="number"
-              disabled={loadingProfile}
-              value={userProfile.netYearlyEarnings ?? ''}
-              onChange={(e) => setUserProfile({ ...userProfile, netYearlyEarnings: e.target.value === '' ? undefined : parseFloat(e.target.value) })}
-              fullWidth
-              size="small"
-              placeholder={t('Not provided', 'לא צוין')}
-              InputProps={{ startAdornment: <Typography variant="caption" sx={{ mr: 1, opacity: 0.7 }}>$</Typography> }}
-            />
-            <TextField
-              label={t('Avg. Yearly Spending', 'הוצאה שנתית ממוצעת')}
-              type="number"
-              disabled={loadingProfile}
-              value={userProfile.yearlySpending ?? ''}
-              onChange={(e) => setUserProfile({ ...userProfile, yearlySpending: e.target.value === '' ? undefined : parseFloat(e.target.value) })}
-              fullWidth
-              size="small"
-              placeholder={t('Not provided', 'לא צוין')}
-              InputProps={{ startAdornment: <Typography variant="caption" sx={{ mr: 1, opacity: 0.7 }}>$</Typography> }}
-            />
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={userProfile.ownsHome || false}
-                  onChange={(e) => setUserProfile({ ...userProfile, ownsHome: e.target.checked })}
-                />
-              }
-              label={t('Owns Primary Residence', 'בעל דירה למגורים')}
-            />
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenProfile(false)}>{t('Cancel', 'ביטול')}</Button>
-          <Button onClick={handleSaveProfile} variant="contained" disabled={savingProfile}>
-            {savingProfile ? <CircularProgress size={24} /> : t('Save', 'שמור')}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      {openProfile && (
+        <ProfileForm
+          initialProfile={userProfile}
+          loadingProfile={loadingProfile}
+          displayCurrency={portfolioData.displayCurrency}
+          t={t}
+          onSave={handleSaveProfile}
+          onCancel={() => setOpenProfile(false)}
+          savingProfile={savingProfile}
+        />
+      )}
     </>
   );
 };
