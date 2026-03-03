@@ -29,6 +29,8 @@ import type { DashboardSummaryData } from '../lib/types';
 import { formatPercent } from '../lib/currencyUtils';
 import ManageAccountsIcon from '@mui/icons-material/ManageAccounts';
 import { getMetadataValue, setMetadataValue } from '../lib/sheets/api';
+import { getTickerData } from '../lib/fetching';
+import { Exchange } from '../lib/types';
 
 interface AiChatDialogPortfolioData {
   holdings: EnrichedDashboardHolding[];
@@ -316,6 +318,49 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({ open, onClose, apiKe
   const [userProfile, setUserProfile] = useState<UserFinancialProfile>({});
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
+  const [marketOverview, setMarketOverview] = useState<string>('');
+
+  useEffect(() => {
+    if (open && apiKey) {
+      const fetchMarketOverview = async () => {
+        try {
+          const symbols = [
+            { ticker: '^SPX', exchange: Exchange.NYSE, name: 'S&P 500' },
+            { ticker: '^NDX', exchange: Exchange.NASDAQ, name: 'NASDAQ 100' },
+            { ticker: '137', exchange: Exchange.TASE, name: 'TA-125', sid: 137 },
+            { ticker: '120010', exchange: Exchange.CBS, name: 'Israel consumer price index (inflation)', sid: 120010 },
+            { ticker: 'TCH-F91', exchange: Exchange.TASE, name: 'Israel 1Y government bond' },
+          ];
+
+          const results = await Promise.all(
+            symbols.map(s => getTickerData(s.ticker, s.exchange, s.sid || null))
+          );
+
+          const overview = symbols.map((s, i) => {
+            const data = results[i];
+            if (!data) return `${s.name}: N/A`;
+            const stats = [
+              data.changePct1d !== undefined ? `1D: ${formatPercent(data.changePct1d)}` : null,
+              data.changePctRecent !== undefined ? `1W: ${formatPercent(data.changePctRecent)}` : null,
+              data.changePct1m !== undefined ? `1M: ${formatPercent(data.changePct1m)}` : null,
+              data.changePct3m !== undefined ? `3M: ${formatPercent(data.changePct3m)}` : null,
+              data.changePctYtd !== undefined ? `YTD: ${formatPercent(data.changePctYtd)}` : null,
+              data.changePct1y !== undefined ? `1Y: ${formatPercent(data.changePct1y)}` : null,
+              data.changePct5y !== undefined ? `5Y: ${formatPercent(data.changePct5y)}` : null,
+            ].filter(Boolean).join(', ');
+
+            return `${s.name}: ${stats}`;
+          }).join('\n');
+
+          setMarketOverview(overview);
+        } catch (err) {
+          console.error("Failed to fetch market overview", err);
+        }
+      };
+
+      fetchMarketOverview();
+    }
+  }, [open, apiKey]);
 
   useEffect(() => {
     if (open && sheetId && !userProfile.age) {
@@ -399,7 +444,8 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({ open, onClose, apiKe
 
   const summarizePortfolio = () => {
     const hSummary = portfolioData.holdings.map(h => ({
-      symbol: `${h.exchange}:${h.ticker}`,
+      symbol: h.ticker,
+      exchange: h.exchange,
       name: h.displayName,
       value: h.display.marketValue,
       unrealizedGain: h.display.unrealizedGain,
@@ -476,6 +522,9 @@ ${profileContext}
 
 ==Current Portfolio Data==
 ${summarizePortfolio()}
+
+==Market Overview Benchmarks==
+${marketOverview}
 
 ==User Session Start==`;
 

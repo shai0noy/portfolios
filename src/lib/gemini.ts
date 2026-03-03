@@ -64,9 +64,13 @@ export function getModelByCapability(models: GeminiModel[], type: 'fast' | 'thin
         if (bestPro) return bestPro;
     }
 
-    // Default or 'fast' -> Flash
-    const bestFlash = findBestModel(/gemini.*flash/i);
+    // Default or 'fast' -> Flash (excluding 8b if possible)
+    const bestFlash = findBestModel(/gemini.*flash/i, /8b/i);
     if (bestFlash) return bestFlash;
+
+    // Fallback to any Flash if no standard Flash is found
+    const anyFlash = findBestModel(/gemini.*flash/i);
+    if (anyFlash) return anyFlash;
 
     // Fallback: Best Gemini (avoiding weird variants if possible)
     return findBestModel(/gemini/i, /(large|expert|thinking|xl)/i)
