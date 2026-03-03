@@ -691,14 +691,18 @@ ${marketOverview}
           >
             {messages.length === 0 && (
               <Box sx={{ textAlign: 'center', mt: 4, opacity: 0.8 }}>
-                <SmartToyIcon sx={{ fontSize: 60, mb: 2, color: 'primary.main', opacity: 0.5 }} />
-                <Typography variant="body1" gutterBottom>
-                  {t('Hello! I can help you analyze your portfolio.', 'שלום! אני יכול לעזור לך לנתח את התיק שלך.')}
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  {t('Try asking one of these:', 'נסה לשאול את אחת השאלות הבאות:')}
-                </Typography>
-                <Stack direction="row" flexWrap="wrap" gap={1} justifyContent="center" sx={{ maxWidth: 800, mx: 'auto' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3, mb: 3 }}>
+                  <SmartToyIcon sx={{ fontSize: 48, color: 'primary.main', opacity: 0.5 }} />
+                  <Box sx={{ textAlign: 'left' }}>
+                    <Typography variant="h6" sx={{ lineHeight: 1.2 }}>
+                      {t('Hello! I can help you analyze your portfolio.', 'שלום! אני יכול לעזור לך לנתח את התיק שלך.')}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {t('Try asking one of these:', 'נסה לשאול את אחת השאלות הבאות:')}
+                    </Typography>
+                  </Box>
+                </Box>
+                <Stack direction="row" flexWrap="wrap" gap={1} justifyContent="center" sx={{ maxWidth: '100%', mx: 'auto', px: 2 }}>
                   {[
                     t("Perform a FIRE (Financial Independence) analysis", "בצע ניתוח FIRE (עצמאות כלכלית)"),
                     t("What are the key risks in my portfolio?", "מהם הסיכונים המרכזיים בתיק?"),
@@ -706,12 +710,12 @@ ${marketOverview}
                     t("Check for sector over-exposure", "בדוק חשיפת יתר למגזרים מסוימים"),
                     t("Stress test: What if the market drops 20%?", "בדיקת עמידות: מה אם השוק יירד ב-20%?"),
                     t("Suggest 3 improvements for my portfolio", "הצע 3 שיפורים לתיק שלי"),
-                    t("Compare my performance to the S&P 500", "השווה את הביצועים שלי ל-S&P 500"),
+                    t("Compare my performance to the market", "השווה את הביצועים שלי לשוק"),
                   ].map((text, i) => (
                     <Chip
                       key={i}
                       label={text}
-                      onClick={() => setInput(text)}
+                      onClick={() => handleSend(text)}
                       clickable
                       color="primary"
                       variant="outlined"
@@ -720,6 +724,34 @@ ${marketOverview}
                     />
                   ))}
                 </Stack>
+
+                {(!userProfile.netYearlyEarnings || !userProfile.yearlySpending || !userProfile.age) && (
+                  <Paper variant="outlined" sx={{
+                    mt: 4, px: 2, py: 1,
+                    bgcolor: 'action.hover',
+                    borderStyle: 'dashed',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 2,
+                    textAlign: 'left'
+                  }}>
+                    <Typography variant="body2" color="text.secondary">
+                      {t(
+                        "Tip: Complete your financial profile to get personalized analysis and retirement projections.",
+                        "טיפ: השלם את הפרופיל הפיננסי שלך כדי לקבל ניתוח ותחזיות פרישה מותאמות אישית."
+                      )}
+                    </Typography>
+                    <Button
+                      size="small"
+                      onClick={() => setOpenProfile(true)}
+                      startIcon={<ManageAccountsIcon />}
+                      sx={{ textTransform: 'none', whiteSpace: 'nowrap' }}
+                    >
+                      {t("Complete Profile", "השלם פרופיל")}
+                    </Button>
+                  </Paper>
+                )}
               </Box>
             )}
             {messages.map((msg, i) => (
