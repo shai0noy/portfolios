@@ -336,6 +336,7 @@ export async function calculatePortfolioPerformance(
                     state.costBasis += divVal;
                     if (!state.lots) state.lots = [];
                     state.lots.push({ date: tDate.getTime(), qty: tQty, cost: divVal });
+                    dayNetFlow += divVal;
                 }
             } else if (t.type === 'FEE') {
                 const feeVal = valInDisplay;
