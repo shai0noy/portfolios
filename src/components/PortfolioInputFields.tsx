@@ -1,10 +1,12 @@
 
 import React, { useState, useEffect } from 'react';
-import { TextField, InputAdornment, Tooltip } from '@mui/material';
+import { TextField, InputAdornment, Tooltip, IconButton, Box, type Theme, type SxProps } from '@mui/material';
+import EventIcon from '@mui/icons-material/Event';
+import { coerceDate } from '../lib/date';
 
 // Common props for optimized fields
 interface BaseFieldProps {
-  label: string;
+  label?: string;
   tooltip?: string;
   disabled?: boolean;
   error?: boolean;
@@ -191,4 +193,117 @@ export const PercentageField = React.memo(({ label, field, value, onChange, onUp
     );
   }
   return textField;
+});
+
+interface DateFieldProps extends BaseFieldProps {
+  value: string;
+  onChange: (val: string) => void;
+  field?: string;
+  onUpdate?: (field: string, val: string) => void;
+  sx?: SxProps<Theme>;
+}
+
+export const DateField = React.memo(({
+  label, value, onChange, onUpdate, field,
+  tooltip, disabled, error, helperText, required, placeholder = "dd/mm/yyyy", InputLabelProps, sx
+}: DateFieldProps) => {
+  const hiddenInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  const handlePickerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value; // yyyy-mm-dd
+    if (!val) return;
+    const [y, m, d] = val.split('-');
+    const formatted = `${d}/${m}/${y}`;
+    if (onUpdate && field) {
+      onUpdate(field, formatted);
+    } else {
+      onChange(formatted);
+    }
+  };
+
+  const openPicker = () => {
+    const el = hiddenInputRef.current as any;
+    if (el) {
+      if (el.showPicker) {
+        try {
+          el.showPicker();
+        } catch {
+          el.focus();
+          el.click();
+        }
+      } else {
+        el.focus();
+        el.click();
+      }
+    }
+  };
+
+  // Convert dd/mm/yyyy to yyyy-mm-dd for the hidden picker
+  const getPickerValue = () => {
+    if (!value) return '';
+    const d = coerceDate(value);
+    if (!d || isNaN(d.getTime())) return '';
+
+    // Use local time components to avoid timezone shifts (toISOString uses UTC)
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const fieldElement = (
+    <Box sx={{ position: 'relative', width: '100%', ...sx }}>
+      <TextField
+        fullWidth
+        size="small"
+        label={label}
+        value={value}
+        onChange={(e) => {
+          if (onUpdate && field) onUpdate(field, e.target.value);
+          else onChange(e.target.value);
+        }}
+        placeholder={placeholder}
+        disabled={disabled}
+        error={error}
+        helperText={helperText}
+        required={required}
+        InputLabelProps={InputLabelProps || { shrink: true }}
+        autoComplete="off"
+        InputProps={{
+          endAdornment: (
+            <InputAdornment position="end">
+              <IconButton size="small" onClick={openPicker} disabled={disabled}>
+                <EventIcon fontSize="small" />
+              </IconButton>
+            </InputAdornment>
+          )
+        }}
+      />
+      <input
+        type="date"
+        ref={hiddenInputRef}
+        value={getPickerValue()}
+        onChange={handlePickerChange}
+        style={{
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          width: 0,
+          height: 0,
+          opacity: 0,
+          pointerEvents: 'none'
+        }}
+      />
+    </Box>
+  );
+
+  if (tooltip) {
+    return (
+      <Tooltip title={tooltip} placement="top" arrow>
+        {fieldElement}
+      </Tooltip>
+    );
+  }
+
+  return fieldElement;
 });

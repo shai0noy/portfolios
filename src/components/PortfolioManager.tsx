@@ -1,7 +1,6 @@
 // src/components/PortfolioManager.tsx
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useTheme } from '@mui/material/styles';
 import {
   Box, TextField, Button, MenuItem, Select, InputLabel, FormControl,
   Typography, Alert, Snackbar, Grid, Card, CardContent, Tooltip,
@@ -19,7 +18,8 @@ import { type Portfolio, PORTFOLIO_TEMPLATES, Currency } from '../lib/types';
 import { addPortfolio, fetchPortfolios, updatePortfolio } from '../lib/sheets/index';
 import { useLanguage } from '../lib/i18n';
 import { PortfolioWizard } from './PortfolioWizard';
-import { NumericField, PercentageField } from './PortfolioInputFields';
+import { NumericField, PercentageField, DateField } from './PortfolioInputFields';
+import { formatDate, coerceDate } from '../lib/date';
 
 interface Props {
   sheetId: string;
@@ -27,7 +27,6 @@ interface Props {
 }
 
 export function PortfolioManager({ sheetId, onSuccess }: Props) {
-  const theme = useTheme();
   const { portfolioId } = useParams<{ portfolioId?: string }>();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
@@ -141,7 +140,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
 
 
   const addTaxHistoryEntry = () => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = formatDate(new Date());
     setP(prev => ({
       ...prev,
       taxHistory: [...(prev.taxHistory || []), { startDate: today, cgt: 0.25, incTax: 0 }]
@@ -159,22 +158,23 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
   const updateTaxHistoryEntry = (index: number, field: keyof import('../lib/types').TaxHistoryEntry, value: any) => {
     // Validate Date Order
     if (field === 'startDate') {
-      const newDate = new Date(value);
+      const newDate = coerceDate(value);
+      if (!newDate) return;
       const history = p.taxHistory || [];
 
       // Check previous (must be later than previous)
-      if (index > 0) {
-        const prevDate = new Date(history[index - 1].startDate);
-        if (newDate <= prevDate) {
+      if (index > 0 && history[index - 1]) {
+        const prevDate = coerceDate(history[index - 1].startDate);
+        if (prevDate && newDate <= prevDate) {
           alert(t('Date must be after the previous entry.', 'התאריך חייב להיות אחרי הרשומה הקודמת.'));
           return;
         }
       }
 
       // Check next (must be earlier than next)
-      if (index < history.length - 1) {
-        const nextDate = new Date(history[index + 1].startDate);
-        if (newDate >= nextDate) {
+      if (index < history.length - 1 && history[index + 1]) {
+        const nextDate = coerceDate(history[index + 1].startDate);
+        if (nextDate && newDate >= nextDate) {
           alert(t('Date must be before the next entry.', 'התאריך חייב להיות לפני הרשומה הבאה.'));
           return;
         }
@@ -189,7 +189,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
   };
 
   const addFeeHistoryEntry = () => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = formatDate(new Date());
     setP(prev => ({
       ...prev,
       feeHistory: [...(prev.feeHistory || []), { startDate: today, mgmtVal: 0, mgmtType: 'percentage', mgmtFreq: 'yearly', divCommRate: 0, commRate: 0, commMin: 0, commMax: 0 }]
@@ -206,18 +206,19 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
 
   const updateFeeHistoryEntry = (index: number, field: keyof import('../lib/types').FeeHistoryEntry, value: any) => {
     if (field === 'startDate') {
-      const newDate = new Date(value);
+      const newDate = coerceDate(value);
+      if (!newDate) return;
       const history = p.feeHistory || [];
       if (index > 0) {
-        const prevDate = new Date(history[index - 1].startDate);
-        if (newDate <= prevDate) {
+        const prevDate = coerceDate(history[index - 1].startDate);
+        if (prevDate && newDate <= prevDate) {
           alert(t('Date must be after the previous entry.', 'התאריך חייב להיות אחרי הרשומה הקודמת.'));
           return;
         }
       }
       if (index < history.length - 1) {
-        const nextDate = new Date(history[index + 1].startDate);
-        if (newDate >= nextDate) {
+        const nextDate = coerceDate(history[index + 1].startDate);
+        if (nextDate && newDate >= nextDate) {
           alert(t('Date must be before the next entry.', 'התאריך חייב להיות לפני הרשומה הבאה.'));
           return;
         }
@@ -322,7 +323,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
         const incTaxChanged = Math.abs((portToSave.incTax || 0) - (editingPortfolio.incTax || 0)) > 1e-6;
 
         if (cgtChanged || incTaxChanged) {
-          const today = new Date().toISOString().split('T')[0];
+          const today = formatDate(new Date());
           const history = [...(editingPortfolio.taxHistory || [])];
 
           if (history.length === 0) {
@@ -353,7 +354,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
         const commMaxChanged = Math.abs((portToSave.commMax || 0) - (editingPortfolio.commMax || 0)) > 1e-6;
 
         if (valChanged || typeChanged || freqChanged || divCommChanged || commRateChanged || commMinChanged || commMaxChanged) {
-          const today = new Date().toISOString().split('T')[0];
+          const today = formatDate(new Date());
           const history = [...(editingPortfolio.feeHistory || [])];
 
           if (history.length === 0) {
@@ -586,13 +587,11 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                                               {t('Creation / Always', 'יצירה / תמיד')}
                                             </Typography>
                                           ) : (
-                                            <TextField
-                                              type="date"
-                                              size="small"
-                                              value={h.startDate}
-                                              onChange={e => updateTaxHistoryEntry(i, 'startDate', e.target.value)}
-                                              sx={{ width: 150, '& .MuiInputBase-input': { colorScheme: theme.palette.mode } }}
-                                            />
+                                              <DateField
+                                                label={t('Start Date', 'תאריך התחלה')}
+                                                value={h.startDate}
+                                                onChange={v => updateTaxHistoryEntry(i, 'startDate', v)}
+                                              />
                                           )}
                                         </TableCell>
                                         <TableCell>
@@ -771,13 +770,11 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                                               {t('Always', 'תמיד')}
                                             </Typography>
                                           ) : (
-                                            <TextField
-                                              type="date"
-                                              size="small"
-                                              value={h.startDate}
-                                              onChange={e => updateFeeHistoryEntry(i, 'startDate', e.target.value)}
-                                              sx={{ width: 130, '& .MuiInputBase-input': { colorScheme: theme.palette.mode, fontSize: '0.8rem' } }}
-                                            />
+                                              <DateField
+                                                label={t('Start Date', 'תאריך התחלה')}
+                                                value={h.startDate}
+                                                onChange={v => updateFeeHistoryEntry(i, 'startDate', v)}
+                                              />
                                           )}
                                         </TableCell>
                                         <TableCell>

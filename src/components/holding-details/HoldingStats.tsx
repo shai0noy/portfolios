@@ -1,5 +1,5 @@
 import { Box, Typography, Paper, Divider, Stack, Grid, Tooltip } from '@mui/material';
-import { formatValue, formatMoneyValue, formatMoneyPrice, formatPercent, formatNumber, convertCurrency, normalizeCurrency } from '../../lib/currency';
+import { formatValue, formatMoneyValue, formatMoneyPrice, formatPercent, formatNumber, convertCurrency } from '../../lib/currency';
 import { useLanguage } from '../../lib/i18n';
 import type { HoldingValues } from './types';
 import type { HoldingWeight } from '../../lib/data/holding_utils';

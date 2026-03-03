@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useTheme } from '@mui/material/styles';
+
 import {
   Box, TextField, Button, MenuItem, Select, InputLabel, FormControl,
   Typography, Alert, InputAdornment, Grid, Card, CardContent, Divider, Tooltip, Chip, ToggleButton, ToggleButtonGroup,
@@ -22,7 +22,7 @@ import { TickerSearch } from './TickerSearch';
 import { convertCurrency, formatPrice, getExchangeRates, normalizeCurrency } from '../lib/currency';
 import { Currency, type ExchangeRates, isBuy, isSell, type TransactionType } from '../lib/types';
 import { useLanguage } from '../lib/i18n';
-import { NumericField } from './PortfolioInputFields';
+import { NumericField, DateField } from './PortfolioInputFields';
 import { formatDate, coerceDate } from '../lib/date';
 
 const isTxnBuy = (t: string) => isBuy(t as TransactionType);
@@ -40,7 +40,6 @@ interface Props {
 }
 
 export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Props) => {
-  const theme = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
   const locationState = location.state as {
@@ -1419,12 +1418,10 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                         </Grid>
                       )}
                       <Grid item xs={12} sm={4}>
-                        <TextField
-                          label="Date" size="small" fullWidth
-                          value={date} onChange={e => handleDateChange(e.target.value)}
-                          InputLabelProps={{ shrink: true }}
-                          sx={{ '& .MuiInputBase-input': { colorScheme: theme.palette.mode } }}
-                          placeholder="dd/mm/yyyy"
+                        <DateField
+                          label="Date"
+                          value={date}
+                          onChange={v => handleDateChange(v)}
                         />
                       </Grid>
                       <Grid item xs={12} sm={4}>
@@ -1836,11 +1833,10 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                           )}
                           <Grid item xs={12} sm={(!selectedTicker?.isFeeExempt && selectedTicker?.type?.type !== InstrumentType.MONETARY_FUND) ? 6 : 12}>
                             <Tooltip title="Date when these shares vest (if applicable for RSUs/Options).">
-                              <TextField
-                                    label="Vesting Date" size="small" fullWidth placeholder="dd/mm/yyyy"
-                                value={vestDate} onChange={e => setVestDate(e.target.value)}
-                                InputLabelProps={{ shrink: true }}
-                                sx={{ '& .MuiInputBase-input': { colorScheme: theme.palette.mode } }}
+                                  <DateField
+                                    label="Vesting Date"
+                                    value={vestDate}
+                                    onChange={v => setVestDate(v)}
                               />
                             </Tooltip>
                           </Grid>

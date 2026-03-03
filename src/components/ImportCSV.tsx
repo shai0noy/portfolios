@@ -15,6 +15,8 @@ import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import type { Portfolio, Transaction } from '../lib/types';
 import { parseExchange, Exchange } from '../lib/types';
 import { batchAddTransactions, addTransaction, fetchPortfolios } from '../lib/sheets/index';
+import { formatDate } from '../lib/date';
+import { DateField } from './PortfolioInputFields';
 import { ImportHelp } from './ImportHelp';
 import { useLanguage } from '../lib/i18n';
 
@@ -197,7 +199,7 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
       }
 
       if (d && !isNaN(d.getTime())) {
-        isoDate = d.toISOString().split('T')[0];
+        isoDate = formatDate(d);
       }
 
       // Type Parsing
@@ -283,7 +285,7 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
           vd = new Date(vestDateStr);
         }
         if (vd && !isNaN(vd.getTime())) {
-          vestIsoDate = vd.toISOString().split('T')[0];
+          vestIsoDate = formatDate(vd);
         }
       }
 
@@ -380,7 +382,7 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
                   if (err?.result?.error?.code === 429 || err?.status === 429 || err?.message?.includes('429')) {
                     await wait(3000 * singleAttempts);
                   } else {
-                    break; 
+                    break;
                   }
                 }
               }
@@ -561,36 +563,36 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
               <>
                 <Typography variant="body2" sx={{ pt: 1, fontWeight: 500 }}>{t('Fallback Exchange', 'בורסת ברירת מחדל')}</Typography>
                 <FormControl component="fieldset">
-                    <RadioGroup
-                      row
-                      value={exchangeMode}
-                      onChange={(e) => {
-                        const newMode = e.target.value as 'manual' | 'deduce';
-                        setExchangeMode(newMode);
-                        if (newMode !== 'manual') setManualExchange('');
-                      }}
-                    >
-                      <FormControlLabel value="deduce" control={<Radio size="small" />} label={t("Auto-Deduce", "זיהוי אוטומטי")} />
-                      <FormControlLabel value="manual" control={<Radio size="small" />} label={t("Manual Input", "הזנה ידנית")} />
-                    </RadioGroup>
+                  <RadioGroup
+                    row
+                    value={exchangeMode}
+                    onChange={(e) => {
+                      const newMode = e.target.value as 'manual' | 'deduce';
+                      setExchangeMode(newMode);
+                      if (newMode !== 'manual') setManualExchange('');
+                    }}
+                  >
+                    <FormControlLabel value="deduce" control={<Radio size="small" />} label={t("Auto-Deduce", "זיהוי אוטומטי")} />
+                    <FormControlLabel value="manual" control={<Radio size="small" />} label={t("Manual Input", "הזנה ידנית")} />
+                  </RadioGroup>
                 </FormControl>
 
                 {exchangeMode === 'manual' && (
-                    <TextField
-                      label={t("Manual Exchange for all transactions", "בורסה עבור כל העסקאות")}
-                      size="small"
-                      fullWidth
-                      sx={{ mt: 1 }}
-                      value={manualExchange}
-                      onChange={e => setManualExchange(e.target.value.toUpperCase())}
-                      helperText="e.g. NASDAQ, TASE"
-                    />
+                  <TextField
+                    label={t("Manual Exchange for all transactions", "בורסה עבור כל העסקאות")}
+                    size="small"
+                    fullWidth
+                    sx={{ mt: 1 }}
+                    value={manualExchange}
+                    onChange={e => setManualExchange(e.target.value.toUpperCase())}
+                    helperText="e.g. NASDAQ, TASE"
+                  />
                 )}
 
                 {exchangeMode === 'deduce' && (
-                    <Alert severity="info" sx={{ mt: 1 }}>
-                      {t("Exchange will be deduced from prefix/suffix (e.g. IL:123), or auto-detected based on ticker format ('TASE' for numbers, 'NASDAQ' otherwise).", "הבורסה תזוהה לפי קידומת/סיומת (כמו IL:123), או תזוהה אוטומטית לפי פורמט הסימול (מספרים ל-TASE, אחרת NASDAQ).")}
-                    </Alert>
+                  <Alert severity="info" sx={{ mt: 1 }}>
+                    {t("Exchange will be deduced from prefix/suffix (e.g. IL:123), or auto-detected based on ticker format ('TASE' for numbers, 'NASDAQ' otherwise).", "הבורסה תזוהה לפי קידומת/סיומת (כמו IL:123), או תזוהה אוטומטית לפי פורמט הסימול (מספרים ל-TASE, אחרת NASDAQ).")}
+                  </Alert>
                 )}
               </>
             )}
@@ -622,11 +624,10 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
                 <TableBody>
                   {parsedTxns.map((t, i) => (
                     <TableRow key={i} hover>
-                      <TableCell>
-                        <InputBase
-                          type="date"
+                      <TableCell sx={{ minWidth: 160 }}>
+                        <DateField
                           value={t.date}
-                          onChange={(e) => handleTxnChange(i, 'date', e.target.value)}
+                          onChange={(v) => handleTxnChange(i, 'date', v)}
                           sx={{ fontSize: '0.875rem' }}
                         />
                       </TableCell>

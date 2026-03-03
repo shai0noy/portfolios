@@ -44,8 +44,10 @@ const formatDate = (dateInput: string | Date | number) => {
 const coerceDate = (d: any): Date | null => {
     if (!d) return null;
     if (d instanceof Date) return d;
-    return new Date(d);
+    const date = new Date(d);
+    return isNaN(date.getTime()) ? null : date;
 };
+
 
 export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, portfolios, section = 'holdings' }: HoldingDetailsProps & { section?: string }) {
     const { t } = useLanguage();
@@ -306,8 +308,8 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                                 totalQty={totalQty}
                                 totalFeesDisplay={totalFeesDisplay}
                                 isFeeExempt={isFeeExempt}
-                                    stockCurrency={stockCurrency}
-                                    exchangeRates={exchangeRates}
+                                stockCurrency={stockCurrency}
+                                exchangeRates={exchangeRates}
                             />
 
                             <HoldingDistribution

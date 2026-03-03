@@ -1,6 +1,7 @@
 import { ResponsiveContainer, AreaChart, Area, Line, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceDot, ReferenceLine, ComposedChart, Bar } from 'recharts';
 import { useLanguage } from '../lib/i18n';
 import { formatPrice, formatPercent, formatCompactPrice, formatValue, formatCompactValue } from '../lib/currency';
+import { formatDate } from '../lib/date';
 import { Paper, Typography, Box, IconButton, Dialog, DialogContent } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -108,7 +109,7 @@ const CandleStickShape = (props: any) => {
 const CustomTooltip = ({ active, payload, currency, t, basePrice, isComparison, series, mode, valueType = 'price', hideCurrentPrice }: CustomTooltipProps) => {
     if (active && payload && payload.length) {
         const point = payload[0].payload as ChartPoint;
-        const date = point.date; // It's already a Date object
+        const date = point.date;
         const dateStr = date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 
         if (isComparison) {
@@ -213,7 +214,7 @@ const CandleTooltip = ({ active, payload, currency, t }: any) => {
         // Find the payload with the candle data (source data)
         const point = payload[0].payload;
         const { date, open, high, low, close, volume } = point;
-        const dateStr = date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+        const dateStr = formatDate(date);
 
         // Use close if price is missing, or price
         const currentPrice = close || point.price;
@@ -276,8 +277,8 @@ const SelectionSummary = ({ startPoint, endPoint, currency, t, isComparison, ser
 
     const startDate = new Date(Math.min(startPoint.date.getTime(), endPoint.date.getTime()));
     const endDate = new Date(Math.max(startPoint.date.getTime(), endPoint.date.getTime()));
-    const startDateStr = startDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-    const endDateStr = endDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    const startDateStr = formatDate(startDate);
+    const endDateStr = formatDate(endDate);
     const duration = Math.round(Math.abs(endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
 
     const boxStyle = {
