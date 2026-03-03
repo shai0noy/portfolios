@@ -21,6 +21,9 @@ import type { DashboardSummaryData } from '../../lib/dashboard';
 import { SummaryStat } from './SummaryStat';
 import { PerformanceStat } from './PerformanceStat';
 import { TopMovers } from './TopMovers';
+import { ApiKeyDialog } from '../ApiKeyDialog';
+import { checkGeminiKey, askGemini } from '../../lib/gemini';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 
 // Time constants for auto-stepping
 const AUTO_STEP_DELAY = 2 * 60 * 1000; // 2 minutes
@@ -35,6 +38,7 @@ interface SummaryProps {
   portfolios: Portfolio[];
   isPortfoliosLoading: boolean;
   transactions: Transaction[];
+  sheetId?: string;
 }
 
 /**
@@ -46,7 +50,7 @@ interface SummaryProps {
  * 
  * Supports "Stepping" through these 3 views automatically or manually.
  */
-export function DashboardSummary({ summary, holdings, displayCurrency, exchangeRates, selectedPortfolio, portfolios, isPortfoliosLoading, transactions }: SummaryProps) {
+export function DashboardSummary({ summary, holdings, displayCurrency, exchangeRates, selectedPortfolio, portfolios, isPortfoliosLoading, transactions, sheetId }: SummaryProps) {
   logIfFalsy(exchangeRates, "DashboardSummary: exchangeRates missing");
   const { t } = useLanguage();
 
@@ -69,6 +73,8 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
 
   const [compareMenuAnchor, setCompareMenuAnchor] = useState<null | HTMLElement>(null);
   const [analysisOpen, setAnalysisOpen] = useState(false);
+  const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
+  const [isAiLoading, setIsAiLoading] = useState(false);
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isManualRef = useRef(false);
@@ -210,6 +216,26 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
     };
   }, [perfData, chartView, t]);
 
+  const handleAiAction = async () => {
+    if (!sheetId) return;
+    try {
+      const key = await checkGeminiKey(sheetId);
+      if (!key) {
+        setApiKeyDialogOpen(true);
+        return;
+      }
+      setIsAiLoading(true);
+      // Currently just a placeholder sending "hello"
+      const response = await askGemini('hello', key);
+      alert(`${t('AI says', 'AI אומר')}: ${response}`);
+    } catch (e) {
+      console.error(e);
+      alert(t('Failed to contact AI.', 'שגיאה ביצירת קשר עם ה-AI.'));
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
   return (
     <>
       <Paper
@@ -240,12 +266,26 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
               <Box>
                 <Grid container spacing={2} alignItems="center">
                   <Grid item xs={12} md={3}>
-                    {!selectedPortfolio && (
-                      <Typography variant="subtitle2" color="text.secondary">{t('TOTAL VALUE', 'שווי כולל')}</Typography>
-                    )}
-                    {selectedPortfolio && (
-                      <Typography variant="h5" fontWeight="bold" color="primary">{selectedPortfolio}</Typography>
-                    )}
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      {!selectedPortfolio && (
+                        <Typography variant="subtitle2" color="text.secondary">{t('TOTAL VALUE', 'שווי כולל')}</Typography>
+                      )}
+                      {selectedPortfolio && (
+                        <Typography variant="h5" fontWeight="bold" color="primary">{selectedPortfolio}</Typography>
+                      )}
+                      {sheetId && (
+                        <Tooltip title={t("AI Portfolio Analysis", "ניתוח תיק מבוסס AI")}>
+                          <IconButton
+                            size="small"
+                            color="primary"
+                            onClick={(e) => { e.stopPropagation(); handleAiAction(); }}
+                            disabled={isAiLoading}
+                          >
+                            {isAiLoading ? <CircularProgress size={16} /> : <AutoAwesomeIcon fontSize="small" />}
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                    </Box>
                     <Typography variant="h4" fontWeight="bold" color="primary">{formatMoneyValue({ amount: summary.aum, currency: normalizeCurrency(displayCurrency) }, undefined)}</Typography>
                   </Grid>
                   <Grid item xs={12} md={9}>
@@ -567,6 +607,13 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
         subjectName={selectedPortfolio ? t('Portfolio', 'התיק') : t('All Portfolios', 'כל התיקים')}
         isHoldingsView={chartView === 'holdings'}
       />
+      {sheetId && (
+        <ApiKeyDialog
+          open={apiKeyDialogOpen}
+          onClose={() => setApiKeyDialogOpen(false)}
+          sheetId={sheetId}
+        />
+      )}
     </>
   );
 }

@@ -425,7 +425,7 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
           holdings={selectedPortfolioId ? holdings.filter(h => h.portfolioId === selectedPortfolioId) : holdings}
           displayCurrency={displayCurrency}
           exchangeRates={exchangeRates}
-          selectedPortfolio={portfolios.find(p => p.id === (selectedPortfolioId || ''))?.name || null}
+          sheetId={sheetId} selectedPortfolio={portfolios.find(p => p.id === (selectedPortfolioId || ''))?.name || null}
           portfolios={portfolios}
           isPortfoliosLoading={loading}
           transactions={selectedPortfolioId ? (engine?.transactions?.filter(t => t.portfolioId === selectedPortfolioId) || []) : (engine?.transactions || [])}
