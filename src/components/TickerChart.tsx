@@ -2,15 +2,23 @@ import { ResponsiveContainer, AreaChart, Area, Line, XAxis, YAxis, Tooltip, Cart
 import { useLanguage } from '../lib/i18n';
 import { formatPrice, formatPercent, formatCompactPrice, formatValue, formatCompactValue } from '../lib/currency';
 import { formatDate } from '../lib/date';
-import { Paper, Typography, Box, IconButton, Dialog, DialogContent, ToggleButton, ToggleButtonGroup } from '@mui/material';
+import { Paper, Typography, Box, IconButton, Dialog, DialogContent, ToggleButton, ToggleButtonGroup, SvgIcon } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
 import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
-import TimelineIcon from '@mui/icons-material/Timeline';
 import { Menu, MenuItem } from '@mui/material';
 
 export type TrendType = 'none' | 'linear' | 'exponential' | 'polynomial' | 'logarithmic';
+
+export function TrendLineIcon(props: any) {
+    return (
+        <SvgIcon {...props}>
+            <path d="M4 19 L20 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeDasharray="3 3" fill="none" />
+            <path d="M16 5 H20 V9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        </SvgIcon>
+    );
+}
 
 // Simple regression solver
 function solveUnivariableRegression(x: number[], y: number[], type: TrendType): ((v: number) => number) | null {
@@ -34,7 +42,6 @@ function solveUnivariableRegression(x: number[], y: number[], type: TrendType): 
     // Exponential: y = A * e^(Bx) -> ln(y) = ln(A) + Bx
     // Linear regression on (x, ln(y))
     if (type === 'exponential') {
-        const yLog = y.map(v => v > 0 ? Math.log(v) : 0); // Handle non-positive?
         // If any y <= 0, exponential fit is invalid/complex. 
         // For simplicity, ignore or clamp? If chart has negative values, exponential fit is bad.
         // Assuming we filter or handle it.
@@ -1231,7 +1238,7 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                                     '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' }
                                 }}
                             >
-                                <TimelineIcon fontSize="small" color={trendType !== 'none' ? 'primary' : 'inherit'} />
+                                <TrendLineIcon fontSize="small" color={trendType !== 'none' ? 'primary' : 'inherit'} />
                             </IconButton>
                         )}
                         {!onTrendTypeChange && (
@@ -1429,8 +1436,8 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                                 dx={3}
                                 domain={[yMin, yMax]}
                                 ticks={yTicks}
-                                    scale={activeScale}
-                                    allowDataOverflow={true}
+                                scale={activeScale}
+                                allowDataOverflow={true}
                             />
                             <Tooltip content={<CustomTooltip currency={currency} t={t} basePrice={basePrice} isComparison={isComparison} series={displaySeries} mode={currentMode} hideCurrentPrice={hideCurrentPrice} />} />
 
@@ -1459,28 +1466,28 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                                 />
                             ))}
 
+                            <Line
+                                type="monotone"
+                                dataKey="yValue"
+                                stroke={`url(#${gradientId})`}
+                                strokeWidth={2}
+                                dot={false}
+                                activeDot={{ r: 4, strokeWidth: 0 }}
+                                animationDuration={TRANSFORM_MS}
+                                isAnimationActive={true}
+                            />
+                            {trendType !== 'none' && (
                                 <Line
                                     type="monotone"
-                                    dataKey="yValue"
-                                    stroke={`url(#${gradientId})`}
+                                    dataKey="trendValue"
+                                    stroke={theme.palette.warning.main}
                                     strokeWidth={2}
+                                    strokeDasharray="5 5"
                                     dot={false}
-                                    activeDot={{ r: 4, strokeWidth: 0 }}
-                                    animationDuration={TRANSFORM_MS}
-                                    isAnimationActive={true}
+                                    activeDot={false}
+                                    isAnimationActive={false}
                                 />
-                                {trendType !== 'none' && (
-                                    <Line
-                                        type="monotone"
-                                        dataKey="trendValue"
-                                        stroke={theme.palette.warning.main}
-                                        strokeWidth={2}
-                                        strokeDasharray="5 5"
-                                        dot={false}
-                                        activeDot={false}
-                                        isAnimationActive={false}
-                                    />
-                                )}
+                            )}
 
                             <Area
                                 type="monotone"

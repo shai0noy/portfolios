@@ -12,9 +12,8 @@ import { useLanguage } from '../lib/i18n';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
 import PieChartIcon from '@mui/icons-material/PieChart';
 import CandlestickChartIcon from '@mui/icons-material/CandlestickChart';
-import TimelineIcon from '@mui/icons-material/Timeline';
 import DateRangeIcon from '@mui/icons-material/DateRange';
-import { TickerChart, type TrendType } from './TickerChart';
+import { TickerChart, type TrendType, TrendLineIcon } from './TickerChart';
 import type { TickerProfile } from '../lib/types/ticker';
 import { useChartComparison, getAvailableRanges, getMaxLabel, SEARCH_OPTION_TICKER } from '../lib/hooks/useChartComparison';
 import { useTickerDetails, type TickerDetailsProps } from '../lib/hooks/useTickerDetails';
@@ -510,7 +509,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                                   <ToggleButtonGroup value={trendType !== 'none' ? 'trend' : ''} exclusive size="small" sx={{ height: 26 }}>
                                     <ToggleButton value="trend" onClick={(e) => setTrendMenuAnchor(e.currentTarget)} sx={{ px: 1 }}>
                                       <ListItemIcon sx={{ minWidth: 'auto' }}>
-                                        <TimelineIcon sx={{ fontSize: '1rem' }} />
+                                        <TrendLineIcon sx={{ fontSize: '1rem' }} />
                                       </ListItemIcon>
                                     </ToggleButton>
                                   </ToggleButtonGroup>

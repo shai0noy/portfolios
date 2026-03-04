@@ -11,7 +11,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import { type ExchangeRates, type DashboardHolding, type Portfolio, type Transaction } from '../../lib/types';
 import { useLanguage } from '../../lib/i18n';
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { TickerChart, type ChartSeries } from '../TickerChart';
+import { TickerChart, type ChartSeries, type TrendType, TrendLineIcon } from '../TickerChart';
 import { calculatePortfolioPerformance, type PerformancePoint } from '../../lib/performance';
 import { useChartComparison, getAvailableRanges, getMaxLabel, type ComparisonOption } from '../../lib/hooks/useChartComparison';
 import { TickerSearch } from '../TickerSearch';
@@ -60,6 +60,8 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
   const [chartView, setChartView] = useState<'holdings' | 'twr' | 'gains'>('holdings');
   const [chartMetric, setChartMetric] = useState<'price' | 'percent'>('price');
   const [scaleType, setScaleType] = useState<'linear' | 'log'>('linear');
+  const [trendType, setTrendType] = useState<TrendType>('none');
+  const [trendMenuAnchor, setTrendMenuAnchor] = useState<null | HTMLElement>(null);
 
   const {
     chartRange, setChartRange,
@@ -410,6 +412,8 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                       hideCurrentPrice={chartView === 'twr'}
                         scaleType={scaleType}
                         onScaleTypeChange={setScaleType}
+                        trendType={trendType}
+                        onTrendTypeChange={setTrendType}
                       topControls={
                         <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column' }}>
                           <Box display="flex" justifyContent="space-between" alignItems="center" sx={{ width: '100%', flexWrap: 'wrap', gap: 1, mb: isComparison ? 1 : 0 }}>
@@ -465,6 +469,14 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                               <ToggleButtonGroup value={scaleType} exclusive onChange={(_, v) => v && setScaleType(v)} size="small" disabled={!isLogSupported} sx={{ height: 26 }}>
                                 <ToggleButton value="linear" sx={{ px: 1, fontSize: '0.65rem' }}>LIN</ToggleButton>
                                 <ToggleButton value="log" sx={{ px: 1, fontSize: '0.65rem' }}>LOG</ToggleButton>
+                              </ToggleButtonGroup>
+
+                              <ToggleButtonGroup value={trendType !== 'none' ? 'trend' : ''} exclusive size="small" sx={{ height: 26 }}>
+                                <ToggleButton value="trend" onClick={(e) => setTrendMenuAnchor(e.currentTarget)} sx={{ px: 1 }}>
+                                  <ListItemIcon sx={{ minWidth: 'auto' }}>
+                                    <TrendLineIcon sx={{ fontSize: '1rem' }} />
+                                  </ListItemIcon>
+                                </ToggleButton>
                               </ToggleButtonGroup>
 
                               <Button
@@ -531,6 +543,14 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                         </Box>
                       }
                     />
+                      <Menu anchorEl={trendMenuAnchor} open={Boolean(trendMenuAnchor)} onClose={() => setTrendMenuAnchor(null)}>
+                        <MenuItem onClick={() => { setTrendType('none'); setTrendMenuAnchor(null); }} selected={trendType === 'none'}>{t('No Trend', 'ללא מגמה')}</MenuItem>
+                        <MenuItem onClick={() => { setTrendType('linear'); setTrendMenuAnchor(null); }} selected={trendType === 'linear'}>{t('Linear', 'ליניארי')}</MenuItem>
+                        <MenuItem onClick={() => { setTrendType('exponential'); setTrendMenuAnchor(null); }} selected={trendType === 'exponential'}>{t('Exponential', 'אקספוננציאלי')}</MenuItem>
+                        <MenuItem onClick={() => { setTrendType('polynomial'); setTrendMenuAnchor(null); }} selected={trendType === 'polynomial'}>{t('Cubic', 'פולינום (3)')}</MenuItem>
+                        <MenuItem onClick={() => { setTrendType('logarithmic'); setTrendMenuAnchor(null); }} selected={trendType === 'logarithmic'}>{t('Logarithmic', 'לוגריתמי')}</MenuItem>
+                      </Menu>
+
                     <Menu
                       anchorEl={compareMenuAnchor}
                       open={Boolean(compareMenuAnchor)}
