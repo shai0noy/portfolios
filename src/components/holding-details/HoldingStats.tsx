@@ -151,6 +151,14 @@ export function HoldingStats({
                         {formatMoneyValue(vals.realizedGainNet)}
                     </Typography>
                 </Grid>
+                {vals.dividends.amount > 0 && (
+                    <Grid item xs={6} sm>
+                        <Typography variant="caption" color="text.secondary" noWrap>{t('Total Dividends', 'סה״כ דיבידנדים')}</Typography>
+                        <Typography variant="body2" fontWeight="500" color="success.main">
+                            {formatMoneyValue(vals.dividends)}
+                        </Typography>
+                    </Grid>
+                )}
             </Grid>
         </Paper>
     );

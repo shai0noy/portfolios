@@ -11,6 +11,7 @@ export interface DividendEvent {
     date: Date;
     amount: number;
     source: string;
+    assetPriceAtDrip?: number;
 }
 
 export function getHistoricalRates(rates: ExchangeRates, period: '1w' | '1m' | '3m' | 'ytd' | '1y' | '5y' | 'all'): Record<string, number> | undefined {
@@ -54,6 +55,7 @@ export interface Lot {
     // Vesting / Metadata
     vestingDate?: Date; // For RSUs
     isVested: boolean;
+    isDrip?: boolean; // Flag to indicate if lot is a DRIP reinvestment
     originalTxnId: string;
     notes?: string; // Messages from txn
 
@@ -95,6 +97,7 @@ export interface DividendRecord {
     cashedAmount: number; // Net PC
     reinvestedAmount: number; // Net PC
     isReinvested: boolean;
+    assetPriceAtDrip?: number; // SC
     // Split Tax (PC)
     taxCashedPC?: number;
     taxReinvestedPC?: number;

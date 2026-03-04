@@ -71,7 +71,18 @@ export function HoldingLayers({ groupedLayers, displayCurrency, portfolios, exch
 
                                     return (
                                         <TableRow key={layer.originalTxnId || `${group.portfolioId}-${i}`}>
-                                            <TableCell>{formatDate(layer.date)}</TableCell>
+                                            <TableCell>
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                    {formatDate(layer.date)}
+                                                    {layer.isDrip && (
+                                                        <Tooltip title={t('Dividend Reinvestment', 'השקעה חוזרת של דיבידנד')}>
+                                                            <Typography variant="caption" sx={{ bgcolor: 'primary.light', color: 'primary.contrastText', px: 0.5, py: 0.1, borderRadius: 1, fontSize: '0.65rem', fontWeight: 'bold' }}>
+                                                                DRiP
+                                                            </Typography>
+                                                        </Tooltip>
+                                                    )}
+                                                </Box>
+                                            </TableCell>
                                             <TableCell align="right">{formatNumber(layer.originalQty)}</TableCell>
                                             <TableCell align="right">
                                                 <Tooltip
@@ -123,7 +134,7 @@ export function HoldingLayers({ groupedLayers, displayCurrency, portfolios, exch
                                                         </Box>
                                                     </Tooltip>
                                                 ) : (
-                                                        formatMoneyValue(layer.originalCost)
+                                                    formatMoneyValue(layer.originalCost)
                                                 )}
                                             </TableCell>
 
@@ -192,6 +203,7 @@ export function HoldingLayers({ groupedLayers, displayCurrency, portfolios, exch
                                             </TableCell>
                                             <TableCell align="right">
                                                 {(() => {
+                                                    if (layer.isDrip) return '-';
                                                     const p = portfolios.find(p => p.id === group.portfolioId);
                                                     if (p?.taxPolicy === 'IL_REAL_GAIN') {
                                                         return (

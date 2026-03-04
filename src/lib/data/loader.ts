@@ -109,6 +109,21 @@ export const loadFinanceEngine = async (sheetId: string, forceRefresh = false) =
 
             // Reconstruct Engine
             const engine = new FinanceEngine(portfolios, exchangeRates as unknown as ExchangeRates, cpiData);
+
+            // Fetch historical prices for DRIP logic
+            const livePricesMap = new Map<string, TickerData>(livePrices);
+            dividends.forEach(d => {
+                const key = `${d.exchange}:${d.ticker}`;
+                const tdata = livePricesMap.get(key);
+                if (tdata && tdata.historical) {
+                    const dateStr = d.date.toISOString().split('T')[0];
+                    const hp = tdata.historical.find(h => h.date.toISOString().split('T')[0] === dateStr);
+                    if (hp) {
+                        d.assetPriceAtDrip = hp.price;
+                    }
+                }
+            });
+
             engine.processEvents(transactions, dividends);
 
             // Hydrate Prices
@@ -272,6 +287,19 @@ export const loadFinanceEngine = async (sheetId: string, forceRefresh = false) =
 
     // Create Engine
     const engine = new FinanceEngine(portfolios, exchangeRates as unknown as ExchangeRates, cpiData);
+
+    // Fetch historical prices for DRIP logic
+    dividends.forEach(d => {
+        const key = `${d.exchange}:${d.ticker}`;
+        const tdata = livePricesMap.get(key);
+        if (tdata && tdata.historical) {
+            const dateStr = d.date.toISOString().split('T')[0];
+            const hp = tdata.historical.find(h => h.date.toISOString().split('T')[0] === dateStr);
+            if (hp) {
+                d.assetPriceAtDrip = hp.price;
+            }
+        }
+    });
 
     // 5. Process Events (Txns + Divs)
     engine.processEvents(transactions, dividends);

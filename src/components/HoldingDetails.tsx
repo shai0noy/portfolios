@@ -103,7 +103,7 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
         return matchingHoldings.flatMap(h => {
             // Attach portfolioCurrency to the record so we can convert it later
             const divs = ((h as any).dividends || []) as DividendRecord[];
-            return divs.map(d => ({ ...d, portfolioCurrency: h.portfolioCurrency }));
+            return divs.map(d => ({ ...d, portfolioCurrency: h.portfolioCurrency, portfolioId: h.portfolioId }));
         });
     }, [matchingHoldings]);
 
@@ -245,13 +245,12 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
         : 0;
     const vestedValDisplay = vals.marketValue;
 
-    // Unified Layers Logic grouped by Portfolio (Base - No Weights)
     const groupedLayersBase = useMemo(() => {
         if (!exchangeRates || !displayCurrency) return [];
         // Ensure holding has currentPrice for layer grouping logic
         const holdingWithPrice = { ...holding, currentPrice: (holding as any).price || (holding as any).currentPrice } as Holding | EnrichedDashboardHolding;
         return groupHoldingLayers(layers, realizedLayers, exchangeRates, displayCurrency, portfolioNameMap, holdingWithPrice, stockCurrency);
-    }, [layers, realizedLayers, displayCurrency, exchangeRates, portfolioNameMap, holding, stockCurrency]);
+    }, [layers, realizedLayers, displayCurrency, exchangeRates, portfolioNameMap, holding, stockCurrency, dividendHistory]);
 
     // Calculate Weights across all portfolios (using groupedLayersBase for accurate values)
     const holdingsWeights = useMemo(() => {
@@ -259,12 +258,11 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
         return calculateHoldingWeights(portfolios, holding, exchangeRates, displayCurrency, groupedLayersBase);
     }, [portfolios, holding, exchangeRates, displayCurrency, groupedLayersBase]);
 
-    // Final Grouped Layers with Weights
     const groupedLayers = useMemo(() => {
         // Reuse grouping but with weights now available
         if (!exchangeRates || !displayCurrency) return [];
         return groupHoldingLayers(layers, realizedLayers, exchangeRates, displayCurrency, portfolioNameMap, holding, stockCurrency, holdingsWeights);
-    }, [layers, realizedLayers, displayCurrency, exchangeRates, portfolioNameMap, holding, stockCurrency, holdingsWeights]);
+    }, [layers, realizedLayers, displayCurrency, exchangeRates, portfolioNameMap, holding, stockCurrency, holdingsWeights, dividendHistory]);
 
     const isFeeExempt = useMemo(() => {
         const h = holding as any;

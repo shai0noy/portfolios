@@ -40,10 +40,10 @@ export function HoldingTransactions({ txnHistory, portfolioNameMap, formatDate, 
                             const fees = txn.commission || 0;
                             const tickerCurrency = txn.currency || 'USD';
 
-                            // If vesting date exists and type is BUY, show Grant
                             let typeLabel = txn.type;
-                            if (isBuy(txn.type) && txn.vestDate) {
-                                typeLabel = 'Grant' as any;
+                            if (isBuy(txn.type)) {
+                                if (txn.isDrip) typeLabel = 'Dividend Reinvestment' as any;
+                                else if (txn.vestDate) typeLabel = 'Grant' as any;
                             }
                             const txnPortfolioName = portfolioNameMap[txn.portfolioId] || txn.portfolioId;
 

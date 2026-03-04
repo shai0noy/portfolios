@@ -308,6 +308,7 @@ export interface DashboardHoldingDisplay {
   costOfSold: number;
   proceeds: number;
   dividends: number;
+  dividendsGross?: number;
   fees: number;
   dividendYield1y?: number;
   currentPrice: number;
@@ -473,6 +474,7 @@ export interface Transaction {
   source?: string;
   creationDate?: string;
   origOpenPriceAtCreationDate?: number;
+  isDrip?: boolean;
   splitAdjOpenPrice?: number;
   splitRatio?: number;
   splitAdjustedPrice?: number;

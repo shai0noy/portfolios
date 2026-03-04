@@ -51,7 +51,7 @@ const perfPeriods = {
 
 type ProcessingEvent =
     | { kind: 'TXN', data: Transaction }
-    | { kind: 'DIV', data: { ticker: string, exchange: Exchange, date: Date, amount: number, source: string, rowIndex?: number } };
+    | { kind: 'DIV', data: { ticker: string, exchange: Exchange, date: Date, amount: number, source: string, rowIndex?: number, assetPriceAtDrip?: number } };
 
 export class FinanceEngine {
     holdings: Map<string, Holding> = new Map();
@@ -247,10 +247,39 @@ export class FinanceEngine {
                                 taxCashedPC,
                                 taxReinvestedPC,
                                 feeCashedPC,
-                                feeReinvestedPC
+                                feeReinvestedPC,
+                                assetPriceAtDrip: d.assetPriceAtDrip
                             };
 
                             h.addDividend(divRecord);
+
+                            // Synthesize fractional BUY lot for true DRIP
+                            if (divRecord.isReinvested && divRecord.assetPriceAtDrip && divRecord.assetPriceAtDrip > 0) {
+                                const reinvestedAmountSC = convertCurrency(divRecord.reinvestedAmount, h.portfolioCurrency, h.stockCurrency, this.exchangeRates);
+                                const qtyBuy = reinvestedAmountSC / divRecord.assetPriceAtDrip;
+                                const originalPriceILA = h.stockCurrency === Currency.ILS ? divRecord.assetPriceAtDrip * 100 : undefined;
+
+                                const drpTxn: Transaction = {
+                                    date: d.date.toISOString(),
+                                    portfolioId: h.portfolioId,
+                                    ticker: h.ticker,
+                                    exchange: h.exchange,
+                                    type: 'BUY',
+                                    originalQty: qtyBuy,
+                                    originalPrice: divRecord.assetPriceAtDrip,
+                                    originalPriceILA,
+                                    qty: qtyBuy,
+                                    price: divRecord.assetPriceAtDrip,
+                                    currency: h.stockCurrency,
+                                    commission: 0,
+                                    source: 'SYSTEM_DRIP',
+                                    isDrip: true
+                                };
+                                const pGroup = this.portfolios.get(h.portfolioId);
+                                if (pGroup) {
+                                    h.addTransaction(drpTxn, this.exchangeRates, this.cpiData, pGroup);
+                                }
+                            }
                         }
                     }
                 });

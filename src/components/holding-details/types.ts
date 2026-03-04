@@ -19,7 +19,8 @@ export interface HoldingValues {
     costBasis: SimpleMoney;
     costOfSold: SimpleMoney;
     proceeds: SimpleMoney;
-    dividends: SimpleMoney;
+    dividends: SimpleMoney; // currently net
+    dividendsGross?: SimpleMoney;
     currentPrice: SimpleMoney;
     avgCost: SimpleMoney;
     weightInPortfolio: number;

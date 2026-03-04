@@ -43,6 +43,7 @@ export function aggregateHoldingValues(
         costOfSold: { amount: 0, currency },
         proceeds: { amount: 0, currency },
         dividends: { amount: 0, currency },
+        dividendsGross: { amount: 0, currency },
         unvestedValue: { amount: 0, currency },
         totalQty: 0,
         realizedTax: { amount: 0, currency },
@@ -78,6 +79,7 @@ export function aggregateHoldingValues(
             acc.realizedGainNet += d.realizedGainNet;
 
             acc.dividends += d.dividends;
+            acc.dividendsGross += d.dividendsGross || d.dividends;
             acc.realizedTaxBase += (d as any).realizedTax || 0;
             acc.unrealizedTaxBase += (d as any).unrealizedTax || 0;
             acc.realizedGainAfterTax += d.realizedGainAfterTax || 0;
@@ -119,7 +121,9 @@ export function aggregateHoldingValues(
             // Dividends
             if (raw.dividends) {
                 const totalDivs = raw.dividends.reduce((sum, d) => sum + convertCurrency(d.netAmountPC, raw.portfolioCurrency, displayCurrency, exchangeRates), 0);
+                const totalDivsGross = raw.dividends.reduce((sum, d) => sum + convertCurrency(d.grossAmount.amount, d.grossAmount.currency || raw.stockCurrency, displayCurrency, exchangeRates), 0);
                 acc.dividends += totalDivs;
+                acc.dividendsGross += totalDivsGross;
             }
 
             const rawHolding = raw as Holding;
@@ -151,6 +155,7 @@ export function aggregateHoldingValues(
         realizedGainGross: 0,
         realizedGainNet: 0,
         dividends: 0,
+        dividendsGross: 0,
         realizedTaxBase: 0,
         unrealizedTaxBase: 0,
         realizedGainAfterTax: 0,
@@ -159,6 +164,12 @@ export function aggregateHoldingValues(
         dayChangeVal: 0,
         realCost: 0
     });
+
+    // Roll dividends into realized gains for unified UI tracking
+    // For Gross Realized, use Gross Dividends! For Net, use Net.
+    aggValues.realizedGain += aggValues.dividendsGross;  // Gross capital + Gross dividends
+    aggValues.realizedGainGross += aggValues.dividendsGross;
+    aggValues.realizedGainNet += aggValues.dividends; // Net capital + Net dividends
 
     // Derived Totals (in Display Currency)
     const realizedGainAfterTax = aggValues.realizedGainNet; // Simplified fallback logic
@@ -169,8 +180,8 @@ export function aggregateHoldingValues(
     // For Raw Holdings, we need to calculate them, for Enriched we might want to aggregate but summing percentages is wrong.
     // Re-calculating from totals is generally safer.
     const unrealizedGainPct = aggValues.costBasis > 0 ? aggValues.unrealizedGain / aggValues.costBasis : 0;
-    const realizedSellsGross = aggValues.proceeds - aggValues.costOfSold;
-    const realizedGainPct = aggValues.costOfSold > 0 ? realizedSellsGross / aggValues.costOfSold : 0;
+    const totalRealizedCost = aggValues.costOfSold + aggValues.costBasis;
+    const realizedGainPct = totalRealizedCost > 0 ? aggValues.realizedGain / totalRealizedCost : (aggValues.realizedGain > 0 ? 1 : 0);
     const totalGainPct = (aggValues.costBasis + aggValues.costOfSold) > 0 ? totalGain / (aggValues.costBasis + aggValues.costOfSold) : 0;
     const dayChangePct = (aggValues.marketValue - aggValues.dayChangeVal) > 0 ? aggValues.dayChangeVal / (aggValues.marketValue - aggValues.dayChangeVal) : 0;
 
