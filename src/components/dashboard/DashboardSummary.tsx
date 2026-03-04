@@ -107,9 +107,11 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
   }, [activeStep, startTimer]);
 
   useEffect(() => {
-    // Trigger if we don't have perf data yet, regardless of activeStep (needed for summary stats now)
-    if (holdings.length > 0 && perfData.length === 0 && !isPerfLoading && transactions && transactions.length > 0) {
+    // Trigger if we have data, and we are not already loading.
+    // Recalculates when displayCurrency or other dependencies change.
+    if (holdings.length > 0 && !isPerfLoading && transactions && transactions.length > 0) {
       setIsPerfLoading(true);
+      setPerfData([]); // Clear old data to avoid showing old currency values with new symbol
 
       // Use passed transactions directly
       const portfolioPolicies = new Map(portfolios.map(p => [p.id, { divPolicy: p.divPolicy as any }]));
