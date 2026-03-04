@@ -183,7 +183,8 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
             if (editTxn.originalQty && editTxn.originalPrice) {
               setTotal((editTxn.originalQty * editTxn.originalPrice).toFixed(2)); // Approx
             }
-            setVestDate(editTxn.vestDate ? parseSheetDate(editTxn.vestDate) : '');
+            const vd = coerceDate(editTxn.vestDate);
+            setVestDate(vd ? vd.toISOString().split('T')[0] : '');
             setComment(editTxn.comment || '');
             setCommission(editTxn.commission?.toString() || '');
             setTickerCurrency(normalizeCurrency(editTxn.currency || data.currency || ''));
@@ -911,12 +912,12 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
 
       if (type === 'DIV_EVENT') {
         if (editDiv) {
-          await updateDividend(sheetId, editDiv.rowIndex, ticker, parseExchange(exchange), new Date(date), p, editDiv.source, editDiv);
+          await updateDividend(sheetId, editDiv.rowIndex, ticker, parseExchange(exchange), coerceDate(date)!, p, editDiv.source, editDiv);
           const newState = { ticker, amount: p, rowIndex: editDiv.rowIndex };
           setUndoData({ type: 'div', action: 'update', data: newState, originalData: editDiv });
           if (onSaveSuccess) onSaveSuccess(t('Dividend updated', 'הדיבידנד עודכן'), handleUndo);
         } else {
-          await addDividendEvent(sheetId, ticker, parseExchange(exchange), new Date(date), p);
+          await addDividendEvent(sheetId, ticker, parseExchange(exchange), coerceDate(date)!, p);
           if (onSaveSuccess) onSaveSuccess(t('Dividend added', 'הדיבידנד נוסף'));
         }
       } else if (type === 'HOLDING_CHANGE') {

@@ -493,10 +493,10 @@ export const batchAddTransactions = withAuthHandling(async (spreadsheetId: strin
         const rowData: Record<string, string | number | null | undefined> = { ...t as any };
 
         // Normalize specific fields for the sheet
-        rowData.date = t.date ? toGoogleSheetDateFormat(new Date(t.date)) : '';
+        rowData.date = t.date ? toGoogleSheetDateFormat(coerceDate(t.date)!) : '';
         rowData.ticker = String(logIfFalsy(t.ticker, `Transaction ticker missing`, t)).toUpperCase();
         rowData.exchange = toGoogleSheetsExchangeCode(t.exchange!);
-        rowData.vestDate = t.vestDate ? toGoogleSheetDateFormat(new Date(t.vestDate)) : '';
+        rowData.vestDate = t.vestDate ? toGoogleSheetDateFormat(coerceDate(t.vestDate)!) : '';
         rowData.comment = t.comment || '';
         rowData.source = t.source || '';
 

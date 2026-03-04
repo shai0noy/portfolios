@@ -10,18 +10,19 @@ export function toGoogleSheetDateFormat(date: Date): string {
   return `${day}-${month}-${year}`;
 }
 
-export function fromGoogleSheetDate(value: string | number): string {
-  if (!value) return '';
-  if (typeof value === 'number') {
-    // Google Sheets serial date
-    const date = new Date(Math.round((value - 25569) * 86400 * 1000));
-    return formatDate(date);
-  }
-  const str = String(value).trim();
+export function fromGoogleSheetDate(value: string | number | null | undefined): Date | null {
+  if (value === undefined || value === null || value === '') return null;
 
-  // Convert YYYY-MM-DD or DD-MM-YYYY to DD/MM/YYYY for app-wide consistency
-  const d = coerceDate(str);
-  return d ? formatDate(d) : str;
+  if (typeof value === 'number') {
+    // Google Sheets serial date (usually < 100,000 for current dates)
+    if (value < 100000) {
+      return new Date(Math.round((value - 25569) * 86400 * 1000));
+    }
+    // Otherwise assume it's a millisecond timestamp
+    return new Date(value);
+  }
+
+  return coerceDate(String(value));
 }
 
 export function formatDate(dateInput: string | Date | number | null | undefined): string {
@@ -37,8 +38,13 @@ export function formatDate(dateInput: string | Date | number | null | undefined)
 }
 
 export function coerceDate(d: any): Date | null {
-  if (!d) return null;
+  if (d === undefined || d === null || d === '') return null;
+
   if (d instanceof Date) return isNaN(d.getTime()) ? null : d;
+
+  if (typeof d === 'number') {
+    return fromGoogleSheetDate(d);
+  }
 
   const str = String(d).trim();
   if (!str) return null;
@@ -56,8 +62,8 @@ export function coerceDate(d: any): Date | null {
       if (p0.length === 4) {
         const y = parseInt(p0, 10);
         const m = parseInt(p1, 10);
-        const d = parseInt(p2, 10);
-        if (!isNaN(y) && !isNaN(m) && !isNaN(d)) return new Date(y, m - 1, d);
+        const dayVal = parseInt(p2, 10);
+        if (!isNaN(y) && !isNaN(m) && !isNaN(dayVal)) return new Date(y, m - 1, dayVal);
       }
 
       // Standard Format: DD-MM-YYYY or MM-DD-YYYY
@@ -73,7 +79,6 @@ export function coerceDate(d: any): Date | null {
           }
           // Otherwise, assume DD-MM-YYYY as per user preference, 
           // but this is where the mm/dd/yyyy ambiguity lives.
-          // Since the user wants dd-mm-yyyy, we treat p0 as day.
           return new Date(y, m_or_d - 1, d_or_m);
         }
       }
