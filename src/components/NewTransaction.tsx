@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 import {
-  Box, TextField, Button, MenuItem, Select, InputLabel, FormControl,
+  Box, TextField, Button, MenuItem, Select, InputLabel, FormControl, Autocomplete,
   Typography, Alert, InputAdornment, Grid, Card, CardContent, Divider, Tooltip, Chip, ToggleButton, ToggleButtonGroup,
   Backdrop, CircularProgress, IconButton
 } from '@mui/material';
@@ -134,31 +134,13 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   useEffect(() => {
     if (type === 'GRANT' && date) {
       const d = coerceDate(date) || new Date();
-      let nextM = d.getMonth();
-      let nextY = d.getFullYear();
-      
-      if (grantFrequency === 'YEARLY') {
-        nextY++;
-        nextM = 0;
-      } else if (grantFrequency === 'QUARTERLY') {
-        nextM = Math.floor(nextM / 3 + 1) * 3;
-        if (nextM >= 12) {
-          nextY++;
-          nextM = 0;
-        }
-      } else {
-        nextM++;
-        if (nextM >= 12) {
-          nextY++;
-          nextM = 0;
-        }
+      setVestingYear(d.getFullYear());
+      setVestingMonth(d.getMonth());
+      if (!vestingDay) {
+        setVestingDay('31'); // Defaulting to 31/Last Day as requested for visibility
       }
-      
-      setVestingYear(nextY);
-      setVestingMonth(nextM);
-      setVestingDay('1');
     }
-  }, [type, date, grantFrequency]);
+  }, [type, date]);
 
 
   useEffect(() => {
@@ -811,6 +793,15 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
 
     if (!totalUnits || !duration || !day || isNaN(baseDate.getTime()) || !ticker || !portId) {
       alert("Please fill all required grant fields (Units, Duration, Vesting Day, Ticker).");
+      return;
+    }
+
+    const grantDate = coerceDate(date) || new Date();
+    // Use UTC for comparison to match baseDate construction
+    const grantDateUTC = new Date(Date.UTC(grantDate.getFullYear(), grantDate.getMonth(), grantDate.getDate()));
+
+    if (baseDate <= grantDateUTC) {
+      alert(t("First vest date must be after creation date.", "תאריך הבשלה ראשון חייב להיות אחרי תאריך הקצאה."));
       return;
     }
 
@@ -1544,7 +1535,31 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                                 </Grid>
 
                                 <Grid item xs={6} sm={4}>
-                                  <NumericField label={t("Vesting Day of Month", "יום הבשלה בחודש")} field="vestingDay" value={vestingDay} onChange={v => setVestingDay(v.toString())} placeholder="1-31" required />
+                                  <Autocomplete<string, false, false, true>
+                                    freeSolo
+                                    options={Array.from({ length: 31 }, (_, i) => (i + 1).toString())}
+                                    getOptionLabel={(option: string) => option === '31' ? (t("31 (Last Day)", "31 (יום אחרון)") || "31 (Last Day)") : option}
+                                    value={vestingDay}
+                                    onInputChange={(_: any, newValue: string) => {
+                                      const num = parseInt(newValue, 10);
+                                      if (!isNaN(num)) {
+                                        const clamped = Math.max(1, Math.min(31, num));
+                                        setVestingDay(clamped.toString());
+                                      } else if (newValue === '') {
+                                        setVestingDay('');
+                                      }
+                                    }}
+                                    renderInput={(params) => (
+                                      <TextField
+                                        {...params}
+                                        label={t("Vesting Day of Month", "יום הבשלה בחודש")}
+                                        size="small"
+                                        required
+                                        placeholder="1-31"
+                                        helperText={vestingDay === '31' ? (t("Last Day of Month", "יום אחרון בחודש") || "Last Day of Month") : ""}
+                                      />
+                                    )}
+                                  />
                                 </Grid>
 
                                                                 <Grid item xs={12} sm={8}>
