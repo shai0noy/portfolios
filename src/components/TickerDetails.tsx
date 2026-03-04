@@ -12,7 +12,9 @@ import { useLanguage } from '../lib/i18n';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
 import PieChartIcon from '@mui/icons-material/PieChart';
 import CandlestickChartIcon from '@mui/icons-material/CandlestickChart';
-import { TickerChart } from './TickerChart';
+import TimelineIcon from '@mui/icons-material/Timeline';
+import DateRangeIcon from '@mui/icons-material/DateRange';
+import { TickerChart, type TrendType } from './TickerChart';
 import type { TickerProfile } from '../lib/types/ticker';
 import { useChartComparison, getAvailableRanges, getMaxLabel, SEARCH_OPTION_TICKER } from '../lib/hooks/useChartComparison';
 import { useTickerDetails, type TickerDetailsProps } from '../lib/hooks/useTickerDetails';
@@ -20,6 +22,7 @@ import { TickerSearch } from './TickerSearch';
 import { Exchange } from '../lib/types';
 import { formatMoneyPrice, formatPercent, normalizeCurrency, formatMoneyValue } from '../lib/currency';
 import { AnalysisDialog } from './AnalysisDialog';
+import { CustomRangeDialog } from './CustomRangeDialog';
 import { HoldingDetails } from './HoldingDetails';
 import { HoldingUnderlyingAssets } from './holding-details/HoldingUnderlyingAssets';
 import type { EnrichedDashboardHolding } from '../lib/dashboard';
@@ -102,8 +105,12 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
 
   const [chartMetric, setChartMetric] = useState<'percent' | 'price' | 'candle'>('percent');
   const [scaleType, setScaleType] = useState<'linear' | 'log'>('linear');
+  const [trendType, setTrendType] = useState<TrendType>('none');
+  const [trendMenuAnchor, setTrendMenuAnchor] = useState<null | HTMLElement>(null);
   const [compareMenuAnchor, setCompareMenuAnchor] = useState<null | HTMLElement>(null);
   const [analysisOpen, setAnalysisOpen] = useState(false);
+  const [customRangeOpen, setCustomRangeOpen] = useState(false);
+  const [customDateRange, setCustomDateRange] = useState<{ start: Date | null, end: Date | null }>({ start: null, end: null });
 
   const [activeTab, setActiveTabRaw] = useState('analysis');
   const handleTabChange = (_: any, v: string) => setActiveTabRaw(v);
@@ -181,8 +188,21 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   const availableRanges = useMemo(() => getAvailableRanges(oldestDate), [oldestDate]);
   const maxLabel = useMemo(() => getMaxLabel(oldestDate), [oldestDate]);
 
-  const displayHistory = useMemo(() => getClampedData(historicalData, chartRange), [historicalData, chartRange, getClampedData]);
-  const displayComparisonSeries = useMemo(() => comparisonSeries.map(series => ({ ...series, data: getClampedData(series.data, chartRange) })), [comparisonSeries, chartRange, getClampedData]);
+  const displayHistory = useMemo(() => {
+    if (chartRange === 'Custom') {
+      if (!historicalData) return [];
+      const { start, end } = customDateRange;
+      return historicalData.filter(d => (!start || d.date >= start) && (!end || d.date <= end));
+    }
+    return getClampedData(historicalData, chartRange);
+  }, [historicalData, chartRange, getClampedData, customDateRange]);
+
+  const displayComparisonSeries = useMemo(() => comparisonSeries.map(series => ({
+    ...series,
+    data: chartRange === 'Custom'
+      ? series.data.filter(d => (!customDateRange.start || d.date >= customDateRange.start) && (!customDateRange.end || d.date <= customDateRange.end))
+      : getClampedData(series.data, chartRange)
+  })), [comparisonSeries, chartRange, getClampedData, customDateRange]);
 
   const isComparison = comparisonSeries.length > 0;
   const effectiveChartMetric = isComparison ? 'percent' : chartMetric;
@@ -468,8 +488,15 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                             topControls={
                               <Box sx={{ width: '100%' }}>
                                 <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: comparisonSeries.length > 0 ? 1 : 0, flexWrap: 'wrap' }}>
-                                  <ToggleButtonGroup value={chartRange} exclusive onChange={(_, v) => v && setChartRange(v)} size="small" sx={{ height: 26 }}>
+                                  <ToggleButtonGroup value={chartRange} exclusive onChange={(_, v) => {
+                                    if (v === 'Custom') {
+                                      setCustomRangeOpen(true);
+                                    } else if (v) {
+                                      setChartRange(v);
+                                    }
+                                  }} size="small" sx={{ height: 26 }}>
                                     {availableRanges.map(r => <ToggleButton key={r} value={r} sx={{ px: 1, fontSize: '0.65rem' }}>{r === 'ALL' ? maxLabel : r}</ToggleButton>)}
+                                    <ToggleButton value="Custom" sx={{ px: 1 }}><DateRangeIcon sx={{ fontSize: '1rem' }} /></ToggleButton>
                                   </ToggleButtonGroup>
                                   <ToggleButtonGroup value={effectiveChartMetric} exclusive onChange={(_, v) => v && setChartMetric(v)} size="small" disabled={isComparison} sx={{ height: 26 }}>
                                     <ToggleButton value="percent" sx={{ px: 1, fontSize: '0.65rem' }}>%</ToggleButton>
@@ -480,13 +507,29 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                                     <ToggleButton value="linear" sx={{ px: 1, fontSize: '0.65rem' }}>LIN</ToggleButton>
                                     <ToggleButton value="log" sx={{ px: 1, fontSize: '0.65rem' }}>LOG</ToggleButton>
                                   </ToggleButtonGroup>
+                                  <ToggleButtonGroup value={trendType !== 'none' ? 'trend' : ''} exclusive size="small" sx={{ height: 26 }}>
+                                    <ToggleButton value="trend" onClick={(e) => setTrendMenuAnchor(e.currentTarget)} sx={{ px: 1 }}>
+                                      <ListItemIcon sx={{ minWidth: 'auto' }}>
+                                        <TimelineIcon sx={{ fontSize: '1rem' }} />
+                                      </ListItemIcon>
+                                    </ToggleButton>
+                                  </ToggleButtonGroup>
                                   <Button size="small" sx={{ height: 26, fontSize: '0.65rem', minWidth: 0 }} onClick={(e) => setCompareMenuAnchor(e.currentTarget)}>{t('Compare', 'השווה')}</Button>
                                   <Button size="small" sx={{ height: 26, fontSize: '0.65rem', minWidth: 0 }} onClick={() => setAnalysisOpen(true)}>{t('Analysis', 'ניתוח')}</Button>
                                 </Box>
                                 {comparisonSeries.length > 0 && <Box display="flex" flexWrap="wrap" gap={0.5} sx={{ mb: 1 }}>{comparisonSeries.map(s => <Chip key={s.name} label={s.name} onDelete={() => handleRemoveComparison(s.name)} variant="outlined" size="small" sx={{ color: s.color, borderColor: s.color, fontSize: '0.65rem', height: 20 }} />)}</Box>}
                               </Box>
                             }
+                          trendType={trendType}
+                          onTrendTypeChange={setTrendType}
                           />
+                        <Menu anchorEl={trendMenuAnchor} open={Boolean(trendMenuAnchor)} onClose={() => setTrendMenuAnchor(null)}>
+                          <MenuItem onClick={() => { setTrendType('none'); setTrendMenuAnchor(null); }} selected={trendType === 'none'}>{t('No Trend', 'ללא מגמה')}</MenuItem>
+                          <MenuItem onClick={() => { setTrendType('linear'); setTrendMenuAnchor(null); }} selected={trendType === 'linear'}>{t('Linear', 'ליניארי')}</MenuItem>
+                          <MenuItem onClick={() => { setTrendType('exponential'); setTrendMenuAnchor(null); }} selected={trendType === 'exponential'}>{t('Exponential', 'אקספוננציאלי')}</MenuItem>
+                          <MenuItem onClick={() => { setTrendType('polynomial'); setTrendMenuAnchor(null); }} selected={trendType === 'polynomial'}>{t('Cubic', 'פולינום (3)')}</MenuItem>
+                          <MenuItem onClick={() => { setTrendType('logarithmic'); setTrendMenuAnchor(null); }} selected={trendType === 'logarithmic'}>{t('Logarithmic', 'לוגריתמי')}</MenuItem>
+                        </Menu>
                           <Menu anchorEl={compareMenuAnchor} open={Boolean(compareMenuAnchor)} onClose={() => setCompareMenuAnchor(null)}>
                             {(() => {
                               let lastGroup = '';
@@ -649,6 +692,16 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
         initialRange={chartRange}
         currency={data?.currency || 'USD'}
         subjectName={ticker}
+      />
+      <CustomRangeDialog
+        open={customRangeOpen}
+        onClose={() => setCustomRangeOpen(false)}
+        initialStart={customDateRange.start}
+        initialEnd={customDateRange.end}
+        onSave={(start, end) => {
+          setCustomDateRange({ start, end });
+          setChartRange('Custom');
+        }}
       />
     </>
   );

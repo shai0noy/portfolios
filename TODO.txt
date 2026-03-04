@@ -22,8 +22,8 @@ Update test data (no more divs there) need DIV test data too
 DONE?: Add all potfolios + "total" portfolio as comperission options to tickers and to the analysis table. Make sure not to allow comperission of portfolio to itself in the summary component
 
 Low priority:
-- Smart layer based tax calc (FIFO selling and per layer taxing)
-- ON HOLD: Use Gemini for anlysis and insight
+- DONE?? Smart layer based tax calc (FIFO selling and per layer taxing)
+- DONE: Use Gemini for anlysis and insight
 - ON HOLD: Forcast mode, where future txns, vesting are taken into account, and growth of holding is predicted based on custom uesr input or recent trends. Should also include taxes
 - Support cash holding for IRS accounts
 

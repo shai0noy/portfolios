@@ -15,6 +15,8 @@ import { TickerChart, type ChartSeries } from '../TickerChart';
 import { calculatePortfolioPerformance, type PerformancePoint } from '../../lib/performance';
 import { useChartComparison, getAvailableRanges, getMaxLabel, type ComparisonOption } from '../../lib/hooks/useChartComparison';
 import { TickerSearch } from '../TickerSearch';
+import DateRangeIcon from '@mui/icons-material/DateRange';
+import { CustomRangeDialog } from '../CustomRangeDialog';
 import type { TickerProfile } from '../../lib/types/ticker';
 import { AnalysisDialog } from '../AnalysisDialog';
 import type { DashboardSummaryData } from '../../lib/dashboard';
@@ -71,6 +73,8 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
 
   const [compareMenuAnchor, setCompareMenuAnchor] = useState<null | HTMLElement>(null);
   const [analysisOpen, setAnalysisOpen] = useState(false);
+  const [customRangeOpen, setCustomRangeOpen] = useState(false);
+  const [customDateRange, setCustomDateRange] = useState<{ start: Date | null, end: Date | null }>({ start: null, end: null });
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isManualRef = useRef(false);
@@ -156,7 +160,14 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
   const portfolioSeries = useMemo<ChartSeries[]>(() => {
     if (perfData.length === 0) return [];
 
-    const clampedData = getClampedDataCallback(perfData, chartRange);
+    let clampedData = [];
+    if (chartRange === 'Custom') {
+      const { start, end } = customDateRange;
+      clampedData = perfData.filter(d => (!start || d.date >= start) && (!end || d.date <= end));
+    } else {
+      clampedData = getClampedDataCallback(perfData, chartRange);
+    }
+
     if (clampedData.length === 0) return [];
 
     const initialGain = clampedData.length > 0 ? clampedData[0].gainsValue : 0;
@@ -186,12 +197,14 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
     comparisonSeries.forEach(s => {
       series.push({
         ...s,
-        data: getClampedData(s.data, chartRange, oldestDate)
+        data: chartRange === 'Custom'
+          ? s.data.filter(d => (!customDateRange.start || d.date >= customDateRange.start) && (!customDateRange.end || d.date <= customDateRange.end))
+          : getClampedData(s.data, chartRange, oldestDate)
       });
     });
 
     return series;
-  }, [perfData, chartView, chartRange, comparisonSeries, getClampedDataCallback, getClampedData, t, effectiveChartMetric, oldestDate]);
+  }, [perfData, chartView, chartRange, comparisonSeries, getClampedDataCallback, getClampedData, t, effectiveChartMetric, oldestDate, customDateRange]);
 
   const fullPortfolioSeries = useMemo<ChartSeries | null>(() => {
     if (perfData.length === 0) return null;
@@ -478,7 +491,13 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                             <ToggleButtonGroup
                               value={chartRange}
                               exclusive
-                              onChange={(_, val) => val && setChartRange(val)}
+                              onChange={(_, val) => {
+                                if (val === 'Custom') {
+                                  setCustomRangeOpen(true);
+                                } else if (val) {
+                                  setChartRange(val);
+                                }
+                              }}
                               size="small"
                               sx={{ height: 26 }}
                             >
@@ -487,6 +506,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                                   {r === 'ALL' ? maxLabel : r}
                                 </ToggleButton>
                               ))}
+                              <ToggleButton value="Custom" sx={{ px: 1 }}><DateRangeIcon sx={{ fontSize: '1rem' }} /></ToggleButton>
                             </ToggleButtonGroup>
                           </Box>
                           {chartView === 'holdings' && isComparison && (
@@ -602,6 +622,16 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
         currency={displayCurrency}
         subjectName={selectedPortfolio ? t('Portfolio', 'התיק') : t('All Portfolios', 'כל התיקים')}
         isHoldingsView={chartView === 'holdings'}
+      />
+      <CustomRangeDialog
+        open={customRangeOpen}
+        onClose={() => setCustomRangeOpen(false)}
+        initialStart={customDateRange.start}
+        initialEnd={customDateRange.end}
+        onSave={(start, end) => {
+          setCustomDateRange({ start, end });
+          setChartRange('Custom');
+        }}
       />
     </>
   );

@@ -7,6 +7,125 @@ import { useTheme } from '@mui/material/styles';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
 import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
+import TimelineIcon from '@mui/icons-material/Timeline';
+import { Menu, MenuItem } from '@mui/material';
+
+export type TrendType = 'none' | 'linear' | 'exponential' | 'polynomial' | 'logarithmic';
+
+// Simple regression solver
+function solveUnivariableRegression(x: number[], y: number[], type: TrendType): ((v: number) => number) | null {
+    const n = x.length;
+    if (n < 2) return null;
+
+    // Linear: y = mx + c
+    if (type === 'linear') {
+        let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+        for (let i = 0; i < n; i++) {
+            sumX += x[i];
+            sumY += y[i];
+            sumXY += x[i] * y[i];
+            sumXX += x[i] * x[i];
+        }
+        const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+        const intercept = (sumY - slope * sumX) / n;
+        return (v: number) => slope * v + intercept;
+    }
+
+    // Exponential: y = A * e^(Bx) -> ln(y) = ln(A) + Bx
+    // Linear regression on (x, ln(y))
+    if (type === 'exponential') {
+        const yLog = y.map(v => v > 0 ? Math.log(v) : 0); // Handle non-positive?
+        // If any y <= 0, exponential fit is invalid/complex. 
+        // For simplicity, ignore or clamp? If chart has negative values, exponential fit is bad.
+        // Assuming we filter or handle it.
+        let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+        let validCount = 0;
+        for (let i = 0; i < n; i++) {
+            if (y[i] <= 0) continue;
+            validCount++;
+            const yL = Math.log(y[i]);
+            sumX += x[i];
+            sumY += yL;
+            sumXY += x[i] * yL;
+            sumXX += x[i] * x[i];
+        }
+        if (validCount < 2) return null;
+
+        const B = (validCount * sumXY - sumX * sumY) / (validCount * sumXX - sumX * sumX);
+        const lnA = (sumY - B * sumX) / validCount;
+        const A = Math.exp(lnA);
+        return (v: number) => A * Math.exp(B * v);
+    }
+
+    // Logarithmic: y = A + B * ln(x)
+    // Linear regression on (ln(x), y)
+    if (type === 'logarithmic') {
+        // x must be > 0. We shift x if needed in caller.
+        let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+        let validCount = 0;
+        for (let i = 0; i < n; i++) {
+            if (x[i] <= 0) continue;
+            validCount++;
+            const xL = Math.log(x[i]);
+            sumX += xL;
+            sumY += y[i];
+            sumXY += xL * y[i];
+            sumXX += xL * xL;
+        }
+        if (validCount < 2) return null;
+
+        const B = (validCount * sumXY - sumX * sumY) / (validCount * sumXX - sumX * sumX);
+        const A = (sumY - B * sumX) / validCount;
+        return (v: number) => (v > 0 ? A + B * Math.log(v) : 0);
+    }
+
+    // Polynomial (Cubic for now): y = a + bx + cx^2 + dx^3
+    if (type === 'polynomial') {
+        // Simplified: use a library or basic matrix solver? 
+        // Implementing a full matrix solver is verbose.
+        // Let's stick to simple least squares for degree 3?
+        // Gaussian elimination implementation required.
+        // For brevity, maybe fit quadratic? Or just small matrix solver.
+
+        // Let's implement a tiny Gaussian elimination for degree 3 (4 coefficients).
+        const order = 3;
+        const matrixSize = order + 1;
+        const matrix: number[][] = Array(matrixSize).fill(0).map(() => Array(matrixSize + 1).fill(0));
+
+        for (let i = 0; i < n; i++) {
+            for (let r = 0; r < matrixSize; r++) {
+                for (let c = 0; c < matrixSize; c++) {
+                    matrix[r][c] += Math.pow(x[i], r + c);
+                }
+                matrix[r][matrixSize] += y[i] * Math.pow(x[i], r);
+            }
+        }
+
+        // Solve
+        for (let i = 0; i < matrixSize; i++) {
+            let pivot = matrix[i][i];
+            for (let j = i + 1; j < matrixSize; j++) {
+                const factor = matrix[j][i] / pivot;
+                for (let k = i; k <= matrixSize; k++) {
+                    matrix[j][k] -= factor * matrix[i][k];
+                }
+            }
+        }
+
+        const coeffs = Array(matrixSize).fill(0);
+        for (let i = matrixSize - 1; i >= 0; i--) {
+            let sum = 0;
+            for (let j = i + 1; j < matrixSize; j++) {
+                sum += matrix[i][j] * coeffs[j];
+            }
+            coeffs[i] = (matrix[i][matrixSize] - sum) / matrix[i][i];
+        }
+
+        return (v: number) => coeffs[0] + coeffs[1] * v + coeffs[2] * v * v + coeffs[3] * v * v * v;
+    }
+
+    return null;
+}
 
 
 export interface ChartSeries {
@@ -26,6 +145,8 @@ interface TickerChartProps {
     topControls?: React.ReactNode;
     scaleType?: 'linear' | 'log';
     onScaleTypeChange?: (type: 'linear' | 'log') => void;
+    trendType?: TrendType;
+    onTrendTypeChange?: (type: TrendType) => void;
 }
 
 interface ChartPoint {
@@ -33,6 +154,7 @@ interface ChartPoint {
     price: number;
     adjClose?: number;
     yValue: number;
+    trendValue?: number; // Added
     highlightedY?: number;
     [key: string]: any;
 }
@@ -221,6 +343,14 @@ const CustomTooltip = ({ active, payload, currency, t, basePrice, isComparison, 
                     <Typography variant="body2" sx={{ fontWeight: hideCurrentPrice ? 'bold' : 'normal', color: percentChange >= 0 ? 'success.main' : 'error.main' }}>
                         {formatPercent(percentChange)}
                     </Typography>
+                )}
+                {point.trendValue !== undefined && (
+                    <Box sx={{ mt: 1, pt: 1, borderTop: 1, borderColor: 'divider', display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+                        <Typography variant="caption" color="text.secondary">Trend:</Typography>
+                        <Typography variant="caption" fontWeight="bold">
+                            {mode === 'percent' ? formatPercent(point.trendValue) : (valueType === 'value' ? formatValue(point.trendValue, currency, undefined, t) : formatPrice(point.trendValue, currency, undefined, t))}
+                        </Typography>
+                    </Box>
                 )}
             </Paper>
         );
@@ -419,7 +549,7 @@ const SelectionSummary = ({ startPoint, endPoint, currency, t, isComparison, ser
     );
 };
 
-export function TickerChart({ series, currency, mode = 'percent', valueType = 'price', height = 300, hideCurrentPrice, allowFullscreen = true, topControls, scaleType: propScaleType, onScaleTypeChange }: TickerChartProps) {
+export function TickerChart({ series, currency, mode = 'percent', valueType = 'price', height = 300, hideCurrentPrice, allowFullscreen = true, topControls, scaleType: propScaleType, onScaleTypeChange, trendType: propTrendType, onTrendTypeChange }: TickerChartProps) {
     const FADE_MS = 170;          // Speed of the opacity transition
     const TRANSFORM_MS = 360;     // Speed of the line movement (Very fast)
     const BUFFER_MS = 30;        // Safety window for browser paint
@@ -450,6 +580,11 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
     const [internalScaleType, setInternalScaleType] = useState<'linear' | 'log'>('linear');
     const scaleType = propScaleType ?? internalScaleType;
     const setScaleType = onScaleTypeChange ?? setInternalScaleType;
+
+    const [internalTrendType, setInternalTrendType] = useState<TrendType>('none');
+    const trendType = propTrendType ?? internalTrendType;
+    const setTrendType = onTrendTypeChange ?? setInternalTrendType;
+    const [trendMenuAnchor, setTrendMenuAnchor] = useState<null | HTMLElement>(null);
 
     const mainSeries = displaySeries?.[0];
     const isComparison = displaySeries.length > 1;
@@ -671,8 +806,65 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
         // Re-memoize ChartData when scaleType changes to ensure yValue is updated (1+pct vs pct)
     }, [displaySeries, currentMode, mainSeries, mode, scaleType]);
 
+
+    // Calculate Trend Line
+    const dataWithTrend = useMemo(() => {
+        const sourceData = chartData;
+        if (trendType === 'none' || sourceData.length < 2) return sourceData;
+
+        // Prepare Linear Data for Regression (Extract normalized X and raw Y)
+        const firstTime = sourceData[0].date.getTime();
+
+        // Create full list of points with X/Y pre-calculated
+        const fullPoints = sourceData.map(d => ({
+            d, // keep original reference
+            x: (d.date.getTime() - firstTime) / (1000 * 60 * 60 * 24), // Days since start
+            y: currentMode === 'percent' ? (d.pctValue ?? d.yValue) : (d.adjClose || d.price)
+        }));
+
+        // Filter for valid points to build the regression model
+        const validPoints = fullPoints.filter(p => typeof p.y === 'number' && isFinite(p.y));
+
+        if (validPoints.length < 2) return sourceData;
+
+        const xArr = validPoints.map(p => p.x);
+        const yArr = validPoints.map(p => p.y);
+
+        // Logarithmic regression needs x > 0. Shift x by +1 (Day 1).
+        if (trendType === 'logarithmic') {
+            for (let i = 0; i < xArr.length; i++) xArr[i] += 1;
+        }
+
+        const regressionFn = solveUnivariableRegression(xArr, yArr, trendType);
+
+        if (!regressionFn) return sourceData;
+
+        // Apply regression to ALL points (even those with missing/invalid original Y, we can extrapolate)
+        return fullPoints.map((p, i) => {
+            let xVal = p.x;
+            if (trendType === 'logarithmic') xVal += 1;
+
+            let predictedY = regressionFn(xVal);
+
+            // Now we must transform predictedY if we are in a mode that transforms Y for display
+            // Specifically: SymLog in percent mode.
+            // If scaleType=log and currentMode=percent -> apply symlog transform
+            let displayY = predictedY;
+
+            if (currentMode === 'percent' && scaleType === 'log') {
+                // Symlog transform: sign(y) * log10(1 + abs(y))
+                displayY = Math.sign(predictedY) * Math.log10(1 + Math.abs(predictedY));
+            }
+
+            return {
+                ...p.d,
+                trendValue: displayY
+            } as ChartPoint;
+        });
+    }, [chartData, trendType, currentMode, scaleType]);
+
     const { dataMin, dataMax, volMax } = useMemo(() => {
-        if (!chartData || chartData.length === 0) return { dataMin: 0, dataMax: 0, volMax: 0 };
+        if (!dataWithTrend || dataWithTrend.length === 0) return { dataMin: 0, dataMax: 0, volMax: 0 };
         let min = Infinity;
         let max = -Infinity;
         let vMax = 0;
@@ -684,8 +876,9 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
             }
         };
 
-        chartData.forEach((p) => {
+        dataWithTrend.forEach((p) => {
             updateMinMax(p.yValue);
+            if (p.trendValue !== undefined) updateMinMax(p.trendValue);
 
             if (currentMode === 'candle') {
                 if (p.high != null) updateMinMax(p.high);
@@ -702,7 +895,7 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
 
         if (min === Infinity || max === -Infinity) return { dataMin: 0, dataMax: 0, volMax: 0 };
         return { dataMin: min, dataMax: max, volMax: vMax };
-    }, [chartData, currentMode]);
+    }, [dataWithTrend, currentMode]);
 
     // Data-dependent Log Scale Support
     const isLogSupported = useMemo(() => {
@@ -727,7 +920,7 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
     }, [isLogSupported, scaleType]);
 
     const { yMin, yMax } = useMemo(() => {
-        if (!chartData || chartData.length === 0) return { yMin: 0, yMax: 0 };
+        if (!dataWithTrend || dataWithTrend.length === 0) return { yMin: 0, yMax: 0 };
 
         let min = dataMin;
         let max = dataMax;
@@ -741,7 +934,7 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
             calculatedMin = min / 1.05;
             calculatedMax = max * 1.05;
         } else {
-        // Linear padding
+            // Linear padding
             const padding = (max - min) * 0.05;
             const effectivePadding = padding === 0 ? (Math.abs(max) * 0.05 || 0.01) : padding;
             calculatedMin = min - effectivePadding;
@@ -749,7 +942,7 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
         }
 
         return { yMin: calculatedMin, yMax: calculatedMax };
-    }, [chartData, dataMin, dataMax, activeScale]);
+    }, [dataWithTrend, dataMin, dataMax, activeScale]);
 
     const formatYAxis = useCallback((tick: number) => {
         if (currentMode === 'price' || currentMode === 'candle') {
@@ -776,7 +969,7 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
     }, [yMin, yMax, currentMode, currency, t, scaleType, activeScale, valueType, useSymLog]);
 
     const findClosestPoint = useCallback((date: number): ChartPoint | null => {
-        const data = chartData;
+        const data = dataWithTrend;
         if (!data || data.length === 0) return null;
         // Optimization: Binary search for O(log N) lookup
         let low = 0;
@@ -800,7 +993,7 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
             return data[low - 1];
         }
         return data[low];
-    }, [chartData]);
+    }, [dataWithTrend]);
 
     const handleClick = useCallback((e: any) => {
         if (!e || !e.activeLabel) return;
@@ -828,23 +1021,24 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
     const [startPoint, endPoint] = selectionPoints;
 
     const finalData = useMemo(() => {
-        if (!startPoint || !endPoint || startPoint === endPoint) return chartData;
+        if (!startPoint || !endPoint || startPoint === endPoint) return dataWithTrend;
 
-        const startIndex = chartData.indexOf(startPoint);
-        const endIndex = chartData.indexOf(endPoint);
+        const startIndex = dataWithTrend.indexOf(startPoint);
+        const endIndex = dataWithTrend.indexOf(endPoint);
 
-        if (startIndex === -1 || endIndex === -1) return chartData;
+        if (startIndex === -1 || endIndex === -1) return dataWithTrend;
 
         // Optimization: Recycle objects outside the range, map only the range
+        // Optimization: Recycle objects outside the range, map only the range
         return [
-            ...chartData.slice(0, startIndex),
-            ...chartData.slice(startIndex, endIndex + 1).map((p) => ({ ...p, highlightedY: p.yValue })),
-            ...chartData.slice(endIndex + 1)
+            ...dataWithTrend.slice(0, startIndex),
+            ...dataWithTrend.slice(startIndex, endIndex + 1).map((p) => ({ ...p, highlightedY: p.yValue })),
+            ...dataWithTrend.slice(endIndex + 1)
         ];
-    }, [chartData, startPoint, endPoint]);
+    }, [dataWithTrend, startPoint, endPoint]);
 
-    const xMin = chartData.length > 0 ? chartData[0].date.getTime() : null;
-    const xMax = chartData.length > 0 ? chartData[chartData.length - 1].date.getTime() : null;
+    const xMin = dataWithTrend.length > 0 ? dataWithTrend[0].date.getTime() : null;
+    const xMax = dataWithTrend.length > 0 ? dataWithTrend[dataWithTrend.length - 1].date.getTime() : null;
 
     const xAxisTicks = useMemo(() => {
         if (!xMin || !xMax) return undefined;
@@ -901,7 +1095,7 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
         return ticks;
     }, [xMin, xMax, dateRangeDays]);
 
-    if (!mainSeries?.data || mainSeries.data.length < 2 || chartData.length < 2) {
+    if (!mainSeries?.data || mainSeries.data.length < 2 || dataWithTrend.length < 2) {
         return (
             <Box sx={{
                 width: '100%',
@@ -1027,6 +1221,42 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                                 <ToggleButton value="log" sx={{ px: 1, py: 0, fontSize: '0.7rem' }}>LOG</ToggleButton>
                             </ToggleButtonGroup>
                         )}
+
+                        {!onTrendTypeChange && (
+                            <IconButton
+                                size="small"
+                                onClick={(e) => setTrendMenuAnchor(e.currentTarget)}
+                                sx={{
+                                    bgcolor: trendType !== 'none' ? 'rgba(255,255,255,0.1)' : 'transparent',
+                                    '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' }
+                                }}
+                            >
+                                <TimelineIcon fontSize="small" color={trendType !== 'none' ? 'primary' : 'inherit'} />
+                            </IconButton>
+                        )}
+                        {!onTrendTypeChange && (
+                            <Menu
+                                anchorEl={trendMenuAnchor}
+                                open={Boolean(trendMenuAnchor)}
+                                onClose={() => setTrendMenuAnchor(null)}
+                            >
+                                <MenuItem onClick={() => { setTrendType('none'); setTrendMenuAnchor(null); }} selected={trendType === 'none'}>
+                                    {t('No Trend', 'ללא מגמה')}
+                                </MenuItem>
+                                <MenuItem onClick={() => { setTrendType('linear'); setTrendMenuAnchor(null); }} selected={trendType === 'linear'}>
+                                    {t('Linear', 'ליניארי')}
+                                </MenuItem>
+                                <MenuItem onClick={() => { setTrendType('exponential'); setTrendMenuAnchor(null); }} selected={trendType === 'exponential'}>
+                                    {t('Exponential', 'אקספוננציאלי')}
+                                </MenuItem>
+                                <MenuItem onClick={() => { setTrendType('polynomial'); setTrendMenuAnchor(null); }} selected={trendType === 'polynomial'}>
+                                    {t('Cubic', 'פולינום (3)')}
+                                </MenuItem>
+                                <MenuItem onClick={() => { setTrendType('logarithmic'); setTrendMenuAnchor(null); }} selected={trendType === 'logarithmic'}>
+                                    {t('Logarithmic', 'לוגריתמי')}
+                                </MenuItem>
+                            </Menu>
+                        )}
                     </Box>
                     {allowFullscreen && (
                         <IconButton
@@ -1041,46 +1271,53 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                         </IconButton>
                     )}
                 </Box>
-            )}
+            )
+            }
 
-            {isFullscreen && (
-                <Dialog
-                    fullScreen
-                    open={isFullscreen}
-                    onClose={() => setIsFullscreen(false)}
-                    PaperProps={{
-                        sx: {
-                            bgcolor: 'background.default',
-                            backgroundImage: 'none',
-                            display: 'flex',
-                            flexDirection: 'column'
-                        }
-                    }}
-                >
-                    <Box sx={{ p: 1, px: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: 1, borderColor: 'divider' }}>
-                        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
-                            {topControls}
+            {
+                isFullscreen && (
+                    <Dialog
+                        fullScreen
+                        open={isFullscreen}
+                        onClose={() => setIsFullscreen(false)}
+                        PaperProps={{
+                            sx: {
+                                bgcolor: 'background.default',
+                                backgroundImage: 'none',
+                                display: 'flex',
+                                flexDirection: 'column'
+                            }
+                        }}
+                    >
+                        <Box sx={{ p: 1, px: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: 1, borderColor: 'divider' }}>
+                            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+                                {topControls}
+                            </Box>
+                            <IconButton onClick={() => setIsFullscreen(false)}>
+                                <FullscreenExitIcon />
+                            </IconButton>
                         </Box>
-                        <IconButton onClick={() => setIsFullscreen(false)}>
-                            <FullscreenExitIcon />
-                        </IconButton>
-                    </Box>
-                    <DialogContent sx={{ flex: 1, p: 2, pt: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                        <Box sx={{ flex: 1, minHeight: 0 }}>
-                            <TickerChart
-                                series={series}
-                                currency={currency}
-                                mode={mode}
-                                valueType={valueType}
-                                height="100%"
-                                hideCurrentPrice={hideCurrentPrice}
-                                allowFullscreen={false}
-                                topControls={null} // Don't double render controls inside the inner chart
-                            />
-                        </Box>
-                    </DialogContent>
-                </Dialog>
-            )}
+                        <DialogContent sx={{ flex: 1, p: 2, pt: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                            <Box sx={{ flex: 1, minHeight: 0 }}>
+                                <TickerChart
+                                    series={series}
+                                    currency={currency}
+                                    mode={mode}
+                                    valueType={valueType}
+                                    height="100%"
+                                    hideCurrentPrice={hideCurrentPrice}
+                                    allowFullscreen={false}
+                                    topControls={null} // Don't double render controls inside the inner chart
+                                    scaleType={scaleType}
+                                    onScaleTypeChange={setScaleType}
+                                    trendType={trendType}
+                                    onTrendTypeChange={setTrendType}
+                                />
+                            </Box>
+                        </DialogContent>
+                    </Dialog>
+                )
+            }
             <Box sx={{ flex: 1, minHeight: 0, position: 'relative' }}>
                 <SelectionSummary startPoint={startPoint} endPoint={endPoint} currency={currency} t={t} isComparison={isComparison} series={displaySeries} mainLineColor={mainLineColor} mode={currentMode} hideCurrentPrice={hideCurrentPrice} />
                 <ResponsiveContainer width="100%" height="100%">
@@ -1144,7 +1381,19 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                                 barSize={8} // 2x volume width
                                 isAnimationActive={false}
                             />
-
+                            {trendType !== 'none' && (
+                                <Line
+                                    type="monotone"
+                                    yAxisId="price"
+                                    dataKey="trendValue"
+                                    stroke={theme.palette.warning.main}
+                                    strokeWidth={2}
+                                    strokeDasharray="5 5"
+                                    dot={false}
+                                    activeDot={false}
+                                    isAnimationActive={false}
+                                />
+                            )}
                         </ComposedChart>
                     ) : (
                         <AreaChart
@@ -1210,6 +1459,29 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                                 />
                             ))}
 
+                                <Line
+                                    type="monotone"
+                                    dataKey="yValue"
+                                    stroke={`url(#${gradientId})`}
+                                    strokeWidth={2}
+                                    dot={false}
+                                    activeDot={{ r: 4, strokeWidth: 0 }}
+                                    animationDuration={TRANSFORM_MS}
+                                    isAnimationActive={true}
+                                />
+                                {trendType !== 'none' && (
+                                    <Line
+                                        type="monotone"
+                                        dataKey="trendValue"
+                                        stroke={theme.palette.warning.main}
+                                        strokeWidth={2}
+                                        strokeDasharray="5 5"
+                                        dot={false}
+                                        activeDot={false}
+                                        isAnimationActive={false}
+                                    />
+                                )}
+
                             <Area
                                 type="monotone"
                                 dataKey="yValue"
@@ -1259,6 +1531,6 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                     )}
                 </ResponsiveContainer>
             </Box>
-        </Box>
+        </Box >
     );
 }
