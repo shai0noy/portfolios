@@ -2,6 +2,7 @@
 import {
     Currency, Exchange, type Transaction, type Portfolio, type ExchangeRates, InstrumentType, type DashboardSummaryData, isBuy, isSell
 } from '../types';
+import { coerceDate } from '../date';
 import { Holding, getCPI, computeRealTaxableGain, type DividendRecord } from './model';
 import { getTaxRatesForDate, getFeeRatesForDate, isRealGainTaxed } from '../portfolioUtils';
 import { convertCurrency, normalizeCurrency, calculatePerformanceInDisplayCurrency } from '../currencyUtils';
@@ -115,7 +116,9 @@ export class FinanceEngine {
 
         // Sort chronologically
         events.sort((a, b) => {
-            const timeDiff = new Date(a.data.date).getTime() - new Date(b.data.date).getTime();
+            const dateA = coerceDate(a.data.date);
+            const dateB = coerceDate(b.data.date);
+            const timeDiff = (dateA?.getTime() || 0) - (dateB?.getTime() || 0);
             if (timeDiff !== 0) return timeDiff;
 
             // Same Date: Priority Sort
@@ -535,11 +538,13 @@ export class FinanceEngine {
         let unvested = 0;
 
         for (const t of h.transactions) {
-            if (new Date(t.date).getTime() > time) continue;
+            const dT = coerceDate(t.date);
+            if (dT && dT.getTime() > time) continue;
 
             if (isBuy(t.type)) {
                 const qty = t.qty || 0;
-                const isVested = !t.vestDate || new Date(t.vestDate).getTime() <= time;
+                const dVest = t.vestDate ? coerceDate(t.vestDate) : null;
+                const isVested = !dVest || dVest.getTime() <= time;
                 if (isVested) vested += qty;
                 else unvested += qty;
             }

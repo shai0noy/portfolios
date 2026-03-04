@@ -4,6 +4,7 @@ import { loadFinanceEngine } from './data/loader';
 import { clearAllCache } from './fetching/utils/cache';
 import { SessionExpiredError } from './errors';
 import { useSession } from './SessionContext';
+import { coerceDate } from './date';
 // import { Currency } from './types'; // Unused
 
 import type { DashboardHolding, DashboardSummaryData, Portfolio, ExchangeRates } from './types';
@@ -48,7 +49,10 @@ export function useDashboardData(sheetId: string) {
 
       const today = new Date();
       // Use the new getter for transactions in FinanceEngine
-      const future = eng.transactions.some(t => new Date(t.date) > today);
+      const future = eng.transactions.some(t => {
+        const d = coerceDate(t.date);
+        return d && d > today;
+      });
       setHasFutureTxns(future);
 
       setHoldings(Array.from(eng.holdings.values()) as unknown as DashboardHolding[]);

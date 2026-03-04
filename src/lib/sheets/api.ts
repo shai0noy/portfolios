@@ -2,7 +2,7 @@
 import { ensureGapi, findSpreadsheetByName } from '../google';
 import { clearFinanceCache } from '../data/loader';
 import { getTickerData, type TickerData } from '../fetching';
-import { toGoogleSheetDateFormat } from '../date';
+import { toGoogleSheetDateFormat, coerceDate } from '../date';
 import {
     Exchange,
     isBuy,
@@ -118,40 +118,40 @@ export const ensureSchema = withAuthHandling(async (spreadsheetId: string) => {
                 createHeaderUpdateRequest(sheetIds[DIV_SHEET_NAME], dividendHeaders as unknown as Headers),
                 createHeaderUpdateRequest(sheetIds[TRACKING_LISTS_SHEET_NAME], trackingListsHeaders as unknown as Headers),
 
-                // 3. Format Date columns in Transaction Log (A=date, K=vestDate, P=Creation_Date) to YYYY-MM-DD
+                // 3. Format Date columns in Transaction Log (A=date, K=vestDate, P=Creation_Date) to DD-MM-YYYY
                 // This ensures dates entered via code or UI appear correctly in the sheet.
                 {
                     repeatCell: {
                         range: { sheetId: sheetIds[TX_SHEET_NAME], startColumnIndex: 0, endColumnIndex: 1, startRowIndex: 1 },
-                        cell: { userEnteredFormat: { numberFormat: { type: 'DATE', pattern: 'yyyy-mm-dd' } } },
+                        cell: { userEnteredFormat: { numberFormat: { type: 'DATE', pattern: 'dd-mm-yyyy' } } },
                         fields: 'userEnteredFormat.numberFormat'
                     }
                 },
                 {
                     repeatCell: {
                         range: { sheetId: sheetIds[TX_SHEET_NAME], startColumnIndex: 10, endColumnIndex: 11, startRowIndex: 1 },
-                        cell: { userEnteredFormat: { numberFormat: { type: 'DATE', pattern: 'yyyy-mm-dd' } } },
+                        cell: { userEnteredFormat: { numberFormat: { type: 'DATE', pattern: 'dd-mm-yyyy' } } },
                         fields: 'userEnteredFormat.numberFormat'
                     }
                 },
                 {
                     repeatCell: {
-                        range: { sheetId: sheetIds[TX_SHEET_NAME], startColumnIndex: 15, endColumnIndex: 16, startRowIndex: 1 },
-                        cell: { userEnteredFormat: { numberFormat: { type: 'DATE', pattern: 'yyyy-mm-dd' } } },
+                        range: { sheetId: sheetIds[TX_SHEET_NAME], startColumnIndex: 14, endColumnIndex: 15, startRowIndex: 1 },
+                        cell: { userEnteredFormat: { numberFormat: { type: 'DATE', pattern: 'dd-mm-yyyy' } } },
                         fields: 'userEnteredFormat.numberFormat'
                     }
                 },
                 {
                     repeatCell: {
                         range: { sheetId: sheetIds[DIV_SHEET_NAME], startColumnIndex: 2, endColumnIndex: 3, startRowIndex: 1 },
-                        cell: { userEnteredFormat: { numberFormat: { type: 'DATE', pattern: 'yyyy-mm-dd' } } },
+                        cell: { userEnteredFormat: { numberFormat: { type: 'DATE', pattern: 'dd-mm-yyyy' } } },
                         fields: 'userEnteredFormat.numberFormat'
                     }
                 },
                 {
                     repeatCell: {
                         range: { sheetId: sheetIds[TRACKING_LISTS_SHEET_NAME], startColumnIndex: 3, endColumnIndex: 4, startRowIndex: 1 },
-                        cell: { userEnteredFormat: { numberFormat: { type: 'DATE', pattern: 'yyyy-mm-dd' } } },
+                        cell: { userEnteredFormat: { numberFormat: { type: 'DATE', pattern: 'dd-mm-yyyy' } } },
                         fields: 'userEnteredFormat.numberFormat'
                     }
                 }
@@ -422,8 +422,15 @@ export const fetchTransactions = withAuthHandling(async (spreadsheetId: string):
             t.type = String(t.type).trim().toUpperCase() as TransactionType;
         }
 
+        const normalizedDate = coerceDate(t.date);
+        const normalizedVestDate = t.vestDate ? coerceDate(t.vestDate) : null;
+        const normalizedCreationDate = t.creationDate ? coerceDate(t.creationDate) : null;
+
         return {
             ...t,
+            date: normalizedDate ? normalizedDate.toISOString().split('T')[0] : t.date,
+            vestDate: normalizedVestDate ? normalizedVestDate.toISOString().split('T')[0] : t.vestDate,
+            creationDate: normalizedCreationDate ? normalizedCreationDate.toISOString().split('T')[0] : t.creationDate,
             qty: cleanNumber(t.splitAdjustedQty || t.originalQty),
             price: cleanNumber(t.splitAdjustedPrice || t.originalPrice)
         } as Transaction;
@@ -634,7 +641,7 @@ export const fetchDividends = withAuthHandling(async (spreadsheetId: string, tic
                 if (typeof rawDate === 'number') {
                     date = new Date((rawDate - 25569) * 86400 * 1000);
                 } else {
-                    date = new Date(rawDate);
+                    date = coerceDate(rawDate) || new Date(0);
                 }
                 return {
                     date,
@@ -666,7 +673,7 @@ export const fetchAllDividends = withAuthHandling(async (spreadsheetId: string):
             if (typeof rawDate === 'number') {
                 date = new Date((rawDate - 25569) * 86400 * 1000);
             } else {
-                date = new Date(rawDate);
+                date = coerceDate(rawDate) || new Date(0);
             }
 
             let exchange: Exchange | undefined;
@@ -722,7 +729,8 @@ export const syncDividends = withAuthHandling(async (spreadsheetId: string, tick
                 const date = new Date((row[2] - 25569) * 86400 * 1000);
                 rowDate = date.toISOString().split('T')[0];
             } else {
-                rowDate = new Date(row[2]).toISOString().split('T')[0];
+                const d = coerceDate(row[2]);
+                rowDate = d ? d.toISOString().split('T')[0] : '';
             }
 
             const rowAmount = Number(row[3]).toFixed(6);

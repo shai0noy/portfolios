@@ -73,7 +73,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   const [vestingMonth, setVestingMonth] = useState<number>(new Date().getMonth());
   const [vestingYear, setVestingYear] = useState<number>(new Date().getFullYear());
   const [previewTxns, setPreviewTxns] = useState<Transaction[] | null>(null);
-  
+
   const [qty, setQty] = useState<string>('');
 
   // Sell Existing Holding Flow State
@@ -175,17 +175,8 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
             setHasManuallyEditedPrice(true);
             setPortId(editTxn.portfolioId);
             setType(editTxn.type as any); // BUY/SELL/FEE/DIVIDEND
-            setDate(editTxn.date); // Assuming stored as ISO string YYYY-MM-DD or readable? toGoogleSheetDateFormat converts to DD/MM/YYYY. 
-
-            const parseSheetDate = (d: string) => {
-              if (d.match(/^\d{4}-\d{2}-\d{2}$/)) return d;
-              if (d.includes('/')) {
-                const [day, month, year] = d.split('/');
-                return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-              }
-              return d;
-            };
-            setDate(parseSheetDate(editTxn.date));
+            const d = coerceDate(editTxn.date);
+            setDate(d ? d.toISOString().split('T')[0] : '');
             setQty(editTxn.originalQty?.toString() || '');
             setPrice(editTxn.originalPrice?.toString() || '');
             // Calculate total?
@@ -1503,13 +1494,13 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                                   <NumericField label={t("Total Value", "שווי כולל")} field="total" value={total} onChange={v => handleTotalChange(v)} />
                                 </Grid>
 
-                                                                                                <Grid item xs={12} sm={8}>
-                                  <NumericField 
-                                    label={t("Vesting Start (Month/Year)", "תחילת הבשלה (חודש/שנה)")} 
-                                    field="vestingYear" 
-                                    value={vestingYear.toString()} 
-                                    onChange={v => setVestingYear(parseInt(v.toString()) || new Date().getFullYear())} 
-                                    required 
+                                <Grid item xs={12} sm={8}>
+                                  <NumericField
+                                    label={t("Vesting Start (Month/Year)", "תחילת הבשלה (חודש/שנה)")}
+                                    field="vestingYear"
+                                    value={vestingYear.toString()}
+                                    onChange={v => setVestingYear(parseInt(v.toString()) || new Date().getFullYear())}
+                                    required
                                     InputLabelProps={{ shrink: true }}
                                     startAdornment={
                                       <InputAdornment position="start">
@@ -1519,13 +1510,13 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                                           size="small"
                                           variant="standard"
                                           disableUnderline
-                                          sx={{ 
-                                            mr: 1, 
+                                          sx={{
+                                            mr: 1,
                                             fontSize: '0.875rem',
                                             '& .MuiSelect-select': { py: 0 }
                                           }}
                                         >
-                                          {[0,1,2,3,4,5,6,7,8,9,10,11].map(m => (
+                                          {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(m => (
                                             <MenuItem key={m} value={m}>{t(monthNames[m], "") || monthNames[m]}</MenuItem>
                                           ))}
                                         </Select>
@@ -1562,13 +1553,13 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                                   />
                                 </Grid>
 
-                                                                <Grid item xs={12} sm={8}>
-                                  <NumericField 
-                                    label={t("Vesting Spread Period", "תקופת פריסת הבשלה")} 
-                                    field="grantDuration" 
-                                    value={grantDuration} 
-                                    onChange={v => setGrantDuration(v.toString())} 
-                                    required 
+                                <Grid item xs={12} sm={8}>
+                                  <NumericField
+                                    label={t("Vesting Spread Period", "תקופת פריסת הבשלה")}
+                                    field="grantDuration"
+                                    value={grantDuration}
+                                    onChange={v => setGrantDuration(v.toString())}
+                                    required
                                     InputLabelProps={{ shrink: true }}
                                     endAdornment={
                                       <InputAdornment position="end">
@@ -1589,12 +1580,12 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                                   />
                                 </Grid>
 
-                                                                <Grid item xs={6} sm={4}>
+                                <Grid item xs={6} sm={4}>
                                   <FormControl size="small" fullWidth>
                                     <InputLabel>{t("Vesting Frequency", "תדירות הבשלה")}</InputLabel>
-                                    <Select 
-                                      value={grantFrequency} 
-                                      onChange={e => setGrantFrequency(e.target.value as any)} 
+                                    <Select
+                                      value={grantFrequency}
+                                      onChange={e => setGrantFrequency(e.target.value as any)}
                                       label={t("Vesting Frequency", "תדירות הבשלה")}
                                     >
                                       <MenuItem value="MONTHLY">{t("Monthly", "חודשי")}</MenuItem>
@@ -1718,20 +1709,20 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                                   field="price"
                                   value={price}
                                   onChange={handlePriceChange}
-                                    endAdornment={
-                                      <>
-                                        {tickerCurrency === 'ILA' && <InputAdornment position="end">{t('ag.', "א'")}</InputAdornment>}
-                                        {(priceAtDate !== null && parseFloat(price).toString() !== priceAtDate.toString()) && (
-                                          <InputAdornment position="end">
-                                            <Tooltip title={`${t('Reset to closing price on', 'אפס למחיר סגירה ב-')} ${date}: ${priceAtDate.toFixed(2)}`}>
-                                              <IconButton size="small" onClick={handleResetPrice} edge="end">
-                                                <RestoreIcon fontSize="small" />
-                                              </IconButton>
-                                            </Tooltip>
-                                          </InputAdornment>
-                                        )}
-                                      </>
-                                    }
+                                  endAdornment={
+                                    <>
+                                      {tickerCurrency === 'ILA' && <InputAdornment position="end">{t('ag.', "א'")}</InputAdornment>}
+                                      {(priceAtDate !== null && parseFloat(price).toString() !== priceAtDate.toString()) && (
+                                        <InputAdornment position="end">
+                                          <Tooltip title={`${t('Reset to closing price on', 'אפס למחיר סגירה ב-')} ${date}: ${priceAtDate.toFixed(2)}`}>
+                                            <IconButton size="small" onClick={handleResetPrice} edge="end">
+                                              <RestoreIcon fontSize="small" />
+                                            </IconButton>
+                                          </Tooltip>
+                                        </InputAdornment>
+                                      )}
+                                    </>
+                                  }
                                   startAdornment={tickerCurrency !== 'ILA' ? <InputAdornment position="start">{tickerCurrency}</InputAdornment> : undefined}
                                   error={!!validationErrors.price}
                                   required
@@ -1775,20 +1766,20 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                                   field="price"
                                   value={price}
                                   onChange={handlePriceChange}
-                                      endAdornment={
-                                        <>
-                                          {tickerCurrency === 'ILA' && <InputAdornment position="end">{t('ag.', "א'")}</InputAdornment>}
-                                          {(priceAtDate !== null && parseFloat(price).toString() !== priceAtDate.toString()) && (
-                                            <InputAdornment position="end">
-                                              <Tooltip title={`${t('Reset to closing price on', 'אפס למחיר סגירה ב-')} ${date}: ${priceAtDate.toFixed(2)}`}>
-                                                <IconButton size="small" onClick={handleResetPrice} edge="end">
-                                                  <RestoreIcon fontSize="small" />
-                                                </IconButton>
-                                              </Tooltip>
-                                            </InputAdornment>
-                                          )}
-                                        </>
-                                      }
+                                  endAdornment={
+                                    <>
+                                      {tickerCurrency === 'ILA' && <InputAdornment position="end">{t('ag.', "א'")}</InputAdornment>}
+                                      {(priceAtDate !== null && parseFloat(price).toString() !== priceAtDate.toString()) && (
+                                        <InputAdornment position="end">
+                                          <Tooltip title={`${t('Reset to closing price on', 'אפס למחיר סגירה ב-')} ${date}: ${priceAtDate.toFixed(2)}`}>
+                                            <IconButton size="small" onClick={handleResetPrice} edge="end">
+                                              <RestoreIcon fontSize="small" />
+                                            </IconButton>
+                                          </Tooltip>
+                                        </InputAdornment>
+                                      )}
+                                    </>
+                                  }
                                   startAdornment={tickerCurrency !== 'ILA' ? <InputAdornment position="start">{tickerCurrency}</InputAdornment> : undefined}
                                   error={!!validationErrors.price}
                                   required
@@ -1848,10 +1839,10 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                           )}
                           <Grid item xs={12} sm={(!selectedTicker?.isFeeExempt && selectedTicker?.type?.type !== InstrumentType.MONETARY_FUND) ? 6 : 12}>
                             <Tooltip title="Date when these shares vest (if applicable for RSUs/Options).">
-                                  <DateField
-                                    label="Vesting Date"
-                                    value={vestDate}
-                                    onChange={v => setVestDate(v)}
+                              <DateField
+                                label="Vesting Date"
+                                value={vestDate}
+                                onChange={v => setVestDate(v)}
                               />
                             </Tooltip>
                           </Grid>
