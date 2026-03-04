@@ -1,0 +1,520 @@
+npm warn Unknown builtin config "globalignorefile". This will stop working in the next major version of npm.
+
+[1m[46m RUN [49m[22m [36mv4.0.18 [39m[90m/home/shain/Portfolios/portfolios[39m
+
+ [31m❯[39m dist-phantom/lib/performance_period.test.js [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m dist-phantom/lib/dashboard.test.js [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m dist-phantom/lib/performance_repro.test.js [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m dist-phantom/lib/unvested_gain.test.js [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m dist-phantom/lib/utils/analysis.test.js [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m dist-phantom/lib/data/engine.test.js [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m dist-phantom/lib/gain_currency.test.js [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m dist-phantom/lib/performance_edges.test.js [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m dist-phantom/lib/performance.test.js [2m([22m[2m0 test[22m[2m)[22m
+[90mstdout[2m | src/lib/utils/analysis.test.ts
+[22m[39m
+--- Test: Synchronize Series (Strict Date Matching) ---
+✅ PASS: Synced series length matches intersection
+✅ PASS: Pair 1 correct
+✅ PASS: Pair 2 correct
+
+--- Test: Synchronize Three Series ---
+✅ PASS: Synced series length should be 1
+✅ PASS: Triple values correct
+
+--- Test: Perfect Correlation ---
+✅ PASS: Correlation is 1.0
+✅ PASS: R^2 is 1.0
+✅ PASS: Beta is 2.0
+✅ PASS: Alpha is 5.0
+
+--- Test: Inverse Correlation ---
+✅ PASS: Correlation is -1.0
+✅ PASS: Beta is -1.0
+
+--- Test: No Correlation (Flat Y) ---
+✅ PASS: Correlation is 0
+✅ PASS: Beta is 0
+
+--- Test: Normalize to Start ---
+✅ PASS: Length matches
+✅ PASS: Start is 1.0
+✅ PASS: Point 2 is 2.0
+✅ PASS: Point 3 is 0.5
+
+--- Test: Calculate Returns ---
+✅ PASS: Should have 2 return periods
+✅ PASS: Return 1 X correct
+✅ PASS: Return 2 X correct
+
+--- Test: Downside Beta ---
+Overall Beta: 1.25
+✅ PASS: Downside Beta should be 0.5
+
+--- Test: Downside Alpha ---
+✅ PASS: Downside Beta for alpha test should be 1.0
+✅ PASS: Downside Alpha should be 0.006
+
+--- Test: Sharpe Ratio ---
+✅ PASS: Sharpe Ratio Calculation
+
+🎉 All analysis tests passed!
+
+ [31m❯[39m src/lib/utils/analysis.test.ts [2m([22m[2m0 test[22m[2m)[22m
+[90mstdout[2m | src/lib/data/repro_phantom_tax.test.ts[2m > [22m[2mFinanceEngine - Phantom Tax Reproduction[2m > [22m[2mshould NOT charge tax on a loss even if currency fluctuation looks like a gain (Never Lose Rule)
+[22m[39mNominal Gain ILS: [33m5000[39m
+Unrealized Tax Liability: [33m0[39m
+Active Lot Cost USD: [90mundefined[39m
+
+[90mstdout[2m | src/lib/data/repro_phantom_tax.test.ts[2m > [22m[2mFinanceEngine - Phantom Tax Reproduction[2m > [22m[2mshould ignore currency fluctuation in NOMINAL_GAIN mode (Foreign)
+[22m[39mNOMINAL Mode - Nominal Gain ILS: [33m10000[39m
+NOMINAL Mode - Tax Liability: [33m0[39m
+
+[90mstdout[2m | src/lib/data/repro_phantom_tax.test.ts[2m > [22m[2mFinanceEngine - Phantom Tax Reproduction[2m > [22m[2mshould apply "Never Lose" to Domestic CPI assets (Deflation)
+[22m[39mDeflation - Nominal Gain ILS: [33m1000[39m
+Deflation - Taxable Gain ILS: [33m1000[39m
+
+[90mstdout[2m | src/lib/data/repro_phantom_tax.test.ts[2m > [22m[2mFinanceEngine - Phantom Tax Reproduction[2m > [22m[2mshould handle USD stock bought in ILS without Phantom Tax (requires fixed USD Cost)
+[22m[39mILS Buy - Nominal Gain ILS: [33m5000[39m
+ILS Buy - Taxable: [33m0[39m
+Active Lot Cost USD: [90mundefined[39m
+
+[90mstdout[2m | src/lib/data/repro_phantom_tax.test.ts[2m > [22m[2mFinanceEngine - Phantom Tax Reproduction[2m > [22m[2mshould be Conservative on Double Loss (Foreign Deflation + Price Drop)
+[22m[39mDouble Loss - Nominal: [33m-236.25[39m
+Double Loss - Taxable: [33m-6750[39m
+
+ [31m❯[39m src/lib/data/adjusted_cost.test.ts [2m([22m[2m3 tests[22m[2m | [22m[31m2 failed[39m[2m)[22m[32m 22[2mms[22m[39m
+     [32m✓[39m should calculate CPI-adjusted cost for Domestic (ILS) assets[32m 7[2mms[22m[39m
+[31m     [31m×[31m should calculate Currency-adjusted cost for Foreign (USD) assets when ILS devalues (Inflation)[39m[32m 9[2mms[22m[39m
+[31m     [31m×[31m should calculate Currency-adjusted cost for Foreign (USD) assets when ILS appreciates (Deflation)[39m[32m 3[2mms[22m[39m
+[90mstdout[2m | src/lib/data/repro_phantom_tax.test.ts[2m > [22m[2mFinanceEngine - Phantom Tax Reproduction[2m > [22m[2mshould have Positive Tax on Negative Gain IF incTax (RSU) is present
+[22m[39mRSU Loss - Gain ILS: [33m-4000[39m
+RSU Loss - Tax ILS: [33m-1000[39m
+
+[90mstdout[2m | src/lib/data/repro_phantom_tax.test.ts[2m > [22m[2mFinanceEngine - Phantom Tax Reproduction[2m > [22m[2mshould Reproduce "Positive Tax on Negative Gain" via Foreign Nominal Mismatch
+[22m[39mMismatch - Nominal Gain ILS: [33m-7000[39m
+Mismatch - Tax ILS: [33m750[39m
+
+ [31m❯[39m src/lib/data/repro_phantom_tax.test.ts [2m([22m[2m7 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[32m 52[2mms[22m[39m
+     [32m✓[39m should NOT charge tax on a loss even if currency fluctuation looks like a gain (Never Lose Rule)[32m 17[2mms[22m[39m
+     [32m✓[39m should ignore currency fluctuation in NOMINAL_GAIN mode (Foreign)[32m 2[2mms[22m[39m
+     [32m✓[39m should apply "Never Lose" to Domestic CPI assets (Deflation)[32m 3[2mms[22m[39m
+     [32m✓[39m should handle USD stock bought in ILS without Phantom Tax (requires fixed USD Cost)[32m 3[2mms[22m[39m
+     [32m✓[39m should be Conservative on Double Loss (Foreign Deflation + Price Drop)[32m 4[2mms[22m[39m
+[31m     [31m×[31m should have Positive Tax on Negative Gain IF incTax (RSU) is present[39m[32m 16[2mms[22m[39m
+     [32m✓[39m should Reproduce "Positive Tax on Negative Gain" via Foreign Nominal Mismatch[32m 3[2mms[22m[39m
+[90mstdout[2m | src/lib/data/engine_weekend_rates.test.ts[2m > [22m[2mengine correctly falls back to previous rate for weekend transactions
+[22m[39mHoldings keys: [ [32m'p1_AAPL'[39m ]
+
+[90mstderr[2m | src/lib/data/engine_weekend_rates.test.ts[2m > [22m[2mengine correctly falls back to previous rate for weekend transactions
+[22m[39mconvertCurrency: Invalid amount: NaN
+
+ [32m✓[39m src/lib/data/engine_weekend_rates.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m src/lib/data/unvested_calc.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 21[2mms[22m[39m
+ [32m✓[39m src/lib/data/engine.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 38[2mms[22m[39m
+ [32m✓[39m src/lib/data/underlying_assets.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 31[2mms[22m[39m
+ [32m✓[39m src/lib/data/rsu_policy.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 28[2mms[22m[39m
+ [32m✓[39m src/lib/dashboard_movers.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 26[2mms[22m[39m
+[90mstdout[2m | src/lib/holding_calculations.test.ts[2m > [22m[2mHolding Calculations
+[22m[39m
+--- Test: Unrealized Gain Logic (Nominal Gain in ILS) ---
+ILS: Value 4400 - Cost 3500 = Gain 900
+✅ PASS: ILS Gain is correct (Nominal 900)
+USD: Value 1100 - Cost 1000 = Gain 100
+✅ PASS: USD Gain is correct (100)
+
+🎉 Holding Calculation Tests Passed!
+
+ [32m✓[39m src/lib/holding_calculations.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 20[2mms[22m[39m
+ [32m✓[39m src/lib/data/tax_logic_alignment.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+[90mstdout[2m | src/lib/performance.test.ts[2m > [22m[2mPerformance Tests
+[22m[39m
+--- Test: Basic Buy & Hold (USD Stock, USD Display) ---
+
+[90mstdout[2m | src/lib/performance_edges.test.ts[2m > [22m[2mcalculatePortfolioPerformance - Edge Cases[2m > [22m[2mshould correctly handle Dividends in Total Gain
+[22m[39mmkFetch: Request NASDAQ:DIVSTART -> Key NASDAQ:DIVSTART, Found 2
+
+[90mstdout[2m | src/lib/performance.test.ts[2m > [22m[2mPerformance Tests
+[22m[39m✅ PASS: Point for buy date exists
+✅ PASS: MV at buy date
+✅ PASS: Gains at buy date
+✅ PASS: MV next day
+✅ PASS: Gains next day
+
+[90mstdout[2m | src/lib/performance.test.ts[2m > [22m[2mPerformance Tests
+[22m[39m
+--- Test: Currency Conversion (USD Stock, ILS Display) ---
+
+[90mstdout[2m | src/lib/performance.test.ts[2m > [22m[2mPerformance Tests
+[22m[39m✅ PASS: MV in ILS
+✅ PASS: Gains in ILS
+
+[90mstdout[2m | src/lib/performance.test.ts[2m > [22m[2mPerformance Tests
+[22m[39m
+--- Test: Partial Sell ---
+
+[90mstdout[2m | src/lib/performance.test.ts[2m > [22m[2mPerformance Tests
+[22m[39m✅ PASS: Gains before sell
+✅ PASS: MV after sell
+✅ PASS: Total gains after sell
+
+[90mstdout[2m | src/lib/performance_edges.test.ts[2m > [22m[2mcalculatePortfolioPerformance - Edge Cases[2m > [22m[2mshould correctly handle Fees in Total Gain
+[22m[39mmkFetch: Request NASDAQ:FEESTART -> Key NASDAQ:FEESTART, Found 2
+
+[90mstdout[2m | src/lib/performance_edges.test.ts[2m > [22m[2mcalculatePortfolioPerformance - Edge Cases[2m > [22m[2mshould handle Intraday Buy and Sell (Day Trading)
+[22m[39mmkFetch: Request NASDAQ:DAYTRADE -> Key NASDAQ:DAYTRADE, Found 2
+
+[90mstdout[2m | src/lib/performance.test.ts[2m > [22m[2mPerformance Tests
+[22m[39m
+--- Test: Dividends ---
+
+[90mstdout[2m | src/lib/performance.test.ts[2m > [22m[2mPerformance Tests
+[22m[39m✅ PASS: Gains with dividend
+
+[90mstdout[2m | src/lib/performance.test.ts[2m > [22m[2mPerformance Tests
+[22m[39m
+--- Test: DRIP (Dividend Reinvestment) ---
+
+[90mstdout[2m | src/lib/performance.test.ts[2m > [22m[2mPerformance Tests
+[22m[39m✅ PASS: Holdings Value (inc DRIP)
+✅ PASS: Cost Basis (inc DRIP)
+✅ PASS: Total Gains (Div Income)
+
+[90mstdout[2m | src/lib/performance.test.ts[2m > [22m[2mPerformance Tests
+[22m[39m✅ PASS: Total Gains (Accumulate Tax Free)
+
+[90mstdout[2m | src/lib/performance.test.ts[2m > [22m[2mPerformance Tests
+[22m[39m
+--- Test: TWR with Deposit (End of Day Flow) ---
+
+[90mstdout[2m | src/lib/performance_edges.test.ts[2m > [22m[2mcalculatePortfolioPerformance - Edge Cases[2m > [22m[2mshould handle Currency Fluctuation (Stock Flat, Currency Moves)
+[22m[39mmkFetch: Request LSE:EURSTOCK -> Key LSE:EURSTOCK, Found 2
+
+[90mstdout[2m | src/lib/performance.test.ts[2m > [22m[2mPerformance Tests
+[22m[39m✅ PASS: TWR should increase
+✅ PASS: TWR Calculation correct
+
+[90mstdout[2m | src/lib/performance.test.ts[2m > [22m[2mPerformance Tests
+[22m[39m
+--- Test: Missing Price Data (Forward Fill) ---
+
+[90mstdout[2m | src/lib/performance.test.ts[2m > [22m[2mPerformance Tests
+[22m[39m✅ PASS: Should generate a point even if price is missing for GAP
+✅ PASS: Should forward-fill last known price during gap
+
+[90mstdout[2m | src/lib/performance.test.ts[2m > [22m[2mPerformance Tests
+[22m[39m
+--- Test: Intraday Wash (Day Trading) ---
+
+[90mstdout[2m | src/lib/performance_repro.test.ts[2m > [22m[2mcalculatePeriodReturns - Reproduction[2m > [22m[2mshould verify Realized + Unrealized = Total Gain Value
+[22m[39mGenerated Points: [
+  { date: [32m'2024-01-01T00:00:00.000Z'[39m, val: [33m1000[39m },
+  { date: [32m'2024-01-02T00:00:00.000Z'[39m, val: [33m550[39m },
+  { date: [32m'2024-01-03T00:00:00.000Z'[39m, val: [33m600[39m },
+  { date: [32m'2026-03-04T00:00:00.000Z'[39m, val: [33m600[39m }
+]
+
+[90mstdout[2m | src/lib/performance.test.ts[2m > [22m[2mPerformance Tests
+[22m[39m✅ PASS: End of day holdings should be 0
+✅ PASS: Realized gain should be captured
+
+[90mstdout[2m | src/lib/performance.test.ts[2m > [22m[2mPerformance Tests
+[22m[39m
+--- Test: Zero Start TWR ---
+
+[90mstdout[2m | src/lib/performance.test.ts[2m > [22m[2mPerformance Tests
+[22m[39m✅ PASS: TWR should be 1.0 on funding day
+
+[90mstdout[2m | src/lib/performance.test.ts[2m > [22m[2mPerformance Tests
+[22m[39m
+--- Test: Historical Cost Basis (originalPriceILA) ---
+
+[90mstdout[2m | src/lib/performance_repro.test.ts[2m > [22m[2mcalculatePeriodReturns - Reproduction[2m > [22m[2mshould demonstrate TWR vs Dollar Gain discrepancy (High TWR, Low $ Gain)
+[22m[39mTWR Discrepancy Check: { aum: [33m1000200[39m, twr: [33m1[39m, actualGain: [33m100[39m, derivedGain: [33m500100[39m }
+Gain All from Calculation: [33m100[39m
+
+[90mstdout[2m | src/lib/performance.test.ts[2m > [22m[2mPerformance Tests
+[22m[39m✅ PASS: Holdings Value (Current Rate)
+✅ PASS: Cost Basis (Historical Rate)
+✅ PASS: Gains = Value - Historical Cost
+
+[90mstdout[2m | src/lib/performance.test.ts[2m > [22m[2mPerformance Tests
+[22m[39m[Test FIFO] Cost Basis: 20
+✅ PASS: FIFO Cost Basis (Should be 20)
+✅ PASS: Total Gains (Realized + Unrealized)
+
+[90mstdout[2m | src/lib/performance.test.ts[2m > [22m[2mPerformance Tests
+[22m[39m
+🎉 All performance tests passed!
+
+ [32m✓[39m src/lib/performance_edges.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 24[2mms[22m[39m
+ [32m✓[39m src/lib/performance.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 43[2mms[22m[39m
+ [32m✓[39m src/lib/data/engine_realized_gain.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 24[2mms[22m[39m
+ [32m✓[39m src/lib/performance_repro.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 35[2mms[22m[39m
+[90mstdout[2m | src/lib/fetching/matched_ticker.test.ts[2m > [22m[2mgetTickerData matching[2m > [22m[2mmatches numeric string ticker to securityId even if secId param is null
+[22m[39m[getTickerData] Found TASE profile for 12345: {
+  symbol: [32m'12345'[39m,
+  name: [32m'Test Fund'[39m,
+  exchange: [32m'TASE'[39m,
+  securityId: [33m12345[39m,
+  type: InstrumentClassification {
+    type: [32m'MUTUAL_FUND'[39m,
+    group: [32m'MUTUAL_FUND'[39m,
+    nameEn: [32m'Mutual Fund'[39m,
+    nameHe: [32m'קרן נאמנות'[39m,
+    specificType: [32m'Fund'[39m
+  },
+  meta: { type: [32m'TASE'[39m, securityId: [33m12345[39m }
+}
+
+ [31m❯[39m src/lib/data/holding_utils.test.ts [2m([22m[2m7 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[32m 46[2mms[22m[39m
+       [32m✓[39m returns default values for empty input[32m 5[2mms[22m[39m
+       [32m✓[39m aggregates values from multiple holdings correctly[32m 3[2mms[22m[39m
+       [32m✓[39m converts currencies correctly[32m 3[2mms[22m[39m
+[31m       [31m×[31m calculates weights correctly with patched values[39m[32m 24[2mms[22m[39m
+       [32m✓[39m groups lots correctly - transferred vs sold[32m 4[2mms[22m[39m
+     [32m✓[39m aggregates unvested value and quantity correctly[32m 1[2mms[22m[39m
+     [32m✓[39m handles mixed vested and unvested holdings[32m 1[2mms[22m[39m
+ [32m✓[39m src/lib/fetching/matched_ticker.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 45[2mms[22m[39m
+ [31m❯[39m src/lib/data/regression_calculations.test.ts [2m([22m[2m6 tests[22m[2m | [22m[31m4 failed[39m[2m)[22m[32m 66[2mms[22m[39m
+     [32m✓[39m should calculate Nominal Gain correctly using historical rates (Prevent $7 vs $5 bug)[32m 13[2mms[22m[39m
+     [32m✓[39m should track accurate cost basis in USD even when portfolio is ILS[32m 2[2mms[22m[39m
+[31m     [31m×[31m should use historical cost basis in GroupHoldingLayers (UI)[39m[32m 27[2mms[22m[39m
+[31m     [31m×[31m should correctly aggregate Real Cost vs Nominal Cost[39m[32m 6[2mms[22m[39m
+[31m     [31m×[31m should use historical values for Fees[39m[32m 4[2mms[22m[39m
+[31m     [31m×[31m should correctly aggregate Real Cost after Partial Sell[39m[32m 8[2mms[22m[39m
+ [32m✓[39m src/lib/data/model_exchange.test.ts [2m([22m[2m2 tests[22m[2m | [22m[33m1 skipped[39m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m src/lib/performance_period.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/lib/dashboard.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m src/lib/gain_currency.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/lib/unvested_gain.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/lib/fetching/utils/normalization.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Suites 10 [49m[22m[31m⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m dist-phantom/lib/dashboard.test.js[2m [ dist-phantom/lib/dashboard.test.js ][22m
+[31m[1mError[22m: Vitest cannot be imported in a CommonJS module using require(). Please use "import" instead.
+
+If you are using "import" in your source code, then it's possible it was bundled into require() automatically by your bundler. In that case, do not bundle CommonJS output since it will never work with Vitest, or use dynamic import() which is available in all CommonJS modules.[39m
+[90m [2m❯[22m Object.<anonymous> node_modules/vitest/index.cjs:[2m1:7[22m[39m
+[36m [2m❯[22m dist-phantom/lib/dashboard.test.js:[2m3:18[22m[39m
+    [90m  1| [39m[32m"use strict"[39m[33m;[39m
+    [90m  2| [39m[33mObject[39m[33m.[39m[34mdefineProperty[39m(exports[33m,[39m [32m"__esModule"[39m[33m,[39m { value[33m:[39m [35mtrue[39m })[33m;[39m
+    [90m  3| [39m[35mconst[39m vitest_1 [33m=[39m [34mrequire[39m([32m"vitest"[39m)[33m;[39m
+    [90m   | [39m                 [31m^[39m
+    [90m  4| [39m[35mconst[39m dashboard_1 [33m=[39m [34mrequire[39m([32m"./dashboard"[39m)[33m;[39m
+    [90m  5| [39m[35mconst[39m types_1 [33m=[39m [34mrequire[39m([32m"./types"[39m)[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/18]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m dist-phantom/lib/gain_currency.test.js[2m [ dist-phantom/lib/gain_currency.test.js ][22m
+[31m[1mError[22m: Vitest cannot be imported in a CommonJS module using require(). Please use "import" instead.
+
+If you are using "import" in your source code, then it's possible it was bundled into require() automatically by your bundler. In that case, do not bundle CommonJS output since it will never work with Vitest, or use dynamic import() which is available in all CommonJS modules.[39m
+[90m [2m❯[22m Object.<anonymous> node_modules/vitest/index.cjs:[2m1:7[22m[39m
+[36m [2m❯[22m dist-phantom/lib/gain_currency.test.js:[2m3:18[22m[39m
+    [90m  1| [39m[32m"use strict"[39m[33m;[39m
+    [90m  2| [39m[33mObject[39m[33m.[39m[34mdefineProperty[39m(exports[33m,[39m [32m"__esModule"[39m[33m,[39m { value[33m:[39m [35mtrue[39m })[33m;[39m
+    [90m  3| [39m[35mconst[39m vitest_1 [33m=[39m [34mrequire[39m([32m"vitest"[39m)[33m;[39m
+    [90m   | [39m                 [31m^[39m
+    [90m  4| [39m[35mconst[39m model_1 [33m=[39m [34mrequire[39m([32m"./data/model"[39m)[33m;[39m
+    [90m  5| [39m[35mconst[39m types_1 [33m=[39m [34mrequire[39m([32m"./types"[39m)[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/18]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m dist-phantom/lib/performance.test.js[2m [ dist-phantom/lib/performance.test.js ][22m
+[41m[1m FAIL [22m[49m dist-phantom/lib/performance_edges.test.js[2m [ dist-phantom/lib/performance_edges.test.js ][22m
+[41m[1m FAIL [22m[49m dist-phantom/lib/performance_period.test.js[2m [ dist-phantom/lib/performance_period.test.js ][22m
+[41m[1m FAIL [22m[49m dist-phantom/lib/performance_repro.test.js[2m [ dist-phantom/lib/performance_repro.test.js ][22m
+[31m[1mReferenceError[22m: exports is not defined[39m
+[90m [2m❯[22m dist-phantom/lib/performance.js:[2m2:23[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/18]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m dist-phantom/lib/unvested_gain.test.js[2m [ dist-phantom/lib/unvested_gain.test.js ][22m
+[31m[1mError[22m: Vitest cannot be imported in a CommonJS module using require(). Please use "import" instead.
+
+If you are using "import" in your source code, then it's possible it was bundled into require() automatically by your bundler. In that case, do not bundle CommonJS output since it will never work with Vitest, or use dynamic import() which is available in all CommonJS modules.[39m
+[90m [2m❯[22m Object.<anonymous> node_modules/vitest/index.cjs:[2m1:7[22m[39m
+[36m [2m❯[22m dist-phantom/lib/unvested_gain.test.js:[2m3:18[22m[39m
+    [90m  1| [39m[32m"use strict"[39m[33m;[39m
+    [90m  2| [39m[33mObject[39m[33m.[39m[34mdefineProperty[39m(exports[33m,[39m [32m"__esModule"[39m[33m,[39m { value[33m:[39m [35mtrue[39m })[33m;[39m
+    [90m  3| [39m[35mconst[39m vitest_1 [33m=[39m [34mrequire[39m([32m"vitest"[39m)[33m;[39m
+    [90m   | [39m                 [31m^[39m
+    [90m  4| [39m[35mconst[39m model_1 [33m=[39m [34mrequire[39m([32m"./data/model"[39m)[33m;[39m
+    [90m  5| [39m[35mconst[39m types_1 [33m=[39m [34mrequire[39m([32m"./types"[39m)[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/18]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m dist-phantom/lib/data/engine.test.js[2m [ dist-phantom/lib/data/engine.test.js ][22m
+[31m[1mError[22m: Vitest cannot be imported in a CommonJS module using require(). Please use "import" instead.
+
+If you are using "import" in your source code, then it's possible it was bundled into require() automatically by your bundler. In that case, do not bundle CommonJS output since it will never work with Vitest, or use dynamic import() which is available in all CommonJS modules.[39m
+[90m [2m❯[22m Object.<anonymous> node_modules/vitest/index.cjs:[2m1:7[22m[39m
+[36m [2m❯[22m dist-phantom/lib/data/engine.test.js:[2m3:18[22m[39m
+    [90m  1| [39m[32m"use strict"[39m[33m;[39m
+    [90m  2| [39m[33mObject[39m[33m.[39m[34mdefineProperty[39m(exports[33m,[39m [32m"__esModule"[39m[33m,[39m { value[33m:[39m [35mtrue[39m })[33m;[39m
+    [90m  3| [39m[35mconst[39m vitest_1 [33m=[39m [34mrequire[39m([32m"vitest"[39m)[33m;[39m
+    [90m   | [39m                 [31m^[39m
+    [90m  4| [39m[35mconst[39m engine_1 [33m=[39m [34mrequire[39m([32m"./engine"[39m)[33m;[39m
+    [90m  5| [39m[35mconst[39m types_1 [33m=[39m [34mrequire[39m([32m"../types"[39m)[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/18]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m dist-phantom/lib/utils/analysis.test.js[2m [ dist-phantom/lib/utils/analysis.test.js ][22m
+[31m[1mReferenceError[22m: exports is not defined[39m
+[90m [2m❯[22m dist-phantom/lib/utils/analysis.js:[2m5:23[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/18]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lib/utils/analysis.test.ts[2m [ src/lib/utils/analysis.test.ts ][22m
+[31m[1mError[22m: No test suite found in file /home/shain/Portfolios/portfolios/src/lib/utils/analysis.test.ts[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/18]⎯[22m[39m
+
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 8 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/lib/data/adjusted_cost.test.ts[2m > [22mAdjusted Cost Calculation (IL_REAL_GAIN)[2m > [22mshould calculate Currency-adjusted cost for Foreign (USD) assets when ILS devalues (Inflation)
+[31m[1mAssertionError[22m: expected 945.9459459459459 to be close to 1000, received difference is 54.05405405405406, but expected 0.05[39m
+[36m [2m❯[22m src/lib/data/adjusted_cost.test.ts:[2m105:29[22m[39m
+    [90m103| [39m
+    [90m104| [39m    [90m// Wait, if Adjusted Cost = 1000 USD.[39m
+    [90m105| [39m    [34mexpect[39m(h[33m?.[39madjustedCost)[33m.[39m[34mtoBeCloseTo[39m([34m1000[39m[33m,[39m [34m1[39m)[33m;[39m
+    [90m   | [39m                            [31m^[39m
+    [90m106| [39m
+    [90m107| [39m    [90m// Verification in ILS[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/18]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lib/data/adjusted_cost.test.ts[2m > [22mAdjusted Cost Calculation (IL_REAL_GAIN)[2m > [22mshould calculate Currency-adjusted cost for Foreign (USD) assets when ILS appreciates (Deflation)
+[31m[1mAssertionError[22m: expected 1000 to be close to 1081.08, received difference is 81.07999999999993, but expected 0.39716411736214075[39m
+[36m [2m❯[22m src/lib/data/adjusted_cost.test.ts:[2m162:29[22m[39m
+    [90m160| [39m    [90m// Adjusted (USD) = 4000 / 3.7 = 1081.08...[39m
+    [90m161| [39m
+    [90m162| [39m    [34mexpect[39m(h[33m?.[39madjustedCost)[33m.[39m[34mtoBeCloseTo[39m([34m1081.08[39m[33m,[39m [34m0.1[39m)[33m;[39m
+    [90m   | [39m                            [31m^[39m
+    [90m163| [39m  })[33m;[39m
+    [90m164| [39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/18]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lib/data/holding_utils.test.ts[2m > [22mholding_utils[2m > [22mcalculateHoldingWeights[2m > [22mcalculates weights correctly with patched values
+[31m[1mAssertionError[22m: expected +0 to be 100 // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 100[39m
+[31m+ 0[39m
+
+[36m [2m❯[22m src/lib/data/holding_utils.test.ts:[2m135:31[22m[39m
+    [90m133| [39m
+    [90m134| [39m            [35mconst[39m w1 [33m=[39m result[33m.[39m[34mfind[39m(r [33m=>[39m r[33m.[39mportfolioId [33m===[39m [32m'p1'[39m)[33m;[39m
+    [90m135| [39m            [34mexpect[39m(w1[33m![39m[33m.[39mvalue)[33m.[39m[34mtoBe[39m([34m100[39m)[33m;[39m
+    [90m   | [39m                              [31m^[39m
+    [90m136| [39m            expect(w1!.weightInPortfolio).toBeCloseTo(0.1); // 100 / 1…
+    [90m137| [39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/18]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lib/data/regression_calculations.test.ts[2m > [22mRegression Tests: Financial Calculations[2m > [22mshould use historical cost basis in GroupHoldingLayers (UI)
+[31m[1mAssertionError[22m: expected { amount: 100, currency: 'USD' } to be 100 // Object.is equality[39m
+
+[32m- Expected:[39m 
+100
+
+[31m+ Received:[39m 
+{
+  "amount": 100,
+  "currency": "USD",
+}
+
+[36m [2m❯[22m src/lib/data/regression_calculations.test.ts:[2m135:46[22m[39m
+    [90m133| [39m        [90m// Check Original Cost [39m
+    [90m134| [39m        [90m// Should be 100 (from valUSD), NOT 87.5[39m
+    [90m135| [39m        [34mexpect[39m(group[33m.[39mlayers[[34m0[39m][33m.[39moriginalCost)[33m.[39m[34mtoBe[39m([34m100[39m)[33m;[39m
+    [90m   | [39m                                             [31m^[39m
+    [90m136| [39m        
+    [90m137| [39m        [90m// Also check the stats summary[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/18]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lib/data/regression_calculations.test.ts[2m > [22mRegression Tests: Financial Calculations[2m > [22mshould correctly aggregate Real Cost vs Nominal Cost
+[31m[1mAssertionError[22m: expected { amount: 100, currency: 'ILS' } to be 100 // Object.is equality[39m
+
+[32m- Expected:[39m 
+100
+
+[31m+ Received:[39m 
+{
+  "amount": 100,
+  "currency": "ILS",
+}
+
+[36m [2m❯[22m src/lib/data/regression_calculations.test.ts:[2m172:34[22m[39m
+    [90m170| [39m
+    [90m171| [39m        [35mconst[39m group [33m=[39m result[[34m0[39m][33m;[39m
+    [90m172| [39m        [34mexpect[39m(group[33m.[39mstats[33m.[39mcost)[33m.[39m[34mtoBe[39m([34m100[39m)[33m;[39m [90m// Nominal[39m
+    [90m   | [39m                                 [31m^[39m
+    [90m173| [39m        [34mexpect[39m(group[33m.[39mstats[33m.[39mrealCost)[33m.[39m[34mtoBe[39m([34m120[39m)[33m;[39m [90m// Real[39m
+    [90m174| [39m    })[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/18]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lib/data/regression_calculations.test.ts[2m > [22mRegression Tests: Financial Calculations[2m > [22mshould use historical values for Fees
+[31m[1mTypeError[22m: actual value must be number or bigint, received "object"[39m
+[36m [2m❯[22m src/lib/data/regression_calculations.test.ts:[2m209:34[22m[39m
+    [90m207| [39m        [90m// feesBuy is aggregated into group.fees[39m
+    [90m208| [39m        // groupHoldingLayers aggregates: g.fees += getHistoricalMoney…
+    [90m209| [39m        [34mexpect[39m(group[33m.[39mstats[33m.[39mcost)[33m.[39m[34mtoBeGreaterThan[39m([34m0[39m)[33m;[39m
+    [90m   | [39m                                 [31m^[39m
+    [90m210| [39m        // We need to check `group.fees` if exposed, or check internal…
+    [90m211| [39m        [90m// unique key aggregation?[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/18]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lib/data/regression_calculations.test.ts[2m > [22mRegression Tests: Financial Calculations[2m > [22mshould correctly aggregate Real Cost after Partial Sell
+[31m[1mAssertionError[22m: expected { amount: 500, currency: 'ILS' } to be 500 // Object.is equality[39m
+
+[32m- Expected:[39m 
+500
+
+[31m+ Received:[39m 
+{
+  "amount": 500,
+  "currency": "ILS",
+}
+
+[36m [2m❯[22m src/lib/data/regression_calculations.test.ts:[2m262:38[22m[39m
+    [90m260| [39m        [90m// Nominal Cost Basis check[39m
+    [90m261| [39m        [90m// Original 1000. Sell 500. Remaining 500.[39m
+    [90m262| [39m        [34mexpect[39m(aggregated[33m.[39mcostBasis)[33m.[39m[34mtoBe[39m([34m500[39m)[33m;[39m
+    [90m   | [39m                                     [31m^[39m
+    [90m263| [39m
+    [90m264| [39m        [90m// Real Cost check[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/18]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lib/data/repro_phantom_tax.test.ts[2m > [22mFinanceEngine - Phantom Tax Reproduction[2m > [22mshould have Positive Tax on Negative Gain IF incTax (RSU) is present
+[31m[1mAssertionError[22m: expected -1000 to be greater than 0[39m
+[36m [2m❯[22m src/lib/data/repro_phantom_tax.test.ts:[2m275:24[22m[39m
+    [90m273| [39m        
+    [90m274| [39m        [34mexpect[39m(gainILS)[33m.[39m[34mtoBeLessThan[39m([34m0[39m)[33m;[39m
+    [90m275| [39m        [34mexpect[39m(taxILS)[33m.[39m[34mtoBeGreaterThan[39m([34m0[39m)[33m;[39m
+    [90m   | [39m                       [31m^[39m
+    [90m276| [39m    })[33m;[39m
+    [90m277| [39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[15/18]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m14 failed[39m[22m[2m | [22m[1m[32m19 passed[39m[22m[90m (33)[39m
+[2m      Tests [22m [1m[31m8 failed[39m[22m[2m | [22m[1m[32m78 passed[39m[22m[2m | [22m[33m1 skipped[39m[90m (87)[39m
+[2m   Start at [22m 12:10:39
+[2m   Duration [22m 3.57s[2m (transform 9.20s, setup 0ms, import 13.80s, tests 608ms, environment 14ms)[22m
+
+gpkg: ERROR: failed to get OAuth2 token for: shain. Try running gcert to request a fresh SSO full ticket
+
+*** gpkg: This tool is configured to use Corp Airlock for package installs: http://go/corp-airlock
+*** gpkg: If Corp Airlock is breaking your workflow please report at: http://go/corp-airlock-feedback
+*** gpkg: Exceptions are available: http://go/corp-airlock#request-exception

@@ -246,7 +246,7 @@ describe('FinanceEngine - Phantom Tax Reproduction', () => {
     });
 
     it('should have Positive Tax on Negative Gain IF incTax (RSU) is present', () => {
-        const pWithTax = { ...portfolio, incTax: 0.50 }; // 50% Income Tax on Cost (Grant)
+        const pWithTax = { ...portfolio, incTax: 0.50, taxPolicy: 'RSU_ACCOUNT' as TaxPolicy }; // 50% Income Tax on Cost (Grant)
         const engine = new FinanceEngine([pWithTax], mockRates as any, mockCPI as any);
         
         // Buy/Grant 100 @ 100. Cost 10,000.

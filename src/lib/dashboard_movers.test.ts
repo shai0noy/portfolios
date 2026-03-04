@@ -64,21 +64,10 @@ describe('calculateTopMovers', () => {
     expect(aaplMovers[0].pct).toBeCloseTo(0.05);
   });
 
-  it('should calculate weighted average pct for different personal performance', () => {
-    // H1: +10% on 1000 val => Start 909.09, Gain 90.9
-    // H2: +0% on 1000 val => Start 1000, Gain 0
-    // Total Start: 1909.09. Total End: 2000. Gain: 90.9.
-    // Pct: 90.9 / 1909.09 = 4.76%
+  it('should take the first holding performance (new logic)', () => {
+    const h1 = mockHolding('VOLT', 'p1', 1.0, 1, 100); // 100% gain
+    const h2 = mockHolding('VOLT', 'p2', 0.0, 1, 100); // 0% gain
 
-    // Wait, simplify:
-    // H1: +100% on 100 (Start 50). Gain 50.
-    // H2: +0% on 100 (Start 100). Gain 0.
-    // Total Start 150. Total End 200. Total Gain 50. Pct = 33.33%
-
-    const h1 = mockHolding('VOLT', 'p1', 1.0, 1, 100); // 100% gain, Curr 100 (was 50)
-    const h2 = mockHolding('VOLT', 'p2', 0.0, 1, 100); // 0% gain, Curr 100 (was 100)
-
-    // Force perf1w to differ
     h1.perf1w = 1.0;
     h2.perf1w = 0.0;
 
@@ -86,17 +75,15 @@ describe('calculateTopMovers', () => {
     const mover = result['1w'].find(m => m.ticker === 'VOLT');
 
     expect(mover).toBeDefined();
-    // Change: (50) + (0) = 50.
-    // Pct: 33.33%
-    expect(mover?.change).toBeCloseTo(50, 1);
-    expect(mover?.pct).toBeCloseTo(0.3333, 2);
+    // pct should be taken from the first holding (1.0)
+    expect(mover?.pct).toBeCloseTo(1.0, 2);
   });
 
   it('should filter movers by value threshold', () => {
-    const hBig = mockHolding('BIG', 'p1', 0.1, 10, 100); // Val 1000, Change ~90 (depends on math, let's say 100)
-    const hSmall = mockHolding('SML', 'p1', 0.1, 1, 100); // Val 100, Change ~9
+    const hBig = mockHolding('BIG', 'p1', 0.1, 10, 100); // Val 1000, Change ~90
+    const hSmall = mockHolding('SML', 'p1', 0.001, 1, 10); // Val 10, Change ~0.01 (< 1 threshold)
 
-    // Threshold is 25 USD for USD display currency
+    // Threshold is 1 USD for USD display currency
     const result = calculateTopMovers([hBig, hSmall], 'USD', exchangeRates, 'change');
 
     expect(result['1d'].find(m => m.ticker === 'BIG')).toBeDefined();
@@ -105,9 +92,9 @@ describe('calculateTopMovers', () => {
 
   it('should filter movers by pct threshold', () => {
     const hBigPct = mockHolding('BIGP', 'p1', 0.01, 100, 100); // 1% change
-    const hSmallPct = mockHolding('SMLP', 'p1', 0.0001, 100, 100); // 0.01% change
+    const hSmallPct = mockHolding('SMLP', 'p1', 0.00001, 100, 100); // 0.001% change
 
-    // Threshold is 0.05% (0.0005)
+    // Threshold is 0.01% (0.0001)
     const result = calculateTopMovers([hBigPct, hSmallPct], 'USD', exchangeRates, 'pct');
 
     expect(result['1d'].find(m => m.ticker === 'BIGP')).toBeDefined();
@@ -115,10 +102,10 @@ describe('calculateTopMovers', () => {
   });
 
   it('should use ILS threshold correctly', () => {
-    const h1 = mockHolding('ILS1', 'p1', 0.1, 1, 100); // Change ~9 USD = ~36 ILS (if rate 4)
+    const h1 = mockHolding('ILS1', 'p1', 0.01, 1, 10); // Change ~0.1 USD = ~0.4 ILS (if rate 4) < 1 ILS
     const h2 = mockHolding('ILS2', 'p1', 0.5, 1, 100); // Change ~33 USD = ~132 ILS
 
-    // threshold is 100 ILS
+    // threshold is 1 ILS
     const result = calculateTopMovers([h1, h2], 'ILS', exchangeRates, 'change');
 
     expect(result['1d'].find(m => m.ticker === 'ILS2')).toBeDefined();

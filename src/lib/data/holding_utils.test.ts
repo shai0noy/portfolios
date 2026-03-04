@@ -15,8 +15,8 @@ describe('holding_utils', () => {
     describe('aggregateHoldingValues', () => {
         it('returns default values for empty input', () => {
             const result = aggregateHoldingValues([], mockRates, Currency.USD);
-            expect(result.marketValue).toBe(0);
-            expect(result.totalGain).toBe(0);
+            expect(result.marketValue.amount).toBe(0);
+            expect(result.totalGain.amount).toBe(0);
         });
 
         it('aggregates values from multiple holdings correctly', () => {
@@ -50,11 +50,11 @@ describe('holding_utils', () => {
 
             const result = aggregateHoldingValues([h1 as Holding, h2 as Holding], mockRates, Currency.USD);
 
-            expect(result.marketValue).toBe(300); // 100 + 200
-            expect(result.costBasis).toBe(230); // 80 + 150
-            expect(result.unrealizedGain).toBe(70); // 20 + 50
+            expect(result.marketValue.amount).toBe(300); // 100 + 200
+            expect(result.costBasis.amount).toBe(230); // 80 + 150
+            expect(result.unrealizedGain.amount).toBe(70); // 20 + 50
             expect(result.totalQty).toBe(30);
-            expect(result.avgCost).toBeCloseTo(230 / 30);
+            expect(result.avgCost.amount).toBeCloseTo(230 / 30);
         });
 
         it('converts currencies correctly', () => {
@@ -75,9 +75,9 @@ describe('holding_utils', () => {
 
             const result = aggregateHoldingValues([h1 as Holding], mockRates, Currency.USD);
 
-            expect(result.marketValue).toBe(100); // 400 ILS / 4 = 100 USD
-            expect(result.costBasis).toBe(75); // 300 ILS / 4 = 75 USD
-            expect(result.unrealizedGain).toBe(25); // 100 ILS / 4 = 25 USD
+            expect(result.marketValue.amount).toBe(100); // 400 ILS / 4 = 100 USD
+            expect(result.costBasis.amount).toBe(75); // 300 ILS / 4 = 75 USD
+            expect(result.unrealizedGain.amount).toBe(25); // 100 ILS / 4 = 25 USD
         });
     });
 
@@ -117,8 +117,8 @@ describe('holding_utils', () => {
             // Weight = 100 / 1000 = 10%.
 
             const groupedLayersBase = [
-                { portfolioId: 'p1', stats: { value: 100 }, layers: [] } as any,
-                { portfolioId: 'p2', stats: { value: 400 }, layers: [] } as any
+                { portfolioId: 'p1', stats: { value: { amount: 100, currency: Currency.USD } }, layers: [] } as any,
+                { portfolioId: 'p2', stats: { value: { amount: 400, currency: Currency.USD } }, layers: [] } as any
             ];
 
             const result = calculateHoldingWeights(
@@ -227,12 +227,12 @@ describe('Vesting Logic', () => {
         const result = aggregateHoldingValues([h as Holding], mockRates, Currency.USD);
 
         // marketValue is accumulated from marketValueVested
-        expect(result.marketValue).toBe(1000);
-        expect(result.unvestedValue).toBe(500);
+        expect(result.marketValue.amount).toBe(1000);
+        expect(result.unvestedValue.amount).toBe(500);
         expect(result.totalQty).toBe(100); // Only Vested
 
         // Value After Tax = marketValue - unrealizedTax. (Does not include unvested?)
-        expect(result.valueAfterTax).toBe(1000);
+        expect(result.valueAfterTax.amount).toBe(1000);
     });
 
     it('handles mixed vested and unvested holdings', () => {
@@ -258,9 +258,9 @@ describe('Vesting Logic', () => {
 
         const result = aggregateHoldingValues([h1 as Holding, h2 as Holding], mockRates, Currency.USD);
 
-        expect(result.marketValue).toBe(100);
-        expect(result.unvestedValue).toBe(200);
+        expect(result.marketValue.amount).toBe(100);
+        expect(result.unvestedValue.amount).toBe(200);
         expect(result.totalQty).toBe(10); // Only Vested Qty (h1: 10, h2: 0)
-        expect(result.costBasis).toBe(50);
+        expect(result.costBasis.amount).toBe(50);
     });
 });

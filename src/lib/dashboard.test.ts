@@ -246,7 +246,7 @@ describe('Dashboard Summary Calculation', () => {
             currentPrice: 120,
             marketValueVested: { amount: 120, currency: Currency.USD },
             unrealizedGain: { amount: 20, currency: Currency.USD },
-            costBasisVested: { amount: 100, currency: Currency.USD },
+            costBasisVested: { amount: 100, currency: Currency.USD, valILS: 350, valUSD: 100 },
             dayChangePct: 0,
 
             vestedLots: [historicalLot as any],

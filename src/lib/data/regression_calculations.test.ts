@@ -132,10 +132,10 @@ describe('Regression Tests: Financial Calculations', () => {
         
         // Check Original Cost 
         // Should be 100 (from valUSD), NOT 87.5
-        expect(group.layers[0].originalCost).toBe(100);
+        expect(group.layers[0].originalCost.amount).toBe(100);
         
         // Also check the stats summary
-        expect(group.stats.cost).toBe(100);
+        expect(group.stats.cost.amount).toBe(100);
     });
 
     it('should correctly aggregate Real Cost vs Nominal Cost', () => {
@@ -169,8 +169,8 @@ describe('Regression Tests: Financial Calculations', () => {
         );
 
         const group = result[0];
-        expect(group.stats.cost).toBe(100); // Nominal
-        expect(group.stats.realCost).toBe(120); // Real
+        expect(group.stats.cost.amount).toBe(100); // Nominal
+        expect(group.stats.realCost.amount).toBe(120); // Real
     });
 
     it('should use historical values for Fees', () => {
@@ -206,7 +206,7 @@ describe('Regression Tests: Financial Calculations', () => {
         const group = result[0];
         // feesBuy is aggregated into group.fees
         // groupHoldingLayers aggregates: g.fees += getHistoricalMoney(lot.feesBuy)
-        expect(group.stats.cost).toBeGreaterThan(0);
+        expect(group.stats.cost.amount).toBeGreaterThan(0);
         // We need to check `group.fees` if exposed, or check internal logic.
         // unique key aggregation?
         // Actually groupHoldingLayers returns PortfolioGroup[]
@@ -259,13 +259,13 @@ describe('Regression Tests: Financial Calculations', () => {
 
         // Nominal Cost Basis check
         // Original 1000. Sell 500. Remaining 500.
-        expect(aggregated.costBasis).toBe(500);
+        expect(aggregated.costBasis.amount).toBe(500);
 
         // Real Cost check
         // Since no CPI/Forex change that differentiates (ILS->ILS, 1.0 rates), 
         // Real Cost should match Cost Basis here, but CRUCIALLY it must be 500, not 1000.
         // If the logic failed to exclude sold lots or failed to handle split, it might be wrong.
-        expect(aggregated.realCost).toBe(500);
+        expect(aggregated.realCost.amount).toBe(500);
 
         // To be absolutely sure about "Real Cost" aggregation logic explicitly:
         // Let's manually screw with the realCostILS of the active lot to ensure it picks it up.
@@ -278,6 +278,6 @@ describe('Regression Tests: Financial Calculations', () => {
         const aggregatedModified = aggregateHoldingValues([holding!], mockRates, Currency.ILS as any);
 
         // Should ONLY pick up the active lot's 999
-        expect(aggregatedModified.realCost).toBe(999);
+        expect(aggregatedModified.realCost.amount).toBe(999);
     });
 });

@@ -932,7 +932,11 @@ export class FinanceEngine {
 
 
             // Unvested Cost Calculation
-            const unvestedCostPC = h.activeLots.reduce((acc, l) => !l.isVested ? acc + l.costTotal.amount : acc, 0);
+            const unvestedCostPC = h.activeLots.reduce((acc, l) => {
+                if (l.isVested) return acc;
+                // Grant cost basis (grant price) is included to show relative gain/performance
+                return acc + l.costTotal.amount;
+            }, 0);
             const unvestedCost = convertCurrency(unvestedCostPC, h.portfolioCurrency, displayCurrency, this.exchangeRates);
             globalAcc.totalUnvestedCost += unvestedCost;
 

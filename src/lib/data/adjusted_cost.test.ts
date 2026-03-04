@@ -90,6 +90,8 @@ describe('Adjusted Cost Calculation (IL_REAL_GAIN)', () => {
 
     const engine = new FinanceEngine([p], mockExchangeRates, mockCPIData);
     engine.processEvents([txn], []);
+    const hold = engine.holdings.get('p2_AAPL');
+    if (hold) hold.currentPrice = 100;
     engine.calculateSnapshot(); // Snapshot in ILS to verify ILS values internally first?
     // Actually holding field `adjustedCost` is in Portfolio Currency (USD).
 
@@ -149,6 +151,8 @@ describe('Adjusted Cost Calculation (IL_REAL_GAIN)', () => {
     // Current Rate is 3.7 (from mockExchangeRates.current)
     const engine = new FinanceEngine([p], mockExchangeRates, mockCPIData);
     engine.processEvents([txn], []);
+    const hold = engine.holdings.get('p3_MSFT');
+    if (hold) hold.currentPrice = 150; // Set a price to ensure positive gain
     engine.calculateSnapshot();
 
     const h = engine.holdings.get('p3_MSFT');

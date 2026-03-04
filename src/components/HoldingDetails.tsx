@@ -210,32 +210,38 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
     // Pre-calculate Grant values for Stats
     const hasGrants = useMemo(() => layers.some(l => !!l.vestingDate || !!(l as any).vestDate), [layers]);
 
-    // Calculate unvested values
-    const { unvestedVal, unvestedGain } = useMemo(() => {
-        let uVal = 0;
-        let uGain = 0;
-        if (hasGrants) {
+    // Calculate unvested values in display currency directly to avoid currency mismatch
+    const { unvestedValDisplay, unvestedGainDisplay } = useMemo(() => {
+        let uValDisplay = 0;
+        let uGainDisplay = 0;
+        if (hasGrants && exchangeRates && stockCurrency && displayCurrency) {
             const currentPrice = (holding as any).currentPrice || (holding as any).price || 0;
             layers.forEach(l => {
                 const vDate = coerceDate(l.vestingDate || (l as any).vestDate);
                 if (vDate && vDate > new Date()) {
                     const qty = l.qty || 0;
-                    const layerVal = qty * currentPrice;
-                    const costVal = l.costPerUnit?.amount ?? (l as any).price ?? 0;
-                    const layerCost = qty * costVal;
-                    uVal += layerVal;
-                    uGain += (layerVal - layerCost);
+
+                    // Value in Display Currency
+                    const layerValSC = qty * currentPrice;
+                    const layerValDisplay = convertCurrency(layerValSC, stockCurrency, displayCurrency, exchangeRates);
+
+                    // Cost in Display Currency
+                    // l.costPerUnit is in portfolioCurrency
+                    const portfolioCurrency = (holding as any).portfolioCurrency || 'USD';
+                    const costPerUnitPC = l.costPerUnit?.amount ?? (l as any).price ?? 0;
+                    const layerCostPC = qty * costPerUnitPC;
+                    const layerCostDisplay = convertCurrency(layerCostPC, portfolioCurrency, displayCurrency, exchangeRates);
+
+                    uValDisplay += layerValDisplay;
+                    uGainDisplay += (layerValDisplay - layerCostDisplay);
                 }
             });
         }
-        return { unvestedVal: uVal, unvestedGain: uGain };
-    }, [hasGrants, layers, holding]);
+        return { unvestedValDisplay: uValDisplay, unvestedGainDisplay: uGainDisplay };
+    }, [hasGrants, layers, holding, exchangeRates, stockCurrency, displayCurrency]);
 
-    const unvestedValDisplay = (exchangeRates && stockCurrency && displayCurrency)
-        ? convertCurrency(unvestedVal, stockCurrency, displayCurrency, exchangeRates)
-        : 0;
-    const unvestedGainDisplay = (exchangeRates && stockCurrency && displayCurrency)
-        ? convertCurrency(unvestedGain, stockCurrency, displayCurrency, exchangeRates)
+    const unvestedGain = (exchangeRates && stockCurrency && displayCurrency)
+        ? convertCurrency(unvestedGainDisplay, displayCurrency, stockCurrency, exchangeRates)
         : 0;
     const vestedValDisplay = vals.marketValue;
 
