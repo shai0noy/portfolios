@@ -6,7 +6,7 @@ import {
 import { getTickersDataset } from '../lib/fetching';
 import type { TickerProfile } from '../lib/types/ticker';
 import { InstrumentGroup, INSTRUMENT_METADATA } from '../lib/types/instrument';
-import { type TrackingListItem, type Portfolio } from '../lib/types';
+import { type TrackingListItem, type Portfolio, Exchange } from '../lib/types';
 import SearchIcon from '@mui/icons-material/Search';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
 import StarIcon from '@mui/icons-material/Star';
@@ -203,7 +203,13 @@ export const TickerSearch = React.memo(function TickerSearch({ onTickerSelect, p
   const [inputValue, setInputValue] = useState(prefilledTicker || '');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
 
-  const [selectedExchange, setSelectedExchange] = useState(prefilledExchange || 'ALL');
+  const initialExchange = useMemo(() => {
+    if (!prefilledExchange) return 'ALL';
+    const upper = prefilledExchange.toUpperCase();
+    return upper === 'ALL' || Object.values(Exchange).includes(upper as any) ? upper : 'ALL';
+  }, [prefilledExchange]);
+  const [selectedExchange, setSelectedExchange] = useState(initialExchange);
+
   const [selectedGroup, setSelectedGroup] = useState<InstrumentGroup | 'ALL'>('ALL');
 
   const isIdle = collapsible && !inputValue && !isFocused;
@@ -252,7 +258,7 @@ export const TickerSearch = React.memo(function TickerSearch({ onTickerSelect, p
 
   // Trigger search on input change
   useEffect(() => {
-    if (isFocused && !isPortfoliosLoading && !isDatasetLoading) {
+    if ((isFocused || debouncedInput) && !isPortfoliosLoading && !isDatasetLoading) {
       if (!debouncedInput) {
         setSearchResults([]);
         return;

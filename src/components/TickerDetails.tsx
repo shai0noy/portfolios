@@ -373,8 +373,27 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
 
         <DialogContent sx={{ p: 2, display: 'flex', flexDirection: 'column', flex: 1 }}>
           {loading ? <Box display="flex" justifyContent="center" p={5}><CircularProgress /></Box> :
-            error ? <Typography color="error">{error}</Typography> :
-              !displayData && !resolvedName ? <Typography>{t('No data available.', 'אין נתונים זמינים.')}</Typography> :
+            (error || (!displayData && !resolvedName)) ? (
+              <Box sx={{ p: 3, textAlign: 'center', maxWidth: 600, mx: 'auto', width: '100%' }}>
+                <Typography variant="h6" color="error" gutterBottom>
+                  {error || t('No data available.', 'אין נתונים זמינים.')}
+                </Typography>
+                <Typography variant="body1" sx={{ mb: 4 }} color="text.secondary">
+                  {t('Please search for the correct ticker below:', 'אנא חפש את הנייר הנכון למטה:')}
+                </Typography>
+                <TickerSearch
+                  portfolios={portfolios}
+                  isPortfoliosLoading={isPortfoliosLoading}
+                  trackingLists={trackingLists}
+                  onTickerSelect={(profile) => {
+                    navigate(`/ticker/${profile.exchange}/${profile.symbol}`, { replace: true });
+                  }}
+                  prefilledTicker={resolvedTickerInput}
+                  prefilledExchange={resolvedExchangeInput && resolvedExchangeInput !== 'ALL' ? resolvedExchangeInput : undefined}
+                  sx={{ textAlign: 'left' }}
+                />
+              </Box>
+            ) :
                 <>
                   {activeTab === 'analysis' && (
                     <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>

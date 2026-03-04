@@ -37,7 +37,13 @@ export const useTickerDetails = ({ sheetId, ticker: propTicker, exchange: propEx
     const state = location.state as { from?: string, numericId?: string, initialName?: string, initialNameHe?: string, returnState?: any } | null;
 
     const ticker = propTicker || params.ticker;
-    const itemsExchange = parseExchange(propExchange || params.exchange || '');
+    const itemsExchange = useMemo(() => {
+        try {
+            return parseExchange(propExchange || params.exchange || '');
+        } catch (e) {
+            return undefined;
+        }
+    }, [propExchange, params.exchange]);
     // Removed forced normalization to NASDAQ to support NYSE auto-correction
     const exchange = itemsExchange;
     const explicitNumericId = propNumericId || params.numericId || state?.numericId;
@@ -243,7 +249,7 @@ export const useTickerDetails = ({ sheetId, ticker: propTicker, exchange: propEx
     const ownedInPortfolios = useMemo(() => ticker ? getOwnedInPortfolios(ticker, portfolios, exchange) : undefined, [ticker, portfolios, exchange]);
 
     const externalLinks = useMemo(() => {
-        if (!ticker) return [];
+        if (!ticker || !exchange) return [];
         const links = [];
         const nid = numericId || data?.numericId || holdingData?.numericId;
         const clenaedHeName = resolvedNameHe?.replace(/[^a-zA-Z0-9א-ת ]/g, '').replace(/ /g, '-');
