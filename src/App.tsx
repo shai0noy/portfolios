@@ -6,9 +6,14 @@ import { PortfolioManager } from './components/PortfolioManager';
 import { Dashboard } from './components/Dashboard';
 import { ImportCSV } from './components/ImportCSV';
 import { TickerDetails } from './components/TickerDetails';
-import { ensureSchema, populateTestData, fetchTransactions, rebuildHoldingsSheet, getMetadataValue, SHEET_STRUCTURE_VERSION_DATE } from './lib/sheets/index';
+import { ensureSchema, populateTestData, fetchTransactions, rebuildHoldingsSheet, getMetadataValue } from './lib/sheets/index';
 import { initializeGapi, signOut, signIn } from './lib/google';
-import { Box, AppBar, Toolbar, Typography, Container, Tabs, Tab, IconButton, CircularProgress, ThemeProvider, CssBaseline, Menu, MenuItem, Snackbar, Alert, ListItemIcon, ListItemText, Button, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions } from '@mui/material';
+import {
+  Box, AppBar, Toolbar, Typography, Container, Tabs, Tab, IconButton, CircularProgress,
+  ThemeProvider, CssBaseline, Snackbar, Alert, ListItemIcon, ListItemText,
+  Button, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions,
+  Drawer, List, ListItem, ListItemButton, ListSubheader, Collapse, Divider
+} from '@mui/material';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import BuildIcon from '@mui/icons-material/Build';
@@ -18,14 +23,19 @@ import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
 import MenuIcon from '@mui/icons-material/Menu';
 import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
-import ColorBlind from '@mui/icons-material/VisibilityOff';
+import ExpandLess from '@mui/icons-material/ExpandLess';
+import ExpandMore from '@mui/icons-material/ExpandMore';
+import SettingsIcon from '@mui/icons-material/Settings';
+import LanguageIcon from '@mui/icons-material/Language';
+import PaletteIcon from '@mui/icons-material/Palette';
+import ManageAccountsIcon from '@mui/icons-material/ManageAccounts';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import VpnKeyIcon from '@mui/icons-material/VpnKey';
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import { getTheme } from './theme';
-import { usePortfolios } from './lib/hooks'; // Assuming we'll create this hook or reuse existing logic
+import { usePortfolios } from './lib/hooks';
 import { exportDashboardData } from './lib/exporter';
 import { clearAllCache } from './lib/fetching/utils/cache';
-import { ApiKeyDialog } from './components/ApiKeyDialog';
-import VpnKeyIcon from '@mui/icons-material/VpnKey';
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 
 import { useLanguage } from './lib/i18n';
 import { CacheProvider } from '@emotion/react';
@@ -33,6 +43,9 @@ import createCache from '@emotion/cache';
 import rtlPlugin from 'stylis-plugin-rtl';
 import { prefixer } from 'stylis';
 import { SessionProvider, useSession } from './lib/SessionContext';
+import { ProfileForm, type UserFinancialProfile } from './components/ProfileForm';
+import { setMetadataValue } from './lib/sheets/api';
+import { ApiKeyDialog } from './components/ApiKeyDialog'; const ColorBlind = VisibilityOffIcon;
 
 const tabMap: Record<string, number> = {
   '/dashboard': 0,
@@ -47,7 +60,6 @@ const reverseTabMap: Record<number, string> = {
   2: '/portfolios',
 };
 
-// Create rtl cache
 const cacheRtl = createCache({
   key: 'muirtl',
   stylisPlugins: [prefixer, rtlPlugin],
@@ -64,12 +76,13 @@ function App() {
     </SessionProvider>
   );
 }
+
 function AppContent() {
   const [sheetId, setSheetId] = useState<string | null>(() => {
     const saved = localStorage.getItem('g_sheet_id');
     return saved === 'null' ? null : saved;
   });
-  const [refreshKey, setRefreshKey] = useState(0); // Trigger to reload data
+  const [refreshKey, setRefreshKey] = useState(0); 
   const [googleReady, setGoogleReady] = useState<boolean | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [mode, setMode] = useState<'light' | 'dark'>(() => (localStorage.getItem('themeMode') as 'light' | 'dark') || 'light');
@@ -84,66 +97,75 @@ function AppContent() {
   const location = useLocation();
   const navigate = useNavigate();
 
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [snackbarSeverity, setSnackbarSeverity] = useState<'success' | 'error' | 'info'>('info');
+  const [snackbarAction, setSnackbarAction] = useState<React.ReactNode | null>(null);
+
+  const [mobileMenuAnchorEl, setMobileMenuAnchorEl] = useState<null | HTMLElement>(null);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [appearanceOpen, setAppearanceOpen] = useState(false);
+  const [exportCollapseOpen, setExportCollapseOpen] = useState(false);
+
+  const [openProfile, setOpenProfile] = useState(false);
+  const [userProfile, setUserProfile] = useState<UserFinancialProfile>({});
+  const [loadingProfile, setLoadingProfile] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+
   useEffect(() => {
-    let scrollTimer: number | null = null;
-    const handleScroll = () => {
-      document.body.classList.add('scrolling');
-      if (scrollTimer !== null) {
-        window.clearTimeout(scrollTimer);
-      }
-      scrollTimer = window.setTimeout(() => {
-        document.body.classList.remove('scrolling');
-      }, 3000); // Remove class after 3s of no scrolling
-    };
-
-    window.addEventListener('scroll', handleScroll, true); // Use capture phase
-
-    return () => {
-      window.removeEventListener('scroll', handleScroll, true);
-      if (scrollTimer !== null) {
-        window.clearTimeout(scrollTimer);
-      }
-    };
-  }, []);
-
-  // Listen for import=true in query params
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    if (params.get('import') === 'true') {
-      setImportOpen(true);
-      // Clean up the URL
-      params.delete('import');
-      const newSearch = params.toString();
-      navigate({ pathname: location.pathname, search: newSearch ? `?${newSearch}` : '' }, { replace: true });
+    if (sheetId && openProfile && !userProfile.age) {
+      setLoadingProfile(true);
+      getMetadataValue(sheetId, 'user_financial_profile')
+        .then(val => {
+          if (val) {
+            try {
+              const parsed = JSON.parse(val);
+              setUserProfile(parsed);
+            } catch (e) {
+              console.error("Failed to parse user profile", e);
+            }
+          }
+        })
+        .catch(e => console.error("Failed to load user profile", e))
+        .finally(() => setLoadingProfile(false));
     }
-  }, [location.search, location.pathname, navigate]);
+  }, [sheetId, openProfile, userProfile.age]);
 
-  // Load portfolios globally so TickerDetails can access them
-  const { portfolios } = usePortfolios(sheetId, refreshKey);
-
-  const locationState = location.state as { background?: { pathname: string } } | null;
-  const effectivePathname = locationState?.background?.pathname || location.pathname;
-  const currentBasePath = '/' + effectivePathname.split('/')[1];
-  const currentTab = tabMap[currentBasePath] ?? 0;
-
-  useEffect(() => {
-    if (!location.pathname || location.pathname === '/') {
-      navigate('/dashboard');
+  const handleSaveProfile = async (profile: UserFinancialProfile) => {
+    if (!sheetId) return;
+    setSavingProfile(true);
+    try {
+      await setMetadataValue(sheetId, 'user_financial_profile', JSON.stringify(profile));
+      setUserProfile(profile);
+      setOpenProfile(false);
+      setSnackbarMessage(t('Profile saved!', 'הפרופיל נשמר!'));
+      setSnackbarSeverity('success');
+      setSnackbarOpen(true);
+    } catch (e) {
+      console.error("Failed to save profile", e);
+      setSnackbarMessage(t('Failed to save profile', 'שמירת הפרופיל נכשלה'));
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+    } finally {
+      setSavingProfile(false);
     }
-  }, [location.pathname, navigate]);
+  };
 
-  // Load Rubik font for better Hebrew readability
-  useEffect(() => {
-    const link = document.createElement('link');
-    link.href = "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Merriweather:wght@300;400;700;900&family=Noto+Serif:wght@300;400;500;700&family=Noto+Serif+Hebrew:wght@300;400;700&family=Rubik:wght@300;400;500;700&display=swap";
-    link.rel = "stylesheet";
-    document.head.appendChild(link);
-  }, []);
+  const handleMobileMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    setMobileMenuAnchorEl(event.currentTarget);
+  };
 
-  useEffect(() => {
-    document.body.classList.remove('theme-light', 'theme-dark');
-    document.body.classList.add(`theme-${mode}`);
-  }, [mode]);
+  const handleMobileMenuClose = () => {
+    setMobileMenuAnchorEl(null);
+  };
+
+  const toggleColorMode = () => {
+    setMode((prevMode) => (prevMode === 'light' ? 'dark' : 'light'));
+  };
+
+  const toggleColorblindMode = () => {
+    setColorblindMode(prev => !prev);
+  };
 
   useEffect(() => {
     localStorage.setItem('themeMode', mode);
@@ -152,41 +174,6 @@ function AppContent() {
   useEffect(() => {
     localStorage.setItem('colorblindMode', String(colorblindMode));
   }, [colorblindMode]);
-
-  useEffect(() => {
-    if (sheetId && googleReady) {
-      getMetadataValue(sheetId, 'schema_created').then(val => {
-        if (!val) {
-          setSchemaVersionMismatch('old');
-          return;
-        }
-        const sheetDate = new Date(val);
-        const codeDate = new Date(SHEET_STRUCTURE_VERSION_DATE);
-
-        if (isNaN(sheetDate.getTime())) {
-          setSchemaVersionMismatch('old');
-          return;
-        }
-
-        sheetDate.setHours(0, 0, 0, 0);
-        codeDate.setHours(0, 0, 0, 0);
-
-        if (sheetDate < codeDate) {
-          setSchemaVersionMismatch('old');
-        } else if (sheetDate > codeDate) {
-          setSchemaVersionMismatch('new');
-        }
-      }).catch(e => console.warn("Failed to check schema version", e));
-    }
-  }, [sheetId, googleReady]);
-
-  const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
-    navigate(reverseTabMap[newValue]);
-  };
-
-  const toggleColorMode = () => {
-    setMode((prevMode) => (prevMode === 'light' ? 'dark' : 'light'));
-  };
 
   const handleLogout = () => {
     signOut();
@@ -202,8 +189,8 @@ function AppContent() {
       await ensureSchema(sheetId);
       await fetchTransactions(sheetId);
       await rebuildHoldingsSheet(sheetId);
-      setRefreshKey(k => k + 1); // Refresh dashboard
-      setSchemaVersionMismatch(null); // Clear warning
+      setRefreshKey(k => k + 1);
+      setSchemaVersionMismatch(null);
       setSnackbarMessage(t("Sheet setup complete. Headers and live data have been rebuilt.", "הגדרת הגיליון הושלמה. הכותרות והנתונים החיים נבנו מחדש."));
       setSnackbarSeverity('success');
       setSnackbarOpen(true);
@@ -255,40 +242,17 @@ function AppContent() {
     return () => { mounted = false; };
   }, []);
 
-  const [exportMenuAnchorElApp, setExportMenuAnchorElApp] = useState<null | HTMLElement>(null);
-  const [exportInProgress, setExportInProgress] = useState(false);
-
-  const [snackbarOpen, setSnackbarOpen] = useState(false);
-  const [snackbarMessage, setSnackbarMessage] = useState('');
-  const [snackbarSeverity, setSnackbarSeverity] = useState<'success' | 'error' | 'info'>('info');
-  const [snackbarAction, setSnackbarAction] = useState<React.ReactNode | null>(null);
-
-  const [mobileMoreAnchorEl, setMobileMoreAnchorEl] = useState<null | HTMLElement>(null);
-  const isMobileMenuOpen = Boolean(mobileMoreAnchorEl);
-
-  const handleMobileMenuClose = () => {
-    setMobileMoreAnchorEl(null);
-  };
-
-  const handleMobileMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
-    setMobileMoreAnchorEl(event.currentTarget);
-  };
-
   const handleSnackbarClose = (_?: any, reason?: string) => {
     if (reason === 'clickaway') return;
     setSnackbarOpen(false);
-    setSnackbarAction(null); // Clear action on close
-  };
-
-  const toggleColorblindMode = () => {
-    setColorblindMode(prev => !prev);
+    setSnackbarAction(null);
   };
 
   const handleReconnect = async () => {
     try {
       await signIn();
       hideLoginModal();
-      window.location.reload(); // Force a full reload to refresh all data and states
+      window.location.reload();
     } catch (e) {
       console.error("Failed to reconnect", e);
       setSnackbarMessage(t('Failed to sign in. Please try again.', 'ההתחברות נכשלה. אנא נסה שנית.'));
@@ -297,105 +261,274 @@ function AppContent() {
     }
   };
 
-  const mobileMenuId = 'primary-search-account-menu-mobile';
+  const [exportInProgress, setExportInProgress] = useState(false);
+
+  // Load portfolios globally so TickerDetails can access them
+  const { portfolios } = usePortfolios(sheetId, refreshKey);
+
+  const locationState = location.state as { background?: { pathname: string } } | null;
+  const effectivePathname = locationState?.background?.pathname || location.pathname;
+  const currentBasePath = '/' + effectivePathname.split('/')[1];
+  const currentTab = tabMap[currentBasePath] ?? 0;
+
+  const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
+    navigate(reverseTabMap[newValue]);
+  };
+
   const renderMobileMenu = (
-    <Menu
-      anchorEl={mobileMoreAnchorEl}
-      anchorOrigin={{
-        vertical: 'top',
-        horizontal: 'right',
-      }}
-      id={mobileMenuId}
-      keepMounted
-      transformOrigin={{
-        vertical: 'top',
-        horizontal: 'right',
-      }}
-      open={isMobileMenuOpen}
+    <Drawer
+      anchor="right"
+      open={Boolean(mobileMenuAnchorEl)}
       onClose={handleMobileMenuClose}
+      sx={{
+        '& .MuiDrawer-paper': {
+          width: 300,
+          boxSizing: 'border-box',
+          bgcolor: 'background.paper',
+          backgroundImage: 'none',
+        },
+      }}
     >
-      <MenuItem onClick={toggleColorMode}>
-        <ListItemIcon>
-          {mode === 'dark' ? <Brightness7Icon fontSize="small" /> : <Brightness4Icon fontSize="small" />}
-        </ListItemIcon>
-        <ListItemText>{t('Switch Theme', 'מצב בהיר/כהה')}</ListItemText>
-      </MenuItem>
-      <MenuItem onClick={toggleColorblindMode}>
-        <ListItemIcon>
-          <ColorBlind fontSize="small" />
-        </ListItemIcon>
-        <ListItemText>{t('Colorblind Mode', 'מצב עיוורון צבעים')}</ListItemText>
-      </MenuItem>
-      <MenuItem onClick={toggleLanguage}>
-        <ListItemIcon>
-          <Typography variant="button" sx={{ fontWeight: 700, fontSize: '0.85rem', ml: 0.3, mt: '3px' }}>
-            {language === 'en' ? 'He' : 'En'}
-          </Typography>
-        </ListItemIcon>
-        <ListItemText>{t("הצג בעברית", "Switch to English")}</ListItemText>
-      </MenuItem>
-      <MenuItem onClick={() => { setImportOpen(true); handleMobileMenuClose(); }}>
-        <ListItemIcon>
-          <CloudUploadIcon fontSize="small" />
-        </ListItemIcon>
-        <ListItemText>{t('Import Transactions', 'ייבוא עסקאות')}</ListItemText>
-      </MenuItem>
-      <MenuItem onClick={(e) => { setExportMenuAnchorElApp(e.currentTarget); handleMobileMenuClose(); }}>
-        <ListItemIcon>
-          <FileDownloadIcon fontSize="small" />
-        </ListItemIcon>
-        <ListItemText>{t('Export Data', 'ייצוא נתונים')}</ListItemText>
-      </MenuItem>
-      {typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && (
-        <MenuItem onClick={() => { handlePopulateTestData(); handleMobileMenuClose(); }}>
-          <ListItemIcon>
-            <BuildIcon fontSize="small" sx={{ opacity: 0.5 }} />
-          </ListItemIcon>
-          <ListItemText>{t('Populate Test Data', 'מלא נתוני בדיקה')}</ListItemText>
-        </MenuItem>
-      )}
-      <MenuItem onClick={() => { openSheet(); handleMobileMenuClose(); }}>
-        <ListItemIcon>
-          <OpenInNewIcon fontSize="small" />
-        </ListItemIcon>
-        <ListItemText>{t('Open Google Sheet', 'פתח גיליון Google')}</ListItemText>
-      </MenuItem>
-      <MenuItem onClick={() => { handleSetupSheet(); handleMobileMenuClose(); }} disabled={rebuilding}>
-        <ListItemIcon>
-          {rebuilding ? <CircularProgress size={20} /> : <BuildIcon fontSize="small" />}
-        </ListItemIcon>
-        <ListItemText>{t('Setup Sheet', 'הגדרות גיליון')}</ListItemText>
-      </MenuItem>
-      <MenuItem onClick={() => {
-        if (confirm(t('This will clear all locally cached market data (prices, history, ticker lists). Your session and settings will be preserved. Continue?', 'פעולה זו תנקה את כל המידע המאוחסן מקומית (מחירים, היסטוריה, רשימות ניירות). החיבור וההגדרות שלך יישמרו. להמשיך?'))) {
-          clearAllCache().then(() => window.location.reload());
-        }
-        handleMobileMenuClose();
-      }}>
-        <ListItemIcon>
-          <DeleteSweepIcon fontSize="small" />
-        </ListItemIcon>
-        <ListItemText>{t('Clear Cache', 'נקה מטמון')}</ListItemText>
-      </MenuItem>
-      <MenuItem onClick={() => { navigate('/ai'); handleMobileMenuClose(); }}>
-        <ListItemIcon>
-          <AutoAwesomeIcon fontSize="small" color="primary" />
-        </ListItemIcon>
-        <ListItemText sx={{ color: 'primary.main', fontWeight: 600 }}>{t('AI Assistant', 'עוזר AI')}</ListItemText>
-      </MenuItem>
-      <MenuItem onClick={() => { setApiKeyDialogOpen(true); handleMobileMenuClose(); }}>
-        <ListItemIcon>
-          <VpnKeyIcon fontSize="small" />
-        </ListItemIcon>
-        <ListItemText>{t('AI Studio API Key', 'מפתח ה-API של AI Studio')}</ListItemText>
-      </MenuItem>
-      <MenuItem onClick={() => { handleLogout(); handleMobileMenuClose(); }}>
-        <ListItemIcon>
-          <LogoutIcon fontSize="small" />
-        </ListItemIcon>
-        <ListItemText>{t('Logout', 'יציאה')}</ListItemText>
-      </MenuItem>
-    </Menu>
+      <Box sx={{ p: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Typography variant="h6" sx={{ fontWeight: 800 }}>{t('Navigation', 'ניווט')}</Typography>
+        <IconButton onClick={handleMobileMenuClose}>
+          <ExpandMore sx={{ transform: isRtl ? 'rotate(90deg)' : 'rotate(-90deg)' }} />
+        </IconButton>
+      </Box>
+      <Divider />
+
+      <List
+        sx={{ width: '100%', py: 0 }}
+      >
+        <ListItem disablePadding>
+          <ListItemButton onClick={() => { navigate('/ai'); handleMobileMenuClose(); }}>
+            <ListItemIcon><AutoAwesomeIcon color="primary" /></ListItemIcon>
+            <ListItemText primary={t('AI Assistant', 'עוזר AI')} />
+          </ListItemButton>
+        </ListItem>
+
+        <ListItem disablePadding>
+          <ListItemButton onClick={() => { setOpenProfile(true); handleMobileMenuClose(); }}>
+            <ListItemIcon><ManageAccountsIcon /></ListItemIcon>
+            <ListItemText primary={t('Personal Info', 'מידע אישי')} />
+          </ListItemButton>
+        </ListItem>
+
+        <ListItem disablePadding>
+          <ListItemButton onClick={toggleLanguage}>
+            <ListItemIcon><LanguageIcon /></ListItemIcon>
+            <ListItemText primary={language === 'en' ? 'עברית' : 'English'} />
+          </ListItemButton>
+        </ListItem>
+
+        <ListItem disablePadding sx={{ display: 'block' }}>
+          <ListItemButton onClick={() => setAppearanceOpen(!appearanceOpen)}>
+            <ListItemIcon><PaletteIcon /></ListItemIcon>
+            <ListItemText primary={t('Appearance', 'מראה')} />
+            {appearanceOpen ? <ExpandLess /> : <ExpandMore />}
+          </ListItemButton>
+          <Collapse in={appearanceOpen} timeout="auto" unmountOnExit>
+            <List component="div" disablePadding sx={{ pl: 4 }}>
+              <ListItemButton onClick={toggleColorMode}>
+                <ListItemIcon sx={{ minWidth: 40 }}>{mode === 'dark' ? <Brightness7Icon fontSize="small" /> : <Brightness4Icon fontSize="small" />}</ListItemIcon>
+                <ListItemText
+                  primary={mode === 'light' ? t('Switch to Dark Mode', 'עבור למצב כהה') : t('Switch to Light Mode', 'עבור למצב בהיר')}
+                  primaryTypographyProps={{ fontSize: '0.85rem' }}
+                />
+              </ListItemButton>
+              <ListItemButton onClick={toggleColorblindMode}>
+                <ListItemIcon sx={{ minWidth: 40 }}><ColorBlind fontSize="small" /></ListItemIcon>
+                <ListItemText
+                  primary={colorblindMode ? t('Disable Colorblind Mode', 'בטל מצב עיוורון צבעים') : t('Enable Colorblind Mode', 'הפעל מצב עיוורון צבעים')}
+                  primaryTypographyProps={{ fontSize: '0.85rem' }}
+                />
+              </ListItemButton>
+            </List>
+          </Collapse>
+        </ListItem>
+      </List>
+
+      <Divider sx={{ my: 1 }} />
+
+      <List
+        sx={{ width: '100%', py: 0 }}
+        subheader={<ListSubheader sx={{ bgcolor: 'transparent', fontWeight: 700, lineHeight: '32px' }}>{t('Data Management', 'ניהול נתונים')}</ListSubheader>}
+      >
+        <ListItem disablePadding>
+          <ListItemButton onClick={() => { setImportOpen(true); handleMobileMenuClose(); }}>
+            <ListItemIcon><CloudUploadIcon /></ListItemIcon>
+            <ListItemText primary={t('Import Transactions', 'ייבוא עסקאות')} />
+          </ListItemButton>
+        </ListItem>
+
+        <ListItem disablePadding sx={{ display: 'block' }}>
+          <ListItemButton onClick={() => setExportCollapseOpen(!exportCollapseOpen)}>
+            <ListItemIcon><FileDownloadIcon /></ListItemIcon>
+            <ListItemText primary={t('Export Data', 'ייצוא נתונים')} />
+            {exportCollapseOpen ? <ExpandLess /> : <ExpandMore />}
+          </ListItemButton>
+          <Collapse in={exportCollapseOpen} timeout="auto" unmountOnExit>
+            <List component="div" disablePadding sx={{ pl: 4 }}>
+              <ListItemButton disabled={exportInProgress} onClick={() => {
+                handleMobileMenuClose();
+                exportDashboardData({
+                  type: 'holdings',
+                  format: 'csv',
+                  sheetId: sheetId || undefined,
+                  setLoading: setExportInProgress,
+                  onSuccess: (msg: string) => {
+                    setSnackbarMessage(msg); setSnackbarSeverity('success'); setSnackbarOpen(true); setExportInProgress(false);
+                  },
+                  onError: (msg: string) => {
+                    setSnackbarMessage(msg); setSnackbarSeverity('error'); setSnackbarOpen(true); setExportInProgress(false);
+                  }
+                });
+              }}>
+                <ListItemText primary={t('Holdings (CSV)', 'החזקות (CSV)')} primaryTypographyProps={{ fontSize: '0.85rem' }} />
+              </ListItemButton>
+
+              <ListItemButton disabled={exportInProgress} onClick={() => {
+                handleMobileMenuClose();
+                exportDashboardData({
+                  type: 'holdings',
+                  format: 'sheet',
+                  sheetId: sheetId || undefined,
+                  setLoading: setExportInProgress,
+                  onSuccess: (msg: string, url?: string) => {
+                    setSnackbarMessage(msg); setSnackbarSeverity('success');
+                    if (url) setSnackbarAction(<Button color="inherit" size="small" onClick={() => window.open(url, '_blank')}>Open Sheet</Button>);
+                    setSnackbarOpen(true); setExportInProgress(false);
+                  },
+                  onError: (msg: string) => {
+                    setSnackbarMessage(msg); setSnackbarSeverity('error'); setSnackbarOpen(true); setExportInProgress(false);
+                  }
+                });
+              }}>
+                <ListItemText primary={t('Holdings (Google Sheet)', 'החזקות (Sheet)')} primaryTypographyProps={{ fontSize: '0.85rem' }} />
+              </ListItemButton>
+
+              <ListItemButton disabled={exportInProgress} onClick={() => {
+                handleMobileMenuClose();
+                exportDashboardData({
+                  type: 'transactions',
+                  format: 'csv',
+                  sheetId: sheetId || undefined,
+                  setLoading: setExportInProgress,
+                  onSuccess: (msg: string) => {
+                    setSnackbarMessage(msg); setSnackbarSeverity('success'); setSnackbarOpen(true); setExportInProgress(false);
+                  },
+                  onError: (msg: string) => {
+                    setSnackbarMessage(msg); setSnackbarSeverity('error'); setSnackbarOpen(true); setExportInProgress(false);
+                  }
+                });
+              }}>
+                <ListItemText primary={t('Transactions (CSV)', 'עסקאות (CSV)')} primaryTypographyProps={{ fontSize: '0.85rem' }} />
+              </ListItemButton>
+
+              <ListItemButton disabled={exportInProgress} onClick={() => {
+                handleMobileMenuClose();
+                exportDashboardData({
+                  type: 'transactions',
+                  format: 'sheet',
+                  sheetId: sheetId || undefined,
+                  setLoading: setExportInProgress,
+                  onSuccess: (msg: string, url?: string) => {
+                    setSnackbarMessage(msg); setSnackbarSeverity('success');
+                    if (url) setSnackbarAction(<Button color="inherit" size="small" onClick={() => window.open(url, '_blank')}>Open Sheet</Button>);
+                    setSnackbarOpen(true); setExportInProgress(false);
+                  },
+                  onError: (msg: string) => {
+                    setSnackbarMessage(msg); setSnackbarSeverity('error'); setSnackbarOpen(true); setExportInProgress(false);
+                  }
+                });
+              }}>
+                <ListItemText primary={t('Transactions (Google Sheet)', 'עסקאות (Sheet)')} primaryTypographyProps={{ fontSize: '0.85rem' }} />
+              </ListItemButton>
+
+              <ListItemButton disabled={exportInProgress} onClick={() => {
+                handleMobileMenuClose();
+                exportDashboardData({
+                  type: 'both',
+                  format: 'sheet',
+                  sheetId: sheetId || undefined,
+                  setLoading: setExportInProgress,
+                  onSuccess: (msg: string, url?: string) => {
+                    setSnackbarMessage(msg); setSnackbarSeverity('success');
+                    if (url) setSnackbarAction(<Button color="inherit" size="small" onClick={() => window.open(url, '_blank')}>Open Sheet</Button>);
+                    setSnackbarOpen(true); setExportInProgress(false);
+                  },
+                  onError: (msg: string) => {
+                    setSnackbarMessage(msg); setSnackbarSeverity('error'); setSnackbarOpen(true); setExportInProgress(false);
+                  }
+                });
+              }}>
+                <ListItemText primary={t('Export All (to Sheet)', 'ייצוא הכל (לגיליון)')} primaryTypographyProps={{ fontSize: '0.85rem' }} />
+              </ListItemButton>
+            </List>
+          </Collapse>
+        </ListItem>
+      </List>
+
+      <Divider sx={{ my: 1 }} />
+
+      <List
+        sx={{ width: '100%', py: 0 }}
+      >
+        <ListItem disablePadding sx={{ display: 'block' }}>
+          <ListItemButton onClick={() => setAdvancedOpen(!advancedOpen)}>
+            <ListItemIcon><SettingsIcon /></ListItemIcon>
+            <ListItemText primary={t('Advanced Tools', 'כלים מתקדמים')} />
+            {advancedOpen ? <ExpandLess /> : <ExpandMore />}
+          </ListItemButton>
+          <Collapse in={advancedOpen} timeout="auto" unmountOnExit>
+            <List component="div" disablePadding sx={{ pl: 4 }}>
+              <ListItemButton onClick={() => { openSheet(); handleMobileMenuClose(); }}>
+                <ListItemIcon sx={{ minWidth: 40 }}><OpenInNewIcon fontSize="small" /></ListItemIcon>
+                <ListItemText primary={t('Open Google Sheet', 'פתח גיליון Google')} primaryTypographyProps={{ fontSize: '0.85rem' }} />
+              </ListItemButton>
+
+              <ListItemButton onClick={() => { handleSetupSheet(); handleMobileMenuClose(); }} disabled={rebuilding}>
+                <ListItemIcon sx={{ minWidth: 40 }}>{rebuilding ? <CircularProgress size={18} /> : <BuildIcon fontSize="small" />}</ListItemIcon>
+                <ListItemText primary={t('Setup Sheet', 'הגדרות גיליון')} primaryTypographyProps={{ fontSize: '0.85rem' }} />
+              </ListItemButton>
+
+              <ListItemButton onClick={() => { setApiKeyDialogOpen(true); handleMobileMenuClose(); }}>
+                <ListItemIcon sx={{ minWidth: 40 }}><VpnKeyIcon fontSize="small" /></ListItemIcon>
+                <ListItemText primary={t('AI Studio API Key', 'מפתח ה-API של AI Studio')} primaryTypographyProps={{ fontSize: '0.85rem' }} />
+              </ListItemButton>
+
+              <ListItemButton onClick={() => {
+                if (confirm(t('This will clear all locally cached market data. Your session will be preserved. Continue?', 'נקה את כל המידע המאוחסן מקומית. החיבור שלך יישמר. להמשיך?'))) {
+                  clearAllCache().then(() => window.location.reload());
+                }
+                handleMobileMenuClose();
+              }}>
+                <ListItemIcon sx={{ minWidth: 40 }}><DeleteSweepIcon fontSize="small" /></ListItemIcon>
+                <ListItemText primary={t('Clear Cache', 'נקה מטמון')} primaryTypographyProps={{ fontSize: '0.85rem' }} />
+              </ListItemButton>
+
+              {typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && (
+                <ListItemButton onClick={() => { handlePopulateTestData(); handleMobileMenuClose(); }}>
+                  <ListItemIcon sx={{ minWidth: 40 }}><BuildIcon fontSize="small" sx={{ opacity: 0.5 }} /></ListItemIcon>
+                  <ListItemText primary={t('Populate Test Data', 'מלא נתוני בדיקה')} primaryTypographyProps={{ fontSize: '0.85rem' }} />
+                </ListItemButton>
+              )}
+            </List>
+          </Collapse>
+        </ListItem>
+      </List>
+
+      <Box sx={{ flexGrow: 1 }} />
+      <Divider />
+      <List>
+        <ListItem disablePadding>
+          <ListItemButton onClick={() => { handleLogout(); handleMobileMenuClose(); }}>
+            <ListItemIcon><LogoutIcon color="error" /></ListItemIcon>
+            <ListItemText primary={t('Logout', 'יציאה')} sx={{ color: 'error.main' }} />
+          </ListItemButton>
+        </ListItem>
+      </List>
+    </Drawer>
   );
 
   if (googleReady === null) {
@@ -441,9 +574,7 @@ function AppContent() {
               <Box sx={{ display: 'flex' }}>
                 <IconButton
                   size="large"
-                  aria-label="show more"
-                  aria-controls={mobileMenuId}
-                  aria-haspopup="true"
+                  aria-label="open drawer"
                   onClick={handleMobileMenuOpen}
                   color="inherit"
                 >
@@ -452,70 +583,21 @@ function AppContent() {
               </Box>
             </Toolbar>
           </AppBar>
+
           {renderMobileMenu}
 
-          <Menu
-            id="app-export-menu"
-            anchorEl={exportMenuAnchorElApp}
-            open={Boolean(exportMenuAnchorElApp)}
-            onClose={() => setExportMenuAnchorElApp(null)}
-          >
-            <MenuItem disabled={exportInProgress} onClick={() => {
-              setExportMenuAnchorElApp(null);
-              setExportInProgress(true);
-              exportDashboardData({ type: 'holdings', format: 'csv', sheetId, setLoading: setExportInProgress, onSuccess: (msg) => { setSnackbarMessage(msg); setSnackbarSeverity('success'); setSnackbarOpen(true); setExportInProgress(false); }, onError: (msg) => { setSnackbarMessage(msg); setSnackbarSeverity('error'); setSnackbarOpen(true); setExportInProgress(false); } });
-            }}>{t('Holdings (CSV)', 'החזקות (CSV)')}</MenuItem>
-            <MenuItem disabled={exportInProgress} onClick={() => {
-              setExportMenuAnchorElApp(null);
-              setExportInProgress(true);
-              exportDashboardData({
-                type: 'holdings', format: 'sheet', sheetId, setLoading: setExportInProgress,
-                onSuccess: (msg, url) => {
-                  setSnackbarMessage(msg);
-                  setSnackbarSeverity('success');
-                  setSnackbarAction(<Button color="inherit" size="small" onClick={() => window.open(url, '_blank')}>Open Sheet</Button>);
-                  setSnackbarOpen(true);
-                  setExportInProgress(false);
-                },
-                onError: (msg) => { setSnackbarMessage(msg); setSnackbarSeverity('error'); setSnackbarAction(null); setSnackbarOpen(true); setExportInProgress(false); }
-              });
-            }}>{t('Holdings (Google Sheet)', 'החזקות (Google Sheet)')}</MenuItem>
-            <MenuItem disabled={exportInProgress} onClick={() => {
-              setExportMenuAnchorElApp(null);
-              setExportInProgress(true);
-              exportDashboardData({ type: 'transactions', format: 'csv', sheetId, setLoading: setExportInProgress, onSuccess: (msg) => { setSnackbarMessage(msg); setSnackbarSeverity('success'); setSnackbarOpen(true); setExportInProgress(false); }, onError: (msg) => { setSnackbarMessage(msg); setSnackbarSeverity('error'); setSnackbarOpen(true); setExportInProgress(false); } });
-            }}>{t('Transactions (CSV)', 'עסקאות (CSV)')}</MenuItem>
-            <MenuItem disabled={exportInProgress} onClick={() => {
-              setExportMenuAnchorElApp(null);
-              setExportInProgress(true);
-              exportDashboardData({
-                type: 'transactions', format: 'sheet', sheetId, setLoading: setExportInProgress,
-                onSuccess: (msg, url) => {
-                  setSnackbarMessage(msg);
-                  setSnackbarSeverity('success');
-                  setSnackbarAction(<Button color="inherit" size="small" onClick={() => window.open(url, '_blank')}>Open Sheet</Button>);
-                  setSnackbarOpen(true);
-                  setExportInProgress(false);
-                },
-                onError: (msg) => { setSnackbarMessage(msg); setSnackbarSeverity('error'); setSnackbarAction(null); setSnackbarOpen(true); setExportInProgress(false); }
-              });
-            }}>{t('Transactions (Google Sheet)', 'עסקאות (Google Sheet)')}</MenuItem>
-            <MenuItem disabled={exportInProgress} onClick={() => {
-              setExportMenuAnchorElApp(null);
-              setExportInProgress(true);
-              exportDashboardData({
-                type: 'both', format: 'sheet', sheetId, setLoading: setExportInProgress,
-                onSuccess: (msg, url) => {
-                  setSnackbarMessage(msg);
-                  setSnackbarSeverity('success');
-                  setSnackbarAction(<Button color="inherit" size="small" onClick={() => window.open(url, '_blank')}>Open Sheet</Button>);
-                  setSnackbarOpen(true);
-                  setExportInProgress(false);
-                },
-                onError: (msg) => { setSnackbarMessage(msg); setSnackbarSeverity('error'); setSnackbarAction(null); setSnackbarOpen(true); setExportInProgress(false); }
-              });
-            }}>{t('Export transactions & holdings (to Sheet)', 'ייצוא הכל (לגיליון)')}</MenuItem>
-          </Menu>
+          {openProfile && (
+            <ProfileForm
+              open={openProfile}
+              initialProfile={userProfile}
+              loadingProfile={loadingProfile}
+              displayCurrency={localStorage.getItem('displayCurrency') || 'USD'}
+
+              onSave={handleSaveProfile}
+              onCancel={() => setOpenProfile(false)}
+              savingProfile={savingProfile}
+            />
+          )}
 
           <Container maxWidth="xl" sx={{ mt: 5, pb: 8 }}>
             {sheetId && (
@@ -541,12 +623,11 @@ function AppContent() {
                   />
                 </Box>
 
-                {/* Routes for components that should not be hidden, but mounted on navigation */}
                 <Routes>
-                  <Route path="/dashboard" element={null} /> {/* Dummy route */}
-                  <Route path="/ai" element={null} /> {/* Dummy route */}
-                  <Route path="/favorites" element={null} /> {/* Dummy route */}
-                  <Route path="/transaction" element={null} /> {/* Dummy route */}
+                  <Route path="/dashboard" element={null} />
+                  <Route path="/ai" element={null} />
+                  <Route path="/favorites" element={null} />
+                  <Route path="/transaction" element={null} />
                   <Route path="/portfolios" element={<PortfolioManager sheetId={sheetId} onSuccess={() => setRefreshKey(k => k + 1)} />} />
                   <Route path="/portfolios/:portfolioId" element={<PortfolioManager sheetId={sheetId} onSuccess={() => setRefreshKey(k => k + 1)} />} />
                   <Route path="/ticker/:exchange/:ticker" element={<TickerDetails sheetId={sheetId} portfolios={portfolios} />} />
@@ -584,7 +665,6 @@ function AppContent() {
             </DialogActions>
           </Dialog>
 
-          {/* Schema Version Dialog */}
           <Dialog open={!!schemaVersionMismatch} onClose={() => { }}>
             <DialogTitle>{schemaVersionMismatch === 'old' ? t('Sheet Structure Update Required', 'נדרש עדכון מבנה גיליון') : t('Sheet Structure Mismatch', 'אי-התאמה במבנה הגיליון')}</DialogTitle>
             <DialogContent>
