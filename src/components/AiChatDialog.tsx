@@ -98,16 +98,27 @@ function LinkParser({ children, t, onPromptClick, onTickerClick, onProfileClick,
           );
         } else if (type === 'ticker') {
           const valStr = value || '';
-          const [ex, sym] = valStr.includes(':') ? valStr.split(':') : ['', valStr];
+          const [label, tickerStr] = valStr.includes('::') ? valStr.split('::') : [null, valStr];
+          const actualTicker = tickerStr || valStr;
+          const [ex, sym] = actualTicker.includes(':') ? actualTicker.split(':') : ['', actualTicker];
           parts.push(
             <Button
               key={match.index}
               size="small"
-              color="primary"
               onClick={() => onTickerClick(ex, sym)}
-              sx={{ mx: 0.5, textTransform: 'none', py: 0, height: 24, fontSize: '0.75rem', fontWeight: 700 }}
+              sx={{
+                mx: 0.2,
+                textTransform: 'none',
+                py: 0,
+                height: 24,
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                minWidth: 'auto',
+                color: 'primary.main',
+                filter: 'saturate(1.6)'
+              }}
             >
-              {sym || valStr}
+              {label || sym || actualTicker}
             </Button>
           );
         } else if (type === 'userinfo') {
@@ -125,7 +136,7 @@ function LinkParser({ children, t, onPromptClick, onTickerClick, onProfileClick,
           );
         } else if (type === 'url') {
           const valStr = value || '';
-          const [label, path] = valStr.includes('|') ? valStr.split('|') : [valStr, valStr];
+          const [label, path] = valStr.includes('::') ? valStr.split('::') : [valStr, valStr];
           parts.push(
             <Button
               key={match.index}
@@ -657,14 +668,11 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({ open, onClose, apiKe
       const systemInstruction = `
 You are a financial assistant. Be professional, objective, and direct. Avoid excessive praise or flattery. Focus on data-driven analysis and facts. 
 Please be careful in your wording around suggestions - you are just an AI.
--Use Markdown tables for comparing numbers or performance periods when beneficial.
--When asked for FIRE analysis, use the User Profile (spending, earnings, ages) and portfolio value to calculate withdrawal rates, estimated years to retirement, and provide personalized insights.
- Suggest one concrete follow-up question or action.
--You can create interactive links in your response using these formats:
+- You can create interactive links in your response using these formats:
  * {prompt::Text to prefill} to suggest a new prompt for the user
-  * {ticker::EXCHANGE:SYMBOL} to link to a specific ticker e.g. {ticker::NASDAQ:GOOGL}
-  * {userinfo::Button Text} to link to the user profile info form
-  * {url::Label|Path} to navigate to any URL or app path e.g. {url::View Portfolios|/portfolios} or {url::Yahoo Finance|https://finance.yahoo.com}
+ * {ticker::Label::EXCHANGE:SYMBOL} to link to a specific ticker e.g. {ticker::Google::NASDAQ:GOOGL}
+ * {userinfo::Button Text} to link to the user profile info form
+ * {url::Label::Path} to navigate to any URL
 
 ==User Context==
 ${profileContext}
@@ -688,6 +696,11 @@ ${marketOverview}
         errorMsg = t(
           'Quota exceeded for this model. Try switching to "Fast" mode for higher limits.',
           'חריגה ממכסת המודל. נסה לעבור למצב "מהיר" לקבלת מגבלות גבוהות יותר.'
+        );
+      } else if (errMsg.includes('high demand')) {
+        errorMsg = t(
+          'The model is currently experiencing high demand. Please try again in a few moments.',
+          'המודל חווה כרגע עומס גבוה. אנא נסה שוב בעוד מספר רגעים.'
         );
       }
 
