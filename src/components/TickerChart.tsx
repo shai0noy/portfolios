@@ -2,7 +2,7 @@ import { ResponsiveContainer, AreaChart, Area, Line, XAxis, YAxis, Tooltip, Cart
 import { useLanguage } from '../lib/i18n';
 import { formatPrice, formatPercent, formatCompactPrice, formatValue, formatCompactValue } from '../lib/currency';
 import { formatDate } from '../lib/date';
-import { Paper, Typography, Box, IconButton, Dialog, DialogContent } from '@mui/material';
+import { Paper, Typography, Box, IconButton, Dialog, DialogContent, ToggleButton, ToggleButtonGroup } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
@@ -24,6 +24,8 @@ interface TickerChartProps {
     hideCurrentPrice?: boolean;
     allowFullscreen?: boolean;
     topControls?: React.ReactNode;
+    scaleType?: 'linear' | 'log';
+    onScaleTypeChange?: (type: 'linear' | 'log') => void;
 }
 
 interface ChartPoint {
@@ -51,8 +53,8 @@ interface CustomTooltipProps {
 const CandleStickShape = (props: any) => {
     // Recharts passes `y` (y-coord of value) and `height` (length of bar from baseValue).
     // We assume dataKey="price" (close).
-    // So y = scale(close), y + height = scale(0).
-    const { x, width, height, y, payload, successColor, errorColor } = props;
+    // So y = scale(close), y + height = scale(0) [linear] or scale(domainMin) [log].
+    const { x, width, height, y, payload, successColor, errorColor, isLog, domainMin } = props;
     // VERY IMPORTANT: Our payload contains `{ open, price, high, low }`
     // "price" maps to "close" based on mainSeries mapping.
     const { open, price: close, high, low } = payload;
@@ -64,15 +66,32 @@ const CandleStickShape = (props: any) => {
     const color = isUp ? successColor : errorColor;
 
     // Derived scale function:
-    // If the chart uses yMin, then baseValue might be different. 
-    // Usually it defaults to bounded values or 0.
-    // scale(v) = (y + height) - (height / close) * v
-    // Let's use a very safe fallback:
+    let scale = (v: number) => (y + height) - (height / close) * v;
 
-    // Let's protect against div/0
-    if (Math.abs(close) < 0.000001 || !height) return null;
+    if (isLog && domainMin && domainMin > 0 && close > 0) {
+        // Logarithmic scale logic
+        // Y(v) = A * log(v) + B
+        // Y(close) = y
+        // Y(domainMin) = y + height
+        // height = Y(domainMin) - Y(close) = A * (log(domainMin) - log(close))
+        // A = height / log(domainMin/close)
+        // B = y - A * log(close)
 
-    const scale = (v: number) => (y + height) - (height / close) * v;
+        const logBase = Math.log(domainMin);
+        const logClose = Math.log(close);
+        const diff = logBase - logClose;
+
+        // Protect against close ~= domainMin
+        if (Math.abs(diff) > 0.000001) {
+            const A = height / diff;
+            const B = y - A * logClose;
+            scale = (v: number) => v > 0 ? A * Math.log(v) + B : y + height;
+        }
+    } else {
+        // Linear safe fallback
+        if (Math.abs(close) < 0.000001 || !height) return null;
+        scale = (v: number) => (y + height) - (height / close) * v;
+    }
 
     const yOpen = scale(open);
     const yClose = scale(close);
@@ -400,7 +419,7 @@ const SelectionSummary = ({ startPoint, endPoint, currency, t, isComparison, ser
     );
 };
 
-export function TickerChart({ series, currency, mode = 'percent', valueType = 'price', height = 300, hideCurrentPrice, allowFullscreen = true, topControls }: TickerChartProps) {
+export function TickerChart({ series, currency, mode = 'percent', valueType = 'price', height = 300, hideCurrentPrice, allowFullscreen = true, topControls, scaleType: propScaleType, onScaleTypeChange }: TickerChartProps) {
     const FADE_MS = 170;          // Speed of the opacity transition
     const TRANSFORM_MS = 360;     // Speed of the line movement (Very fast)
     const BUFFER_MS = 30;        // Safety window for browser paint
@@ -428,13 +447,17 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
 
     const [isFullscreen, setIsFullscreen] = useState(false);
 
-
+    const [internalScaleType, setInternalScaleType] = useState<'linear' | 'log'>('linear');
+    const scaleType = propScaleType ?? internalScaleType;
+    const setScaleType = onScaleTypeChange ?? setInternalScaleType;
 
     const mainSeries = displaySeries?.[0];
     const isComparison = displaySeries.length > 1;
 
     // Force line mode if comparison
     const currentMode = (mode === 'candle' && isComparison) ? 'percent' : mode;
+
+
 
     const dateRangeDays = useMemo(() => {
         if (!mainSeries?.data || mainSeries.data.length < 2) return 0;
@@ -504,9 +527,21 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
         const processedMain = mainSeries.data.map(p => {
             const val = p.adjClose || p.price;
             const pct = basePrice > 0 ? (val / basePrice - 1) : 0;
+            // For log scale in percent mode, use symmetric log: sign(x) * log10(1 + abs(x))
+            // This handles negative percentages nicely and behaves linearly around 0.
+            let yVal = val;
+            if (currentMode === 'percent') {
+                if (scaleType === 'log') {
+                    // Symlog
+                    yVal = Math.sign(pct) * Math.log10(1 + Math.abs(pct));
+                } else {
+                    yVal = pct;
+                }
+            }
+
             return {
                 ...p,
-                yValue: currentMode === 'percent' ? pct : val,
+                yValue: yVal,
                 pctValue: pct,
             };
         });
@@ -586,16 +621,27 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                     // If we want diff to be "how much higher/lower is this line compared to main line", we use aligned pct.
                     point[`series_${i}_pct`] = pct;
 
+                    // Update series_i with shifted value if log
+                    // Update series_i with symlog value if log enabled in percent mode
+                    if (currentMode === 'percent' && scaleType === 'log') {
+                        point[`series_${i}`] = Math.sign(pct) * Math.log10(1 + Math.abs(pct));
+                    } else if (currentMode === 'price' || currentMode === 'candle') {
+                        point[`series_${i}`] = val;
+                    } else {
+                        point[`series_${i}`] = pct;
+                    }
+
                     // Store RAW value for tooltip display
                     point[`series_${i}_raw`] = currentMode === 'percent' ? rawPct : val;
                 }
             });
             return point;
         });
-    }, [displaySeries, currentMode, mainSeries, mode]);
+        // Re-memoize ChartData when scaleType changes to ensure yValue is updated (1+pct vs pct)
+    }, [displaySeries, currentMode, mainSeries, mode, scaleType]);
 
-    const { yMin, yMax, dataMin, dataMax, volMax } = useMemo(() => {
-        if (!chartData || chartData.length === 0) return { yMin: 0, yMax: 0, dataMin: 0, dataMax: 0, volMax: 0 };
+    const { dataMin, dataMax, volMax } = useMemo(() => {
+        if (!chartData || chartData.length === 0) return { dataMin: 0, dataMax: 0, volMax: 0 };
         let min = Infinity;
         let max = -Infinity;
         let vMax = 0;
@@ -623,27 +669,80 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
             });
         });
 
-        if (min === Infinity || max === -Infinity) return { yMin: 0, yMax: 0, dataMin: 0, dataMax: 0, volMax: 0 };
+        if (min === Infinity || max === -Infinity) return { dataMin: 0, dataMax: 0, volMax: 0 };
+        return { dataMin: min, dataMax: max, volMax: vMax };
+    }, [chartData, currentMode]);
+
+    // Data-dependent Log Scale Support
+    const isLogSupported = useMemo(() => {
+        if (currentMode === 'percent') {
+            // Percent mode uses SymLog which supports ALL values (negative, zero, positive).
+            return true;
+        }
+        // Price mode requires strictly positive values for standard log scale
+        return dataMin > 0;
+    }, [currentMode, dataMin]);
+
+    // If we use SymLog (for percent mode), we essentially feed "linear" data to Recharts
+    // because we've already transformed it manually. 
+    // Recharts 'log' scale is only for standard positive-only log.
+    const useSymLog = isLogSupported && scaleType === 'log' && currentMode === 'percent';
+    const activeScale = (isLogSupported && scaleType === 'log' && !useSymLog) ? 'log' : 'linear';
+
+    useEffect(() => {
+        if (!isLogSupported && scaleType === 'log') {
+            setScaleType('linear');
+        }
+    }, [isLogSupported, scaleType]);
+
+    const { yMin, yMax } = useMemo(() => {
+        if (!chartData || chartData.length === 0) return { yMin: 0, yMax: 0 };
+
+        let min = dataMin;
+        let max = dataMax;
 
         // Add padding to the domain so the line/candles doesn't touch the edges
-        const padding = (max - min) * 0.05;
-        const effectivePadding = padding === 0 ? (Math.abs(max) * 0.05 || 0.01) : padding;
+        let calculatedMin, calculatedMax;
 
-        return { yMin: min - effectivePadding, yMax: max + effectivePadding, dataMin: min, dataMax: max, volMax: vMax };
-    }, [chartData, currentMode]);
+        if (activeScale === 'log') {
+            // Multiplicative padding for log scale
+            // ~5% visual padding
+            calculatedMin = min / 1.05;
+            calculatedMax = max * 1.05;
+        } else {
+        // Linear padding
+            const padding = (max - min) * 0.05;
+            const effectivePadding = padding === 0 ? (Math.abs(max) * 0.05 || 0.01) : padding;
+            calculatedMin = min - effectivePadding;
+            calculatedMax = max + effectivePadding;
+        }
+
+        return { yMin: calculatedMin, yMax: calculatedMax };
+    }, [chartData, dataMin, dataMax, activeScale]);
 
     const formatYAxis = useCallback((tick: number) => {
         if (currentMode === 'price' || currentMode === 'candle') {
             return valueType === 'value' ? formatCompactValue(tick, currency, t) : formatCompactPrice(tick, currency, t);
         }
+
+        // Percent Mode
+        let val = tick;
+        if (useSymLog) {
+            // Reverse SymLog: sign(y) * (10^abs(y) - 1)
+            // This gives us back the original percentage
+            val = Math.sign(tick) * (Math.pow(10, Math.abs(tick)) - 1);
+        }
+
         const range = yMax - yMin;
-        const decimals = range > 0.1 ? 0 : 1;
+        const decimals = range > 0.1 ? 0 : 1; // Dynamically adjust based on range? 
+        // Note: yMax/yMin are shifted values in log mode.
+
         return '\u200E' + new Intl.NumberFormat(undefined, {
             style: 'percent',
             minimumFractionDigits: 0,
             maximumFractionDigits: decimals,
-        }).format(tick);
-    }, [yMin, yMax, currentMode, currency, t]);
+        }).format(val);
+    }, [yMin, yMax, currentMode, currency, t, scaleType, activeScale, valueType, useSymLog]);
 
     const findClosestPoint = useCallback((date: number): ChartPoint | null => {
         const data = chartData;
@@ -807,7 +906,15 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
     let offset = 0;
 
     if (gradientRange !== 0) {
-        offset = (areaMax - threshold) / gradientRange;
+        if (activeScale === 'log' && areaMin > 0 && areaMax > 0 && threshold > 0) {
+            // Logarithmic interpolation for gradient stop
+            const logMin = Math.log(areaMin);
+            const logMax = Math.log(areaMax);
+            const logThreshold = Math.log(threshold);
+            offset = (logMax - logThreshold) / (logMax - logMin);
+        } else {
+            offset = (areaMax - threshold) / gradientRange;
+        }
     }
 
     // Clamp the offset between 0 and 1 to handle cases where the threshold
@@ -815,6 +922,9 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
     const clampedOffset = Math.max(0, Math.min(1, offset));
 
     const yTicks = useMemo(() => {
+        // If log scale, let Recharts handle ticks automatically (or implement log tick generator)
+        if (activeScale === 'log') return undefined;
+
         // If 0 is in range, we want to ensure a tick at 0
         const range = yMax - yMin;
         if (range === 0) return [0];
@@ -848,7 +958,7 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
         }
 
         return ticks.filter(t => t >= yMin && t <= yMax);
-    }, [yMin, yMax]);
+    }, [yMin, yMax, activeScale]);
 
     const showZeroLine = yMin <= 0 && yMax >= 0;
 
@@ -871,6 +981,18 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5, gap: 1, flexWrap: 'wrap' }}>
                     <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
                         {topControls}
+                        {isLogSupported && !onScaleTypeChange && (
+                            <ToggleButtonGroup
+                                value={scaleType}
+                                exclusive
+                                onChange={(_, next) => next && setScaleType(next)}
+                                size="small"
+                                sx={{ height: 26 }}
+                            >
+                                <ToggleButton value="linear" sx={{ px: 1, py: 0, fontSize: '0.7rem' }}>LIN</ToggleButton>
+                                <ToggleButton value="log" sx={{ px: 1, py: 0, fontSize: '0.7rem' }}>LOG</ToggleButton>
+                            </ToggleButtonGroup>
+                        )}
                     </Box>
                     {allowFullscreen && (
                         <IconButton
@@ -959,6 +1081,8 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                                 dx={3}
                                 domain={[yMin, yMax]}
                                 ticks={yTicks}
+                                scale={activeScale}
+                                allowDataOverflow={true} // Important for log scale stability
                             />
                             {/* Volume Axis (hidden or scaled) */}
                             <YAxis
@@ -982,7 +1106,7 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                             <Bar
                                 dataKey="price"
                                 yAxisId="price"
-                                shape={<CandleStickShape successColor={successColor} errorColor={errorColor} />}
+                                shape={<CandleStickShape successColor={successColor} errorColor={errorColor} isLog={activeScale === 'log'} domainMin={yMin} />}
                                 barSize={8} // 2x volume width
                                 isAnimationActive={false}
                             />
@@ -1022,6 +1146,8 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                                 dx={3}
                                 domain={[yMin, yMax]}
                                 ticks={yTicks}
+                                    scale={activeScale}
+                                    allowDataOverflow={true}
                             />
                             <Tooltip content={<CustomTooltip currency={currency} t={t} basePrice={basePrice} isComparison={isComparison} series={displaySeries} mode={currentMode} hideCurrentPrice={hideCurrentPrice} />} />
 

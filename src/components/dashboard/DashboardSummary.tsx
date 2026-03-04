@@ -57,6 +57,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
   // Merged: Included 'twr' from Incoming
   const [chartView, setChartView] = useState<'holdings' | 'twr' | 'gains'>('holdings');
   const [chartMetric, setChartMetric] = useState<'price' | 'percent'>('price');
+  const [scaleType, setScaleType] = useState<'linear' | 'log'>('linear');
 
   const {
     chartRange, setChartRange,
@@ -209,7 +210,25 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
       name: chartView === 'holdings' ? t('Total Holdings', 'שווי החזקות') : (chartView === 'twr' ? t('Cumulative TWR', 'TWR מצטבר') : t('Total Gains', 'רווח מצטבר')),
       data
     };
+
   }, [perfData, chartView, t]);
+
+  const isLogSupported = useMemo(() => {
+    if (effectiveChartMetric === 'percent') return true;
+    if (!portfolioSeries || portfolioSeries.length === 0) return false;
+    const data = portfolioSeries[0].data;
+    if (!data || data.length === 0) return false;
+    // Fast loop to check min
+    let min = Infinity;
+    for (let i = 0; i < data.length; i++) {
+      if (data[i].price < min) min = data[i].price;
+    }
+    return min > 0;
+  }, [portfolioSeries]);
+
+  useEffect(() => {
+    if (!isLogSupported && scaleType === 'log') setScaleType('linear');
+  }, [isLogSupported, scaleType]);
 
   return (
     <>
@@ -376,6 +395,8 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                       valueType={chartView === 'holdings' || chartView === 'gains' ? 'value' : 'price'}
                       height="100%"
                       hideCurrentPrice={chartView === 'twr'}
+                        scaleType={scaleType}
+                        onScaleTypeChange={setScaleType}
                       topControls={
                         <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column' }}>
                           <Box display="flex" justifyContent="space-between" alignItems="center" sx={{ width: '100%', flexWrap: 'wrap', gap: 1, mb: isComparison ? 1 : 0 }}>
@@ -424,6 +445,13 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                               >
                                 <ToggleButton value="price" sx={{ px: 1, fontSize: '0.65rem' }}>$</ToggleButton>
                                 <ToggleButton value="percent" sx={{ px: 1, fontSize: '0.65rem' }}>%</ToggleButton>
+                              </ToggleButtonGroup>
+
+
+
+                              <ToggleButtonGroup value={scaleType} exclusive onChange={(_, v) => v && setScaleType(v)} size="small" disabled={!isLogSupported} sx={{ height: 26 }}>
+                                <ToggleButton value="linear" sx={{ px: 1, fontSize: '0.65rem' }}>LIN</ToggleButton>
+                                <ToggleButton value="log" sx={{ px: 1, fontSize: '0.65rem' }}>LOG</ToggleButton>
                               </ToggleButtonGroup>
 
                               <Button

@@ -101,6 +101,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   } = useChartComparison({ portfolios, getPortfolioHistory });
 
   const [chartMetric, setChartMetric] = useState<'percent' | 'price' | 'candle'>('percent');
+  const [scaleType, setScaleType] = useState<'linear' | 'log'>('linear');
   const [compareMenuAnchor, setCompareMenuAnchor] = useState<null | HTMLElement>(null);
   const [analysisOpen, setAnalysisOpen] = useState(false);
 
@@ -185,6 +186,21 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
 
   const isComparison = comparisonSeries.length > 0;
   const effectiveChartMetric = isComparison ? 'percent' : chartMetric;
+
+  const isLogSupported = useMemo(() => {
+    if (effectiveChartMetric === 'percent') return true;
+    if (!displayHistory || displayHistory.length === 0) return false;
+    return displayHistory.every(d => {
+      const val = d.adjClose ?? d.price;
+      return val > 0;
+    });
+  }, [effectiveChartMetric, displayHistory]);
+
+  useEffect(() => {
+    if (!isLogSupported && scaleType === 'log') {
+      setScaleType('linear');
+    }
+  }, [isLogSupported, scaleType]);
 
   const handleClose = () => {
     if (onClose) onClose();
@@ -447,6 +463,8 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                             mode={effectiveChartMetric}
                             valueType="price"
                             height="100%"
+                          scaleType={scaleType}
+                          onScaleTypeChange={setScaleType}
                             topControls={
                               <Box sx={{ width: '100%' }}>
                                 <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: comparisonSeries.length > 0 ? 1 : 0, flexWrap: 'wrap' }}>
@@ -457,6 +475,10 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                                     <ToggleButton value="percent" sx={{ px: 1, fontSize: '0.65rem' }}>%</ToggleButton>
                                     <ToggleButton value="price" sx={{ px: 1, fontSize: '0.65rem' }}>$</ToggleButton>
                                     <ToggleButton value="candle" sx={{ px: 1, fontSize: '0.65rem' }}><CandlestickChartIcon sx={{ fontSize: '1rem' }} /></ToggleButton>
+                                  </ToggleButtonGroup>
+                                  <ToggleButtonGroup value={scaleType} exclusive onChange={(_, v) => v && setScaleType(v)} size="small" disabled={!isLogSupported} sx={{ height: 26 }}>
+                                    <ToggleButton value="linear" sx={{ px: 1, fontSize: '0.65rem' }}>LIN</ToggleButton>
+                                    <ToggleButton value="log" sx={{ px: 1, fontSize: '0.65rem' }}>LOG</ToggleButton>
                                   </ToggleButtonGroup>
                                   <Button size="small" sx={{ height: 26, fontSize: '0.65rem', minWidth: 0 }} onClick={(e) => setCompareMenuAnchor(e.currentTarget)}>{t('Compare', 'השווה')}</Button>
                                   <Button size="small" sx={{ height: 26, fontSize: '0.65rem', minWidth: 0 }} onClick={() => setAnalysisOpen(true)}>{t('Analysis', 'ניתוח')}</Button>
