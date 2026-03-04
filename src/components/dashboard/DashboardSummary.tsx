@@ -49,7 +49,7 @@ interface SummaryProps {
  */
 export function DashboardSummary({ summary, holdings, displayCurrency, exchangeRates, selectedPortfolio, portfolios, isPortfoliosLoading, transactions, hasFutureTxns }: SummaryProps) {
   logIfFalsy(exchangeRates, "DashboardSummary: exchangeRates missing");
-  const { t } = useLanguage();
+  const { t, isRtl } = useLanguage();
 
   const [activeStep, setActiveStep] = useState(0);
   const [perfData, setPerfData] = useState<PerformancePoint[]>([]);
@@ -224,7 +224,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
           sx={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', zIndex: 2 }}
           size="small"
         >
-          <ChevronLeftIcon />
+          <ChevronLeftIcon sx={{ transform: isRtl ? 'rotate(180deg)' : 'none' }} />
         </IconButton>
 
         <IconButton
@@ -232,7 +232,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
           sx={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', zIndex: 2 }}
           size="small"
         >
-          <ChevronRightIcon />
+          <ChevronRightIcon sx={{ transform: isRtl ? 'rotate(180deg)' : 'none' }} />
         </IconButton>
 
         <Box sx={{ px: 4 }}>

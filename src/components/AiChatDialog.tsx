@@ -304,7 +304,7 @@ const ChatInputSection = React.memo(({ onSend, isLoading, t, initialValue }: {
         variant="contained"
         onClick={handleSend}
         disabled={isLoading || !value.trim()}
-        endIcon={<SendIcon />}
+        endIcon={<SendIcon sx={{ transform: useLanguage().isRtl ? 'rotate(180deg)' : 'none' }} />}
       >
         {t('Send', 'שלח')}
       </Button>
@@ -690,7 +690,7 @@ Please be careful in your wording around suggestions - you are just an AI.
  * {prompt::Text to prefill} to suggest a new prompt for the user
  * {ticker::Label::EXCHANGE:SYMBOL} to link to a specific ticker e.g. {ticker::Google::NASDAQ:GOOGL}
  * {userinfo::Button Text} to link to the user profile info form
- * {url::Label::Path} to navigate to any URL (e.g. {url::Analyze performance::/ai?prompt=How is my portfolio doing?})
+ * {url::Label::Path} to navigate to any URL
 
 ==User Context==
 ${profileContext}

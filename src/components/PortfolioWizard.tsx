@@ -316,7 +316,7 @@ export function PortfolioWizard({ onComplete, onCancel, onManual, existingNames 
       <Box display="flex" alignItems="center" mb={3}>
         {step === 2 && (
           <IconButton onClick={() => setStep(1)} sx={{ mr: 1 }}>
-            <ArrowBackIcon />
+            <ArrowBackIcon sx={{ transform: isRtl ? 'rotate(180deg)' : 'none' }} />
           </IconButton>
         )}
         <Typography variant="h5" fontWeight="600">
