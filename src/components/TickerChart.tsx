@@ -519,12 +519,43 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
     // Move hooks above the conditional return
     const chartData = useMemo<ChartPoint[]>(() => {
         if (!mainSeries?.data || mainSeries.data.length < 1) return [];
+
+        // Downsampling logic for large datasets
+        let sourceData = mainSeries.data;
+        // Target max points similar to pixel width, e.g. 700.
+        // User requested weekly data for > 10y (approx 520 points).
+        const MAX_POINTS = 700;
+
+        if (sourceData.length > MAX_POINTS) {
+            const firstDate = sourceData[0].date.getTime();
+            const lastDate = sourceData[sourceData.length - 1].date.getTime();
+            const totalDuration = lastDate - firstDate;
+
+            if (totalDuration > 0) {
+                const minStep = totalDuration / MAX_POINTS;
+                const downsampled = [sourceData[0]];
+                let lastTime = firstDate;
+
+                for (let i = 1; i < sourceData.length - 1; i++) {
+                    const curTime = sourceData[i].date.getTime();
+                    // Keep point if enough time passed since last kept point
+                    if (curTime - lastTime >= minStep) {
+                        downsampled.push(sourceData[i]);
+                        lastTime = curTime;
+                    }
+                }
+                // Always keep the MOST RECENT point as requested
+                downsampled.push(sourceData[sourceData.length - 1]);
+                sourceData = downsampled;
+            }
+        }
+
         // Use adjClose if available, otherwise price. 
         // Important: Must use consistent field for base and current to get correct % change.
-        const first = mainSeries.data[0];
+        const first = sourceData[0];
         const basePrice = first.adjClose || first.price;
 
-        const processedMain = mainSeries.data.map(p => {
+        const processedMain = sourceData.map(p => {
             const val = p.adjClose || p.price;
             const pct = basePrice > 0 ? (val / basePrice - 1) : 0;
             // For log scale in percent mode, use symmetric log: sign(x) * log10(1 + abs(x))
@@ -850,7 +881,10 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                 currentTick.setMonth(currentTick.getMonth() + monthInterval);
             }
         } else { // More than 2 years: yearly ticks
-            const yearInterval = dateRangeDays <= 366 * 5 ? 1 : Math.ceil(dateRangeDays / (365 * 5));
+            // Target roughly 12-15 ticks for yearly data since the text "YYYY" is short
+            const totalYears = dateRangeDays / 365;
+            const yearInterval = Math.max(1, Math.ceil(totalYears / 12));
+
             let currentTick = new Date(startDate.getFullYear(), 0, 1);
             currentTick.setHours(0, 0, 0, 0);
 
