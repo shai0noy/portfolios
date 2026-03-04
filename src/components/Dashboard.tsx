@@ -621,6 +621,15 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
             summary,
             displayCurrency
           }}
+          onTickerClick={(t) => {
+            navigate(`/ticker/${t.exchange}/${t.symbol}`, {
+              state: {
+                from: '/dashboard',
+                background: location,
+              }
+            });
+          }}
+          onNavClick={(path) => navigate(path)}
         />
       )}
 

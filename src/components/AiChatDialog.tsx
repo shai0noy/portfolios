@@ -58,13 +58,126 @@ interface AiChatDialogProps {
   apiKey: string;
   sheetId: string;
   portfolioData: AiChatDialogPortfolioData;
+  onTickerClick?: (ticker: { exchange: string; symbol: string }) => void;
+  onNavClick?: (path: string) => void;
 }
 
-const ChatMessageItem = React.memo(({ msg, t, onRetry, lastPrompt }: {
+function LinkParser({ children, t, onPromptClick, onTickerClick, onProfileClick, onNavClick }: {
+  children: React.ReactNode,
+  t: (e: string, h: string) => string,
+  onPromptClick: (text: string) => void,
+  onTickerClick: (exchange: string, symbol: string) => void,
+  onProfileClick: () => void,
+  onNavClick: (path: string) => void
+}) {
+  const process = (node: React.ReactNode): React.ReactNode => {
+    if (typeof node === 'string') {
+      const parts: (string | React.ReactNode)[] = [];
+      let lastIndex = 0;
+      const regex = /\{(prompt|ticker|userinfo|url)(?:::([^}]+))?\}/g;
+      let match;
+
+      while ((match = regex.exec(node)) !== null) {
+        if (match.index > lastIndex) {
+          parts.push(node.substring(lastIndex, match.index));
+        }
+        const type = match[1];
+        const value = match[2];
+
+        if (type === 'prompt') {
+          parts.push(
+            <Button
+              key={match.index}
+              size="small"
+              variant="outlined"
+              onClick={() => onPromptClick(value)}
+              sx={{ mx: 0.5, textTransform: 'none', py: 0, height: 24, fontSize: '0.75rem' }}
+            >
+              {value}
+            </Button>
+          );
+        } else if (type === 'ticker') {
+          const valStr = value || '';
+          const [ex, sym] = valStr.includes(':') ? valStr.split(':') : ['', valStr];
+          parts.push(
+            <Button
+              key={match.index}
+              size="small"
+              color="primary"
+              onClick={() => onTickerClick(ex, sym)}
+              sx={{ mx: 0.5, textTransform: 'none', py: 0, height: 24, fontSize: '0.75rem', fontWeight: 700 }}
+            >
+              {sym || valStr}
+            </Button>
+          );
+        } else if (type === 'userinfo') {
+          parts.push(
+            <Button
+              key={match.index}
+              size="small"
+              color="secondary"
+              startIcon={<ManageAccountsIcon sx={{ fontSize: '1rem !important' }} />}
+              onClick={() => onProfileClick()}
+              sx={{ mx: 0.5, textTransform: 'none', py: 0, height: 24, fontSize: '0.75rem' }}
+            >
+              {value || t('Edit Profile', 'ערוך פרופיל')}
+            </Button>
+          );
+        } else if (type === 'url') {
+          const valStr = value || '';
+          const [label, path] = valStr.includes('|') ? valStr.split('|') : [valStr, valStr];
+          parts.push(
+            <Button
+              key={match.index}
+              size="small"
+              color="primary"
+              variant="text"
+              onClick={() => {
+                if (path.startsWith('http') || path.startsWith('mailto:')) {
+                  window.open(path, '_blank');
+                } else {
+                  onNavClick(path);
+                }
+              }}
+              sx={{ mx: 0.5, textTransform: 'none', py: 0, height: 24, fontSize: '0.75rem', textDecoration: 'underline' }}
+            >
+              {label || path}
+            </Button>
+          );
+        }
+        lastIndex = regex.lastIndex;
+      }
+      if (lastIndex < node.length) {
+        parts.push(node.substring(lastIndex));
+      }
+      return parts.length > 0 ? parts : node;
+    }
+
+    if (React.isValidElement(node) && node.props.children) {
+      return React.cloneElement(node as any, {
+        children: React.Children.map(node.props.children, process)
+      });
+    }
+
+    if (Array.isArray(node)) {
+      return node.map(process);
+    }
+
+    return node;
+  };
+
+  return <>{process(children)}</>;
+};
+
+const ChatMessageItem = React.memo(({ msg, t, onRetry, lastPrompt, onPromptClick, onTickerClick, onProfileClick, onNavClick }: {
   msg: ExtendedChatMessage,
   t: (e: string, h: string) => string,
   onRetry: (prompt: string) => void,
-  lastPrompt: string
+  lastPrompt: string,
+  onPromptClick: (text: string) => void,
+  onTickerClick: (exchange: string, symbol: string) => void,
+  onProfileClick: () => void,
+  onNavClick: (path: string) => void
 }) => {
   return (
     <Box
@@ -111,7 +224,16 @@ const ChatMessageItem = React.memo(({ msg, t, onRetry, lastPrompt }: {
           }
         }}>
           {msg.role === 'model' ? (
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.parts[0].text}</ReactMarkdown>
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                p: ({ children }) => <p><LinkParser t={t} onPromptClick={onPromptClick} onTickerClick={onTickerClick} onProfileClick={onProfileClick} onNavClick={onNavClick}>{children}</LinkParser></p>,
+                li: ({ children }) => <li><LinkParser t={t} onPromptClick={onPromptClick} onTickerClick={onTickerClick} onProfileClick={onProfileClick} onNavClick={onNavClick}>{children}</LinkParser></li>,
+                td: ({ children }) => <td><LinkParser t={t} onPromptClick={onPromptClick} onTickerClick={onTickerClick} onProfileClick={onProfileClick} onNavClick={onNavClick}>{children}</LinkParser></td>,
+              }}
+            >
+              {msg.parts[0].text}
+            </ReactMarkdown>
           ) : (
             msg.parts[0].text
           )}
@@ -318,7 +440,7 @@ const ProfileForm = React.memo(({ initialProfile, loadingProfile, displayCurrenc
   );
 });
 
-export const AiChatDialog: React.FC<AiChatDialogProps> = ({ open, onClose, apiKey, sheetId, portfolioData }) => {
+export const AiChatDialog: React.FC<AiChatDialogProps> = ({ open, onClose, apiKey, sheetId, portfolioData, onTickerClick: extOnTickerClick, onNavClick }) => {
   const { t } = useLanguage();
   const [messages, setMessages] = useState<ExtendedChatMessage[]>(() => {
     const saved = localStorage.getItem('ai_chat_history');
@@ -537,7 +659,12 @@ You are a financial assistant. Be professional, objective, and direct. Avoid exc
 Please be careful in your wording around suggestions - you are just an AI.
 -Use Markdown tables for comparing numbers or performance periods when beneficial.
 -When asked for FIRE analysis, use the User Profile (spending, earnings, ages) and portfolio value to calculate withdrawal rates, estimated years to retirement, and provide personalized insights.
-Suggest one concrete follow-up question or action.
+ Suggest one concrete follow-up question or action.
+-You can create interactive links in your response using these formats:
+ * {prompt::Text to prefill} to suggest a new prompt for the user
+  * {ticker::EXCHANGE:SYMBOL} to link to a specific ticker e.g. {ticker::NASDAQ:GOOGL}
+  * {userinfo::Button Text} to link to the user profile info form
+  * {url::Label|Path} to navigate to any URL or app path e.g. {url::View Portfolios|/portfolios} or {url::Yahoo Finance|https://finance.yahoo.com}
 
 ==User Context==
 ${profileContext}
@@ -761,6 +888,10 @@ ${marketOverview}
                 t={t}
                 onRetry={handleSend}
                 lastPrompt={lastPromptRef.current}
+                onPromptClick={(text) => setInput(text)}
+                onTickerClick={(ex, sym) => extOnTickerClick?.({ exchange: ex, symbol: sym })}
+                onProfileClick={() => setOpenProfile(true)}
+                onNavClick={(path) => onNavClick?.(path)}
               />
             ))}
             {isLoading && (
