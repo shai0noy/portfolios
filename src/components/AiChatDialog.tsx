@@ -60,6 +60,7 @@ interface AiChatDialogProps {
   portfolioData: AiChatDialogPortfolioData;
   onTickerClick?: (ticker: { exchange: string; symbol: string }) => void;
   onNavClick?: (path: string) => void;
+  initialPrompt?: string;
 }
 
 function LinkParser({ children, t, onPromptClick, onTickerClick, onProfileClick, onNavClick }: {
@@ -451,7 +452,7 @@ const ProfileForm = React.memo(({ initialProfile, loadingProfile, displayCurrenc
   );
 });
 
-export const AiChatDialog: React.FC<AiChatDialogProps> = ({ open, onClose, apiKey, sheetId, portfolioData, onTickerClick: extOnTickerClick, onNavClick }) => {
+export const AiChatDialog: React.FC<AiChatDialogProps> = ({ open, onClose, apiKey, sheetId, portfolioData, onTickerClick: extOnTickerClick, onNavClick, initialPrompt }) => {
   const { t } = useLanguage();
   const [messages, setMessages] = useState<ExtendedChatMessage[]>(() => {
     const saved = localStorage.getItem('ai_chat_history');
@@ -570,6 +571,23 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({ open, onClose, apiKe
   }, [chatMode, availableModels, isExpertMode]); // Intentionally not depending on selectedModel to avoid loops
 
   // Ensure initial model selection/validation (only once or when list loads)
+  const triggeredPromptRef = useRef<string | null>(null);
+
+  // Handle initial prompt from deep link
+  useEffect(() => {
+    if (open && initialPrompt && triggeredPromptRef.current !== initialPrompt) {
+      triggeredPromptRef.current = initialPrompt;
+      handleSend(initialPrompt);
+    }
+  }, [open, initialPrompt]);
+
+  // Reset trigger when dialog closes
+  useEffect(() => {
+    if (!open) {
+      triggeredPromptRef.current = null;
+    }
+  }, [open]);
+
   useEffect(() => {
     if (!availableModels.length) return;
     const currentExists = availableModels.some(m => m.name === selectedModel);
@@ -672,7 +690,7 @@ Please be careful in your wording around suggestions - you are just an AI.
  * {prompt::Text to prefill} to suggest a new prompt for the user
  * {ticker::Label::EXCHANGE:SYMBOL} to link to a specific ticker e.g. {ticker::Google::NASDAQ:GOOGL}
  * {userinfo::Button Text} to link to the user profile info form
- * {url::Label::Path} to navigate to any URL
+ * {url::Label::Path} to navigate to any URL (e.g. {url::Analyze performance::/ai?prompt=How is my portfolio doing?})
 
 ==User Context==
 ${profileContext}

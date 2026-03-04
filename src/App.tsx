@@ -36,6 +36,7 @@ import { SessionProvider, useSession } from './lib/SessionContext';
 
 const tabMap: Record<string, number> = {
   '/dashboard': 0,
+  '/ai': 0,
   '/transaction': 1,
   '/portfolios': 2,
 };
@@ -376,7 +377,7 @@ function AppContent() {
         </ListItemIcon>
         <ListItemText>{t('Clear Cache', 'נקה מטמון')}</ListItemText>
       </MenuItem>
-      <MenuItem onClick={() => { navigate('/dashboard?ai=true'); handleMobileMenuClose(); }}>
+      <MenuItem onClick={() => { navigate('/ai'); handleMobileMenuClose(); }}>
         <ListItemIcon>
           <AutoAwesomeIcon fontSize="small" color="primary" />
         </ListItemIcon>
@@ -543,6 +544,7 @@ function AppContent() {
                 {/* Routes for components that should not be hidden, but mounted on navigation */}
                 <Routes>
                   <Route path="/dashboard" element={null} /> {/* Dummy route */}
+                  <Route path="/ai" element={null} /> {/* Dummy route */}
                   <Route path="/favorites" element={null} /> {/* Dummy route */}
                   <Route path="/transaction" element={null} /> {/* Dummy route */}
                   <Route path="/portfolios" element={<PortfolioManager sheetId={sheetId} onSuccess={() => setRefreshKey(k => k + 1)} />} />

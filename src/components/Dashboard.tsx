@@ -48,6 +48,7 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
   const { showLoginModal } = useSession();
 
   const [aiChatOpen, setAiChatOpen] = useState(false);
+  const [aiInitialPrompt, setAiInitialPrompt] = useState<string | undefined>(undefined);
   const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
   const [decryptedKey, setDecryptedKey] = useState<string | null>(null);
 
@@ -91,7 +92,7 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
     }
   };
 
-  const handleAiClick = async () => {
+  const handleAiClick = async (prompt?: string) => {
     try {
       const key = await checkGeminiKey(sheetId);
       if (!key) {
@@ -99,6 +100,17 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
         return;
       }
       setDecryptedKey(key);
+      if (prompt) setAiInitialPrompt(prompt);
+
+      const newParams = new URLSearchParams(searchParams);
+      if (prompt) newParams.set('prompt', prompt);
+      else newParams.delete('prompt');
+
+      navigate({
+        pathname: '/ai',
+        search: newParams.toString() ? `?${newParams.toString()}` : ''
+      }, { replace: true });
+
       setAiChatOpen(true);
     } catch (err) {
       console.error("AI Key Check Error:", err);
@@ -107,14 +119,16 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
   };
 
   useEffect(() => {
-    if (searchParams.get('ai') === 'true' && !aiChatOpen && !loading) {
-      handleAiClick();
-      // Remove the param but keep other params
-      const newParams = new URLSearchParams(searchParams);
-      newParams.delete('ai');
-      setSearchParams(newParams, { replace: true });
+    const isAiPath = location.pathname === '/ai';
+    const promptParam = searchParams.get('prompt');
+
+    if (isAiPath && !aiChatOpen && !loading) {
+      handleAiClick(promptParam || undefined);
+    } else if (!isAiPath && aiChatOpen) {
+      setAiChatOpen(false);
+      setAiInitialPrompt(undefined);
     }
-  }, [searchParams, loading]);
+  }, [location.pathname, searchParams, loading, aiChatOpen]);
 
   const { summary, holdings: enrichedHoldings } = useMemo(() => {
     // Default empty return
@@ -566,7 +580,7 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
           <Divider orientation="vertical" flexItem sx={{ mx: 1, height: 20, alignSelf: 'center' }} />
           <Tooltip title={t("AI Portfolio Assistant", "עוזר תיק השקעות AI")}>
             <Button
-              onClick={handleAiClick}
+              onClick={() => handleAiClick()}
               variant="outlined"
               size="small"
               color="primary"
@@ -613,7 +627,14 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
       {decryptedKey && (
         <AiChatDialog
           open={aiChatOpen}
-          onClose={() => setAiChatOpen(false)}
+          onClose={() => {
+            const newParams = new URLSearchParams(searchParams);
+            newParams.delete('prompt');
+            navigate({
+              pathname: '/dashboard',
+              search: newParams.toString() ? `?${newParams.toString()}` : ''
+            }, { replace: true });
+          }}
           apiKey={decryptedKey}
           sheetId={sheetId || ''}
           portfolioData={{
@@ -630,6 +651,7 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
             });
           }}
           onNavClick={(path) => navigate(path)}
+          initialPrompt={aiInitialPrompt}
         />
       )}
 
