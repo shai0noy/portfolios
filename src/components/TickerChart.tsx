@@ -154,6 +154,7 @@ interface TickerChartProps {
     onScaleTypeChange?: (type: 'linear' | 'log') => void;
     trendType?: TrendType;
     onTrendTypeChange?: (type: TrendType) => void;
+    denseTicks?: boolean;
 }
 
 interface ChartPoint {
@@ -539,7 +540,7 @@ const SelectionSummary = ({ startPoint, endPoint, currency, t, isComparison, ser
     );
 };
 
-export function TickerChart({ series, currency, mode = 'percent', valueType = 'price', height = 300, hideCurrentPrice, allowFullscreen = true, topControls, scaleType: propScaleType, onScaleTypeChange, trendType: propTrendType, onTrendTypeChange }: TickerChartProps) {
+export function TickerChart({ series, currency, mode = 'percent', valueType = 'price', height = 300, hideCurrentPrice, allowFullscreen = true, topControls, scaleType: propScaleType, onScaleTypeChange, trendType: propTrendType, onTrendTypeChange, denseTicks }: TickerChartProps) {
     const FADE_MS = 170;          // Speed of the opacity transition
     const TRANSFORM_MS = 360;     // Speed of the line movement (Very fast)
     const BUFFER_MS = 30;        // Safety window for browser paint
@@ -1183,43 +1184,75 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
     const clampedOffset = Math.max(0, Math.min(1, offset));
 
     const yTicks = useMemo(() => {
-        // If log scale, let Recharts handle ticks automatically (or implement log tick generator)
-        if (scaleType === 'log') return undefined;
+        const targetTickCount = (denseTicks || isFullscreen) ? 10 : 5;
 
-        // If 0 is in range, we want to ensure a tick at 0
-        const range = yMax - yMin;
-        if (range === 0) return [0];
-
-        const targetTickCount = 5;
-        const rawStep = range / targetTickCount;
-        const mag = Math.pow(10, Math.floor(Math.log10(rawStep)));
-        let step = Math.ceil(rawStep / mag) * mag; // e.g. 0.1, 1, 10...
-
-        // Adjust step to be "nice" (multiples of 1, 2, 5)
-        if (step / mag < 1.5) step = 1 * mag;
-        else if (step / mag < 3.5) step = 2 * mag;
-        else if (step / mag < 7.5) step = 5 * mag;
-        else step = 10 * mag;
-
-        const ticks: number[] = [];
-        ticks.push(0);
-
-        // Add positive ticks
-        let curr = step;
-        while (curr <= yMax) {
-            ticks.push(curr);
-            curr += step;
+        let realMin = yMin;
+        let realMax = yMax;
+        if (scaleType === 'log') {
+            realMin = Math.sign(yMin) * (Math.pow(10, Math.abs(yMin)) - 1);
+            realMax = Math.sign(yMax) * (Math.pow(10, Math.abs(yMax)) - 1);
         }
 
-        // Add negative ticks
-        curr = -step;
-        while (curr >= yMin) {
-            ticks.unshift(curr);
-            curr -= step;
-        }
+        const range = realMax - realMin;
+        if (range <= 0) return scaleType === 'log' ? [yMin] : [realMin];
 
-        return ticks.filter(t => t >= yMin && t <= yMax);
-    }, [yMin, yMax, scaleType]);
+        const getLinearTicks = (minV: number, maxV: number) => {
+            const rawStep = (maxV - minV) / targetTickCount;
+            const mag = Math.pow(10, Math.floor(Math.log10(rawStep)));
+            let step = Math.ceil(rawStep / mag) * mag; // e.g. 0.1, 1, 10...
+
+            if (step / mag < 1.5) step = 1 * mag;
+            else if (step / mag < 3.5) step = 2 * mag;
+            else if (step / mag < 7.5) step = 5 * mag;
+            else step = 10 * mag;
+
+            const ticks: number[] = [];
+            ticks.push(0);
+
+            let curr = step;
+            while (curr <= maxV) {
+                ticks.push(curr);
+                curr += step;
+            }
+            curr = -step;
+            while (curr >= minV) {
+                ticks.unshift(curr);
+                curr -= step;
+            }
+
+            let rawTicks = new Set(ticks.filter(t => t >= minV && t <= maxV));
+
+            // Log scale stretches the chart massively near 0.
+            // Add evenly-distributed sub-ticks within the first standard step [0, step] to visually balance the axis
+            if (scaleType === 'log' && step > 0) {
+                const subStep = step / 10;
+
+                if (maxV > 0) {
+                    for (let val = subStep; val < step; val += subStep) {
+                        if (val >= minV && val <= maxV) {
+                            rawTicks.add(Number(val.toFixed(10)));
+                        }
+                    }
+                }
+                if (minV < 0) {
+                    for (let val = subStep; val < step; val += subStep) {
+                        if (-val >= minV && -val <= maxV) {
+                            rawTicks.add(Number((-val).toFixed(10)));
+                        }
+                    }
+                }
+            }
+
+            return Array.from(rawTicks).sort((a, b) => a - b);
+        };
+
+        const rawTicks = getLinearTicks(realMin, realMax);
+
+        if (scaleType === 'log') {
+            return rawTicks.map(t => Math.sign(t) * Math.log10(1 + Math.abs(t)));
+        }
+        return rawTicks;
+    }, [yMin, yMax, scaleType, denseTicks, isFullscreen]);
 
     const showZeroLine = yMin <= 0 && yMax >= 0;
 
@@ -1345,6 +1378,7 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                                     onScaleTypeChange={setScaleType}
                                     trendType={trendType}
                                     onTrendTypeChange={setTrendType}
+                                    denseTicks={true}
                                 />
                             </Box>
                         </DialogContent>
