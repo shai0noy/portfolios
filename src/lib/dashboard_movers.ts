@@ -128,6 +128,9 @@ export function calculateTopMovers(
 
     result[period] = movers
       .filter(m => {
+        // Always show favorites, even if 0 change
+        if (m.holding.isFavoritesList) return true;
+
         if (sortBy === 'change') {
           // Filter out small changes (noise)
           return !isNaN(m.change) && Math.abs(m.change) >= valueThreshold;

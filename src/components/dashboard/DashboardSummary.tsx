@@ -23,6 +23,7 @@ import type { DashboardSummaryData } from '../../lib/dashboard';
 import { SummaryStat } from './SummaryStat';
 import { PerformanceStat } from './PerformanceStat';
 import { TopMovers } from './TopMovers';
+import { MarketViewSummary } from './MarketViewSummary';
 
 // Time constants for auto-stepping
 const AUTO_STEP_DELAY = 2 * 60 * 1000; // 2 minutes
@@ -38,6 +39,7 @@ interface SummaryProps {
   isPortfoliosLoading: boolean;
   transactions: Transaction[];
   hasFutureTxns?: boolean;
+  favoriteHoldings?: DashboardHolding[];
 }
 
 /**
@@ -49,7 +51,7 @@ interface SummaryProps {
  * 
  * Supports "Stepping" through these 3 views automatically or manually.
  */
-export function DashboardSummary({ summary, holdings, displayCurrency, exchangeRates, selectedPortfolio, portfolios, isPortfoliosLoading, transactions, hasFutureTxns }: SummaryProps) {
+export function DashboardSummary({ summary, holdings, displayCurrency, exchangeRates, selectedPortfolio, portfolios, isPortfoliosLoading, transactions, hasFutureTxns, favoriteHoldings }: SummaryProps) {
   logIfFalsy(exchangeRates, "DashboardSummary: exchangeRates missing");
   const { t, isRtl } = useLanguage();
 
@@ -85,7 +87,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
   const startTimer = useCallback((delay: number) => {
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
-      setActiveStep(prev => (prev + 1) % 3);
+      setActiveStep(prev => (prev + 1) % 4);
     }, delay);
   }, []);
 
@@ -130,8 +132,8 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
   const handleManualStep = (direction: 'next' | 'prev') => {
     isManualRef.current = true;
     setActiveStep(prev => {
-      if (direction === 'next') return (prev + 1) % 3;
-      return (prev - 1 + 3) % 3;
+      if (direction === 'next') return (prev + 1) % 4;
+      return (prev - 1 + 4) % 4;
     });
   };
 
@@ -595,7 +597,14 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
           {activeStep === 2 && (
             <Fade in={true} timeout={700}>
               <Box>
-                <TopMovers holdings={holdings} displayCurrency={displayCurrency} exchangeRates={exchangeRates} />
+                <TopMovers holdings={[...holdings, ...(favoriteHoldings || [])]} displayCurrency={displayCurrency} exchangeRates={exchangeRates} />
+              </Box>
+            </Fade>
+          )}
+          {activeStep === 3 && (
+            <Fade in={true} timeout={700}>
+              <Box>
+                <MarketViewSummary />
               </Box>
             </Fade>
           )}
