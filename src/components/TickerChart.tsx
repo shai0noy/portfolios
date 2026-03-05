@@ -137,7 +137,7 @@ function solveUnivariableRegression(x: number[], y: number[], type: TrendType): 
 
 export interface ChartSeries {
     name: string;
-    data: { date: Date; price: number; adjClose?: number; open?: number; high?: number; low?: number; volume?: number }[];
+    data: { date: Date; price: number; adjClose?: number; open?: number; high?: number; low?: number; volume?: number; totalVolume?: number }[];
     color?: string;
 }
 
@@ -183,7 +183,7 @@ const CandleStickShape = (props: any) => {
     // Recharts passes `y` (y-coord of value) and `height` (length of bar from baseValue).
     // We assume dataKey="price" (close).
     // So y = scale(close), y + height = scale(0) [linear] or scale(domainMin) [log].
-    const { x, width, height, y, payload, successColor, errorColor, isLog, domainMin } = props;
+    const { x, width, height, y, payload, successColor, errorColor, domainMin } = props;
     // VERY IMPORTANT: Our payload contains `{ open, price, high, low }`
     // "price" maps to "close" based on mainSeries mapping.
     const { open, price: close, high, low } = payload;
@@ -195,32 +195,10 @@ const CandleStickShape = (props: any) => {
     const color = isUp ? successColor : errorColor;
 
     // Derived scale function:
-    let scale = (v: number) => (y + height) - (height / close) * v;
-
-    if (isLog && domainMin && domainMin > 0 && close > 0) {
-        // Logarithmic scale logic
-        // Y(v) = A * log(v) + B
-        // Y(close) = y
-        // Y(domainMin) = y + height
-        // height = Y(domainMin) - Y(close) = A * (log(domainMin) - log(close))
-        // A = height / log(domainMin/close)
-        // B = y - A * log(close)
-
-        const logBase = Math.log(domainMin);
-        const logClose = Math.log(close);
-        const diff = logBase - logClose;
-
-        // Protect against close ~= domainMin
-        if (Math.abs(diff) > 0.000001) {
-            const A = height / diff;
-            const B = y - A * logClose;
-            scale = (v: number) => v > 0 ? A * Math.log(v) + B : y + height;
-        }
-    } else {
-        // Linear safe fallback
-        if (Math.abs(close) < 0.000001 || !height) return null;
-        scale = (v: number) => (y + height) - (height / close) * v;
-    }
+    let scale = (v: number) => {
+        if (!height || Math.abs(close - domainMin) < 0.000001) return y;
+        return (y + height) - (height / (close - domainMin)) * (v - domainMin);
+    };
 
     const yOpen = scale(open);
     const yClose = scale(close);
@@ -336,7 +314,7 @@ const CustomTooltip = ({ active, payload, currency, t, basePrice, isComparison, 
             );
         }
 
-        const val = point.adjClose || point.price;
+        const val = point.rawAdjClose ?? point.adjClose ?? point.rawPrice ?? point.price;
         const percentChange = basePrice ? (val / basePrice - 1) : 0;
 
         return (
@@ -370,11 +348,15 @@ const CandleTooltip = ({ active, payload, currency, t }: any) => {
     if (active && payload && payload.length) {
         // Find the payload with the candle data (source data)
         const point = payload[0].payload;
-        const { date, open, high, low, close, volume } = point;
+        const rawOpen = point.rawOpen ?? point.open;
+        const rawHigh = point.rawHigh ?? point.high;
+        const rawLow = point.rawLow ?? point.low;
+        const rawClose = point.rawPrice ?? point.price ?? point.close;
+        const { date, volume } = point;
         const dateStr = formatDate(date);
 
         // Use close if price is missing, or price
-        const currentPrice = close || point.price;
+        const currentPrice = rawClose;
 
         return (
             <Paper elevation={3} sx={{ padding: '10px', minWidth: 140 }}>
@@ -384,15 +366,15 @@ const CandleTooltip = ({ active, payload, currency, t }: any) => {
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                         <Typography variant="caption">Open:</Typography>
-                        <Typography variant="caption" fontWeight="bold">{formatPrice(open, currency, undefined, t)}</Typography>
+                        <Typography variant="caption" fontWeight="bold">{formatPrice(rawOpen, currency, undefined, t)}</Typography>
                     </Box>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                         <Typography variant="caption">High:</Typography>
-                        <Typography variant="caption" fontWeight="bold">{formatPrice(high, currency, undefined, t)}</Typography>
+                        <Typography variant="caption" fontWeight="bold">{formatPrice(rawHigh, currency, undefined, t)}</Typography>
                     </Box>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                         <Typography variant="caption">Low:</Typography>
-                        <Typography variant="caption" fontWeight="bold">{formatPrice(low, currency, undefined, t)}</Typography>
+                        <Typography variant="caption" fontWeight="bold">{formatPrice(rawLow, currency, undefined, t)}</Typography>
                     </Box>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                         <Typography variant="caption">Close:</Typography>
@@ -402,7 +384,7 @@ const CandleTooltip = ({ active, payload, currency, t }: any) => {
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 0.5 }}>
                             <Typography variant="caption">Volume:</Typography>
                             <Typography variant="caption" fontWeight="bold">
-                                {new Intl.NumberFormat(undefined, { notation: "compact", compactDisplay: "short" }).format(volume)}
+                                {new Intl.NumberFormat(undefined, { notation: "compact", compactDisplay: "short" }).format((point as any).totalVolume ?? volume)}
                             </Typography>
                         </Box>
                     )}
@@ -460,8 +442,8 @@ const SelectionSummary = ({ startPoint, endPoint, currency, t, isComparison, ser
             let endVal: number | undefined;
 
             if (index === 0) { // Main series
-                startVal = startPoint.yValue;
-                endVal = endPoint.yValue;
+                startVal = startPoint.rawY ?? startPoint.yValue;
+                endVal = endPoint.rawY ?? endPoint.yValue;
             } else { // Comparison series
                 const dataKey = `series_${index - 1}`;
                 // Use RAW values for selection summary too
@@ -537,8 +519,8 @@ const SelectionSummary = ({ startPoint, endPoint, currency, t, isComparison, ser
     }
 
     // Single-line mode logic (existing)
-    const startVal = startPoint.adjClose || startPoint.price;
-    const endVal = endPoint.adjClose || endPoint.price;
+    const startVal = startPoint.rawAdjClose ?? startPoint.adjClose ?? startPoint.rawPrice ?? startPoint.price;
+    const endVal = endPoint.rawAdjClose ?? endPoint.adjClose ?? endPoint.rawPrice ?? endPoint.price;
 
     const priceChange = endVal - startVal;
     const percentChange = (startVal !== 0) ? (endVal / startVal) - 1 : 0;
@@ -676,20 +658,49 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
 
             if (totalDuration > 0) {
                 const minStep = totalDuration / MAX_POINTS;
-                const downsampled = [sourceData[0]];
-                let lastTime = firstDate;
+                const aggregated: typeof sourceData = [];
 
-                for (let i = 1; i < sourceData.length - 1; i++) {
-                    const curTime = sourceData[i].date.getTime();
-                    // Keep point if enough time passed since last kept point
-                    if (curTime - lastTime >= minStep) {
-                        downsampled.push(sourceData[i]);
-                        lastTime = curTime;
+                let i = 0;
+                while (i < sourceData.length) {
+                    const bucketStartTime = sourceData[i].date.getTime();
+                    const bucketTargetEnd = bucketStartTime + minStep;
+
+                    const firstP = sourceData[i];
+                    let high = -Infinity;
+                    let low = Infinity;
+                    let vol = 0;
+                    let count = 0;
+                    let lastP = firstP;
+
+                    // Aggregate points within the time bucket
+                    while (i < sourceData.length) {
+                        const p = sourceData[i];
+                        // If we moved past the bucket time window, stop (unless it's the very first point of bucket)
+                        if (p.date.getTime() >= bucketTargetEnd && p !== firstP) break;
+
+                        high = Math.max(high, p.high ?? p.price);
+                        low = Math.min(low, p.low ?? p.price);
+                        vol += (p.volume ?? 0);
+                        count++;
+                        lastP = p;
+                        i++;
                     }
+
+                    // Push aggregated point
+                    // We normalize 'volume' to weighted average so bars are consistent height regardless of bucket size
+                    // We store 'totalVolume' for the tooltip
+                    aggregated.push({
+                        date: firstP.date,
+                        open: firstP.open ?? firstP.price,
+                        high: high === -Infinity ? firstP.high ?? firstP.price : high,
+                        low: low === Infinity ? firstP.low ?? firstP.price : low,
+                        price: lastP.price,         // Close
+                        adjClose: lastP.adjClose,
+                        volume: vol,
+                        totalVolume: vol
+                    });
                 }
-                // Always keep the MOST RECENT point as requested
-                downsampled.push(sourceData[sourceData.length - 1]);
-                sourceData = downsampled;
+                sourceData = aggregated;
             }
         }
 
@@ -701,22 +712,50 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
         const processedMain = sourceData.map(p => {
             const val = p.adjClose || p.price;
             const pct = basePrice > 0 ? (val / basePrice - 1) : 0;
-            // For log scale in percent mode, use symmetric log: sign(x) * log10(1 + abs(x))
-            // This handles negative percentages nicely and behaves linearly around 0.
+
+            const rawData = {
+                rawPrice: p.price,
+                rawOpen: p.open,
+                rawHigh: p.high,
+                rawLow: p.low,
+                rawAdjClose: p.adjClose,
+                rawY: currentMode === 'percent' ? pct : val
+            };
+
             let yVal = val;
-            if (currentMode === 'percent') {
-                if (scaleType === 'log') {
-                    // Symlog
+            let p_open = p.open;
+            let p_high = p.high;
+            let p_low = p.low;
+            let p_price = p.price;
+            let p_adjClose = p.adjClose;
+
+            if (scaleType === 'log') {
+                if (currentMode === 'percent') {
                     yVal = Math.sign(pct) * Math.log10(1 + Math.abs(pct));
                 } else {
+                    yVal = Math.sign(val) * Math.log10(1 + Math.abs(val));
+                    if (p_price != null) p_price = Math.sign(p_price) * Math.log10(1 + Math.abs(p_price));
+                    if (p_open != null) p_open = Math.sign(p_open) * Math.log10(1 + Math.abs(p_open));
+                    if (p_high != null) p_high = Math.sign(p_high) * Math.log10(1 + Math.abs(p_high));
+                    if (p_low != null) p_low = Math.sign(p_low) * Math.log10(1 + Math.abs(p_low));
+                    if (p_adjClose != null) p_adjClose = Math.sign(p_adjClose) * Math.log10(1 + Math.abs(p_adjClose));
+                }
+            } else {
+                if (currentMode === 'percent') {
                     yVal = pct;
                 }
             }
 
             return {
                 ...p,
+                ...rawData,
                 yValue: yVal,
                 pctValue: pct,
+                open: p_open,
+                high: p_high,
+                low: p_low,
+                price: p_price,
+                adjClose: p_adjClose
             };
         });
 
@@ -796,11 +835,14 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                     point[`series_${i}_pct`] = pct;
 
                     // Update series_i with shifted value if log
-                    // Update series_i with symlog value if log enabled in percent mode
                     if (currentMode === 'percent' && scaleType === 'log') {
                         point[`series_${i}`] = Math.sign(pct) * Math.log10(1 + Math.abs(pct));
                     } else if (currentMode === 'price' || currentMode === 'candle') {
-                        point[`series_${i}`] = val;
+                        if (scaleType === 'log') {
+                            point[`series_${i}`] = Math.sign(val) * Math.log10(1 + Math.abs(val));
+                        } else {
+                            point[`series_${i}`] = val;
+                        }
                     } else {
                         point[`series_${i}`] = pct;
                     }
@@ -827,7 +869,7 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
         const fullPoints = sourceData.map(d => ({
             d, // keep original reference
             x: (d.date.getTime() - firstTime) / (1000 * 60 * 60 * 24), // Days since start
-            y: currentMode === 'percent' ? (d.pctValue ?? d.yValue) : (d.adjClose || d.price)
+            y: d.rawY ?? (currentMode === 'percent' ? (d.pctValue ?? d.yValue) : (d.adjClose || d.price))
         }));
 
         // Filter for valid points to build the regression model
@@ -848,7 +890,7 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
         if (!regressionFn) return sourceData;
 
         // Apply regression to ALL points (even those with missing/invalid original Y, we can extrapolate)
-        return fullPoints.map((p, i) => {
+        return fullPoints.map((p) => {
             let xVal = p.x;
             if (trendType === 'logarithmic') xVal += 1;
 
@@ -932,6 +974,7 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
             calculatedMax = max + effectivePadding;
         }
 
+        console.log("MIN_MAX", { min, max, calculatedMin, calculatedMax, scaleType });
         return { yMin: calculatedMin, yMax: calculatedMax };
     }, [dataWithTrend, dataMin, dataMax, scaleType]);
 
@@ -1112,7 +1155,10 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
     const mainLineColor = isComparison ? theme.palette.text.primary : chartColor;
 
     // Determine the split threshold
-    const threshold = (currentMode === 'price' || currentMode === 'candle') ? basePrice : 0;
+    let threshold = (currentMode === 'price' || currentMode === 'candle') ? basePrice : 0;
+    if (scaleType === 'log') {
+        threshold = Math.sign(threshold) * Math.log10(1 + Math.abs(threshold));
+    }
 
     // Calculate the offset for the gradient. This value represents the position
     // of the threshold on the Y-axis, where 0 is the top of the chart (yMax)
@@ -1347,6 +1393,8 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                                 yAxisId="volume"
                                 orientation="left"
                                 hide={true}
+                                width={0}
+                                tickFormatter={() => ''}
                                 domain={[0, volMax * 4]} // Scale so max volume is 1/4th height
                             />
                             <Tooltip content={<CandleTooltip currency={currency} t={t} mode={currentMode} />} />
@@ -1364,7 +1412,7 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                             <Bar
                                 dataKey="price"
                                 yAxisId="price"
-                                shape={<CandleStickShape successColor={successColor} errorColor={errorColor} isLog={scaleType === 'log'} domainMin={yMin} />}
+                                shape={<CandleStickShape successColor={successColor} errorColor={errorColor} domainMin={yMin} />}
                                 barSize={8} // 2x volume width
                                 isAnimationActive={false}
                             />
