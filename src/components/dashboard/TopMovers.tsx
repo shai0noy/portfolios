@@ -129,7 +129,7 @@ export const TopMovers = ({ holdings, displayCurrency, exchangeRates, lockedMetr
     return (
         <Box sx={{ p: 0.5 }}>
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={0.5} px={0.5}>
-                <Typography variant="subtitle2" color="text.secondary">{t('Top Movers', 'המניות הבולטות')}</Typography>
+                <Typography variant="h6" component="div" sx={{ fontSize: '1rem', fontWeight: 'bold' }}>{t('Top Movers', 'המניות הבולטות')}</Typography>
                 <Box display="flex" alignItems="center">
                     {!lockedMetric && (
                         <>

@@ -48,8 +48,9 @@ interface SummaryProps {
  * 1. High-level Portfolio Stats (Value, Gains, etc.)
  * 2. Performance Chart (Holdings, TWR, Gains)
  * 3. Top Movers (Daily, Weekly, Monthly)
+ * 4. Market View Summary (Indices, Sectors, Top Movers)
  * 
- * Supports "Stepping" through these 3 views automatically or manually.
+ * Supports "Stepping" through these 4 views automatically or manually.
  */
 export function DashboardSummary({ summary, holdings, displayCurrency, exchangeRates, selectedPortfolio, portfolios, isPortfoliosLoading, transactions, hasFutureTxns, favoriteHoldings }: SummaryProps) {
   logIfFalsy(exchangeRates, "DashboardSummary: exchangeRates missing");
@@ -601,13 +602,13 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
               </Box>
             </Fade>
           )}
-          {activeStep === 3 && (
-            <Fade in={true} timeout={700}>
+          <Box sx={{ display: activeStep === 3 ? 'block' : 'none', height: '100%' }}>
+            <Fade in={activeStep === 3} timeout={700}>
               <Box>
                 <MarketViewSummary />
               </Box>
             </Fade>
-          )}
+          </Box>
         </Box>
         {hasFutureTxns && (
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'right', mt: 1, mr: 2, mb: -1, fontSize: '0.7rem' }}>
