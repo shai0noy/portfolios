@@ -1,9 +1,10 @@
-import { Box, Typography, Paper, Table, TableHead, TableRow, TableCell, TableBody, Tooltip, IconButton } from '@mui/material';
+import { Box, Typography, Paper, Table, TableHead, TableRow, TableCell, TableBody, Tooltip, IconButton, useTheme } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import { formatValue, formatNumber, formatPrice } from '../../lib/currency';
 import { useLanguage } from '../../lib/i18n';
 import type { Transaction } from '../../lib/types';
 import { isBuy, isSell } from '../../lib/types';
+import { useScrollShadows, ScrollShadows } from '../../lib/ui-utils';
 
 interface HoldingTransactionsProps {
     txnHistory: Transaction[];
@@ -15,12 +16,15 @@ interface HoldingTransactionsProps {
 
 export function HoldingTransactions({ txnHistory, portfolioNameMap, formatDate, onEditTransaction, isFeeExempt }: HoldingTransactionsProps) {
     const { t } = useLanguage();
+    const theme = useTheme();
+    const { containerRef, showTop, showBottom } = useScrollShadows();
 
     return (
         <Box>
             <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'bold' }}>{t('Transaction History', 'היסטוריית עסקאות')}</Typography>
-            <Paper variant="outlined" sx={{ maxHeight: 500, overflowY: 'auto' }}>
-                <Table size="small" stickyHeader>
+            <Box sx={{ position: 'relative' }}>
+                <Paper ref={containerRef} variant="outlined" sx={{ maxHeight: 500, overflowY: 'auto' }}>
+                    <Table size="small" stickyHeader>
                     <TableHead>
                         <TableRow>
                             <TableCell sx={{ bgcolor: 'background.paper' }}>{t('Date', 'תאריך')}</TableCell>
@@ -100,8 +104,10 @@ export function HoldingTransactions({ txnHistory, portfolioNameMap, formatDate, 
                             <TableRow><TableCell colSpan={9} align="center" sx={{ py: 3, color: 'text.secondary' }}>{t('No transactions found.', 'לא נמצאו עסקאות.')}</TableCell></TableRow>
                         )}
                     </TableBody>
-                </Table>
-            </Paper>
+                    </Table>
+                </Paper>
+                <ScrollShadows top={showTop} bottom={showBottom} theme={theme} />
+            </Box>
         </Box>
     );
 }

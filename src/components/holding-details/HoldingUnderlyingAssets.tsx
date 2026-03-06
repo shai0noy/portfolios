@@ -1,6 +1,7 @@
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
-import { Box, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Tooltip } from '@mui/material';
+import { Box, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Tooltip, useTheme } from '@mui/material';
 import { useLanguage } from '../../lib/i18n';
+import { useScrollShadows, ScrollShadows } from '../../lib/ui-utils';
 
 interface HoldingUnderlyingAssetsProps {
     assets?: { name: string, weight: number }[];
@@ -8,6 +9,8 @@ interface HoldingUnderlyingAssetsProps {
 
 export function HoldingUnderlyingAssets({ assets }: HoldingUnderlyingAssetsProps) {
     const { t } = useLanguage();
+    const theme = useTheme();
+    const { containerRef, showTop, showBottom } = useScrollShadows();
 
     if (!assets || assets.length === 0) return null;
 
@@ -24,28 +27,31 @@ export function HoldingUnderlyingAssets({ assets }: HoldingUnderlyingAssetsProps
                     <InfoOutlinedIcon fontSize="small" color="action" sx={{ opacity: 0.7, fontSize: '0.9rem' }} />
                 </Tooltip>
             </Box>
-            <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 300 }}>
-                <Table size="small" stickyHeader>
-                    <TableHead>
-                        <TableRow>
-                            <TableCell>{t('Asset', 'נכס')}</TableCell>
-                            <TableCell align="right">{t('Weight', 'משקל')}</TableCell>
-                        </TableRow>
-                    </TableHead>
-                    <TableBody>
-                        {sortedAssets.map((asset, index) => (
-                            <TableRow key={index} hover>
-                                <TableCell component="th" scope="row" sx={{ fontSize: '0.875rem' }}>
-                                    {asset.name}
-                                </TableCell>
-                                <TableCell align="right" sx={{ fontSize: '0.875rem' }}>
-                                    {asset.weight.toFixed(2)}%
-                                </TableCell>
+            <Box sx={{ position: 'relative' }}>
+                <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 300 }} ref={containerRef}>
+                    <Table size="small" stickyHeader>
+                        <TableHead>
+                            <TableRow>
+                                <TableCell>{t('Asset', 'נכס')}</TableCell>
+                                <TableCell align="right">{t('Weight', 'משקל')}</TableCell>
                             </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            </TableContainer>
+                        </TableHead>
+                        <TableBody>
+                            {sortedAssets.map((asset, index) => (
+                                <TableRow key={index} hover>
+                                    <TableCell component="th" scope="row" sx={{ fontSize: '0.875rem' }}>
+                                        {asset.name}
+                                    </TableCell>
+                                    <TableCell align="right" sx={{ fontSize: '0.875rem' }}>
+                                        {asset.weight.toFixed(2)}%
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </TableContainer>
+                <ScrollShadows top={showTop} bottom={showBottom} theme={theme} />
+            </Box>
         </Box>
     );
 }

@@ -3,7 +3,7 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions,
   Button, TextField, Box, Typography, IconButton,
   CircularProgress, Paper, Tooltip, Select, MenuItem, FormControl,
-  FormControlLabel, Chip, Stack, ToggleButton, ToggleButtonGroup, Switch, Alert
+  FormControlLabel, Chip, Stack, ToggleButton, ToggleButtonGroup, Switch, Alert, useTheme
 } from '@mui/material';
 import BoltIcon from '@mui/icons-material/Bolt';
 import PsychologyIcon from '@mui/icons-material/Psychology';
@@ -26,6 +26,7 @@ import ManageAccountsIcon from '@mui/icons-material/ManageAccounts';
 import { getMetadataValue, setMetadataValue } from '../lib/sheets/api';
 import { getTickerData } from '../lib/fetching';
 import { Exchange } from '../lib/types';
+import { useScrollShadows, ScrollShadows } from '../lib/ui-utils';
 
 interface AiChatDialogPortfolioData {
   holdings: EnrichedDashboardHolding[];
@@ -303,6 +304,7 @@ const ChatInputSection = React.memo(({ onSend, isLoading, t, initialValue }: {
 
 export const AiChatDialog: React.FC<AiChatDialogProps> = ({ open, onClose, apiKey, sheetId, portfolioData, onTickerClick: extOnTickerClick, onNavClick, initialPrompt }) => {
   const { t } = useLanguage();
+  const theme = useTheme();
   const [messages, setMessages] = useState<ExtendedChatMessage[]>(() => {
     const saved = localStorage.getItem('ai_chat_history');
     return saved ? JSON.parse(saved) : [];
@@ -311,7 +313,7 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({ open, onClose, apiKe
   const [isLoading, setIsLoading] = useState(false);
   const [availableModels, setAvailableModels] = useState<GeminiModel[]>([]);
   const [selectedModel, setSelectedModel] = useState<string>(localStorage.getItem('gemini_selected_model') || 'models/gemini-1.5-flash');
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const { containerRef: scrollRef, showTop, showBottom } = useScrollShadows();
   const lastPromptRef = useRef<string>('');
 
   const [chatMode, setChatMode] = useState<'fast' | 'thinking'>('fast');
@@ -685,10 +687,11 @@ ${marketOverview}
           </Box>
         </DialogTitle>
         <DialogContent dividers>
-          <Box
+          <Box sx={{ position: 'relative', height: '400px' }}>
+            <Box
             ref={scrollRef}
             sx={{
-              height: '400px',
+              height: '100%',
               overflowY: 'auto',
               display: 'flex',
               flexDirection: 'column',
@@ -696,8 +699,10 @@ ${marketOverview}
               p: 1
             }}
           >
+              {/* ... content ... */}
             {messages.length === 0 && (
               <Box sx={{ textAlign: 'center', mt: 4, opacity: 0.8 }}>
+                  {/* ... hello message ... */}
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3, mb: 3 }}>
                   <SmartToyIcon sx={{ fontSize: 48, color: 'primary.main', opacity: 0.5 }} />
                   <Box sx={{ textAlign: 'left' }}>
@@ -782,7 +787,9 @@ ${marketOverview}
                 </Paper>
               </Box>
             )}
-            <Box ref={scrollRef} />
+              <Box />
+            </Box>
+            <ScrollShadows top={showTop} bottom={showBottom} theme={theme} />
           </Box>
           {openDisclaimer && (
             <Alert

@@ -1,4 +1,4 @@
-import { Box, Typography, Paper, Tooltip, ToggleButtonGroup, ToggleButton, alpha } from '@mui/material';
+import { Box, Typography, Paper, Tooltip, ToggleButtonGroup, ToggleButton, alpha, useTheme } from '@mui/material';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import { useLanguage } from '../../lib/i18n';
@@ -7,6 +7,7 @@ import { type ExchangeRates, type DashboardHolding } from '../../lib/types';
 import { calculateTopMovers, type Mover, type TimePeriod } from '../../lib/dashboard_movers';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useScrollShadows, ScrollShadows } from '../../lib/ui-utils';
 
 /**
  * Renders a single mover card.
@@ -104,7 +105,10 @@ export const TopMovers = ({ holdings, displayCurrency, exchangeRates, lockedMetr
         '1m': t('Monthly', 'חודשי')
     };
 
-    const MoversRow = ({ period, isLast }: { period: TimePeriod, isLast: boolean }) => (
+    const MoversRow = ({ period, isLast }: { period: TimePeriod, isLast: boolean }) => {
+        const theme = useTheme();
+        const { containerRef, showTop, showBottom } = useScrollShadows('horizontal');
+        return (
         <Box sx={{ display: 'flex', alignItems: 'center', py: 0.25, borderBottom: isLast ? 'none' : '1px solid', borderColor: 'divider' }}>
             <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 'bold', textTransform: 'uppercase', minWidth: 60, mr: 0.5 }}>{periodLabels[period]}</Typography>
             {allMovers[period].length === 0 ? (
@@ -112,19 +116,34 @@ export const TopMovers = ({ holdings, displayCurrency, exchangeRates, lockedMetr
                     <Typography variant="caption">{t('No significant movers.', 'אין תנודות משמעותיות.')}</Typography>
                 </Box>
             ) : (
-                <Box sx={{ display: 'flex', overflowX: 'auto', py: 0.5, flex: 1 }}>
-                    {allMovers[period].map(mover => (
-                        <MoverItem 
-                            key={`${mover.key}-${mover.holding.portfolioId}`} 
-                            mover={mover} 
-                            navigate={navigate} 
-                            displayCurrency={displayCurrency} 
-                        />
-                    ))}
+                        <Box sx={{ position: 'relative', flex: 1, display: 'flex' }}>
+                            <Box
+                                ref={containerRef}
+                                sx={{
+                                    display: 'flex',
+                                    overflowX: 'auto',
+                                    py: 0.5,
+                                    flex: 1,
+                                    // Hide scrollbar but keep functionality
+                                    scrollbarWidth: 'none',
+                                    '&::-webkit-scrollbar': { display: 'none' }
+                                }}
+                            >
+                                {allMovers[period].map(mover => (
+                                    <MoverItem
+                                        key={`${mover.key}-${mover.holding.portfolioId}`}
+                                        mover={mover}
+                                        navigate={navigate}
+                                        displayCurrency={displayCurrency}
+                                    />
+                                ))}
+                            </Box>
+                            <ScrollShadows top={showTop} bottom={showBottom} orientation="horizontal" theme={theme} />
                 </Box>
             )}
         </Box>
     );
+    };
 
     return (
         <Box sx={{ p: 0.5 }}>

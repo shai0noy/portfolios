@@ -11,6 +11,7 @@ import { TrackingListId, type ExchangeRates } from '../lib/types';
 import { useLanguage } from '../lib/i18n';
 import { DASHBOARD_COLUMNS } from '../lib/dashboardColumns';
 import { DashboardRow } from './DashboardRow';
+import { useScrollShadows, ScrollShadows } from '../lib/ui-utils';
 
 interface DashboardGroupProps {
   groupName: string;
@@ -37,6 +38,7 @@ export const DashboardGroup = memo(function DashboardGroup(props: DashboardGroup
   const theme = useTheme();
   const { t } = useLanguage();
   const [isExpanded, setIsExpanded] = useState(isExpandedInitial);
+  const { containerRef, showTop, showBottom } = useScrollShadows('horizontal');
 
   const toggleGroup = () => setIsExpanded(p => !p);
 
@@ -97,66 +99,69 @@ export const DashboardGroup = memo(function DashboardGroup(props: DashboardGroup
   }, [groupHoldings, sortBy, sortDir, t]);
 
   return (
-    <Box component={Paper} sx={{ mb: 4, overflowX: 'auto' }}>
-      {groupByPortfolio && (
-        <Box display="flex" alignItems="center" justifyContent="space-between" p={1} bgcolor={theme.palette.background.default} borderBottom={`1px solid ${theme.palette.divider}`} sx={{ position: 'sticky', top: 0, left: 0, zIndex: 1 }}>
-          <Box display="flex" alignItems="center" gap={1} onClick={() => onSelectPortfolio(groupHoldings[0]?.portfolioId || null)} style={{ cursor: 'pointer' }}>
-            <IconButton size="small" onClick={(e) => { e.stopPropagation(); toggleGroup(); }} sx={{ transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 200ms' }}>
-              <ExpandMoreIcon fontSize="small" />
-            </IconButton>
-            <Typography variant="subtitle1" color="primary" sx={{ fontWeight: 600 }}>{groupName}</Typography>
+    <Box sx={{ position: 'relative', mb: 4 }}>
+      <Paper ref={containerRef} sx={{ overflowX: 'auto' }}>
+        {groupByPortfolio && (
+          <Box display="flex" alignItems="center" justifyContent="space-between" p={1} bgcolor={theme.palette.background.default} borderBottom={`1px solid ${theme.palette.divider}`} sx={{ position: 'sticky', top: 0, left: 0, zIndex: 1 }}>
+            <Box display="flex" alignItems="center" gap={1} onClick={() => onSelectPortfolio(groupHoldings[0]?.portfolioId || null)} style={{ cursor: 'pointer' }}>
+              <IconButton size="small" onClick={(e) => { e.stopPropagation(); toggleGroup(); }} sx={{ transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 200ms' }}>
+                <ExpandMoreIcon fontSize="small" />
+              </IconButton>
+              <Typography variant="subtitle1" color="primary" sx={{ fontWeight: 600 }}>{groupName}</Typography>
+            </Box>
+            <Box display="flex" alignItems="center" gap={2} flexWrap="wrap" pr={1}>
+              {groupHoldings[0]?.portfolioId !== TrackingListId.Favorites && (
+                <>
+                  <Typography variant="body2">
+                    {t('Total:', 'סה"כ:')} {formatMoneyValue({ amount: groupSummary.totalMV, currency: normalizeCurrency(displayCurrency) }, t)}
+                  </Typography>
+                  <Typography variant="body2" color={groupSummary.totalDayChange >= 0 ? 'success.main' : 'error.main'}>
+                    {t('Day:', 'יומי:')} {formatMoneyValue({ amount: groupSummary.totalDayChange, currency: normalizeCurrency(displayCurrency) }, t)} ({formatPct(groupDayChangePct)})
+                  </Typography>
+                  <Typography variant="body2" color={groupSummary.totalUnrealizedGain >= 0 ? 'success.main' : 'error.main'}>
+                    {t('Unrealized:', 'לא ממומש:')} {formatMoneyValue({ amount: groupSummary.totalUnrealizedGain, currency: normalizeCurrency(displayCurrency) }, t)}
+                  </Typography>
+                </>
+              )}
+            </Box>
           </Box>
-          <Box display="flex" alignItems="center" gap={2} flexWrap="wrap" pr={1}>
-            {groupHoldings[0]?.portfolioId !== TrackingListId.Favorites && (
-              <>
-                <Typography variant="body2">
-                  {t('Total:', 'סה"כ:')} {formatMoneyValue({ amount: groupSummary.totalMV, currency: normalizeCurrency(displayCurrency) }, t)}
-                </Typography>
-                <Typography variant="body2" color={groupSummary.totalDayChange >= 0 ? 'success.main' : 'error.main'}>
-                  {t('Day:', 'יומי:')} {formatMoneyValue({ amount: groupSummary.totalDayChange, currency: normalizeCurrency(displayCurrency) }, t)} ({formatPct(groupDayChangePct)})
-                </Typography>
-                <Typography variant="body2" color={groupSummary.totalUnrealizedGain >= 0 ? 'success.main' : 'error.main'}>
-                  {t('Unrealized:', 'לא ממומש:')} {formatMoneyValue({ amount: groupSummary.totalUnrealizedGain, currency: normalizeCurrency(displayCurrency) }, t)}
-                </Typography>
-              </>
-            )}
-          </Box>
-        </Box>
-      )}
-      <Collapse in={groupByPortfolio ? isExpanded : true} timeout="auto" unmountOnExit>
-        <Table size="small">
-          <TableHead>
-            <TableRow sx={{ bgcolor: theme.palette.background.paper }}>
-              {DASHBOARD_COLUMNS.map(col => (
-                columnVisibility[col.key] && (
-                  <TableCell key={col.key} onContextMenu={(e) => onContextMenu(e, col.key)} align="left">
-                    <TableSortLabel
-                      active={sortBy === (col.sortKey || col.key)}
-                      direction={sortDir}
-                      onClick={() => onSort(col.sortKey || col.key)}
-                    >
-                      {t(col.labelEn, col.labelHe)}
-                    </TableSortLabel>
-                  </TableCell>
-                )
+        )}
+        <Collapse in={groupByPortfolio ? isExpanded : true} timeout="auto" unmountOnExit>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                {DASHBOARD_COLUMNS.map(col => (
+                  columnVisibility[col.key] && (
+                    <TableCell key={col.key} onContextMenu={(e) => onContextMenu(e, col.key)} align="left">
+                      <TableSortLabel
+                        active={sortBy === (col.sortKey || col.key)}
+                        direction={sortDir}
+                        onClick={() => onSort(col.sortKey || col.key)}
+                      >
+                        {t(col.labelEn, col.labelHe)}
+                      </TableSortLabel>
+                    </TableCell>
+                  )
+                ))}
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {sortedHoldings.map((h, index) => (
+                <DashboardRow
+                  key={h.key || `${h.portfolioId}-${h.ticker}-${index}`}
+                  holding={h}
+                  index={index}
+                  displayCurrency={displayCurrency}
+                  exchangeRates={exchangeRates}
+                  columnVisibility={columnVisibility}
+                  groupByPortfolio={groupByPortfolio}
+                />
               ))}
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {sortedHoldings.map((h, index) => (
-              <DashboardRow
-                key={h.key || `${h.portfolioId}-${h.ticker}-${index}`}
-                holding={h}
-                index={index}
-                displayCurrency={displayCurrency}
-                exchangeRates={exchangeRates}
-                columnVisibility={columnVisibility}
-                groupByPortfolio={groupByPortfolio}
-              />
-            ))}
-          </TableBody>
-        </Table>
-      </Collapse>
+            </TableBody>
+          </Table>
+        </Collapse>
+      </Paper>
+      <ScrollShadows top={showTop} bottom={showBottom} orientation="horizontal" theme={theme} />
     </Box>
   );
 });

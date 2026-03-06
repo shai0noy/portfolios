@@ -4,8 +4,9 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Box, TextField, Button, MenuItem, Select, InputLabel, FormControl, Autocomplete,
   Typography, Alert, InputAdornment, Grid, Card, CardContent, Divider, Tooltip, Chip, ToggleButton, ToggleButtonGroup,
-  Backdrop, CircularProgress, IconButton
+  Backdrop, CircularProgress, IconButton, useTheme
 } from '@mui/material';
+import { useScrollShadows, ScrollShadows } from '../lib/ui-utils';
 import RestoreIcon from '@mui/icons-material/Restore';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -56,6 +57,8 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [exchangeRates, setExchangeRates] = useState<ExchangeRates>({ current: { USD: 1 } });
   const { t, tTry } = useLanguage();
+  const theme = useTheme();
+  const { containerRef, showTop, showBottom } = useScrollShadows();
 
   // Form State
   const [selectedTicker, setSelectedTicker] = useState<(TickerData & { symbol: string }) | null>(null);
@@ -1242,70 +1245,73 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                       sx={{ mb: 2 }}
                     />
 
-                    <Card variant="outlined" sx={{ maxHeight: 400, overflow: 'auto' }}>
-                      {(() => {
-                        const port = portfolios.find(p => p.id === sellFlowPortId);
-                        const holdings = port?.holdings || [];
-                        const filtered = holdings.filter(h =>
-                          !holdingSearch ||
-                          h.ticker.toLowerCase().includes(holdingSearch.toLowerCase()) ||
-                          (h.name && h.name.toLowerCase().includes(holdingSearch.toLowerCase()))
-                        );
-
-                        if (filtered.length === 0) {
-                          return (
-                            <Box p={3} textAlign="center">
-                              <Typography color="text.secondary">
-                                {holdings.length === 0 ? t('No holdings in this portfolio', 'אין החזקות בתיק זה') : t('No matching holdings', 'לא נמצאו החזקות מתאימות')}
-                              </Typography>
-                            </Box>
+                    <Box sx={{ position: 'relative' }}>
+                      <Card variant="outlined" sx={{ maxHeight: 400, overflow: 'auto' }} ref={containerRef}>
+                        {(() => {
+                          const port = portfolios.find(p => p.id === sellFlowPortId);
+                          const holdings = port?.holdings || [];
+                          const filtered = holdings.filter(h =>
+                            !holdingSearch ||
+                            h.ticker.toLowerCase().includes(holdingSearch.toLowerCase()) ||
+                            (h.name && h.name.toLowerCase().includes(holdingSearch.toLowerCase()))
                           );
-                        }
 
-                        return (
-                          <Box>
-                            {filtered.map((h, index) => (
-                              <Box key={h.ticker}>
-                                {index > 0 && <Divider />}
-                                <Box
-                                  sx={{
-                                    p: 2,
-                                    cursor: 'pointer',
-                                    '&:hover': { bgcolor: 'action.hover' },
-                                    display: 'flex',
-                                    justifyContent: 'space-between',
-                                    alignItems: 'center'
-                                  }}
-                                  onClick={() => handleSellHoldingSelect(sellFlowPortId, h.ticker)}
-                                >
-                                  <Box>
-                                    <Box display="flex" alignItems="center" gap={1}>
-                                      <Typography variant="subtitle1" fontWeight={600}>{h.ticker}</Typography>
-                                      <Chip label={h.exchange} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.7rem' }} />
+                          if (filtered.length === 0) {
+                            return (
+                              <Box p={3} textAlign="center">
+                                <Typography color="text.secondary">
+                                  {holdings.length === 0 ? t('No holdings in this portfolio', 'אין החזקות בתיק זה') : t('No matching holdings', 'לא נמצאו החזקות מתאימות')}
+                                </Typography>
+                              </Box>
+                            );
+                          }
+
+                          return (
+                            <Box>
+                              {filtered.map((h, index) => (
+                                <Box key={h.ticker}>
+                                  {index > 0 && <Divider />}
+                                  <Box
+                                    sx={{
+                                      p: 2,
+                                      cursor: 'pointer',
+                                      '&:hover': { bgcolor: 'action.hover' },
+                                      display: 'flex',
+                                      justifyContent: 'space-between',
+                                      alignItems: 'center'
+                                    }}
+                                    onClick={() => handleSellHoldingSelect(sellFlowPortId, h.ticker)}
+                                  >
+                                    <Box>
+                                      <Box display="flex" alignItems="center" gap={1}>
+                                        <Typography variant="subtitle1" fontWeight={600}>{h.ticker}</Typography>
+                                        <Chip label={h.exchange} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.7rem' }} />
+                                      </Box>
+                                      <Typography variant="body2" color="text.secondary" noWrap sx={{ maxWidth: 200 }}>
+                                        {tTry(h.name, h.nameHe)}
+                                      </Typography>
                                     </Box>
-                                    <Typography variant="body2" color="text.secondary" noWrap sx={{ maxWidth: 200 }}>
-                                      {tTry(h.name, h.nameHe)}
-                                    </Typography>
-                                  </Box>
-                                  <Box textAlign="right">
-                                    <Typography variant="body2" component="div" sx={{ fontWeight: 600 }}>
-                                      {(() => {
-                                        const val = h.totalValue ?? (h.price ? h.qty * h.price : 0);
-                                        const curr = h.currency || 'USD';
-                                        return new Intl.NumberFormat('en-US', { style: 'currency', currency: curr, maximumFractionDigits: 0 }).format(val);
-                                      })()}
-                                    </Typography>
-                                    <Typography variant="caption" display="block" color="text.secondary">
-                                      {h.qty} units
-                                    </Typography>
+                                    <Box textAlign="right">
+                                      <Typography variant="body2" component="div" sx={{ fontWeight: 600 }}>
+                                        {(() => {
+                                          const val = h.totalValue ?? (h.price ? h.qty * h.price : 0);
+                                          const curr = h.currency || 'USD';
+                                          return new Intl.NumberFormat('en-US', { style: 'currency', currency: curr, maximumFractionDigits: 0 }).format(val);
+                                        })()}
+                                      </Typography>
+                                      <Typography variant="caption" display="block" color="text.secondary">
+                                        {h.qty} units
+                                      </Typography>
+                                    </Box>
                                   </Box>
                                 </Box>
-                              </Box>
-                            ))}
-                          </Box>
-                        );
-                      })()}
-                    </Card>
+                              ))}
+                            </Box>
+                          );
+                        })()}
+                      </Card>
+                      <ScrollShadows top={showTop} bottom={showBottom} theme={theme} />
+                    </Box>
                   </Box>
                 )}
               </CardContent>

@@ -1,4 +1,4 @@
-import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, Box, Chip, CircularProgress, Tooltip, IconButton, ToggleButtonGroup, ToggleButton, Menu, MenuItem, ListItemIcon, Tabs, Tab } from '@mui/material';
+import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, Box, Chip, CircularProgress, Tooltip, IconButton, ToggleButtonGroup, ToggleButton, Menu, MenuItem, ListItemIcon, Tabs, Tab, useTheme } from '@mui/material';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AddIcon from '@mui/icons-material/Add';
@@ -27,6 +27,7 @@ import { HoldingUnderlyingAssets } from './holding-details/HoldingUnderlyingAsse
 import type { EnrichedDashboardHolding } from '../lib/dashboard';
 import { loadFinanceEngine } from '../lib/data/loader';
 import type { Holding } from '../lib/data/model';
+import { useScrollShadows, ScrollShadows } from '../lib/ui-utils';
 
 
 const formatDate = (timestamp?: Date | string | number | null) => {
@@ -47,6 +48,7 @@ const formatTimestamp = (timestamp?: Date | string | number | null) => {
 
 
 export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExchange, numericId: propNumericId, initialName: propInitialName, initialNameHe: propInitialNameHe, onClose, portfolios = [], isPortfoliosLoading = false }: TickerDetailsProps) {
+  const theme = useTheme();
   const { ticker: paramTicker, exchange: paramExchange } = useParams();
   const resolvedTickerInput = propTicker || paramTicker;
   const resolvedExchangeInput = propExchange || (paramExchange as any);
@@ -626,8 +628,11 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                     </Box>
                   )}
 
+
+
+
                   {activeTab === 'assets' && displayData?.meta?.underlyingAssets && (
-                    <Box sx={{ mt: 2, flex: 1, overflow: 'auto' }}>
+                  <TabPanelWithShadows theme={theme}>
                       <HoldingDetails
                         sheetId={sheetId}
                         holding={{ ...displayData, underlyingAssets: displayData.meta.underlyingAssets } as any}
@@ -637,11 +642,11 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                         onPortfolioClick={handlePortfolioClick}
                         section="assets" // specific section for just assets
                       />
-                    </Box>
+                  </TabPanelWithShadows>
                   )}
 
                   {(activeTab === 'holdings' || activeTab === 'transactions' || activeTab === 'dividends') && hasHolding && (
-                    <Box sx={{ mt: 2, flex: 1, overflow: 'auto' }}>
+                  <TabPanelWithShadows theme={theme}>
                       {(() => {
                         const has = (engineHoldings && engineHoldings.length > 0) || !!enrichedHolding || !!holdingData;
                         return has;
@@ -663,7 +668,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                       ) : (
                         <Box display="flex" justifyContent="center" p={5}><CircularProgress /></Box>
                       )}
-                    </Box>
+                  </TabPanelWithShadows>
                   )}
                 </>}
         </DialogContent>
@@ -704,4 +709,18 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
       />
     </>
   );
+
 }
+
+// Helper component to avoid hook rules violation inside conditional rendering
+const TabPanelWithShadows = ({ children, theme }: { children: React.ReactNode, theme: any }) => {
+  const { containerRef, showTop, showBottom } = useScrollShadows();
+  return (
+    <Box sx={{ mt: 2, flex: 1, position: 'relative', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      <Box ref={containerRef} sx={{ flex: 1, overflow: 'auto' }}>
+        {children}
+      </Box>
+      <ScrollShadows top={showTop} bottom={showBottom} theme={theme} />
+    </Box>
+  );
+};

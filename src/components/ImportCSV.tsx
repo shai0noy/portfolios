@@ -9,8 +9,10 @@ import {
   FormControlLabel,
   TableContainer,
   Paper,
-  InputBase
+  InputBase,
+  useTheme
 } from '@mui/material';
+import { useScrollShadows, ScrollShadows } from '../lib/ui-utils';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import type { Portfolio, Transaction } from '../lib/types';
 import { parseExchange, Exchange } from '../lib/types';
@@ -33,6 +35,8 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
   const [errorMsg, setErrorMsg] = useState('');
   const [helpOpen, setHelpOpen] = useState(false);
   const { t, isRtl } = useLanguage();
+  const theme = useTheme();
+  const { containerRef, showTop, showBottom } = useScrollShadows();
   const STEPS = [t('Input Data', 'הזנת נתונים'), t('Map Columns', 'מיפוי עמודות'), t('Review & Import', 'בדיקה וייבוא')];
 
   useEffect(() => {
@@ -608,8 +612,9 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
             <Typography variant="subtitle2">
               {t('Ready to import', 'מוכן לייבוא')} {parsedTxns.length} {t('transactions:', 'עסקאות:')}
             </Typography>
-            <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 400, overflow: 'auto' }}>
-              <Table size="small" stickyHeader sx={{ minWidth: 800 }}>
+            <Box sx={{ position: 'relative' }}>
+              <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 400, overflow: 'auto' }} ref={containerRef}>
+                <Table size="small" stickyHeader sx={{ minWidth: 800 }}>
                 <TableHead>
                   <TableRow>
                     <TableCell>{t('Date', 'תאריך')}</TableCell>
@@ -689,7 +694,9 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
                   ))}
                 </TableBody>
               </Table>
-            </TableContainer>
+              </TableContainer>
+              <ScrollShadows top={showTop} bottom={showBottom} theme={theme} />
+            </Box>
           </Stack>
         )}
 

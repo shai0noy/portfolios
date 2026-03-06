@@ -1,4 +1,4 @@
-import { Box, Paper, Table, TableHead, TableRow, TableCell, TableBody, Typography, Tooltip } from '@mui/material';
+import { Box, Paper, Table, TableHead, TableRow, TableCell, TableBody, Typography, Tooltip, useTheme } from '@mui/material';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { formatValue, formatNumber, formatPercent, convertCurrency, formatMoneyValue, formatMoneyPrice } from '../../lib/currency';
 import { useLanguage } from '../../lib/i18n';
@@ -6,6 +6,7 @@ import { Currency } from '../../lib/types';
 import type { Portfolio } from '../../lib/types';
 import { getTaxRatesForDate } from '../../lib/portfolioUtils';
 import type { PortfolioGroup } from './types';
+import { useScrollShadows, ScrollShadows } from '../../lib/ui-utils';
 
 interface HoldingLayersProps {
     groupedLayers: PortfolioGroup[];
@@ -17,12 +18,15 @@ interface HoldingLayersProps {
 
 export function HoldingLayers({ groupedLayers, displayCurrency, portfolios, exchangeRates, formatDate }: HoldingLayersProps) {
     const { t } = useLanguage();
+    const theme = useTheme();
+    const { containerRef, showTop, showBottom } = useScrollShadows();
 
     return (
         <Box>
             <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'bold' }}>{t('Layers', 'שכבות')}</Typography>
-            <Paper variant="outlined" sx={{ maxHeight: 500, overflowY: 'auto' }}>
-                <Table size="small" stickyHeader>
+            <Box sx={{ position: 'relative' }}>
+                <Paper ref={containerRef} variant="outlined" sx={{ maxHeight: 500, overflowY: 'auto' }}>
+                    <Table size="small" stickyHeader>
                     <TableHead>
                         <TableRow>
                             <TableCell sx={{ bgcolor: 'background.paper' }}>{t('Date', 'תאריך')}</TableCell>
@@ -325,8 +329,10 @@ export function HoldingLayers({ groupedLayers, displayCurrency, portfolios, exch
                             </>
                         ))}
                     </TableBody>
-                </Table>
-            </Paper>
+                    </Table>
+                </Paper>
+                <ScrollShadows top={showTop} bottom={showBottom} theme={theme} />
+            </Box>
         </Box>
     );
 }

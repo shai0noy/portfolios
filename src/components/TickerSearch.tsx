@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   TextField, Grid, Typography, CircularProgress, MenuItem, Select, FormControl, InputLabel,
-  List, ListItemButton, ListItemText, Paper, Box, Divider, Chip, Tooltip, InputAdornment
+  List, ListItemButton, ListItemText, Paper, Box, Divider, Chip, Tooltip, InputAdornment, useTheme
 } from '@mui/material';
+import { useScrollShadows, ScrollShadows } from '../lib/ui-utils';
 import { getTickersDataset } from '../lib/fetching';
 import type { TickerProfile } from '../lib/types/ticker';
 import { InstrumentGroup, INSTRUMENT_METADATA } from '../lib/types/instrument';
@@ -217,6 +218,8 @@ export const TickerSearch = React.memo(function TickerSearch({ onTickerSelect, p
   const [isPending, startTransition] = React.useTransition();
   const [error, setError] = useState<string | null>(null);
   const { t, tTry } = useLanguage();
+  const theme = useTheme();
+  const { containerRef, showTop, showBottom } = useScrollShadows();
 
   const searchTickers = useCallback((term: string, exchange: string) => {
     startTransition(() => {
@@ -407,60 +410,64 @@ export const TickerSearch = React.memo(function TickerSearch({ onTickerSelect, p
         </Grid>
 
         {(filteredResults.length > 0) && (
-          <Paper
-            elevation={2}
-            className="visible-scrollbar"
-            sx={{ maxHeight: 300, overflowY: 'auto', my: 1, border: 1, borderColor: 'divider' }}
-          >
-            <List dense>
-              {filteredResults.map((option, index) => {
-                const { profile } = option;
-                // Determine display type: Prioritize localized name from metadata
-                const typeMeta = INSTRUMENT_METADATA[profile.type.type];
-                const displayType = t(typeMeta?.nameEn || profile.type.nameEn, typeMeta?.nameHe || profile.type.nameHe);
+          <Box sx={{ position: 'relative', my: 1 }}>
+            <Paper
+              elevation={2}
+              className="visible-scrollbar"
+              ref={containerRef}
+              sx={{ maxHeight: 300, overflowY: 'auto', border: 1, borderColor: 'divider' }}
+            >
+              <List dense>
+                {filteredResults.map((option, index) => {
+                  const { profile } = option;
+                  // Determine display type: Prioritize localized name from metadata
+                  const typeMeta = INSTRUMENT_METADATA[profile.type.type];
+                  const displayType = t(typeMeta?.nameEn || profile.type.nameEn, typeMeta?.nameHe || profile.type.nameHe);
 
-                return (
-                  <Box key={`${profile.exchange}:${profile.symbol}`}>
-                    <ListItemButton onClick={() => handleOptionSelect(option)}>
-                      <ListItemText
-                        primary={<Typography variant="body1">{tTry(profile.name, profile.nameHe)}</Typography>}
-                        secondaryTypographyProps={{ component: 'div' }}
-                        secondary={
-                          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mt: 0.5 }}>
-                            <Chip
-                              label={`${profile.exchange}:${profile.symbol}${profile.securityId !== undefined && profile.securityId.toString() !== profile.symbol ? ` (${profile.securityId})` : ''}`} size="small" variant="outlined" />
+                  return (
+                    <Box key={`${profile.exchange}:${profile.symbol}`}>
+                      <ListItemButton onClick={() => handleOptionSelect(option)}>
+                        <ListItemText
+                          primary={<Typography variant="body1">{tTry(profile.name, profile.nameHe)}</Typography>}
+                          secondaryTypographyProps={{ component: 'div' }}
+                          secondary={
+                            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mt: 0.5 }}>
+                              <Chip
+                                label={`${profile.exchange}:${profile.symbol}${profile.securityId !== undefined && profile.securityId.toString() !== profile.symbol ? ` (${profile.securityId})` : ''}`} size="small" variant="outlined" />
 
-                            {displayType && <Chip label={displayType} size="small" color="primary" variant="outlined" />}
-                            {profile.sector && <Chip label={profile.sector} size="small" variant="outlined" />}
-                            {option.ownedInPortfolios && option.ownedInPortfolios.length > 0 && (
-                              <Tooltip title={`Owned in: ${option.ownedInPortfolios.join(', ')}`} enterTouchDelay={0} leaveTouchDelay={3000}>
-                                <BusinessCenterIcon color="success" sx={{ fontSize: 16, ml: 1 }} />
-                              </Tooltip>
-                            )}
-                            {option.isFavorite && (
-                              <Tooltip title={t('Favorite', 'מועדף')} enterTouchDelay={0} leaveTouchDelay={3000}>
-                                <StarIcon color="warning" sx={{ fontSize: 16, ml: 1 }} />
-                              </Tooltip>
-                            )}
-                          </Box>
-                        }
-                      />
+                              {displayType && <Chip label={displayType} size="small" color="primary" variant="outlined" />}
+                              {profile.sector && <Chip label={profile.sector} size="small" variant="outlined" />}
+                              {option.ownedInPortfolios && option.ownedInPortfolios.length > 0 && (
+                                <Tooltip title={`Owned in: ${option.ownedInPortfolios.join(', ')}`} enterTouchDelay={0} leaveTouchDelay={3000}>
+                                  <BusinessCenterIcon color="success" sx={{ fontSize: 16, ml: 1 }} />
+                                </Tooltip>
+                              )}
+                              {option.isFavorite && (
+                                <Tooltip title={t('Favorite', 'מועדף')} enterTouchDelay={0} leaveTouchDelay={3000}>
+                                  <StarIcon color="warning" sx={{ fontSize: 16, ml: 1 }} />
+                                </Tooltip>
+                              )}
+                            </Box>
+                          }
+                        />
+                      </ListItemButton>
+                      {index < filteredResults.length - 1 && <Divider />}
+                    </Box>
+                  );
+                })}
+                {searchResults.length > limit && (
+                  <Box sx={{ p: 1, textAlign: 'center' }}>
+                    <ListItemButton onClick={() => setLimit(prev => prev + 100)} sx={{ justifyContent: 'center' }}>
+                      <Typography variant="body2" color="primary">
+                        {t('Show more results', 'הצג תוצאות נוספות')} ({searchResults.length - limit} {t('remaining', 'נותרו')})
+                      </Typography>
                     </ListItemButton>
-                    {index < filteredResults.length - 1 && <Divider />}
                   </Box>
-                );
-              })}
-              {searchResults.length > limit && (
-                <Box sx={{ p: 1, textAlign: 'center' }}>
-                  <ListItemButton onClick={() => setLimit(prev => prev + 100)} sx={{ justifyContent: 'center' }}>
-                    <Typography variant="body2" color="primary">
-                      {t('Show more results', 'הצג תוצאות נוספות')} ({searchResults.length - limit} {t('remaining', 'נותרו')})
-                    </Typography>
-                  </ListItemButton>
-                </Box>
-              )}
-            </List>
-          </Paper>
+                )}
+              </List>
+            </Paper>
+            <ScrollShadows top={showTop} bottom={showBottom} theme={theme} />
+          </Box>
         )}
       </Paper>
     </Box>
