@@ -40,7 +40,7 @@ export function HoldingStats({
 
     return (
         <Paper variant="outlined" sx={{ p: 2, mb: 6 }}>
-            <Stack direction="row" spacing={2} divider={<Divider orientation="vertical" flexItem />} justifyContent="space-around" sx={{ mb: 2 }}>
+            <Stack direction="row" spacing={2} divider={<Divider orientation="vertical" flexItem />} justifyContent="space-around" sx={{ mb: 2, overflowX: 'auto', pb: 1 }}>
                 <Box>
                     <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', display: 'block' }}>
                         {t(hasGrants ? 'Vested Value' : 'Value', hasGrants ? 'שווי מובשל' : 'שווי')}

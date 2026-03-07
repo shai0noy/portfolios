@@ -490,7 +490,7 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
               {t('Match the columns from your CSV to the correct fields below. Auto-matched fields are pre-selected.', 'התאם את העמודות מתמונת ה-CSV לשדות מתחת. שדות שזוהו אוטומטית נבחרו מראש.')}
             </Typography>
 
-            <TableContainer component={Paper} variant="outlined">
+            <TableContainer component={Paper} variant="outlined" sx={{ overflowX: 'auto' }}>
               <Table size="small" sx={{ minWidth: 600 }}>
                 <TableHead>
                   <TableRow sx={{ bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)' }}>

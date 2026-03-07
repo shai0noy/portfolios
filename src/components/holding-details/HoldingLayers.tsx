@@ -25,7 +25,7 @@ export function HoldingLayers({ groupedLayers, displayCurrency, portfolios, exch
         <Box>
             <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'bold' }}>{t('Layers', 'שכבות')}</Typography>
             <Box sx={{ position: 'relative' }}>
-                <Paper ref={containerRef} variant="outlined" sx={{ maxHeight: 500, overflowY: 'auto' }}>
+                <Paper ref={containerRef} variant="outlined" sx={{ maxHeight: 500, overflowY: 'auto', overflowX: 'auto' }}>
                     <Table size="small" stickyHeader>
                     <TableHead>
                         <TableRow>

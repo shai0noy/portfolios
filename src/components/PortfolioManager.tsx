@@ -568,7 +568,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                             {t('Manage Tax History', 'ניהול היסטוריית מס')}
                             </Button>
                             <Collapse in={showTaxHistory}>
-                            <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 300, mb: 2 }}>
+                              <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 300, mb: 2, overflowX: 'auto' }}>
                                 <Table size="small" stickyHeader>
                                   <TableHead>
                                     <TableRow>
@@ -746,7 +746,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                             <Alert severity="error" sx={{ mb: 2 }}>
                                 {t('DANGER: Modifying fee history will require recalculating fees for ALL transactions in this portfolio. This logic is NOT YET IMPLEMENTED. Use with caution.', 'סכנה: שינוי היסטוריית העמלות ידרוש חישוב מחדש של עמלות לכל העסקאות בתיק זה. לוגיקה זו טרם יושמה. השתמש בזהירות.')}
                             </Alert>
-                            <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 300, mb: 2 }}>
+                              <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 300, mb: 2, overflowX: 'auto' }}>
                                 <Table size="small" stickyHeader>
                                   <TableHead>
                                     <TableRow>

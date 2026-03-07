@@ -3,6 +3,8 @@ import { useSearchParams, Link as RouterLink, useNavigate, useLocation } from 'r
 import {
   Box, CircularProgress, IconButton, Tooltip, Typography, ToggleButton, Divider, Button, ToggleButtonGroup, Select, MenuItem, FormControl, Paper
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
+import useMediaQuery from '@mui/material/useMediaQuery';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import AddIcon from '@mui/icons-material/Add';
@@ -43,6 +45,8 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const openColSelector = Boolean(anchorEl);
   const { t, isRtl } = useLanguage();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   const { holdings, loading, error, portfolios, exchangeRates, hasFutureTxns, refresh, engine, trackingLists } = useDashboardData(sheetId);
   const { showLoginModal } = useSession();
@@ -496,8 +500,8 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
       )}
 
       {/* CONTROLS */}
-      <Box display="flex" justifyContent="space-between" mb={2} alignItems="center">
-        <Box display="flex" gap={1} alignItems="center">
+      <Box display="flex" flexDirection={isMobile ? 'column' : 'row'} justifyContent="space-between" mb={2} alignItems={isMobile ? 'stretch' : 'center'} gap={2}>
+        <Box display="flex" gap={1} alignItems="center" flexWrap="wrap">
           <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
             {t('View:', 'תצוגה:')}
           </Typography>
@@ -557,16 +561,16 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
             />
           )}
         </Box>
-        <Box display="flex" alignItems="center">
+        <Box display="flex" alignItems="center" flexWrap="wrap" gap={1}>
           <ToggleButton
             value="showClosed"
             selected={showClosed}
             onChange={() => setShowClosed(!showClosed)}
             size="small"
             color="primary"
-            sx={{ borderRadius: 2, textTransform: 'none', px: 2, py: 0.5, mr: 1, border: 1, borderColor: 'divider' }}
+            sx={{ borderRadius: 2, textTransform: 'none', px: isMobile ? 1 : 2, py: 0.5, fontSize: isMobile ? '0.75rem' : '0.875rem', border: 1, borderColor: 'divider', whiteSpace: 'nowrap' }}
           >
-            {t('Show Closed Positions', 'הצג פוזיציות סגורות')}
+            {t('Show Closed', 'הצג סגורות')}
           </ToggleButton>
           <ToggleButton
             value="grouped"
@@ -574,11 +578,11 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
             onChange={() => setGroupByPortfolio(!groupByPortfolio)}
             size="small"
             color="primary"
-            sx={{ borderRadius: 2, textTransform: 'none', px: 2, py: 0.5, mr: 1, border: 1, borderColor: 'divider' }}
+            sx={{ borderRadius: 2, textTransform: 'none', px: isMobile ? 1 : 2, py: 0.5, fontSize: isMobile ? '0.75rem' : '0.875rem', border: 1, borderColor: 'divider', whiteSpace: 'nowrap' }}
           >
-            {t('Group by Portfolio', 'קבץ לפי תיק')}
+            {t('Group', 'קבץ')}
           </ToggleButton>
-          <Divider orientation="vertical" flexItem sx={{ mx: 1, height: 20, alignSelf: 'center' }} />
+          <Divider orientation="vertical" flexItem sx={{ mx: 0.5, height: 20, alignSelf: 'center' }} />
           <Tooltip title={t("AI Portfolio Assistant", "עוזר תיק השקעות AI")}>
             <Button
               onClick={() => handleAiClick()}
@@ -586,9 +590,9 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
               size="small"
               color="primary"
               startIcon={<AutoAwesomeIcon fontSize="small" />}
-              sx={{ borderRadius: 2, mr: 1, textTransform: 'none', fontWeight: 600 }}
+              sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600, minWidth: isMobile ? 36 : 64, px: isMobile ? 1 : 2, '& span': { mr: isMobile ? 0 : 1 }, '& .MuiButton-startIcon': { mr: isMobile ? 0 : 1 } }}
             >
-              {t('AI Assistant', 'עוזר AI')}
+              {isMobile ? '' : t('AI Assistant', 'עוזר AI')}
             </Button>
           </Tooltip>
           <Tooltip title={t("Refresh Data", "רענן נתונים")}>
@@ -636,7 +640,7 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
               search: newParams.toString() ? `?${newParams.toString()}` : ''
             }, { replace: true });
           }}
-          apiKey={decryptedKey}
+          apiKey={decryptedKey || ''}
           sheetId={sheetId || ''}
           portfolioData={{
             holdings: displayedHoldings,

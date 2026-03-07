@@ -1,4 +1,4 @@
-import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, Box, Chip, CircularProgress, Tooltip, IconButton, ToggleButtonGroup, ToggleButton, Menu, MenuItem, ListItemIcon, Tabs, Tab, useTheme } from '@mui/material';
+import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, Box, Chip, CircularProgress, Tooltip, IconButton, ToggleButtonGroup, ToggleButton, Menu, MenuItem, ListItemIcon, ListItemText, Tabs, Tab, useTheme, Divider } from '@mui/material';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AddIcon from '@mui/icons-material/Add';
@@ -13,6 +13,8 @@ import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
 import PieChartIcon from '@mui/icons-material/PieChart';
 import CandlestickChartIcon from '@mui/icons-material/CandlestickChart';
 import DateRangeIcon from '@mui/icons-material/DateRange';
+import TuneIcon from '@mui/icons-material/Tune';
+import useMediaQuery from '@mui/material/useMediaQuery';
 import { TickerChart, type TrendType, TrendLineIcon } from './TickerChart';
 import type { TickerProfile } from '../lib/types/ticker';
 import { useChartComparison, getAvailableRanges, getMaxLabel, SEARCH_OPTION_TICKER } from '../lib/hooks/useChartComparison';
@@ -49,6 +51,7 @@ const formatTimestamp = (timestamp?: Date | string | number | null) => {
 
 export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExchange, numericId: propNumericId, initialName: propInitialName, initialNameHe: propInitialNameHe, onClose, portfolios = [], isPortfoliosLoading = false }: TickerDetailsProps) {
   const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const { ticker: paramTicker, exchange: paramExchange } = useParams();
   const resolvedTickerInput = propTicker || paramTicker;
   const resolvedExchangeInput = propExchange || (paramExchange as any);
@@ -109,6 +112,8 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   const [trendType, setTrendType] = useState<TrendType>('none');
   const [trendMenuAnchor, setTrendMenuAnchor] = useState<null | HTMLElement>(null);
   const [compareMenuAnchor, setCompareMenuAnchor] = useState<null | HTMLElement>(null);
+  const [settingsMenuAnchor, setSettingsMenuAnchor] = useState<null | HTMLElement>(null);
+  const [rangeMenuAnchor, setRangeMenuAnchor] = useState<null | HTMLElement>(null);
   const [analysisOpen, setAnalysisOpen] = useState(false);
   const [customRangeOpen, setCustomRangeOpen] = useState(false);
   const [customDateRange, setCustomDateRange] = useState<{ start: Date | null, end: Date | null }>({ start: null, end: null });
@@ -319,15 +324,15 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
 
   return (
     <>
-      <Dialog open={true} onClose={handleClose} maxWidth="lg" fullWidth
-        sx={{ '& .MuiDialog-container': { alignItems: { xs: 'flex-start', md: 'center' }, pt: { xs: 4, md: 0 } } }}
-        PaperProps={{ sx: { width: 'min(900px, 96%)', m: 1, maxHeight: '90vh', minHeight: { xs: 'auto', md: '600px' }, display: 'flex', flexDirection: 'column' } }}>
-        <DialogTitle sx={{ p: 2 }}>
-          <Box display="flex" justifyContent="space-between" alignItems="flex-start">
-            <Box sx={{ flex: 1, minWidth: 0, pr: 2 }}>
+      <Dialog open={true} onClose={handleClose} maxWidth="lg" fullWidth fullScreen={isMobile}
+        sx={{ '& .MuiDialog-container': { alignItems: { xs: 'center', md: 'center' }, pt: 0 } }}
+        PaperProps={{ sx: { width: isMobile ? '100%' : 'min(900px, 96%)', m: isMobile ? 0 : 1, maxHeight: isMobile ? '100%' : '90vh', minHeight: { xs: 'auto', md: '600px' }, display: 'flex', flexDirection: 'column', height: isMobile ? '100%' : 'auto' } }}>
+        <DialogTitle sx={{ p: isMobile ? 1.5 : 2 }}>
+          <Box display="flex" flexDirection={isMobile ? 'column' : 'row'} justifyContent="space-between" alignItems={isMobile ? 'stretch' : 'flex-start'} gap={isMobile ? 1 : 0}>
+            <Box sx={{ flex: 1, minWidth: 0, pr: isMobile ? 0 : 2 }}>
               <Box display="flex" alignItems="center" gap={1}>
                 <Tooltip title={tTry(resolvedName || ticker, resolvedNameHe)} arrow enterTouchDelay={0} leaveTouchDelay={3000}>
-                  <Typography variant={(resolvedName || '').length > 30 ? 'h5' : 'h4'} component="div" fontWeight="bold" noWrap>{tTry(resolvedName || ticker, resolvedNameHe)}</Typography>
+                  <Typography variant={(resolvedName || '').length > 30 ? 'h6' : 'h5'} component="div" fontWeight="bold" noWrap>{tTry(resolvedName || ticker, resolvedNameHe)}</Typography>
                 </Tooltip>
                 <Tooltip title={isFavorite ? t('Remove from favorites', 'הסר ממועדפים') : t('Add to favorites', 'הוסף למועדפים')} enterTouchDelay={0} leaveTouchDelay={3000}>
                   <IconButton onClick={toggleFavorite} disabled={isUpdatingFavorite} size="small" sx={{ color: isFavorite ? 'success.main' : 'action.disabled' }}>
@@ -368,17 +373,17 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
               </Box>
             </Box>
             {displayData && (
-              <Box sx={{ textAlign: 'right', ml: 2, display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+              <Box sx={{ textAlign: isMobile ? 'left' : 'right', ml: isMobile ? 0 : 2, display: 'flex', flexDirection: isMobile ? 'row' : 'column', alignItems: isMobile ? 'center' : 'flex-end', justifyContent: isMobile ? 'space-between' : 'flex-start', mt: isMobile ? 1 : 0, width: isMobile ? '100%' : 'auto', flexWrap: 'wrap', gap: 1 }}>
                 {!isProvident && (
                   <>
-                    <Box display="flex" alignItems="baseline" justifyContent="flex-end" gap={1.5}>
+                    <Box display="flex" alignItems="baseline" justifyContent={isMobile ? 'flex-start' : 'flex-end'} gap={1.5}>
                       <Typography variant="h6" component="div" fontWeight={600}>{formatMoneyPrice({ amount: price || 0, currency: normalizeCurrency(isTase ? 'ILA' : (displayData?.currency || 'USD')) }, t)}</Typography>
                       <Tooltip title={`${t('Day change', 'שינוי יומי')} (${lastUpdated})`} placement="top" enterTouchDelay={0} leaveTouchDelay={3000}>
                         <Typography variant="h6" sx={{ fontWeight: 700, color: dayChange >= 0 ? 'success.main' : 'error.main' }}>{formatPercent(dayChange)}</Typography>
                       </Tooltip>
                     </Box>
                     {(openPrice != null && openPrice !== 0 || data?.tradeTimeStatus || volumeDisplay) && (
-                      <Box display="flex" alignItems="baseline" justifyContent="flex-end" gap={1} mt={0.25}>
+                      <Box display="flex" alignItems="baseline" justifyContent={isMobile ? 'flex-end' : 'flex-end'} gap={1} mt={0.25}>
                         {openPrice != null && openPrice !== 0 && <Typography variant="caption" color="text.secondary">{t('Open:', 'פתיחה:')} {formatMoneyPrice({ amount: openPrice, currency: normalizeCurrency(isTase ? 'ILA' : (displayData?.currency || 'USD')) }, t)}</Typography>}
                         {openPrice != null && openPrice !== 0 && (data?.tradeTimeStatus || volumeDisplay) && <Typography variant="caption" color="text.secondary">|</Typography>}
                         {volumeDisplay && (
@@ -400,7 +405,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
         </DialogTitle>
 
         <Box sx={{ borderBottom: 1, borderColor: 'divider', px: 2 }}>
-          <Tabs value={activeTab} onChange={handleTabChange}>
+          <Tabs value={activeTab} onChange={handleTabChange} variant="scrollable" scrollButtons="auto" allowScrollButtonsMobile>
             <Tab label={t('Analysis', 'ניתוח')} value="analysis" />
             {hasHolding && <Tab label={t('Holdings', 'החזקות')} value="holdings" />}
             {hasHolding && <Tab label={t('Transactions', 'עסקאות')} value="transactions" />}
@@ -431,64 +436,93 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                 />
               </Box>
             ) :
-                <>
-                  {activeTab === 'analysis' && (
-                    <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                      {isStale && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>{t('Data is from', 'הנתונים מתאריך')}: {formatDate(dataTimestamp)}</Typography>}
-                      <Typography variant="subtitle2" gutterBottom>{t('Performance', 'ביצועים')}</Typography>
-                      <Box display="flex" flexWrap="wrap" gap={1} sx={{ mb: 2 }}>
-                        {(() => {
-                          const getDuration = (p: string) => {
-                            const now = new Date();
-                            switch (p) {
-                              case '1D': return 1;
-                              case '1W': return 7;
-                              case '1M': return 30;
-                              case '3M': return 90;
-                              case '6M': return 180;
-                              case 'YTD':
-                                const startOfYear = new Date(now.getFullYear(), 0, 1);
-                                return (now.getTime() - startOfYear.getTime()) / (1000 * 60 * 60 * 24);
-                              case '1Y': return 365;
-                              case '3Y': return 365 * 3;
-                              case '5Y': return 365 * 5;
-                              case 'Max': return 36500;
-                              default:
-                                // Handle "XD" format (e.g. "5D")
-                                if (p.endsWith('D')) {
-                                  const days = parseInt(p.slice(0, -1), 10);
-                                  if (!isNaN(days)) return days;
-                                }
-                                return 99999;
-                            }
-                          };
+              <>
+                {activeTab === 'analysis' && (
+                  <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                    {isStale && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>{t('Data is from', 'הנתונים מתאריך')}: {formatDate(dataTimestamp)}</Typography>}
+                    <Typography variant="subtitle2" gutterBottom>{t('Performance', 'ביצועים')}</Typography>
+                    <Box display="flex" flexWrap="wrap" gap={1} sx={{ mb: 2 }}>
+                      {(() => {
+                        const getDuration = (p: string) => {
+                          const now = new Date();
+                          switch (p) {
+                            case '1D': return 1;
+                            case '1W': return 7;
+                            case '1M': return 30;
+                            case '3M': return 90;
+                            case '6M': return 180;
+                            case 'YTD':
+                              const startOfYear = new Date(now.getFullYear(), 0, 1);
+                              return (now.getTime() - startOfYear.getTime()) / (1000 * 60 * 60 * 24);
+                            case '1Y': return 365;
+                            case '3Y': return 365 * 3;
+                            case '5Y': return 365 * 5;
+                            case 'Max': return 36500;
+                            default:
+                              // Handle "XD" format (e.g. "5D")
+                              if (p.endsWith('D')) {
+                                const days = parseInt(p.slice(0, -1), 10);
+                                if (!isNaN(days)) return days;
+                              }
+                              return 99999;
+                          }
+                        };
 
-                          return Object.entries(perfData)
-                            .filter(([_, item]) => item != null)
-                            .sort(([rangeA], [rangeB]) => getDuration(rangeA) - getDuration(rangeB))
-                            .map(([range, item]) => item && (
-                              <Tooltip key={range} title={item.date ? `Since ${formatDate(item.date)}` : ''} arrow enterTouchDelay={0} leaveTouchDelay={3000}>
-                                <Chip variant="outlined" size="small" sx={{ minWidth: 78, py: 0.5, px: 0.75, height: 'auto', color: item.val > 0 ? 'success.main' : item.val < 0 ? 'error.main' : 'text.primary', '& .MuiChip-label': { display: 'flex', flexDirection: 'column', alignItems: 'center' } }}
-                                  label={<><Typography variant="caption" color="text.secondary">{translateRange(range)}</Typography><Typography variant="body2" sx={{ fontWeight: 600 }}>{formatPercent(item.val)}</Typography></>}
-                                />
-                              </Tooltip>
-                            ));
-                        })()}
-                      </Box>
+                        return Object.entries(perfData)
+                          .filter(([_, item]) => item != null)
+                          .sort(([rangeA], [rangeB]) => getDuration(rangeA) - getDuration(rangeB))
+                          .map(([range, item]) => item && (
+                            <Tooltip key={range} title={item.date ? `Since ${formatDate(item.date)}` : ''} arrow enterTouchDelay={0} leaveTouchDelay={3000}>
+                              <Chip variant="outlined" size="small" sx={{ minWidth: 78, py: 0.5, px: 0.75, height: 'auto', color: item.val > 0 ? 'success.main' : item.val < 0 ? 'error.main' : 'text.primary', '& .MuiChip-label': { display: 'flex', flexDirection: 'column', alignItems: 'center' } }}
+                                label={<><Typography variant="caption" color="text.secondary">{translateRange(range)}</Typography><Typography variant="body2" sx={{ fontWeight: 600 }}>{formatPercent(item.val)}</Typography></>}
+                              />
+                            </Tooltip>
+                          ));
+                      })()}
+                    </Box>
 
-                      {historicalData && historicalData.length > 0 && (
-                        <Box sx={{ height: 440 }}>
-                          <TickerChart
-                            series={[{ name: resolvedName || ticker || 'Main', data: displayHistory }, ...displayComparisonSeries]}
-                            currency={displayData?.currency || 'USD'}
-                            mode={effectiveChartMetric}
-                            valueType="price"
-                            height="100%"
+                    {historicalData && historicalData.length > 0 && (
+                      <Box sx={{ height: { xs: 300, md: 440 }, minWidth: 0 }}>
+                        <TickerChart
+                          series={[{ name: resolvedName || ticker || 'Main', data: displayHistory }, ...displayComparisonSeries]}
+                          currency={displayData?.currency || 'USD'}
+                          mode={effectiveChartMetric}
+                          valueType="price"
+                          height="100%"
                           scaleType={scaleType}
                           onScaleTypeChange={setScaleType}
-                            topControls={
-                              <Box sx={{ width: '100%' }}>
-                                <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: comparisonSeries.length > 0 ? 1 : 0, flexWrap: 'wrap' }}>
+                          topControls={
+                            <Box sx={{ width: '100%' }}>
+                              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: comparisonSeries.length > 0 ? 1 : 0, flexWrap: { xs: 'nowrap', md: 'wrap' }, overflowX: { xs: 'auto', md: 'visible' }, pb: { xs: 1, md: 0 }, scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' } }}>
+                                {isMobile ? (
+                                  <>
+                                    <Button
+                                      variant="outlined"
+                                      size="small"
+                                      onClick={(e) => setRangeMenuAnchor(e.currentTarget)}
+                                      sx={{ height: 26, minWidth: 40, px: 1, fontSize: '0.75rem', textTransform: 'none', whiteSpace: 'nowrap' }}
+                                      endIcon={<DateRangeIcon sx={{ fontSize: '0.9rem !important' }} />}
+                                    >
+                                      {chartRange === 'Custom' ? '' : chartRange}
+                                    </Button>
+                                    <Menu
+                                      anchorEl={rangeMenuAnchor}
+                                      open={Boolean(rangeMenuAnchor)}
+                                      onClose={() => setRangeMenuAnchor(null)}
+                                    >
+                                      {availableRanges.map(r => (
+                                        <MenuItem key={r} onClick={() => { setChartRange(r); setRangeMenuAnchor(null); }} selected={chartRange === r} dense>
+                                          {r === 'ALL' ? maxLabel : r}
+                                        </MenuItem>
+                                      ))}
+                                      <Divider />
+                                      <MenuItem onClick={() => { setCustomRangeOpen(true); setRangeMenuAnchor(null); }} selected={chartRange === 'Custom'} dense>
+                                        <ListItemIcon><DateRangeIcon fontSize="small" /></ListItemIcon>
+                                        <ListItemText primary={t('Custom', 'מותאם')} />
+                                      </MenuItem>
+                                    </Menu>
+                                  </>
+                                ) : (
                                   <ToggleButtonGroup value={chartRange} exclusive onChange={(_, v) => {
                                     if (v === 'Custom') {
                                       setCustomRangeOpen(true);
@@ -499,31 +533,62 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                                     {availableRanges.map(r => <ToggleButton key={r} value={r} sx={{ px: 1, fontSize: '0.65rem' }}>{r === 'ALL' ? maxLabel : r}</ToggleButton>)}
                                     <ToggleButton value="Custom" sx={{ px: 1 }}><DateRangeIcon sx={{ fontSize: '1rem' }} /></ToggleButton>
                                   </ToggleButtonGroup>
-                                  <ToggleButtonGroup value={effectiveChartMetric} exclusive onChange={(_, v) => v && setChartMetric(v)} size="small" disabled={isComparison} sx={{ height: 26 }}>
-                                    <ToggleButton value="percent" sx={{ px: 1, fontSize: '0.65rem' }}>%</ToggleButton>
-                                    <ToggleButton value="price" sx={{ px: 1, fontSize: '0.65rem' }}>$</ToggleButton>
-                                    <ToggleButton value="candle" sx={{ px: 1, fontSize: '0.65rem' }}><CandlestickChartIcon sx={{ fontSize: '1rem' }} /></ToggleButton>
-                                  </ToggleButtonGroup>
-                                  <ToggleButtonGroup value={scaleType} exclusive onChange={(_, v) => v && setScaleType(v)} size="small" disabled={!isLogSupported} sx={{ height: 26 }}>
-                                    <ToggleButton value="linear" sx={{ px: 1, fontSize: '0.65rem' }}>LIN</ToggleButton>
-                                    <ToggleButton value="log" sx={{ px: 1, fontSize: '0.65rem' }}>LOG</ToggleButton>
-                                  </ToggleButtonGroup>
-                                  <ToggleButtonGroup value={trendType !== 'none' ? 'trend' : ''} exclusive size="small" sx={{ height: 26 }}>
-                                    <ToggleButton value="trend" onClick={(e) => setTrendMenuAnchor(e.currentTarget)} sx={{ px: 1 }}>
-                                      <ListItemIcon sx={{ minWidth: 'auto' }}>
-                                        <TrendLineIcon sx={{ fontSize: '1rem' }} />
-                                      </ListItemIcon>
-                                    </ToggleButton>
-                                  </ToggleButtonGroup>
-                                  <Button size="small" sx={{ height: 26, fontSize: '0.65rem', minWidth: 0 }} onClick={(e) => setCompareMenuAnchor(e.currentTarget)}>{t('Compare', 'השווה')}</Button>
-                                  <Button size="small" sx={{ height: 26, fontSize: '0.65rem', minWidth: 0 }} onClick={() => setAnalysisOpen(true)}>{t('Analysis', 'ניתוח')}</Button>
-                                </Box>
-                                {comparisonSeries.length > 0 && <Box display="flex" flexWrap="wrap" gap={0.5} sx={{ mb: 1 }}>{comparisonSeries.map(s => <Chip key={s.name} label={s.name} onDelete={() => handleRemoveComparison(s.name)} variant="outlined" size="small" sx={{ color: s.color, borderColor: s.color, fontSize: '0.65rem', height: 20 }} />)}</Box>}
+                                )}
+                                <ToggleButtonGroup value={effectiveChartMetric} exclusive onChange={(_, v) => v && setChartMetric(v)} size="small" disabled={isComparison} sx={{ height: 26 }}>
+                                  <ToggleButton value="percent" sx={{ px: 1, fontSize: '0.65rem' }}>%</ToggleButton>
+                                  <ToggleButton value="price" sx={{ px: 1, fontSize: '0.65rem' }}>$</ToggleButton>
+                                  <ToggleButton value="candle" sx={{ px: 1, fontSize: '0.65rem' }}><CandlestickChartIcon sx={{ fontSize: '1rem' }} /></ToggleButton>
+                                </ToggleButtonGroup>
+                                {isMobile ? (
+                                  <IconButton
+                                    size="small"
+                                    onClick={(e) => setSettingsMenuAnchor(e.currentTarget)}
+                                    sx={{ border: 1, borderColor: 'divider', borderRadius: 1, p: 0.5, height: 26, width: 26 }}
+                                  >
+                                    <TuneIcon fontSize="small" sx={{ fontSize: '1.2rem', color: 'primary.main' }} />
+                                  </IconButton>
+                                ) : (
+                                  <>
+                                    <ToggleButtonGroup value={scaleType} exclusive onChange={(_, v) => v && setScaleType(v)} size="small" disabled={!isLogSupported} sx={{ height: 26 }}>
+                                      <ToggleButton value="linear" sx={{ px: 1, fontSize: '0.65rem' }}>LIN</ToggleButton>
+                                      <ToggleButton value="log" sx={{ px: 1, fontSize: '0.65rem' }}>LOG</ToggleButton>
+                                    </ToggleButtonGroup>
+                                    <ToggleButtonGroup value={trendType !== 'none' ? 'trend' : ''} exclusive size="small" sx={{ height: 26 }}>
+                                      <ToggleButton value="trend" onClick={(e) => setTrendMenuAnchor(e.currentTarget)} sx={{ px: 1 }}>
+                                        <ListItemIcon sx={{ minWidth: 'auto' }}>
+                                          <TrendLineIcon sx={{ fontSize: '1rem' }} />
+                                        </ListItemIcon>
+                                      </ToggleButton>
+                                    </ToggleButtonGroup>
+                                    <Button size="small" sx={{ height: 26, fontSize: '0.65rem', minWidth: 0 }} onClick={(e) => setCompareMenuAnchor(e.currentTarget)}>{t('Compare', 'השווה')}</Button>
+                                    <Button size="small" sx={{ height: 26, fontSize: '0.65rem', minWidth: 0 }} onClick={() => setAnalysisOpen(true)}>{t('Analysis', 'ניתוח')}</Button>
+                                  </>
+                                )}
                               </Box>
-                            }
-                          trendType={trendType}
+                              {comparisonSeries.length > 0 && <Box display="flex" flexWrap="wrap" gap={0.5} sx={{ mb: 1 }}>{comparisonSeries.map(s => <Chip key={s.name} label={s.name} onDelete={() => handleRemoveComparison(s.name)} variant="outlined" size="small" sx={{ color: s.color, borderColor: s.color, fontSize: '0.65rem', height: 20 }} />)}</Box>}
+                            </Box>
+                          }
                           onTrendTypeChange={setTrendType}
-                          />
+                        />
+                        <Menu anchorEl={settingsMenuAnchor} open={Boolean(settingsMenuAnchor)} onClose={() => setSettingsMenuAnchor(null)}>
+                          <MenuItem onClick={() => { setScaleType(scaleType === 'linear' ? 'log' : 'linear'); setSettingsMenuAnchor(null); }} disabled={!isLogSupported}>
+                            <ListItemIcon><PieChartIcon fontSize="small" /></ListItemIcon>
+                            <ListItemText primary={t('Logarithmic Scale', 'סקאלה לוגריתמית')} secondary={scaleType === 'log' ? t('ON', 'פעיל') : t('OFF', 'כבוי')} />
+                            {/* <Typography variant="caption" color="text.secondary">{scaleType === 'log' ? 'ON' : 'OFF'}</Typography> */}
+                          </MenuItem>
+                          <MenuItem onClick={(e) => { setTrendMenuAnchor(e.currentTarget); setSettingsMenuAnchor(null); }}>
+                            <ListItemIcon><TrendLineIcon fontSize="small" /></ListItemIcon>
+                            <ListItemText primary={t('Trend Lines', 'קווי מגמה')} />
+                          </MenuItem>
+                          <MenuItem onClick={(e) => { setCompareMenuAnchor(e.currentTarget); setSettingsMenuAnchor(null); }}>
+                            <ListItemIcon><AddIcon fontSize="small" /></ListItemIcon>
+                            <ListItemText primary={t('Compare', 'השווה')} />
+                          </MenuItem>
+                          <MenuItem onClick={() => { setAnalysisOpen(true); setSettingsMenuAnchor(null); }}>
+                            <ListItemIcon><SearchIcon fontSize="small" /></ListItemIcon>
+                            <ListItemText primary={t('Analysis', 'ניתוח')} />
+                          </MenuItem>
+                        </Menu>
                         <Menu anchorEl={trendMenuAnchor} open={Boolean(trendMenuAnchor)} onClose={() => setTrendMenuAnchor(null)}>
                           <MenuItem onClick={() => { setTrendType('none'); setTrendMenuAnchor(null); }} selected={trendType === 'none'}>{t('No Trend', 'ללא מגמה')}</MenuItem>
                           <MenuItem onClick={() => { setTrendType('linear'); setTrendMenuAnchor(null); }} selected={trendType === 'linear'}>{t('Linear', 'ליניארי')}</MenuItem>
@@ -531,146 +596,146 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                           <MenuItem onClick={() => { setTrendType('polynomial'); setTrendMenuAnchor(null); }} selected={trendType === 'polynomial'}>{t('Cubic', 'פולינום (3)')}</MenuItem>
                           <MenuItem onClick={() => { setTrendType('logarithmic'); setTrendMenuAnchor(null); }} selected={trendType === 'logarithmic'}>{t('Logarithmic', 'לוגריתמי')}</MenuItem>
                         </Menu>
-                          <Menu anchorEl={compareMenuAnchor} open={Boolean(compareMenuAnchor)} onClose={() => setCompareMenuAnchor(null)}>
-                            {(() => {
-                              let lastGroup = '';
-                              return comparisonOptions.map((opt) => {
-                                const showHeader = opt.group && opt.group !== lastGroup;
-                                if (showHeader) lastGroup = opt.group!;
+                        <Menu anchorEl={compareMenuAnchor} open={Boolean(compareMenuAnchor)} onClose={() => setCompareMenuAnchor(null)}>
+                          {(() => {
+                            let lastGroup = '';
+                            return comparisonOptions.map((opt) => {
+                              const showHeader = opt.group && opt.group !== lastGroup;
+                              if (showHeader) lastGroup = opt.group!;
 
-                                return [
-                                  showHeader && (
-                                    <Box key={`header-${opt.group}`} sx={{ px: 2, py: 1, bgcolor: 'background.default', typography: 'caption', color: 'text.secondary', fontWeight: 'bold' }}>
-                                      {opt.group}
-                                    </Box>
-                                  ),
-                                  <MenuItem
-                                    key={opt.name}
-                                    onClick={() => { handleSelectComparison(opt); setCompareMenuAnchor(null); }}
-                                    disabled={comparisonSeries.some(s => s.name === opt.name) || comparisonLoading[opt.name]}
-                                    sx={{ pl: opt.group ? 3 : 2, minHeight: 32 }}
-                                    dense
-                                  >
-                                    {opt.ticker === SEARCH_OPTION_TICKER && <ListItemIcon sx={{ minWidth: 32 }}><SearchIcon fontSize="small" sx={{ fontSize: '1.1rem' }} /></ListItemIcon>}
-                                    {opt.icon && opt.ticker !== SEARCH_OPTION_TICKER && (
-                                      <ListItemIcon sx={{ minWidth: 32 }}>
-                                        {opt.icon === 'pie_chart' ? <PieChartIcon fontSize="small" sx={{ fontSize: '1.1rem' }} /> :
-                                          opt.icon === 'business_center' ? <BusinessCenterIcon fontSize="small" sx={{ fontSize: '1.1rem' }} /> :
-                                            null}
-                                      </ListItemIcon>
-                                    )}
-                                    <Typography variant="body2" sx={{ fontSize: '0.8125rem' }}>{opt.name}</Typography>
-                                    {comparisonLoading[opt.name] && <CircularProgress size={12} sx={{ ml: 1 }} />}
-                                  </MenuItem>
-                                ];
-                              });
-                            })()}
-                          </Menu>
-                          {null}
+                              return [
+                                showHeader && (
+                                  <Box key={`header-${opt.group}`} sx={{ px: 2, py: 1, bgcolor: 'background.default', typography: 'caption', color: 'text.secondary', fontWeight: 'bold' }}>
+                                    {opt.group}
+                                  </Box>
+                                ),
+                                <MenuItem
+                                  key={opt.name}
+                                  onClick={() => { handleSelectComparison(opt); setCompareMenuAnchor(null); }}
+                                  disabled={comparisonSeries.some(s => s.name === opt.name) || comparisonLoading[opt.name]}
+                                  sx={{ pl: opt.group ? 3 : 2, minHeight: 32 }}
+                                  dense
+                                >
+                                  {opt.ticker === SEARCH_OPTION_TICKER && <ListItemIcon sx={{ minWidth: 32 }}><SearchIcon fontSize="small" sx={{ fontSize: '1.1rem' }} /></ListItemIcon>}
+                                  {opt.icon && opt.ticker !== SEARCH_OPTION_TICKER && (
+                                    <ListItemIcon sx={{ minWidth: 32 }}>
+                                      {opt.icon === 'pie_chart' ? <PieChartIcon fontSize="small" sx={{ fontSize: '1.1rem' }} /> :
+                                        opt.icon === 'business_center' ? <BusinessCenterIcon fontSize="small" sx={{ fontSize: '1.1rem' }} /> :
+                                          null}
+                                    </ListItemIcon>
+                                  )}
+                                  <Typography variant="body2" sx={{ fontSize: '0.8125rem' }}>{opt.name}</Typography>
+                                  {comparisonLoading[opt.name] && <CircularProgress size={12} sx={{ ml: 1 }} />}
+                                </MenuItem>
+                              ];
+                            });
+                          })()}
+                        </Menu>
+                        {null}
+                      </Box>
+                    )}
+
+                    {data?.dividends && data.dividends.length > 0 && (
+                      <>
+                        <Typography variant="subtitle2" gutterBottom sx={{ mt: 0.5 }}>{t('Dividend Gains', 'רווחי דיבידנד')}</Typography>
+                        <Box display="flex" flexWrap="wrap" gap={1} sx={{ mb: 2 }}>
+                          {Object.entries(dividendGains).map(([range, info]) => {
+                            const value = info.pct;
+                            if (value === undefined || value === null || isNaN(value) || value === 0) {
+                              return null;
+                            }
+                            const isPositive = value > 0;
+                            const textColor = isPositive ? 'success.main' : 'error.main';
+                            return (
+                              <Chip
+                                key={range}
+                                variant="outlined"
+                                size="small"
+                                sx={{
+                                  minWidth: 80,
+                                  py: 0.5,
+                                  px: 0.75,
+                                  height: 'auto',
+                                  '& .MuiChip-label': { display: 'flex', flexDirection: 'column', alignItems: 'center', overflow: 'hidden' },
+                                  '& .MuiTypography-caption, & .MuiTypography-body2': { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 84 }
+                                }}
+                                label={
+                                  <>
+                                    <Typography variant="caption" color="text.secondary">{translateRange(range)}</Typography>
+                                    <Typography variant="body2" sx={{ fontWeight: 600, color: textColor }}>{formatPercent(value)}</Typography>
+                                    <Typography variant="caption" sx={{ fontSize: '0.7rem', opacity: 0.8 }}>{formatMoneyValue({ amount: info.amount, currency: normalizeCurrency(displayData?.currency || 'USD') })}</Typography>
+                                  </>
+                                }
+                              />
+                            );
+                          })}
                         </Box>
-                      )}
+                      </>
+                    )}
 
-                      {data?.dividends && data.dividends.length > 0 && (
-                        <>
-                          <Typography variant="subtitle2" gutterBottom sx={{ mt: 0.5 }}>{t('Dividend Gains', 'רווחי דיבידנד')}</Typography>
-                          <Box display="flex" flexWrap="wrap" gap={1} sx={{ mb: 2 }}>
-                            {Object.entries(dividendGains).map(([range, info]) => {
-                              const value = info.pct;
-                              if (value === undefined || value === null || isNaN(value) || value === 0) {
-                                return null;
-                              }
-                              const isPositive = value > 0;
-                              const textColor = isPositive ? 'success.main' : 'error.main';
-                              return (
-                                <Chip
-                                  key={range}
-                                  variant="outlined"
-                                  size="small"
-                                  sx={{
-                                    minWidth: 80,
-                                    py: 0.5,
-                                    px: 0.75,
-                                    height: 'auto',
-                                    '& .MuiChip-label': { display: 'flex', flexDirection: 'column', alignItems: 'center', overflow: 'hidden' },
-                                    '& .MuiTypography-caption, & .MuiTypography-body2': { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 84 }
-                                  }}
-                                  label={
-                                    <>
-                                      <Typography variant="caption" color="text.secondary">{translateRange(range)}</Typography>
-                                      <Typography variant="body2" sx={{ fontWeight: 600, color: textColor }}>{formatPercent(value)}</Typography>
-                                      <Typography variant="caption" sx={{ fontSize: '0.7rem', opacity: 0.8 }}>{formatMoneyValue({ amount: info.amount, currency: normalizeCurrency(displayData?.currency || 'USD') })}</Typography>
-                                    </>
-                                  }
-                                />
-                              );
-                            })}
-                          </Box>
-                        </>
-                      )}
+                    {/* Underlying Assets Section */}
+                    {displayData?.meta?.underlyingAssets && displayData.meta.underlyingAssets.length > 0 && (
+                      <Box sx={{ mt: 3, mb: 2 }}>
+                        <HoldingUnderlyingAssets assets={displayData.meta.underlyingAssets} />
+                      </Box>
+                    )}
 
-                      {/* Underlying Assets Section */}
-                      {displayData?.meta?.underlyingAssets && displayData.meta.underlyingAssets.length > 0 && (
-                        <Box sx={{ mt: 3, mb: 2 }}>
-                          <HoldingUnderlyingAssets assets={displayData.meta.underlyingAssets} />
+                    {externalLinks.length > 0 && (
+                      <>
+                        <Typography variant="subtitle2" gutterBottom sx={{ mt: 3 }}>{t('External Links', 'קישורים חיצוניים')}</Typography>
+                        <Box display="flex" flexWrap="wrap" gap={1}>
+                          {externalLinks.map(link => (
+                            <Button key={link.name} variant="outlined" size="small" href={link.url} target="_blank" endIcon={<OpenInNewIcon />} sx={{ borderRadius: 2, textTransform: 'none' }}>{link.name}</Button>
+                          ))}
                         </Box>
-                      )}
-
-                      {externalLinks.length > 0 && (
-                        <>
-                          <Typography variant="subtitle2" gutterBottom sx={{ mt: 3 }}>{t('External Links', 'קישורים חיצוניים')}</Typography>
-                          <Box display="flex" flexWrap="wrap" gap={1}>
-                            {externalLinks.map(link => (
-                              <Button key={link.name} variant="outlined" size="small" href={link.url} target="_blank" endIcon={<OpenInNewIcon />} sx={{ borderRadius: 2, textTransform: 'none' }}>{link.name}</Button>
-                            ))}
-                          </Box>
-                        </>
-                      )}
-                    </Box>
-                  )}
+                      </>
+                    )}
+                  </Box>
+                )}
 
 
 
 
-                  {activeTab === 'assets' && displayData?.meta?.underlyingAssets && (
+                {activeTab === 'assets' && displayData?.meta?.underlyingAssets && (
                   <TabPanelWithShadows theme={theme}>
-                      <HoldingDetails
-                        sheetId={sheetId}
-                        holding={{ ...displayData, underlyingAssets: displayData.meta.underlyingAssets } as any}
-                        holdings={[]}
-                        displayCurrency={normalizeCurrency(localStorage.getItem('displayCurrency') || 'USD')}
-                        portfolios={portfolios}
-                        onPortfolioClick={handlePortfolioClick}
-                        section="assets" // specific section for just assets
-                      />
+                    <HoldingDetails
+                      sheetId={sheetId}
+                      holding={{ ...displayData, underlyingAssets: displayData.meta.underlyingAssets } as any}
+                      holdings={[]}
+                      displayCurrency={normalizeCurrency(localStorage.getItem('displayCurrency') || 'USD')}
+                      portfolios={portfolios}
+                      onPortfolioClick={handlePortfolioClick}
+                      section="assets" // specific section for just assets
+                    />
                   </TabPanelWithShadows>
-                  )}
+                )}
 
-                  {(activeTab === 'holdings' || activeTab === 'transactions' || activeTab === 'dividends') && hasHolding && (
+                {(activeTab === 'holdings' || activeTab === 'transactions' || activeTab === 'dividends') && hasHolding && (
                   <TabPanelWithShadows theme={theme}>
-                      {(() => {
-                        const has = (engineHoldings && engineHoldings.length > 0) || !!enrichedHolding || !!holdingData;
-                        return has;
-                      })() ? (
-                        (() => {
-                          const h = (enrichedHolding || (engineHoldings && engineHoldings[0]) || holdingData)! as any;
-                          return (
-                            <HoldingDetails
-                              sheetId={sheetId}
-                              holding={h}
-                              holdings={engineHoldings && engineHoldings.length > 0 ? engineHoldings as any[] : (enrichedHolding ? [enrichedHolding] : undefined)}
-                              displayCurrency={normalizeCurrency(localStorage.getItem('displayCurrency') || 'USD')}
-                              portfolios={portfolios}
-                              onPortfolioClick={handlePortfolioClick}
-                              section={activeTab === 'holdings' ? 'holdings' : activeTab === 'transactions' ? 'transactions' : 'dividends'}
-                            />
-                          );
-                        })()
-                      ) : (
-                        <Box display="flex" justifyContent="center" p={5}><CircularProgress /></Box>
-                      )}
+                    {(() => {
+                      const has = (engineHoldings && engineHoldings.length > 0) || !!enrichedHolding || !!holdingData;
+                      return has;
+                    })() ? (
+                      (() => {
+                        const h = (enrichedHolding || (engineHoldings && engineHoldings[0]) || holdingData)! as any;
+                        return (
+                          <HoldingDetails
+                            sheetId={sheetId}
+                            holding={h}
+                            holdings={engineHoldings && engineHoldings.length > 0 ? engineHoldings as any[] : (enrichedHolding ? [enrichedHolding] : undefined)}
+                            displayCurrency={normalizeCurrency(localStorage.getItem('displayCurrency') || 'USD')}
+                            portfolios={portfolios}
+                            onPortfolioClick={handlePortfolioClick}
+                            section={activeTab === 'holdings' ? 'holdings' : activeTab === 'transactions' ? 'transactions' : 'dividends'}
+                          />
+                        );
+                      })()
+                    ) : (
+                      <Box display="flex" justifyContent="center" p={5}><CircularProgress /></Box>
+                    )}
                   </TabPanelWithShadows>
-                  )}
-                </>}
+                )}
+              </>}
         </DialogContent>
         <DialogActions sx={{ p: 2, px: 3, gap: 1 }}>
           <Tooltip title={t("Refresh Data", "רענן נתונים")} enterTouchDelay={0} leaveTouchDelay={3000}>

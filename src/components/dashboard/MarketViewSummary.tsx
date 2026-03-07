@@ -49,7 +49,11 @@ const MARKETS: MarketSection[] = [
 type TimeRange = '1W' | '1M' | '3M' | '6M' | 'YTD' | '1Y' | '5Y' | '10Y';
 const TOGGLE_RANGES: TimeRange[] = ['1W', '1M', '3M', '6M', 'YTD', '1Y', '5Y', '10Y'];
 
-export function MarketViewSummary() {
+interface MarketViewProps {
+  isMobile?: boolean;
+}
+
+export function MarketViewSummary({ isMobile }: MarketViewProps) {
   const { t } = useLanguage();
   const theme = useTheme();
 
@@ -173,7 +177,7 @@ export function MarketViewSummary() {
 
   return (
     <>
-      <Box sx={{ position: 'relative', height: 260, pb: 1 }}>
+      <Box sx={{ position: 'relative', height: isMobile ? 'auto' : 260, pb: 1 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1, pr: 2, pl: 1 }}>
           <Typography variant="h6" component="div" sx={{ fontSize: '1rem', fontWeight: 'bold' }}>
             {t('Market View', 'מבט לשווקים')}
@@ -191,12 +195,12 @@ export function MarketViewSummary() {
           </ToggleButtonGroup>
         </Box>
 
-        <Grid container spacing={2} sx={{ height: 'calc(100% - 32px)' }}>
+        <Grid container spacing={2} sx={{ height: isMobile ? 'auto' : 'calc(100% - 32px)' }}>
           {MARKETS.map((market) => {
             const chartData = processChartData(market.tickers);
 
             return (
-              <Grid item xs={12} md={4} key={market.title} sx={{ height: '100%' }}>
+              <Grid item xs={12} md={4} key={market.title} sx={{ height: isMobile ? 220 : '100%' }}>
                 <Paper variant="outlined" sx={{ p: 1, height: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }}>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                     <Typography variant="subtitle2" fontWeight="bold">{market.title}</Typography>

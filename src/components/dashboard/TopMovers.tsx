@@ -116,7 +116,7 @@ export const TopMovers = ({ holdings, displayCurrency, exchangeRates, lockedMetr
                     <Typography variant="caption">{t('No significant movers.', 'אין תנודות משמעותיות.')}</Typography>
                 </Box>
             ) : (
-                        <Box sx={{ position: 'relative', flex: 1, display: 'flex' }}>
+                        <Box sx={{ position: 'relative', flex: 1, display: 'flex', minWidth: 0 }}>
                             <Box
                                 ref={containerRef}
                                 sx={{
@@ -147,7 +147,7 @@ export const TopMovers = ({ holdings, displayCurrency, exchangeRates, lockedMetr
 
     return (
         <Box sx={{ p: 0.5 }}>
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={0.5} px={0.5}>
+            <Box display="flex" justifyContent="space-between" alignItems="center" mb={0.5} px={0.5} flexWrap="wrap">
                 <Typography variant="h6" component="div" sx={{ fontSize: '1rem', fontWeight: 'bold' }}>{t('Top Movers', 'המניות הבולטות')}</Typography>
                 <Box display="flex" alignItems="center">
                     {!lockedMetric && (

@@ -548,7 +548,7 @@ export function PortfolioWizard({ onComplete, onCancel, onManual, existingNames 
                         </Tooltip>
                       </Box>
                       <Grid container spacing={2}>
-                        <Grid item xs={selectedPreset.mgmtFeeModes.length > 1 ? 4 : 6}>
+                        <Grid item xs={12} sm={selectedPreset.mgmtFeeModes.length > 1 ? 4 : 6}>
                           <TextField
                             fullWidth
                             type="number"
@@ -564,7 +564,7 @@ export function PortfolioWizard({ onComplete, onCancel, onManual, existingNames 
                           />
                         </Grid>
                         {selectedPreset.mgmtFeeModes.length > 1 && (
-                          <Grid item xs={4}>
+                          <Grid item xs={12} sm={4}>
                             <FormControl fullWidth size="small">
                               <InputLabel>{t('Type', 'סוג')}</InputLabel>
                               <Select
@@ -580,7 +580,7 @@ export function PortfolioWizard({ onComplete, onCancel, onManual, existingNames 
                             </FormControl>
                           </Grid>
                         )}
-                        <Grid item xs={selectedPreset.mgmtFeeModes.length > 1 ? 4 : 6}>
+                        <Grid item xs={12} sm={selectedPreset.mgmtFeeModes.length > 1 ? 4 : 6}>
                           <FormControl fullWidth size="small">
                             <InputLabel>{t('Frequency', 'תדירות')}</InputLabel>
                             <Select
@@ -608,7 +608,7 @@ export function PortfolioWizard({ onComplete, onCancel, onManual, existingNames 
                             t(' (Trading)', ' (מסחר)')}
                     </Typography>
                     <Grid container spacing={2}>
-                      <Grid item xs={4}>
+                      <Grid item xs={12} sm={4}>
                         <TextField
                           fullWidth
                           type="number"
@@ -624,7 +624,7 @@ export function PortfolioWizard({ onComplete, onCancel, onManual, existingNames 
                           }}
                         />
                       </Grid>
-                      <Grid item xs={4}>
+                      <Grid item xs={12} sm={4}>
                         <TextField
                           fullWidth
                           type="number"
@@ -640,7 +640,7 @@ export function PortfolioWizard({ onComplete, onCancel, onManual, existingNames 
                           }}
                         />
                       </Grid>
-                      <Grid item xs={4}>
+                      <Grid item xs={12} sm={4}>
                         <TextField
                           fullWidth
                           type="number"

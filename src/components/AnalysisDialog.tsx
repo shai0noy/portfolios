@@ -441,7 +441,7 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
                 </Box>
             </DialogTitle>
             <DialogContent>
-                <Box display="flex" justifyContent="space-between" alignItems="center" mb={2} sx={{ pt: 1 }}>
+                <Box display="flex" justifyContent="space-between" alignItems="center" mb={2} sx={{ pt: 1, flexWrap: 'wrap', gap: 1 }}>
                     <ToggleButtonGroup value={range} exclusive onChange={(_, v) => v && setRange(v)} size="small" sx={{ height: 26 }}>
                         {availableRanges.map(r => (
                             <ToggleButton key={r} value={r} sx={{ px: 1, fontSize: '0.7rem' }}>
@@ -450,7 +450,7 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
                         ))}
                     </ToggleButtonGroup>
                     
-                    <FormControl size="small" sx={{ minWidth: 150, mt: 1 }}>
+                    <FormControl size="small" sx={{ minWidth: 150, mt: { xs: 1, sm: 0 } }}>
                         <InputLabel>{t('Risk-Free Rate', 'ריבית חסרת סיכון')}</InputLabel>
                         <Select
                             value={riskFreeType}
@@ -474,7 +474,7 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
                     </Box>
                 ) : (
                     <>
-                <Box display="flex" gap={2} mb={1} ml={1}>
+                            <Box display="flex" gap={2} mb={1} ml={1} flexWrap="wrap">
                     {subjectStdDev !== null && (
                         <Typography variant="caption" display="block">
                             <Tooltip title={t("Annualized standard deviation of daily returns, representing the investment's historical volatility or risk.", "סטיית תקן שנתית של התשואות היומיות, המייצגת את התנודתיות ההיסטורית או הסיכון של ההשקעה.")}>
@@ -494,92 +494,94 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
                         </Typography>
                     )}
                 </Box>
-                <Table size="small">
-                    <TableHead>
-                        <TableRow>
-                            <TableCell>{t('Benchmark', 'מדד יחוס')}</TableCell>
-                            <TableCell align="left" sx={{ width: 90 }}>
-                                <Tooltip title={t(`The simple difference between ${effectiveSubjectName}'s total return and the benchmark's total return over the period. A positive value indicates ${effectiveSubjectName} beat the benchmark.`, `ההפרש הפשוט בין התשואה הכוללת של ${effectiveSubjectName} לתשואת המדד לאורך התקופה. ערך חיובי מציין ש-${effectiveSubjectName} הכה את המדד.`)}>
-                                    <Box component="span" sx={{ cursor: 'help', borderBottom: '1px dotted' }}>Active Ret.</Box>
-                                </Tooltip>
-                            </TableCell>
-                            <TableCell align="left" sx={{ width: 90 }}>
-                                <Tooltip title={t(`Jensen's Alpha represents ${effectiveSubjectName}'s excess return over what would be expected given its risk (Beta) relative to the market. A positive alpha indicates value added by active management.`, `אלפא של ג'נסן מייצגת את התשואה העודפת של ${effectiveSubjectName} מעבר למצופה בהינתן הסיכון (בטא) שלו ביחס לשוק. אלפא חיובית מצביעה על ערך מוסף בניהול אקטיבי.`)}>
-                                    <Box component="span" sx={{ cursor: 'help', borderBottom: '1px dotted' }}>α<sub style={{ fontSize: '0.7em' }}>J</sub></Box>
-                                </Tooltip>
-                            </TableCell>
-                            <TableCell align="left" sx={{ width: 90 }}>
-                                <Tooltip title={t(`Measures the volatility of ${effectiveSubjectName} in relation to the benchmark. A beta > 1.0 implies higher volatility than the market, while < 1.0 implies lower volatility.`, `מודד את תנודתיות ה-${effectiveSubjectName} ביחס למדד. בטא גדולה מ-1.0 מצביעה על תנודתיות גבוהה מהשוק, בעוד שמתחת ל-1.0 מצביעה על תנודתיות נמוכה יותר.`)}>
-                                    <Box component="span" sx={{ cursor: 'help', borderBottom: '1px dotted' }}>β</Box>
-                                </Tooltip>
-                            </TableCell>
-                            <TableCell align="left" sx={{ width: 90 }}>
-                                <Tooltip title={t(`A variation of Jensen's Alpha that uses Downside Beta instead of the standard Beta. It measures ${effectiveSubjectName}'s performance on a risk-adjusted basis, where the 'risk' is defined only by the asset's volatility during market downturns.`, `וריאציה של אלפא של ג'נסן המשתמשת בבטא לתקופות ירידה במקום בבטא הרגילה. היא מודדת את ביצועי ה-${effectiveSubjectName} בהתאמה לסיכון, כאשר 'הסיכון' מוגדר רק על ידי תנודתיות הנכס בתקופות של ירידות שוק.`)}>
-                                    <Box component="span" sx={{ cursor: 'help', borderBottom: '1px dotted' }}>Downside α<sub style={{ fontSize: '0.7em' }}>J</sub></Box>
-                                </Tooltip>
-                            </TableCell>
-                            <TableCell align="left" sx={{ width: 120 }}>
-                                <Tooltip title={t(`Measures ${effectiveSubjectName}'s downside volatility relative to the benchmark during market declines. A value < 1.0 indicates ${effectiveSubjectName} tends to lose less than the market when the market falls.`, `מודד את תנודתיות ה-${effectiveSubjectName} כלפי מטה ביחס למדד בזמן ירידות שוק. ערך נמוך מ-1.0 מצביע על כך ש-${effectiveSubjectName} נוטה להפסיד פחות מהשוק כשהשוק יורד.`)}>
-                                    <Box component="span" sx={{ cursor: 'help', borderBottom: '1px dotted' }}>Downside β</Box>
-                                </Tooltip>
-                            </TableCell>
-                            <TableCell align="left" sx={{ width: 80 }}>
-                                <Tooltip title={t(`Indicates the percentage of ${effectiveSubjectName}'s movements that can be explained by movements in the benchmark. A high R² (85-100%) means ${effectiveSubjectName}'s performance patterns are closely aligned with the index.`, `מציין את אחוז תנועות ה-${effectiveSubjectName} שניתן להסביר על ידי תנועות במדד הייחוס. R² גבוה (85-100%) פירושו שדפוסי הביצועים של ה-${effectiveSubjectName} תואמים בקירוב למדד.`)}>
-                                    <Box component="span" sx={{ cursor: 'help', borderBottom: '1px dotted' }}>R²</Box>
-                                </Tooltip>
-                            </TableCell>
-                            <TableCell align="left" sx={{ width: 80 }}>
-                                <Tooltip title={t(`Measures the strength and direction of the linear relationship between ${effectiveSubjectName} and the benchmark. 1.0 is perfect positive correlation, 0 is no correlation, and -1.0 is perfect negative correlation.`, `מודד את העוצמה והכיוון של הקשר הליניארי בין ${effectiveSubjectName} למדד. 1.0 הוא מתאם חיובי מושלם, 0 הוא חוסר מתאם, ו-1.0- הוא מתאם שלילי מושלם.`)}>
-                                    <Box component="span" sx={{ cursor: 'help', borderBottom: '1px dotted' }}>Corr</Box>
-                                </Tooltip>
-                            </TableCell>
-                        </TableRow>
-                    </TableHead>
-                    <TableBody>
-                        {allSeries.map((s) => {
-                            const m = results.get(s.name);
-                            const alphaStyle = getMetricStyle(m?.alpha, 'alpha');
-                            const dsBetaStyle = getMetricStyle(m?.downsideBeta, 'downsideBeta');
-                            const dsAlphaStyle = getMetricStyle(m?.downsideAlpha, 'downsideAlpha' as any);
-                            const actRetStyle = getMetricStyle(m?.activeReturn, 'activeReturn');
-                            const betaStyle = getMetricStyle(m?.beta, 'beta');
-                            const r2Style = getMetricStyle(m?.rSquared, 'rSquared');
-                            const corrStyle = getMetricStyle(m?.correlation, 'correlation');
+                            <Box sx={{ overflowX: 'auto' }}>
+                                <Table size="small" sx={{ minWidth: 650 }}>
+                                    <TableHead>
+                                        <TableRow>
+                                            <TableCell>{t('Benchmark', 'מדד יחוס')}</TableCell>
+                                            <TableCell align="left" sx={{ width: 90 }}>
+                                                <Tooltip title={t(`The simple difference between ${effectiveSubjectName}'s total return and the benchmark's total return over the period. A positive value indicates ${effectiveSubjectName} beat the benchmark.`, `ההפרש הפשוט בין התשואה הכוללת של ${effectiveSubjectName} לתשואת המדד לאורך התקופה. ערך חיובי מציין ש-${effectiveSubjectName} הכה את המדד.`)}>
+                                                    <Box component="span" sx={{ cursor: 'help', borderBottom: '1px dotted' }}>Active Ret.</Box>
+                                                </Tooltip>
+                                            </TableCell>
+                                            <TableCell align="left" sx={{ width: 90 }}>
+                                                <Tooltip title={t(`Jensen's Alpha represents ${effectiveSubjectName}'s excess return over what would be expected given its risk (Beta) relative to the market. A positive alpha indicates value added by active management.`, `אלפא של ג'נסן מייצגת את התשואה העודפת של ${effectiveSubjectName} מעבר למצופה בהינתן הסיכון (בטא) שלו ביחס לשוק. אלפא חיובית מצביעה על ערך מוסף בניהול אקטיבי.`)}>
+                                                    <Box component="span" sx={{ cursor: 'help', borderBottom: '1px dotted' }}>α<sub style={{ fontSize: '0.7em' }}>J</sub></Box>
+                                                </Tooltip>
+                                            </TableCell>
+                                            <TableCell align="left" sx={{ width: 90 }}>
+                                                <Tooltip title={t(`Measures the volatility of ${effectiveSubjectName} in relation to the benchmark. A beta > 1.0 implies higher volatility than the market, while < 1.0 implies lower volatility.`, `מודד את תנודתיות ה-${effectiveSubjectName} ביחס למדד. בטא גדולה מ-1.0 מצביעה על תנודתיות גבוהה מהשוק, בעוד שמתחת ל-1.0 מצביעה על תנודתיות נמוכה יותר.`)}>
+                                                    <Box component="span" sx={{ cursor: 'help', borderBottom: '1px dotted' }}>β</Box>
+                                                </Tooltip>
+                                            </TableCell>
+                                            <TableCell align="left" sx={{ width: 90 }}>
+                                                <Tooltip title={t(`A variation of Jensen's Alpha that uses Downside Beta instead of the standard Beta. It measures ${effectiveSubjectName}'s performance on a risk-adjusted basis, where the 'risk' is defined only by the asset's volatility during market downturns.`, `וריאציה של אלפא של ג'נסן המשתמשת בבטא לתקופות ירידה במקום בבטא הרגילה. היא מודדת את ביצועי ה-${effectiveSubjectName} בהתאמה לסיכון, כאשר 'הסיכון' מוגדר רק על ידי תנודתיות הנכס בתקופות של ירידות שוק.`)}>
+                                                    <Box component="span" sx={{ cursor: 'help', borderBottom: '1px dotted' }}>Downside α<sub style={{ fontSize: '0.7em' }}>J</sub></Box>
+                                                </Tooltip>
+                                            </TableCell>
+                                            <TableCell align="left" sx={{ width: 120 }}>
+                                                <Tooltip title={t(`Measures ${effectiveSubjectName}'s downside volatility relative to the benchmark during market declines. A value < 1.0 indicates ${effectiveSubjectName} tends to lose less than the market when the market falls.`, `מודד את תנודתיות ה-${effectiveSubjectName} כלפי מטה ביחס למדד בזמן ירידות שוק. ערך נמוך מ-1.0 מצביע על כך ש-${effectiveSubjectName} נוטה להפסיד פחות מהשוק כשהשוק יורד.`)}>
+                                                    <Box component="span" sx={{ cursor: 'help', borderBottom: '1px dotted' }}>Downside β</Box>
+                                                </Tooltip>
+                                            </TableCell>
+                                            <TableCell align="left" sx={{ width: 80 }}>
+                                                <Tooltip title={t(`Indicates the percentage of ${effectiveSubjectName}'s movements that can be explained by movements in the benchmark. A high R² (85-100%) means ${effectiveSubjectName}'s performance patterns are closely aligned with the index.`, `מציין את אחוז תנועות ה-${effectiveSubjectName} שניתן להסביר על ידי תנועות במדד הייחוס. R² גבוה (85-100%) פירושו שדפוסי הביצועים של ה-${effectiveSubjectName} תואמים בקירוב למדד.`)}>
+                                                    <Box component="span" sx={{ cursor: 'help', borderBottom: '1px dotted' }}>R²</Box>
+                                                </Tooltip>
+                                            </TableCell>
+                                            <TableCell align="left" sx={{ width: 80 }}>
+                                                <Tooltip title={t(`Measures the strength and direction of the linear relationship between ${effectiveSubjectName} and the benchmark. 1.0 is perfect positive correlation, 0 is no correlation, and -1.0 is perfect negative correlation.`, `מודד את העוצמה והכיוון של הקשר הליניארי בין ${effectiveSubjectName} למדד. 1.0 הוא מתאם חיובי מושלם, 0 הוא חוסר מתאם, ו-1.0- הוא מתאם שלילי מושלם.`)}>
+                                                    <Box component="span" sx={{ cursor: 'help', borderBottom: '1px dotted' }}>Corr</Box>
+                                                </Tooltip>
+                                            </TableCell>
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {allSeries.map((s) => {
+                                            const m = results.get(s.name);
+                                            const alphaStyle = getMetricStyle(m?.alpha, 'alpha');
+                                            const dsBetaStyle = getMetricStyle(m?.downsideBeta, 'downsideBeta');
+                                            const dsAlphaStyle = getMetricStyle(m?.downsideAlpha, 'downsideAlpha' as any);
+                                            const actRetStyle = getMetricStyle(m?.activeReturn, 'activeReturn');
+                                            const betaStyle = getMetricStyle(m?.beta, 'beta');
+                                            const r2Style = getMetricStyle(m?.rSquared, 'rSquared');
+                                            const corrStyle = getMetricStyle(m?.correlation, 'correlation');
 
-                            return (
-                                <TableRow key={s.name}>
-                                    <TableCell component="th" scope="row">
-                                        <Box display="flex" alignItems="center" gap={1}>
-                                            <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: s.color }} />
-                                            <Typography variant="body2" noWrap sx={{ maxWidth: 150 }}>{s.name}</Typography>
-                                        </Box>
-                                    </TableCell>
-                                    <TableCell align="left" sx={{ ...actRetStyle }}>
-                                        {formatPct(m?.activeReturn)}
-                                    </TableCell>
-                                    <TableCell align="left" sx={{ ...alphaStyle }}>
-                                        {formatNum(m?.alpha, 3)}
-                                    </TableCell>
-                                    <TableCell align="left" sx={{ ...betaStyle }}>
-                                        {formatNum(m?.beta, 2)}
-                                    </TableCell>
-                                    <TableCell align="left" sx={{ ...dsAlphaStyle }}>
-                                        {formatNum(m?.downsideAlpha, 3)}
-                                    </TableCell>
-                                    <TableCell align="left" sx={{ ...dsBetaStyle }}>
-                                        {formatNum(m?.downsideBeta, 2)}
-                                    </TableCell>
-                                    <TableCell align="left" sx={{ ...r2Style }}>
-                                        {formatNum(m?.rSquared, 2)}
-                                    </TableCell>
-                                    <TableCell align="left" sx={{ ...corrStyle }}>
-                                        {formatNum(m?.correlation, 2)}
-                                    </TableCell>
-                                </TableRow>
-                            );
-                        })}
-                    </TableBody>
-                </Table>
+                                return (
+                                    <TableRow key={s.name}>
+                                        <TableCell component="th" scope="row">
+                                            <Box display="flex" alignItems="center" gap={1}>
+                                                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: s.color }} />
+                                                <Typography variant="body2" noWrap sx={{ maxWidth: 150 }}>{s.name}</Typography>
+                                            </Box>
+                                        </TableCell>
+                                        <TableCell align="left" sx={{ ...actRetStyle }}>
+                                            {formatPct(m?.activeReturn)}
+                                        </TableCell>
+                                        <TableCell align="left" sx={{ ...alphaStyle }}>
+                                            {formatNum(m?.alpha, 3)}
+                                        </TableCell>
+                                        <TableCell align="left" sx={{ ...betaStyle }}>
+                                            {formatNum(m?.beta, 2)}
+                                        </TableCell>
+                                        <TableCell align="left" sx={{ ...dsAlphaStyle }}>
+                                            {formatNum(m?.downsideAlpha, 3)}
+                                        </TableCell>
+                                        <TableCell align="left" sx={{ ...dsBetaStyle }}>
+                                            {formatNum(m?.downsideBeta, 2)}
+                                        </TableCell>
+                                        <TableCell align="left" sx={{ ...r2Style }}>
+                                            {formatNum(m?.rSquared, 2)}
+                                        </TableCell>
+                                        <TableCell align="left" sx={{ ...corrStyle }}>
+                                            {formatNum(m?.correlation, 2)}
+                                        </TableCell>
+                                    </TableRow>
+                                );
+                            })}
+                                    </TableBody>
+                                </Table>
+                            </Box>
                 {allSeries.length === 0 && (
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 2, textAlign: 'center' }}>
                         {t('Add benchmarks to see comparative analysis.', 'הוסף מדדי ייחוס כדי לראות ניתוח השוואתי.')}

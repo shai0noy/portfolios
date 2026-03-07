@@ -37,7 +37,7 @@ export function HoldingDividends({ divHistory, loading, displayCurrency, formatD
     return (
         <Box>
             <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'bold' }}>{t('Dividends Received', 'דיבידנדים שהתקבלו')}</Typography>
-            <Paper variant="outlined">
+            <Paper variant="outlined" sx={{ overflowX: 'auto', maxHeight: 500, overflowY: 'auto' }}>
                 {loading ? (
                     <Box sx={{ p: 4, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                         <CircularProgress />

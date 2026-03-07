@@ -28,7 +28,7 @@ export function HoldingUnderlyingAssets({ assets }: HoldingUnderlyingAssetsProps
                 </Tooltip>
             </Box>
             <Box sx={{ position: 'relative' }}>
-                <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 300 }} ref={containerRef}>
+                <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 300, overflowX: 'auto' }} ref={containerRef}>
                     <Table size="small" stickyHeader>
                         <TableHead>
                             <TableRow>

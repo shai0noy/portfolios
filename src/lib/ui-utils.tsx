@@ -4,7 +4,7 @@ import type { Theme } from '@mui/material/styles';
 /**
  * Hook to track scroll position and determine if shadows should be shown.
  */
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Box } from '@mui/material';
 
 export function useScrollShadows(orientation: 'vertical' | 'horizontal' = 'vertical') {
