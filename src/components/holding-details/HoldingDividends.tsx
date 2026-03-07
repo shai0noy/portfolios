@@ -1,4 +1,5 @@
-import { Box, Typography, Paper, Table, TableHead, TableRow, TableCell, TableBody, Tooltip, CircularProgress } from '@mui/material';
+import { Box, Typography, Paper, Table, TableHead, TableRow, TableCell, TableBody, Tooltip, CircularProgress, useTheme } from '@mui/material';
+import { useScrollShadows, ScrollShadows } from '../../lib/ui-utils';
 import { formatValue, formatNumber, formatPrice } from '../../lib/currency';
 import { useLanguage } from '../../lib/i18n';
 
@@ -34,10 +35,14 @@ interface HoldingDividendsProps {
 export function HoldingDividends({ divHistory, loading, displayCurrency, formatDate }: HoldingDividendsProps) {
     const { t } = useLanguage();
 
+    const theme = useTheme();
+    const { containerRef, showTop, showBottom, showLeft, showRight } = useScrollShadows('both');
+
     return (
         <Box>
             <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'bold' }}>{t('Dividends Received', 'דיבידנדים שהתקבלו')}</Typography>
-            <Paper variant="outlined" sx={{ overflowX: 'auto', maxHeight: 500, overflowY: 'auto' }}>
+            <Box sx={{ position: 'relative' }}>
+                <Paper ref={containerRef} variant="outlined" sx={{ overflowX: 'auto', maxHeight: 500, overflowY: 'auto' }}>
                 {loading ? (
                     <Box sx={{ p: 4, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                         <CircularProgress />
@@ -144,6 +149,8 @@ export function HoldingDividends({ divHistory, loading, displayCurrency, formatD
                     </Table>
                 )}
             </Paper>
+                <ScrollShadows top={showTop} bottom={showBottom} left={showLeft} right={showRight} theme={theme} />
+            </Box>
         </Box>
     );
 }

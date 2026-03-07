@@ -19,7 +19,7 @@ interface HoldingLayersProps {
 export function HoldingLayers({ groupedLayers, displayCurrency, portfolios, exchangeRates, formatDate }: HoldingLayersProps) {
     const { t } = useLanguage();
     const theme = useTheme();
-    const { containerRef, showTop, showBottom } = useScrollShadows();
+    const { containerRef, showTop, showBottom, showLeft, showRight } = useScrollShadows('both');
 
     return (
         <Box>
@@ -331,7 +331,7 @@ export function HoldingLayers({ groupedLayers, displayCurrency, portfolios, exch
                     </TableBody>
                     </Table>
                 </Paper>
-                <ScrollShadows top={showTop} bottom={showBottom} theme={theme} />
+                <ScrollShadows top={showTop} bottom={showBottom} left={showLeft} right={showRight} theme={theme} />
             </Box>
         </Box>
     );

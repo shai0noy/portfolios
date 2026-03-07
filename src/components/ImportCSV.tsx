@@ -36,7 +36,7 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
   const [helpOpen, setHelpOpen] = useState(false);
   const { t, isRtl } = useLanguage();
   const theme = useTheme();
-  const { containerRef, showTop, showBottom } = useScrollShadows();
+  const { containerRef, showTop, showBottom, showLeft, showRight } = useScrollShadows('both');
   const STEPS = [t('Input Data', 'הזנת נתונים'), t('Map Columns', 'מיפוי עמודות'), t('Review & Import', 'בדיקה וייבוא')];
 
   useEffect(() => {
@@ -695,7 +695,7 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
                 </TableBody>
               </Table>
               </TableContainer>
-              <ScrollShadows top={showTop} bottom={showBottom} theme={theme} />
+              <ScrollShadows top={showTop} bottom={showBottom} left={showLeft} right={showRight} theme={theme} />
             </Box>
           </Stack>
         )}

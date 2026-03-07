@@ -7,31 +7,31 @@ import type { Theme } from '@mui/material/styles';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Box } from '@mui/material';
 
-export function useScrollShadows(orientation: 'vertical' | 'horizontal' = 'vertical') {
+export function useScrollShadows(orientation: 'vertical' | 'horizontal' | 'both' = 'vertical') {
   const [showTop, setShowTop] = useState(false);
   const [showBottom, setShowBottom] = useState(false);
+  const [showLeft, setShowLeft] = useState(false);
+  const [showRight, setShowRight] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const checkScroll = useCallback(() => {
     const el = containerRef.current;
     if (!el) return;
 
-    if (orientation === 'vertical') {
+    if (orientation === 'vertical' || orientation === 'both') {
       const { scrollTop, scrollHeight, clientHeight } = el;
-      // Show top if we've scrolled down at all
       setShowTop(scrollTop > 0);
-      // Show bottom if we're not at the very bottom
-      // Use a small buffer (1px) for float math
       const atBottom = Math.ceil(scrollTop + clientHeight) >= scrollHeight;
-      // Also ensure there IS content to scroll
       const hasOverflow = scrollHeight > clientHeight;
       setShowBottom(hasOverflow && !atBottom);
-    } else {
+    }
+
+    if (orientation === 'horizontal' || orientation === 'both') {
       const { scrollLeft, scrollWidth, clientWidth } = el;
-      setShowTop(scrollLeft > 0); // "Top" corresponds to "Left" here (start)
-      const atEnd = Math.ceil(scrollLeft + clientWidth) >= scrollWidth;
+      setShowLeft(scrollLeft > 0);
+      const atRight = Math.ceil(scrollLeft + clientWidth) >= scrollWidth;
       const hasOverflow = scrollWidth > clientWidth;
-      setShowBottom(hasOverflow && !atEnd); // "Bottom" corresponds to "Right" here (end)
+      setShowRight(hasOverflow && !atRight);
     }
   }, [orientation]);
 
@@ -41,7 +41,6 @@ export function useScrollShadows(orientation: 'vertical' | 'horizontal' = 'verti
       checkScroll();
       el.addEventListener('scroll', checkScroll);
       window.addEventListener('resize', checkScroll);
-      // Also check periodically in case content changes size (simple mutation workaround)
       const interval = setInterval(checkScroll, 1000);
       return () => {
         el.removeEventListener('scroll', checkScroll);
@@ -51,58 +50,84 @@ export function useScrollShadows(orientation: 'vertical' | 'horizontal' = 'verti
     }
   }, [checkScroll]);
 
-  return { containerRef, showTop, showBottom, checkScroll };
+  return { containerRef, showTop, showBottom, showLeft, showRight, checkScroll };
 }
 
 interface ScrollShadowsProps {
-  top: boolean;
-  bottom: boolean;
-  orientation?: 'vertical' | 'horizontal';
+  top?: boolean;
+  bottom?: boolean;
+  left?: boolean;
+  right?: boolean;
   theme: Theme;
 }
 
-export const ScrollShadows = ({ top, bottom, orientation = 'vertical', theme }: ScrollShadowsProps) => {
-  const shadowColor = theme.palette.mode === 'light' ? 'rgba(0,0,0,0.15)' : 'rgba(0,0,0,0.5)';
+export const ScrollShadows = ({ top, bottom, left, right, theme }: ScrollShadowsProps) => {
+  const shadowColor = theme.palette.mode === 'light' ? 'rgba(0,0,0,0.1)' : 'rgba(0,0,0,0.5)';
 
   return (
     <>
+      {/* Top Shadow */}
       <Box sx={{
         position: 'absolute',
         top: 0,
         left: 0,
-        right: orientation === 'vertical' ? 0 : 'auto',
-        bottom: orientation === 'horizontal' ? 0 : 'auto',
-        width: orientation === 'horizontal' ? '24px' : '100%',
-        height: orientation === 'vertical' ? '24px' : '100%',
-        background: orientation === 'vertical'
-          ? `radial-gradient(farthest-side at 50% 0, ${shadowColor}, transparent)`
-          : `radial-gradient(farthest-side at 0 50%, ${shadowColor}, transparent)`,
+        right: 0,
+        height: '24px',
+        background: `radial-gradient(farthest-side at 50% 0, ${shadowColor}, transparent)`,
         opacity: top ? 1 : 0,
         transition: 'opacity 0.2s',
         pointerEvents: 'none',
         zIndex: 10,
         borderTopLeftRadius: 'inherit',
-        borderTopRightRadius: 'inherit',
-        borderBottomLeftRadius: 'inherit' // For horizontal mode left shadow
+        borderTopRightRadius: 'inherit'
       }} />
+
+      {/* Bottom Shadow */}
       <Box sx={{
         position: 'absolute',
         bottom: 0,
+        left: 0,
         right: 0,
-        left: orientation === 'vertical' ? 0 : 'auto',
-        top: orientation === 'horizontal' ? 0 : 'auto',
-        width: orientation === 'horizontal' ? '24px' : '100%',
-        height: orientation === 'vertical' ? '24px' : '100%',
-        background: orientation === 'vertical'
-          ? `radial-gradient(farthest-side at 50% 100%, ${shadowColor}, transparent)`
-          : `radial-gradient(farthest-side at 100% 50%, ${shadowColor}, transparent)`,
+        height: '24px',
+        background: `radial-gradient(farthest-side at 50% 100%, ${shadowColor}, transparent)`,
         opacity: bottom ? 1 : 0,
         transition: 'opacity 0.2s',
         pointerEvents: 'none',
         zIndex: 10,
         borderBottomLeftRadius: 'inherit',
-        borderBottomRightRadius: 'inherit',
-        borderTopRightRadius: 'inherit' // For horizontal mode right shadow
+        borderBottomRightRadius: 'inherit'
+      }} />
+
+      {/* Left Shadow */}
+      <Box sx={{
+        position: 'absolute',
+        top: 0,
+        bottom: 0,
+        left: 0,
+        width: '24px',
+        background: `radial-gradient(farthest-side at 0 50%, ${shadowColor}, transparent)`,
+        opacity: left ? 1 : 0,
+        transition: 'opacity 0.2s',
+        pointerEvents: 'none',
+        zIndex: 10,
+        borderTopLeftRadius: 'inherit',
+        borderBottomLeftRadius: 'inherit'
+      }} />
+
+      {/* Right Shadow */}
+      <Box sx={{
+        position: 'absolute',
+        top: 0,
+        bottom: 0,
+        right: 0,
+        width: '24px',
+        background: `radial-gradient(farthest-side at 100% 50%, ${shadowColor}, transparent)`,
+        opacity: right ? 1 : 0,
+        transition: 'opacity 0.2s',
+        pointerEvents: 'none',
+        zIndex: 10,
+        borderTopRightRadius: 'inherit',
+        borderBottomRightRadius: 'inherit'
       }} />
     </>
   );

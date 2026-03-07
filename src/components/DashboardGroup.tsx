@@ -38,7 +38,7 @@ export const DashboardGroup = memo(function DashboardGroup(props: DashboardGroup
   const theme = useTheme();
   const { t } = useLanguage();
   const [isExpanded, setIsExpanded] = useState(isExpandedInitial);
-  const { containerRef, showTop, showBottom } = useScrollShadows('horizontal');
+  const { containerRef, showLeft, showRight } = useScrollShadows('horizontal');
 
   const toggleGroup = () => setIsExpanded(p => !p);
 
@@ -161,7 +161,7 @@ export const DashboardGroup = memo(function DashboardGroup(props: DashboardGroup
           </Table>
         </Collapse>
       </Paper>
-      <ScrollShadows top={showTop} bottom={showBottom} orientation="horizontal" theme={theme} />
+      <ScrollShadows left={showLeft} right={showRight} theme={theme} />
     </Box>
   );
 });

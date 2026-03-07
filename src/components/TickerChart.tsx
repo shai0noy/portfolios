@@ -1272,8 +1272,8 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                 }
             }}>
             {(topControls || allowFullscreen) && !isFullscreen && (
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5, gap: 1, flexWrap: 'wrap' }}>
-                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5, gap: 1, flexWrap: 'nowrap' }}>
+                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: { xs: 'nowrap', md: 'wrap' }, minWidth: 0, flex: 1, overflowX: { xs: 'auto', md: 'visible' }, scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' } }}>
                         {topControls}
                         {!onScaleTypeChange && (
                             <ToggleButtonGroup

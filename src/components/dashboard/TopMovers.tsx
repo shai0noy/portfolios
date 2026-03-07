@@ -107,7 +107,7 @@ export const TopMovers = ({ holdings, displayCurrency, exchangeRates, lockedMetr
 
     const MoversRow = ({ period, isLast }: { period: TimePeriod, isLast: boolean }) => {
         const theme = useTheme();
-        const { containerRef, showTop, showBottom } = useScrollShadows('horizontal');
+        const { containerRef, showLeft, showRight } = useScrollShadows('horizontal');
         return (
         <Box sx={{ display: 'flex', alignItems: 'center', py: 0.25, borderBottom: isLast ? 'none' : '1px solid', borderColor: 'divider' }}>
             <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 'bold', textTransform: 'uppercase', minWidth: 60, mr: 0.5 }}>{periodLabels[period]}</Typography>
@@ -138,7 +138,7 @@ export const TopMovers = ({ holdings, displayCurrency, exchangeRates, lockedMetr
                                     />
                                 ))}
                             </Box>
-                            <ScrollShadows top={showTop} bottom={showBottom} orientation="horizontal" theme={theme} />
+                            <ScrollShadows left={showLeft} right={showRight} theme={theme} />
                 </Box>
             )}
         </Box>

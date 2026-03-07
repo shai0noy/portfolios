@@ -10,7 +10,7 @@ interface HoldingUnderlyingAssetsProps {
 export function HoldingUnderlyingAssets({ assets }: HoldingUnderlyingAssetsProps) {
     const { t } = useLanguage();
     const theme = useTheme();
-    const { containerRef, showTop, showBottom } = useScrollShadows();
+    const { containerRef, showTop, showBottom, showLeft, showRight } = useScrollShadows('both');
 
     if (!assets || assets.length === 0) return null;
 
@@ -50,7 +50,7 @@ export function HoldingUnderlyingAssets({ assets }: HoldingUnderlyingAssetsProps
                         </TableBody>
                     </Table>
                 </TableContainer>
-                <ScrollShadows top={showTop} bottom={showBottom} theme={theme} />
+                <ScrollShadows top={showTop} bottom={showBottom} left={showLeft} right={showRight} theme={theme} />
             </Box>
         </Box>
     );

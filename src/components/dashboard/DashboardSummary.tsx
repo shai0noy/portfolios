@@ -9,8 +9,8 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import AddIcon from '@mui/icons-material/Add';
-import SearchIcon from '@mui/icons-material/Search';
-import TuneIcon from '@mui/icons-material/Tune';
+// import SearchIcon from '@mui/icons-material/Search';
+import QueryStatsIcon from '@mui/icons-material/QueryStats';
 import { type ExchangeRates, type DashboardHolding, type Portfolio, type Transaction } from '../../lib/types';
 import { useLanguage } from '../../lib/i18n';
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
@@ -506,13 +506,78 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                               )}
 
                               {isMobile ? (
-                                <IconButton
-                                  size="small"
-                                  onClick={(e) => setSettingsMenuAnchor(e.currentTarget)}
-                                  sx={{ border: 1, borderColor: 'divider', borderRadius: 1, p: 0.5 }}
-                                >
-                                  <TuneIcon fontSize="small" sx={{ fontSize: '1.2rem', color: 'primary.main' }} />
-                                </IconButton>
+                                <>
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => setChartMetric(chartMetric === 'price' ? 'percent' : 'price')}
+                                    disabled={isComparison || chartView === 'twr' || chartView === 'gains'}
+                                    sx={{ border: 1, borderColor: 'divider', borderRadius: 1, p: 0.5, height: 26, width: 26, fontSize: '0.7rem', fontWeight: 'bold' }}
+                                    color="primary"
+                                  >
+                                    {chartMetric === 'percent' ? '%' : '$'}
+                                  </IconButton>
+
+                                  <ToggleButtonGroup
+                                    value={scaleType}
+                                    exclusive
+                                    onChange={(_, v) => v && setScaleType(v)}
+                                    size="small"
+                                    sx={{ height: 26 }}
+                                  >
+                                    <ToggleButton value="linear" sx={{ px: 0.5, fontSize: '0.65rem', minWidth: 32 }}>LIN</ToggleButton>
+                                    <ToggleButton value="log" sx={{ px: 0.5, fontSize: '0.65rem', minWidth: 32 }}>LOG</ToggleButton>
+                                  </ToggleButtonGroup>
+
+                                  <IconButton
+                                    size="small"
+                                    onClick={(e) => setTrendMenuAnchor(e.currentTarget)}
+                                    sx={{
+                                      borderRadius: 1,
+                                      p: 0.5,
+                                      height: 26,
+                                      width: 26,
+                                      bgcolor: trendType !== 'none' ? 'primary.main' : 'action.selected',
+                                      color: trendType !== 'none' ? 'primary.contrastText' : 'text.primary',
+                                      '&:hover': {
+                                        bgcolor: trendType !== 'none' ? 'primary.dark' : 'action.hover'
+                                      }
+                                    }}
+                                  >
+                                    <TrendLineIcon fontSize="small" sx={{ fontSize: '1.1rem' }} />
+                                  </IconButton>
+
+                                  <IconButton
+                                    size="small"
+                                    onClick={(e) => setCompareMenuAnchor(e.currentTarget)}
+                                    sx={{
+                                      borderRadius: 1,
+                                      p: 0.5,
+                                      height: 26,
+                                      width: 26,
+                                      bgcolor: 'action.selected',
+                                      color: 'primary.main',
+                                      '&:hover': { bgcolor: 'action.hover' }
+                                    }}
+                                  >
+                                    <AddIcon fontSize="small" sx={{ fontSize: '1.1rem' }} />
+                                  </IconButton>
+
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => setAnalysisOpen(true)}
+                                    sx={{
+                                      borderRadius: 1,
+                                      p: 0.5,
+                                      height: 26,
+                                      width: 26,
+                                      bgcolor: 'action.selected',
+                                      color: 'primary.main',
+                                      '&:hover': { bgcolor: 'action.hover' }
+                                    }}
+                                  >
+                                    <QueryStatsIcon fontSize="small" sx={{ fontSize: '1.1rem' }} />
+                                  </IconButton>
+                                </>
                               ) : (
                                 <>
                                     <ToggleButtonGroup
@@ -669,7 +734,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
 
                         {/* Analysis */}
                         <MenuItem onClick={() => { setAnalysisOpen(true); setSettingsMenuAnchor(null); }} disabled={isComparisonDisabled}>
-                          <ListItemIcon><SearchIcon fontSize="small" /></ListItemIcon>
+                          <ListItemIcon><QueryStatsIcon fontSize="small" /></ListItemIcon>
                           <ListItemText primary={t('Analysis', 'ניתוח')} />
                         </MenuItem>
                       </Menu>
@@ -711,7 +776,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                               >
                                 {opt.icon === 'search' && (
                                   <ListItemIcon sx={{ minWidth: 28 }}>
-                                    <SearchIcon fontSize="small" sx={{ fontSize: '1.1rem' }} />
+                                    <QueryStatsIcon fontSize="small" sx={{ fontSize: '1.1rem' }} />
                                   </ListItemIcon>
                                 )}
                                 {opt.icon && opt.icon !== 'search' && (

@@ -2,7 +2,7 @@ import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, 
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AddIcon from '@mui/icons-material/Add';
-import SearchIcon from '@mui/icons-material/Search';
+// import SearchIcon from '@mui/icons-material/Search';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import StarIcon from '@mui/icons-material/Star';
 import StarBorderIcon from '@mui/icons-material/StarBorder';
@@ -13,7 +13,7 @@ import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
 import PieChartIcon from '@mui/icons-material/PieChart';
 import CandlestickChartIcon from '@mui/icons-material/CandlestickChart';
 import DateRangeIcon from '@mui/icons-material/DateRange';
-import TuneIcon from '@mui/icons-material/Tune';
+import QueryStatsIcon from '@mui/icons-material/QueryStats';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { TickerChart, type TrendType, TrendLineIcon } from './TickerChart';
 import type { TickerProfile } from '../lib/types/ticker';
@@ -438,7 +438,8 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
             ) :
               <>
                 {activeTab === 'analysis' && (
-                  <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                  <TabPanelWithShadows theme={theme}>
+                    <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
                     {isStale && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>{t('Data is from', 'הנתונים מתאריך')}: {formatDate(dataTimestamp)}</Typography>}
                     <Typography variant="subtitle2" gutterBottom>{t('Performance', 'ביצועים')}</Typography>
                     <Box display="flex" flexWrap="wrap" gap={1} sx={{ mb: 2 }}>
@@ -492,7 +493,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                           scaleType={scaleType}
                           onScaleTypeChange={setScaleType}
                           topControls={
-                            <Box sx={{ width: '100%' }}>
+                            <Box sx={{ flex: 1, minWidth: 0 }}>
                               <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: comparisonSeries.length > 0 ? 1 : 0, flexWrap: { xs: 'nowrap', md: 'wrap' }, overflowX: { xs: 'auto', md: 'visible' }, pb: { xs: 1, md: 0 }, scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' } }}>
                                 {isMobile ? (
                                   <>
@@ -540,13 +541,69 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                                   <ToggleButton value="candle" sx={{ px: 1, fontSize: '0.65rem' }}><CandlestickChartIcon sx={{ fontSize: '1rem' }} /></ToggleButton>
                                 </ToggleButtonGroup>
                                 {isMobile ? (
-                                  <IconButton
-                                    size="small"
-                                    onClick={(e) => setSettingsMenuAnchor(e.currentTarget)}
-                                    sx={{ border: 1, borderColor: 'divider', borderRadius: 1, p: 0.5, height: 26, width: 26 }}
-                                  >
-                                    <TuneIcon fontSize="small" sx={{ fontSize: '1.2rem', color: 'primary.main' }} />
-                                  </IconButton>
+                                  <>
+                                    <ToggleButtonGroup
+                                      value={scaleType}
+                                      exclusive
+                                      onChange={(_, v) => v && setScaleType(v)}
+                                      size="small"
+                                      disabled={!isLogSupported}
+                                      sx={{ height: 26 }}
+                                    >
+                                      <ToggleButton value="linear" sx={{ px: 0.5, fontSize: '0.65rem', minWidth: 32 }}>LIN</ToggleButton>
+                                      <ToggleButton value="log" sx={{ px: 0.5, fontSize: '0.65rem', minWidth: 32 }}>LOG</ToggleButton>
+                                    </ToggleButtonGroup>
+
+                                    <IconButton
+                                      size="small"
+                                      onClick={(e) => setTrendMenuAnchor(e.currentTarget)}
+                                      sx={{
+                                        borderRadius: 1,
+                                        p: 0.5,
+                                        height: 26,
+                                        width: 26,
+                                        bgcolor: trendType !== 'none' ? 'primary.main' : 'action.selected',
+                                        color: trendType !== 'none' ? 'primary.contrastText' : 'text.primary',
+                                        '&:hover': {
+                                          bgcolor: trendType !== 'none' ? 'primary.dark' : 'action.hover'
+                                        }
+                                      }}
+                                    >
+                                      <TrendLineIcon fontSize="small" sx={{ fontSize: '1.1rem' }} />
+                                    </IconButton>
+
+                                    <IconButton
+                                      size="small"
+                                      onClick={(e) => setCompareMenuAnchor(e.currentTarget)}
+                                      sx={{
+                                        borderRadius: 1,
+                                        p: 0.5,
+                                        height: 26,
+                                        width: 26,
+                                        bgcolor: 'action.selected',
+                                        color: 'primary.main',
+                                        '&:hover': { bgcolor: 'action.hover' }
+                                      }}
+                                    >
+                                      <AddIcon fontSize="small" sx={{ fontSize: '1.1rem' }} />
+                                    </IconButton>
+
+                                    <IconButton
+                                      size="small"
+                                      onClick={() => setAnalysisOpen(true)}
+                                      sx={{
+                                        borderRadius: 1,
+                                        p: 0.5,
+                                        height: 26,
+                                        width: 26,
+                                        bgcolor: 'action.selected',
+                                        color: 'primary.main',
+                                        '&:hover': { bgcolor: 'action.hover' }
+                                      }}
+                                    >
+                                      <QueryStatsIcon fontSize="small" sx={{ fontSize: '1.1rem' }} />
+                                    </IconButton>
+                                  </>
                                 ) : (
                                   <>
                                     <ToggleButtonGroup value={scaleType} exclusive onChange={(_, v) => v && setScaleType(v)} size="small" disabled={!isLogSupported} sx={{ height: 26 }}>
@@ -585,7 +642,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                             <ListItemText primary={t('Compare', 'השווה')} />
                           </MenuItem>
                           <MenuItem onClick={() => { setAnalysisOpen(true); setSettingsMenuAnchor(null); }}>
-                            <ListItemIcon><SearchIcon fontSize="small" /></ListItemIcon>
+                              <ListItemIcon><QueryStatsIcon fontSize="small" /></ListItemIcon>
                             <ListItemText primary={t('Analysis', 'ניתוח')} />
                           </MenuItem>
                         </Menu>
@@ -616,7 +673,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                                   sx={{ pl: opt.group ? 3 : 2, minHeight: 32 }}
                                   dense
                                 >
-                                  {opt.ticker === SEARCH_OPTION_TICKER && <ListItemIcon sx={{ minWidth: 32 }}><SearchIcon fontSize="small" sx={{ fontSize: '1.1rem' }} /></ListItemIcon>}
+                                  {opt.ticker === SEARCH_OPTION_TICKER && <ListItemIcon sx={{ minWidth: 32 }}><QueryStatsIcon fontSize="small" sx={{ fontSize: '1.1rem' }} /></ListItemIcon>}
                                   {opt.icon && opt.ticker !== SEARCH_OPTION_TICKER && (
                                     <ListItemIcon sx={{ minWidth: 32 }}>
                                       {opt.icon === 'pie_chart' ? <PieChartIcon fontSize="small" sx={{ fontSize: '1.1rem' }} /> :
@@ -691,6 +748,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                       </>
                     )}
                   </Box>
+                  </TabPanelWithShadows>
                 )}
 
 
