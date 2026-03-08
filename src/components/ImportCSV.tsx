@@ -17,7 +17,7 @@ import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import type { Portfolio, Transaction } from '../lib/types';
 import { parseExchange, Exchange } from '../lib/types';
 import { batchAddTransactions, addTransaction, fetchPortfolios } from '../lib/sheets/index';
-import { formatDate } from '../lib/date';
+import { formatDate, coerceDate } from '../lib/date';
 import { DateField } from './PortfolioInputFields';
 import { ImportHelp } from './ImportHelp';
 import { useLanguage } from '../lib/i18n';
@@ -194,12 +194,12 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
       const rawDate = getVal('date');
       let isoDate = '';
 
-      let d: Date;
+      let d: Date | null = null;
       // Try to parse YYYYMMDD
       if (rawDate.match(/^\d{8}$/)) {
         d = new Date(`${rawDate.substring(0, 4)}-${rawDate.substring(4, 6)}-${rawDate.substring(6, 8)}`);
       } else {
-        d = new Date(rawDate);
+        d = coerceDate(rawDate);
       }
 
       if (d && !isNaN(d.getTime())) {
@@ -282,11 +282,11 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
       const vestDateStr = getVal('vestDate');
       let vestIsoDate = '';
       if (vestDateStr) {
-        let vd: Date;
+        let vd: Date | null = null;
         if (vestDateStr.match(/^\d{8}$/)) {
           vd = new Date(`${vestDateStr.substring(0, 4)}-${vestDateStr.substring(4, 6)}-${vestDateStr.substring(6, 8)}`);
         } else {
-          vd = new Date(vestDateStr);
+          vd = coerceDate(vestDateStr);
         }
         if (vd && !isNaN(vd.getTime())) {
           vestIsoDate = formatDate(vd);

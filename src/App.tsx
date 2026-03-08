@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Routes, Route, useNavigate, useLocation, Link as RouterLink } from 'react-router-dom';
+import { Routes, Route, useNavigate, useLocation, Link as RouterLink, useSearchParams } from 'react-router-dom';
 import { Login } from './components/Login';
 import { TransactionForm } from './components/NewTransaction';
 import { PortfolioManager } from './components/PortfolioManager';
@@ -101,6 +101,17 @@ function AppContent() {
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState<'success' | 'error' | 'info'>('info');
   const [snackbarAction, setSnackbarAction] = useState<React.ReactNode | null>(null);
+
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams.get('import') === 'true') {
+      setImportOpen(true);
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete('import');
+      setSearchParams(newParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const [mobileMenuAnchorEl, setMobileMenuAnchorEl] = useState<null | HTMLElement>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);

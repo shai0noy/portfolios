@@ -6,8 +6,10 @@ export function toGoogleSheetDateFormat(date: Date): string {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const year = date.getFullYear();
 
-  // User preferred format: dd-mm-yyyy
-  return `${day}-${month}-${year}`;
+  // User preferred format is dd-mm-yyyy for display, but for API submission 
+  // via USER_ENTERED, ISO YYYY-MM-DD guarantees it gets interpreted as a date 
+  // rather than a text string regardless of the Spreadsheet region locale.
+  return `${year}-${month}-${day}`;
 }
 
 export function fromGoogleSheetDate(value: string | number | null | undefined): Date | null {
@@ -49,38 +51,21 @@ export function coerceDate(d: any): Date | null {
   const str = String(d).trim();
   if (!str) return null;
 
-  // Handle DD/MM/YYYY or DD-MM-YYYY or MM/DD/YYYY (ambiguous)
-  // We prioritize DD/MM/YYYY as it is the app's standard
+  // Handle parsable formats quickly: YYYY-MM-DD, DD/MM/YYYY, MM/DD/YYYY
   if (str.includes('/') || str.includes('-')) {
-    const parts = str.split(/[\/\-]/);
-    if (parts.length === 3) {
-      const p0 = parts[0];
-      const p1 = parts[1];
-      const p2 = parts[2];
+    const parts = str.split(/[\/\-]/).map(p => parseInt(p, 10));
+    if (parts.length === 3 && parts.every(p => !isNaN(p))) {
+      const [n0, n1, n2] = parts;
 
-      // ISO Format: YYYY-MM-DD
-      if (p0.length === 4) {
-        const y = parseInt(p0, 10);
-        const m = parseInt(p1, 10);
-        const dayVal = parseInt(p2, 10);
-        if (!isNaN(y) && !isNaN(m) && !isNaN(dayVal)) return new Date(y, m - 1, dayVal);
-      }
-
-      // Standard Format: DD-MM-YYYY or MM-DD-YYYY
-      if (p2.length === 4) {
-        const d_or_m = parseInt(p0, 10);
-        const m_or_d = parseInt(p1, 10);
-        const y = parseInt(p2, 10);
-
-        if (!isNaN(d_or_m) && !isNaN(m_or_d) && !isNaN(y)) {
-          // If d_or_m > 12, it MUST be the day.
-          if (d_or_m > 12) {
-            return new Date(y, m_or_d - 1, d_or_m);
-          }
-          // Otherwise, assume DD-MM-YYYY as per user preference, 
-          // but this is where the mm/dd/yyyy ambiguity lives.
-          return new Date(y, m_or_d - 1, d_or_m);
+      if (n0 > 1000) {
+        // YYYY-MM-DD
+        return new Date(n0, n1 - 1, n2);
+      } else if (n2 > 1000) {
+        // Default to DD/MM/YYYY, fallback to MM/DD/YYYY if middle part is > 12
+        if (n1 > 12) {
+          return new Date(n2, n0 - 1, n1);
         }
+        return new Date(n2, n1 - 1, n0);
       }
     }
   }

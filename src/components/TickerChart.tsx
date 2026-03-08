@@ -1137,7 +1137,7 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
         let gMin = Infinity;
         let gMax = -Infinity;
         // Check if gamma is present in data
-        let hasGamma = gammaType && gammaType !== 'none';
+
         let vMax = 0;
 
         const updateMinMax = (val: any) => {
