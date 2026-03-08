@@ -15,7 +15,7 @@ import CandlestickChartIcon from '@mui/icons-material/CandlestickChart';
 import DateRangeIcon from '@mui/icons-material/DateRange';
 import QueryStatsIcon from '@mui/icons-material/QueryStats';
 import useMediaQuery from '@mui/material/useMediaQuery';
-import { TickerChart, type TrendType, TrendLineIcon } from './TickerChart';
+import { TickerChart, type TrendType, type GammaType, TrendLineIcon, GammaIcon } from './TickerChart';
 import type { TickerProfile } from '../lib/types/ticker';
 import { useChartComparison, getAvailableRanges, getMaxLabel, SEARCH_OPTION_TICKER } from '../lib/hooks/useChartComparison';
 import { useTickerDetails, type TickerDetailsProps } from '../lib/hooks/useTickerDetails';
@@ -111,6 +111,8 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   const [scaleType, setScaleType] = useState<'linear' | 'log'>('linear');
   const [trendType, setTrendType] = useState<TrendType>('none');
   const [trendMenuAnchor, setTrendMenuAnchor] = useState<null | HTMLElement>(null);
+  const [gammaType, setGammaType] = useState<GammaType>('none');
+  const [gammaMenuAnchor, setGammaMenuAnchor] = useState<null | HTMLElement>(null);
   const [compareMenuAnchor, setCompareMenuAnchor] = useState<null | HTMLElement>(null);
   const [settingsMenuAnchor, setSettingsMenuAnchor] = useState<null | HTMLElement>(null);
   const [rangeMenuAnchor, setRangeMenuAnchor] = useState<null | HTMLElement>(null);
@@ -440,317 +442,349 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                 {activeTab === 'analysis' && (
                   <TabPanelWithShadows theme={theme}>
                     <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                    {isStale && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>{t('Data is from', 'הנתונים מתאריך')}: {formatDate(dataTimestamp)}</Typography>}
-                    <Typography variant="subtitle2" gutterBottom>{t('Performance', 'ביצועים')}</Typography>
-                    <Box display="flex" flexWrap="wrap" gap={1} sx={{ mb: 2 }}>
-                      {(() => {
-                        const getDuration = (p: string) => {
-                          const now = new Date();
-                          switch (p) {
-                            case '1D': return 1;
-                            case '1W': return 7;
-                            case '1M': return 30;
-                            case '3M': return 90;
-                            case '6M': return 180;
-                            case 'YTD':
-                              const startOfYear = new Date(now.getFullYear(), 0, 1);
-                              return (now.getTime() - startOfYear.getTime()) / (1000 * 60 * 60 * 24);
-                            case '1Y': return 365;
-                            case '3Y': return 365 * 3;
-                            case '5Y': return 365 * 5;
-                            case 'Max': return 36500;
-                            default:
-                              // Handle "XD" format (e.g. "5D")
-                              if (p.endsWith('D')) {
-                                const days = parseInt(p.slice(0, -1), 10);
-                                if (!isNaN(days)) return days;
-                              }
-                              return 99999;
-                          }
-                        };
+                      {isStale && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>{t('Data is from', 'הנתונים מתאריך')}: {formatDate(dataTimestamp)}</Typography>}
+                      <Typography variant="subtitle2" gutterBottom>{t('Performance', 'ביצועים')}</Typography>
+                      <Box display="flex" flexWrap="wrap" gap={1} sx={{ mb: 2 }}>
+                        {(() => {
+                          const getDuration = (p: string) => {
+                            const now = new Date();
+                            switch (p) {
+                              case '1D': return 1;
+                              case '1W': return 7;
+                              case '1M': return 30;
+                              case '3M': return 90;
+                              case '6M': return 180;
+                              case 'YTD':
+                                const startOfYear = new Date(now.getFullYear(), 0, 1);
+                                return (now.getTime() - startOfYear.getTime()) / (1000 * 60 * 60 * 24);
+                              case '1Y': return 365;
+                              case '3Y': return 365 * 3;
+                              case '5Y': return 365 * 5;
+                              case 'Max': return 36500;
+                              default:
+                                // Handle "XD" format (e.g. "5D")
+                                if (p.endsWith('D')) {
+                                  const days = parseInt(p.slice(0, -1), 10);
+                                  if (!isNaN(days)) return days;
+                                }
+                                return 99999;
+                            }
+                          };
 
-                        return Object.entries(perfData)
-                          .filter(([_, item]) => item != null)
-                          .sort(([rangeA], [rangeB]) => getDuration(rangeA) - getDuration(rangeB))
-                          .map(([range, item]) => item && (
-                            <Tooltip key={range} title={item.date ? `Since ${formatDate(item.date)}` : ''} arrow enterTouchDelay={0} leaveTouchDelay={3000}>
-                              <Chip variant="outlined" size="small" sx={{ minWidth: 78, py: 0.5, px: 0.75, height: 'auto', color: item.val > 0 ? 'success.main' : item.val < 0 ? 'error.main' : 'text.primary', '& .MuiChip-label': { display: 'flex', flexDirection: 'column', alignItems: 'center' } }}
-                                label={<><Typography variant="caption" color="text.secondary">{translateRange(range)}</Typography><Typography variant="body2" sx={{ fontWeight: 600 }}>{formatPercent(item.val)}</Typography></>}
-                              />
-                            </Tooltip>
-                          ));
-                      })()}
-                    </Box>
+                          return Object.entries(perfData)
+                            .filter(([_, item]) => item != null)
+                            .sort(([rangeA], [rangeB]) => getDuration(rangeA) - getDuration(rangeB))
+                            .map(([range, item]) => item && (
+                              <Tooltip key={range} title={item.date ? `Since ${formatDate(item.date)}` : ''} arrow enterTouchDelay={0} leaveTouchDelay={3000}>
+                                <Chip variant="outlined" size="small" sx={{ minWidth: 78, py: 0.5, px: 0.75, height: 'auto', color: item.val > 0 ? 'success.main' : item.val < 0 ? 'error.main' : 'text.primary', '& .MuiChip-label': { display: 'flex', flexDirection: 'column', alignItems: 'center' } }}
+                                  label={<><Typography variant="caption" color="text.secondary">{translateRange(range)}</Typography><Typography variant="body2" sx={{ fontWeight: 600 }}>{formatPercent(item.val)}</Typography></>}
+                                />
+                              </Tooltip>
+                            ));
+                        })()}
+                      </Box>
 
-                    {historicalData && historicalData.length > 0 && (
-                      <Box sx={{ height: { xs: 300, md: 440 }, minWidth: 0 }}>
-                        <TickerChart
-                          series={[{ name: resolvedName || ticker || 'Main', data: displayHistory }, ...displayComparisonSeries]}
-                          currency={displayData?.currency || 'USD'}
-                          mode={effectiveChartMetric}
-                          valueType="price"
-                          height="100%"
-                          scaleType={scaleType}
-                          onScaleTypeChange={setScaleType}
+                      {historicalData && historicalData.length > 0 && (
+                        <Box sx={{ height: { xs: 300, md: 440 }, minWidth: 0 }}>
+                          <TickerChart
+                            series={[{ name: resolvedName || ticker || 'Main', data: displayHistory }, ...displayComparisonSeries]}
+                            currency={displayData?.currency || 'USD'}
+                            mode={effectiveChartMetric}
+                            valueType="price"
+                            height="100%"
+                            scaleType={scaleType}
+                            onScaleTypeChange={setScaleType}
                             trendType={trendType}
                             onTrendTypeChange={setTrendType}
-                          topControls={
-                            <Box sx={{ flex: 1, minWidth: 0 }}>
-                              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: comparisonSeries.length > 0 ? 1 : 0, flexWrap: { xs: 'nowrap', md: 'wrap' }, overflowX: { xs: 'auto', md: 'visible' }, pb: { xs: 1, md: 0 }, scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' } }}>
-                                {isMobile ? (
-                                  <>
-                                    <Button
-                                      variant="outlined"
-                                      size="small"
-                                      onClick={(e) => setRangeMenuAnchor(e.currentTarget)}
-                                      sx={{ height: 26, minWidth: 40, px: 1, fontSize: '0.75rem', textTransform: 'none', whiteSpace: 'nowrap' }}
-                                      endIcon={<DateRangeIcon sx={{ fontSize: '0.9rem !important' }} />}
-                                    >
-                                      {chartRange === 'Custom' ? '' : chartRange}
-                                    </Button>
-                                    <Menu
-                                      anchorEl={rangeMenuAnchor}
-                                      open={Boolean(rangeMenuAnchor)}
-                                      onClose={() => setRangeMenuAnchor(null)}
-                                    >
-                                      {availableRanges.map(r => (
-                                        <MenuItem key={r} onClick={() => { setChartRange(r); setRangeMenuAnchor(null); }} selected={chartRange === r} dense>
-                                          {r === 'ALL' ? maxLabel : r}
+                            gammaType={gammaType}
+                            onGammaTypeChange={setGammaType}
+                            topControls={
+                              <Box sx={{ flex: 1, minWidth: 0 }}>
+                                <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: comparisonSeries.length > 0 ? 1 : 0, flexWrap: { xs: 'nowrap', md: 'wrap' }, overflowX: { xs: 'auto', md: 'visible' }, pb: { xs: 1, md: 0 }, scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' } }}>
+                                  {isMobile ? (
+                                    <>
+                                      <Button
+                                        variant="outlined"
+                                        size="small"
+                                        onClick={(e) => setRangeMenuAnchor(e.currentTarget)}
+                                        sx={{ height: 26, minWidth: 40, px: 1, fontSize: '0.75rem', textTransform: 'none', whiteSpace: 'nowrap' }}
+                                        endIcon={<DateRangeIcon sx={{ fontSize: '0.9rem !important' }} />}
+                                      >
+                                        {chartRange === 'Custom' ? '' : chartRange}
+                                      </Button>
+                                      <Menu
+                                        anchorEl={rangeMenuAnchor}
+                                        open={Boolean(rangeMenuAnchor)}
+                                        onClose={() => setRangeMenuAnchor(null)}
+                                      >
+                                        {availableRanges.map(r => (
+                                          <MenuItem key={r} onClick={() => { setChartRange(r); setRangeMenuAnchor(null); }} selected={chartRange === r} dense>
+                                            {r === 'ALL' ? maxLabel : r}
+                                          </MenuItem>
+                                        ))}
+                                        <Divider />
+                                        <MenuItem onClick={() => { setCustomRangeOpen(true); setRangeMenuAnchor(null); }} selected={chartRange === 'Custom'} dense>
+                                          <ListItemIcon><DateRangeIcon fontSize="small" /></ListItemIcon>
+                                          <ListItemText primary={t('Custom', 'מותאם')} />
                                         </MenuItem>
-                                      ))}
-                                      <Divider />
-                                      <MenuItem onClick={() => { setCustomRangeOpen(true); setRangeMenuAnchor(null); }} selected={chartRange === 'Custom'} dense>
-                                        <ListItemIcon><DateRangeIcon fontSize="small" /></ListItemIcon>
-                                        <ListItemText primary={t('Custom', 'מותאם')} />
-                                      </MenuItem>
-                                    </Menu>
-                                  </>
-                                ) : (
-                                  <ToggleButtonGroup value={chartRange} exclusive onChange={(_, v) => {
-                                    if (v === 'Custom') {
-                                      setCustomRangeOpen(true);
-                                    } else if (v) {
-                                      setChartRange(v);
-                                    }
-                                  }} size="small" sx={{ height: 26 }}>
-                                    {availableRanges.map(r => <ToggleButton key={r} value={r} sx={{ px: 1, fontSize: '0.65rem' }}>{r === 'ALL' ? maxLabel : r}</ToggleButton>)}
-                                    <ToggleButton value="Custom" sx={{ px: 1 }}><DateRangeIcon sx={{ fontSize: '1rem' }} /></ToggleButton>
-                                  </ToggleButtonGroup>
-                                )}
-                                <ToggleButtonGroup value={effectiveChartMetric} exclusive onChange={(_, v) => v && setChartMetric(v)} size="small" disabled={isComparison} sx={{ height: 26 }}>
-                                  <ToggleButton value="percent" sx={{ px: 1, fontSize: '0.65rem' }}>%</ToggleButton>
-                                  <ToggleButton value="price" sx={{ px: 1, fontSize: '0.65rem' }}>$</ToggleButton>
-                                  <ToggleButton value="candle" sx={{ px: 1, fontSize: '0.65rem' }}><CandlestickChartIcon sx={{ fontSize: '1rem' }} /></ToggleButton>
-                                </ToggleButtonGroup>
-                                {isMobile ? (
-                                  <>
-                                    <ToggleButtonGroup
-                                      value={scaleType}
-                                      exclusive
-                                      onChange={(_, v) => v && setScaleType(v)}
-                                      size="small"
-                                      disabled={!isLogSupported}
-                                      sx={{ height: 26 }}
-                                    >
-                                      <ToggleButton value="linear" sx={{ px: 0.5, fontSize: '0.65rem', minWidth: 32 }}>LIN</ToggleButton>
-                                      <ToggleButton value="log" sx={{ px: 0.5, fontSize: '0.65rem', minWidth: 32 }}>LOG</ToggleButton>
+                                      </Menu>
+                                    </>
+                                  ) : (
+                                    <ToggleButtonGroup value={chartRange} exclusive onChange={(_, v) => {
+                                      if (v === 'Custom') {
+                                        setCustomRangeOpen(true);
+                                      } else if (v) {
+                                        setChartRange(v);
+                                      }
+                                    }} size="small" sx={{ height: 26 }}>
+                                      {availableRanges.map(r => <ToggleButton key={r} value={r} sx={{ px: 1, fontSize: '0.65rem' }}>{r === 'ALL' ? maxLabel : r}</ToggleButton>)}
+                                      <ToggleButton value="Custom" sx={{ px: 1 }}><DateRangeIcon sx={{ fontSize: '1rem' }} /></ToggleButton>
                                     </ToggleButtonGroup>
-
-                                    <IconButton
-                                      size="small"
-                                      onClick={(e) => setTrendMenuAnchor(e.currentTarget)}
-                                      sx={{
-                                        borderRadius: 1,
-                                        p: 0.5,
-                                        height: 26,
-                                        width: 26,
-                                        bgcolor: trendType !== 'none' ? 'primary.main' : 'action.selected',
-                                        color: trendType !== 'none' ? 'primary.contrastText' : 'text.primary',
-                                        '&:hover': {
-                                          bgcolor: trendType !== 'none' ? 'primary.dark' : 'action.hover'
-                                        }
-                                      }}
-                                    >
-                                      <TrendLineIcon fontSize="small" sx={{ fontSize: '1.1rem' }} />
-                                    </IconButton>
-
-                                    <IconButton
-                                      size="small"
-                                      onClick={(e) => setCompareMenuAnchor(e.currentTarget)}
-                                      sx={{
-                                        borderRadius: 1,
-                                        p: 0.5,
-                                        height: 26,
-                                        width: 26,
-                                        bgcolor: 'action.selected',
-                                        color: 'primary.main',
-                                        '&:hover': { bgcolor: 'action.hover' }
-                                      }}
-                                    >
-                                      <AddIcon fontSize="small" sx={{ fontSize: '1.1rem' }} />
-                                    </IconButton>
-
-                                    <IconButton
-                                      size="small"
-                                      onClick={() => setAnalysisOpen(true)}
-                                      sx={{
-                                        borderRadius: 1,
-                                        p: 0.5,
-                                        height: 26,
-                                        width: 26,
-                                        bgcolor: 'action.selected',
-                                        color: 'primary.main',
-                                        '&:hover': { bgcolor: 'action.hover' }
-                                      }}
-                                    >
-                                      <QueryStatsIcon fontSize="small" sx={{ fontSize: '1.1rem' }} />
-                                    </IconButton>
-                                  </>
-                                ) : (
-                                  <>
-                                    <ToggleButtonGroup value={scaleType} exclusive onChange={(_, v) => v && setScaleType(v)} size="small" disabled={!isLogSupported} sx={{ height: 26 }}>
-                                      <ToggleButton value="linear" sx={{ px: 1, fontSize: '0.65rem' }}>LIN</ToggleButton>
-                                      <ToggleButton value="log" sx={{ px: 1, fontSize: '0.65rem' }}>LOG</ToggleButton>
-                                    </ToggleButtonGroup>
-                                    <ToggleButtonGroup value={trendType !== 'none' ? 'trend' : ''} exclusive size="small" sx={{ height: 26 }}>
-                                      <ToggleButton value="trend" onClick={(e) => setTrendMenuAnchor(e.currentTarget)} sx={{ px: 1 }}>
-                                        <ListItemIcon sx={{ minWidth: 'auto' }}>
-                                          <TrendLineIcon sx={{ fontSize: '1rem' }} />
-                                        </ListItemIcon>
-                                      </ToggleButton>
-                                    </ToggleButtonGroup>
-                                    <Button size="small" sx={{ height: 26, fontSize: '0.65rem', minWidth: 0 }} onClick={(e) => setCompareMenuAnchor(e.currentTarget)}>{t('Compare', 'השווה')}</Button>
-                                    <Button size="small" sx={{ height: 26, fontSize: '0.65rem', minWidth: 0 }} onClick={() => setAnalysisOpen(true)}>{t('Analysis', 'ניתוח')}</Button>
-                                  </>
-                                )}
-                              </Box>
-                              {comparisonSeries.length > 0 && <Box display="flex" flexWrap="wrap" gap={0.5} sx={{ mb: 1 }}>{comparisonSeries.map(s => <Chip key={s.name} label={s.name} onDelete={() => handleRemoveComparison(s.name)} variant="outlined" size="small" sx={{ color: s.color, borderColor: s.color, fontSize: '0.65rem', height: 20 }} />)}</Box>}
-                            </Box>
-                          }
-                        />
-                        <Menu anchorEl={settingsMenuAnchor} open={Boolean(settingsMenuAnchor)} onClose={() => setSettingsMenuAnchor(null)}>
-                          <MenuItem onClick={() => { setScaleType(scaleType === 'linear' ? 'log' : 'linear'); setSettingsMenuAnchor(null); }} disabled={!isLogSupported}>
-                            <ListItemIcon><PieChartIcon fontSize="small" /></ListItemIcon>
-                            <ListItemText primary={t('Logarithmic Scale', 'סקאלה לוגריתמית')} secondary={scaleType === 'log' ? t('ON', 'פעיל') : t('OFF', 'כבוי')} />
-                            {/* <Typography variant="caption" color="text.secondary">{scaleType === 'log' ? 'ON' : 'OFF'}</Typography> */}
-                          </MenuItem>
-                          <MenuItem onClick={(e) => { setTrendMenuAnchor(e.currentTarget); setSettingsMenuAnchor(null); }}>
-                            <ListItemIcon><TrendLineIcon fontSize="small" /></ListItemIcon>
-                            <ListItemText primary={t('Trend Lines', 'קווי מגמה')} />
-                          </MenuItem>
-                          <MenuItem onClick={(e) => { setCompareMenuAnchor(e.currentTarget); setSettingsMenuAnchor(null); }}>
-                            <ListItemIcon><AddIcon fontSize="small" /></ListItemIcon>
-                            <ListItemText primary={t('Compare', 'השווה')} />
-                          </MenuItem>
-                          <MenuItem onClick={() => { setAnalysisOpen(true); setSettingsMenuAnchor(null); }}>
-                              <ListItemIcon><QueryStatsIcon fontSize="small" /></ListItemIcon>
-                            <ListItemText primary={t('Analysis', 'ניתוח')} />
-                          </MenuItem>
-                        </Menu>
-                        <Menu anchorEl={trendMenuAnchor} open={Boolean(trendMenuAnchor)} onClose={() => setTrendMenuAnchor(null)}>
-                          <MenuItem onClick={() => { setTrendType('none'); setTrendMenuAnchor(null); }} selected={trendType === 'none'}>{t('No Trend', 'ללא מגמה')}</MenuItem>
-                          <MenuItem onClick={() => { setTrendType('linear'); setTrendMenuAnchor(null); }} selected={trendType === 'linear'}>{t('Linear', 'ליניארי')}</MenuItem>
-                          <MenuItem onClick={() => { setTrendType('exponential'); setTrendMenuAnchor(null); }} selected={trendType === 'exponential'}>{t('Exponential', 'אקספוננציאלי')}</MenuItem>
-                          <MenuItem onClick={() => { setTrendType('polynomial'); setTrendMenuAnchor(null); }} selected={trendType === 'polynomial'}>{t('Cubic', 'פולינום (3)')}</MenuItem>
-                            <MenuItem onClick={() => { setTrendType('gamma'); setTrendMenuAnchor(null); }} selected={trendType === 'gamma'}>{t('Gamma', 'גמא')}</MenuItem>
-                            <MenuItem onClick={() => { setTrendType('gamma-log'); setTrendMenuAnchor(null); }} selected={trendType === 'gamma-log'}>{t('Gamma (Log)', 'גמא (לוג)')}</MenuItem>
-                          <MenuItem onClick={() => { setTrendType('logarithmic'); setTrendMenuAnchor(null); }} selected={trendType === 'logarithmic'}>{t('Logarithmic', 'לוגריתמי')}</MenuItem>
-                        </Menu>
-                        <Menu anchorEl={compareMenuAnchor} open={Boolean(compareMenuAnchor)} onClose={() => setCompareMenuAnchor(null)}>
-                          {(() => {
-                            let lastGroup = '';
-                            return comparisonOptions.map((opt) => {
-                              const showHeader = opt.group && opt.group !== lastGroup;
-                              if (showHeader) lastGroup = opt.group!;
-
-                              return [
-                                showHeader && (
-                                  <Box key={`header-${opt.group}`} sx={{ px: 2, py: 1, bgcolor: 'background.default', typography: 'caption', color: 'text.secondary', fontWeight: 'bold' }}>
-                                    {opt.group}
-                                  </Box>
-                                ),
-                                <MenuItem
-                                  key={opt.name}
-                                  onClick={() => { handleSelectComparison(opt); setCompareMenuAnchor(null); }}
-                                  disabled={comparisonSeries.some(s => s.name === opt.name) || comparisonLoading[opt.name]}
-                                  sx={{ pl: opt.group ? 3 : 2, minHeight: 32 }}
-                                  dense
-                                >
-                                  {opt.ticker === SEARCH_OPTION_TICKER && <ListItemIcon sx={{ minWidth: 32 }}><QueryStatsIcon fontSize="small" sx={{ fontSize: '1.1rem' }} /></ListItemIcon>}
-                                  {opt.icon && opt.ticker !== SEARCH_OPTION_TICKER && (
-                                    <ListItemIcon sx={{ minWidth: 32 }}>
-                                      {opt.icon === 'pie_chart' ? <PieChartIcon fontSize="small" sx={{ fontSize: '1.1rem' }} /> :
-                                        opt.icon === 'business_center' ? <BusinessCenterIcon fontSize="small" sx={{ fontSize: '1.1rem' }} /> :
-                                          null}
-                                    </ListItemIcon>
                                   )}
-                                  <Typography variant="body2" sx={{ fontSize: '0.8125rem' }}>{opt.name}</Typography>
-                                  {comparisonLoading[opt.name] && <CircularProgress size={12} sx={{ ml: 1 }} />}
-                                </MenuItem>
-                              ];
-                            });
-                          })()}
-                        </Menu>
-                        {null}
-                      </Box>
-                    )}
+                                  <ToggleButtonGroup value={effectiveChartMetric} exclusive onChange={(_, v) => v && setChartMetric(v)} size="small" disabled={isComparison} sx={{ height: 26 }}>
+                                    <ToggleButton value="percent" sx={{ px: 1, fontSize: '0.65rem' }}>%</ToggleButton>
+                                    <ToggleButton value="price" sx={{ px: 1, fontSize: '0.65rem' }}>$</ToggleButton>
+                                    <ToggleButton value="candle" sx={{ px: 1, fontSize: '0.65rem' }}><CandlestickChartIcon sx={{ fontSize: '1rem' }} /></ToggleButton>
+                                  </ToggleButtonGroup>
+                                  {isMobile ? (
+                                    <>
+                                      <ToggleButtonGroup
+                                        value={scaleType}
+                                        exclusive
+                                        onChange={(_, v) => v && setScaleType(v)}
+                                        size="small"
+                                        disabled={!isLogSupported}
+                                        sx={{ height: 26 }}
+                                      >
+                                        <ToggleButton value="linear" sx={{ px: 0.5, fontSize: '0.65rem', minWidth: 32 }}>LIN</ToggleButton>
+                                        <ToggleButton value="log" sx={{ px: 0.5, fontSize: '0.65rem', minWidth: 32 }}>LOG</ToggleButton>
+                                      </ToggleButtonGroup>
 
-                    {data?.dividends && data.dividends.length > 0 && (
-                      <>
-                        <Typography variant="subtitle2" gutterBottom sx={{ mt: 0.5 }}>{t('Dividend Gains', 'רווחי דיבידנד')}</Typography>
-                        <Box display="flex" flexWrap="wrap" gap={1} sx={{ mb: 2 }}>
-                          {Object.entries(dividendGains).map(([range, info]) => {
-                            const value = info.pct;
-                            if (value === undefined || value === null || isNaN(value) || value === 0) {
-                              return null;
+                                      <IconButton
+                                        size="small"
+                                        onClick={(e) => setTrendMenuAnchor(e.currentTarget)}
+                                        sx={{
+                                          borderRadius: 1,
+                                          p: 0.5,
+                                          height: 24,
+                                          width: 24,
+                                          bgcolor: trendType !== 'none' ? 'primary.main' : 'action.selected',
+                                          color: trendType !== 'none' ? 'primary.contrastText' : 'text.primary',
+                                          '&:hover': {
+                                            bgcolor: trendType !== 'none' ? 'primary.dark' : 'action.hover'
+                                          }
+                                        }}
+                                      >
+                                        <TrendLineIcon fontSize="small" sx={{ fontSize: '1.1rem' }} />
+                                      </IconButton>
+
+                                      <IconButton
+                                        size="small"
+                                        onClick={(e) => setGammaMenuAnchor(e.currentTarget)}
+                                        sx={{
+                                          borderRadius: 1,
+                                          p: 0.5,
+                                          height: 24,
+                                          width: 24,
+                                          bgcolor: gammaType !== 'none' ? 'primary.main' : 'action.selected',
+                                          color: gammaType !== 'none' ? 'primary.contrastText' : 'text.primary',
+                                          '&:hover': {
+                                            bgcolor: gammaType !== 'none' ? 'primary.dark' : 'action.hover'
+                                          }
+                                        }}
+                                      >
+                                        <GammaIcon fontSize="small" sx={{ fontSize: '1.1rem' }} />
+                                      </IconButton>
+
+                                      <IconButton
+                                        size="small"
+                                        onClick={(e) => setCompareMenuAnchor(e.currentTarget)}
+                                        sx={{
+                                          borderRadius: 1,
+                                          p: 0.5,
+                                          height: 24,
+                                          width: 24,
+                                          bgcolor: 'action.selected',
+                                          color: 'primary.main',
+                                          '&:hover': { bgcolor: 'action.hover' }
+                                        }}
+                                      >
+                                        <AddIcon fontSize="small" sx={{ fontSize: '1.1rem' }} />
+                                      </IconButton>
+
+                                      <IconButton
+                                        size="small"
+                                        onClick={() => setAnalysisOpen(true)}
+                                        sx={{
+                                          borderRadius: 1,
+                                          p: 0.5,
+                                          height: 24,
+                                          width: 24,
+                                          bgcolor: 'action.selected',
+                                          color: 'primary.main',
+                                          '&:hover': { bgcolor: 'action.hover' }
+                                        }}
+                                      >
+                                        <QueryStatsIcon fontSize="small" sx={{ fontSize: '1.1rem' }} />
+                                      </IconButton>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <ToggleButtonGroup value={scaleType} exclusive onChange={(_, v) => v && setScaleType(v)} size="small" disabled={!isLogSupported} sx={{ height: 26 }}>
+                                        <ToggleButton value="linear" sx={{ px: 1, fontSize: '0.65rem' }}>LIN</ToggleButton>
+                                        <ToggleButton value="log" sx={{ px: 1, fontSize: '0.65rem' }}>LOG</ToggleButton>
+                                      </ToggleButtonGroup>
+                                      <ToggleButtonGroup value={trendType !== 'none' ? 'trend' : ''} exclusive size="small" sx={{ height: 26 }}>
+                                        <ToggleButton value="trend" onClick={(e) => setTrendMenuAnchor(e.currentTarget)} sx={{ px: 1 }}>
+                                          <ListItemIcon sx={{ minWidth: 'auto' }}>
+                                            <TrendLineIcon sx={{ fontSize: '1rem' }} />
+                                          </ListItemIcon>
+                                        </ToggleButton>
+                                      </ToggleButtonGroup>
+                                      <ToggleButtonGroup value={gammaType !== 'none' ? 'gamma' : ''} exclusive size="small" sx={{ height: 26 }}>
+                                        <ToggleButton value="gamma" onClick={(e) => setGammaMenuAnchor(e.currentTarget)} sx={{ px: 1 }}>
+                                          <ListItemIcon sx={{ minWidth: 'auto' }}>
+                                            <GammaIcon sx={{ fontSize: '1rem' }} />
+                                          </ListItemIcon>
+                                        </ToggleButton>
+                                      </ToggleButtonGroup>
+
+                                      <Button size="small" sx={{ height: 26, fontSize: '0.65rem', minWidth: 0 }} onClick={(e) => setCompareMenuAnchor(e.currentTarget)}>{t('Compare', 'השווה')}</Button>
+                                      <Button size="small" sx={{ height: 26, fontSize: '0.65rem', minWidth: 0 }} onClick={() => setAnalysisOpen(true)}>{t('Analysis', 'ניתוח')}</Button>
+                                    </>
+                                  )}
+                                </Box>
+                                {comparisonSeries.length > 0 && <Box display="flex" flexWrap="wrap" gap={0.5} sx={{ mb: 1 }}>{comparisonSeries.map(s => <Chip key={s.name} label={s.name} onDelete={() => handleRemoveComparison(s.name)} variant="outlined" size="small" sx={{ color: s.color, borderColor: s.color, fontSize: '0.65rem', height: 20 }} />)}</Box>}
+                              </Box>
                             }
-                            const isPositive = value > 0;
-                            const textColor = isPositive ? 'success.main' : 'error.main';
-                            return (
-                              <Chip
-                                key={range}
-                                variant="outlined"
-                                size="small"
-                                sx={{
-                                  minWidth: 80,
-                                  py: 0.5,
-                                  px: 0.75,
-                                  height: 'auto',
-                                  '& .MuiChip-label': { display: 'flex', flexDirection: 'column', alignItems: 'center', overflow: 'hidden' },
-                                  '& .MuiTypography-caption, & .MuiTypography-body2': { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 84 }
-                                }}
-                                label={
-                                  <>
-                                    <Typography variant="caption" color="text.secondary">{translateRange(range)}</Typography>
-                                    <Typography variant="body2" sx={{ fontWeight: 600, color: textColor }}>{formatPercent(value)}</Typography>
-                                    <Typography variant="caption" sx={{ fontSize: '0.7rem', opacity: 0.8 }}>{formatMoneyValue({ amount: info.amount, currency: normalizeCurrency(displayData?.currency || 'USD') })}</Typography>
-                                  </>
-                                }
-                              />
-                            );
-                          })}
-                        </Box>
-                      </>
-                    )}
+                          />
+                          <Menu anchorEl={settingsMenuAnchor} open={Boolean(settingsMenuAnchor)} onClose={() => setSettingsMenuAnchor(null)}>
+                            <MenuItem onClick={() => { setScaleType(scaleType === 'linear' ? 'log' : 'linear'); setSettingsMenuAnchor(null); }} disabled={!isLogSupported}>
+                              <ListItemIcon><PieChartIcon fontSize="small" /></ListItemIcon>
+                              <ListItemText primary={t('Logarithmic Scale', 'סקאלה לוגריתמית')} secondary={scaleType === 'log' ? t('ON', 'פעיל') : t('OFF', 'כבוי')} />
+                              {/* <Typography variant="caption" color="text.secondary">{scaleType === 'log' ? 'ON' : 'OFF'}</Typography> */}
+                            </MenuItem>
+                            <MenuItem onClick={(e) => { setTrendMenuAnchor(e.currentTarget); setSettingsMenuAnchor(null); }}>
+                              <ListItemIcon><TrendLineIcon fontSize="small" /></ListItemIcon>
+                              <ListItemText primary={t('Trend Lines', 'קווי מגמה')} />
+                            </MenuItem>
+                            <MenuItem onClick={(e) => { setCompareMenuAnchor(e.currentTarget); setSettingsMenuAnchor(null); }}>
+                              <ListItemIcon><AddIcon fontSize="small" /></ListItemIcon>
+                              <ListItemText primary={t('Compare', 'השווה')} />
+                            </MenuItem>
+                            <MenuItem onClick={() => { setAnalysisOpen(true); setSettingsMenuAnchor(null); }}>
+                              <ListItemIcon><QueryStatsIcon fontSize="small" /></ListItemIcon>
+                              <ListItemText primary={t('Analysis', 'ניתוח')} />
+                            </MenuItem>
+                          </Menu>
+                          <Menu anchorEl={trendMenuAnchor} open={Boolean(trendMenuAnchor)} onClose={() => setTrendMenuAnchor(null)}>
+                            <MenuItem onClick={() => { setTrendType('none'); setTrendMenuAnchor(null); }} selected={trendType === 'none'}>{t('No Trend', 'ללא מגמה')}</MenuItem>
+                            <MenuItem onClick={() => { setTrendType('linear'); setTrendMenuAnchor(null); }} selected={trendType === 'linear'}>{t('Linear', 'ליניארי')}</MenuItem>
+                            <MenuItem onClick={() => { setTrendType('exponential'); setTrendMenuAnchor(null); }} selected={trendType === 'exponential'}>{t('Exponential', 'אקספוננציאלי')}</MenuItem>
+                            <MenuItem onClick={() => { setTrendType('polynomial'); setTrendMenuAnchor(null); }} selected={trendType === 'polynomial'}>{t('Cubic', 'פולינום (3)')}</MenuItem>
 
-                    {/* Underlying Assets Section */}
-                    {displayData?.meta?.underlyingAssets && displayData.meta.underlyingAssets.length > 0 && (
-                      <Box sx={{ mt: 3, mb: 2 }}>
-                        <HoldingUnderlyingAssets assets={displayData.meta.underlyingAssets} />
-                      </Box>
-                    )}
+                            <MenuItem onClick={() => { setTrendType('logarithmic'); setTrendMenuAnchor(null); }} selected={trendType === 'logarithmic'}>{t('Logarithmic', 'לוגריתמי')}</MenuItem>
+                          </Menu>
+                          <Menu anchorEl={gammaMenuAnchor} open={Boolean(gammaMenuAnchor)} onClose={() => setGammaMenuAnchor(null)}>
+                            <MenuItem onClick={() => { setGammaType('none'); setGammaMenuAnchor(null); }} selected={gammaType === 'none'}>{t('No Gamma', 'ללא גמא')}</MenuItem>
+                            <MenuItem onClick={() => { setGammaType('gamma'); setGammaMenuAnchor(null); }} selected={gammaType === 'gamma'}>{t('Gamma', 'גמא')}</MenuItem>
+                            <MenuItem onClick={() => { setGammaType('gamma-log'); setGammaMenuAnchor(null); }} selected={gammaType === 'gamma-log'}>{t('Gamma (Log)', 'גמא (לוג)')}</MenuItem>
+                          </Menu>
+                          <Menu anchorEl={compareMenuAnchor} open={Boolean(compareMenuAnchor)} onClose={() => setCompareMenuAnchor(null)}>
+                            {(() => {
+                              let lastGroup = '';
+                              return comparisonOptions.map((opt) => {
+                                const showHeader = opt.group && opt.group !== lastGroup;
+                                if (showHeader) lastGroup = opt.group!;
 
-                    {externalLinks.length > 0 && (
-                      <>
-                        <Typography variant="subtitle2" gutterBottom sx={{ mt: 3 }}>{t('External Links', 'קישורים חיצוניים')}</Typography>
-                        <Box display="flex" flexWrap="wrap" gap={1}>
-                          {externalLinks.map(link => (
-                            <Button key={link.name} variant="outlined" size="small" href={link.url} target="_blank" endIcon={<OpenInNewIcon />} sx={{ borderRadius: 2, textTransform: 'none' }}>{link.name}</Button>
-                          ))}
+                                return [
+                                  showHeader && (
+                                    <Box key={`header-${opt.group}`} sx={{ px: 2, py: 1, bgcolor: 'background.default', typography: 'caption', color: 'text.secondary', fontWeight: 'bold' }}>
+                                      {opt.group}
+                                    </Box>
+                                  ),
+                                  <MenuItem
+                                    key={opt.name}
+                                    onClick={() => { handleSelectComparison(opt); setCompareMenuAnchor(null); }}
+                                    disabled={comparisonSeries.some(s => s.name === opt.name) || comparisonLoading[opt.name]}
+                                    sx={{ pl: opt.group ? 3 : 2, minHeight: 32 }}
+                                    dense
+                                  >
+                                    {opt.ticker === SEARCH_OPTION_TICKER && <ListItemIcon sx={{ minWidth: 32 }}><QueryStatsIcon fontSize="small" sx={{ fontSize: '1.1rem' }} /></ListItemIcon>}
+                                    {opt.icon && opt.ticker !== SEARCH_OPTION_TICKER && (
+                                      <ListItemIcon sx={{ minWidth: 32 }}>
+                                        {opt.icon === 'pie_chart' ? <PieChartIcon fontSize="small" sx={{ fontSize: '1.1rem' }} /> :
+                                          opt.icon === 'business_center' ? <BusinessCenterIcon fontSize="small" sx={{ fontSize: '1.1rem' }} /> :
+                                            null}
+                                      </ListItemIcon>
+                                    )}
+                                    <Typography variant="body2" sx={{ fontSize: '0.8125rem' }}>{opt.name}</Typography>
+                                    {comparisonLoading[opt.name] && <CircularProgress size={12} sx={{ ml: 1 }} />}
+                                  </MenuItem>
+                                ];
+                              });
+                            })()}
+                          </Menu>
+                          {null}
                         </Box>
-                      </>
-                    )}
-                  </Box>
+                      )}
+
+                      {data?.dividends && data.dividends.length > 0 && (
+                        <>
+                          <Typography variant="subtitle2" gutterBottom sx={{ mt: 0.5 }}>{t('Dividend Gains', 'רווחי דיבידנד')}</Typography>
+                          <Box display="flex" flexWrap="wrap" gap={1} sx={{ mb: 2 }}>
+                            {Object.entries(dividendGains).map(([range, info]) => {
+                              const value = info.pct;
+                              if (value === undefined || value === null || isNaN(value) || value === 0) {
+                                return null;
+                              }
+                              const isPositive = value > 0;
+                              const textColor = isPositive ? 'success.main' : 'error.main';
+                              return (
+                                <Chip
+                                  key={range}
+                                  variant="outlined"
+                                  size="small"
+                                  sx={{
+                                    minWidth: 80,
+                                    py: 0.5,
+                                    px: 0.75,
+                                    height: 'auto',
+                                    '& .MuiChip-label': { display: 'flex', flexDirection: 'column', alignItems: 'center', overflow: 'hidden' },
+                                    '& .MuiTypography-caption, & .MuiTypography-body2': { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 84 }
+                                  }}
+                                  label={
+                                    <>
+                                      <Typography variant="caption" color="text.secondary">{translateRange(range)}</Typography>
+                                      <Typography variant="body2" sx={{ fontWeight: 600, color: textColor }}>{formatPercent(value)}</Typography>
+                                      <Typography variant="caption" sx={{ fontSize: '0.7rem', opacity: 0.8 }}>{formatMoneyValue({ amount: info.amount, currency: normalizeCurrency(displayData?.currency || 'USD') })}</Typography>
+                                    </>
+                                  }
+                                />
+                              );
+                            })}
+                          </Box>
+                        </>
+                      )}
+
+                      {/* Underlying Assets Section */}
+                      {displayData?.meta?.underlyingAssets && displayData.meta.underlyingAssets.length > 0 && (
+                        <Box sx={{ mt: 3, mb: 2 }}>
+                          <HoldingUnderlyingAssets assets={displayData.meta.underlyingAssets} />
+                        </Box>
+                      )}
+
+                      {externalLinks.length > 0 && (
+                        <>
+                          <Typography variant="subtitle2" gutterBottom sx={{ mt: 3 }}>{t('External Links', 'קישורים חיצוניים')}</Typography>
+                          <Box display="flex" flexWrap="wrap" gap={1}>
+                            {externalLinks.map(link => (
+                              <Button key={link.name} variant="outlined" size="small" href={link.url} target="_blank" endIcon={<OpenInNewIcon />} sx={{ borderRadius: 2, textTransform: 'none' }}>{link.name}</Button>
+                            ))}
+                          </Box>
+                        </>
+                      )}
+                    </Box>
                   </TabPanelWithShadows>
                 )}
 

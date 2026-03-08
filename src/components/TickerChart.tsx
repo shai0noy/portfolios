@@ -9,7 +9,8 @@ import FullscreenIcon from '@mui/icons-material/Fullscreen';
 import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
 import { Menu, MenuItem } from '@mui/material';
 
-export type TrendType = 'none' | 'linear' | 'exponential' | 'polynomial' | 'logarithmic' | 'gamma' | 'gamma-log';
+export type TrendType = 'none' | 'linear' | 'exponential' | 'polynomial' | 'logarithmic';
+export type GammaType = 'none' | 'gamma' | 'gamma-log';
 
 export function TrendLineIcon(props: any) {
     return (
@@ -20,8 +21,16 @@ export function TrendLineIcon(props: any) {
     );
 }
 
+export function GammaIcon(props: any) {
+    return (
+        <SvgIcon {...props}>
+            <text x="50%" y="42%" dominantBaseline="middle" textAnchor="middle" fontSize="28" fontFamily="serif" fontStyle="italic" fill="currentColor" style={{ textTransform: 'none' }}>γ</text>
+        </SvgIcon>
+    );
+}
+
 // Simple regression solver
-function solveUnivariableRegression(x: number[], y: number[], type: TrendType): ((v: number) => number) | null {
+function solveUnivariableRegression(x: number[], y: number[], type: TrendType | GammaType): ((v: number) => number) | null {
     const n = x.length;
     console.log(`[TrendDebug] Solving ${type} regression with n=${n}`);
     if (n < 2) return null;
@@ -59,16 +68,21 @@ function solveUnivariableRegression(x: number[], y: number[], type: TrendType): 
         }
         if (validCount < 2) return null;
 
+        // We'll approximate using valid points only
+        // Re-loop needed? No, standard linear regression formulas work on sums.
+        // Wait, n should be validCount.
         const B = (validCount * sumXY - sumX * sumY) / (validCount * sumXX - sumX * sumX);
         const lnA = (sumY - B * sumX) / validCount;
         const A = Math.exp(lnA);
+
         return (v: number) => A * Math.exp(B * v);
     }
 
     // Logarithmic: y = A + B * ln(x)
     // Linear regression on (ln(x), y)
     if (type === 'logarithmic') {
-        // x must be > 0. We shift x if needed in caller.
+        // x must be > 0. Time is always > 0 (timestamp).
+        // Since timestamps are huge, ln(x) is fine.
         let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
         let validCount = 0;
         for (let i = 0; i < n; i++) {
@@ -172,8 +186,6 @@ function solveUnivariableRegression(x: number[], y: number[], type: TrendType): 
 
     // Gamma: Savitzky-Golay 1st Derivative (Slope)
     // We calculate the slope of the local quadratic fit at each point.
-    // Gamma: Savitzky-Golay 1st Derivative (Slope)
-    // We calculate the slope of the local quadratic fit at each point.
     if (type === 'gamma' || type === 'gamma-log') {
         const windowSize = Math.max(3, Math.floor(n / 40) | 1); // Reduced window for finer/sharper slope
         const halfWindow = Math.floor(windowSize / 2);
@@ -272,6 +284,8 @@ function solveUnivariableRegression(x: number[], y: number[], type: TrendType): 
             const y1 = slopes[i1];
             const y2 = slopes[i2];
 
+            if (Math.abs(x2 - x1) < 1e-9) return y1;
+
             // Linear interpolate slope
             return y1 + (y2 - y1) * (v - x1) / (x2 - x1);
         };
@@ -300,6 +314,8 @@ interface TickerChartProps {
     onScaleTypeChange?: (type: 'linear' | 'log') => void;
     trendType?: TrendType;
     onTrendTypeChange?: (type: TrendType) => void;
+    gammaType?: GammaType;
+    onGammaTypeChange?: (type: GammaType) => void;
     denseTicks?: boolean;
 }
 
@@ -308,7 +324,8 @@ interface ChartPoint {
     price: number;
     adjClose?: number;
     yValue: number;
-    trendValue?: number; // Added
+    trendValue?: number;
+    gammaValue?: number;
     highlightedY?: number;
     [key: string]: any;
 }
@@ -477,11 +494,19 @@ const CustomTooltip = ({ active, payload, currency, t, basePrice, isComparison, 
                         {formatPercent(percentChange)}
                     </Typography>
                 )}
-                {point.trendValue !== undefined && (
+                {point.trendValue !== undefined && point.trendValue !== null && (
                     <Box sx={{ mt: 1, pt: 1, borderTop: 1, borderColor: 'divider', display: 'flex', justifyContent: 'space-between', gap: 2 }}>
-                        <Typography variant="caption" color="text.secondary">Trend:</Typography>
+                        <Typography variant="caption" color="text.secondary">{t('Trend', 'מגמה')}:</Typography>
                         <Typography variant="caption" fontWeight="bold">
                             {mode === 'percent' ? formatPercent(point.trendRaw ?? point.trendValue) : (valueType === 'value' ? formatValue(point.trendRaw ?? point.trendValue, currency, undefined, t) : formatPrice(point.trendRaw ?? point.trendValue, currency, undefined, t))}
+                        </Typography>
+                    </Box>
+                )}
+                {point.gammaValue !== undefined && point.gammaValue !== null && (
+                    <Box sx={{ mt: 1, pt: 1, borderTop: 1, borderColor: 'divider', display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+                        <Typography variant="caption" color="secondary">{t('Gamma', 'גמא')}:</Typography>
+                        <Typography variant="caption" fontWeight="bold" color="secondary">
+                            {Math.abs(point.gammaValue) < 0.01 ? point.gammaValue.toExponential(2) : point.gammaValue.toFixed(4)}
                         </Typography>
                     </Box>
                 )}
@@ -686,7 +711,7 @@ const SelectionSummary = ({ startPoint, endPoint, currency, t, isComparison, ser
     );
 };
 
-export function TickerChart({ series, currency, mode = 'percent', valueType = 'price', height = 300, hideCurrentPrice, allowFullscreen = true, topControls, scaleType: propScaleType, onScaleTypeChange, trendType: propTrendType, onTrendTypeChange, denseTicks }: TickerChartProps) {
+export function TickerChart({ series, currency, mode = 'percent', valueType = 'price', height = 300, hideCurrentPrice, allowFullscreen = true, topControls, scaleType: propScaleType, onScaleTypeChange, trendType: propTrendType, onTrendTypeChange, gammaType: propsGammaType, onGammaTypeChange: propsOnGammaTypeChange, denseTicks }: TickerChartProps) {
     const FADE_MS = 170;          // Speed of the opacity transition
     const TRANSFORM_MS = 360;     // Speed of the line movement (Very fast)
     const BUFFER_MS = 30;        // Safety window for browser paint
@@ -722,6 +747,12 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
     const trendType = propTrendType ?? internalTrendType;
     const setTrendType = onTrendTypeChange ?? setInternalTrendType;
     const [trendMenuAnchor, setTrendMenuAnchor] = useState<null | HTMLElement>(null);
+
+    const [internalGammaType, setInternalGammaType] = useState<GammaType>('none');
+    const gammaType = propsGammaType ?? internalGammaType;
+    const setGammaType = propsOnGammaTypeChange ?? setInternalGammaType;
+
+
 
     const mainSeries = displaySeries?.[0];
     const isComparison = displaySeries.length > 1;
@@ -1019,10 +1050,17 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
     }, [displaySeries, currentMode, mainSeries, mode, scaleType]);
 
 
-    // Calculate Trend Line
+    // Calculate Trend Line and Gamma Line
     const dataWithTrend = useMemo(() => {
         const sourceData = chartData;
-        if (trendType === 'none' || sourceData.length < 2) return sourceData;
+
+        // Always return if no source data
+        if (sourceData.length < 2) return sourceData;
+
+        // If neither trend nor gamma is active, return source as is
+        if ((!trendType || trendType === 'none') && (!gammaType || gammaType === 'none')) {
+            return sourceData;
+        }
 
         // Prepare Linear Data for Regression (Extract normalized X and raw Y)
         const firstTime = sourceData[0].date.getTime();
@@ -1034,47 +1072,54 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
             y: d.rawY ?? (currentMode === 'percent' ? (d.pctValue ?? d.yValue) : (d.adjClose || d.price))
         }));
 
-        // Filter for valid points to build the regression model
-        const validPoints = fullPoints.filter(p => typeof p.y === 'number' && isFinite(p.y));
+        // Filter valid points (filter null y)
+        const validPoints = fullPoints.filter(p => !isNaN(p.y) && p.y !== null && p.y !== undefined);
 
         if (validPoints.length < 2) return sourceData;
 
-        const xArr = validPoints.map(p => p.x);
-        const yArr = validPoints.map(p => p.y);
+        const x = validPoints.map(p => p.x);
+        const y = validPoints.map(p => p.y);
 
-        // Logarithmic regression needs x > 0. Shift x by +1 (Day 1).
-        if (trendType === 'logarithmic') {
-            for (let i = 0; i < xArr.length; i++) xArr[i] += 1;
+        // Compute Trend Function
+        let trendFn: ((v: number) => number) | null = null;
+        if (trendType && trendType !== 'none') {
+            trendFn = solveUnivariableRegression(x, y, trendType);
         }
 
-        const regressionFn = solveUnivariableRegression(xArr, yArr, trendType);
+        // Compute Gamma Function
+        let gammaFn: ((v: number) => number) | null = null;
+        if (gammaType && gammaType !== 'none') {
+            gammaFn = solveUnivariableRegression(x, y, gammaType);
+        }
 
-        if (!regressionFn) return sourceData;
+        // Apply trends to data
+        return sourceData.map(d => {
+            const xVal = (d.date.getTime() - firstTime) / (1000 * 60 * 60 * 24);
+            const trendVal = trendFn ? trendFn(xVal) : undefined;
+            const gammaVal = gammaFn ? gammaFn(xVal) : undefined;
 
-        // Apply regression to ALL points (even those with missing/invalid original Y, we can extrapolate)
-        return fullPoints.map((p) => {
-            let xVal = p.x;
-            if (trendType === 'logarithmic') xVal += 1;
+            // Transform trend value if Log Scale is active (since trend calc is on raw or log-linear, we need to map back to chart y)
+            // Wait, solveUnivariableRegression returns Y in the scale of input Y.
+            // If scaleType === 'log', the chart expects Log(Y).
+            // Input Y was RAW. So trendVal is RAW. We must Log transform it for chart display if scaleType is log.
 
-            let predictedY = regressionFn(xVal);
-
-            // Now we must transform predictedY if we are in a mode that transforms Y for display
-            // Specifically: SymLog in percent mode.
-            // If scaleType=log and currentMode=percent -> apply symlog transform
-            let displayY = predictedY;
-
-            if (scaleType === 'log') {
-                // Symlog transform: sign(y) * log10(1 + abs(y))
-                displayY = Math.sign(predictedY) * Math.log10(1 + Math.abs(predictedY));
+            let finalTrendVal = trendVal;
+            if (trendVal !== undefined && scaleType === 'log') {
+                // Determine sign carefully
+                finalTrendVal = Math.sign(trendVal) * Math.log10(1 + Math.abs(trendVal));
             }
 
             return {
-                ...p.d,
-                trendValue: displayY,
-                trendRaw: predictedY
+                ...d,
+                trendValue: finalTrendVal,
+                gammaValue: gammaVal, // Gamma is already on its own axis, usually linear. But if gamma-log, it might be different?
+                // Actually, gamma logic for 'gamma-log' returns slope of log(y). That is a small number.
+                // Gamma axis is linear. So we can just plot it directly.
             } as ChartPoint;
         });
-    }, [chartData, trendType, currentMode, scaleType]);
+    }, [chartData, trendType, gammaType, currentMode, scaleType]);
+
+
 
     const { dataMin, dataMax, volMax, gammaMin, gammaMax } = useMemo(() => {
         if (!dataWithTrend || dataWithTrend.length === 0) return { dataMin: 0, dataMax: 0, volMax: 0, gammaMin: 0, gammaMax: 0 };
@@ -1082,7 +1127,8 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
         let max = -Infinity;
         let gMin = Infinity;
         let gMax = -Infinity;
-        let hasGamma = trendType === 'gamma' || trendType === 'gamma-log';
+        // Check if gamma is present in data
+        let hasGamma = gammaType && gammaType !== 'none';
         let vMax = 0;
 
         const updateMinMax = (val: any) => {
@@ -1103,11 +1149,11 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
             updateMinMax(p.yValue);
 
             if (p.trendValue !== undefined) {
-                if (hasGamma) {
-                    updateGammaMinMax(p.trendValue);
-                } else {
-                    updateMinMax(p.trendValue);
-                }
+                updateMinMax(p.trendValue);
+            }
+
+            if (p.gammaValue !== undefined) {
+                updateGammaMinMax(p.gammaValue);
             }
 
             if (currentMode === 'candle') {
@@ -1128,14 +1174,13 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
             });
         });
 
-        if (min === Infinity || max === -Infinity) return { dataMin: 0, dataMax: 0, volMax: 0, gammaMin: 0, gammaMax: 0 };
-
-        // Ensure gamma range is valid if none found
-        if (gMin === Infinity) gMin = 0;
-        if (gMax === -Infinity) gMax = 0;
+        // Safety fallback for log scale crossing zero
+        if (scaleType === 'log' && min <= 0 && max > 0) {
+            // Should be handled by SymLog logic in data prep, but double check min
+        }
 
         return { dataMin: min, dataMax: max, volMax: vMax, gammaMin: gMin, gammaMax: gMax };
-    }, [dataWithTrend, currentMode, trendType]);
+    }, [dataWithTrend, currentMode, trendType, gammaType, scaleType]);
 
 
 
@@ -1166,12 +1211,15 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
         // Gamma Axis Padding (always linear)
         let gMin = gammaMin;
         let gMax = gammaMax;
+        if (gMin === Infinity || gMax === -Infinity) {
+            gMin = 0;
+            gMax = 1;
+        }
         const gRange = gMax - gMin;
         const gPadding = gRange === 0 ? (Math.abs(gMax) * 0.1 || 0.01) : gRange * 0.1;
         const calculatedGMin = gMin - gPadding;
         const calculatedGMax = gMax + gPadding;
 
-        console.log("MIN_MAX", { min, max, calculatedMin, calculatedMax, scaleType });
         return { yMin: calculatedMin, yMax: calculatedMax, gammaYMin: calculatedGMin, gammaYMax: calculatedGMax };
     }, [dataWithTrend, dataMin, dataMax, gammaMin, gammaMax, scaleType]);
 
@@ -1502,9 +1550,7 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                                 <MenuItem onClick={() => { setTrendType('polynomial'); setTrendMenuAnchor(null); }} selected={trendType === 'polynomial'}>
                                     {t('Cubic', 'פולינום (3)')}
                                 </MenuItem>
-                                <MenuItem onClick={() => { setTrendType('gamma'); setTrendMenuAnchor(null); }} selected={trendType === 'gamma'}>
-                                    {t('Gamma (2nd Deriv)', 'גמא (נגזרת שנייה)')}
-                                </MenuItem>
+
                                 <MenuItem onClick={() => { setTrendType('logarithmic'); setTrendMenuAnchor(null); }} selected={trendType === 'logarithmic'}>
                                     {t('Logarithmic', 'לוגריתמי')}
                                 </MenuItem>
@@ -1565,6 +1611,8 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                                     onScaleTypeChange={setScaleType}
                                     trendType={trendType}
                                     onTrendTypeChange={setTrendType}
+                                    gammaType={gammaType}
+                                    onGammaTypeChange={setGammaType}
                                     denseTicks={true}
                                 />
                             </Box>
@@ -1619,7 +1667,7 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                                 domain={[0, volMax * 5]} // Scale so max volume is 1/5th height (slightly less tall)
                             />
                             {/* Gamma Axis (if active) */}
-                            {trendType === 'gamma' && (
+                            {gammaType && gammaType !== 'none' && (
                                 <YAxis
                                     yAxisId="gamma"
                                     orientation="left"
@@ -1650,10 +1698,10 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                                 barSize={8} // 2x volume width
                                 isAnimationActive={false}
                             />
-                            {trendType !== 'none' && (
+                            {trendType && trendType !== 'none' && (
                                 <Line
                                     type="monotone"
-                                    yAxisId={(trendType === 'gamma' || trendType === 'gamma-log') ? 'gamma' : 'price'}
+                                    yAxisId="price"
                                     dataKey="trendValue"
                                     stroke={theme.palette.warning.main}
                                     strokeWidth={1.5}
@@ -1661,6 +1709,20 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                                     dot={false}
                                     activeDot={false}
                                     isAnimationActive={false}
+                                />
+                            )}
+                            {gammaType && gammaType !== 'none' && (
+                                <Line
+                                    type="monotone"
+                                    yAxisId="gamma"
+                                    dataKey="gammaValue"
+                                    stroke={theme.palette.secondary.main}
+                                    strokeWidth={1.5}
+                                    strokeDasharray="5 2"
+                                    dot={false}
+                                    activeDot={false}
+                                    isAnimationActive={false}
+                                    connectNulls={true}
                                 />
                             )}
                         </ComposedChart>
@@ -1702,14 +1764,14 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                                 allowDataOverflow={true}
                             />
                             {/* Gamma Axis (if active) */}
-                            {(trendType === 'gamma' || trendType === 'gamma-log') && (
+                                {(gammaType && gammaType !== 'none') && (
                                 <YAxis
                                     yAxisId="gamma"
                                     orientation="left"
                                     domain={[gammaYMin, gammaYMax]}
                                     hide={false}
                                     tickFormatter={(val) => Math.abs(val) < 0.01 ? val.toExponential(1) : val.toFixed(2)}
-                                    tick={{ fontSize: 10, fill: theme.palette.warning.main }}
+                                        tick={{ fontSize: 10, fill: theme.palette.secondary.main }}
                                     width={40}
                                     allowDataOverflow={true}
                                 />
@@ -1749,28 +1811,15 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                                 dot={false}
                                 activeDot={{ r: 4, strokeWidth: 0 }}
                                 animationDuration={TRANSFORM_MS}
-                                isAnimationActive={true}
-                            />
-                            {trendType !== 'none' && (
-                                <Line
-                                    type="monotone"
-                                    yAxisId={(trendType === 'gamma' || trendType === 'gamma-log') ? 'gamma' : 0}
-                                    dataKey="trendValue"
-                                    stroke={theme.palette.warning.main}
-                                    strokeWidth={1.5}
-                                    strokeDasharray="4 2"
-                                    dot={false}
-                                    activeDot={false}
-                                    isAnimationActive={false}
+                                    isAnimationActive={true}
                                 />
-                            )}
 
                             <Area
                                 type="monotone"
                                 dataKey="yValue"
                                 stroke={mainLineColor}
                                 strokeWidth={2}
-                                fill={(isComparison || trendType !== 'none') ? "none" : `url(#${gradientId})`}
+                                    fill={(isComparison || (trendType && trendType !== 'none') || (gammaType && gammaType !== 'none')) ? "none" : `url(#${gradientId})`}
                                 baseValue={threshold}
                                 fillOpacity={shadeOpacity}
                                 isAnimationActive={hasData}
@@ -1782,6 +1831,35 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                                     pointerEvents: 'none'
                                 }}
                             />
+
+                                {trendType && trendType !== 'none' && (
+                                    <Line
+                                        type="monotone"
+                                        yAxisId={0}
+                                        dataKey="trendValue"
+                                        stroke={theme.palette.warning.main}
+                                        strokeWidth={1.5}
+                                        strokeDasharray="4 2"
+                                        dot={false}
+                                        activeDot={false}
+                                        isAnimationActive={false}
+                                    />
+                                )}
+
+                                {gammaType && gammaType !== 'none' && (
+                                    <Line
+                                        type="monotone"
+                                        yAxisId="gamma"
+                                        dataKey="gammaValue"
+                                        stroke={theme.palette.secondary.main}
+                                        strokeWidth={1.5}
+                                        strokeDasharray="5 2"
+                                        dot={false}
+                                        activeDot={false}
+                                        isAnimationActive={false}
+                                        connectNulls={true}
+                                    />
+                                )}
 
                             {startPoint && endPoint && startPoint !== endPoint && (
                                 <Area
