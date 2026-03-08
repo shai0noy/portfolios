@@ -9,7 +9,7 @@ import FullscreenIcon from '@mui/icons-material/Fullscreen';
 import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
 import { Menu, MenuItem } from '@mui/material';
 
-export type TrendType = 'none' | 'linear' | 'exponential' | 'polynomial' | 'logarithmic';
+export type TrendType = 'none' | 'linear' | 'exponential' | 'polynomial' | 'logarithmic' | 'gamma' | 'gamma-log';
 
 export function TrendLineIcon(props: any) {
     return (
@@ -23,6 +23,7 @@ export function TrendLineIcon(props: any) {
 // Simple regression solver
 function solveUnivariableRegression(x: number[], y: number[], type: TrendType): ((v: number) => number) | null {
     const n = x.length;
+    console.log(`[TrendDebug] Solving ${type} regression with n=${n}`);
     if (n < 2) return null;
 
     // Linear: y = mx + c
@@ -86,31 +87,61 @@ function solveUnivariableRegression(x: number[], y: number[], type: TrendType): 
         return (v: number) => (v > 0 ? A + B * Math.log(v) : 0);
     }
 
-    // Polynomial (Cubic for now): y = a + bx + cx^2 + dx^3
+    // Polynomial (Cubic for 'polynomial')
     if (type === 'polynomial') {
-        // Simplified: use a library or basic matrix solver? 
-        // Implementing a full matrix solver is verbose.
-        // Let's stick to simple least squares for degree 3?
-        // Gaussian elimination implementation required.
-        // For brevity, maybe fit quadratic? Or just small matrix solver.
-
-        // Let's implement a tiny Gaussian elimination for degree 3 (4 coefficients).
         const order = 3;
+
+        // Normalize X to [0, 1] range to avoid numerical instability with large powers
+        let minX = Infinity, maxX = -Infinity;
+        for (let i = 0; i < n; i++) {
+            if (x[i] < minX) minX = x[i];
+            if (x[i] > maxX) maxX = x[i];
+        }
+        const rangeX = maxX - minX;
+        // If range is 0, we can't fit a polynomial (all points same x)
+        if (rangeX === 0) return null;
+
+        const xNorm = new Array(n);
+        for (let i = 0; i < n; i++) {
+            xNorm[i] = (x[i] - minX) / rangeX;
+        }
+
         const matrixSize = order + 1;
         const matrix: number[][] = Array(matrixSize).fill(0).map(() => Array(matrixSize + 1).fill(0));
 
         for (let i = 0; i < n; i++) {
             for (let r = 0; r < matrixSize; r++) {
                 for (let c = 0; c < matrixSize; c++) {
-                    matrix[r][c] += Math.pow(x[i], r + c);
+                    matrix[r][c] += Math.pow(xNorm[i], r + c);
                 }
-                matrix[r][matrixSize] += y[i] * Math.pow(x[i], r);
+                matrix[r][matrixSize] += y[i] * Math.pow(xNorm[i], r);
             }
         }
 
-        // Solve
+        // Solve using Gaussian elimination with partial pivoting
         for (let i = 0; i < matrixSize; i++) {
+            // Find pivot
+            let pivotRow = i;
+            let maxVal = Math.abs(matrix[i][i]);
+            for (let k = i + 1; k < matrixSize; k++) {
+                if (Math.abs(matrix[k][i]) > maxVal) {
+                    maxVal = Math.abs(matrix[k][i]);
+                    pivotRow = k;
+                }
+            }
+
+            // Swap rows if needed
+            if (pivotRow !== i) {
+                const temp = matrix[i];
+                matrix[i] = matrix[pivotRow];
+                matrix[pivotRow] = temp;
+            }
+
             let pivot = matrix[i][i];
+
+            // If pivot is too small, matrix is singular or near-singular
+            if (Math.abs(pivot) < 1e-10) return null;
+
             for (let j = i + 1; j < matrixSize; j++) {
                 const factor = matrix[j][i] / pivot;
                 for (let k = i; k <= matrixSize; k++) {
@@ -128,7 +159,122 @@ function solveUnivariableRegression(x: number[], y: number[], type: TrendType): 
             coeffs[i] = (matrix[i][matrixSize] - sum) / matrix[i][i];
         }
 
-        return (v: number) => coeffs[0] + coeffs[1] * v + coeffs[2] * v * v + coeffs[3] * v * v * v;
+        return (v: number) => {
+            // Normalize input v using the same min/max
+            const vNorm = (v - minX) / rangeX;
+            let res = 0;
+            for (let i = 0; i < coeffs.length; i++) {
+                res += coeffs[i] * Math.pow(vNorm, i);
+            }
+            return res;
+        };
+    }
+
+    // Gamma: Savitzky-Golay 1st Derivative (Slope)
+    // We calculate the slope of the local quadratic fit at each point.
+    // Gamma: Savitzky-Golay 1st Derivative (Slope)
+    // We calculate the slope of the local quadratic fit at each point.
+    if (type === 'gamma' || type === 'gamma-log') {
+        const windowSize = Math.max(3, Math.floor(n / 40) | 1); // Reduced window for finer/sharper slope
+        const halfWindow = Math.floor(windowSize / 2);
+
+        const slopes = new Array(n).fill(0);
+
+        // Prepare Y data (Log transform if needed)
+        let workingY = y;
+        if (type === 'gamma-log') {
+            workingY = new Array(n);
+            for (let i = 0; i < n; i++) {
+                // Use SymLog for robustness with negative values/zero
+                workingY[i] = Math.sign(y[i]) * Math.log10(1 + Math.abs(y[i]));
+            }
+        }
+
+        // Parallel arrays for performance
+        // We will compute the slope 'b' from the local quadratic y = a + bx + cx^2
+        // We centre x at the window midpoint to simplify.
+
+        for (let i = 0; i < n; i++) {
+            let start = Math.max(0, i - halfWindow);
+            let end = Math.min(n - 1, i + halfWindow);
+
+            // Adjust window at boundaries to keep size if possible, or just use available
+            // Standard SG uses fixed window, but we use variable for boundaries.
+
+            const xCenter = x[i];
+            let sumX = 0, sumY = 0, sumXX = 0, sumXY = 0;
+            let count = 0;
+
+            // We only need linear term 'b' if we fit a simple line y = a + bx locally?
+            // User asked for "slope (derivative)".
+            // A local linear regression (LinReg) gives the slope directly.
+            // A local quadratic regression gives slope = b + 2cx. At center x=0 (relative), slope = b.
+            // Local linear regression is more stable for slope than quadratic if data is noisy.
+            // Let's use Local Linear Regression for the slope (LinReg of window).
+
+            for (let j = start; j <= end; j++) {
+                const dx = x[j] - xCenter;
+                const dy = workingY[j];
+                // Weighting? Uniform for SG.
+
+                sumX += dx;
+                sumY += dy;
+                sumXX += dx * dx;
+                sumXY += dx * dy;
+                count++;
+            }
+
+            // slope = (n*sumXY - sumX*sumY) / (n*sumXX - sumX*sumX)
+            // Since we shifted x to be centered at current point, if window is symmetric, sumX ~ 0
+            // but at boundaries it won't be 0.
+
+            const denom = count * sumXX - sumX * sumX;
+            if (denom === 0) {
+                slopes[i] = 0;
+            } else {
+                slopes[i] = (count * sumXY - sumX * sumY) / denom;
+            }
+        }
+
+        return (v: number) => {
+            // Find closest index for v
+            // Since x is sorted (time), use binary search or simple approximation
+            // For charting visualization, this is sufficient.
+            // Linear interpolation between smoothed points
+
+            // Optimization: Assuming v is within range or close.
+            // Binary search
+            let left = 0;
+            let right = n - 1;
+
+            // Check bounds
+            if (v <= x[0]) return slopes[0];
+            if (v >= x[n - 1]) return slopes[n - 1];
+
+            while (left <= right) {
+                const mid = Math.floor((left + right) / 2);
+                if (x[mid] === v) {
+                    return slopes[mid];
+                } else if (x[mid] < v) {
+                    left = mid + 1;
+                } else {
+                    right = mid - 1;
+                }
+            }
+
+            const i1 = Math.max(0, right);
+            const i2 = Math.min(n - 1, left);
+
+            if (i1 === i2) return slopes[i1];
+
+            const x1 = x[i1];
+            const x2 = x[i2];
+            const y1 = slopes[i1];
+            const y2 = slopes[i2];
+
+            // Linear interpolate slope
+            return y1 + (y2 - y1) * (v - x1) / (x2 - x1);
+        };
     }
 
     return null;
@@ -607,8 +753,23 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
         return date.toLocaleDateString(undefined, { year: 'numeric' });
     }, [dateRangeDays]);
 
+    // Generate a signature effectively memoizing the series content to prevent
+    // unnecessary fade-outs when parent re-renders with new object references but same data.
+    const seriesSignature = useMemo(() => {
+        if (!series || series.length === 0) return '';
+        return series.map(s => {
+            const first = s.data[0];
+            const last = s.data[s.data.length - 1];
+            return `${s.name}:${s.data.length}:${first?.date.getTime()}:${last?.date.getTime()}:${last?.price}`;
+        }).join('|');
+    }, [series]);
+
     useEffect(() => {
-        if (!series || series === displaySeries) return;
+        if (!series) return;
+
+        // If signature matches current display series (approximately), skip update
+        // (This check might be redundant due to dependency array, but safe)
+        // Actually we rely on dependency array mostly.
 
         let swapTimer: ReturnType<typeof setTimeout>;
         let fadeInTimer: ReturnType<typeof setTimeout>;
@@ -640,7 +801,7 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
             clearTimeout(swapTimer);
             clearTimeout(fadeInTimer);
         };
-    }, [series, displaySeries]);
+    }, [seriesSignature]);
 
     // Move hooks above the conditional return
     const chartData = useMemo<ChartPoint[]>(() => {
@@ -915,10 +1076,13 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
         });
     }, [chartData, trendType, currentMode, scaleType]);
 
-    const { dataMin, dataMax, volMax } = useMemo(() => {
-        if (!dataWithTrend || dataWithTrend.length === 0) return { dataMin: 0, dataMax: 0, volMax: 0 };
+    const { dataMin, dataMax, volMax, gammaMin, gammaMax } = useMemo(() => {
+        if (!dataWithTrend || dataWithTrend.length === 0) return { dataMin: 0, dataMax: 0, volMax: 0, gammaMin: 0, gammaMax: 0 };
         let min = Infinity;
         let max = -Infinity;
+        let gMin = Infinity;
+        let gMax = -Infinity;
+        let hasGamma = trendType === 'gamma' || trendType === 'gamma-log';
         let vMax = 0;
 
         const updateMinMax = (val: any) => {
@@ -928,14 +1092,33 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
             }
         };
 
+        const updateGammaMinMax = (val: any) => {
+            if (typeof val === 'number' && !isNaN(val)) {
+                if (val < gMin) gMin = val;
+                if (val > gMax) gMax = val;
+            }
+        };
+
         dataWithTrend.forEach((p) => {
             updateMinMax(p.yValue);
-            if (p.trendValue !== undefined) updateMinMax(p.trendValue);
+
+            if (p.trendValue !== undefined) {
+                if (hasGamma) {
+                    updateGammaMinMax(p.trendValue);
+                } else {
+                    updateMinMax(p.trendValue);
+                }
+            }
 
             if (currentMode === 'candle') {
                 if (p.high != null) updateMinMax(p.high);
                 if (p.low != null) updateMinMax(p.low);
                 if (p.volume != null && p.volume > vMax) vMax = p.volume;
+            } else {
+                // Approximate volume max for non-candle charts if needed?
+                // Or just track it anyway
+                if (p.totalVolume != null && p.totalVolume > vMax) vMax = p.totalVolume;
+                else if (p.volume != null && p.volume > vMax) vMax = p.volume;
             }
 
             Object.keys(p).forEach(k => {
@@ -945,17 +1128,22 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
             });
         });
 
-        if (min === Infinity || max === -Infinity) return { dataMin: 0, dataMax: 0, volMax: 0 };
-        return { dataMin: min, dataMax: max, volMax: vMax };
-    }, [dataWithTrend, currentMode]);
+        if (min === Infinity || max === -Infinity) return { dataMin: 0, dataMax: 0, volMax: 0, gammaMin: 0, gammaMax: 0 };
+
+        // Ensure gamma range is valid if none found
+        if (gMin === Infinity) gMin = 0;
+        if (gMax === -Infinity) gMax = 0;
+
+        return { dataMin: min, dataMax: max, volMax: vMax, gammaMin: gMin, gammaMax: gMax };
+    }, [dataWithTrend, currentMode, trendType]);
 
 
 
     // Use SymLog whenever log is requested
     const useSymLog = scaleType === 'log';
 
-    const { yMin, yMax } = useMemo(() => {
-        if (!dataWithTrend || dataWithTrend.length === 0) return { yMin: 0, yMax: 0 };
+    const { yMin, yMax, gammaYMin, gammaYMax } = useMemo(() => {
+        if (!dataWithTrend || dataWithTrend.length === 0) return { yMin: 0, yMax: 0, gammaYMin: 0, gammaYMax: 0 };
 
         let min = dataMin;
         let max = dataMax;
@@ -975,9 +1163,17 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
             calculatedMax = max + effectivePadding;
         }
 
+        // Gamma Axis Padding (always linear)
+        let gMin = gammaMin;
+        let gMax = gammaMax;
+        const gRange = gMax - gMin;
+        const gPadding = gRange === 0 ? (Math.abs(gMax) * 0.1 || 0.01) : gRange * 0.1;
+        const calculatedGMin = gMin - gPadding;
+        const calculatedGMax = gMax + gPadding;
+
         console.log("MIN_MAX", { min, max, calculatedMin, calculatedMax, scaleType });
-        return { yMin: calculatedMin, yMax: calculatedMax };
-    }, [dataWithTrend, dataMin, dataMax, scaleType]);
+        return { yMin: calculatedMin, yMax: calculatedMax, gammaYMin: calculatedGMin, gammaYMax: calculatedGMax };
+    }, [dataWithTrend, dataMin, dataMax, gammaMin, gammaMax, scaleType]);
 
     const formatYAxis = useCallback((tick: number) => {
         let val = tick;
@@ -987,20 +1183,22 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
             val = Math.sign(tick) * (Math.pow(10, Math.abs(tick)) - 1);
         }
 
+        // Snap to zero if very close (fix 1e-7 issues)
+        if (Math.abs(val) < 1e-6) val = 0;
+
         if (currentMode === 'price' || currentMode === 'candle') {
             return valueType === 'value' ? formatCompactValue(val, currency, t) : formatCompactPrice(val, currency, t);
         }
 
         // Percent Mode
-        const range = yMax - yMin;
-        const decimals = range > 0.1 ? 0 : 1;
-
+        // Determine precision based on the real value range, not the log range
+        // We can approximate the real range using the min/max or just standard logic
         return '\u200E' + new Intl.NumberFormat(undefined, {
             style: 'percent',
             minimumFractionDigits: 0,
-            maximumFractionDigits: decimals,
+            maximumFractionDigits: 2, // Allow more precision for percent
         }).format(val);
-    }, [yMin, yMax, currentMode, currency, t, scaleType, valueType, useSymLog]);
+    }, [currentMode, currency, t, valueType, useSymLog]);
 
     const findClosestPoint = useCallback((date: number): ChartPoint | null => {
         const data = dataWithTrend;
@@ -1129,6 +1327,8 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
         return ticks;
     }, [xMin, xMax, dateRangeDays]);
 
+
+
     if (!mainSeries?.data || mainSeries.data.length < 2 || dataWithTrend.length < 2) {
         return (
             <Box sx={{
@@ -1188,6 +1388,8 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
 
         let realMin = yMin;
         let realMax = yMax;
+
+        // Recover real min/max from SymLog if needed
         if (scaleType === 'log') {
             realMin = Math.sign(yMin) * (Math.pow(10, Math.abs(yMin)) - 1);
             realMax = Math.sign(yMax) * (Math.pow(10, Math.abs(yMax)) - 1);
@@ -1196,62 +1398,44 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
         const range = realMax - realMin;
         if (range <= 0) return scaleType === 'log' ? [yMin] : [realMin];
 
-        const getLinearTicks = (minV: number, maxV: number) => {
-            const rawStep = (maxV - minV) / targetTickCount;
-            const mag = Math.pow(10, Math.floor(Math.log10(rawStep)));
-            let step = Math.ceil(rawStep / mag) * mag; // e.g. 0.1, 1, 10...
+        // Standard "Nice Numbers" algorithm
+        const rawStep = range / targetTickCount;
+        const mag = Math.pow(10, Math.floor(Math.log10(rawStep)));
+        let step = Math.ceil(rawStep / mag) * mag;
 
-            if (step / mag < 1.5) step = 1 * mag;
-            else if (step / mag < 3.5) step = 2 * mag;
-            else if (step / mag < 7.5) step = 5 * mag;
-            else step = 10 * mag;
+        // Adjust step to be 1, 2, 5, 10...
+        if (step / mag < 1.5) step = 1 * mag;
+        else if (step / mag < 3.5) step = 2 * mag;
+        else if (step / mag < 7.5) step = 5 * mag;
+        else step = 10 * mag;
 
-            const ticks: number[] = [];
-            ticks.push(0);
+        // Generate ticks
+        // Snap start to step
+        const startTick = Math.ceil(realMin / step) * step;
+        const ticks: number[] = [];
 
-            let curr = step;
-            while (curr <= maxV) {
-                ticks.push(curr);
-                curr += step;
-            }
-            curr = -step;
-            while (curr >= minV) {
-                ticks.unshift(curr);
-                curr -= step;
-            }
+        // Use epsilon to avoid floating point issues (1e-7)
+        const epsilon = step / 10000;
 
-            let rawTicks = new Set(ticks.filter(t => t >= minV && t <= maxV));
+        for (let t = startTick; t <= realMax + epsilon; t += step) {
+            // Avoid negative zero
+            let val = t;
+            if (Math.abs(val) < epsilon) val = 0;
 
-            // Log scale stretches the chart massively near 0.
-            // Add evenly-distributed sub-ticks within the first standard step [0, step] to visually balance the axis
-            if (scaleType === 'log' && step > 0) {
-                const subStep = step / 10;
-
-                if (maxV > 0) {
-                    for (let val = subStep; val < step; val += subStep) {
-                        if (val >= minV && val <= maxV) {
-                            rawTicks.add(Number(val.toFixed(10)));
-                        }
-                    }
-                }
-                if (minV < 0) {
-                    for (let val = subStep; val < step; val += subStep) {
-                        if (-val >= minV && -val <= maxV) {
-                            rawTicks.add(Number((-val).toFixed(10)));
-                        }
-                    }
-                }
-            }
-
-            return Array.from(rawTicks).sort((a, b) => a - b);
-        };
-
-        const rawTicks = getLinearTicks(realMin, realMax);
+            // Should strictly be within (or very close to) range? 
+            // Recharts might handle out of domain, but better to keep relevant ones.
+            // We allow slightly outside to cover edges.
+            ticks.push(val);
+        }
 
         if (scaleType === 'log') {
-            return rawTicks.map(t => Math.sign(t) * Math.log10(1 + Math.abs(t)));
+            return ticks.map(t => {
+                // Determine sign carefully for 0
+                if (t === 0) return 0;
+                return Math.sign(t) * Math.log10(1 + Math.abs(t));
+            });
         }
-        return rawTicks;
+        return ticks;
     }, [yMin, yMax, scaleType, denseTicks, isFullscreen]);
 
     const showZeroLine = yMin <= 0 && yMax >= 0;
@@ -1317,6 +1501,9 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                                 </MenuItem>
                                 <MenuItem onClick={() => { setTrendType('polynomial'); setTrendMenuAnchor(null); }} selected={trendType === 'polynomial'}>
                                     {t('Cubic', 'פולינום (3)')}
+                                </MenuItem>
+                                <MenuItem onClick={() => { setTrendType('gamma'); setTrendMenuAnchor(null); }} selected={trendType === 'gamma'}>
+                                    {t('Gamma (2nd Deriv)', 'גמא (נגזרת שנייה)')}
                                 </MenuItem>
                                 <MenuItem onClick={() => { setTrendType('logarithmic'); setTrendMenuAnchor(null); }} selected={trendType === 'logarithmic'}>
                                     {t('Logarithmic', 'לוגריתמי')}
@@ -1429,8 +1616,21 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                                 hide={true}
                                 width={0}
                                 tickFormatter={() => ''}
-                                domain={[0, volMax * 4]} // Scale so max volume is 1/4th height
+                                domain={[0, volMax * 5]} // Scale so max volume is 1/5th height (slightly less tall)
                             />
+                            {/* Gamma Axis (if active) */}
+                            {trendType === 'gamma' && (
+                                <YAxis
+                                    yAxisId="gamma"
+                                    orientation="left"
+                                    domain={[gammaYMin, gammaYMax]}
+                                    hide={false}
+                                    tickFormatter={(val) => Math.abs(val) < 0.01 ? val.toExponential(1) : val.toFixed(2)} // Handle small values
+                                    tick={{ fontSize: 10, fill: theme.palette.warning.main }}
+                                    width={40}
+                                    allowDataOverflow={true}
+                                />
+                            )}
                             <Tooltip content={<CandleTooltip currency={currency} t={t} mode={currentMode} />} />
 
                             <Bar
@@ -1453,11 +1653,11 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                             {trendType !== 'none' && (
                                 <Line
                                     type="monotone"
-                                    yAxisId="price"
+                                    yAxisId={(trendType === 'gamma' || trendType === 'gamma-log') ? 'gamma' : 'price'}
                                     dataKey="trendValue"
                                     stroke={theme.palette.warning.main}
-                                    strokeWidth={2}
-                                    strokeDasharray="5 5"
+                                    strokeWidth={1.5}
+                                    strokeDasharray="4 2"
                                     dot={false}
                                     activeDot={false}
                                     isAnimationActive={false}
@@ -1501,6 +1701,19 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                                 scale="linear"
                                 allowDataOverflow={true}
                             />
+                            {/* Gamma Axis (if active) */}
+                            {(trendType === 'gamma' || trendType === 'gamma-log') && (
+                                <YAxis
+                                    yAxisId="gamma"
+                                    orientation="left"
+                                    domain={[gammaYMin, gammaYMax]}
+                                    hide={false}
+                                    tickFormatter={(val) => Math.abs(val) < 0.01 ? val.toExponential(1) : val.toFixed(2)}
+                                    tick={{ fontSize: 10, fill: theme.palette.warning.main }}
+                                    width={40}
+                                    allowDataOverflow={true}
+                                />
+                            )}
                             <Tooltip content={<CustomTooltip currency={currency} t={t} basePrice={basePrice} isComparison={isComparison} series={displaySeries} mode={currentMode} hideCurrentPrice={hideCurrentPrice} />} />
 
                             {/* Zero line (solid, semi-opaque) - only if 0 is in range */}
@@ -1541,10 +1754,11 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                             {trendType !== 'none' && (
                                 <Line
                                     type="monotone"
+                                    yAxisId={(trendType === 'gamma' || trendType === 'gamma-log') ? 'gamma' : 0}
                                     dataKey="trendValue"
                                     stroke={theme.palette.warning.main}
-                                    strokeWidth={2}
-                                    strokeDasharray="5 5"
+                                    strokeWidth={1.5}
+                                    strokeDasharray="4 2"
                                     dot={false}
                                     activeDot={false}
                                     isAnimationActive={false}
@@ -1556,7 +1770,7 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                                 dataKey="yValue"
                                 stroke={mainLineColor}
                                 strokeWidth={2}
-                                fill={isComparison ? "none" : `url(#${gradientId})`}
+                                fill={(isComparison || trendType !== 'none') ? "none" : `url(#${gradientId})`}
                                 baseValue={threshold}
                                 fillOpacity={shadeOpacity}
                                 isAnimationActive={hasData}

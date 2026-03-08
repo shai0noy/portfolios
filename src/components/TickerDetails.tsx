@@ -492,6 +492,8 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                           height="100%"
                           scaleType={scaleType}
                           onScaleTypeChange={setScaleType}
+                            trendType={trendType}
+                            onTrendTypeChange={setTrendType}
                           topControls={
                             <Box sx={{ flex: 1, minWidth: 0 }}>
                               <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: comparisonSeries.length > 0 ? 1 : 0, flexWrap: { xs: 'nowrap', md: 'wrap' }, overflowX: { xs: 'auto', md: 'visible' }, pb: { xs: 1, md: 0 }, scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' } }}>
@@ -625,7 +627,6 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                               {comparisonSeries.length > 0 && <Box display="flex" flexWrap="wrap" gap={0.5} sx={{ mb: 1 }}>{comparisonSeries.map(s => <Chip key={s.name} label={s.name} onDelete={() => handleRemoveComparison(s.name)} variant="outlined" size="small" sx={{ color: s.color, borderColor: s.color, fontSize: '0.65rem', height: 20 }} />)}</Box>}
                             </Box>
                           }
-                          onTrendTypeChange={setTrendType}
                         />
                         <Menu anchorEl={settingsMenuAnchor} open={Boolean(settingsMenuAnchor)} onClose={() => setSettingsMenuAnchor(null)}>
                           <MenuItem onClick={() => { setScaleType(scaleType === 'linear' ? 'log' : 'linear'); setSettingsMenuAnchor(null); }} disabled={!isLogSupported}>
@@ -651,6 +652,8 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                           <MenuItem onClick={() => { setTrendType('linear'); setTrendMenuAnchor(null); }} selected={trendType === 'linear'}>{t('Linear', 'ליניארי')}</MenuItem>
                           <MenuItem onClick={() => { setTrendType('exponential'); setTrendMenuAnchor(null); }} selected={trendType === 'exponential'}>{t('Exponential', 'אקספוננציאלי')}</MenuItem>
                           <MenuItem onClick={() => { setTrendType('polynomial'); setTrendMenuAnchor(null); }} selected={trendType === 'polynomial'}>{t('Cubic', 'פולינום (3)')}</MenuItem>
+                            <MenuItem onClick={() => { setTrendType('gamma'); setTrendMenuAnchor(null); }} selected={trendType === 'gamma'}>{t('Gamma', 'גמא')}</MenuItem>
+                            <MenuItem onClick={() => { setTrendType('gamma-log'); setTrendMenuAnchor(null); }} selected={trendType === 'gamma-log'}>{t('Gamma (Log)', 'גמא (לוג)')}</MenuItem>
                           <MenuItem onClick={() => { setTrendType('logarithmic'); setTrendMenuAnchor(null); }} selected={trendType === 'logarithmic'}>{t('Logarithmic', 'לוגריתמי')}</MenuItem>
                         </Menu>
                         <Menu anchorEl={compareMenuAnchor} open={Boolean(compareMenuAnchor)} onClose={() => setCompareMenuAnchor(null)}>
