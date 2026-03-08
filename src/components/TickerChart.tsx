@@ -30,10 +30,13 @@ export function GammaIcon(props: any) {
 }
 
 // Simple regression solver
-function solveUnivariableRegression(x: number[], y: number[], type: TrendType | GammaType): ((v: number) => number) | null {
+function solveUnivariableRegression(x: number[], y: number[], type: TrendType | GammaType, gammaWindow?: number): ((v: number) => number) | null {
     const n = x.length;
     console.log(`[TrendDebug] Solving ${type} regression with n=${n}`);
     if (n < 2) return null;
+
+
+
 
     // Linear: y = mx + c
     if (type === 'linear') {
@@ -187,7 +190,7 @@ function solveUnivariableRegression(x: number[], y: number[], type: TrendType | 
     // Gamma: Savitzky-Golay 1st Derivative (Slope)
     // We calculate the slope of the local quadratic fit at each point.
     if (type === 'gamma' || type === 'gamma-log') {
-        const windowSize = Math.max(3, Math.floor(n / 40) | 1); // Reduced window for finer/sharper slope
+        const windowSize = gammaWindow || Math.max(3, Math.floor(n / 40) | 1); // Use provided window or dynamic default
         const halfWindow = Math.floor(windowSize / 2);
 
         const slopes = new Array(n).fill(0);
@@ -316,6 +319,8 @@ interface TickerChartProps {
     onTrendTypeChange?: (type: TrendType) => void;
     gammaType?: GammaType;
     onGammaTypeChange?: (type: GammaType) => void;
+    gammaWindow?: number;
+    onGammaWindowChange?: (window: number) => void;
     denseTicks?: boolean;
 }
 
@@ -711,7 +716,7 @@ const SelectionSummary = ({ startPoint, endPoint, currency, t, isComparison, ser
     );
 };
 
-export function TickerChart({ series, currency, mode = 'percent', valueType = 'price', height = 300, hideCurrentPrice, allowFullscreen = true, topControls, scaleType: propScaleType, onScaleTypeChange, trendType: propTrendType, onTrendTypeChange, gammaType: propsGammaType, onGammaTypeChange: propsOnGammaTypeChange, denseTicks }: TickerChartProps) {
+export function TickerChart({ series, currency, mode = 'percent', valueType = 'price', height = 300, hideCurrentPrice, allowFullscreen = true, topControls, scaleType: propScaleType, onScaleTypeChange, trendType: propTrendType, onTrendTypeChange, gammaType: propsGammaType, onGammaTypeChange: propsOnGammaTypeChange, gammaWindow: propsGammaWindow, onGammaWindowChange: propsOnGammaWindowChange, denseTicks }: TickerChartProps) {
     const FADE_MS = 170;          // Speed of the opacity transition
     const TRANSFORM_MS = 360;     // Speed of the line movement (Very fast)
     const BUFFER_MS = 30;        // Safety window for browser paint
@@ -751,6 +756,10 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
     const [internalGammaType, setInternalGammaType] = useState<GammaType>('none');
     const gammaType = propsGammaType ?? internalGammaType;
     const setGammaType = propsOnGammaTypeChange ?? setInternalGammaType;
+
+    const [internalGammaWindow, setInternalGammaWindow] = useState<number | undefined>(undefined);
+    const gammaWindow = propsGammaWindow ?? internalGammaWindow;
+    const setGammaWindow = propsOnGammaWindowChange ?? setInternalGammaWindow;
 
 
 
@@ -1089,7 +1098,7 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
         // Compute Gamma Function
         let gammaFn: ((v: number) => number) | null = null;
         if (gammaType && gammaType !== 'none') {
-            gammaFn = solveUnivariableRegression(x, y, gammaType);
+            gammaFn = solveUnivariableRegression(x, y, gammaType, gammaWindow);
         }
 
         // Apply trends to data
@@ -1117,7 +1126,7 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                 // Gamma axis is linear. So we can just plot it directly.
             } as ChartPoint;
         });
-    }, [chartData, trendType, gammaType, currentMode, scaleType]);
+    }, [chartData, trendType, gammaType, currentMode, scaleType, gammaWindow]);
 
 
 
@@ -1613,6 +1622,8 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                                     onTrendTypeChange={setTrendType}
                                     gammaType={gammaType}
                                     onGammaTypeChange={setGammaType}
+                                    gammaWindow={gammaWindow}
+                                    onGammaWindowChange={setGammaWindow}
                                     denseTicks={true}
                                 />
                             </Box>
@@ -1712,11 +1723,13 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                                 />
                             )}
                             {gammaType && gammaType !== 'none' && (
-                                <Line
-                                    type="monotone"
-                                    yAxisId="gamma"
-                                    dataKey="gammaValue"
-                                    stroke={theme.palette.secondary.main}
+                                <>
+                                    <ReferenceLine yAxisId="gamma" y={0} stroke={theme.palette.secondary.main} strokeOpacity={0.3} strokeWidth={1} />
+                                    <Line
+                                        type="monotone"
+                                        yAxisId="gamma"
+                                        dataKey="gammaValue"
+                                        stroke={theme.palette.secondary.main}
                                     strokeWidth={1.5}
                                     strokeDasharray="5 2"
                                     dot={false}
@@ -1724,6 +1737,7 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                                     isAnimationActive={false}
                                     connectNulls={true}
                                 />
+                                </>
                             )}
                         </ComposedChart>
                     ) : (
@@ -1770,7 +1784,12 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                                     orientation="left"
                                     domain={[gammaYMin, gammaYMax]}
                                     hide={false}
-                                    tickFormatter={(val) => Math.abs(val) < 0.01 ? val.toExponential(1) : val.toFixed(2)}
+                                        tickFormatter={(val) => {
+                                            if (val === 0) return '0';
+                                            if (Math.abs(val) < 0.0001) return val.toExponential(1);
+                                            if (Math.abs(val) < 0.01) return val.toFixed(4);
+                                            return val.toFixed(2);
+                                        }}
                                         tick={{ fontSize: 10, fill: theme.palette.secondary.main }}
                                     width={40}
                                     allowDataOverflow={true}
@@ -1782,6 +1801,11 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                             {showZeroLine && (
                                 <ReferenceLine y={0} stroke={theme.palette.text.secondary} strokeOpacity={0.4} strokeWidth={1} />
                             )}
+
+                                {/* Gamma Zero Line */}
+                                {gammaType && gammaType !== 'none' && (
+                                    <ReferenceLine yAxisId="gamma" y={0} stroke={theme.palette.secondary.main} strokeOpacity={0.3} strokeWidth={1} />
+                                )}
 
                             {/* Threshold line (dashed) - used for base price in price mode. Avoid if it duplicates 0 (which is covered above) */}
                             {threshold !== 0 && (

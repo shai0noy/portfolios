@@ -112,6 +112,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   const [trendType, setTrendType] = useState<TrendType>('none');
   const [trendMenuAnchor, setTrendMenuAnchor] = useState<null | HTMLElement>(null);
   const [gammaType, setGammaType] = useState<GammaType>('none');
+  const [gammaWindow, setGammaWindow] = useState<number | undefined>(undefined);
   const [gammaMenuAnchor, setGammaMenuAnchor] = useState<null | HTMLElement>(null);
   const [compareMenuAnchor, setCompareMenuAnchor] = useState<null | HTMLElement>(null);
   const [settingsMenuAnchor, setSettingsMenuAnchor] = useState<null | HTMLElement>(null);
@@ -498,6 +499,8 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                             onTrendTypeChange={setTrendType}
                             gammaType={gammaType}
                             onGammaTypeChange={setGammaType}
+                            gammaWindow={gammaWindow}
+                            onGammaWindowChange={setGammaWindow}
                             topControls={
                               <Box sx={{ flex: 1, minWidth: 0 }}>
                                 <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: comparisonSeries.length > 0 ? 1 : 0, flexWrap: { xs: 'nowrap', md: 'wrap' }, overflowX: { xs: 'auto', md: 'visible' }, pb: { xs: 1, md: 0 }, scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' } }}>
@@ -689,6 +692,13 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                             <MenuItem onClick={() => { setGammaType('none'); setGammaMenuAnchor(null); }} selected={gammaType === 'none'}>{t('No Gamma', 'ללא גמא')}</MenuItem>
                             <MenuItem onClick={() => { setGammaType('gamma'); setGammaMenuAnchor(null); }} selected={gammaType === 'gamma'}>{t('Gamma', 'גמא')}</MenuItem>
                             <MenuItem onClick={() => { setGammaType('gamma-log'); setGammaMenuAnchor(null); }} selected={gammaType === 'gamma-log'}>{t('Gamma (Log)', 'גמא (לוג)')}</MenuItem>
+                            <Divider />
+                            <Box sx={{ px: 2, py: 0.5, typography: 'caption', color: 'text.secondary', fontWeight: 'bold' }}>{t('Calc Window', 'חלון חישוב')}</Box>
+                            <MenuItem onClick={() => { setGammaWindow(undefined); setGammaMenuAnchor(null); }} selected={gammaWindow === undefined} dense sx={{ height: 24, minHeight: 24 }}>{t('Auto', 'אוטומטי')}</MenuItem>
+                            <MenuItem onClick={() => { setGammaWindow(5); setGammaMenuAnchor(null); }} selected={gammaWindow === 5} dense sx={{ height: 24, minHeight: 24 }}>5 {t('Days', 'ימים')}</MenuItem>
+                            <MenuItem onClick={() => { setGammaWindow(10); setGammaMenuAnchor(null); }} selected={gammaWindow === 10} dense sx={{ height: 24, minHeight: 24 }}>10 {t('Days', 'ימים')}</MenuItem>
+                            <MenuItem onClick={() => { setGammaWindow(20); setGammaMenuAnchor(null); }} selected={gammaWindow === 20} dense sx={{ height: 24, minHeight: 24 }}>20 {t('Days', 'ימים')}</MenuItem>
+                            <MenuItem onClick={() => { setGammaWindow(50); setGammaMenuAnchor(null); }} selected={gammaWindow === 50} dense sx={{ height: 24, minHeight: 24 }}>50 {t('Days', 'ימים')}</MenuItem>
                           </Menu>
                           <Menu anchorEl={compareMenuAnchor} open={Boolean(compareMenuAnchor)} onClose={() => setCompareMenuAnchor(null)}>
                             {(() => {
