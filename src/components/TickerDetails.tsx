@@ -2,7 +2,6 @@ import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, 
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AddIcon from '@mui/icons-material/Add';
-// import SearchIcon from '@mui/icons-material/Search';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import StarIcon from '@mui/icons-material/Star';
 import StarBorderIcon from '@mui/icons-material/StarBorder';
@@ -20,7 +19,7 @@ import type { TickerProfile } from '../lib/types/ticker';
 import { useChartComparison, getAvailableRanges, getMaxLabel, SEARCH_OPTION_TICKER } from '../lib/hooks/useChartComparison';
 import { useTickerDetails, type TickerDetailsProps } from '../lib/hooks/useTickerDetails';
 import { TickerSearch } from './TickerSearch';
-import { Exchange } from '../lib/types';
+import { Exchange, isUSExchange } from '../lib/types';
 import { formatMoneyPrice, formatPercent, normalizeCurrency, formatMoneyValue } from '../lib/currency';
 import { AnalysisDialog } from './AnalysisDialog';
 import { CustomRangeDialog } from './CustomRangeDialog';
@@ -146,12 +145,12 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
 
           let isExchangeMatch = !targetExchange || (engineExchange === targetExchange);
 
-          // Relaxed matching for "US" region: If target is 'US', match 'NASDAQ' or 'NYSE'
-          if (!isExchangeMatch && targetExchange === 'US' && (engineExchange === Exchange.NASDAQ || engineExchange === Exchange.NYSE)) {
+          // Relaxed matching for "US" region: If target is 'US', match 'NASDAQ' or 'NYSE' or 'NYSEARCA'
+          if (!isExchangeMatch && targetExchange === 'US' && isUSExchange(engineExchange)) {
             isExchangeMatch = true;
           }
-          // Also reverse: if target is 'NASDAQ'/'NYSE' but engine (rarely) has 'US'
-          if (!isExchangeMatch && (targetExchange === Exchange.NASDAQ || targetExchange === Exchange.NYSE) && (engineExchange as any) === 'US') {
+          // Also reverse: if target is 'NASDAQ'/'NYSE'/'NYSEARCA' but engine (rarely) has 'US'
+          if (!isExchangeMatch && targetExchange && isUSExchange(targetExchange) && (engineExchange as any) === 'US') {
             isExchangeMatch = true;
           }
 

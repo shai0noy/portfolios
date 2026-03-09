@@ -125,7 +125,15 @@ export async function calculatePortfolioPerformance(
         if (!historical || historical.length === 0) {
             const [ex, tic] = h.key.split(':');
             const holding = holdings.find(hd => hd.ticker === tic && hd.exchange === ex);
-            const myTxns = sortedTxns.filter(t => t.ticker === tic && t.exchange === ex && t.type !== 'DIVIDEND' && t.type !== 'FEE' && (t.price || 0) > 0);
+            // Use the original transactions array with the ORIGINAL date, not the vestDate proxy.
+            const myTxns = transactions.filter(t =>
+                t.ticker === tic &&
+                t.exchange === ex &&
+                t.type !== 'DIVIDEND' &&
+                t.type !== 'FEE' &&
+                (t.price || 0) > 0 &&
+                t.date && !isNaN(new Date(t.date).getTime())
+            );
             const synth = synthesizeHistory(holding, h.data, myTxns);
             if (synth.length > 0) {
                 if (!h.data) h.data = {} as any;

@@ -979,18 +979,9 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
 
       } else {
         // Standard Transaction (BUY, SELL, FEE, DIVIDEND)
-        // Sanity Check: If Fetch 'Open' is drastically different from User 'Price' (e.g. > 2x or < 0.5x),
-        // it likely indicates a data source mismatch (stale split, wrong currency unit).
-        const openP = selectedTicker?.openPrice || 0;
-        let safeOpenPrice = openP;
-        if (p > 0 && openP > 0) {
-          const ratio = openP / p;
-          if (ratio > 2 || ratio < 0.5) {
-            console.warn(`Mismatch between Open Price (${openP}) and User Price (${p}). Using User Price for origOpenPriceAtCreationDate.`);
-            safeOpenPrice = p;
-          }
-        } else if (openP === 0) {
-          safeOpenPrice = p;
+        let creationOpenPrice: number | undefined = selectedTicker?.openPrice;
+        if (!creationOpenPrice || creationOpenPrice <= 0) {
+          creationOpenPrice = undefined;
         }
 
         const txn: Transaction = {
@@ -1001,10 +992,10 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
           type: type as Transaction['type'], // Safe cast as we checked specific types above
           originalQty: q,
           originalPrice: p,
-          origOpenPriceAtCreationDate: locationState?.editTransaction?.origOpenPriceAtCreationDate || safeOpenPrice,
+          origOpenPriceAtCreationDate: locationState?.editTransaction?.origOpenPriceAtCreationDate || creationOpenPrice,
           currency: normalizeCurrency(tickerCurrency),
           numericId: selectedTicker?.numericId || undefined,
-          vestDate,
+          vestDate: locationState?.editTransaction ? vestDate : undefined,
           comment,
           commission: parseFloat(commission) || 0,
           rowIndex: editTxn?.rowIndex
