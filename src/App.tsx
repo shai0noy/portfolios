@@ -652,7 +652,11 @@ function AppContent() {
               sheetId={sheetId}
               open={importOpen}
               onClose={() => setImportOpen(false)}
-              onSuccess={() => { setRefreshKey(k => k + 1); setImportOpen(false); }}
+              onSuccess={() => {
+                setRefreshKey(k => k + 1);
+                setImportOpen(false);
+                navigate('/dashboard');
+              }}
             />
           )}
 

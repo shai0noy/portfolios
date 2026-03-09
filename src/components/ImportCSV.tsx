@@ -10,7 +10,8 @@ import {
   TableContainer,
   Paper,
   InputBase,
-  useTheme
+  useTheme,
+  CircularProgress
 } from '@mui/material';
 import { useScrollShadows, ScrollShadows } from '../lib/ui-utils';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
@@ -57,6 +58,7 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
   const [exchangeMode, setExchangeMode] = useState<'map' | 'manual' | 'deduce'>('deduce');
   const [parsedTxns, setParsedTxns] = useState<Transaction[]>([]);
   const [importing, setImporting] = useState(false);
+  const [isParsing, setIsParsing] = useState(false);
 
   const handleTxnChange = (index: number, field: keyof Transaction, value: any) => {
     setParsedTxns(prev => {
@@ -176,8 +178,17 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
         setErrorMsg(t("Please enter a manual exchange or choose a different mode.", "יש להזין בורסה ידנית או לבחור מצב אחר."));
         return;
       }
-      generatePreview();
-      setActiveStep(2);
+      setIsParsing(true);
+      setTimeout(() => {
+        try {
+          generatePreview();
+          setActiveStep(2);
+        } catch (e: any) {
+          setErrorMsg(e.message || "Error parsing CSV");
+        } finally {
+          setIsParsing(false);
+        }
+      }, 50);
     } else {
       handleImport();
     }
@@ -299,7 +310,7 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
       if (!finalCurrency && parsedExchange) {
         if (['TASE', 'GEMEL', 'PENSION', 'CBS', 'TLV'].includes(parsedExchange.toString())) {
           finalCurrency = 'ILA';
-        } else if (['NASDAQ', 'NYSE', 'NYSEARCA'].includes(parsedExchange.toString())) {
+        } else if (['NASDAQ', 'NYSE'].includes(parsedExchange.toString())) {
           finalCurrency = 'USD';
         } else if (['LSE'].includes(parsedExchange.toString())) {
           finalCurrency = 'GBP';
@@ -703,9 +714,9 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose} color="inherit">{t('Cancel', 'ביטול')}</Button>
-        <Button onClick={() => setActiveStep(p => p - 1)} disabled={activeStep === 0} sx={{ [isRtl ? 'ml' : 'mr']: 1 }}>{t('Back', 'חזרה')}</Button>
-        <Button onClick={handleNext} variant="contained" disabled={importing}>
-          {activeStep === 2 ? (importing ? t('Importing...', 'מייבא...') : t('Import', 'ייבוא')) : t('Next', 'הבא')}
+        <Button onClick={() => setActiveStep(p => p - 1)} disabled={activeStep === 0 || isParsing || importing} sx={{ [isRtl ? 'ml' : 'mr']: 1 }}>{t('Back', 'חזרה')}</Button>
+        <Button onClick={handleNext} variant="contained" disabled={importing || isParsing} startIcon={(importing || isParsing) ? <CircularProgress size={20} color="inherit" /> : null}>
+          {activeStep === 2 ? (importing ? t('Importing...', 'מייבא...') : t('Import', 'ייבוא')) : (isParsing ? t('Parsing...', 'מעבד...') : t('Next', 'הבא'))}
         </Button>
       </DialogActions>
       <ImportHelp open={helpOpen} onClose={() => setHelpOpen(false)} />
