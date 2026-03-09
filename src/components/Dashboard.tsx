@@ -642,11 +642,11 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
           }}
           apiKey={decryptedKey || ''}
           sheetId={sheetId || ''}
-          portfolioData={{
-            holdings: displayedHoldings,
-            summary,
-            displayCurrency
-          }}
+          holdings={holdings}
+          portfolios={portfolios}
+          exchangeRates={exchangeRates}
+          displayCurrency={displayCurrency}
+          engine={engine}
           onTickerClick={(t) => {
             navigate(`/ticker/${t.exchange}/${t.symbol}`, {
               state: {

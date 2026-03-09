@@ -62,7 +62,7 @@ interface ScrollShadowsProps {
 }
 
 export const ScrollShadows = ({ top, bottom, left, right, theme }: ScrollShadowsProps) => {
-  const shadowColor = theme.palette.mode === 'light' ? 'rgba(0,0,0,0.1)' : 'rgba(0,0,0,0.5)';
+  const shadowColor = theme.palette.mode === 'light' ? 'rgba(0,0,0,0.25)' : 'rgba(0,0,0,0.8)';
 
   return (
     <>

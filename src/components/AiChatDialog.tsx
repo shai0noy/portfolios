@@ -19,20 +19,15 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { type ChatMessage, askGemini, fetchModels, type GeminiModel, getModelByCapability } from '../lib/gemini';
-import type { EnrichedDashboardHolding } from '../lib/dashboard_calc';
-import type { DashboardSummaryData } from '../lib/types';
+import { calculateDashboardSummary } from '../lib/dashboard_calc';
+import { type Portfolio, type DashboardHolding, type ExchangeRates, Exchange } from '../lib/types';
+import { type FinanceEngine } from '../lib/data/engine';
 import { formatPercent } from '../lib/currencyUtils';
 import ManageAccountsIcon from '@mui/icons-material/ManageAccounts';
 import { getMetadataValue, setMetadataValue } from '../lib/sheets/api';
 import { getTickerData } from '../lib/fetching';
-import { Exchange } from '../lib/types';
 import { useScrollShadows, ScrollShadows } from '../lib/ui-utils';
 
-interface AiChatDialogPortfolioData {
-  holdings: EnrichedDashboardHolding[];
-  summary: DashboardSummaryData;
-  displayCurrency: string;
-}
 
 interface ExtendedChatMessage extends ChatMessage {
   isError?: boolean;
@@ -45,7 +40,11 @@ interface AiChatDialogProps {
   onClose: () => void;
   apiKey: string;
   sheetId: string;
-  portfolioData: AiChatDialogPortfolioData;
+  holdings: DashboardHolding[];
+  portfolios: Portfolio[];
+  displayCurrency: string;
+  exchangeRates: ExchangeRates;
+  engine: FinanceEngine | null;
   onTickerClick?: (ticker: { exchange: string; symbol: string }) => void;
   onNavClick?: (path: string) => void;
   initialPrompt?: string;
@@ -302,7 +301,11 @@ const ChatInputSection = React.memo(({ onSend, isLoading, t, initialValue }: {
 
 
 
-export const AiChatDialog: React.FC<AiChatDialogProps> = ({ open, onClose, apiKey, sheetId, portfolioData, onTickerClick: extOnTickerClick, onNavClick, initialPrompt }) => {
+export const AiChatDialog: React.FC<AiChatDialogProps> = ({
+  open, onClose, apiKey, sheetId,
+  holdings, portfolios, displayCurrency, exchangeRates, engine,
+  onTickerClick: extOnTickerClick, onNavClick, initialPrompt
+}) => {
   const { t } = useLanguage();
   const theme = useTheme();
   const [messages, setMessages] = useState<ExtendedChatMessage[]>(() => {
@@ -317,6 +320,21 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({ open, onClose, apiKe
   const lastPromptRef = useRef<string>('');
 
   const [chatMode, setChatMode] = useState<'fast' | 'thinking'>('fast');
+
+  const [selectedPortfolioId, setSelectedPortfolioId] = useState<string | null>(null);
+
+  const portfolioData = React.useMemo(() => {
+    const filteredHoldings = selectedPortfolioId
+      ? holdings.filter(h => h.portfolioId === selectedPortfolioId)
+      : holdings;
+    const newPortMap = new Map(portfolios.map(p => [p.id, p]));
+    const calc = calculateDashboardSummary(filteredHoldings, displayCurrency, exchangeRates, newPortMap, engine);
+    return {
+      holdings: calc.holdings,
+      summary: calc.summary,
+      displayCurrency
+    };
+  }, [holdings, selectedPortfolioId, portfolios, displayCurrency, exchangeRates, engine]);
   const [isExpertMode, setIsExpertMode] = useState(false);
   const [openDisclaimer, setOpenDisclaimer] = useState(true);
   const [openProfile, setOpenProfile] = useState(false);
@@ -475,7 +493,8 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({ open, onClose, apiKe
       dayChangePct: formatPercent(h.display.dayChangePct),
       realizedGain: h.display.realizedGain,
       realizedGainPct: formatPercent(h.display.realizedGainPct),
-      weightInAllHoldings: h.display.weightInGlobal,
+      weightInAllHoldings: formatPercent(h.display.weightInGlobal),
+      portfolioId: h.portfolioId,
       sector: h.sector,
       perf1w: formatPercent(h.perf1w),
       perf1m: formatPercent(h.perf1m),
@@ -490,7 +509,39 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({ open, onClose, apiKe
       }))
     }));
 
+    const getTaxPolicyDesc = (policy?: string) => {
+      switch (policy) {
+        case 'TAX_FREE': return 'Tax Exempt / Keren Hishtalmut (0% Capital Gains Tax)';
+        case 'IL_REAL_GAIN': return 'Israeli Real Gain (Taxed only on capital gains that exceed inflation/CPI)';
+        case 'NOMINAL_GAIN': return 'Nominal Gain (Taxed on absolute value of capital gains)';
+        case 'PENSION': return 'Pension / Providence Fund (Subject to special retirement fund tax rules, usually after retirement age)';
+        case 'RSU_ACCOUNT': return 'RSU Account (Vesting taxed as income tax; subsequent gains taxed as capital gains)';
+        default: return 'NA';
+      }
+    };
+
+    const portfoliosInfo = (selectedPortfolioId
+      ? portfolios.filter(p => p.id === selectedPortfolioId)
+      : portfolios).map(p => {
+        const portMap = new Map([[p.id, p]]);
+        const portHoldings = holdings.filter(h => h.portfolioId === p.id);
+        const calcObj = calculateDashboardSummary(portHoldings, displayCurrency, exchangeRates, portMap, engine);
+
+        return {
+          id: p.id,
+          name: p.name,
+          currency: p.currency,
+          taxLevel: formatPercent(p.cgt),
+          taxPolicy: getTaxPolicyDesc(p.taxPolicy),
+          incomeTaxLevel: p.incTax ? formatPercent(p.incTax) : undefined,
+          mgmtFee: p.mgmtVal ? `${p.mgmtType === 'percentage' ? formatPercent(p.mgmtVal) : p.mgmtVal} ${p.mgmtFreq || ''}`.trim() : 'None',
+          totalValue: calcObj.summary.aum,
+          valueAfterTax: calcObj.summary.valueAfterTax
+        };
+      });
+
     return JSON.stringify({
+      activePortfolios: portfoliosInfo,
       totalValue: portfolioData.summary.aum,
       totalGain: portfolioData.summary.totalReturn,
       currency: portfolioData.displayCurrency,
@@ -542,6 +593,7 @@ Please be careful in your wording around suggestions - you are just an AI.
  * {ticker::Label::EXCHANGE:SYMBOL} to link to a specific ticker e.g. {ticker::Google::NASDAQ:GOOGL}
  * {userinfo::Button Text} to link to the user profile info form
  * {url::Label::Path} to navigate to any URL
+ * Not supported! - {portfolio::XYZ}
 
 ==User Context==
 ${profileContext}
@@ -658,8 +710,26 @@ ${marketOverview}
               sx={{ ml: 1 }}
             />
           </Box>
-          <Box>
-            <Tooltip title={t("User Profile", "פרופיל משתמש")}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <FormControl size="small" variant="outlined" sx={{ minWidth: 120 }}>
+              <Select
+                value={selectedPortfolioId || 'All'}
+                onChange={(e) => setSelectedPortfolioId(e.target.value === 'All' ? null : e.target.value as string)}
+                sx={{
+                  fontSize: '0.85rem',
+                  height: 32,
+                  borderRadius: 2,
+                  '& .MuiSelect-select': { py: 0.5 }
+                }}
+              >
+                <MenuItem value="All"><em>{t('All Portfolios', 'כל התיקים')}</em></MenuItem>
+                {portfolios.map(p => (
+                  <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <Tooltip title={t('User Financial Profile', 'פרופיל משתמש')}>
               <Button
                 onClick={() => setOpenProfile(true)}
                 size="small"
@@ -689,104 +759,104 @@ ${marketOverview}
         <DialogContent dividers>
           <Box sx={{ position: 'relative', height: '400px' }}>
             <Box
-            ref={scrollRef}
-            sx={{
-              height: '100%',
-              overflowY: 'auto',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 2,
-              p: 1
-            }}
-          >
+              ref={scrollRef}
+              sx={{
+                height: '100%',
+                overflowY: 'auto',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 2,
+                p: 1
+              }}
+            >
               {/* ... content ... */}
-            {messages.length === 0 && (
-              <Box sx={{ textAlign: 'center', mt: 4, opacity: 0.8 }}>
+              {messages.length === 0 && (
+                <Box sx={{ textAlign: 'center', mt: 4, opacity: 0.8 }}>
                   {/* ... hello message ... */}
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3, mb: 3 }}>
-                  <SmartToyIcon sx={{ fontSize: 48, color: 'primary.main', opacity: 0.5 }} />
-                  <Box sx={{ textAlign: 'left' }}>
-                    <Typography variant="h6" sx={{ lineHeight: 1.2 }}>
-                      {t('Hello! I can help you analyze your portfolio.', 'שלום! אני יכול לעזור לך לנתח את התיק שלך.')}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {t('Try asking one of these:', 'נסה לשאול את אחת השאלות הבאות:')}
-                    </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3, mb: 3 }}>
+                    <SmartToyIcon sx={{ fontSize: 48, color: 'primary.main', opacity: 0.5 }} />
+                    <Box sx={{ textAlign: 'left' }}>
+                      <Typography variant="h6" sx={{ lineHeight: 1.2 }}>
+                        {t('Hello! I can help you analyze your portfolio.', 'שלום! אני יכול לעזור לך לנתח את התיק שלך.')}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {t('Try asking one of these:', 'נסה לשאול את אחת השאלות הבאות:')}
+                      </Typography>
+                    </Box>
                   </Box>
-                </Box>
-                <Stack direction="row" flexWrap="wrap" gap={1} justifyContent="center" sx={{ maxWidth: '100%', mx: 'auto', px: 2 }}>
-                  {[
-                    t("Perform a FIRE (Financial Independence) analysis", "בצע ניתוח FIRE (עצמאות כלכלית)"),
-                    t("What are the key risks in my portfolio?", "מהם הסיכונים המרכזיים בתיק?"),
-                    t("How is my asset allocation distributed?", "איך נראית הקצאת הנכסים שלי?"),
-                    t("Check for sector over-exposure", "בדוק חשיפת יתר למגזרים מסוימים"),
-                    t("Stress test: What if the market drops 20%?", "בדיקת עמידות: מה אם השוק יירד ב-20%?"),
-                    t("Suggest 3 improvements for my portfolio", "הצע 3 שיפורים לתיק שלי"),
-                    t("Compare my performance to the market", "השווה את הביצועים שלי לשוק"),
-                  ].map((text, i) => (
-                    <Chip
-                      key={i}
-                      label={text}
-                      onClick={() => handleSend(text)}
-                      clickable
-                      color="primary"
-                      variant="outlined"
-                      size="small"
-                      sx={{ py: 1.5, height: 'auto', '& .MuiChip-label': { whiteSpace: 'normal', px: 2 } }}
-                    />
-                  ))}
-                </Stack>
+                  <Stack direction="row" flexWrap="wrap" gap={1} justifyContent="center" sx={{ maxWidth: '100%', mx: 'auto', px: 2 }}>
+                    {[
+                      t("Perform a FIRE (Financial Independence) analysis", "בצע ניתוח FIRE (עצמאות כלכלית)"),
+                      t("What are the key risks in my portfolio?", "מהם הסיכונים המרכזיים בתיק?"),
+                      t("How is my asset allocation distributed?", "איך נראית הקצאת הנכסים שלי?"),
+                      t("Check for sector over-exposure", "בדוק חשיפת יתר למגזרים מסוימים"),
+                      t("Stress test: What if the market drops 20%?", "בדיקת עמידות: מה אם השוק יירד ב-20%?"),
+                      t("Suggest 3 improvements for my portfolio", "הצע 3 שיפורים לתיק שלי"),
+                      t("Compare my performance to the market", "השווה את הביצועים שלי לשוק"),
+                    ].map((text, i) => (
+                      <Chip
+                        key={i}
+                        label={text}
+                        onClick={() => handleSend(text)}
+                        clickable
+                        color="primary"
+                        variant="outlined"
+                        size="small"
+                        sx={{ py: 1.5, height: 'auto', '& .MuiChip-label': { whiteSpace: 'normal', px: 2 } }}
+                      />
+                    ))}
+                  </Stack>
 
-                {(!userProfile.netYearlyEarnings || !userProfile.yearlySpending || !userProfile.age) && (
-                  <Paper variant="outlined" sx={{
-                    mt: 4, px: 2, py: 1,
-                    bgcolor: 'action.hover',
-                    borderStyle: 'dashed',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: 2,
-                    textAlign: 'left'
-                  }}>
-                    <Typography variant="body2" color="text.secondary">
-                      {t(
-                        "Tip: Complete your financial profile to get personalized analysis and retirement projections.",
-                        "טיפ: השלם את הפרופיל הפיננסי שלך כדי לקבל ניתוח ותחזיות פרישה מותאמות אישית."
-                      )}
-                    </Typography>
-                    <Button
-                      size="small"
-                      onClick={() => setOpenProfile(true)}
-                      startIcon={<ManageAccountsIcon />}
-                      sx={{ textTransform: 'none', whiteSpace: 'nowrap' }}
-                    >
-                      {t("Complete Profile", "השלם פרופיל")}
-                    </Button>
+                  {(!userProfile.netYearlyEarnings || !userProfile.yearlySpending || !userProfile.age) && (
+                    <Paper variant="outlined" sx={{
+                      mt: 4, px: 2, py: 1,
+                      bgcolor: 'action.hover',
+                      borderStyle: 'dashed',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 2,
+                      textAlign: 'left'
+                    }}>
+                      <Typography variant="body2" color="text.secondary">
+                        {t(
+                          "Tip: Complete your financial profile to get personalized analysis and retirement projections.",
+                          "טיפ: השלם את הפרופיל הפיננסי שלך כדי לקבל ניתוח ותחזיות פרישה מותאמות אישית."
+                        )}
+                      </Typography>
+                      <Button
+                        size="small"
+                        onClick={() => setOpenProfile(true)}
+                        startIcon={<ManageAccountsIcon />}
+                        sx={{ textTransform: 'none', whiteSpace: 'nowrap' }}
+                      >
+                        {t("Complete Profile", "השלם פרופיל")}
+                      </Button>
+                    </Paper>
+                  )}
+                </Box>
+              )}
+              {messages.map((msg, i) => (
+                <ChatMessageItem
+                  key={i}
+                  msg={msg}
+                  t={t}
+                  onRetry={handleSend}
+                  lastPrompt={lastPromptRef.current}
+                  onPromptClick={(text) => setInput(text)}
+                  onTickerClick={(ex, sym) => extOnTickerClick?.({ exchange: ex, symbol: sym })}
+                  onProfileClick={() => setOpenProfile(true)}
+                  onNavClick={(path) => onNavClick?.(path)}
+                />
+              ))}
+              {isLoading && (
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <SmartToyIcon color="primary" sx={{ mt: 1 }} />
+                  <Paper sx={{ p: 1.5, borderRadius: 2 }}>
+                    <CircularProgress size={20} />
                   </Paper>
-                )}
-              </Box>
-            )}
-            {messages.map((msg, i) => (
-              <ChatMessageItem
-                key={i}
-                msg={msg}
-                t={t}
-                onRetry={handleSend}
-                lastPrompt={lastPromptRef.current}
-                onPromptClick={(text) => setInput(text)}
-                onTickerClick={(ex, sym) => extOnTickerClick?.({ exchange: ex, symbol: sym })}
-                onProfileClick={() => setOpenProfile(true)}
-                onNavClick={(path) => onNavClick?.(path)}
-              />
-            ))}
-            {isLoading && (
-              <Box sx={{ display: 'flex', gap: 1 }}>
-                <SmartToyIcon color="primary" sx={{ mt: 1 }} />
-                <Paper sx={{ p: 1.5, borderRadius: 2 }}>
-                  <CircularProgress size={20} />
-                </Paper>
-              </Box>
-            )}
+                </Box>
+              )}
               <Box />
             </Box>
             <ScrollShadows top={showTop} bottom={showBottom} theme={theme} />
