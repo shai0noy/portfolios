@@ -145,11 +145,11 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
 
           let isExchangeMatch = !targetExchange || (engineExchange === targetExchange);
 
-          // Relaxed matching for "US" region: If target is 'US', match 'NASDAQ' or 'NYSE' or 'NYSEARCA'
+          // Relaxed matching for "US" region: If target is 'US', match 'NASDAQ' or 'NYSE'
           if (!isExchangeMatch && targetExchange === 'US' && isUSExchange(engineExchange)) {
             isExchangeMatch = true;
           }
-          // Also reverse: if target is 'NASDAQ'/'NYSE'/'NYSEARCA' but engine (rarely) has 'US'
+          // Also reverse: if target is 'NASDAQ'/'NYSE' but engine (rarely) has 'US'
           if (!isExchangeMatch && targetExchange && isUSExchange(targetExchange) && (engineExchange as any) === 'US') {
             isExchangeMatch = true;
           }

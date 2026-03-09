@@ -11,6 +11,7 @@ import {
     type Portfolio,
     type SheetHolding,
     toGoogleSheetsExchangeCode,
+    toGoogleFinanceExchangeCode,
     type Transaction,
     type TransactionType,
     Currency
@@ -303,10 +304,17 @@ export const fetchPortfolios = withAuthHandling(async (spreadsheetId: string): P
     const transactions = transactionRows.map((row: unknown[]) =>
         mapRowToTransaction<Transaction>(row as any[], transactionMapping, transactionNumericKeys)
     ).map((t) => {
-        const cleanNumber = (val: unknown) => {
-            if (typeof val === 'number') return val;
-            if (!val) return 0;
-            return parseFloat(String(val).replace(/[^0-9.-]+/g, ""));
+        const cleanNumber = (val: unknown, fallback: unknown) => {
+            const parse = (v: unknown) => {
+                if (typeof v === 'number') return v;
+                if (!v && v !== 0) return NaN;
+                const str = String(v).replace(/[^0-9.-]+/g, "");
+                return parseFloat(str);
+            };
+            const c1 = parse(val);
+            if (!isNaN(c1)) return c1;
+            const c2 = parse(fallback);
+            return isNaN(c2) ? 0 : c2;
         };
 
         const txn = t as Transaction;
@@ -318,8 +326,8 @@ export const fetchPortfolios = withAuthHandling(async (spreadsheetId: string): P
 
         return {
             ...txn,
-            qty: cleanNumber(txn.splitAdjustedQty || txn.originalQty),
-            price: cleanNumber(txn.splitAdjustedPrice || txn.originalPrice)
+            qty: cleanNumber(txn.splitAdjustedQty, txn.originalQty),
+            price: cleanNumber(txn.splitAdjustedPrice, txn.originalPrice)
         };
     });
 
@@ -406,10 +414,17 @@ export const fetchTransactions = withAuthHandling(async (spreadsheetId: string):
     );
     return transactionsRaw.map(t_raw => {
         const t = t_raw as Transaction;
-        const cleanNumber = (val: unknown) => {
-            if (typeof val === 'number') return val;
-            if (!val) return 0;
-            return parseFloat(String(val).replace(/[^0-9.-]+/g, ""));
+        const cleanNumber = (val: unknown, fallback: unknown) => {
+            const parse = (v: unknown) => {
+                if (typeof v === 'number') return v;
+                if (!v && v !== 0) return NaN;
+                const str = String(v).replace(/[^0-9.-]+/g, "");
+                return parseFloat(str);
+            };
+            const c1 = parse(val);
+            if (!isNaN(c1)) return c1;
+            const c2 = parse(fallback);
+            return isNaN(c2) ? 0 : c2;
         };
 
         if (t.exchange) {
@@ -431,8 +446,8 @@ export const fetchTransactions = withAuthHandling(async (spreadsheetId: string):
             date: normalizedDate ? normalizedDate.toISOString().split('T')[0] : t.date,
             vestDate: normalizedVestDate ? normalizedVestDate.toISOString().split('T')[0] : t.vestDate,
             creationDate: normalizedCreationDate ? normalizedCreationDate.toISOString().split('T')[0] : t.creationDate,
-            qty: cleanNumber(t.splitAdjustedQty || t.originalQty),
-            price: cleanNumber(t.splitAdjustedPrice || t.originalPrice)
+            qty: cleanNumber(t.splitAdjustedQty, t.originalQty),
+            price: cleanNumber(t.splitAdjustedPrice, t.originalPrice)
         } as Transaction;
     }).filter(t => t.date && t.portfolioId && t.ticker);
 });
@@ -496,6 +511,7 @@ export const batchAddTransactions = withAuthHandling(async (spreadsheetId: strin
         rowData.date = t.date ? toGoogleSheetDateFormat(coerceDate(t.date)!) : '';
         rowData.ticker = String(logIfFalsy(t.ticker, `Transaction ticker missing`, t)).toUpperCase();
         rowData.exchange = toGoogleSheetsExchangeCode(t.exchange!);
+        rowData.gfExchange = toGoogleFinanceExchangeCode(t.exchange!);
         rowData.vestDate = t.vestDate ? toGoogleSheetDateFormat(coerceDate(t.vestDate)!) : '';
         rowData.comment = t.comment || '';
         rowData.source = t.source || '';
@@ -584,9 +600,9 @@ type HoldingNonGeneratedData = Omit<SheetHolding, 'portfolioId' | 'totalValue' |
 // Note: h is typed as HoldingNonGeneratedData but we expect it to have 'qty' from the calculation in rebuildHoldingsSheet
 function createHoldingRow(h: HoldingNonGeneratedData & { qty: number }, meta: TickerData | null, rowNum: number): any[] {
     const tickerCell = `A${rowNum}`;
-    const exchangeCell = `B${rowNum}`;
     const priceCell = `C${rowNum}`; // Moved from D to C
-    const tickerAndExchange = `${exchangeCell}&":"&${tickerCell}`;
+    const gfExchangeCell = `T${rowNum}`; // GF_Exchange column is T
+    const tickerAndExchange = `IF(${gfExchangeCell}="", ${tickerCell}, ${gfExchangeCell}&":"&${tickerCell})`;
     const row = new Array(holdingsHeaders.length).fill('');
 
     const isTASE = h.exchange === Exchange.TASE;
@@ -614,6 +630,7 @@ function createHoldingRow(h: HoldingNonGeneratedData & { qty: number }, meta: Ti
     row[16] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-60)")})-1, "")`; // Change_5Y
     row[17] = `=IFERROR((${priceCell}/${priceFormula("EDATE(TODAY(),-120)")})-1, "")`; // Change_10Y
     row[18] = h.numericId || '';
+    row[19] = toGoogleFinanceExchangeCode(h.exchange!);
     return row;
 }
 

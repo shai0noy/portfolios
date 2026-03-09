@@ -49,7 +49,7 @@ export interface Money extends SimpleMoney {
 
 
 const EXCHANGES = [
-  'NASDAQ', 'NYSE', 'NYSEARCA', 'TASE', 'LSE', 'FWB',
+  'NASDAQ', 'NYSE', 'TASE', 'LSE', 'FWB',
   'EURONEXT', 'JPX', 'HKEX', 'TSX', 'ASX', 'GEMEL', 'PENSION',
   'FOREX', 'CBS',
 ] as const;
@@ -71,20 +71,14 @@ interface ExchangeSettings {
 export const EXCHANGE_SETTINGS: Record<Exchange, ExchangeSettings> = {
   [Exchange.NASDAQ]: {
     aliases: ['XNAS', 'NMS', 'NGS', 'NCM', 'NIM', 'BTS', 'BATS'],
-    googleFinanceCode: 'NASDAQ',
+    googleFinanceCode: '',
     googleSheetsCode: 'NASDAQ',
     yahooFinanceSuffix: ''
   },
   [Exchange.NYSE]: {
-    aliases: ['XNYS', 'WCB', 'ASE', 'AMEX', 'NYQ'],
-    googleFinanceCode: 'NYSE',
+    aliases: ['XNYS', 'WCB', 'ASE', 'AMEX', 'NYQ', 'ARCA', 'NYSEARCA'],
+    googleFinanceCode: '',
     googleSheetsCode: 'NYSE',
-    yahooFinanceSuffix: ''
-  },
-  [Exchange.NYSEARCA]: {
-    aliases: ['ARCA'],
-    googleFinanceCode: 'NYSEARCA',
-    googleSheetsCode: 'NYSEARCA',
     yahooFinanceSuffix: ''
   },
   [Exchange.TASE]: {
@@ -164,7 +158,7 @@ export const EXCHANGE_SETTINGS: Record<Exchange, ExchangeSettings> = {
 export function isUSExchange(exchange: Exchange | string): boolean {
   if (!exchange) return false;
   const ex = exchange.toString().toUpperCase();
-  return ex === 'NASDAQ' || ex === 'NYSE' || ex === 'NYSEARCA';
+  return ex === 'NASDAQ' || ex === 'NYSE';
 }
 
 
@@ -199,7 +193,8 @@ export function parseExchange(exchangeId: string): Exchange {
  * @returns The Google Finance exchange code (e.g., 'TLV' for TASE) or the original if no mapping exists.
  */
 export function toGoogleSheetsExchangeCode(exchange: Exchange): string {
-  return EXCHANGE_SETTINGS[exchange]?.googleSheetsCode || exchange;
+  const code = EXCHANGE_SETTINGS[exchange]?.googleSheetsCode;
+  return code !== undefined ? code : exchange;
 }
 
 /**
@@ -208,7 +203,8 @@ export function toGoogleSheetsExchangeCode(exchange: Exchange): string {
  * @returns The Google Finance exchange code (e.g., 'TLV' for TASE) or the original if no mapping exists.
  */
 export function toGoogleFinanceExchangeCode(exchange: Exchange): string {
-  return EXCHANGE_SETTINGS[exchange]?.googleFinanceCode || exchange;
+  const code = EXCHANGE_SETTINGS[exchange]?.googleFinanceCode;
+  return code !== undefined ? code : exchange;
 }
 
 export interface ExchangeRates {
@@ -455,6 +451,7 @@ export interface SheetHolding {
   providentInfo?: ProvidentInfo;
   meta?: ExchangeMetadata;
   type?: InstrumentClassification;
+  gfExchange?: string;
 }
 
 export interface Transaction {
@@ -484,6 +481,7 @@ export interface Transaction {
   numericId?: number;
   nominalValue?: number;
   rowIndex?: number;
+  gfExchange?: string;
 }
 
 export type TransactionType = Transaction['type'];

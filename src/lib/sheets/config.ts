@@ -68,7 +68,7 @@ export const TXN_COLS: TransactionColumns = {
         colName: 'Split_Adj_Open_Price',
         colId: 'Q',
         numeric: true,
-        formula: (rowNum, cols) => `=INDEX(GOOGLEFINANCE(${cols.exchange.colId}${rowNum}&":"&${cols.ticker.colId}${rowNum}, "open", ${cols.creationDate.colId}${rowNum}), 2, 2)`
+        formula: (rowNum, cols) => `=INDEX(GOOGLEFINANCE(IF(${cols.gfExchange.colId}${rowNum}="", ${cols.ticker.colId}${rowNum}, ${cols.gfExchange.colId}${rowNum}&":"&${cols.ticker.colId}${rowNum}), "open", ${cols.creationDate.colId}${rowNum}), 2, 2)`
     },
     splitRatio: {
         key: 'splitRatio',
@@ -96,6 +96,11 @@ export const TXN_COLS: TransactionColumns = {
         colName: 'Numeric_ID',
         colId: 'U',
         numeric: true
+    },
+    gfExchange: {
+        key: 'gfExchange',
+        colName: 'GF_Exchange',
+        colId: 'V'
     }
 };
 
@@ -124,7 +129,7 @@ export const portfolioHeaders = ['Portfolio_ID', 'Display_Name', 'Cap_Gains_Tax_
 export const holdingsHeaders = [
     'Ticker', 'Exchange', 'Live_Price', 'Currency', 'Total Holding Value',
     'Name_En', 'Name_He', 'Sector', 'Type', 'Day_Change',
-    'Change_1W', 'Change_1M', 'Change_3M', 'Change_YTD', 'Change_1Y', 'Change_3Y', 'Change_5Y', 'Change_10Y', 'Numeric_ID'
+    'Change_1W', 'Change_1M', 'Change_3M', 'Change_YTD', 'Change_1Y', 'Change_3Y', 'Change_5Y', 'Change_10Y', 'Numeric_ID', 'GF_Exchange'
 ] as const;
 export const configHeaders = ['Key', 'Value', '1D Ago', '1W Ago', '1M Ago', '3M Ago', '6M Ago', 'YTD', '1Y Ago', '3Y Ago', '5Y Ago'] as const;
 
@@ -157,7 +162,7 @@ export const TRACKING_LISTS_RANGE = `${TRACKING_LISTS_SHEET_NAME}!A2:D`;
 
 // Manually update this date (YYYY-MM-DD) whenever the schema (columns, formulas) changes.
 // The app will verify if the sheet's last setup date is older than this.
-export const SHEET_STRUCTURE_VERSION_DATE = '2026-03-01'; // Bumped for column removal
+export const SHEET_STRUCTURE_VERSION_DATE = '2026-03-09'; // Bumped for gfExchange
 
 // --- Mappings from Sheet Headers to Typescript Object Keys ---
 
@@ -178,7 +183,7 @@ export const holdingMapping: Record<keyof SheetHolding, typeof holdingsHeaders[n
     name: 'Name_En', nameHe: 'Name_He', sector: 'Sector', type: 'Type',
     changePct1d: 'Day_Change', changePctRecent: 'Change_1W', changePct1m: 'Change_1M', changePct3m: 'Change_3M',
     changePctYtd: 'Change_YTD', changePct1y: 'Change_1Y', changePct3y: 'Change_3Y', changePct5y: 'Change_5Y', changePct10y: 'Change_10Y',
-    numericId: 'Numeric_ID'
+    numericId: 'Numeric_ID', gfExchange: 'GF_Exchange'
 };
 export const holdingNumericKeys: (keyof SheetHolding)[] = [
     'price', 'totalValue', 'changePct1d', 'changePctRecent', 'changePct1m', 'changePct3m',
