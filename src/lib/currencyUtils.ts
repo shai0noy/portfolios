@@ -141,26 +141,29 @@ export function formatValue(n: number, currency: string | Currency, decimals = 2
     n = toILS(n, Currency.ILA);
   }
 
+  const activeDecimals = Math.abs(n) >= 100 ? 0 : decimals;
+
   try {
     return LTR_MARK + new Intl.NumberFormat(undefined, {
       style: 'currency',
       currency: norm,
       minimumFractionDigits: 0,
-      maximumFractionDigits: decimals
+      maximumFractionDigits: activeDecimals
     }).format(n);
   } catch (e) {
     console.warn(`Could not format currency for code: ${norm}. Using default format.`);
-    const val = n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: decimals, useGrouping: true });
+    const val = n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: activeDecimals, useGrouping: true });
     return `${LTR_MARK}${val} ${norm}`;
   }
 }
 
 export function formatPercent(n: number, alwaysShowSign = false): string {
   if (n === undefined || n === null || isNaN(n)) return '-';
+  const activeDecimals = Math.abs(n) >= 1 ? 0 : 2;
   const formatter = new Intl.NumberFormat(undefined, {
     style: 'percent',
     minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
+    maximumFractionDigits: activeDecimals,
     signDisplay: alwaysShowSign ? 'exceptZero' : 'auto',
   });
   return LTR_MARK + formatter.format(n);

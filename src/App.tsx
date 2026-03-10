@@ -12,7 +12,7 @@ import {
   Box, AppBar, Toolbar, Typography, Container, Tabs, Tab, IconButton, CircularProgress,
   ThemeProvider, CssBaseline, Snackbar, Alert, ListItemIcon, ListItemText,
   Button, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions,
-  Drawer, List, ListItem, ListItemButton, ListSubheader, Collapse, Divider
+  Drawer, List, ListItem, ListItemButton, ListSubheader, Collapse, Divider, useMediaQuery
 } from '@mui/material';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
@@ -94,6 +94,7 @@ function AppContent() {
 
   const { t, toggleLanguage, language, isRtl } = useLanguage();
   const theme = useMemo(() => getTheme(mode, isRtl ? 'rtl' : 'ltr', colorblindMode), [mode, isRtl, colorblindMode]);
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -555,7 +556,7 @@ function AppContent() {
       <ThemeProvider theme={theme}>
         <CssBaseline />
         <Box sx={{ flexGrow: 1, minHeight: '100vh', bgcolor: 'background.default' }}>
-          <AppBar position="sticky" color="inherit" elevation={0} sx={{
+          <AppBar position={isMobile ? 'static' : 'sticky'} color="inherit" elevation={0} sx={{
             borderBottom: 1,
             borderColor: 'divider',
             backdropFilter: 'blur(12px)',
@@ -564,34 +565,49 @@ function AppContent() {
             zIndex: (theme) => theme.zIndex.drawer + 1,
             transition: 'all 0.3s ease'
           }}>
-            <Toolbar sx={{ flexWrap: { xs: 'wrap', sm: 'nowrap' }, gap: { xs: 1, sm: 0 }, py: { xs: 1, sm: 0.5 } }}>
-              <Typography variant="h5" component="div" sx={{
-                flexGrow: 0, flexShrink: 1, minWidth: 0,
-                color: 'text.primary',
-                fontWeight: 800,
-                letterSpacing: '-0.5px',
-                mr: { xs: 1, sm: 4 },
-                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: { xs: 140, sm: 'none' }
-              }}>
-                {t('My Portfolios', 'My Portfolios')}
-              </Typography>
+            <Toolbar sx={{ flexWrap: 'wrap', gap: { xs: 0, sm: 0 }, py: { xs: 1, sm: 0.5 } }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: { xs: '100%', sm: 'auto' } }}>
+                <Typography variant="h5" component="div" sx={{
+                  flexGrow: 0, flexShrink: 1, minWidth: 0,
+                  color: 'text.primary',
+                  fontWeight: 800,
+                  letterSpacing: '-0.5px',
+                  mr: { xs: 1, sm: 4 },
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: { xs: 'none', sm: 'none' }
+                }}>
+                  {t('My Portfolios', 'My Portfolios')}
+                </Typography>
 
-              <Tabs value={currentTab} onChange={handleTabChange} textColor="primary" indicatorColor="primary" variant="scrollable" scrollButtons="auto" allowScrollButtonsMobile sx={{ flexGrow: 1, minWidth: 0 }}>
+                {isMobile && (
+                  <IconButton
+                    size="large"
+                    aria-label="open drawer"
+                    onClick={handleMobileMenuOpen}
+                    color="inherit"
+                  >
+                    <MenuIcon />
+                  </IconButton>
+                )}
+              </Box>
+
+              <Tabs value={currentTab} onChange={handleTabChange} textColor="primary" indicatorColor="primary" variant="scrollable" scrollButtons="auto" allowScrollButtonsMobile sx={{ flexGrow: 1, minWidth: 0, width: { xs: '100%', sm: 'auto' } }}>
                 <Tab label={t("Dashboard", "דאשבורד")} sx={{ textTransform: 'none', fontSize: { xs: '0.9rem', sm: '1rem' }, minHeight: 64, minWidth: 64 }} component={RouterLink} to="/dashboard" />
                 <Tab label={t("Add Trade", "הוסף עסקה")} sx={{ textTransform: 'none', fontSize: { xs: '0.9rem', sm: '1rem' }, minHeight: 64, minWidth: 64 }} component={RouterLink} to="/transaction" />
                 <Tab label={t("Manage Portfolios", "ניהול תיקים")} sx={{ textTransform: 'none', fontSize: { xs: '0.9rem', sm: '1rem' }, minHeight: 64, minWidth: 80 }} component={RouterLink} to="/portfolios" />
               </Tabs>
 
-              <Box sx={{ display: 'flex' }}>
-                <IconButton
-                  size="large"
-                  aria-label="open drawer"
-                  onClick={handleMobileMenuOpen}
-                  color="inherit"
-                >
-                  <MenuIcon />
-                </IconButton>
-              </Box>
+              {!isMobile && (
+                <Box sx={{ display: 'flex' }}>
+                  <IconButton
+                    size="large"
+                    aria-label="open drawer"
+                    onClick={handleMobileMenuOpen}
+                    color="inherit"
+                  >
+                    <MenuIcon />
+                  </IconButton>
+                </Box>
+              )}
             </Toolbar>
           </AppBar>
 
