@@ -74,6 +74,7 @@ interface SearchItem {
   sNameEn: string;
   sNameHe: string;
   sSecId: string;
+  sExchange: string;
   key: string;
 }
 
@@ -94,7 +95,12 @@ function performSearch(
 ): SearchResult[] {
   if (!searchTerm) return [];
 
-  const termUC = searchTerm.toUpperCase();
+  // Strip . and -
+  const rawTermClean = searchTerm.replace(/[.-]/g, '');
+  const rawTermUC = rawTermClean.toUpperCase();
+  const searchTokens = rawTermUC.split(/\s+/).filter(Boolean);
+  if (searchTokens.length === 0) return [];
+  const termUC = searchTokens.join(' ');
   const isNumeric = /^\d+$/.test(termUC);
   const termNum = isNumeric ? parseInt(termUC, 10) : NaN;
 
@@ -114,12 +120,21 @@ function performSearch(
 
     if (exchange !== 'ALL' && item.profile.exchange !== exchange) continue;
 
-    const matchesSymbol = item.sSymbol.includes(termUC);
-    const matchesId = item.sSecId.includes(termUC);
-    const matchesNameEn = item.sNameEn.includes(termUC);
-    const matchesNameHe = item.sNameHe.includes(termUC);
+    let matchesAllTokens = true;
+    for (const token of searchTokens) {
+      if (!(
+        item.sSymbol.includes(token) ||
+        item.sSecId.includes(token) ||
+        item.sNameEn.includes(token) ||
+        item.sNameHe.includes(token) ||
+        item.sExchange.includes(token)
+      )) {
+        matchesAllTokens = false;
+        break;
+      }
+    }
 
-    if (matchesSymbol || matchesId || matchesNameEn || matchesNameHe) {
+    if (matchesAllTokens) {
       if (!addedKeys.has(item.key)) {
         addedKeys.add(item.key);
 
@@ -127,9 +142,13 @@ function performSearch(
         const favorite = favoriteTickers.has(item.key);
         const res: SearchResult = { profile: item.profile, ownedInPortfolios: owned, isFavorite: favorite };
 
-        // Bucketing Logic
-        const isExact = item.sSymbol === termUC || (!isNaN(termNum) && item.profile.securityId === termNum);
-        const isStart = item.sSymbol.startsWith(termUC);
+        // Bucketing Logic: we must be careful since sSymbol now has stripped characters.
+        // We'll use the un-stripped symbol for exact/startsWith checks if termUC isn't fully stripped.
+        // Actually, since we want "ktf nasdaq" (termUC has "NASDAq") to work for START bucketing, 
+        // we should probably just use the first token for prefix bucketing.
+        const primaryToken = searchTokens[0] || '';
+        const isExact = item.sSymbol === primaryToken || (!isNaN(termNum) && item.profile.securityId === termNum);
+        const isStart = item.sSymbol.startsWith(primaryToken);
         const isOwned = !!owned;
 
         if (isExact) {
@@ -166,18 +185,19 @@ function performSearch(
 // Pre-compute dataset for fast search
 function useFlatDataset(dataset: Record<string, TickerProfile[]>) {
   return useMemo(() => {
-    const flat: SearchItem[] = [];
-    Object.values(dataset).flat().forEach(profile => {
-      flat.push({
-        profile,
-        sSymbol: profile.symbol.toUpperCase(),
-        sNameEn: (profile.name || '').toUpperCase(),
-        sNameHe: (profile.nameHe || '').toUpperCase(),
-        sSecId: (profile.securityId !== undefined ? profile.securityId.toString() : ''),
-        key: `${profile.exchange}:${profile.symbol.toUpperCase()}`
-      });
-    });
-    return flat;
+    // Helper to strip out dots and dashes for flexible matching
+    const normalize = (val: string | undefined) =>
+      (val || '').replace(/[.-]/g, '').toUpperCase();
+
+    return Object.values(dataset).flat().map(profile => ({
+      profile,
+      sSymbol: normalize(profile.symbol),
+      sNameEn: normalize(profile.name),
+      sNameHe: normalize(profile.nameHe),
+      sSecId: profile.securityId !== undefined ? profile.securityId.toString() : '',
+      sExchange: normalize(profile.exchange),
+      key: `${profile.exchange}:${profile.symbol.toUpperCase()}`
+    }));
   }, [dataset]);
 }
 
