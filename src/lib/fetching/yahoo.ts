@@ -193,7 +193,7 @@ export async function fetchYahooTickerData(
 
       const getLatestValidValue = (arr: (number | null)[], cutoffDays = 40) => {
         for (let i = arr.length - 1; i >= 0; i--) {
-          if (timestamps[i] < Date.now() - cutoffDays * 24 * 60 * 60 * 1000) {
+          if (timestamps[i] < Date.now() / 1000 - cutoffDays * 24 * 60 * 60) {
             return null;
           }
           if (arr[i] !== null && arr[i] !== undefined) {
@@ -207,10 +207,15 @@ export async function fetchYahooTickerData(
       const price = meta.regularMarketPrice;
       const shareVolume = meta.regularMarketVolume || getLatestValidValue(periodVolumes);
       const volume = (shareVolume && price) ? shareVolume * price : undefined;
-      const openPrice = getLatestValidValue(openPrices);
+      const openPrice = getLatestValidValue(openPrices) ?? undefined;
       const currency = meta.currency;
       const exchangeCode = meta.exchangeName || 'OTHER';
-      const lastClose = getLatestValidValue(closes);
+      let lastClose = getLatestValidValue(closes);
+
+      const lastCloseIsToday = timestamps.length > 0 && (Date.now() / 1000 - timestamps[timestamps.length - 1]) < 24 * 60 * 60;
+      if (lastClose === price && lastCloseIsToday && closes?.length > 1) {
+        lastClose = closes[closes.length - 2];
+      }
 
       if (exchange === Exchange.TASE && meta.instrumentType !== "EQUITY") {
         // Handle a rare case where price points are in ILS.
