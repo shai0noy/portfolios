@@ -149,8 +149,8 @@ export const HOLDINGS_SHEET = 'Holdings';
 export const HOLDINGS_RANGE = `${HOLDINGS_SHEET}!A2:${String.fromCharCode(65 + holdingsHeaders.length - 1)}`;
 
 export const DIV_SHEET_NAME = 'Dividends';
-export const dividendHeaders = ['Exchange', 'Ticker', 'Date', 'Div_Amount', 'Source'] as const;
-export const DIVIDENDS_RANGE = `${DIV_SHEET_NAME}!A2:E`;
+export const dividendHeaders = ['Exchange', 'Ticker', 'Date', 'Div_Amount', 'Source', 'Asset_Price_At_Time', 'Currency'] as const;
+export const DIVIDENDS_RANGE = `${DIV_SHEET_NAME}!A2:G`;
 
 export const EXTERNAL_DATASETS_SHEET_NAME = 'External_Datasets';
 export const externalDatasetsHeaders = ['Ticker', 'Exchange', 'Date', 'Price', 'Currency'] as const;
@@ -162,7 +162,7 @@ export const TRACKING_LISTS_RANGE = `${TRACKING_LISTS_SHEET_NAME}!A2:D`;
 
 // Manually update this date (YYYY-MM-DD) whenever the schema (columns, formulas) changes.
 // The app will verify if the sheet's last setup date is older than this.
-export const SHEET_STRUCTURE_VERSION_DATE = '2026-03-09'; // Bumped for gfExchange
+export const SHEET_STRUCTURE_VERSION_DATE = '2026-03-09';
 
 // --- Mappings from Sheet Headers to Typescript Object Keys ---
 

@@ -674,7 +674,7 @@ export const fetchDividends = withAuthHandling(async (spreadsheetId: string, tic
     }
 });
 
-export const fetchAllDividends = withAuthHandling(async (spreadsheetId: string): Promise<{ ticker: string, exchange: Exchange, date: Date, amount: number, source: string, rowIndex: number }[]> => {
+export const fetchAllDividends = withAuthHandling(async (spreadsheetId: string): Promise<{ ticker: string, exchange: Exchange, date: Date, amount: number, source: string, assetPriceAtTime?: number, currency?: string, rowIndex: number }[]> => {
     const gapi = await ensureGapi();
     try {
         const res = await gapi.client.sheets.spreadsheets.values.get({
@@ -702,10 +702,12 @@ export const fetchAllDividends = withAuthHandling(async (spreadsheetId: string):
                 date,
                 amount: Number(row[3]),
                 source: String(row[4] || ''),
+                assetPriceAtTime: (row[5] !== undefined && row[5] !== null && String(row[5]).trim() !== "" && !isNaN(Number(row[5]))) ? Number(row[5]) : undefined,
+                currency: row[6] ? String(row[6]) : undefined,
                 rowIndex: index + 2
             };
         })
-            .filter(div => div.exchange && !isNaN(div.date.getTime()) && !isNaN(div.amount)) as { ticker: string, exchange: Exchange, date: Date, amount: number, source: string, rowIndex: number }[];
+            .filter(div => div.exchange && !isNaN(div.date.getTime()) && !isNaN(div.amount)) as { ticker: string, exchange: Exchange, date: Date, amount: number, source: string, assetPriceAtTime?: number, currency?: string, rowIndex: number }[];
     } catch (error: any) {
         if (error.result?.error?.code === 400) {
             return [];
@@ -774,12 +776,17 @@ export const syncDividends = withAuthHandling(async (spreadsheetId: string, tick
                 // Rule 2: If an exact match exists (same amount), ignore to prevent duplicates.
                 if (exactMatches.has(`${prefix}:${amountStr}`)) return null;
 
+                const priceFormula = `=IFERROR(INDEX(GOOGLEFINANCE(IF(TRIM(INDIRECT("A"&ROW()))="", INDIRECT("B"&ROW()), INDIRECT("A"&ROW())&":"&INDIRECT("B"&ROW())), "price", INDIRECT("C"&ROW())), 2, 2), "")`;
+                const currencyFormula = `=IFERROR(GOOGLEFINANCE(IF(TRIM(INDIRECT("A"&ROW()))="", INDIRECT("B"&ROW()), INDIRECT("A"&ROW())&":"&INDIRECT("B"&ROW())), "currency"), "")`;
+
                 return [
                     toGoogleSheetsExchangeCode(exchange),
                     ticker.toUpperCase(),
                     dateStr,
                     div.amount,
-                    effectiveSource
+                    effectiveSource,
+                    priceFormula,
+                    currencyFormula
                 ];
             })
             .filter((row): row is any[] => row !== null);

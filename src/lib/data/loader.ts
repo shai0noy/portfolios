@@ -104,7 +104,8 @@ export const loadFinanceEngine = async (sheetId: string, forceRefresh = false) =
                 exchange: d.exchange,
                 date: new Date(d.date),
                 amount: d.amount,
-                source: d.source || 'SHEET'
+                source: d.source || 'SHEET',
+                assetPriceAtDrip: d.assetPriceAtTime !== undefined && !isNaN(Number(d.assetPriceAtTime)) ? Number(d.assetPriceAtTime) : undefined
             }));
 
             // Reconstruct Engine
@@ -113,6 +114,8 @@ export const loadFinanceEngine = async (sheetId: string, forceRefresh = false) =
             // Fetch historical prices for DRIP logic
             const livePricesMap = new Map<string, TickerData>(livePrices);
             dividends.forEach(d => {
+                if (d.assetPriceAtDrip !== undefined && !isNaN(d.assetPriceAtDrip)) return; // Skip if explicitly read from sheet
+
                 const key = `${d.exchange}:${d.ticker}`;
                 const tdata = livePricesMap.get(key);
                 if (tdata && tdata.historical) {
@@ -165,7 +168,8 @@ export const loadFinanceEngine = async (sheetId: string, forceRefresh = false) =
         exchange: d.exchange,
         date: new Date(d.date), // Ensure Date object
         amount: d.amount,
-        source: d.source || 'SHEET'
+        source: d.source || 'SHEET',
+        assetPriceAtDrip: d.assetPriceAtTime !== undefined && !isNaN(Number(d.assetPriceAtTime)) ? Number(d.assetPriceAtTime) : undefined // Use explicitly saved sheet price if it exists
     }));
 
     const cpiData = await fetchCPIData(sheetId);
@@ -288,8 +292,10 @@ export const loadFinanceEngine = async (sheetId: string, forceRefresh = false) =
     // Create Engine
     const engine = new FinanceEngine(portfolios, exchangeRates as unknown as ExchangeRates, cpiData);
 
-    // Fetch historical prices for DRIP logic
+    // Fetch historical prices for DRIP logic (Fallback)
     dividends.forEach(d => {
+        if (d.assetPriceAtDrip !== undefined && !isNaN(d.assetPriceAtDrip)) return; // Wait! we already have the price from the sheet itself (highly accurate) 
+
         const key = `${d.exchange}:${d.ticker}`;
         const tdata = livePricesMap.get(key);
         if (tdata && tdata.historical) {
