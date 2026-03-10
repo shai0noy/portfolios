@@ -231,7 +231,6 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
       const xmlDoc = parseXmlString(text);
       const instrument = xmlDoc.getElementsByTagNameNS(GLOBES_API_NAMESPACE, 'Instrument')[0];
       if (!instrument) {
-        console.log(`Globes: No instrument found for ${identifier}`);
         return null;
       }
 

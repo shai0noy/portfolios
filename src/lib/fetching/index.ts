@@ -209,10 +209,6 @@ export async function getTickerData(
     taseProfilePromise
   ]);
 
-  if (parsedExchange === Exchange.TASE && taseProfile) {
-    console.log(`[getTickerData] Found TASE profile for ${ticker}:`, taseProfile);
-  }
-
   // Fallback to Yahoo if the first source fails, or merge data if both succeed.
   if (!globesData) {
     if (yahooData) {

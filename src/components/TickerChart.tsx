@@ -1631,9 +1631,9 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                     </Dialog>
                 )
             }
-            <Box sx={{ flex: 1, minHeight: 0, position: 'relative' }}>
+            <Box sx={{ flex: 1, minHeight: 1, minWidth: 1, position: 'relative' }}>
                 <SelectionSummary startPoint={startPoint} endPoint={endPoint} currency={currency} t={t} isComparison={isComparison} series={displaySeries} mainLineColor={mainLineColor} mode={currentMode} hideCurrentPrice={hideCurrentPrice} />
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                     {currentMode === 'candle' ? (
                         <ComposedChart
                             data={finalData}

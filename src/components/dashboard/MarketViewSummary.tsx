@@ -214,8 +214,8 @@ export function MarketViewSummary({ isMobile }: MarketViewProps) {
                       <CircularProgress size={20} />
                     </Box>
                   ) : (
-                    <Box sx={{ flex: 1, minHeight: 0 }}>
-                      <ResponsiveContainer width="100%" height="100%">
+                      <Box sx={{ flex: 1, minHeight: 1, minWidth: 1 }}>
+                        <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                           <LineChart data={chartData} margin={{ top: 5, right: 0, left: 0, bottom: 0 }}>
                             <CartesianGrid stroke={theme.palette.text.disabled} strokeDasharray="3 3" strokeOpacity={0.4} />
                             <ReferenceLine y={0} stroke={theme.palette.text.secondary} strokeOpacity={0.5} strokeWidth={1} />
