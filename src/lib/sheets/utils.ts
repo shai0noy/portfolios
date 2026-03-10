@@ -19,9 +19,11 @@ export function createRowMapper<T extends readonly string[]>(headers: T) {
                     if (value === undefined || value === null || String(value).trim() === "") {
                         (obj as any)[key] = undefined;
                     } else {
-                        const numVal = parseFloat(String(value).replace(/,/g, '').replace(/%/, ''));
+                        const strVal = String(value).trim();
+                        const isPercentage = strVal.endsWith('%');
+                        const numVal = parseFloat(strVal.replace(/,/g, '').replace(/%/, ''));
                         (obj as any)[key] = isNaN(numVal) ? undefined : numVal;
-                        if ((obj as any)[key] !== undefined && mapping[key].includes('%')) {
+                        if ((obj as any)[key] !== undefined && isPercentage) {
                             (obj as any)[key] = ((obj as any)[key] as number) / 100;
                         }
                     }

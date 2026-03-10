@@ -233,6 +233,8 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
   };
 
   const cancelEdit = () => {
+    navigate('/portfolios');
+    setShowNewPortfolioForm(false);
     setEditMode(false);
     setEditingPortfolio(null);
     setP({
@@ -405,6 +407,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
       setP({ id: '', name: '' });
       setIdDirty(false);
       loadPortfolios();
+      navigate('/portfolios');
       onSuccess();
     } catch (e) {
       console.error(e);
@@ -664,30 +667,8 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
 
                         <Typography variant="subtitle2" color="text.secondary" gutterBottom>{t('TRADING FESS', 'עמלות מסחר')}</Typography>
                         <Grid container spacing={3} mt={0.5} mb={3}>
-                          <Grid item xs={12} sm={4}>
-                            <PercentageField label={t('Rate', 'שיעור')} field="commRate" value={p.commRate || 0} onUpdate={handleUpdate} tooltip={t("Commission rate per trade", "שיעור עמלה לכל פעולה")} />
-                          </Grid>
-                          <Grid item xs={12} sm={4}>
-                            <NumericField label={t('Min Fee', 'עמלת מינימום')} field="commMin" value={p.commMin || 0} onUpdate={handleUpdate} currency={p.currency} />
-                          </Grid>
-                          <Grid item xs={12} sm={4}>
-                            <NumericField label={t('Max Fee', 'עמלת מקסימום')} field="commMax" value={p.commMax || 0} onUpdate={handleUpdate} currency={p.currency} />
-                          </Grid>
-                        </Grid>
-
-                        <Box display="flex" alignItems="center" gap={1} mb={1}>
-                          <Typography variant="subtitle2" color="text.secondary">{t('HOLDING FEES', 'דמי ניהול והחזקה')}</Typography>
-                          <Tooltip title={t("Recurring fees charged by the broker/manager (e.g. 0.7% Accumulation, or 15 ILS/month).", "עמלות חוזרות הנגבות על ידי הברוקר/מנהל (למשל 0.7% צבירה, או 15 ש\"ח לחודש).")}>
-                            <InfoOutlinedIcon fontSize="inherit" color="action" />
-                          </Tooltip>
-                        </Box>
-                        <Grid container spacing={3} mt={0}>
                           <Grid item xs={12} sm={6}>
-                            {p.mgmtType === 'percentage' ? (
-                              <PercentageField label={t('Value', 'ערך')} field="mgmtVal" value={p.mgmtVal || 0} onUpdate={handleUpdate} />
-                            ) : (
-                                <NumericField label={t('Value', 'ערך')} field="mgmtVal" value={p.mgmtVal || 0} onUpdate={handleUpdate} currency={p.currency} />
-                            )}
+                            <PercentageField label={t('Rate', 'שיעור')} field="commRate" value={p.commRate || 0} onUpdate={handleUpdate} tooltip={t("Commission rate per trade", "שיעור עמלה לכל פעולה")} />
                           </Grid>
                           <Grid item xs={12} sm={6}>
                             <FormControl fullWidth size="small">
@@ -700,11 +681,32 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                                 <MenuItem value="none">{t('None', 'ללא')}</MenuItem>
                                 <MenuItem value="buys">{t('Buys Free', 'קנייה חינם')}</MenuItem>
                                 <MenuItem value="sells">{t('Sells Free', 'מכירה חינם')}</MenuItem>
-
                               </Select>
                             </FormControl>
                           </Grid>
                           <Grid item xs={12} sm={6}>
+                            <NumericField label={t('Min Fee', 'עמלת מינימום')} field="commMin" value={p.commMin || 0} onUpdate={handleUpdate} currency={p.currency} />
+                          </Grid>
+                          <Grid item xs={12} sm={6}>
+                            <NumericField label={t('Max Fee', 'עמלת מקסימום')} field="commMax" value={p.commMax || 0} onUpdate={handleUpdate} currency={p.currency} />
+                          </Grid>
+                        </Grid>
+
+                        <Box display="flex" alignItems="center" gap={1} mb={1}>
+                          <Typography variant="subtitle2" color="text.secondary">{t('HOLDING FEES', 'דמי ניהול והחזקה')}</Typography>
+                          <Tooltip title={t("Recurring fees charged by the broker/manager (e.g. 0.7% Accumulation, or 15 ILS/month).", "עמלות חוזרות הנגבות על ידי הברוקר/מנהל (למשל 0.7% צבירה, או 15 ש\"ח לחודש).")}>
+                            <InfoOutlinedIcon fontSize="inherit" color="action" />
+                          </Tooltip>
+                        </Box>
+                        <Grid container spacing={3} mt={0}>
+                          <Grid item xs={12} sm={4}>
+                            {p.mgmtType === 'percentage' ? (
+                              <PercentageField label={t('Value', 'ערך')} field="mgmtVal" value={p.mgmtVal || 0} onUpdate={handleUpdate} />
+                            ) : (
+                                <NumericField label={t('Value', 'ערך')} field="mgmtVal" value={p.mgmtVal || 0} onUpdate={handleUpdate} currency={p.currency} />
+                            )}
+                          </Grid>
+                          <Grid item xs={12} sm={4}>
                             <FormControl fullWidth size="small">
                               <InputLabel>{t('Type', 'סוג')}</InputLabel>
                               <Select value={p.mgmtType} label={t('Type', 'סוג')} onChange={e => set('mgmtType', e.target.value)}>
@@ -713,7 +715,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                               </Select>
                             </FormControl>
                           </Grid>
-                          <Grid item xs={12} sm={6}>
+                          <Grid item xs={12} sm={4}>
                             <FormControl fullWidth size="small">
                               <InputLabel>{t('Frequency', 'תדירות')}</InputLabel>
                               <Select value={p.mgmtFreq} label={t('Frequency', 'תדירות')} onChange={e => set('mgmtFreq', e.target.value)}>
