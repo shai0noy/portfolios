@@ -97,7 +97,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   });
   const [total, setTotal] = useState<string>('');
   const [percent, setPercent] = useState<string>(''); // New Percent State
-  const [vestDate, setVestDate] = useState(formatDate(new Date()));
+  const [vestDate, setVestDate] = useState('');
   const [comment, setComment] = useState('');
   const [commission, setCommission] = useState<string>('');
   const [tickerCurrency, setTickerCurrency] = useState<Currency>(normalizeCurrency(locationState?.initialCurrency || ''));
@@ -400,12 +400,12 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     setHasManuallyEditedPrice(false);
   };
 
-  const handleQtyChange = useCallback((val: number) => {
-    // NumericField passes number (or 0 if invalid/empty)
+  const handleQtyChange = useCallback((val: number, valStr?: string) => {
+  // NumericField passes number and valStr
 
     // Check for negative? NumericField already clamps to 0? Yes.
-    const valStr = val.toString();
-    setQty(valStr);
+    const finalStr = valStr !== undefined ? valStr : val.toString();
+    setQty(finalStr);
     const q = val;
     const p = parseFloat(price);
 
@@ -438,10 +438,10 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     }
   }, [price, type, selectedTicker, portId, portfolios, tickerCurrency, majorCurrency, exchangeRates, updateCommission]);
 
-  const handlePriceChange = useCallback((val: number) => {
+  const handlePriceChange = useCallback((val: number, valStr?: string) => {
     setHasManuallyEditedPrice(true);
-    const valStr = val.toString();
-    setPrice(valStr);
+    const finalStr = valStr !== undefined ? valStr : val.toString();
+    setPrice(finalStr);
     const q = parseFloat(qty);
     const p = val;
     if (Number.isFinite(q) && Number.isFinite(p)) {
@@ -457,10 +457,10 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     }
   }, [qty, tickerCurrency, majorCurrency, exchangeRates, updateCommission, portId, type]);
 
-  const handleTotalChange = useCallback((val: number) => {
-    const valStr = val.toString();
-    setTotal(valStr);
-    updateCommission(valStr, portId, type);
+  const handleTotalChange = useCallback((val: number, valStr?: string) => {
+    const finalStr = valStr !== undefined ? valStr : val.toString();
+    setTotal(finalStr);
+    updateCommission(finalStr, portId, type);
 
     const q = parseFloat(qty);
     const p = parseFloat(price);
@@ -487,9 +487,9 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     }
   }, [qty, price, portId, type, buyPrice, buyTicker, majorCurrency, exchangeRates, updateCommission, tickerCurrency, EPS]);
 
-  const handleCommissionChange = useCallback((val: number) => {
-    const valStr = val.toString();
-    setCommission(valStr);
+  const handleCommissionChange = useCallback((val: number, valStr?: string) => {
+    const finalStr = valStr !== undefined ? valStr : val.toString();
+    setCommission(finalStr);
     const comm = val;
     const t = parseFloat(total);
     if (Number.isFinite(comm) && Number.isFinite(t) && Math.abs(t) > EPS) {
@@ -499,9 +499,9 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     }
   }, [total, EPS]);
 
-  const handleCommissionPctChange = useCallback((val: number) => {
-    const valStr = val.toString();
-    setCommissionPct(valStr);
+  const handleCommissionPctChange = useCallback((val: number, valStr?: string) => {
+    const finalStr = valStr !== undefined ? valStr : val.toString();
+    setCommissionPct(finalStr);
     const pct = val;
     const t = parseFloat(total);
     if (Number.isFinite(pct) && Number.isFinite(t)) {
@@ -518,9 +518,9 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   // useCallback for runValidation to be stable if needed, or just function.
   // We removed the useEffect that auto-runs it. It should be called on Submit or specific events if desired.
 
-  const handlePercentChange = useCallback((val: number) => {
-    const valStr = val.toString();
-    setPercent(valStr);
+  const handlePercentChange = useCallback((val: number, valStr?: string) => {
+    const finalStr = valStr !== undefined ? valStr : val.toString();
+    setPercent(finalStr);
     const pct = val;
 
     if ((isTxnSell(type) || type === 'HOLDING_CHANGE') && selectedTicker) {
@@ -1483,13 +1483,13 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                             {!previewTxns ? (
                               <Grid container spacing={2}>
                                 <Grid item xs={6} sm={4}>
-                                  <NumericField label={t("Total Units", "סך יחידות")} field="qty" value={qty} onChange={v => handleQtyChange(v)} required />
+                                  <NumericField label={t("Total Units", "סך יחידות")} field="qty" value={qty} onChange={handleQtyChange} required />
                                 </Grid>
-                                <Grid item xs={6} sm={4}>
-                                  <NumericField label={t("Price", "מחיר")} field="price" value={price} onChange={v => handlePriceChange(v)} />
+                                <Grid item xs={12} sm={3}>
+                                  <NumericField label={t("Price", "מחיר")} field="price" value={price} onChange={handlePriceChange} />
                                 </Grid>
-                                <Grid item xs={6} sm={4}>
-                                  <NumericField label={t("Total Value", "שווי כולל")} field="total" value={total} onChange={v => handleTotalChange(v)} />
+                                <Grid item xs={12} sm={4}>
+                                  <NumericField label={t("Total Value", "שווי כולל")} field="total" value={total} onChange={handleTotalChange} />
                                 </Grid>
 
                                 <Grid item xs={12} sm={8}>

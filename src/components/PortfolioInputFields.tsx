@@ -21,8 +21,8 @@ interface BaseFieldProps {
 interface NumericFieldProps extends BaseFieldProps {
   field: string;
   value: number | string; // Allow string if needed for intermediate
-  onChange?: (val: number) => void;
-  onUpdate?: (field: string, val: number) => void;
+  onChange?: (val: number, valStr: string) => void;
+  onUpdate?: (field: string, val: number, valStr: string) => void;
   currency?: string;
 }
 
@@ -32,42 +32,33 @@ export const NumericField = React.memo(({ label, field, value, onChange, onUpdat
   const numericVal = typeof value === 'string' ? parseFloat(value) : value;
   const safeVal = isNaN(numericVal) ? 0 : numericVal;
 
-  const displayVal = (safeVal === 0 && localDisplay === null) ? '' : (localDisplay !== null ? localDisplay : safeVal.toString());
+  const displayVal = localDisplay !== null ? localDisplay : (value === '' ? '' : safeVal.toString());
 
   useEffect(() => {
     // If external value changes (e.g. rounded by parent), we might need to sync.
   }, [value]);
 
-  const fireChange = (val: number) => {
+  const fireChange = (val: number, valStr: string) => {
     if (onUpdate) {
-      onUpdate(field, val);
+      onUpdate(field, val, valStr);
     } else if (onChange) {
-      onChange(val);
+      onChange(val, valStr);
     }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const v = e.target.value;
+    setLocalDisplay(v);
 
     if (v === '' || v === '-') {
-      setLocalDisplay(v);
-      fireChange(0);
+      fireChange(0, v);
       return;
-    }
-
-    if (v.endsWith('.')) {
-      setLocalDisplay(v);
-      const num = parseFloat(v);
-      if (!isNaN(num)) fireChange(num);
-      return;
-    } else {
-        setLocalDisplay(null);
     }
 
     const num = parseFloat(v);
     if (!isNaN(num)) {
       const validNum = num < 0 ? 0 : num;
-      fireChange(validNum);
+      fireChange(validNum, v);
     }
   };
 
@@ -113,8 +104,8 @@ export const NumericField = React.memo(({ label, field, value, onChange, onUpdat
 interface PercentageFieldProps extends BaseFieldProps {
   field: string;
   value: number | string;
-  onChange?: (val: number) => void;
-  onUpdate?: (field: string, val: number) => void;
+  onChange?: (val: number, valStr: string) => void;
+  onUpdate?: (field: string, val: number, valStr: string) => void;
 }
 
 export const PercentageField = React.memo(({ label, field, value, onChange, onUpdate, tooltip, disabled, error, helperText, required, startAdornment, endAdornment, placeholder }: PercentageFieldProps) => {
@@ -125,40 +116,31 @@ export const PercentageField = React.memo(({ label, field, value, onChange, onUp
 
   const pctValue = safeVal * 100;
   const rounded = Math.round(pctValue * 10000) / 10000;
-  
-  const displayVal = (safeVal === 0 && localDisplay === null) ? '' : (localDisplay !== null ? localDisplay : rounded.toString());
 
-  const fireChange = (val: number) => {
+  const displayVal = localDisplay !== null ? localDisplay : (value === '' ? '' : rounded.toString());
+
+  const fireChange = (val: number, valStr: string) => {
     if (onUpdate) {
-      onUpdate(field, val);
+      onUpdate(field, val, valStr);
     } else if (onChange) {
-      onChange(val);
+      onChange(val, valStr);
     }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const v = e.target.value;
-    
-    if (v === '' || v === '-') {
-      setLocalDisplay(v);
-      fireChange(0);
-      return;
-    }
+    setLocalDisplay(v);
 
-    if (v.endsWith('.')) {
-      setLocalDisplay(v);
-      const num = parseFloat(v);
-      if (!isNaN(num)) fireChange(num / 100);
+    if (v === '' || v === '-') {
+      fireChange(0, v);
       return;
-    } else {
-        setLocalDisplay(null);
     }
 
     let num = parseFloat(v);
     if (!isNaN(num)) {
       if (num < 0) num = 0;
       if (num > 100) num = 100;
-      fireChange(num / 100);
+      fireChange(num / 100, v);
     }
   };
 
