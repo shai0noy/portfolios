@@ -23,13 +23,17 @@ export interface TrackingListItem {
 
 export type PriceUnit = 'base' | 'agorot';
 
-export type Currency = 'USD' | 'ILS' | 'EUR' | 'GBP' | 'ILA';
+export type Currency = 'USD' | 'ILS' | 'EUR' | 'GBP' | 'ILA' | 'CAD' | 'JPY' | 'HKD' | 'AUD';
 export const Currency = {
   USD: 'USD' as Currency,
   ILS: 'ILS' as Currency,
   EUR: 'EUR' as Currency,
   GBP: 'GBP' as Currency,
   ILA: 'ILA' as Currency,
+  CAD: 'CAD' as Currency,
+  JPY: 'JPY' as Currency,
+  HKD: 'HKD' as Currency,
+  AUD: 'AUD' as Currency,
 };
 
 export interface SimpleMoney {
@@ -66,6 +70,9 @@ interface ExchangeSettings {
   googleFinanceCode: string; // e.g., 'TLV' for TASE - This is the code written to Google sheets, even if the exchange is not supported
   googleSheetsCode: string; // e.g., 'TLV' for TASE, CURRENCY for FOREX
   yahooFinanceSuffix: string;
+  defaultCurrency?: Currency;
+  labelEn: string;
+  labelHe: string;
 }
 
 export const EXCHANGE_SETTINGS: Record<Exchange, ExchangeSettings> = {
@@ -73,85 +80,127 @@ export const EXCHANGE_SETTINGS: Record<Exchange, ExchangeSettings> = {
     aliases: ['XNAS', 'NMS', 'NGS', 'NCM', 'NIM', 'BTS', 'BATS'],
     googleFinanceCode: '',
     googleSheetsCode: 'NASDAQ',
-    yahooFinanceSuffix: ''
+    yahooFinanceSuffix: '',
+    defaultCurrency: Currency.USD,
+    labelEn: 'NASDAQ',
+    labelHe: 'NASDAQ'
   },
   [Exchange.NYSE]: {
     aliases: ['XNYS', 'WCB', 'ASE', 'AMEX', 'NYQ', 'ARCA', 'NYSEARCA'],
     googleFinanceCode: '',
     googleSheetsCode: 'NYSE',
-    yahooFinanceSuffix: ''
+    yahooFinanceSuffix: '',
+    defaultCurrency: Currency.USD,
+    labelEn: 'NYSE',
+    labelHe: 'NYSE'
   },
   [Exchange.TASE]: {
     aliases: ['XTAE', 'TLV', 'TA'],
     googleFinanceCode: 'TLV',
     googleSheetsCode: 'TLV',
-    yahooFinanceSuffix: '.TA'
+    yahooFinanceSuffix: '.TA',
+    defaultCurrency: Currency.ILA,
+    labelEn: 'TASE (Tel Aviv)',
+    labelHe: 'TASE (תל אביב)'
   },
   [Exchange.LSE]: {
     aliases: ['XLON', 'LONDON'],
     googleFinanceCode: 'LON',
     googleSheetsCode: 'LON',
-    yahooFinanceSuffix: '.L'
+    yahooFinanceSuffix: '.L',
+    defaultCurrency: Currency.GBP,
+    labelEn: 'LSE (London)',
+    labelHe: 'LSE (לונדון)'
   },
   [Exchange.FWB]: {
     aliases: ['XFRA', 'FRANKFURT', 'XETRA'],
     googleFinanceCode: 'FRA',
     googleSheetsCode: 'FRA',
-    yahooFinanceSuffix: '.F'
+    yahooFinanceSuffix: '.F',
+    defaultCurrency: Currency.EUR,
+    labelEn: 'FWB (Frankfurt)',
+    labelHe: 'FWB (פרנקפורט)'
   },
   [Exchange.EURONEXT]: {
     aliases: ['XPAR', 'XAMS', 'XBRU', 'XLIS', 'XDUB'],
     googleFinanceCode: 'EPA',
     googleSheetsCode: 'EPA',
-    yahooFinanceSuffix: '.PA'
+    yahooFinanceSuffix: '.PA',
+    defaultCurrency: Currency.EUR,
+    labelEn: 'Euronext (Europe)',
+    labelHe: 'Euronext (אירופה)'
   },
   [Exchange.JPX]: {
     aliases: ['XTKS'],
     googleFinanceCode: 'TYO',
     googleSheetsCode: 'TYO',
-    yahooFinanceSuffix: '.T'
+    yahooFinanceSuffix: '.T',
+    defaultCurrency: Currency.JPY,
+    labelEn: 'JPX (Tokyo)',
+    labelHe: 'JPX (טוקיו)'
   },
   [Exchange.HKEX]: {
     aliases: ['XHKG'],
     googleFinanceCode: 'HKG',
     googleSheetsCode: 'HKG',
-    yahooFinanceSuffix: '.HK'
+    yahooFinanceSuffix: '.HK',
+    defaultCurrency: Currency.HKD,
+    labelEn: 'HKEX (Hong Kong)',
+    labelHe: 'HKEX (הונג קונג)'
   },
   [Exchange.TSX]: {
     aliases: ['XTSE'],
     googleFinanceCode: 'TSE',
     googleSheetsCode: 'TSE',
-    yahooFinanceSuffix: '.TO'
+    yahooFinanceSuffix: '.TO',
+    defaultCurrency: Currency.CAD,
+    labelEn: 'TSX (Toronto)',
+    labelHe: 'TSX (טורונטו)'
   },
   [Exchange.ASX]: {
     aliases: ['XASX'],
     googleFinanceCode: 'ASX',
     googleSheetsCode: 'ASX',
-    yahooFinanceSuffix: '.AX'
+    yahooFinanceSuffix: '.AX',
+    defaultCurrency: Currency.AUD,
+    labelEn: 'ASX (Sydney)',
+    labelHe: 'ASX (סידני)'
   },
   [Exchange.GEMEL]: {
     aliases: [],
     googleFinanceCode: '',
     googleSheetsCode: 'GEMEL',
-    yahooFinanceSuffix: ''
+    yahooFinanceSuffix: '',
+    defaultCurrency: Currency.ILA,
+    labelEn: 'Gemel Funds',
+    labelHe: 'קופות גמל'
   },
   [Exchange.PENSION]: {
     aliases: [],
     googleFinanceCode: '',
     googleSheetsCode: 'PENSION',
-    yahooFinanceSuffix: ''
+    yahooFinanceSuffix: '',
+    defaultCurrency: Currency.ILA,
+    labelEn: 'Pension Funds',
+    labelHe: 'קרנות פנסיה'
   },
   [Exchange.FOREX]: {
     aliases: ['FX', 'CURRENCY', 'CRYPTO', 'CC', 'CCC'],
     googleFinanceCode: '',
     googleSheetsCode: 'CURRENCY',
-    yahooFinanceSuffix: '=X'
+    yahooFinanceSuffix: '=X',
+    defaultCurrency: Currency.USD,
+    labelEn: 'FOREX',
+    labelHe: 'FOREX'
   },
   [Exchange.CBS]: {
     aliases: ['CPI', 'MADAD'],
     googleFinanceCode: '',
     googleSheetsCode: 'CBS',
-    yahooFinanceSuffix: ''
+    yahooFinanceSuffix: '',
+    defaultCurrency: Currency.ILA,
+    labelEn: 'Israel Price indices',
+    labelHe: 'מדדי מחירים'
   },
 };
 

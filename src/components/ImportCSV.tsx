@@ -16,7 +16,7 @@ import {
 import { useScrollShadows, ScrollShadows } from '../lib/ui-utils';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import type { Portfolio, Transaction } from '../lib/types';
-import { parseExchange, Exchange } from '../lib/types';
+import { parseExchange, Exchange, EXCHANGE_SETTINGS } from '../lib/types';
 import { batchAddTransactions, addTransaction, fetchPortfolios } from '../lib/sheets/index';
 import { formatDate, coerceDate } from '../lib/date';
 import { DateField } from './PortfolioInputFields';
@@ -306,19 +306,9 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
 
       const comment = getVal('comment');
 
-      let finalCurrency = currencyStr;
+      let finalCurrency: string | undefined = currencyStr || undefined;
       if (!finalCurrency && parsedExchange) {
-        if (['TASE', 'GEMEL', 'PENSION', 'CBS', 'TLV'].includes(parsedExchange.toString())) {
-          finalCurrency = 'ILA';
-        } else if (['NASDAQ', 'NYSE'].includes(parsedExchange.toString())) {
-          finalCurrency = 'USD';
-        } else if (['LSE'].includes(parsedExchange.toString())) {
-          finalCurrency = 'GBP';
-        } else if (['EURONEXT', 'FWB'].includes(parsedExchange.toString())) {
-          finalCurrency = 'EUR';
-        } else if (['TSX'].includes(parsedExchange.toString())) {
-          finalCurrency = 'CAD';
-        }
+        finalCurrency = EXCHANGE_SETTINGS[parsedExchange as Exchange]?.defaultCurrency;
       }
 
       const now = new Date();

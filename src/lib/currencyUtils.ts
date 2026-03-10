@@ -15,6 +15,10 @@ export function normalizeCurrency(input: string): Currency {
   if (upper === 'דולר' || upper === '$' || upper === 'DOLLAR' || upper === 'USD') return Currency.USD;
   if (upper === 'אירו' || upper === 'EUR' || upper === 'EURO') return Currency.EUR;
   if (upper === 'ליש"ט' || upper === 'LIRA' || upper === 'GBP') return Currency.GBP;
+  if (upper === 'CAD') return Currency.CAD;
+  if (upper === 'JPY') return Currency.JPY;
+  if (upper === 'HKD') return Currency.HKD;
+  if (upper === 'AUD') return Currency.AUD;
 
   if (upper === 'USD') return Currency.USD;
 

@@ -7,7 +7,7 @@ import { useScrollShadows, ScrollShadows } from '../lib/ui-utils';
 import { getTickersDataset } from '../lib/fetching';
 import type { TickerProfile } from '../lib/types/ticker';
 import { InstrumentGroup, INSTRUMENT_METADATA } from '../lib/types/instrument';
-import { type TrackingListItem, type Portfolio, Exchange } from '../lib/types';
+import { type TrackingListItem, type Portfolio, Exchange, EXCHANGE_SETTINGS } from '../lib/types';
 import SearchIcon from '@mui/icons-material/Search';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
 import StarIcon from '@mui/icons-material/Star';
@@ -394,13 +394,11 @@ export const TickerSearch = React.memo(function TickerSearch({ onTickerSelect, p
                     onChange={(e) => setSelectedExchange(e.target.value as string)}
                   >
                     <MenuItem value="ALL">{t('All', 'הכל')}</MenuItem>
-                    <MenuItem value="TASE">TASE ({t('Tel Aviv', 'תל אביב')})</MenuItem>
-                    <MenuItem value="NASDAQ">NASDAQ</MenuItem>
-                    <MenuItem value="NYSE">NYSE</MenuItem>
-                    <MenuItem value="FOREX">FOREX</MenuItem>
-                    <MenuItem value="GEMEL">{t('Gemel Funds', 'קופות גמל')}</MenuItem>
-                    <MenuItem value="PENSION">{t('Pension Funds', 'קרנות פנסיה')}</MenuItem>
-                    <MenuItem value="CBS">{t('Israel Price indices', 'מדדי מחירים')}</MenuItem>
+                    {Object.values(Exchange).map((ex) => (
+                      <MenuItem key={ex} value={ex}>
+                        {t(EXCHANGE_SETTINGS[ex].labelEn, EXCHANGE_SETTINGS[ex].labelHe)}
+                      </MenuItem>
+                    ))}
                   </Select>
                 </FormControl>
               </Grid>

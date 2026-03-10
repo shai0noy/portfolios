@@ -34,7 +34,7 @@ export function getTickersDataset(signal?: AbortSignal, forceRefresh = false): P
 
   tickersDatasetLoading = (async () => {
     try {
-      const exchanges = [Exchange.TASE, Exchange.NASDAQ, Exchange.NYSE, Exchange.GEMEL, Exchange.PENSION, Exchange.FOREX];
+      const exchanges = Object.values(Exchange).filter((ex) => ex !== Exchange.CBS);
       const results = await Promise.all(exchanges.map(ex => fetchAllTickers(ex, undefined, signal)));
 
       const combined: Record<string, TickerProfile[]> = {};

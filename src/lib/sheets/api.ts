@@ -185,6 +185,8 @@ export const ensureSchema = withAuthHandling(async (spreadsheetId: string) => {
         createCurrencyRow('USDGBP'), createCurrencyRow('GBPUSD'),
         createCurrencyRow('EURILS'), createCurrencyRow('ILSEUR'),
         createCurrencyRow('GBPILS'), createCurrencyRow('ILSGBP'),
+        createCurrencyRow('USDCAD'), createCurrencyRow('USDJPY'),
+        createCurrencyRow('USDHKD'), createCurrencyRow('USDAUD'),
     ];
     await gapi.client.sheets.spreadsheets.values.update({
         spreadsheetId, range: CONFIG_RANGE, valueInputOption: 'USER_ENTERED',
@@ -1468,14 +1470,14 @@ export const fetchSheetExchangeRates = withAuthHandling(async (spreadsheetId: st
 
     // 4. Validate Critical Currencies
     const currentRates = allRates['current'];
-    const missing = ['ILS', 'EUR', 'GBP'].filter(c => !currentRates[c]);
+    const missing = ['ILS', 'EUR', 'GBP', 'CAD', 'JPY', 'HKD', 'AUD'].filter(c => !currentRates[c]);
 
     if (missing.length > 0) {
         console.warn(`fetchSheetExchangeRates: Missing rates for ${missing.join(', ')}. Check 'Currency_Conversions' sheet.`);
     }
 
     // Default missing major currencies to 0 to avoid crashes
-    ['ILS', 'EUR', 'GBP'].forEach(curr => {
+    ['ILS', 'EUR', 'GBP', 'CAD', 'JPY', 'HKD', 'AUD'].forEach(curr => {
         for (const period in periodIndices) {
             if (!allRates[period][curr] || isNaN(allRates[period][curr])) {
                 allRates[period][curr] = 0;
