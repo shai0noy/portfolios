@@ -216,7 +216,9 @@ export async function fetchYahooTickerData(
         if (validCloses.length >= 2) {
           const last = validCloses[validCloses.length - 1];
           const prev = validCloses[validCloses.length - 2];
-          changePct1d = ((price || last) - prev) / prev;
+          // Derive 1d change purely from the sequential historical array to avoid scale mismatches
+          // between real-time price variables and historical close values.
+          changePct1d = (last - prev) / prev;
         }
       }
 
@@ -266,7 +268,10 @@ export async function fetchYahooTickerData(
 
         if (points.length > 0) {
           const lastPoint = points[points.length - 1];
-          const currentClose = price || lastPoint.close;
+          // Exclusively use the last recorded historical close as the anchor point for all historical lookbacks.
+          // This absolutely guarantees both values in the fraction share the same scale and adjustment basis,
+          // without needing heuristics to compare against meta.regularMarketPrice.
+          const currentClose = lastPoint.close;
 
           const findClosestPoint = (targetTs: number) => {
             if (targetTs < points[0].time - 86400 * 5) return null; // Too far back
