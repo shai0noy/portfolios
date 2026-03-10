@@ -70,6 +70,7 @@ interface ExchangeSettings {
   googleFinanceCode: string; // e.g., 'TLV' for TASE - This is the code written to Google sheets, even if the exchange is not supported
   googleSheetsCode: string; // e.g., 'TLV' for TASE, CURRENCY for FOREX
   yahooFinanceSuffix: string;
+  globesCode: string;
   defaultCurrency?: Currency;
   labelEn: string;
   labelHe: string;
@@ -81,6 +82,7 @@ export const EXCHANGE_SETTINGS: Record<Exchange, ExchangeSettings> = {
     googleFinanceCode: '',
     googleSheetsCode: 'NASDAQ',
     yahooFinanceSuffix: '',
+    globesCode: 'NASDAQ',
     defaultCurrency: Currency.USD,
     labelEn: 'NASDAQ',
     labelHe: 'NASDAQ'
@@ -90,6 +92,7 @@ export const EXCHANGE_SETTINGS: Record<Exchange, ExchangeSettings> = {
     googleFinanceCode: '',
     googleSheetsCode: 'NYSE',
     yahooFinanceSuffix: '',
+    globesCode: 'NYSE',
     defaultCurrency: Currency.USD,
     labelEn: 'NYSE',
     labelHe: 'NYSE'
@@ -99,69 +102,77 @@ export const EXCHANGE_SETTINGS: Record<Exchange, ExchangeSettings> = {
     googleFinanceCode: 'TLV',
     googleSheetsCode: 'TLV',
     yahooFinanceSuffix: '.TA',
+    globesCode: 'TASE',
     defaultCurrency: Currency.ILA,
     labelEn: 'TASE (Tel Aviv)',
     labelHe: 'TASE (תל אביב)'
   },
   [Exchange.LSE]: {
-    aliases: ['XLON', 'LONDON'],
+    aliases: ['XLON', 'LONDON', 'LSE', 'LON'],
     googleFinanceCode: 'LON',
     googleSheetsCode: 'LON',
     yahooFinanceSuffix: '.L',
+    globesCode: 'London-CB',
     defaultCurrency: Currency.GBP,
     labelEn: 'LSE (London)',
     labelHe: 'LSE (לונדון)'
   },
   [Exchange.FWB]: {
-    aliases: ['XFRA', 'FRANKFURT', 'XETRA'],
+    aliases: ['XFRA', 'FRANKFURT', 'XETRA', 'FRA', 'FWB'],
     googleFinanceCode: 'FRA',
     googleSheetsCode: 'FRA',
     yahooFinanceSuffix: '.F',
+    globesCode: 'FRANKFURT',
     defaultCurrency: Currency.EUR,
     labelEn: 'FWB (Frankfurt)',
     labelHe: 'FWB (פרנקפורט)'
   },
   [Exchange.EURONEXT]: {
-    aliases: ['XPAR', 'XAMS', 'XBRU', 'XLIS', 'XDUB'],
+    aliases: ['XPAR', 'XAMS', 'XBRU', 'XLIS', 'XDUB', 'EURONEXT', 'EPA', 'PA', 'PAR', 'PARIS'],
     googleFinanceCode: 'EPA',
     googleSheetsCode: 'EPA',
     yahooFinanceSuffix: '.PA',
+    globesCode: 'EURONEXT',
     defaultCurrency: Currency.EUR,
     labelEn: 'Euronext (Europe)',
     labelHe: 'Euronext (אירופה)'
   },
   [Exchange.JPX]: {
-    aliases: ['XTKS'],
+    aliases: ['XTKS', 'TSE', 'TOKYO', 'TYO', 'JPX'],
     googleFinanceCode: 'TYO',
     googleSheetsCode: 'TYO',
     yahooFinanceSuffix: '.T',
+    globesCode: 'TSE',
     defaultCurrency: Currency.JPY,
     labelEn: 'JPX (Tokyo)',
     labelHe: 'JPX (טוקיו)'
   },
   [Exchange.HKEX]: {
-    aliases: ['XHKG'],
+    aliases: ['XHKG', 'HKEX', 'HKG', 'HONGKONG', 'HK'],
     googleFinanceCode: 'HKG',
     googleSheetsCode: 'HKG',
     yahooFinanceSuffix: '.HK',
+    globesCode: 'HONGKONG',
     defaultCurrency: Currency.HKD,
     labelEn: 'HKEX (Hong Kong)',
     labelHe: 'HKEX (הונג קונג)'
   },
   [Exchange.TSX]: {
-    aliases: ['XTSE'],
+    aliases: ['XTSE', 'TSX', 'TORONTO', 'TO'],
     googleFinanceCode: 'TSE',
     googleSheetsCode: 'TSE',
     yahooFinanceSuffix: '.TO',
+    globesCode: 'TORONTO',
     defaultCurrency: Currency.CAD,
     labelEn: 'TSX (Toronto)',
     labelHe: 'TSX (טורונטו)'
   },
   [Exchange.ASX]: {
-    aliases: ['XASX'],
+    aliases: ['XASX', 'ASX', 'SYDNEY', 'SY', 'SYD', 'AX'],
     googleFinanceCode: 'ASX',
     googleSheetsCode: 'ASX',
     yahooFinanceSuffix: '.AX',
+    globesCode: 'AUSTRALIA',
     defaultCurrency: Currency.AUD,
     labelEn: 'ASX (Sydney)',
     labelHe: 'ASX (סידני)'
@@ -171,6 +182,7 @@ export const EXCHANGE_SETTINGS: Record<Exchange, ExchangeSettings> = {
     googleFinanceCode: '',
     googleSheetsCode: 'GEMEL',
     yahooFinanceSuffix: '',
+    globesCode: '',
     defaultCurrency: Currency.ILA,
     labelEn: 'Gemel Funds',
     labelHe: 'קופות גמל'
@@ -180,6 +192,7 @@ export const EXCHANGE_SETTINGS: Record<Exchange, ExchangeSettings> = {
     googleFinanceCode: '',
     googleSheetsCode: 'PENSION',
     yahooFinanceSuffix: '',
+    globesCode: '',
     defaultCurrency: Currency.ILA,
     labelEn: 'Pension Funds',
     labelHe: 'קרנות פנסיה'
@@ -189,6 +202,7 @@ export const EXCHANGE_SETTINGS: Record<Exchange, ExchangeSettings> = {
     googleFinanceCode: '',
     googleSheetsCode: 'CURRENCY',
     yahooFinanceSuffix: '=X',
+    globesCode: '',
     defaultCurrency: Currency.USD,
     labelEn: 'FOREX',
     labelHe: 'FOREX'
@@ -198,6 +212,7 @@ export const EXCHANGE_SETTINGS: Record<Exchange, ExchangeSettings> = {
     googleFinanceCode: '',
     googleSheetsCode: 'CBS',
     yahooFinanceSuffix: '',
+    globesCode: '',
     defaultCurrency: Currency.ILA,
     labelEn: 'Israel Price indices',
     labelHe: 'מדדי מחירים'

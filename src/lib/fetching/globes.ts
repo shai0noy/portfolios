@@ -3,7 +3,7 @@ import { WORKER_URL } from '../../config';
 import { deduplicateRequest } from './utils/request_deduplicator';
 import { fetchXml, parseXmlString, extractDataFromXmlNS } from './utils/xml_parser';
 import type { TickerData } from './types';
-import { Exchange, parseExchange, Currency } from '../types';
+import { Exchange, parseExchange, Currency, EXCHANGE_SETTINGS } from '../types';
 import { normalizeCurrency } from '../currency';
 import { formatForexSymbol } from './utils/forex';
 import type { TickerProfile } from '../types/ticker';
@@ -15,7 +15,7 @@ const XSI_NAMESPACE = 'http://www.w3.org/2001/XMLSchema-instance';
 // --- Helpers ---
 
 function toGlobesExchangeCode(exchange: Exchange): string {
-  return exchange.toLowerCase();
+  return EXCHANGE_SETTINGS[exchange]?.globesCode || exchange.toLowerCase();
 }
 
 function getElementTextNS(element: Element, namespace: string, tagName: string): string {
@@ -54,7 +54,7 @@ function parseCurrencyData(instrument: Element, identifier: string): { currency:
   const currencyRateStr = getText(instrument, 'CurrencyRate');
   const currencyRate = currencyRateStr ? parseFloat(currencyRateStr) : 1;
   const currencyStr = getText(instrument, 'currency') || 'ILS';
-  
+
   let baseCurrency: Currency;
   let currency: Currency;
 
@@ -71,7 +71,7 @@ function parseCurrencyData(instrument: Element, identifier: string): { currency:
       }
     } else if (currencyRate !== 1) {
       if (baseCurrency === Currency.ILS || baseCurrency === Currency.ILA) {
-         console.warn(`Globes: Unexpected CurrencyRate ${currencyRate} for ${identifier} (${baseCurrency}), expected 1 or 0.01.`);
+        console.warn(`Globes: Unexpected CurrencyRate ${currencyRate} for ${identifier} (${baseCurrency}), expected 1 or 0.01.`);
       }
     }
   } catch (e) {
@@ -104,9 +104,9 @@ function parseVolume(instrument: Element, last: number, baseCurrency: Currency, 
 }
 
 function calculateChangePct(current: number, previousStr: string): number | undefined {
-    const prev = parseFloat(previousStr || '0');
+  const prev = parseFloat(previousStr || '0');
   if (!prev || current === prev) return undefined;
-    return (current - prev) / prev;
+  return (current - prev) / prev;
 }
 
 // --- Main Fetch Functions ---
@@ -114,17 +114,15 @@ function calculateChangePct(current: number, previousStr: string): number | unde
 export async function fetchGlobesTickersByType(type: string, exchange: Exchange, signal?: AbortSignal): Promise<TickerProfile[]> {
   const exchangeCode = toGlobesExchangeCode(exchange);
 
-
-
   const globesApiUrl = `${WORKER_URL}/?apiId=globes_list&exchange=${exchangeCode}&type=${type}`;
   const xmlString = await fetchXml(globesApiUrl, signal, { cache: 'force-cache' });
   const xmlDoc = parseXmlString(xmlString);
-  
-  const data = extractDataFromXmlNS(xmlDoc, GLOBES_API_NAMESPACE, 'anyType', (element): TickerProfile | null => {
-      if (element.getAttributeNS(XSI_NAMESPACE, 'type') !== 'Instrument') return null;
 
-      const common = extractCommonGlobesData(element);
-      if (!common.symbol || !common.instrumentId) return null;
+  const data = extractDataFromXmlNS(xmlDoc, GLOBES_API_NAMESPACE, 'anyType', (element): TickerProfile | null => {
+    if (element.getAttributeNS(XSI_NAMESPACE, 'type') !== 'Instrument') return null;
+
+    const common = extractCommonGlobesData(element);
+    if (!common.symbol || !common.instrumentId) return null;
 
     let effectiveType = type;
     if (common.koteretAlName === 'קרן כספית') {
@@ -132,57 +130,57 @@ export async function fetchGlobesTickersByType(type: string, exchange: Exchange,
     }
 
     const classification = new InstrumentClassification(effectiveType, undefined, { he: common.instrumentTypeHe });
-      
-      let symbol = common.symbol;
-      let rawSecurityId: string | undefined = common.symbol;
 
-      const isIndex = common.rawType?.toLowerCase() === 'index' || classification.type === 'INDEX';
+    let symbol = common.symbol;
+    let rawSecurityId: string | undefined = common.symbol;
 
-      if (isIndex && common.indexNumber) {
-        symbol = common.indexNumber;
-        rawSecurityId = common.indexNumber;
-      }
+    const isIndex = common.rawType?.toLowerCase() === 'index' || classification.type === 'INDEX';
+
+    if (isIndex && common.indexNumber) {
+      symbol = common.indexNumber;
+      rawSecurityId = common.indexNumber;
+    }
 
     // Encode TASE normalization
     if (exchange === Exchange.TASE) {
       symbol = symbol.trim();
     }
 
-      if (exchange === Exchange.FOREX) {
-        symbol = formatForexSymbol(symbol);
-        rawSecurityId = undefined; // Forex doesn't have numeric security IDs in this context
+    if (exchange === Exchange.FOREX) {
+      symbol = formatForexSymbol(symbol);
+      rawSecurityId = undefined; // Forex doesn't have numeric security IDs in this context
+    }
+
+    const securityId = rawSecurityId ? parseInt(rawSecurityId, 10) : undefined;
+
+    return {
+      symbol,
+      exchange,
+      securityId: (securityId && !isNaN(securityId)) ? securityId : undefined,
+      name: common.nameEn,
+      nameHe: common.nameHe,
+      type: classification,
+      isFeeExempt: common.koteretAlName === 'קרן כספית',
+      meta: {
+        type: 'GLOBES',
+        instrumentId: common.instrumentId,
       }
-
-      const securityId = rawSecurityId ? parseInt(rawSecurityId, 10) : undefined;
-
-      return {
-        symbol,
-        exchange,
-        securityId: (securityId && !isNaN(securityId)) ? securityId : undefined, 
-        name: common.nameEn,
-        nameHe: common.nameHe,
-        type: classification,
-        isFeeExempt: common.koteretAlName === 'קרן כספית',
-        meta: {
-          type: 'GLOBES',
-          instrumentId: common.instrumentId,
-        }
-      };
-    });
+    };
+  });
 
 
-    return data;
+  return data;
 }
 
 export async function fetchGlobesCurrencies(signal?: AbortSignal): Promise<TickerProfile[]> {
   const tickers = await fetchGlobesTickersByType('currency', Exchange.FOREX, signal);
   // Ensure exchange is set correctly if not already (it is set in fetchGlobesTickersByType)
-  return tickers; 
+  return tickers;
 }
 
 export async function fetchGlobesStockQuote(symbol: string, securityId: number | undefined, exchange: Exchange, signal?: AbortSignal, forceRefresh = false): Promise<TickerData | null> {
   const requestedExchangeCode = toGlobesExchangeCode(exchange);
-  
+
   if (exchange === Exchange.TASE && !securityId) {
     console.warn(`fetchGlobesStockQuote: TASE requires a numeric security ID.`);
   }
@@ -203,7 +201,7 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
     // Since fetchGlobesTickersByType returns TickerProfile with GLOBES meta:
     let rawGlobesId: string | undefined;
     if (match?.meta && match.meta.type === 'GLOBES') {
-        rawGlobesId = match.securityId?.toString(); 
+      rawGlobesId = match.securityId?.toString();
     }
 
     if (rawGlobesId) {
@@ -253,7 +251,7 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
       // Percentage Change Calculation
       const rawPercentageChange = getText(instrument, 'percentageChange');
       let percentageChange: number | undefined = (rawPercentageChange && !isNaN(parseFloat(rawPercentageChange))) ? parseFloat(rawPercentageChange) : undefined;
-      
+
       if (percentageChange === undefined || percentageChange === 0) {
         const changeVal = parseFloat(getText(instrument, 'change') || '0');
         if (changeVal !== 0 && last !== 0) {
