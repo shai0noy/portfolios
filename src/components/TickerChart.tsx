@@ -1690,7 +1690,7 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                                     allowDataOverflow={true}
                                 />
                             )}
-                            <Tooltip content={<CandleTooltip currency={currency} t={t} mode={currentMode} />} />
+                            <Tooltip content={<CandleTooltip currency={currency} t={t} mode={currentMode} valueType={valueType} />} />
 
                             <Bar
                                 dataKey="volume"
@@ -1795,7 +1795,7 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                                     allowDataOverflow={true}
                                 />
                             )}
-                            <Tooltip content={<CustomTooltip currency={currency} t={t} basePrice={basePrice} isComparison={isComparison} series={displaySeries} mode={currentMode} hideCurrentPrice={hideCurrentPrice} />} />
+                                <Tooltip content={<CustomTooltip currency={currency} t={t} basePrice={basePrice} isComparison={isComparison} series={displaySeries} mode={currentMode} valueType={valueType} hideCurrentPrice={hideCurrentPrice} />} />
 
                             {/* Zero line (solid, semi-opaque) - only if 0 is in range */}
                             {showZeroLine && (
