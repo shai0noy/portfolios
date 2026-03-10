@@ -251,7 +251,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   };
 
   const translateRange = (range: string) => {
-    const map: Record<string, string> = { '1D': t('1D', 'יומי'), '1W': t('1W', 'שבוע'), '1M': t('1M', 'חודש'), '3M': t('3M', '3 חודשים'), 'YTD': t('YTD', 'מתחילת שנה'), '1Y': t('1Y', 'שנה'), '3Y': t('3Y', '3 שנים'), '5Y': t('5Y', '5 שנים'), 'Max': t('Max', 'מקסימום') };
+    const map: Record<string, string> = { '1D': t('1D', 'יומי'), '7D': t('1W', 'שבוע'), '1W': t('1W', 'שבוע'), '1M': t('1M', 'חודש'), '3M': t('3M', '3 חודשים'), 'YTD': t('YTD', 'מתחילת שנה'), '1Y': t('1Y', 'שנה'), '3Y': t('3Y', '3 שנים'), '5Y': t('5Y', '5 שנים'), 'Max': t('Max', 'מקסימום') };
     return map[range] || (range.endsWith('D') ? range.replace('D', t('D', ' ימים')) : range);
   };
 

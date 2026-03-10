@@ -182,18 +182,48 @@ export async function fetchYahooTickerData(
     symbolSuccessMap.set(successKey, yahooTicker);
 
     try {
+      const quote = result.indicators?.quote?.[0];
+      const timestamps = result.timestamp || [];
+      let closes = quote?.close || [];
+      let openPrices = quote?.open || [];
+      let highPrices = quote?.high || [];
+      let lowPrices = quote?.low || [];
+      const periodVolumes = quote?.volume || [];
+      let adjCloses = result.indicators?.adjclose?.[0]?.adjclose || [];
+
+      const getLatestValidValue = (arr: (number | null)[], cutoffDays = 40) => {
+        for (let i = arr.length - 1; i >= 0; i--) {
+          if (timestamps[i] < Date.now() - cutoffDays * 24 * 60 * 60 * 1000) {
+            return null;
+          }
+          if (arr[i] !== null && arr[i] !== undefined) {
+            return arr[i];
+          }
+        }
+        return null;
+      };
+
       const meta = result.meta;
       const price = meta.regularMarketPrice;
-      const shareVolume = meta.regularMarketVolume || (result.indicators?.quote?.[0]?.volume?.slice(-1)[0]);
+      const shareVolume = meta.regularMarketVolume || getLatestValidValue(periodVolumes);
       const volume = (shareVolume && price) ? shareVolume * price : undefined;
-      const quote = result.indicators?.quote?.[0];
-      const openPrices = quote?.open || [];
-      const highPrices = quote?.high || [];
-      const lowPrices = quote?.low || [];
-      const periodVolumes = quote?.volume || [];
-      const openPrice = openPrices.length > 0 ? openPrices[openPrices.length - 1] : null;
+      const openPrice = getLatestValidValue(openPrices);
       const currency = meta.currency;
       const exchangeCode = meta.exchangeName || 'OTHER';
+      const lastClose = getLatestValidValue(closes);
+
+      if (exchange === Exchange.TASE && meta.instrumentType !== "EQUITY") {
+        // Handle a rare case where price points are in ILS.
+        if (closes?.length > 0 && closes[closes.length - 1] < price / 90
+          && openPrices?.length > 0 && openPrices[openPrices.length - 1] < price / 90
+          && adjCloses?.length > 0 && adjCloses[adjCloses.length - 1] < price / 90) {
+          closes = closes.map((c: number) => c ? c * 100 : c);
+          openPrices = openPrices.map((c: number) => c ? c * 100 : c);
+          adjCloses = adjCloses.map((c: number) => c ? c * 100 : c);
+          highPrices = highPrices.map((c: number) => c ? c * 100 : c);
+          lowPrices = lowPrices.map((c: number) => c ? c * 100 : c);
+        }
+      }
 
       let mappedExchange: Exchange;
       try {
@@ -203,30 +233,10 @@ export async function fetchYahooTickerData(
       }
 
       const longName = meta.longName || meta.shortName;
-      const prevClose = meta.previousClose || meta.chartPreviousClose;
-      const granularity = meta.dataGranularity;
-
-      let changePct1d: number | undefined;
-      if (price && meta.previousClose) {
-        changePct1d = (price - meta.previousClose) / meta.previousClose;
-      } else if (price && prevClose && granularity === '1d') {
-        changePct1d = (price - prevClose) / prevClose;
-      } else if (quote?.close) {
-        const validCloses = quote.close.filter((c: any) => c != null);
-        if (validCloses.length >= 2) {
-          const last = validCloses[validCloses.length - 1];
-          const prev = validCloses[validCloses.length - 2];
-          // Derive 1d change purely from the sequential historical array to avoid scale mismatches
-          // between real-time price variables and historical close values.
-          changePct1d = (last - prev) / prev;
-        }
-      }
+      let changePct1d = lastClose !== null && lastClose !== 0 ? (price - lastClose) / lastClose : undefined;
 
       let changePctRecent, changePct1m, changeDate1m, changePct3m, changeDate3m, changePct1y, changeDate1y, changePct3y, changeDate3y, changePct5y, changeDate5y, changePctYtd, changeDateYtd, changePctMax, changeDateMax;
 
-      const closes = quote?.close || [];
-      const adjCloses = result.indicators?.adjclose?.[0]?.adjclose || [];
-      const timestamps = result.timestamp || [];
       let historical, dividends, splits;
 
       if (result.events) {
@@ -268,11 +278,6 @@ export async function fetchYahooTickerData(
 
         if (points.length > 0) {
           const lastPoint = points[points.length - 1];
-          // Exclusively use the last recorded historical close as the anchor point for all historical lookbacks.
-          // This absolutely guarantees both values in the fraction share the same scale and adjustment basis,
-          // without needing heuristics to compare against meta.regularMarketPrice.
-          const currentClose = lastPoint.close;
-
           const findClosestPoint = (targetTs: number) => {
             if (targetTs < points[0].time - 86400 * 5) return null; // Too far back
             let closest = points[0], minDiff = Math.abs(points[0].time - targetTs);
@@ -291,7 +296,7 @@ export async function fetchYahooTickerData(
             return d.getTime() / 1000;
           };
 
-          const calcChange = (p: any) => (!p || Math.abs(p.time * 1000 - lastPoint.time * 1000) < 86400 * 1000) ? { pct: undefined, date: undefined } : { pct: (currentClose - p.close) / p.close, date: new Date(p.time * 1000) };
+          const calcChange = (p: any) => (!p || Math.abs(p.time * 1000 - lastPoint.time * 1000) < 86400 * 1000) ? { pct: undefined, date: undefined } : { pct: (price - p.close) / p.close, date: new Date(p.time * 1000) };
 
           // Calculate 1 Week Ago (Recent)
           const w1 = findClosestPoint(getDateAgo(7, 'days'));
