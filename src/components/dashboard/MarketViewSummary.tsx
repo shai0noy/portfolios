@@ -1,4 +1,4 @@
-import { Box, Paper, Typography, Grid, ToggleButton, ToggleButtonGroup, IconButton, CircularProgress, useTheme } from '@mui/material';
+import { Box, Paper, Typography, Grid, ToggleButton, ToggleButtonGroup, IconButton, CircularProgress, useTheme, useMediaQuery, Tabs, Tab } from '@mui/material';
 import { useLanguage } from '../../lib/i18n';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { ResponsiveContainer, LineChart, Line, Tooltip as RechartsTooltip, XAxis, YAxis, CartesianGrid, ReferenceLine } from 'recharts';
@@ -41,7 +41,7 @@ const MARKETS: MarketSection[] = [
     tickers: [
       { symbol: '^GDAXI', exchange: Exchange.FWB, name: 'DAX (Germany)' },
       { symbol: '^FTSE', exchange: Exchange.LSE, name: 'FTSE 100 (UK)' },
-      { symbol: '^N225', exchange: Exchange.JPX, name: 'Nikkei 225 (Japan)' },  
+      { symbol: '^N225', exchange: Exchange.JPX, name: 'Nikkei 225 (Japan)' },
     ]
   }
 ];
@@ -57,7 +57,12 @@ export function MarketViewSummary({ isMobile }: MarketViewProps) {
   const { t } = useLanguage();
   const theme = useTheme();
 
+  const isMobileMediaQuery = useMediaQuery(theme.breakpoints.down('sm'));
+  const isMobileRes = isMobile ?? isMobileMediaQuery;
+
   const colors = theme.palette.mode === 'dark' ? DARK_COLORS : LIGHT_COLORS;
+
+  const [mobileTabIdx, setMobileTabIdx] = useState<number>(0);
 
   const [range, setRange] = useState<TimeRange>('6M');
   const [data, setData] = useState<Record<string, any[]>>({});
@@ -175,35 +180,54 @@ export function MarketViewSummary({ isMobile }: MarketViewProps) {
     });
   }, [data, startDate, colors]);
 
+  const rangeSelector = (
+    <ToggleButtonGroup
+      value={range}
+      exclusive
+      onChange={(_, val) => val && setRange(val)}
+      size="small"
+      sx={{ height: 24 }}
+    >
+      {TOGGLE_RANGES.map(r => (
+        <ToggleButton key={r} value={r} sx={{ px: 1, fontSize: '0.65rem' }}>{r}</ToggleButton>
+      ))}
+    </ToggleButtonGroup>
+  );
+
   return (
     <>
-      <Box sx={{ position: 'relative', height: isMobile ? 'auto' : 260, pb: 1 }}>
+      <Box sx={{ position: 'relative', height: isMobileRes ? 'auto' : 260, pb: 1 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1, pr: 2, pl: 1 }}>
           <Typography variant="h6" component="div" sx={{ fontSize: '1rem', fontWeight: 'bold' }}>
             {t('Market View', 'מבט לשווקים')}
           </Typography>
-          <ToggleButtonGroup
-            value={range}
-            exclusive
-            onChange={(_, val) => val && setRange(val)}
-            size="small"
-            sx={{ height: 24 }}
-          >
-            {TOGGLE_RANGES.map(r => (
-              <ToggleButton key={r} value={r} sx={{ px: 1, fontSize: '0.65rem' }}>{r}</ToggleButton>
-            ))}
-          </ToggleButtonGroup>
+          {!isMobileRes && rangeSelector}
         </Box>
 
-        <Grid container spacing={2} sx={{ height: isMobile ? 'auto' : 'calc(100% - 32px)' }}>
-          {MARKETS.map((market) => {
+        {isMobileRes && (
+          <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 1 }}>
+            <Tabs value={mobileTabIdx} onChange={(_, val) => setMobileTabIdx(val)} variant="fullWidth" sx={{ minHeight: 36, mb: 0.5, '.MuiTab-root': { minHeight: 36, py: 0.5, textTransform: 'none', fontWeight: 'bold' } }}>
+              {MARKETS.map((m, i) => (
+                <Tab key={m.title} value={i} label={m.title} />
+              ))}
+            </Tabs>
+            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 1, pb: 0.5 }}>
+              {rangeSelector}
+            </Box>
+          </Box>
+        )}
+
+        <Grid container spacing={2} sx={{ height: isMobileRes ? 'auto' : 'calc(100% - 32px)' }}>
+          {MARKETS.map((market, index) => {
+            if (isMobileRes && index !== mobileTabIdx) return null;
+
             const chartData = processChartData(market.tickers);
 
             return (
-              <Grid item xs={12} md={4} key={market.title} sx={{ height: isMobile ? 220 : '100%' }}>
+              <Grid item xs={12} md={4} key={market.title} sx={{ height: isMobileRes ? 250 : '100%' }}>
                 <Paper variant="outlined" sx={{ p: 1, height: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                    <Typography variant="subtitle2" fontWeight="bold">{market.title}</Typography>
+                  <Box sx={{ display: 'flex', justifyContent: isMobileRes ? 'flex-end' : 'space-between', alignItems: 'center', mb: 1 }}>
+                    {!isMobileRes && <Typography variant="subtitle2" fontWeight="bold">{market.title}</Typography>}
                     <IconButton size="small" onClick={() => handleOpenExpanded(market)}>
                       <OpenInNewIcon fontSize="small" sx={{ fontSize: '1rem' }} />
                     </IconButton>
@@ -214,13 +238,14 @@ export function MarketViewSummary({ isMobile }: MarketViewProps) {
                       <CircularProgress size={20} />
                     </Box>
                   ) : (
+                      <>
                       <Box sx={{ flex: 1, minHeight: 1, minWidth: 1 }}>
                         <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
-                          <LineChart data={chartData} margin={{ top: 5, right: 0, left: 0, bottom: 0 }}>
+                            <LineChart data={chartData} margin={{ top: 5, right: isMobileRes ? 20 : 0, left: isMobileRes ? -8 : 0, bottom: 0 }}>
                             <CartesianGrid stroke={theme.palette.text.disabled} strokeDasharray="3 3" strokeOpacity={0.4} />
                             <ReferenceLine y={0} stroke={theme.palette.text.secondary} strokeOpacity={0.5} strokeWidth={1} />
                           <XAxis
-                              dataKey="date" 
+                                dataKey="date"
                               tickFormatter={(time) => {
                                 const d = new Date(time);
                                 if (['1W', '1M', '3M'].includes(range)) return d.toLocaleDateString(undefined, { day: 'numeric', month: 'numeric' });
@@ -233,12 +258,12 @@ export function MarketViewSummary({ isMobile }: MarketViewProps) {
                               axisLine={false}
                               tickLine={false}
                           />
-                            <YAxis 
+                              <YAxis
                               orientation="right"
                               tickFormatter={(val) => `${(val * 100).toFixed(1)}%`}
                               domain={['auto', 'auto']}
                               tick={{ fontSize: 10, fill: theme.palette.text.secondary }}
-                              width={45}
+                                width={isMobileRes ? 45 : 45}
                               axisLine={false}
                               tickLine={{ stroke: theme.palette.text.secondary, strokeWidth: 1 }}
                           />
@@ -269,17 +294,20 @@ export function MarketViewSummary({ isMobile }: MarketViewProps) {
                           ))}
                         </LineChart>
                       </ResponsiveContainer>
+                        </Box>
 
                       {/* Legend / Key */}
-                      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 0.5, justifyContent: 'center' }}>
+                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: isMobileRes ? 0.5 : 0.5, pb: isMobileRes ? 1 : 0, justifyContent: 'center' }}>
                         {market.tickers.map((t, i) => (
                           <Box key={t.symbol} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                             <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: colors[i % colors.length] }} />
-                            <Typography variant="caption" sx={{ fontSize: '0.65rem' }}>{t.name}</Typography>
+                            <Typography variant="caption" sx={{ fontSize: '0.65rem', color: theme.palette.text.secondary }}>
+                              {t.name}
+                            </Typography>
                           </Box>
                         ))}
                       </Box>
-                    </Box>
+                      </>
                   )}
                 </Paper>
               </Grid>

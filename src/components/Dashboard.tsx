@@ -17,7 +17,7 @@ import { TopMovers } from './dashboard/TopMovers';
 import { AiChatDialog } from './AiChatDialog';
 import { ApiKeyDialog } from './ApiKeyDialog';
 import { checkGeminiKey } from '../lib/gemini';
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import SmartToyIcon from '@mui/icons-material/SmartToy';
 import { DashboardTable } from './DashboardTable';
 import { useLanguage } from '../lib/i18n';
 import { useDashboardData, calculateDashboardSummary, INITIAL_SUMMARY, type EnrichedDashboardHolding } from '../lib/dashboard';
@@ -25,6 +25,9 @@ import { Currency, TrackingListId } from '../lib/types';
 import { getDefaultColumnVisibility, getColumnDisplayNames, getPresetVisibility, type ColumnPresetType } from '../lib/dashboardColumns';
 import { TickerSearch } from './TickerSearch';
 import { useSession } from '../lib/SessionContext';
+import MenuIcon from '@mui/icons-material/Menu';
+import { ResponsiveDrawerMenu } from './ResponsiveDrawerMenu';
+import { Checkbox, FormControlLabel, FormGroup } from '@mui/material';
 
 interface DashboardProps {
   sheetId: string;
@@ -490,28 +493,31 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
             displayCurrency={displayCurrency}
             exchangeRates={exchangeRates}
             lockedMetric='pct'
-            />
-            {hasFutureTxns && (
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'right', mt: 1, mr: 2, mb: -1, fontSize: '0.7rem' }}>
-                {t('Note: Some transactions with future dates exist and are not included in the calculations.', 'הערה: קיימות עסקאות עם תאריך עתידי שאינן נכללות בחישובים.')}
-              </Typography>
-            )}
-          </Paper>
+          />
+          {hasFutureTxns && (
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'right', mt: 1, mr: 2, mb: -1, fontSize: '0.7rem' }}>
+              {t('Note: Some transactions with future dates exist and are not included in the calculations.', 'הערה: קיימות עסקאות עם תאריך עתידי שאינן נכללות בחישובים.')}
+            </Typography>
+          )}
+        </Paper>
       )}
 
       {/* CONTROLS */}
-      <Box display="flex" flexDirection={isMobile ? 'column' : 'row'} justifyContent="space-between" mb={2} alignItems={isMobile ? 'stretch' : 'center'} gap={2}>
-        <Box display="flex" gap={1} alignItems="center" flexWrap="wrap">
-          <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
-            {t('View:', 'תצוגה:')}
-          </Typography>
-          <FormControl size="small" sx={{ minWidth: 120 }}>
+      <Box display="flex" flexDirection="row" flexWrap="wrap" justifyContent="space-between" mb={2} alignItems="center" gap={1.5}>
+        <Box display="flex" gap={1} alignItems="center" flexWrap="wrap" sx={{ flexGrow: 1 }}>
+          <FormControl size="small" sx={{ minWidth: isMobile ? 'auto' : 130 }}>
             <Select
               value={columnPreset}
               onChange={(e) => setColumnPreset(e.target.value as ColumnPresetType)}
               displayEmpty
-              variant="standard"
-              disableUnderline
+              size="small"
+              sx={{
+                borderRadius: 2,
+                bgcolor: 'background.paper',
+                fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                fontWeight: 600,
+                '& .MuiSelect-select': { py: 0.75 }
+              }}
               renderValue={(selected) => {
                 const presetTitles: Record<string, string> = {
                   custom: t('Custom', 'מותאם אישית'),
@@ -523,30 +529,23 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
                   all: t('All', 'הכל')
                 };
                 return (
-                  <Typography variant="body2" sx={{ fontWeight: 600, color: 'primary.main', py: 0.5 }}>
-                    {presetTitles[selected as string]}
-                  </Typography>
+                  <Box display="flex" alignItems="center" gap={0.5}>
+                    {!isMobile && <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>{t('View:', 'תצוגה:')}</Typography>}
+                    <span style={{ fontWeight: 600 }}>{presetTitles[selected as string]}</span>
+                  </Box>
                 );
               }}
-              sx={{
-                bgcolor: 'transparent',
-                '&:hover': {
-                  bgcolor: 'action.hover',
-                  borderRadius: 1,
-                },
-                px: 1,
-              }}
             >
-              <MenuItem value="custom">{t('Custom', 'מותאם אישית')}</MenuItem>
-              <MenuItem value="overview">{t('Overview', 'מבט כללי')}</MenuItem>
-              <MenuItem value="gains">{t('Gains', 'רווחים')}</MenuItem>
-              <MenuItem value="analytics">{t('Analytics', 'אנליטיקה')}</MenuItem>
-              <MenuItem value="technical">{t('Technical', 'טכני')}</MenuItem>
-              <MenuItem value="income_costs">{t('Income & Costs', 'הכנסות ועלויות')}</MenuItem>
-              <MenuItem value="all">{t('All', 'הכל')}</MenuItem>
+              <MenuItem value="custom" sx={{ fontSize: '0.875rem' }}>{t('Custom', 'מותאם אישית')}</MenuItem>
+              <MenuItem value="overview" sx={{ fontSize: '0.875rem' }}>{t('Overview', 'מבט כללי')}</MenuItem>
+              <MenuItem value="gains" sx={{ fontSize: '0.875rem' }}>{t('Gains', 'רווחים')}</MenuItem>
+              <MenuItem value="analytics" sx={{ fontSize: '0.875rem' }}>{t('Analytics', 'אנליטיקה')}</MenuItem>
+              <MenuItem value="technical" sx={{ fontSize: '0.875rem' }}>{t('Technical', 'טכני')}</MenuItem>
+              <MenuItem value="income_costs" sx={{ fontSize: '0.875rem' }}>{t('Income & Costs', 'הכנסות ועלויות')}</MenuItem>
+              <MenuItem value="all" sx={{ fontSize: '0.875rem' }}>{t('All', 'הכל')}</MenuItem>
             </Select>
           </FormControl>
-          {columnPreset === 'custom' && (
+          {!isMobile && columnPreset === 'custom' && (
             <ColumnSelector
               columns={columnVisibility}
               columnDisplayNames={columnDisplayNames}
@@ -561,50 +560,128 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
             />
           )}
         </Box>
-        <Box display="flex" alignItems="center" flexWrap="wrap" gap={1}>
-          <ToggleButton
-            value="showClosed"
-            selected={showClosed}
-            onChange={() => setShowClosed(!showClosed)}
-            size="small"
-            color="primary"
-            sx={{ borderRadius: 2, textTransform: 'none', px: isMobile ? 1 : 2, py: 0.5, fontSize: isMobile ? '0.75rem' : '0.875rem', border: 1, borderColor: 'divider', whiteSpace: 'nowrap' }}
-          >
-            {t('Show Closed', 'הצג סגורות')}
-          </ToggleButton>
-          <ToggleButton
-            value="grouped"
-            selected={groupByPortfolio}
-            onChange={() => setGroupByPortfolio(!groupByPortfolio)}
-            size="small"
-            color="primary"
-            sx={{ borderRadius: 2, textTransform: 'none', px: isMobile ? 1 : 2, py: 0.5, fontSize: isMobile ? '0.75rem' : '0.875rem', border: 1, borderColor: 'divider', whiteSpace: 'nowrap' }}
-          >
-            {t('Group', 'קבץ')}
-          </ToggleButton>
-          <Divider orientation="vertical" flexItem sx={{ mx: 0.5, height: 20, alignSelf: 'center' }} />
-          <Tooltip title={t("AI Portfolio Assistant", "עוזר תיק השקעות AI")}>
-            <Button
-              onClick={() => handleAiClick()}
-              variant="outlined"
-              size="small"
-              color="primary"
-              startIcon={<AutoAwesomeIcon fontSize="small" />}
-              sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600, minWidth: isMobile ? 36 : 64, px: isMobile ? 1 : 2, '& span': { mr: isMobile ? 0 : 1 }, '& .MuiButton-startIcon': { mr: isMobile ? 0 : 1 } }}
-            >
-              {isMobile ? '' : t('AI Assistant', 'עוזר AI')}
-            </Button>
-          </Tooltip>
-          <Tooltip title={t("Refresh Data", "רענן נתונים")}>
-            <IconButton
-              onClick={() => refresh(true)}
-              disabled={loading}
-              size="small"
-              sx={{ border: 'none', borderRadius: 0 }}
-            >
-              <RefreshIcon />
-            </IconButton>
-          </Tooltip>
+        <Box display="flex" alignItems="center" flexWrap="wrap" gap={0.5}>
+          {(() => {
+            const tShowClosed = t('Show Closed Positions', 'הצג אחזקות סגורות');
+            const tGroupBy = t('Group By Portfolio', 'קבץ לפי תיק');
+            return (
+              <>
+                <Tooltip title={t("AI Portfolio Assistant", "עוזר תיק השקעות AI")}>
+                  <Button
+                    onClick={() => handleAiClick()}
+                    variant="outlined"
+                    size="small"
+                    color="primary"
+                    sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600, minWidth: isMobile ? 36 : 64, px: isMobile ? 0 : 1.5 }}
+                  >
+                    <SmartToyIcon fontSize="small" sx={{ mr: isMobile ? 0 : 0.75 }} />
+                    {!isMobile && t('AI Assistant', 'עוזר AI')}
+                  </Button>
+                </Tooltip>
+
+                <Divider orientation="vertical" flexItem sx={{ mx: 0.5, height: 20, borderRightWidth: 0, alignSelf: 'center', display: { xs: 'none', sm: 'block' } }} />
+
+                {isMobile ? (
+                  <>
+                    <Button onClick={handleClickColSelector} variant="outlined" size="small" color="primary" sx={{ borderRadius: 2, minWidth: 36, px: 0, height: '100%' }}>
+                      <MenuIcon fontSize="small" />
+                    </Button>
+                    <ResponsiveDrawerMenu
+                      anchorEl={anchorEl}
+                      open={openColSelector}
+                      onClose={handleCloseColSelector}
+                      title={t('Options', 'אפשרויות')}
+                    >
+                      <Box display="flex" flexDirection="column" gap={2} p={1}>
+                        <Box display="flex" gap={1}>
+                          <ToggleButton
+                            value="showClosed"
+                            selected={showClosed}
+                            onChange={() => setShowClosed(!showClosed)}
+                            size="small"
+                            color="primary"
+                            sx={{ flex: 1, borderRadius: 2, textTransform: 'none', py: 0.75, px: 0.5, fontSize: '0.8rem', lineHeight: 1.2, border: 1, borderColor: 'divider' }}
+                          >
+                            {tShowClosed}
+                          </ToggleButton>
+                          <ToggleButton
+                            value="grouped"
+                            selected={groupByPortfolio}
+                            onChange={() => setGroupByPortfolio(!groupByPortfolio)}
+                            size="small"
+                            color="primary"
+                            sx={{ flex: 1, borderRadius: 2, textTransform: 'none', py: 0.75, px: 0.5, fontSize: '0.8rem', lineHeight: 1.2, border: 1, borderColor: 'divider' }}
+                          >
+                            {tGroupBy}
+                          </ToggleButton>
+                        </Box>
+
+                        {columnPreset === 'custom' && (
+                          <>
+                            <Divider />
+                            <Typography variant="subtitle2" fontWeight="bold">
+                              {t('Select Columns', 'בחר עמודות')}
+                            </Typography>
+                            <FormGroup>
+                              {Object.entries(columnVisibility).map(([key, value]) => (
+                                <FormControlLabel
+                                  key={key}
+                                  control={
+                                    <Checkbox
+                                      size="small"
+                                      checked={value as boolean}
+                                      onChange={(e) => setCustomColumnVisibility((prev: any) => ({ ...prev, [key]: e.target.checked }))}
+                                    />
+                                  }
+                                  label={columnDisplayNames[key] || key}
+                                  sx={{ '& .MuiFormControlLabel-label': { fontSize: '0.9rem' } }}
+                                />
+                              ))}
+                            </FormGroup>
+                          </>
+                        )}
+                      </Box>
+                    </ResponsiveDrawerMenu>
+                  </>
+                ) : (
+                  <>
+                    <ToggleButton
+                      value="showClosed"
+                      selected={showClosed}
+                      onChange={() => setShowClosed(!showClosed)}
+                      size="small"
+                      color="primary"
+                      sx={{ borderRadius: 2, textTransform: 'none', px: { xs: 1, sm: 1.5 }, py: 0.5, fontSize: { xs: '0.75rem', sm: '0.875rem' }, border: 1, borderTopRightRadius: 0, borderBottomRightRadius: 0, borderColor: 'divider', whiteSpace: 'nowrap' }}
+                    >
+                      {tShowClosed}
+                    </ToggleButton>
+                    <ToggleButton
+                      value="grouped"
+                      selected={groupByPortfolio}
+                      onChange={() => setGroupByPortfolio(!groupByPortfolio)}
+                      size="small"
+                      color="primary"
+                      sx={{ borderRadius: 2, textTransform: 'none', px: { xs: 1, sm: 1.5 }, py: 0.5, fontSize: { xs: '0.75rem', sm: '0.875rem' }, border: 1, borderTopLeftRadius: 0, borderBottomLeftRadius: 0, borderColor: 'divider', whiteSpace: 'nowrap', ml: '-1px' }}
+                    >
+                      {tGroupBy}
+                    </ToggleButton>
+                  </>
+                )}
+
+                <Divider orientation="vertical" flexItem sx={{ mx: 0.5, height: 20, alignSelf: 'center', display: { xs: 'none', sm: 'block' } }} />
+                <Tooltip title={t("Refresh Data", "רענן נתונים")}>
+                  <IconButton
+                    onClick={() => refresh(true)}
+                    disabled={loading}
+                    size="small"
+                    sx={{ ml: 0.5 }}
+                  >
+                    <RefreshIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              </>
+            );
+          })()}
         </Box>
       </Box>
 
@@ -629,44 +706,48 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
         preventColumnHide={columnPreset !== 'custom'}
       />
 
-      {decryptedKey && (
-        <AiChatDialog
-          open={aiChatOpen}
-          onClose={() => {
-            const newParams = new URLSearchParams(searchParams);
-            newParams.delete('prompt');
-            navigate({
-              pathname: '/dashboard',
-              search: newParams.toString() ? `?${newParams.toString()}` : ''
-            }, { replace: true });
-          }}
-          apiKey={decryptedKey || ''}
-          sheetId={sheetId || ''}
-          holdings={holdings}
-          portfolios={portfolios}
-          exchangeRates={exchangeRates}
-          displayCurrency={displayCurrency}
-          engine={engine}
-          onTickerClick={(t) => {
-            navigate(`/ticker/${t.exchange}/${t.symbol}`, {
-              state: {
-                from: '/dashboard',
-                background: location,
-              }
-            });
-          }}
-          onNavClick={(path) => navigate(path)}
-          initialPrompt={aiInitialPrompt}
-        />
-      )}
+      {
+        decryptedKey && (
+          <AiChatDialog
+            open={aiChatOpen}
+            onClose={() => {
+              const newParams = new URLSearchParams(searchParams);
+              newParams.delete('prompt');
+              navigate({
+                pathname: '/dashboard',
+                search: newParams.toString() ? `?${newParams.toString()}` : ''
+              }, { replace: true });
+            }}
+            apiKey={decryptedKey || ''}
+            sheetId={sheetId || ''}
+            holdings={holdings}
+            portfolios={portfolios}
+            exchangeRates={exchangeRates}
+            displayCurrency={displayCurrency}
+            engine={engine}
+            onTickerClick={(t) => {
+              navigate(`/ticker/${t.exchange}/${t.symbol}`, {
+                state: {
+                  from: '/dashboard',
+                  background: location,
+                }
+              });
+            }}
+            onNavClick={(path) => navigate(path)}
+            initialPrompt={aiInitialPrompt}
+          />
+        )
+      }
 
-      {sheetId && (
-        <ApiKeyDialog
-          open={apiKeyDialogOpen}
-          onClose={() => setApiKeyDialogOpen(false)}
-          sheetId={sheetId}
-        />
-      )}
-    </Box>
+      {
+        sheetId && (
+          <ApiKeyDialog
+            open={apiKeyDialogOpen}
+            onClose={() => setApiKeyDialogOpen(false)}
+            sheetId={sheetId}
+          />
+        )
+      }
+    </Box >
   );
 }

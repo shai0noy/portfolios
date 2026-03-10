@@ -37,6 +37,18 @@ export function ColumnSelector({
         aria-haspopup="true"
         aria-expanded={open ? "true" : undefined}
         onClick={onClick}
+        variant="outlined"
+        color="primary"
+        size="small"
+        sx={{
+          borderRadius: 2,
+          textTransform: 'none',
+          px: { xs: 1, sm: 1.5 },
+          py: 0.5,
+          fontSize: { xs: '0.75rem', sm: '0.875rem' },
+          fontWeight: 600,
+          whiteSpace: 'nowrap'
+        }}
       >
         {label}
       </Button>

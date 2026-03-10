@@ -51,7 +51,6 @@ export async function fetchPensyanetFund(
       const cached = await loadFromCache<FundData>(cacheKey);
       if (cached) {
         if (now - cached.timestamp < GEMEL_CACHE_TTL) {
-          console.log(`[Pensyanet] Using cached data for fund ${fundId}`);
           return cached.data;
         }
       }
@@ -62,9 +61,7 @@ export async function fetchPensyanetFund(
 
   // 2. Fetch Data
   const url = `${WORKER_URL}/?apiId=pensyanet_fund&startYear=${sParts.year}&startMonth=${sParts.month}&endYear=${eParts.year}&endMonth=${eParts.month}&fundId=${fundId}`;
-  
-  console.log(`[Pensyanet] Fetching data for fund ${fundId}...`);
-  
+
   try {
     const xmlText = await fetchXml(url);
     const xmlDoc = parseXmlString(xmlText);
@@ -165,7 +162,6 @@ export async function fetchPensyanetTickers(signal?: AbortSignal, forceRefresh =
       const cached = await loadFromCache<CompactTicker[]>(LIST_CACHE_KEY);
       if (cached) {
         if (now - cached.timestamp < GEMEL_LIST_CACHE_TTL) {
-          console.log('[Pensyanet] Using cached tickers list');
           return decompressTickers(cached.data);
         }
       }
@@ -183,7 +179,6 @@ export async function fetchPensyanetTickers(signal?: AbortSignal, forceRefresh =
   const eParts = getDateParts(endDate);
   const url = `${WORKER_URL}/?apiId=pensyanet_list&startYear=${sParts.year}&startMonth=${sParts.month}&endYear=${eParts.year}&endMonth=${eParts.month}`;
 
-  console.log('[Pensyanet] Fetching tickers list...');
   try {
     const xmlText = await fetchXml(url, signal);
     const xmlDoc = parseXmlString(xmlText);
@@ -245,7 +240,6 @@ export async function fetchPensyanetQuote(
   ]);
 
   if (!fundData || fundData.data.length === 0) {
-    console.log(`[Pensyanet] fetchPensyanetQuote: No data found for ${fundId}`, fundData);
     return null;
   }
 

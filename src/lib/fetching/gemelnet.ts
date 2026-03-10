@@ -51,7 +51,6 @@ export async function fetchGemelnetFund(
       const cached = await loadFromCache<FundData>(cacheKey);
       if (cached) {
         if (now - cached.timestamp < GEMEL_CACHE_TTL) {
-          console.log(`[Gemelnet] Using cached data for fund ${fundId}`);
           return cached.data;
         }
       }
@@ -176,7 +175,6 @@ export async function fetchGemelnetTickers(signal?: AbortSignal, forceRefresh = 
       const cached = await loadFromCache<CompactTicker[]>(LIST_CACHE_KEY);
       if (cached) {
         if (now - cached.timestamp < GEMEL_LIST_CACHE_TTL) {
-          console.log('[Gemelnet] Using cached tickers list');
           return decompressTickers(cached.data);
         }
       }
