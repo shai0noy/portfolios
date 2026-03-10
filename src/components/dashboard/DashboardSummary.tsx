@@ -331,47 +331,47 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                           )}
                         </Grid>
                       ) : (
-                          <Box display="flex" gap={4} justifyContent="flex-end" alignItems="center" flexWrap="wrap">
+                        <Box display="flex" gap={4} justifyContent="flex-end" alignItems="center" flexWrap="wrap">
+                          <SummaryStat
+                            label={t("Value After Tax", "שווי אחרי מס")}
+                            value={summary.valueAfterTax}
+                            pct={summary.aum > 0 ? summary.valueAfterTax / summary.aum : undefined}
+                            displayCurrency={displayCurrency}
+                            showSign={false}
+                          />
+                          <SummaryStat
+                            label={t("Unrealized Gain", "רווח לא ממומש")}
+                            value={summary.totalUnrealized}
+                            pct={summary.totalUnrealizedGainPct}
+                            color={summary.totalUnrealized >= 0 ? 'success.main' : 'error.main'}
+                            displayCurrency={displayCurrency}
+                          />
+                          <SummaryStat
+                            label={t("Realized Gain", "רווח ממומש")}
+                            value={summary.totalRealized + summary.totalDividends}
+                            pct={(summary.totalRealized + summary.totalDividends) / ((summary.totalCostOfSold + ((summary.aum - summary.totalUnvestedValue) - summary.totalUnrealized)) > 0 ? (summary.totalCostOfSold + ((summary.aum - summary.totalUnvestedValue) - summary.totalUnrealized)) : 1)}
+                            color={(summary.totalRealized + summary.totalDividends) >= 0 ? 'success.main' : 'error.main'}
+                            tooltip={
+                              <>
+                                {t("Trading", "מסחר")}: {formatMoneyValue({ amount: summary.totalRealized, currency: normalizeCurrency(displayCurrency) }, undefined)}<br />
+                                {t("Dividends", "דיבידנדים")}: {formatMoneyValue({ amount: summary.totalDividends, currency: normalizeCurrency(displayCurrency) }, undefined)}<br />
+                                {t("Realized gains after tax", "רווח ממומש לאחר מיסוי")}: {formatMoneyValue({ amount: summary.realizedGainAfterTax, currency: normalizeCurrency(displayCurrency) }, undefined)}<br />
+                                {t("Total Tax Paid", "סה״כ מס ששולם")}: {formatMoneyValue({ amount: summary.totalTaxPaid, currency: normalizeCurrency(displayCurrency) }, undefined)}
+                              </>
+                            }
+                            displayCurrency={displayCurrency}
+                          />
+                          {summary.totalUnvestedValue > 0.01 && (
                             <SummaryStat
-                              label={t("Value After Tax", "שווי אחרי מס")}
-                              value={summary.valueAfterTax}
-                              pct={summary.aum > 0 ? summary.valueAfterTax / summary.aum : undefined}
-                              displayCurrency={displayCurrency}
-                              showSign={false}
-                            />
-                            <SummaryStat
-                              label={t("Unrealized Gain", "רווח לא ממומש")}
-                              value={summary.totalUnrealized}
-                              pct={summary.totalUnrealizedGainPct}
-                              color={summary.totalUnrealized >= 0 ? 'success.main' : 'error.main'}
+                              label={t("Unvested Value", "שווי לא מובשל")}
+                              value={summary.totalUnvestedValue}
+                              pct={summary.totalUnvestedGainPct}
+                              gainValue={summary.totalUnvestedGain}
+                              gainLabel={t("Unvested Gain", "רווח לא מובשל")}
                               displayCurrency={displayCurrency}
                             />
-                            <SummaryStat
-                              label={t("Realized Gain", "רווח ממומש")}
-                              value={summary.totalRealized + summary.totalDividends}
-                              pct={(summary.totalRealized + summary.totalDividends) / ((summary.totalCostOfSold + ((summary.aum - summary.totalUnvestedValue) - summary.totalUnrealized)) > 0 ? (summary.totalCostOfSold + ((summary.aum - summary.totalUnvestedValue) - summary.totalUnrealized)) : 1)}
-                              color={(summary.totalRealized + summary.totalDividends) >= 0 ? 'success.main' : 'error.main'}
-                              tooltip={
-                                <>
-                                  {t("Trading", "מסחר")}: {formatMoneyValue({ amount: summary.totalRealized, currency: normalizeCurrency(displayCurrency) }, undefined)}<br />
-                                  {t("Dividends", "דיבידנדים")}: {formatMoneyValue({ amount: summary.totalDividends, currency: normalizeCurrency(displayCurrency) }, undefined)}<br />
-                                  {t("Realized gains after tax", "רווח ממומש לאחר מיסוי")}: {formatMoneyValue({ amount: summary.realizedGainAfterTax, currency: normalizeCurrency(displayCurrency) }, undefined)}<br />
-                                  {t("Total Tax Paid", "סה״כ מס ששולם")}: {formatMoneyValue({ amount: summary.totalTaxPaid, currency: normalizeCurrency(displayCurrency) }, undefined)}
-                                </>
-                              }
-                              displayCurrency={displayCurrency}
-                            />
-                            {summary.totalUnvestedValue > 0.01 && (
-                              <SummaryStat
-                                label={t("Unvested Value", "שווי לא מובשל")}
-                                value={summary.totalUnvestedValue}
-                                pct={summary.totalUnvestedGainPct}
-                                gainValue={summary.totalUnvestedGain}
-                                gainLabel={t("Unvested Gain", "רווח לא מובשל")}
-                                displayCurrency={displayCurrency}
-                              />
-                            )}
-                          </Box>
+                          )}
+                        </Box>
                       )}
 
                       {/* Performance / Detail Row */}
@@ -580,50 +580,50 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                                 </>
                               ) : (
                                 <>
-                                    <ToggleButtonGroup
-                                      value={effectiveChartMetric}
-                                      exclusive
-                                      onChange={(_, val) => val && setChartMetric(val)}
-                                      size="small"
-                                      sx={{ height: 26 }}
-                                      disabled={isComparison || chartView === 'twr' || chartView === 'gains'}
-                                    >
-                                      <ToggleButton value="price" sx={{ px: 1, fontSize: '0.65rem' }}>$</ToggleButton>
-                                      <ToggleButton value="percent" sx={{ px: 1, fontSize: '0.65rem' }}>%</ToggleButton>
-                                    </ToggleButtonGroup>
+                                  <ToggleButtonGroup
+                                    value={effectiveChartMetric}
+                                    exclusive
+                                    onChange={(_, val) => val && setChartMetric(val)}
+                                    size="small"
+                                    sx={{ height: 26 }}
+                                    disabled={isComparison || chartView === 'twr' || chartView === 'gains'}
+                                  >
+                                    <ToggleButton value="price" sx={{ px: 1, fontSize: '0.65rem' }}>$</ToggleButton>
+                                    <ToggleButton value="percent" sx={{ px: 1, fontSize: '0.65rem' }}>%</ToggleButton>
+                                  </ToggleButtonGroup>
 
-                                    <ToggleButtonGroup value={scaleType} exclusive onChange={(_, v) => v && setScaleType(v)} size="small" sx={{ height: 26 }}>
-                                      <ToggleButton value="linear" sx={{ px: 1, fontSize: '0.65rem' }}>LIN</ToggleButton>
-                                      <ToggleButton value="log" sx={{ px: 1, fontSize: '0.65rem' }}>LOG</ToggleButton>
-                                    </ToggleButtonGroup>
+                                  <ToggleButtonGroup value={scaleType} exclusive onChange={(_, v) => v && setScaleType(v)} size="small" sx={{ height: 26 }}>
+                                    <ToggleButton value="linear" sx={{ px: 1, fontSize: '0.65rem' }}>LIN</ToggleButton>
+                                    <ToggleButton value="log" sx={{ px: 1, fontSize: '0.65rem' }}>LOG</ToggleButton>
+                                  </ToggleButtonGroup>
 
-                                    <ToggleButtonGroup value={trendType !== 'none' ? 'trend' : ''} exclusive size="small" sx={{ height: 26 }}>
-                                      <ToggleButton value="trend" onClick={(e) => setTrendMenuAnchor(e.currentTarget)} sx={{ px: 1 }}>
-                                        <ListItemIcon sx={{ minWidth: 'auto' }}>
-                                          <TrendLineIcon sx={{ fontSize: '1rem' }} />
-                                        </ListItemIcon>
-                                      </ToggleButton>
-                                    </ToggleButtonGroup>
+                                  <ToggleButtonGroup value={trendType !== 'none' ? 'trend' : ''} exclusive size="small" sx={{ height: 26 }}>
+                                    <ToggleButton value="trend" onClick={(e) => setTrendMenuAnchor(e.currentTarget)} sx={{ px: 1 }}>
+                                      <ListItemIcon sx={{ minWidth: 'auto' }}>
+                                        <TrendLineIcon sx={{ fontSize: '1rem' }} />
+                                      </ListItemIcon>
+                                    </ToggleButton>
+                                  </ToggleButtonGroup>
 
-                                    <Button
-                                      size="small"
-                                      variant="outlined"
-                                      startIcon={<AddIcon sx={{ fontSize: '1rem !important' }} />}
-                                      onClick={(e) => setCompareMenuAnchor(e.currentTarget)}
-                                      sx={{ height: 26, fontSize: '0.65rem', textTransform: 'none' }}
-                                      disabled={isComparisonDisabled}
-                                    >
-                                      {t('Compare', 'השווה')}
-                                    </Button>
-                                    <Button
-                                      onClick={() => setAnalysisOpen(true)}
-                                      size="small"
-                                      variant="outlined"
-                                      sx={{ height: 26, fontSize: '0.65rem', textTransform: 'none' }}
-                                      disabled={isComparisonDisabled}
-                                    >
-                                      {t('Analysis', 'ניתוח')}
-                                    </Button>
+                                  <Button
+                                    size="small"
+                                    variant="outlined"
+                                    startIcon={<AddIcon sx={{ fontSize: '1rem !important' }} />}
+                                    onClick={(e) => setCompareMenuAnchor(e.currentTarget)}
+                                    sx={{ height: 26, fontSize: '0.65rem', textTransform: 'none' }}
+                                    disabled={isComparisonDisabled}
+                                  >
+                                    {t('Compare', 'השווה')}
+                                  </Button>
+                                  <Button
+                                    onClick={() => setAnalysisOpen(true)}
+                                    size="small"
+                                    variant="outlined"
+                                    sx={{ height: 26, fontSize: '0.65rem', textTransform: 'none' }}
+                                    disabled={isComparisonDisabled}
+                                  >
+                                    {t('Analysis', 'ניתוח')}
+                                  </Button>
                                 </>
                               )}
                             </Box>
@@ -658,26 +658,26 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                               </>
                             ) : (
                               <Box sx={{ overflowX: 'auto', maxWidth: '100%', scrollbarWidth: 'none', '::-webkit-scrollbar': { display: 'none' } }}>
-                                  <ToggleButtonGroup
-                                    value={chartRange}
-                                    exclusive
-                                    onChange={(_, val) => {
-                                      if (val === 'Custom') {
-                                        setCustomRangeOpen(true);
-                                      } else if (val) {
-                                        setChartRange(val);
-                                      }
-                                    }}
-                                    size="small"
-                                    sx={{ height: 26, flexShrink: 0 }} // Prevent shrinking
-                                  >
-                                    {availableRanges.map(r => (
-                                      <ToggleButton key={r} value={r} sx={{ px: 1, fontSize: '0.65rem' }}>
-                                        {r === 'ALL' ? maxLabel : r}
-                                      </ToggleButton>
-                                    ))}
-                                    <ToggleButton value="Custom" sx={{ px: 1 }}><DateRangeIcon sx={{ fontSize: '1rem' }} /></ToggleButton>
-                                  </ToggleButtonGroup>
+                                <ToggleButtonGroup
+                                  value={chartRange}
+                                  exclusive
+                                  onChange={(_, val) => {
+                                    if (val === 'Custom') {
+                                      setCustomRangeOpen(true);
+                                    } else if (val) {
+                                      setChartRange(val);
+                                    }
+                                  }}
+                                  size="small"
+                                  sx={{ height: 26, flexShrink: 0 }} // Prevent shrinking
+                                >
+                                  {availableRanges.map(r => (
+                                    <ToggleButton key={r} value={r} sx={{ px: 1, fontSize: '0.65rem' }}>
+                                      {r === 'ALL' ? maxLabel : r}
+                                    </ToggleButton>
+                                  ))}
+                                  <ToggleButton value="Custom" sx={{ px: 1 }}><DateRangeIcon sx={{ fontSize: '1rem' }} /></ToggleButton>
+                                </ToggleButtonGroup>
                               </Box>
                             )}
                           </Box>
@@ -703,94 +703,94 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                         </Box>
                       }
                     />
-                      {/* Settings Menu for Mobile */}
-                      <Menu anchorEl={settingsMenuAnchor} open={Boolean(settingsMenuAnchor)} onClose={() => setSettingsMenuAnchor(null)}>
-                        {/* Unit Toggle */}
-                        <MenuItem onClick={() => { setChartMetric(chartMetric === 'price' ? 'percent' : 'price'); setSettingsMenuAnchor(null); }} disabled={isComparison || chartView === 'twr' || chartView === 'gains'}>
-                          <ListItemText primary={t('Show Percent', 'הצג אחוזים')} />
-                          <Typography variant="caption" color="text.secondary">{chartMetric === 'percent' ? 'ON' : 'OFF'}</Typography>
-                        </MenuItem>
+                    {/* Settings Menu for Mobile */}
+                    <Menu anchorEl={settingsMenuAnchor} open={Boolean(settingsMenuAnchor)} onClose={() => setSettingsMenuAnchor(null)}>
+                      {/* Unit Toggle */}
+                      <MenuItem onClick={() => { setChartMetric(chartMetric === 'price' ? 'percent' : 'price'); setSettingsMenuAnchor(null); }} disabled={isComparison || chartView === 'twr' || chartView === 'gains'}>
+                        <ListItemText primary={t('Show Percent', 'הצג אחוזים')} />
+                        <Typography variant="caption" color="text.secondary">{chartMetric === 'percent' ? 'ON' : 'OFF'}</Typography>
+                      </MenuItem>
 
-                        {/* Scale Toggle */}
-                        <MenuItem onClick={() => { setScaleType(scaleType === 'linear' ? 'log' : 'linear'); setSettingsMenuAnchor(null); }}>
-                          <ListItemIcon><PieChartIcon fontSize="small" /></ListItemIcon>
-                          <ListItemText primary={t('Logarithmic Scale', 'סקאלה לוגריתמית')} secondary={scaleType === 'log' ? t('ON', 'פעיל') : t('OFF', 'כבוי')} />
-                          {/* <Typography variant="caption" color="text.secondary">{scaleType === 'log' ? 'ON' : 'OFF'}</Typography> */}
-                        </MenuItem>
+                      {/* Scale Toggle */}
+                      <MenuItem onClick={() => { setScaleType(scaleType === 'linear' ? 'log' : 'linear'); setSettingsMenuAnchor(null); }}>
+                        <ListItemIcon><PieChartIcon fontSize="small" /></ListItemIcon>
+                        <ListItemText primary={t('Logarithmic Scale', 'סקאלה לוגריתמית')} secondary={scaleType === 'log' ? t('ON', 'פעיל') : t('OFF', 'כבוי')} />
+                        {/* <Typography variant="caption" color="text.secondary">{scaleType === 'log' ? 'ON' : 'OFF'}</Typography> */}
+                      </MenuItem>
 
-                        <Divider />
+                      <Divider />
 
-                        {/* Trend Submenu Trigger or Simplified */}
-                        <MenuItem onClick={(e) => { setTrendMenuAnchor(e.currentTarget); setSettingsMenuAnchor(null); }}>
-                          <ListItemIcon><TrendLineIcon fontSize="small" /></ListItemIcon>
-                          <ListItemText primary={t('Trend Lines', 'קווי מגמה')} />
-                        </MenuItem>
+                      {/* Trend Submenu Trigger or Simplified */}
+                      <MenuItem onClick={(e) => { setTrendMenuAnchor(e.currentTarget); setSettingsMenuAnchor(null); }}>
+                        <ListItemIcon><TrendLineIcon fontSize="small" /></ListItemIcon>
+                        <ListItemText primary={t('Trend Lines', 'קווי מגמה')} />
+                      </MenuItem>
 
-                        {/* Compare */}
-                        <MenuItem onClick={(e) => { setCompareMenuAnchor(e.currentTarget); setSettingsMenuAnchor(null); }} disabled={isComparisonDisabled}>
-                          <ListItemIcon><AddIcon fontSize="small" /></ListItemIcon>
-                          <ListItemText primary={t('Compare', 'השווה')} />
-                        </MenuItem>
+                      {/* Compare */}
+                      <MenuItem onClick={(e) => { setCompareMenuAnchor(e.currentTarget); setSettingsMenuAnchor(null); }} disabled={isComparisonDisabled}>
+                        <ListItemIcon><AddIcon fontSize="small" /></ListItemIcon>
+                        <ListItemText primary={t('Compare', 'השווה')} />
+                      </MenuItem>
 
-                        {/* Analysis */}
-                        <MenuItem onClick={() => { setAnalysisOpen(true); setSettingsMenuAnchor(null); }} disabled={isComparisonDisabled}>
-                          <ListItemIcon><QueryStatsIcon fontSize="small" /></ListItemIcon>
-                          <ListItemText primary={t('Analysis', 'ניתוח')} />
-                        </MenuItem>
-                      </Menu>
+                      {/* Analysis */}
+                      <MenuItem onClick={() => { setAnalysisOpen(true); setSettingsMenuAnchor(null); }} disabled={isComparisonDisabled}>
+                        <ListItemIcon><QueryStatsIcon fontSize="small" /></ListItemIcon>
+                        <ListItemText primary={t('Analysis', 'ניתוח')} />
+                      </MenuItem>
+                    </Menu>
 
-                      <Menu anchorEl={trendMenuAnchor} open={Boolean(trendMenuAnchor)} onClose={() => setTrendMenuAnchor(null)}>
-                        <MenuItem onClick={() => { setTrendType('none'); setTrendMenuAnchor(null); }} selected={trendType === 'none'}>{t('No Trend', 'ללא מגמה')}</MenuItem>
-                        <MenuItem onClick={() => { setTrendType('linear'); setTrendMenuAnchor(null); }} selected={trendType === 'linear'}>{t('Linear', 'ליניארי')}</MenuItem>
-                        <MenuItem onClick={() => { setTrendType('exponential'); setTrendMenuAnchor(null); }} selected={trendType === 'exponential'}>{t('Exponential', 'אקספוננציאלי')}</MenuItem>
-                        <MenuItem onClick={() => { setTrendType('polynomial'); setTrendMenuAnchor(null); }} selected={trendType === 'polynomial'}>{t('Cubic', 'פולינום (3)')}</MenuItem>
-                        <MenuItem onClick={() => { setTrendType('logarithmic'); setTrendMenuAnchor(null); }} selected={trendType === 'logarithmic'}>{t('Logarithmic', 'לוגריתמי')}</MenuItem>
-                      </Menu>
+                    <Menu anchorEl={trendMenuAnchor} open={Boolean(trendMenuAnchor)} onClose={() => setTrendMenuAnchor(null)}>
+                      <MenuItem onClick={() => { setTrendType('none'); setTrendMenuAnchor(null); }} selected={trendType === 'none'}>{t('No Trend', 'ללא מגמה')}</MenuItem>
+                      <MenuItem onClick={() => { setTrendType('linear'); setTrendMenuAnchor(null); }} selected={trendType === 'linear'}>{t('Linear', 'ליניארי')}</MenuItem>
+                      <MenuItem onClick={() => { setTrendType('exponential'); setTrendMenuAnchor(null); }} selected={trendType === 'exponential'}>{t('Exponential', 'אקספוננציאלי')}</MenuItem>
+                      <MenuItem onClick={() => { setTrendType('polynomial'); setTrendMenuAnchor(null); }} selected={trendType === 'polynomial'}>{t('Cubic', 'פולינום (3)')}</MenuItem>
+                      <MenuItem onClick={() => { setTrendType('logarithmic'); setTrendMenuAnchor(null); }} selected={trendType === 'logarithmic'}>{t('Logarithmic', 'לוגריתמי')}</MenuItem>
+                    </Menu>
 
-                      <Menu
-                        anchorEl={compareMenuAnchor}
-                        open={Boolean(compareMenuAnchor)}
-                        onClose={() => setCompareMenuAnchor(null)}
-                      >
-                        {(() => {
-                          let lastGroup = '';
-                          return comparisonOptions.map((opt) => {
-                            const showHeader = opt.group && opt.group !== lastGroup;
-                            if (showHeader) lastGroup = opt.group!;
+                    <Menu
+                      anchorEl={compareMenuAnchor}
+                      open={Boolean(compareMenuAnchor)}
+                      onClose={() => setCompareMenuAnchor(null)}
+                    >
+                      {(() => {
+                        let lastGroup = '';
+                        return comparisonOptions.map((opt) => {
+                          const showHeader = opt.group && opt.group !== lastGroup;
+                          if (showHeader) lastGroup = opt.group!;
 
-                            return [
-                              showHeader && (
-                                <Box key={`header - ${opt.group}`} sx={{ px: 2, py: 1, bgcolor: 'background.default', typography: 'caption', color: 'text.secondary', fontWeight: 'bold' }}>
-                                  {opt.group}
-                                </Box>
-                              ),
-                              <MenuItem
-                                key={opt.name}
-                                onClick={() => {
-                                  handleSelectComparison(opt);
-                                  setCompareMenuAnchor(null);
-                                }}
-                                disabled={comparisonSeries.some(s => s.name === opt.name) || comparisonLoading[opt.name]}
-                                sx={{ fontSize: '0.8125rem', minWidth: 120, pl: opt.group ? 3 : 2, minHeight: 32 }}
-                                dense
-                              >
-                                {opt.icon === 'search' && (
-                                  <ListItemIcon sx={{ minWidth: 28 }}>
-                                    <QueryStatsIcon fontSize="small" sx={{ fontSize: '1.1rem' }} />
-                                  </ListItemIcon>
-                                )}
-                                {opt.icon && opt.icon !== 'search' && (
-                                  <ListItemIcon sx={{ minWidth: 28 }}>
-                                    {opt.icon === 'pie_chart' ? <PieChartIcon fontSize="small" sx={{ fontSize: '1.1rem' }} /> :
-                                      opt.icon === 'business_center' ? <BusinessCenterIcon fontSize="small" sx={{ fontSize: '1.1rem' }} /> :
-                                        null}
-                                  </ListItemIcon>
-                                )}
-                                {opt.name}
-                                {comparisonLoading[opt.name] && <CircularProgress size={12} sx={{ ml: 'auto', pl: 1 }} />}
-                              </MenuItem>
-                            ];
-                          });
+                          return [
+                            showHeader && (
+                              <Box key={`header - ${opt.group}`} sx={{ px: 2, py: 1, bgcolor: 'background.default', typography: 'caption', color: 'text.secondary', fontWeight: 'bold' }}>
+                                {opt.group}
+                              </Box>
+                            ),
+                            <MenuItem
+                              key={opt.name}
+                              onClick={() => {
+                                handleSelectComparison(opt);
+                                setCompareMenuAnchor(null);
+                              }}
+                              disabled={comparisonSeries.some(s => s.name === opt.name) || comparisonLoading[opt.name]}
+                              sx={{ fontSize: '0.8125rem', minWidth: 120, pl: opt.group ? 3 : 2, minHeight: 32 }}
+                              dense
+                            >
+                              {opt.icon === 'search' && (
+                                <ListItemIcon sx={{ minWidth: 28 }}>
+                                  <QueryStatsIcon fontSize="small" sx={{ fontSize: '1.1rem' }} />
+                                </ListItemIcon>
+                              )}
+                              {opt.icon && opt.icon !== 'search' && (
+                                <ListItemIcon sx={{ minWidth: 28 }}>
+                                  {opt.icon === 'pie_chart' ? <PieChartIcon fontSize="small" sx={{ fontSize: '1.1rem' }} /> :
+                                    opt.icon === 'business_center' ? <BusinessCenterIcon fontSize="small" sx={{ fontSize: '1.1rem' }} /> :
+                                      null}
+                                </ListItemIcon>
+                              )}
+                              {opt.name}
+                              {comparisonLoading[opt.name] && <CircularProgress size={12} sx={{ ml: 'auto', pl: 1 }} />}
+                            </MenuItem>
+                          ];
+                        });
                       })()}
                     </Menu>
                   </Box>
