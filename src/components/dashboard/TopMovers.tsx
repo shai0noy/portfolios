@@ -1,4 +1,4 @@
-import { Box, Typography, Paper, Tooltip, ToggleButtonGroup, ToggleButton, alpha, useTheme } from '@mui/material';
+import { Box, Typography, Paper, Tooltip, ToggleButtonGroup, ToggleButton, alpha, useTheme, useMediaQuery, Tabs, Tab, List, ListItem, Divider } from '@mui/material';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import { useLanguage } from '../../lib/i18n';
@@ -12,20 +12,19 @@ import { useScrollShadows, ScrollShadows } from '../../lib/ui-utils';
 /**
  * Renders a single mover card.
  */
-const MoverItem = ({ mover, navigate, displayCurrency }: { mover: Mover, navigate: any, displayCurrency: string }) => {
+const MoverItem = ({ mover, navigate, displayCurrency, sortBy }: { mover: Mover, navigate: any, displayCurrency: string, sortBy: 'change' | 'pct' }) => {
     const isPositive = mover.change >= 0;
     const color = isPositive ? 'success.main' : 'error.main';
-    let displayTicker = mover.ticker;
-    const isNumericOrF = /^\d+$/.test(mover.ticker) || (mover.exchange === 'TASE' && /\.?[Ff]\d+$/.test(mover.ticker));
 
-    if (isNumericOrF) {
-        const potentialName = mover.holding.nameHe || mover.holding.longName || mover.holding.displayName || mover.name;
-        if (potentialName && potentialName !== mover.ticker) {
-            displayTicker = potentialName;
-        }
-    }
+    const potentialName = mover.holding.nameHe || mover.holding.longName || mover.holding.displayName || mover.name;
+    const hasValidName = potentialName && potentialName !== mover.ticker;
+    const nameNode = hasValidName ? potentialName : mover.ticker;
+    const tickerNode = hasValidName ? mover.ticker : null;
 
-    const tooltipTitle = mover.holding.nameHe || mover.holding.longName || mover.holding.displayName || mover.name || mover.ticker;
+    const tooltipTitle = potentialName || mover.ticker;
+
+    const valueStr = formatMoneyValue({ amount: mover.change, currency: normalizeCurrency(displayCurrency) }, undefined, Math.abs(mover.change) >= 1000 ? 0 : 2);
+    const pctStr = formatPercent(mover.pct, true);
 
     return (
         <Paper
@@ -49,29 +48,97 @@ const MoverItem = ({ mover, navigate, displayCurrency }: { mover: Mover, navigat
                 }
             }}
         >
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={0.5}>
+            <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={0.5}>
                 <Tooltip title={tooltipTitle} enterTouchDelay={0} leaveTouchDelay={3000} arrow>
-                    <Box sx={{ maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        <Typography component="span" variant="body2" fontWeight="bold">
-                            {displayTicker}
+                    <Box sx={{ maxWidth: '85%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', flexDirection: 'column' }}>
+                        <Typography variant="body2" fontWeight="bold" noWrap>
+                            {nameNode}
                         </Typography>
+                        {tickerNode && (
+                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem', lineHeight: 1, mt: 0.25 }} noWrap>
+                                {tickerNode}
+                            </Typography>
+                        )}
                     </Box>
                 </Tooltip>
                 {isPositive ?
-                    <TrendingUpIcon fontSize="small" color="success" sx={{ opacity: 0.8, fontSize: '1rem' }} /> :
-                    <TrendingDownIcon fontSize="small" color="error" sx={{ opacity: 0.8, fontSize: '1rem' }} />
+                    <TrendingUpIcon fontSize="small" color="success" sx={{ opacity: 0.8, fontSize: '1rem', mt: 0.25 }} /> :
+                    <TrendingDownIcon fontSize="small" color="error" sx={{ opacity: 0.8, fontSize: '1rem', mt: 0.25 }} />
                 }
             </Box>
 
             <Box display="flex" alignItems="baseline" justifyContent="space-between">
-                <Typography variant="body2" fontWeight="500" color={color}>
-                    {formatMoneyValue({ amount: mover.change, currency: normalizeCurrency(displayCurrency) }, undefined, Math.abs(mover.change) >= 1000 ? 0 : 2)}
-                </Typography>
-                <Typography variant="caption" color={color} sx={{ fontWeight: 'bold', opacity: 0.9 }}>
-                    {formatPercent(mover.pct, true)}
-                </Typography>
+                {sortBy === 'pct' ? (
+                    <>
+                        <Typography variant="body2" fontWeight="bold" color={color}>
+                            {pctStr}
+                        </Typography>
+                        <Typography variant="caption" color={color} sx={{ opacity: 0.9 }}>
+                            {valueStr}
+                        </Typography>
+                    </>
+                ) : (
+                    <>
+                        <Typography variant="body2" fontWeight="bold" color={color}>
+                            {valueStr}
+                        </Typography>
+                        <Typography variant="caption" color={color} sx={{ opacity: 0.9 }}>
+                            {pctStr}
+                        </Typography>
+                    </>
+                )}
             </Box>
         </Paper>
+    );
+};
+
+/**
+ * Renders a single mover item for mobile lists.
+ */
+const MobileMoverListItem = ({ mover, navigate, displayCurrency, sortBy }: { mover: Mover, navigate: any, displayCurrency: string, sortBy: 'change' | 'pct' }) => {
+    const isPositive = mover.change >= 0;
+    const color = isPositive ? 'success.main' : 'error.main';
+
+    const potentialName = mover.holding.nameHe || mover.holding.longName || mover.holding.displayName || mover.name;
+    const hasValidName = potentialName && potentialName !== mover.ticker;
+    const nameNode = hasValidName ? potentialName : mover.ticker;
+    const tickerNode = hasValidName ? mover.ticker : null;
+
+    const valueStr = formatMoneyValue({ amount: mover.change, currency: normalizeCurrency(displayCurrency) }, undefined, Math.abs(mover.change) >= 1000 ? 0 : 2);
+    const pctStr = formatPercent(mover.pct, true);
+
+    const primaryVal = sortBy === 'pct' ? pctStr : valueStr;
+    const secondaryVal = sortBy === 'pct' ? valueStr : pctStr;
+
+    return (
+        <ListItem
+            component="li"
+            onClick={() => navigate(`/ticker/${mover.exchange.toUpperCase()}/${mover.ticker}`, { state: { holding: mover.holding, from: '/dashboard' } })}
+            sx={{ px: 1, py: 1, cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}
+        >
+            <Box sx={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Box sx={{ display: 'flex', flexDirection: 'column', maxWidth: '60%', overflow: 'hidden' }}>
+                    <Typography variant="body2" fontWeight="bold" noWrap>
+                        {nameNode}
+                    </Typography>
+                    {tickerNode && (
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }} noWrap>
+                            {tickerNode}
+                        </Typography>
+                    )}
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', textAlign: 'right' }}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                        <Typography variant="body2" fontWeight="bold" color={color}>
+                            {primaryVal}
+                        </Typography>
+                        <Typography variant="caption" color={color} sx={{ opacity: 0.9 }}>
+                            {secondaryVal}
+                        </Typography>
+                    </Box>
+                </Box>
+            </Box>
+        </ListItem>
     );
 };
 
@@ -89,6 +156,10 @@ export const TopMovers = ({ holdings, displayCurrency, exchangeRates, lockedMetr
     const { t } = useLanguage();
     const navigate = useNavigate();
     const [sortBy, setSortBy] = useState<'change' | 'pct'>(lockedMetric || 'change');
+    const [mobileTab, setMobileTab] = useState<TimePeriod>('1d');
+    const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+    const { containerRef: mobileListRef, showTop: mobileShowTop, showBottom: mobileShowBottom } = useScrollShadows('vertical');
 
     // Sync state if lockedMetric changes
     useMemo(() => {
@@ -135,6 +206,7 @@ export const TopMovers = ({ holdings, displayCurrency, exchangeRates, lockedMetr
                                         mover={mover}
                                         navigate={navigate}
                                         displayCurrency={displayCurrency}
+                                        sortBy={sortBy}
                                     />
                                 ))}
                             </Box>
@@ -168,9 +240,43 @@ export const TopMovers = ({ holdings, displayCurrency, exchangeRates, lockedMetr
                 </Box>
             </Box>
             <Box>
-                {(['1d', '1w', '1m'] as TimePeriod[]).map((period, index, arr) => (
-                    <MoversRow key={period} period={period} isLast={index === arr.length - 1} />
-                ))}
+                {isMobile ? (
+                    <Box>
+                        <Tabs
+                            value={mobileTab}
+                            onChange={(_, newValue) => setMobileTab(newValue as TimePeriod)}
+                            variant="fullWidth"
+                            sx={{ minHeight: 36, mb: 0.5, '.MuiTab-root': { minHeight: 36, textTransform: 'none', fontWeight: 'bold', py: 0.5 } }}
+                        >
+                            <Tab value="1d" label={periodLabels['1d']} />
+                            <Tab value="1w" label={periodLabels['1w']} />
+                            <Tab value="1m" label={periodLabels['1m']} />
+                        </Tabs>
+                        <Box sx={{ position: 'relative' }}>
+                            <List component="div" ref={mobileListRef} sx={{ pt: 0, pb: 0, maxHeight: 200, overflowY: 'auto' }}>
+                                {allMovers[mobileTab].length === 0 ? (
+                                    <Box sx={{ textAlign: 'center', py: 2 }}>
+                                        <Typography variant="body2" color="text.secondary">
+                                            {t('No significant movers.', 'אין תנודות משמעותיות.')}
+                                        </Typography>
+                                    </Box>
+                                ) : (
+                                    allMovers[mobileTab].map((mover, index) => (
+                                        <Box key={`${mover.key}-${mover.holding.portfolioId}`}>
+                                            <MobileMoverListItem mover={mover} navigate={navigate} displayCurrency={displayCurrency} sortBy={sortBy} />
+                                            {index < allMovers[mobileTab].length - 1 && <Divider component="li" sx={{ opacity: 0.5 }} />}
+                                        </Box>
+                                    ))
+                                )}
+                            </List>
+                            <ScrollShadows top={mobileShowTop} bottom={mobileShowBottom} theme={theme} />
+                        </Box>
+                    </Box>
+                ) : (
+                    (['1d', '1w', '1m'] as TimePeriod[]).map((period, index, arr) => (
+                        <MoversRow key={period} period={period} isLast={index === arr.length - 1} />
+                    ))
+                )}
             </Box>
         </Box>
     );

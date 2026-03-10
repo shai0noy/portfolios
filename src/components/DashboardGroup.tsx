@@ -102,23 +102,23 @@ export const DashboardGroup = memo(function DashboardGroup(props: DashboardGroup
     <Box sx={{ position: 'relative', mb: 4 }}>
       <Paper ref={containerRef} sx={{ overflowX: 'auto' }}>
         {groupByPortfolio && (
-          <Box display="flex" alignItems="center" justifyContent="space-between" p={1} bgcolor={theme.palette.background.default} borderBottom={`1px solid ${theme.palette.divider}`} sx={{ position: 'sticky', top: 0, left: 0, zIndex: 1 }}>
-            <Box display="flex" alignItems="center" gap={1} onClick={() => onSelectPortfolio(groupHoldings[0]?.portfolioId || null)} style={{ cursor: 'pointer' }}>
-              <IconButton size="small" onClick={(e) => { e.stopPropagation(); toggleGroup(); }} sx={{ transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 200ms' }}>
-                <ExpandMoreIcon fontSize="small" />
+          <Box display="flex" alignItems="center" justifyContent="space-between" px={{ xs: 1, sm: 1 }} py={{ xs: 0.75, sm: 1 }} bgcolor={theme.palette.background.default} borderBottom={`1px solid ${theme.palette.divider}`} sx={{ position: 'sticky', top: 0, left: 0, zIndex: 1 }}>
+            <Box display="flex" alignItems="center" gap={{ xs: 0.5, sm: 1 }} onClick={() => onSelectPortfolio(groupHoldings[0]?.portfolioId || null)} style={{ cursor: 'pointer' }}>
+              <IconButton size="small" onClick={(e) => { e.stopPropagation(); toggleGroup(); }} sx={{ transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 200ms', padding: { xs: '2px', sm: '5px' } }}>
+                <ExpandMoreIcon fontSize={theme.breakpoints.values.sm > window.innerWidth ? 'inherit' : 'small'} />
               </IconButton>
-              <Typography variant="subtitle1" color="primary" sx={{ fontWeight: 600 }}>{groupName}</Typography>
+              <Typography variant="subtitle1" color="primary" sx={{ fontWeight: 600, fontSize: { xs: '0.875rem', sm: '1rem' } }}>{groupName}</Typography>
             </Box>
-            <Box display="flex" alignItems="center" gap={2} flexWrap="wrap" pr={1}>
+            <Box display="flex" flexDirection={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'flex-end', sm: 'center' }} gap={{ xs: 0.25, sm: 2 }} pr={{ xs: 0.5, sm: 1 }}>
               {groupHoldings[0]?.portfolioId !== TrackingListId.Favorites && (
                 <>
-                  <Typography variant="body2">
+                  <Typography variant="body2" sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, lineHeight: { xs: 1.35, sm: 1.5 } }}>
                     {t('Total:', 'סה"כ:')} {formatMoneyValue({ amount: groupSummary.totalMV, currency: normalizeCurrency(displayCurrency) }, t)}
                   </Typography>
-                  <Typography variant="body2" color={groupSummary.totalDayChange >= 0 ? 'success.main' : 'error.main'}>
+                  <Typography variant="body2" color={groupSummary.totalDayChange >= 0 ? 'success.main' : 'error.main'} sx={{ display: { xs: 'none', sm: 'block' } }}>
                     {t('Day:', 'יומי:')} {formatMoneyValue({ amount: groupSummary.totalDayChange, currency: normalizeCurrency(displayCurrency) }, t)} ({formatPct(groupDayChangePct)})
                   </Typography>
-                  <Typography variant="body2" color={groupSummary.totalUnrealizedGain >= 0 ? 'success.main' : 'error.main'}>
+                  <Typography variant="body2" color={groupSummary.totalUnrealizedGain >= 0 ? 'success.main' : 'error.main'} sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, lineHeight: { xs: 1.35, sm: 1.5 } }}>
                     {t('Unrealized:', 'לא ממומש:')} {formatMoneyValue({ amount: groupSummary.totalUnrealizedGain, currency: normalizeCurrency(displayCurrency) }, t)}
                   </Typography>
                 </>
@@ -127,7 +127,7 @@ export const DashboardGroup = memo(function DashboardGroup(props: DashboardGroup
           </Box>
         )}
         <Collapse in={groupByPortfolio ? isExpanded : true} timeout="auto" unmountOnExit>
-          <Table size="small">
+          <Table size="small" sx={{ '& .MuiTableCell-root, & .MuiTypography-root, & .MuiTableSortLabel-root': { fontSize: { xs: '0.75rem', sm: '0.875rem' } } }}>
             <TableHead>
               <TableRow>
                 {DASHBOARD_COLUMNS.map(col => (
