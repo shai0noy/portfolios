@@ -9,6 +9,7 @@ import {
   calculateTickerDataFromFundHistory,
 } from './gemel_utils';
 import { 
+  fetchWithCache,
   saveToCache, 
   loadFromCache,
   GEMEL_CACHE_TTL,
@@ -43,75 +44,60 @@ export async function fetchGemelnetFund(
   const sParts = getDateParts(startMonth);
   const eParts = getDateParts(endMonth);
   const cacheKey = `${CACHE_KEY_PREFIX}${fundId}_${sParts.year}${sParts.month}_${eParts.year}${eParts.month}`;
-  const now = Date.now();
+  return fetchWithCache(
+    cacheKey,
+    GEMEL_CACHE_TTL,
+    forceRefresh,
+    async () => {
+      const url = `${WORKER_URL}/?apiId=gemelnet_fund&startYear=${sParts.year}&startMonth=${sParts.month}&endYear=${eParts.year}&endMonth=${eParts.month}&fundId=${fundId}`;
 
-  // 1. Check Cache
-  if (!forceRefresh) {
-    try {
-      const cached = await loadFromCache<FundData>(cacheKey);
-      if (cached) {
-        if (now - cached.timestamp < GEMEL_CACHE_TTL) {
-          return cached.data;
-        }
-      }
-    } catch (e) {
-      console.warn('[Gemelnet] Error reading cache:', e);
-    }
-  }
+      console.log(`[Gemelnet] Fetching data for fund ${fundId}...`);
 
-  // 2. Fetch Data
-  const url = `${WORKER_URL}/?apiId=gemelnet_fund&startYear=${sParts.year}&startMonth=${sParts.month}&endYear=${eParts.year}&endMonth=${eParts.month}&fundId=${fundId}`;
-  
-  console.log(`[Gemelnet] Fetching data for fund ${fundId}...`);
-  
-  try {
-    const xmlText = await fetchXml(url);
-    const xmlDoc = parseXmlString(xmlText);
-    
-    const rows = Array.from(xmlDoc.querySelectorAll('Row'));
-    const points: FundDataPoint[] = [];
+      try {
+        const xmlText = await fetchXml(url);
+        const xmlDoc = parseXmlString(xmlText);
 
-    rows.forEach(row => {
-      const getText = (tag: string) => row.querySelector(tag)?.textContent || '';
-      
-      const idKupaStr = getText('ID_KUPA');
-      if (!idKupaStr || parseInt(idKupaStr, 10) !== fundId) {
-        return;
-      }
+        const rows = Array.from(xmlDoc.querySelectorAll('Row'));
+        const points: FundDataPoint[] = [];
 
-      const dateStr = getText('TKF_DIVUACH');
-      if (dateStr) {
-        const returnStr = getText('TSUA_NOMINALI_BFOAL');
-        points.push({
-          date: parseDateStr(dateStr),
-          nominalReturn: returnStr ? parseFloat(returnStr) : 0
+        rows.forEach(row => {
+          const getText = (tag: string) => row.querySelector(tag)?.textContent || '';
+
+          const idKupaStr = getText('ID_KUPA');
+          if (!idKupaStr || parseInt(idKupaStr, 10) !== fundId) {
+            return;
+          }
+
+          const dateStr = getText('TKF_DIVUACH');
+          if (dateStr) {
+            const returnStr = getText('TSUA_NOMINALI_BFOAL');
+            points.push({
+              date: parseDateStr(dateStr),
+              nominalReturn: returnStr ? parseFloat(returnStr) : 0
+            });
+          }
         });
+
+        if (points.length === 0) return null;
+
+        // Sort by date ascending
+        points.sort((a, b) => a.date - b.date);
+
+        const result: FundData = {
+          fundId: fundId,
+          fundName: '', // Name is populated by the Quote wrapper
+          data: points,
+          lastUpdated: Date.now(),
+        };
+
+        return result;
+
+      } catch (error) {
+        console.error(`[Gemelnet] Failed to fetch or parse data for fund ${fundId}:`, error);
+        throw error;
       }
-    });
-
-    // Sort by date ascending
-    points.sort((a, b) => a.date - b.date);
-
-    const result: FundData = {
-      fundId: fundId,
-      fundName: '', // Name is populated by the Quote wrapper
-      data: points,
-      lastUpdated: now,
-    };
-
-    // 3. Save to Cache
-    try {
-      await saveToCache(cacheKey, result);
-    } catch (e) {
-      console.warn('[Gemelnet] Failed to save to cache (likely quota exceeded):', e);
     }
-
-    return result;
-
-  } catch (error) {
-    console.error(`[Gemelnet] Failed to fetch or parse data for fund ${fundId}:`, error);
-    return null;
-  }
+  );
 }
 
 const LIST_CACHE_KEY = 'gemelnet_tickers_list_v8';

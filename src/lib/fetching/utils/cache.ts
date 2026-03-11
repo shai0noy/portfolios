@@ -1,5 +1,6 @@
 // src/lib/fetching/utils/cache.ts
 import * as db from './idb';
+import { deduplicateRequest } from './request_deduplicator';
 
 // Simple in-memory cache with a Time-To-Live (TTL)
 export const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
@@ -96,4 +97,45 @@ export async function withTaseCache<T>(cacheKey: string, fetcher: () => Promise<
   }
   
   return data;
+}
+
+export async function fetchWithCache<T>(
+  cacheKey: string,
+  ttl: number,
+  forceRefresh: boolean,
+  fetcher: () => Promise<T | null>,
+  cacheHitValidator?: (cachedData: T) => boolean
+): Promise<T | null> {
+  const now = Date.now();
+
+  if (!forceRefresh) {
+    const cached = await loadFromCache<T | null>(cacheKey);
+    if (cached?.timestamp && (now - new Date(cached.timestamp).getTime() < ttl)) {
+      if (cached.data === null) {
+        return null;
+      }
+      if (!cacheHitValidator || cacheHitValidator(cached.data)) {
+        if (typeof cached.data === 'object' && !Array.isArray(cached.data)) {
+          return { ...cached.data, fromCache: true } as unknown as T;
+        }
+        return cached.data;
+      }
+    }
+  }
+
+  return deduplicateRequest(cacheKey, async () => {
+    try {
+      const data = await fetcher();
+      await saveToCache(cacheKey, data, now);
+      return data;
+    } catch (e: any) {
+      if (e?.status && e.status !== 429 && e.status < 500) {
+        console.log(`[Cache] Persistent error ${e.status} for ${cacheKey}, caching as Not Found.`);
+        await saveToCache(cacheKey, null, now);
+      } else {
+        console.log(`[Cache] Transient error or exception for ${cacheKey}, not caching null.`, e);
+      }
+      return null;
+    }
+  });
 }

@@ -1,5 +1,5 @@
 // src/lib/fetching/cbs.ts
-import { CACHE_TTL, saveToCache, loadFromCache } from './utils/cache';
+import { CACHE_TTL, fetchWithCache } from './utils/cache';
 import { WORKER_URL } from '../../config';
 import { Exchange } from '../types';
 import { InstrumentClassification, InstrumentType } from '../types/instrument';
@@ -168,67 +168,67 @@ export function normalizeCpiSeries(series: CbsDatePoint[], id: number): FundData
  */
 export async function fetchCpi(
   id: number ,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  forceRefresh = false
 ): Promise<TickerData | null> {
-  const now = Date.now();
   const cacheKey = `cpi:${id}:full_v1`;
 
-  const cached = await loadFromCache<TickerData>(cacheKey);
-  if (cached && now - cached.timestamp < CACHE_TTL) {
-    return cached.data;
-  }
+  return fetchWithCache(
+    cacheKey,
+    CACHE_TTL,
+    forceRefresh,
+    async () => {
+      let allRawData: CbsDatePoint[] = [];
+      let currentPage = 1;
+      let morePages = true;
+      let name = '';
+      try {
+        while (morePages) {
+          const url = `${WORKER_URL}/?apiId=cbs_price_index&id=${id}&page=${currentPage}`;
 
-  let allRawData: CbsDatePoint[] = [];
-  let currentPage = 1;
-  let morePages = true;
-  let name = '';
-  try {
-    while (morePages) {
-      const url = `${WORKER_URL}/?apiId=cbs_price_index&id=${id}&page=${currentPage}`;
-      
-      const res = await fetch(url, { signal, cache: 'force-cache' });
-      if (!res.ok) {
-        throw new Error(`CBS API fetch failed with status ${res.status}`);
-      }
-      
-      const data: CbsApiResponse = await res.json();
-      
-      if (!data.month || data.month.length === 0) {
-        console.warn(`No 'month' data in CBS response for page ${currentPage}`);
-        break; // Exit loop if data is missing
-      }
+          const res = await fetch(url, { signal, cache: 'force-cache' });
+          if (!res.ok) {
+            const err = new Error(`CBS API fetch failed with status ${res.status}`);
+            (err as any).status = res.status;
+            throw err;
+          }
 
-      // Collect raw points from the first series found
-      const seriesData = data.month[0].date;
-      if (seriesData) {
-        allRawData = allRawData.concat(seriesData);
+          const data: CbsApiResponse = await res.json();
+
+          if (!data.month || data.month.length === 0) {
+            console.warn(`No 'month' data in CBS response for page ${currentPage}`);
+            break; // Exit loop if data is missing
+          }
+
+          // Collect raw points from the first series found
+          const seriesData = data.month[0].date;
+          if (seriesData) {
+            allRawData = allRawData.concat(seriesData);
+          }
+
+          if (data.paging && data.paging.current_page < data.paging.last_page) {
+            currentPage++;
+          } else {
+            morePages = false;
+          }
+          name ||= data.name;
+        }
+
+        if (allRawData.length === 0) return null;
+
+        // Normalize the data
+        const normalizedData = normalizeCpiSeries(allRawData, id);
+        const fundData: FundData = {
+          fundId: id,
+          fundName: CBS_INDICES[String(id)]?.nameHe || name,
+          data: normalizedData,
+          lastUpdated: Date.now()
+        };
+        return calculateTickerDataFromIndexHistory(fundData, Exchange.CBS, 'CBS');
+      } catch (e: any) {
+        console.error("Failed to fetch or parse CPI data", e);
+        throw e; // throw so fetchWithCache handles transient/permanent correctly
       }
-      
-      if (data.paging && data.paging.current_page < data.paging.last_page) {
-        currentPage++;
-      } else {
-        morePages = false;
-      }
-      name ||= data.name;
     }
-
-    // Normalize the data
-    const normalizedData = normalizeCpiSeries(allRawData, id);
-    const fundData: FundData = {
-      fundId: id,
-      fundName: CBS_INDICES[String(id)]?.nameHe || name,
-      data: normalizedData,
-      lastUpdated: Date.now()
-    };
-    const info = calculateTickerDataFromIndexHistory(fundData, Exchange.CBS, 'CBS');
-    
-
-    // Cache the final consolidated and sorted result
-    await saveToCache(cacheKey, info);
-    return info;
-
-  } catch (e) {
-    console.error("Failed to fetch or parse CPI data", e);
-    return null;
-  }
+  );
 }

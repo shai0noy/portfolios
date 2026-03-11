@@ -72,7 +72,9 @@ export async function fetchXml(url: string, signal?: AbortSignal, options?: Requ
         if (!response.ok) {
             const errorBody = await response.text();
             console.error(`Fetch failed for ${url} with status ${response.status}:`, errorBody);
-            throw new Error(`Network response was not ok for ${url}: ${response.statusText}`);
+            const error = new Error(`Network response was not ok for ${url}: ${response.statusText}`);
+            (error as any).status = response.status;
+            throw error;
         }
         return await response.text();
     } catch (e: unknown) {

@@ -256,7 +256,9 @@ async function invokeApi(apiId, params, env, ctx, corsHeaders) {
     console.log(`Fetching URL for ${apiId}: ${urlToFetch}`);
     response = await fetch(urlToFetch, fetchOpts);
 
-    if (!response.ok || response.status === 403 || response.status === 429) {
+    // Only return immediately (without caching) for transient errors or rate limiting.
+    // Permanent errors like 404 (Not Found) should fall through and be cached.
+    if (response.status === 429 || response.status === 403 || response.status >= 500) {
       const errResponse = new Response(response.body, response);
       Object.keys(corsHeaders).forEach(key => errResponse.headers.set(key, corsHeaders[key]));
       return errResponse;

@@ -1,6 +1,6 @@
 // src/lib/fetching/globes.ts
 import { WORKER_URL } from '../../config';
-import { deduplicateRequest } from './utils/request_deduplicator';
+import { CACHE_TTL, fetchWithCache } from './utils/cache';
 import { fetchXml, parseXmlString, extractDataFromXmlNS } from './utils/xml_parser';
 import type { TickerData } from './types';
 import { Exchange, parseExchange, Currency, EXCHANGE_SETTINGS } from '../types';
@@ -213,20 +213,28 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
   }
 
   const cacheKey = `globes:quote:v4:${requestedExchangeCode}:${identifier}`;
-
-
   const globesApiUrl = `${WORKER_URL}/?apiId=globes_data&exchange=${requestedExchangeCode}&ticker=${identifier}`;
 
-  return deduplicateRequest(cacheKey, async () => {
-    let text;
-    try {
-      text = await fetchXml(globesApiUrl, signal, { cache: forceRefresh ? 'no-cache' : 'force-cache' });
-    } catch {
-      return null;
-    }
+  return fetchWithCache(
+    cacheKey,
+    CACHE_TTL,
+    forceRefresh,
+    async () => {
+      let text;
+      try {
+        text = await fetchXml(globesApiUrl, signal, { cache: forceRefresh ? 'no-cache' : 'force-cache' });
+      } catch (e: any) {
+        if (e.status === 429 || e.status >= 500) {
+          console.log(`Globes: Transient error ${e.status} for ${identifier}, not caching.`);
+          // fetchWithCache expects transient errors to be thrown if we want to bypass caching
+          throw e;
+        }
+        console.log(`Globes: Definitely no result found for ${identifier} (status ${e.status}), caching as Not Found.`);
+        return null; // fetchWithCache will cache this null
+      }
 
-    try {
-      const xmlDoc = parseXmlString(text);
+      try {
+        const xmlDoc = parseXmlString(text);
       const instrument = xmlDoc.getElementsByTagNameNS(GLOBES_API_NAMESPACE, 'Instrument')[0];
       if (!instrument) {
         return null;
@@ -312,7 +320,8 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
 
     } catch (error) {
       console.error(`Failed to parse ticker data for ${identifier}:`, error);
-      return null;
+        // We throw error here so it won't be cached as a valid "null" result, since it's a parsing error
+        throw error;
     }
   });
 }

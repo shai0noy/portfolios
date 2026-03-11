@@ -1,6 +1,5 @@
 // src/lib/fetching/yahoo.ts
-import { CACHE_TTL, saveToCache, loadFromCache } from './utils/cache';
-import { deduplicateRequest } from './utils/request_deduplicator';
+import { CACHE_TTL, fetchWithCache } from './utils/cache';
 import type { TickerData } from './types';
 import { Exchange, parseExchange, EXCHANGE_SETTINGS } from '../types';
 import { InstrumentGroup } from '../types/instrument';
@@ -145,38 +144,44 @@ export async function fetchYahooTickerData(
   const cacheKey = `yahoo:quote:v4:${exchange}:${ticker}:${range}`;
   const successKey = `${exchange}:${ticker.toUpperCase()}`;
   const knownSymbol = symbolSuccessMap.get(successKey);
-
-  if (!forceRefresh) {
-    const cached = await loadFromCache<TickerData>(cacheKey);
-    if (cached?.timestamp && (now - new Date(cached.timestamp).getTime() < CACHE_TTL)) {
-      if (!(range === 'max' && cached.data.changePctMax === undefined)) {
-        return { ...cached.data, fromCache: true };
-      }
-    }
-  }
-
   const candidates = knownSymbol ? [knownSymbol] : getYahooTickerCandidates(ticker, exchange, group);
 
-  return deduplicateRequest(cacheKey, async () => {
-    const results = await Promise.all(candidates.map(async (yahooTicker) => {
-      const url = `https://portfolios.noy-shai.workers.dev/?apiId=yahoo_hist&ticker=${yahooTicker}&range=${range}`;
-      try {
-        const res = await fetch(url, { signal, cache: forceRefresh ? 'no-cache' : 'force-cache' });
-        if (!res.ok) return null;
-        const data = await res.json();
-        const result = data?.chart?.result?.[0];
-        if (!result) return null;
-        return { yahooTicker, result };
-      } catch {
+  return fetchWithCache(
+    cacheKey,
+    CACHE_TTL,
+    forceRefresh,
+    async () => {
+      let hasTransientError = false;
+      const results = await Promise.all(candidates.map(async (yahooTicker) => {
+        const url = `https://portfolios.noy-shai.workers.dev/?apiId=yahoo_hist&ticker=${yahooTicker}&range=${range}`;
+        try {
+          const res = await fetch(url, { signal, cache: forceRefresh ? 'no-cache' : 'force-cache' });
+          if (res.status === 429 || res.status >= 500) {
+            hasTransientError = true;
+            return null;
+          }
+          if (!res.ok) return null;
+          const data = await res.json();
+          const result = data?.chart?.result?.[0];
+          if (!result) return null;
+          return { yahooTicker, result };
+        } catch {
+          hasTransientError = true;
+          return null;
+        }
+      }));
+
+      const match = results.find(r => r !== null);
+      if (!match) {
+        if (hasTransientError) {
+          console.log(`Yahoo: Failed to get result for ${ticker} (${exchange}) but encountered transient errors. Will not cache Not Found.`);
+          const err = new Error('Transient error');
+          (err as any).status = 429;
+          throw err;
+        }
+        console.log(`Yahoo: No result found for ${ticker} (${exchange}), caching as Not Found.`);
         return null;
       }
-    }));
-
-    const match = results.find(r => r !== null);
-    if (!match) {
-      console.log(`Yahoo: No result found for ${ticker} (${exchange}) after trying candidates: ${candidates.join(', ')}`);
-      return null;
-    }
 
     const { yahooTicker, result } = match;
     symbolSuccessMap.set(successKey, yahooTicker);
@@ -330,11 +335,10 @@ export async function fetchYahooTickerData(
         timestamp: new Date(now), ticker, numericId: null, source: 'Yahoo Finance', historical, dividends, splits, volume,
       };
 
-      await saveToCache(cacheKey, tickerData, now);
       return tickerData;
     } catch (error) {
       console.error('Error parsing Yahoo data', error);
       return null;
     }
-  });
+    }, (cachedData) => !(range === 'max' && cachedData.changePctMax === undefined));
 }
