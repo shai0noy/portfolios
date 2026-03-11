@@ -1,4 +1,5 @@
 import { fetchTransactions, exportToSheet, fetchPortfolios, createEmptySpreadsheet, getSpreadsheet } from './sheets/index';
+import toast from 'react-hot-toast';
 
 export const downloadCSV = (data: any[], filename: string) => {
   const csvContent = [
@@ -162,7 +163,7 @@ export async function exportDashboardData(opts: {
 
     if (!data || data.length === 0) {
       onError?.('No data to export.');
-      if (!onError) alert('No data to export.');
+      if (!onError) toast.error('No data to export.');
       return;
     }
 
@@ -232,7 +233,7 @@ export async function exportDashboardData(opts: {
     console.error('Export to sheet failed:', e);
     const msg = e instanceof Error ? e.message : String(e);
     onError?.(`Export to Google Sheet failed: ${msg}`);
-    if (!onError) alert('Export to Google Sheet failed. See console for details.');
+    if (!onError) toast.error('Export to Google Sheet failed. See console for details.');
   } finally {
     setLoading?.(false);
   }

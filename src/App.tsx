@@ -46,6 +46,7 @@ import { SessionProvider, useSession } from './lib/SessionContext';
 import { ProfileForm, type UserFinancialProfile } from './components/ProfileForm';
 import { setMetadataValue } from './lib/sheets/api';
 import { ApiKeyDialog } from './components/ApiKeyDialog'; const ColorBlind = VisibilityOffIcon;
+import { Toaster, toast } from 'react-hot-toast';
 
 const tabMap: Record<string, number> = {
   '/dashboard': 0,
@@ -223,10 +224,10 @@ function AppContent() {
       await populateTestData(sheetId);
       setRefreshKey(k => k + 1);
       setSchemaVersionMismatch(null);
-      alert(t('Test data populated (if not already present).', 'נתוני בדיקה מולאו (אם לא היו קיימים).'));
+      toast.success(t('Test data populated (if not already present).', 'נתוני בדיקה מולאו (אם לא היו קיימים).'));
     } catch (e) {
       console.error(e);
-      alert(t('Failed to populate test data: ', 'נכשל מילוי נתוני בדיקה: ') + (e instanceof Error ? e.message : String(e)));
+      toast.error(t('Failed to populate test data: ', 'נכשל מילוי נתוני בדיקה: ') + (e instanceof Error ? e.message : String(e)));
     }
   };
 
@@ -736,6 +737,7 @@ function AppContent() {
               sheetId={sheetId}
             />
           )}
+          <Toaster position="bottom-center" />
 
         </Box>
       </ThemeProvider>

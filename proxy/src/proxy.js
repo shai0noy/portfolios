@@ -41,7 +41,7 @@ const CACHE_TTL_MAP = {
 const IP_LIMITS = new Map();
 const SHORT_LIMIT = 120;
 const SHORT_WINDOW = 5 * 60 * 1000; // 5 minutes
-const LONG_LIMIT = 300;
+const LONG_LIMIT = 450;
 const LONG_WINDOW = 12 * 60 * 60 * 1000; // 12 hours
 
 function isRateLimited(ip) {

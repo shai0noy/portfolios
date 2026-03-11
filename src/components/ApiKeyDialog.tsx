@@ -4,6 +4,7 @@ import { getMetadataValue, setMetadataValue } from '../lib/sheets';
 import { useLanguage } from '../lib/i18n';
 import { encryptSecret, decryptSecret } from '../lib/crypto';
 import KeyIcon from '@mui/icons-material/VpnKey';
+import toast from 'react-hot-toast';
 
 interface ApiKeyDialogProps {
   open: boolean;
@@ -50,9 +51,10 @@ export const ApiKeyDialog: React.FC<ApiKeyDialogProps> = ({ open, onClose, sheet
         await setMetadataValue(sheetId, 'aistudio_apikey', '');
       }
       onClose();
+      toast.success(t('API key saved successfully.', 'מפתח ה-API נשמר בהצלחה.'));
     } catch (err) {
       console.error("Failed to save API key", err);
-      alert(t('Failed to save API key. Please check console.', 'נכשל בשמירת מפתח ה-API.'));
+      toast.error(t('Failed to save API key. Please check console.', 'נכשל בשמירת מפתח ה-API.'));
     } finally {
       setIsSaving(false);
     }

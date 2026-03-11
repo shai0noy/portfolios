@@ -3,7 +3,8 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions,
   Button, TextField, Box, Typography, IconButton,
   CircularProgress, Paper, Tooltip, Select, MenuItem, FormControl,
-  FormControlLabel, Chip, Stack, ToggleButton, ToggleButtonGroup, Switch, Alert, useTheme
+  FormControlLabel, Chip, Stack, ToggleButton, ToggleButtonGroup, Switch, Alert, useTheme,
+  useMediaQuery, Menu, InputLabel
 } from '@mui/material';
 import BoltIcon from '@mui/icons-material/Bolt';
 import PsychologyIcon from '@mui/icons-material/Psychology';
@@ -11,8 +12,10 @@ import CloseIcon from '@mui/icons-material/Close';
 import SendIcon from '@mui/icons-material/Send';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
+import MenuIcon from '@mui/icons-material/Menu';
 import PersonIcon from '@mui/icons-material/Person';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+
 import { useLanguage } from '../lib/i18n';
 import { ProfileForm, type UserFinancialProfile } from './ProfileForm';
 import RefreshIcon from '@mui/icons-material/Refresh';
@@ -26,8 +29,8 @@ import { formatPercent } from '../lib/currencyUtils';
 import ManageAccountsIcon from '@mui/icons-material/ManageAccounts';
 import { getMetadataValue, setMetadataValue } from '../lib/sheets/api';
 import { getTickerData } from '../lib/fetching';
-import { useScrollShadows, ScrollShadows } from '../lib/ui-utils';
-
+import { useScrollShadows, ScrollShadows, useResponsiveDialogProps } from '../lib/ui-utils';
+import toast from 'react-hot-toast';
 
 interface ExtendedChatMessage extends ChatMessage {
   isError?: boolean;
@@ -178,25 +181,61 @@ const ChatMessageItem = React.memo(({ msg, t, onRetry, lastPrompt, onPromptClick
   onProfileClick: () => void,
   onNavClick: (path: string) => void
 }) => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
   return (
     <Box
       sx={{
         display: 'flex',
+        alignItems: 'flex-start',
         justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
         gap: 1.5,
-        mb: 1
+        mb: 1,
+        width: '100%',
+        flexDirection: msg.role === 'user' ? 'row-reverse' : 'row',
       }}
     >
-      {msg.role === 'model' && <SmartToyIcon color="primary" sx={{ mt: 1 }} />}
+      {!isMobile && (
+        <Box sx={{ flexShrink: 0, mt: 1 }}>
+          {msg.role === 'model' ? <SmartToyIcon color="primary" /> : <PersonIcon color="action" />}
+        </Box>
+      )}
       <Paper
         sx={{
           p: 1.5,
-          maxWidth: '92%',
           bgcolor: msg.role === 'user' ? 'primary.main' : 'background.paper',
           color: msg.role === 'user' ? 'primary.contrastText' : 'text.primary',
-          borderRadius: 2
+          borderRadius: 2,
+          flexGrow: 1,
+          position: 'relative',
+          overflow: 'visible',
+          maxWidth: isMobile ? 'calc(100% - 20px)' : '85%',
+          // Paddings to make space for the icon inside
+          pl: isMobile && msg.role === 'model' ? '40px' : 1.5,
+          pr: isMobile && msg.role === 'user' ? '40px' : 1.5,
         }}
       >
+        {isMobile && (
+          <Box sx={{
+            position: 'absolute',
+            top: -8,
+            left: msg.role === 'model' ? -8 : 'auto',
+            right: msg.role === 'user' ? -8 : 'auto',
+            bgcolor: msg.role === 'model' ? 'primary.main' : 'background.paper',
+            borderRadius: '50%',
+            p: 0.5,
+            display: 'flex',
+            border: `2px solid ${theme.palette.text.primary}`,
+            boxShadow: 2,
+            opacity: 0.95
+          }}>
+            {msg.role === 'model' ?
+              <SmartToyIcon sx={{ fontSize: 20, color: 'primary.contrastText' }} /> :
+              <PersonIcon color="action" sx={{ fontSize: 20 }} />
+            }
+          </Box>
+        )}
         <Typography component="div" variant="body2" sx={{
           whiteSpace: 'normal',
           '& p': { m: 0, mb: 1, '&:last-child': { mb: 0 } },
@@ -250,7 +289,6 @@ const ChatMessageItem = React.memo(({ msg, t, onRetry, lastPrompt, onPromptClick
           </Button>
         )}
       </Paper>
-      {msg.role === 'user' && <PersonIcon color="action" sx={{ mt: 1 }} />}
     </Box>
   );
 });
@@ -308,18 +346,40 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({
 }) => {
   const { t } = useLanguage();
   const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [messages, setMessages] = useState<ExtendedChatMessage[]>(() => {
     const saved = localStorage.getItem('ai_chat_history');
     return saved ? JSON.parse(saved) : [];
   });
-  const [input, setInput] = useState('');
+
   const [isLoading, setIsLoading] = useState(false);
   const [availableModels, setAvailableModels] = useState<GeminiModel[]>([]);
   const [selectedModel, setSelectedModel] = useState<string>(localStorage.getItem('gemini_selected_model') || 'models/gemini-1.5-flash');
   const { containerRef: scrollRef, showTop, showBottom } = useScrollShadows();
+  const responsiveDialogProps = useResponsiveDialogProps();
   const lastPromptRef = useRef<string>('');
 
   const [chatMode, setChatMode] = useState<'fast' | 'thinking'>('fast');
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null); // For mobile menu
+  const [input, setInput] = useState(initialPrompt || ''); // For ChatInputSection
+
+  const handleMenuOpen = (event: React.MouseEvent<HTMLButtonElement>) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleMenuClose = () => {
+    setAnchorEl(null);
+  };
+
+  const handleChatModeChange = (
+    _event: React.MouseEvent<HTMLElement>,
+    newMode: 'fast' | 'thinking' | null,
+  ) => {
+    if (newMode !== null) {
+      setChatMode(newMode);
+      handleMenuClose(); // Close menu after selection
+    }
+  };
 
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<string | null>(null);
 
@@ -413,7 +473,7 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({
       setOpenProfile(false);
     } catch (e) {
       console.error("Failed to save profile", e);
-      alert(t('Failed to save profile', 'שמירת הפרופיל נכשלה'));
+      toast.error(t('Failed to save profile', 'שמירת הפרופיל נכשלה'));
     } finally {
       setSavingProfile(false);
     }
@@ -559,7 +619,7 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({
 
   const handleSend = async (customPrompt?: string) => {
     if (!apiKey) return;
-    // Use prompt if provided (chips/retry); otherwise use cached state if it was a chip, 
+    // Use prompt if provided (chips/retry); otherwise use cached state if it was a chip,
     // but ChatInputSection actually calls this with the text.
     const userMsg = (customPrompt || input).trim();
     if (!userMsg) return;
@@ -586,7 +646,7 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({
         : '';
 
       const systemInstruction = `
-You are a financial assistant. Be professional, objective, and direct. Avoid excessive praise or flattery. Focus on data-driven analysis and facts. 
+You are a financial assistant. Be professional, objective, and direct. Avoid excessive praise or flattery. Focus on data-driven analysis and facts.
 Please be careful in your wording around suggestions - you are just an AI.
 - You can create interactive links in your response using these formats:
  * {prompt::Text to prefill} to suggest a new prompt for the user
@@ -647,132 +707,174 @@ ${marketOverview}
       <Dialog
         open={open}
         onClose={onClose}
-        maxWidth="lg"
-        fullWidth
+        {...responsiveDialogProps}
+        sx={{
+          '& .MuiDialog-paper': {
+            height: isMobile ? '100%' : '90%',
+            maxHeight: isMobile ? '100%' : '800px'
+          }
+        }}
       >
-        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexGrow: 1 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <AutoAwesomeIcon color="primary" /> {t('AI Portfolio Assistant', 'עוזר תיק השקעות AI')}
-            </Box>
+        <DialogTitle sx={{ p: { xs: 1, sm: 2 } }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexGrow: 1, overflow: 'hidden' }}>
+              <AutoAwesomeIcon color="primary" />
+              <Typography sx={{ display: { xs: 'none', sm: 'block' }, whiteSpace: 'nowrap' }}>
+                {t('AI Portfolio Assistant', 'עוזר תיק השקעות AI')}
+              </Typography>
 
-            {!isExpertMode ? (
-              <ToggleButtonGroup
-                value={chatMode}
-                exclusive
-                onChange={(_, newVal) => { if (newVal) setChatMode(newVal); }}
-                size="small"
-                sx={{ height: 32 }}
-              >
-                <ToggleButton value="fast" sx={{ px: 2, py: 0, textTransform: 'none', gap: 0.5 }}>
-                  <BoltIcon fontSize="small" /> {t('Fast', 'מהיר')}
-                </ToggleButton>
-                <ToggleButton value="thinking" sx={{ px: 2, py: 0, textTransform: 'none', gap: 0.5 }}>
-                  <PsychologyIcon fontSize="small" /> {t('Thinking', 'חושב')}
-                </ToggleButton>
-              </ToggleButtonGroup>
-            ) : (
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <FormControl size="small" sx={{ minWidth: 200 }}>
-                  <Select
-                    value={selectedModel}
-                    onChange={(e) => setSelectedModel(e.target.value)}
-                    sx={{ height: 32, fontSize: '0.8rem' }}
-                    displayEmpty
+              {/* Desktop Controls */}
+              <Box sx={{ display: { xs: 'none', sm: 'flex' }, alignItems: 'center', gap: 2, ml: 2 }}>
+                {!isExpertMode ? (
+                  <ToggleButtonGroup
+                    value={chatMode}
+                    exclusive
+                    onChange={handleChatModeChange}
+                    size="small"
+                    sx={{ height: 32 }}
                   >
-                    {availableModels.length > 0 ? (
-                      availableModels
-                        .map(m => (
+                    <ToggleButton value="fast" sx={{ px: 2, py: 0, textTransform: 'none', gap: 0.5 }}>
+                      <BoltIcon fontSize="small" /> {t('Fast', 'מהיר')}
+                    </ToggleButton>
+                    <ToggleButton value="thinking" sx={{ px: 2, py: 0, textTransform: 'none', gap: 0.5 }}>
+                      <PsychologyIcon fontSize="small" /> {t('Thinking', 'חושב')}
+                    </ToggleButton>
+                  </ToggleButtonGroup>
+                ) : (
+                    <FormControl size="small" sx={{ minWidth: 200 }}>
+                      <Select
+                        value={selectedModel}
+                        onChange={(e) => setSelectedModel(e.target.value)}
+                        sx={{ height: 32, fontSize: '0.8rem' }}
+                      >
+                        {availableModels.map(m => (
                           <MenuItem key={m.name} value={m.name} sx={{ fontSize: '0.8rem' }}>
                             {m.displayName}
                           </MenuItem>
-                        ))
-                    ) : (
-                      <MenuItem value={selectedModel} disabled sx={{ fontSize: '0.8rem' }}>
-                        {selectedModel.replace('models/', '')}
-                      </MenuItem>
-                    )}
-                  </Select>
-                </FormControl>
-              </Box>
-            )}
-
-
-            <FormControlLabel
-              control={
-                <Switch
-                  size="small"
-                  checked={isExpertMode}
-                  onChange={(e) => setIsExpertMode(e.target.checked)}
+                        ))}
+                    </Select>
+                  </FormControl>
+                )}
+                <FormControlLabel
+                  control={<Switch size="small" checked={isExpertMode} onChange={(e) => setIsExpertMode(e.target.checked)} />}
+                  label={<Typography variant="caption">{t('Expert', 'מומחה')}</Typography>}
+                  sx={{ ml: 0 }}
                 />
-              }
-              label={<Typography variant="caption">{t('Expert Mode', 'מצב מומחה')}</Typography>}
-              sx={{ ml: 1 }}
-            />
-          </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <FormControl size="small" variant="outlined" sx={{ minWidth: 120 }}>
-              <Select
-                value={selectedPortfolioId || 'All'}
-                onChange={(e) => setSelectedPortfolioId(e.target.value === 'All' ? null : e.target.value as string)}
-                sx={{
-                  fontSize: '0.85rem',
-                  height: 32,
-                  borderRadius: 2,
-                  '& .MuiSelect-select': { py: 0.5 }
-                }}
-              >
-                <MenuItem value="All"><em>{t('All Portfolios', 'כל התיקים')}</em></MenuItem>
-                {portfolios.map(p => (
-                  <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+              </Box>
 
-            <Tooltip title={t('User Financial Profile', 'פרופיל משתמש')}>
-              <Button
-                onClick={() => setOpenProfile(true)}
-                size="small"
-                color="inherit"
-                startIcon={<ManageAccountsIcon />}
-                sx={{ mr: 1, textTransform: 'none', opacity: 0.7 }}
-              >
-                {t('Profile', 'פרופיל')}
-              </Button>
-            </Tooltip>
-            <Tooltip title={t('Clear History', 'נקה היסטוריה')}>
-              <Button
-                onClick={clearHistory}
-                size="small"
-                color="inherit"
-                startIcon={<DeleteOutlineIcon />}
-                sx={{ mr: 1, textTransform: 'none', opacity: 0.7 }}
-              >
-                {t('Clear Chat', 'נקה שיחה')}
-              </Button>
-            </Tooltip>
-            <IconButton onClick={onClose} size="small">
-              <CloseIcon />
-            </IconButton>
+              {/* Portfolio Selector - Desktop */}
+              <FormControl size="small" variant="outlined" sx={{ minWidth: 150, display: { xs: 'none', sm: 'block' } }}>
+                <Select
+                  value={selectedPortfolioId || 'All'}
+                  onChange={(e) => setSelectedPortfolioId(e.target.value === 'All' ? null : e.target.value as string)}
+                  sx={{ fontSize: '0.85rem', height: 32, borderRadius: 2, '& .MuiSelect-select': { py: 0.5 } }}
+                >
+                  <MenuItem value="All"><em>{t('All Portfolios', 'כל התיקים')}</em></MenuItem>
+                  {portfolios.map(p => <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>)}
+                </Select>
+              </FormControl>
+            </Box>
+
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.5, sm: 1 } }}>
+              {/* Mobile Burger Menu */}
+              <Box sx={{ display: { xs: 'block', sm: 'none' } }}>
+                <IconButton onClick={handleMenuOpen} sx={{ color: 'text.primary' }}>
+                  <MenuIcon />
+                </IconButton>
+                <Menu
+                  anchorEl={anchorEl}
+                  open={Boolean(anchorEl)}
+                  onClose={handleMenuClose}
+                >
+                  <Box sx={{ px: 2, py: 1 }}>
+                    <Typography variant='caption' color='textSecondary' sx={{ display: 'block', mb: 1 }}>
+                      {t('Response Mode', 'מצב תגובה')}
+                    </Typography>
+                    <ToggleButtonGroup
+                      value={chatMode}
+                      exclusive
+                      onChange={handleChatModeChange}
+                      size="small"
+                      orientation='vertical'
+                      sx={{ width: '100%' }}
+                    >
+                      <ToggleButton value="fast" sx={{ textTransform: 'none', gap: 1, justifyContent: 'flex-start' }}>
+                        <BoltIcon fontSize="small" /> {t('Fast', 'מהיר')}
+                      </ToggleButton>
+                      <ToggleButton value="thinking" sx={{ textTransform: 'none', gap: 1, justifyContent: 'flex-start' }}>
+                        <PsychologyIcon fontSize="small" /> {t('Thinking', 'חושב')}
+                      </ToggleButton>
+                    </ToggleButtonGroup>
+
+                    <FormControlLabel
+                      control={<Switch checked={isExpertMode} onChange={(e) => { setIsExpertMode(e.target.checked); handleMenuClose(); }} />}
+                      label={t('Expert Mode', 'מצב מומחה')}
+                      sx={{ mt: 1, display: 'flex', justifyContent: 'space-between', ml: 0 }}
+                    />
+
+                    {isExpertMode && (
+                      <FormControl size="small" fullWidth sx={{ mt: 1 }}>
+                        <Select
+                          value={selectedModel}
+                          onChange={(e) => { setSelectedModel(e.target.value); handleMenuClose(); }}
+                        >
+                          {availableModels.map(m => (
+                            <MenuItem key={m.name} value={m.name} sx={{ fontSize: '0.8rem' }}>
+                              {m.displayName}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    )}
+
+                    <FormControl size="small" fullWidth sx={{ mt: 2 }}>
+                      <InputLabel id="port-select-label" sx={{ fontSize: '0.8rem' }}>{t('Portfolio Context', 'הקשר תיק')}</InputLabel>
+                      <Select
+                        labelId="port-select-label"
+                        label={t('Portfolio Context', 'הקשר תיק')}
+                        value={selectedPortfolioId || 'All'}
+                        onChange={(e) => { setSelectedPortfolioId(e.target.value === 'All' ? null : e.target.value as string); handleMenuClose(); }}
+                      >
+                        <MenuItem value="All"><em>{t('All Portfolios', 'כל התיקים')}</em></MenuItem>
+                        {portfolios.map(p => <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>)}
+                      </Select>
+                    </FormControl>
+                  </Box>
+                </Menu>
+              </Box>
+
+              <Tooltip title={t('User Financial Profile', 'פרופיל משתמש')}>
+                <IconButton onClick={() => setOpenProfile(true)} size="small" sx={{ color: 'text.primary' }}>
+                  <ManageAccountsIcon />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title={t('Clear History', 'נקה היסטוריה')}>
+                <IconButton onClick={clearHistory} size="small" sx={{ color: 'text.primary' }}>
+                  <DeleteOutlineIcon />
+                </IconButton>
+              </Tooltip>
+              <IconButton onClick={onClose} size="small" sx={{ color: 'text.primary' }}>
+                <CloseIcon />
+              </IconButton>
+            </Box>
           </Box>
         </DialogTitle>
-        <DialogContent dividers>
-          <Box sx={{ position: 'relative', height: '400px' }}>
+
+        <DialogContent dividers sx={{ p: 0, flex: '1 1 auto', display: 'flex', flexDirection: 'column' }}>
+          <Box sx={{ position: 'relative', flex: '1 1 auto', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             <Box
               ref={scrollRef}
               sx={{
-                height: '100%',
+                flex: '1 1 auto',
                 overflowY: 'auto',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 2,
-                p: 1
+                p: 2
               }}
             >
-              {/* ... content ... */}
               {messages.length === 0 && (
                 <Box sx={{ textAlign: 'center', mt: 4, opacity: 0.8 }}>
-                  {/* ... hello message ... */}
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3, mb: 3 }}>
                     <SmartToyIcon sx={{ fontSize: 48, color: 'primary.main', opacity: 0.5 }} />
                     <Box sx={{ textAlign: 'left' }}>
@@ -852,14 +954,38 @@ ${marketOverview}
                 />
               ))}
               {isLoading && (
-                <Box sx={{ display: 'flex', gap: 1 }}>
-                  <SmartToyIcon color="primary" sx={{ mt: 1 }} />
-                  <Paper sx={{ p: 1.5, borderRadius: 2 }}>
+                <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start', width: '100%' }}>
+                  {!isMobile && <SmartToyIcon color="primary" sx={{ mt: 1, flexShrink: 0 }} />}
+                  <Paper sx={{
+                    p: 1.5,
+                    borderRadius: 2,
+                    position: 'relative',
+                    overflow: 'visible',
+                    flexGrow: 1,
+                    maxWidth: isMobile ? 'calc(100% - 20px)' : 'fit-content',
+                    pl: isMobile ? '40px' : 1.5
+                  }}>
+                    {isMobile && (
+                      <Box sx={{
+                        position: 'absolute',
+                        top: -8,
+                        left: -8,
+                        bgcolor: 'primary.main',
+                        borderRadius: '50%',
+                        p: 0.5,
+                        display: 'flex',
+                        border: `2px solid ${theme.palette.text.primary}`,
+                        boxShadow: 2,
+                        opacity: 0.95
+                      }}>
+                        <SmartToyIcon sx={{ fontSize: 20, color: 'primary.contrastText' }} />
+                      </Box>
+                    )}
                     <CircularProgress size={20} />
                   </Paper>
                 </Box>
               )}
-              <Box />
+              <Box sx={{ minHeight: 20 }} />
             </Box>
             <ScrollShadows top={showTop} bottom={showBottom} theme={theme} />
           </Box>

@@ -1,3 +1,4 @@
+import toast from "react-hot-toast";
 // src/components/PortfolioManager.tsx
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -77,7 +78,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
         setTemplate('');
         setShowNewPortfolioForm(true); // Show the form section
       } else {
-        alert(t(`Portfolio with ID "${portfolioId}" not found.`, `תיק עם מזהה "${portfolioId}" לא נמצא.`));
+        toast.error(t(`Portfolio with ID "${portfolioId}" not found.`, `תיק עם מזהה "${portfolioId}" לא נמצא.`));
         navigate('/portfolios');
       }
     } else if (!portfolioId) { // Reset form only if not in edit mode from URL
@@ -104,7 +105,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
       setPortfolios(ports);
     } catch (e) {
       console.error("Error loading portfolios", e);
-      alert(t("Could not load existing portfolios.", "לא ניתן לטעון תיקים קיימים."));
+      toast.error(t("Could not load existing portfolios.", "לא ניתן לטעון תיקים קיימים."));
     } finally {
       setLoading(false);
     }
@@ -166,7 +167,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
       if (index > 0 && history[index - 1]) {
         const prevDate = coerceDate(history[index - 1].startDate);
         if (prevDate && newDate <= prevDate) {
-          alert(t('Date must be after the previous entry.', 'התאריך חייב להיות אחרי הרשומה הקודמת.'));
+          toast.error(t('Date must be after the previous entry.', 'התאריך חייב להיות אחרי הרשומה הקודמת.'));
           return;
         }
       }
@@ -175,7 +176,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
       if (index < history.length - 1 && history[index + 1]) {
         const nextDate = coerceDate(history[index + 1].startDate);
         if (nextDate && newDate >= nextDate) {
-          alert(t('Date must be before the next entry.', 'התאריך חייב להיות לפני הרשומה הבאה.'));
+          toast.error(t('Date must be before the next entry.', 'התאריך חייב להיות לפני הרשומה הבאה.'));
           return;
         }
       }
@@ -212,14 +213,14 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
       if (index > 0) {
         const prevDate = coerceDate(history[index - 1].startDate);
         if (prevDate && newDate <= prevDate) {
-          alert(t('Date must be after the previous entry.', 'התאריך חייב להיות אחרי הרשומה הקודמת.'));
+          toast.error(t('Date must be after the previous entry.', 'התאריך חייב להיות אחרי הרשומה הקודמת.'));
           return;
         }
       }
       if (index < history.length - 1) {
         const nextDate = coerceDate(history[index + 1].startDate);
         if (nextDate && newDate >= nextDate) {
-          alert(t('Date must be before the next entry.', 'התאריך חייב להיות לפני הרשומה הבאה.'));
+          toast.error(t('Date must be before the next entry.', 'התאריך חייב להיות לפני הרשומה הבאה.'));
           return;
         }
       }
@@ -304,7 +305,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
       onSuccess();
     } catch (e) {
       console.error(e);
-      alert(t('Error creating portfolio', 'שגיאה ביצירת התיק'));
+      toast.error(t('Error creating portfolio', 'שגיאה ביצירת התיק'));
     } finally {
       setLoading(false);
     }
@@ -312,7 +313,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
 
   const handleSubmit = async () => {
     if (!p.id || !p.name) {
-      alert(t("ID and Name are required", "מזהה ושם הם שדות חובה"));
+      toast.error(t("ID and Name are required", "מזהה ושם הם שדות חובה"));
       return;
     }
     setLoading(true);
@@ -411,7 +412,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
       onSuccess();
     } catch (e) {
       console.error(e);
-      alert(t(`Error ${editMode ? 'updating' : 'creating'} portfolio`, `שגיאה ב${editMode ? 'עדכון' : 'יצירת'} התיק`));
+      toast.error(t(`Error ${editMode ? 'updating' : 'creating'} portfolio`, `שגיאה ב${editMode ? 'עדכון' : 'יצירת'} התיק`));
     } finally {
       setLoading(false);
     }
@@ -946,7 +947,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                     <TableCell>{getTaxPolicyName(port.taxPolicy)}</TableCell>
                     <TableCell>
                       <Button size="small" onClick={() => navigate(`/portfolios/${port.id}`)} sx={{ mr: 1 }}>{t('Edit', 'ערוך')}</Button>
-                      <Button size="small" color="error" onClick={() => alert('Delete: ' + port.id)}>{t('Delete', 'מחק')}</Button>
+                      <Button size="small" color="error" onClick={() => toast.error('Delete: ' + port.id)}>{t('Delete', 'מחק')}</Button>
                     </TableCell>
                   </TableRow>
                 ))}

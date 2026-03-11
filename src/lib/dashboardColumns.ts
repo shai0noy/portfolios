@@ -56,8 +56,8 @@ export type ColumnPresetType = 'custom' | 'overview' | 'gains' | 'analytics' | '
 export const PRESET_COLUMNS: Record<Exclude<ColumnPresetType, 'custom' | 'all'>, string[]> = {
   overview: ['displayName', 'ticker', 'type', 'qty', 'currentPrice', 'dayChangeVal', 'dayChangePct', 'perfYtd', 'perf1y', 'mv', 'totalGainPct'],
   gains: ['displayName', 'ticker', 'avgCost', 'currentPrice', 'costBasis', 'mv', 'dividends', 'unrealizedGain', 'unrealizedGainPct', 'realizedGain', 'realizedGainPct', 'totalGain', 'totalGainPct'],
-  analytics: ['displayName', 'ticker', 'type', 'sector', 'weight', 'avgCost', 'currentPrice', 'costBasis', 'mv', 'unvestedValue', 'realizedGainAfterTax', 'valueAfterTax'],
-  technical: ['displayName', 'ticker', 'type', 'sector', 'weight', 'mv', 'perf1w', 'perf1m', 'perfYtd', 'perf1y', 'dividendYield1y'],
+  analytics: ['displayName', 'ticker', 'type', 'sector', 'weight', 'avgCost', 'costBasis', 'mv', 'dividendYield1y', 'unvestedValue', 'realizedGainAfterTax', 'valueAfterTax'],
+  technical: ['displayName', 'ticker', 'currentPrice', 'dayChangeVal', 'dayChangePct', 'perf1w', 'perf1m', 'perfYtd', 'perf1y', 'mv'],
   income_costs: ['displayName', 'ticker', 'type', 'qty', 'avgCost', 'currentPrice', 'mv', 'dividends', 'dividendYield1y', 'fees', 'realizedTax', 'unrealizedTax']
 };
 

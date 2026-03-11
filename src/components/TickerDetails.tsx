@@ -28,7 +28,7 @@ import { HoldingUnderlyingAssets } from './holding-details/HoldingUnderlyingAsse
 import type { EnrichedDashboardHolding } from '../lib/dashboard';
 import { loadFinanceEngine } from '../lib/data/loader';
 import type { Holding } from '../lib/data/model';
-import { useScrollShadows, ScrollShadows } from '../lib/ui-utils';
+import { useScrollShadows, ScrollShadows, useResponsiveDialogProps } from '../lib/ui-utils';
 
 
 const formatDate = (timestamp?: Date | string | number | null) => {
@@ -57,6 +57,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
 
   const { t, tTry } = useLanguage();
   const location = useLocation() as any;
+  const responsiveDialogProps = useResponsiveDialogProps();
   const tickerDetailsResult = useTickerDetails({ sheetId, ticker: resolvedTickerInput, exchange: resolvedExchangeInput, numericId: propNumericId, initialName: propInitialName, initialNameHe: propInitialNameHe, portfolios, isPortfoliosLoading });
 
   const {
@@ -326,9 +327,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
 
   return (
     <>
-      <Dialog open={true} onClose={handleClose} maxWidth="lg" fullWidth fullScreen={isMobile}
-        sx={{ '& .MuiDialog-container': { alignItems: { xs: 'center', md: 'center' }, pt: 0 } }}
-        PaperProps={{ sx: { width: isMobile ? '100%' : 'min(900px, 96%)', m: isMobile ? 0 : 1, maxHeight: isMobile ? '100%' : '90vh', minHeight: { xs: 'auto', md: '600px' }, display: 'flex', flexDirection: 'column', height: isMobile ? '100%' : 'auto' } }}>
+      <Dialog open={true} onClose={handleClose} {...responsiveDialogProps}>
         <DialogTitle sx={{ p: isMobile ? 1.5 : 2 }}>
           <Box display="flex" flexDirection={isMobile ? 'column' : 'row'} justifyContent="space-between" alignItems={isMobile ? 'stretch' : 'flex-start'} gap={isMobile ? 1 : 0}>
             <Box sx={{ flex: 1, minWidth: 0, pr: isMobile ? 0 : 2 }}>

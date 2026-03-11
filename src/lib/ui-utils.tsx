@@ -6,6 +6,31 @@ import type { Theme } from '@mui/material/styles';
  */
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Box } from '@mui/material';
+import useMediaQuery from '@mui/material/useMediaQuery';
+import { useTheme } from '@mui/material/styles';
+
+export function useResponsiveDialogProps() {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
+  return {
+    fullScreen: isMobile,
+    maxWidth: "lg" as const,
+    fullWidth: true,
+    sx: { '& .MuiDialog-container': { alignItems: { xs: 'center', md: 'center' }, pt: 0 } },
+    PaperProps: {
+      sx: {
+        width: isMobile ? '100%' : 'min(900px, 96%)',
+        m: isMobile ? 0 : 1,
+        maxHeight: isMobile ? '100%' : '90vh',
+        minHeight: { xs: 'auto', md: '600px' },
+        display: 'flex',
+        flexDirection: 'column',
+        height: isMobile ? '100%' : 'auto'
+      }
+    }
+  };
+}
 
 export function useScrollShadows(orientation: 'vertical' | 'horizontal' | 'both' = 'vertical') {
   const [showTop, setShowTop] = useState(false);

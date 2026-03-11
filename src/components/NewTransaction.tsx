@@ -1,3 +1,4 @@
+import toast from "react-hot-toast";
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 
@@ -727,7 +728,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
       setTimeout(() => navigate(-1), 500); // Quick navigate back
     } catch (e) {
       console.error(e);
-      alert(t("Error deleting: ", "שגיאה במחיקה: ") + (e instanceof Error ? e.message : String(e)));
+      toast.error(t("Error deleting: ", "שגיאה במחיקה: ") + (e instanceof Error ? e.message : String(e)));
     } finally {
       setLoading(false);
     }
@@ -740,7 +741,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
 
     // Batch Undo Check (for Holding Change)
     if (Array.isArray(data.data)) {
-      alert(t("Undo not supported for Holding Change.", "ביטול פעולה לא נתמך עבור החלפת החזקה."));
+      toast.error(t("Undo not supported for Holding Change.", "ביטול פעולה לא נתמך עבור החלפת החזקה."));
       return;
     }
 
@@ -776,7 +777,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
       setUndoData(null);
     } catch (e) {
       console.error(e);
-      alert(t("Error undoing: ", "שגיאה בביטול: ") + (e instanceof Error ? e.message : String(e)));
+      toast.error(t("Error undoing: ", "שגיאה בביטול: ") + (e instanceof Error ? e.message : String(e)));
     } finally {
       setLoading(false);
     }
@@ -792,7 +793,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     const day = vestingDay ? parseInt(vestingDay, 10) : baseDate.getDate();
 
     if (!totalUnits || !duration || !day || isNaN(baseDate.getTime()) || !ticker || !portId) {
-      alert("Please fill all required grant fields (Units, Duration, Vesting Day, Ticker).");
+      toast.error("Please fill all required grant fields (Units, Duration, Vesting Day, Ticker).");
       return;
     }
 
@@ -801,7 +802,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     const grantDateUTC = new Date(Date.UTC(grantDate.getFullYear(), grantDate.getMonth(), grantDate.getDate()));
 
     if (baseDate <= grantDateUTC) {
-      alert(t("First vest date must be after creation date.", "תאריך הבשלה ראשון חייב להיות אחרי תאריך הקצאה."));
+      toast.error(t("First vest date must be after creation date.", "תאריך הבשלה ראשון חייב להיות אחרי תאריך הקצאה."));
       return;
     }
 
@@ -878,7 +879,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
       setShowForm(false);
     } catch (err) {
       console.error(err);
-      alert('Failed to save grant transactions');
+      toast.error('Failed to save grant transactions');
     } finally {
       setLoading(false);
     }
@@ -894,13 +895,13 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
       const holding = selectedPort?.holdings?.find(h => h.ticker === ticker);
 
       if (!holding) {
-        alert(t("You don't hold this asset in the selected portfolio.", "אינך מחזיק בנכס זה בתיק הנבחר."));
+        toast.error(t("You don't hold this asset in the selected portfolio.", "אינך מחזיק בנכס זה בתיק הנבחר."));
         return;
       }
 
       const sellQty = parseFloat(qty);
       if (holding.qty < sellQty - 1e-6) {
-        alert(t(`Cannot sell more than you hold (${holding.qty}).`, `לא ניתן למכור יותר מהכמות המוחזקת (${holding.qty}).`));
+        toast.error(t(`Cannot sell more than you hold (${holding.qty}).`, `לא ניתן למכור יותר מהכמות המוחזקת (${holding.qty}).`));
         return;
       }
     }
@@ -1053,7 +1054,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
       setValidationErrors({});
     } catch (e) {
       console.error(e);
-      alert(t('Error saving transaction', 'שגיאה בשמירת העסקה'));
+      toast.error(t('Error saving transaction', 'שגיאה בשמירת העסקה'));
     } finally {
       setLoading(false);
     }
