@@ -90,6 +90,14 @@ export const DashboardGroup = memo(function DashboardGroup(props: DashboardGroup
     return [...groupHoldings].sort((a, b) => {
       const va = getSortValue(a, sortBy);
       const vb = getSortValue(b, sortBy);
+
+      const aIsNull = va === null || va === undefined || (typeof va === 'number' && Number.isNaN(va));
+      const bIsNull = vb === null || vb === undefined || (typeof vb === 'number' && Number.isNaN(vb));
+
+      if (aIsNull && bIsNull) return 0;
+      if (aIsNull) return 1; // Always push nulls to the bottom
+      if (bIsNull) return -1;
+
       if (va === vb) return 0;
       if (typeof va === 'string' && typeof vb === 'string') {
         return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);

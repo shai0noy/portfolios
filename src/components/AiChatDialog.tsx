@@ -793,6 +793,8 @@ ${marketOverview}
                       t("Stress test: What if the market drops 20%?", "בדיקת עמידות: מה אם השוק יירד ב-20%?"),
                       t("Suggest 3 improvements for my portfolio", "הצע 3 שיפורים לתיק שלי"),
                       t("Compare my performance to the market", "השווה את הביצועים שלי לשוק"),
+                      t("Predict my future portfolio growth", "חזה את צמיחת העתיד של התיק שלי"),
+                      t("What are my top and worst performers?", "מהם הביצועים הטובים והגרועים ביותר שלי?"),
                     ].map((text, i) => (
                       <Chip
                         key={i}
