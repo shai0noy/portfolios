@@ -90,6 +90,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isManualRef = useRef(false);
+  const touchStartRef = useRef<{ x: number, y: number } | null>(null);
 
   // Timer logic
   const startTimer = useCallback((delay: number) => {
@@ -148,6 +149,37 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
   const handleInteraction = () => {
     // Reset timer to long delay without changing step
     startTimer(INTERACTION_STEP_DELAY);
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (!isMobile) return;
+    touchStartRef.current = { x: e.touches[0].pageX, y: e.touches[0].pageY };
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!isMobile || touchStartRef.current === null) return;
+
+    const touchEnd = { x: e.changedTouches[0].pageX, y: e.changedTouches[0].pageY };
+    const dx = touchStartRef.current.x - touchEnd.x;
+    const dy = touchStartRef.current.y - touchEnd.y;
+    const threshold = 30; // More sensitive
+
+    if (Math.abs(dx) > threshold && Math.abs(dx) > Math.abs(dy)) {
+      if (isRtl) {
+        // RTL: Swipe Right (dx < 0) -> Next, Swipe Left (dx > 0) -> Prev
+        if (dx < 0) handleManualStep('next');
+        else handleManualStep('prev');
+      } else {
+        // LTR: Swipe Left (dx > 0) -> Next, Swipe Right (dx < 0) -> Prev
+        if (dx > 0) handleManualStep('next');
+        else handleManualStep('prev');
+      }
+    }
+    touchStartRef.current = null;
+  };
+
+  const handleTouchCancel = () => {
+    touchStartRef.current = null;
   };
 
   const getClampedDataCallback = useCallback((data: any[] | null, range: string) => {
@@ -245,27 +277,34 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
     <>
       <Paper
         variant="outlined"
-        sx={{ p: isMobile ? 2 : 3, mb: 4, position: 'relative' }}
+        sx={{ p: isMobile ? 2 : 3, pb: isMobile ? 1.5 : 3, mb: 4, position: 'relative', touchAction: isMobile ? 'pan-y' : 'auto' }}
         onClick={handleInteraction}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchCancel}
       >
-        {/* Navigation Buttons */}
-        <IconButton
-          onClick={(e) => { e.stopPropagation(); handleManualStep('prev'); }}
-          sx={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', zIndex: 2 }}
-          size="small"
-        >
-          <ChevronLeftIcon sx={{ transform: isRtl ? 'rotate(180deg)' : 'none' }} />
-        </IconButton>
+        {/* Navigation Buttons (Desktop Only) */}
+        {!isMobile && (
+          <>
+            <IconButton
+              onClick={(e) => { e.stopPropagation(); handleManualStep('prev'); }}
+              sx={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', zIndex: 2 }}
+              size="small"
+            >
+              <ChevronLeftIcon sx={{ transform: isRtl ? 'rotate(180deg)' : 'none' }} />
+            </IconButton>
 
-        <IconButton
-          onClick={(e) => { e.stopPropagation(); handleManualStep('next'); }}
-          sx={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', zIndex: 2 }}
-          size="small"
-        >
-          <ChevronRightIcon sx={{ transform: isRtl ? 'rotate(180deg)' : 'none' }} />
-        </IconButton>
+            <IconButton
+              onClick={(e) => { e.stopPropagation(); handleManualStep('next'); }}
+              sx={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', zIndex: 2 }}
+              size="small"
+            >
+              <ChevronRightIcon sx={{ transform: isRtl ? 'rotate(180deg)' : 'none' }} />
+            </IconButton>
+          </>
+        )}
 
-        <Box sx={{ px: 4 }}>
+        <Box sx={{ px: isMobile ? 0 : 4 }}>
           {activeStep === 0 && (
             <Fade in={true} timeout={700}>
               <Box>
@@ -817,6 +856,33 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
             </Fade>
           </Box>
         </Box>
+
+        {/* Mobile Pagination Indicator */}
+        {isMobile && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2, mb: 0.5, gap: 1 }}>
+            {[0, 1, 2, 3].map((step) => (
+              <Box
+                key={step}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveStep(step);
+                  isManualRef.current = true;
+                  startTimer(INTERACTION_STEP_DELAY);
+                }}
+                sx={{
+                  width: activeStep === step ? 16 : 6,
+                  height: 6,
+                  borderRadius: 3,
+                  bgcolor: activeStep === step ? 'primary.main' : 'text.disabled',
+                  transition: 'all 0.3s ease',
+                  cursor: 'pointer',
+                  opacity: activeStep === step ? 1 : 0.5
+                }}
+              />
+            ))}
+          </Box>
+        )}
+
         {hasFutureTxns && (
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'right', mt: 1, mr: 2, mb: -1, fontSize: '0.7rem' }}>
             {t('Note: Some transactions with future dates exist and are not included in the calculations.', 'הערה: קיימות עסקאות עם תאריך עתידי שאינן נכללות בחישובים.')}
