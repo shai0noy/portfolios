@@ -82,7 +82,21 @@ function LinkParser({ children, t, onPromptClick, onTickerClick, onProfileClick,
               size="small"
               variant="outlined"
               onClick={() => onPromptClick(value)}
-              sx={{ mx: 0.5, textTransform: 'none', py: 0, height: 24, fontSize: '0.75rem' }}
+              sx={{
+                mx: 0.5,
+                my: 0.5,
+                textTransform: 'none',
+                height: 'auto',
+                minHeight: 26,
+                py: 0.5,
+                px: 1,
+                fontSize: '0.75rem',
+                display: 'inline-flex',
+                verticalAlign: 'middle',
+                whiteSpace: 'normal',
+                textAlign: 'inherit',
+                lineHeight: 1.2
+              }}
             >
               {value}
             </Button>
@@ -238,23 +252,53 @@ const ChatMessageItem = React.memo(({ msg, t, onRetry, lastPrompt, onPromptClick
         )}
         <Typography component="div" variant="body2" sx={{
           whiteSpace: 'normal',
+          wordBreak: 'break-word',
           '& p': { m: 0, mb: 1, '&:last-child': { mb: 0 } },
           '& ul, & ol': { m: 0, pl: 2, mb: 1 },
+          '& h1, & h2, & h3, & h4, & h5, & h6': {
+            m: 0,
+            mb: 1.5,
+            fontWeight: 'bold',
+            lineHeight: 1.3,
+            '&:not(:first-of-type)': { mt: 2 }
+          },
           '& code': { bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5, fontFamily: 'monospace' },
           '& table': {
+            display: 'block',
             width: '100%',
-            borderCollapse: 'collapse',
-            mb: 1,
+            overflowX: 'auto',
+            WebkitOverflowScrolling: 'touch',
+            borderCollapse: 'separate',
+            borderSpacing: 0,
+            mb: 2,
+            borderRadius: 1,
+            boxShadow: 2,
+            border: '1px solid',
+            borderColor: 'divider',
             direction: 'inherit',
             '& th, & td': {
-              border: '1px solid',
+              borderBottom: '1px solid',
+              borderRight: '1px solid',
               borderColor: 'divider',
-              p: 1,
-              textAlign: 'inherit'
+              p: 1.5,
+              textAlign: 'inherit',
+              minWidth: 80,
+              fontSize: '0.8rem',
+              '&:last-child': {
+                borderRight: 'none'
+              }
+            },
+            '& tr:last-child td': {
+              borderBottom: 'none'
             },
             '& th': {
               bgcolor: 'action.hover',
-              fontWeight: 'bold'
+              fontWeight: 'bold',
+              whiteSpace: 'nowrap',
+              color: 'text.secondary',
+              textTransform: 'uppercase',
+              fontSize: '0.7rem',
+              letterSpacing: '0.05em'
             },
             '& tr:nth-of-type(even)': {
               bgcolor: 'action.hover'
@@ -355,7 +399,7 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [availableModels, setAvailableModels] = useState<GeminiModel[]>([]);
   const [selectedModel, setSelectedModel] = useState<string>(localStorage.getItem('gemini_selected_model') || 'models/gemini-1.5-flash');
-  const { containerRef: scrollRef, showTop, showBottom } = useScrollShadows();
+  const { containerRef: scrollRef, showTop, showBottom, showLeft, showRight } = useScrollShadows('both');
   const responsiveDialogProps = useResponsiveDialogProps();
   const lastPromptRef = useRef<string>('');
 
@@ -870,7 +914,8 @@ ${marketOverview}
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 2,
-                p: 2
+                p: 2,
+                '&::-webkit-scrollbar-corner': { background: 'transparent' }
               }}
             >
               {messages.length === 0 && (
@@ -987,7 +1032,7 @@ ${marketOverview}
               )}
               <Box sx={{ minHeight: 20 }} />
             </Box>
-            <ScrollShadows top={showTop} bottom={showBottom} theme={theme} />
+            <ScrollShadows top={showTop} bottom={showBottom} left={showLeft} right={showRight} theme={theme} />
           </Box>
           {openDisclaimer && (
             <Alert
