@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 
 import {
   Box, TextField, Button, MenuItem, Select, InputLabel, FormControl, Autocomplete,
   Typography, Alert, InputAdornment, Grid, Card, CardContent, Divider, Tooltip, Chip, ToggleButton, ToggleButtonGroup,
-  Backdrop, CircularProgress, IconButton, useTheme
+  Backdrop, CircularProgress, IconButton, useTheme, Tabs, Tab
 } from '@mui/material';
 import { useScrollShadows, ScrollShadows } from '../lib/ui-utils';
 import RestoreIcon from '@mui/icons-material/Restore';
@@ -43,6 +43,7 @@ interface Props {
 export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Props) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const locationState = location.state as {
     prefilledTicker?: string, prefilledExchange?: string, initialPrice?: string,
     initialCurrency?: string, numericId?: number, initialName?: string, initialNameHe?: string,
@@ -68,7 +69,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   const [portId, setPortId] = useState('');
   const [ticker, setTicker] = useState(locationState?.prefilledTicker || '');
   const [exchange, setExchange] = useState(locationState?.prefilledExchange || '');
-  const [type, setType] = useState<'BUY' | 'SELL' | 'DIVIDEND' | 'FEE' | 'DIV_EVENT' | 'HOLDING_CHANGE' | 'GRANT'>('BUY');
+  const [type, setType] = useState<'BUY' | 'SELL' | 'DIVIDEND' | 'FEE' | 'DIVIDEND' | 'HOLDING_CHANGE' | 'GRANT'>('BUY');
   const [grantFrequency, setGrantFrequency] = useState<'MONTHLY' | 'QUARTERLY' | 'YEARLY'>('YEARLY');
   const [grantDuration, setGrantDuration] = useState<string>('');
   const [grantDurationUnit, setGrantDurationUnit] = useState<'YEARS' | 'QUARTER' | 'MONTHS'>('YEARS');
@@ -150,8 +151,8 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     setSaveSuccess(false);
     const editTxn = locationState?.editTransaction;
     const editDiv = locationState?.editDividend;
-    const prefilledTicker = locationState?.prefilledTicker || editTxn?.ticker || editDiv?.ticker;
-    const prefilledExchange = locationState?.prefilledExchange || (editTxn?.exchange as string) || (editDiv?.exchange as string);
+    const prefilledTicker = searchParams.get('ticker') || locationState?.prefilledTicker || editTxn?.ticker || editDiv?.ticker;
+    const prefilledExchange = searchParams.get('exchange') || locationState?.prefilledExchange || (editTxn?.exchange as string) || (editDiv?.exchange as string);
 
     if (prefilledTicker) {
       const fetchData = async () => {
@@ -170,6 +171,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
             nameHe: data.nameHe || locationState?.initialNameHe
           };
           setSelectedTicker(combinedData);
+      setSearchParams({ ticker: combinedData.symbol, exchange: combinedData.exchange || '' }, { replace: true });
           setExchange(data.exchange || prefilledExchange || '');
           setTicker(prefilledTicker!)
           setShowForm(true);
@@ -193,7 +195,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
             setTickerCurrency(normalizeCurrency(editTxn.currency || data.currency || ''));
           } else if (editDiv) {
             setHasManuallyEditedPrice(true);
-            setType('DIV_EVENT');
+            setType('DIVIDEND');
             const d = coerceDate(editDiv.date);
             setDate(d ? formatDate(d) : '');
             setPrice(editDiv.amount.toString());
@@ -267,6 +269,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
       };
 
       setSelectedTicker(combinedData);
+      setSearchParams({ ticker: combinedData.symbol, exchange: combinedData.exchange || '' }, { replace: true });
       setTicker(combinedData.symbol);
       setExchange(combinedData.exchange || '');
       setShowForm(true); // Show form with data
@@ -302,7 +305,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   // Helper to calculate and set commission
   const updateCommission = useCallback((currentTotal: string, currentPortId: string, currentType: string) => {
     const selectedPort = portfolios.find(p => p.id === currentPortId);
-    if (!selectedPort || currentType === 'DIV_EVENT') return;
+    if (!selectedPort || currentType === 'DIVIDEND') return;
 
     const t = parseFloat(currentTotal);
     if (!Number.isFinite(t) || t === 0) {
@@ -365,6 +368,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
 
     setSelectedTicker(combinedData);
     setTicker(combinedData.symbol);
+    setSearchParams({ ticker: combinedData.symbol, exchange: combinedData.exchange || '' }, { replace: true });
     setExchange(combinedData.exchange);
     setPortId(pid);
 
@@ -627,7 +631,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   ) => {
     const errors: { [key: string]: boolean } = {};
 
-    if (currentType === 'DIV_EVENT') {
+    if (currentType === 'DIVIDEND') {
       if (!currentTicker) errors.ticker = true;
       if (!currentPrice || parseFloat(currentPrice) <= 0) errors.price = true;
     } else if (currentType === 'HOLDING_CHANGE') {
@@ -683,6 +687,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   }, [runValidation]);
 
   // Update commission when portfolio or type changes too
+// @ts-ignore
   const handlePortChange = (e: any) => {
     const newPortId = e.target.value;
     setPortId(newPortId);
@@ -913,7 +918,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
       const editTxn = locationState?.editTransaction;
       const editDiv = locationState?.editDividend;
 
-      if (type === 'DIV_EVENT') {
+      if (type === 'DIVIDEND') {
         if (editDiv) {
           await updateDividend(sheetId, editDiv.rowIndex, ticker, parseExchange(exchange), coerceDate(date)!, p, editDiv.source, editDiv);
           const newState = { ticker, amount: p, rowIndex: editDiv.rowIndex };
@@ -1043,6 +1048,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
         setDate(new Date().toISOString().split('T')[0]);
         setShowForm(false); // Hide form, show summary card again
         setHasManuallyEditedPrice(false);
+        setSearchParams({});
       }
       setValidationErrors({});
     } catch (e) {
@@ -1076,6 +1082,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     setShowForm(false);
     setSaveSuccess(false);
     setValidationErrors({});
+    setSearchParams({});
     navigate('/transaction', { replace: true, state: {} }); // Clear location state
   };
 
@@ -1377,58 +1384,71 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
 
                 {showForm && selectedTicker && (
                   <>
-                    <Grid item xs={12}><Divider sx={{ my: 1 }}>{type === 'DIV_EVENT' ? 'Dividend Details' : 'Transaction Details'}</Divider></Grid>
+                    <Grid item xs={12}><Divider sx={{ my: 1 }}>{type === 'DIVIDEND' ? 'Dividend Details' : 'Transaction Details'}</Divider></Grid>
                     <Grid container spacing={2}>
-                      {type !== 'DIV_EVENT' && (
-                        <Grid item xs={12} sm={4}>
-                          <FormControl fullWidth size="small" error={!!validationErrors.portId} required>
-                            <InputLabel>Portfolio</InputLabel>
-                            <Select
-                              value={portId} label="Portfolio"
-                              onChange={handlePortChange}
-                              disabled={isPortfoliosLoading}
-                              sx={{ bgcolor: !portId ? 'action.hover' : 'inherit' }}
-                            >
-                              {isPortfoliosLoading ? <MenuItem value="">Loading...</MenuItem> : portfolios.map(p => (
-                                <MenuItem key={p.id} value={p.id}>{p.name} ({p.currency})</MenuItem>
+                      <Grid item xs={12}>
+                        <Tabs 
+                          value={type} 
+                          onChange={(_, newType) => handleTypeChange({ target: { value: newType } } as any)}
+                          variant="scrollable"
+                          scrollButtons="auto"
+                          allowScrollButtonsMobile
+                          sx={{
+                            borderBottom: 1, borderColor: 'divider', mb: 2,
+                            minHeight: 48,
+                            '& .MuiTabs-flexContainer': { gap: 1 },
+                            '& .MuiTab-root': {
+                              textTransform: 'none',
+                              fontWeight: 600,
+                              fontSize: '0.95rem',
+                              borderRadius: '12px 12px 0 0',
+                              minHeight: 48,
+                              px: 3,
+                              color: 'text.secondary',
+                              '&.Mui-selected': {
+                                color: 'primary.main',
+                                bgcolor: 'action.hover',
+                              },
+                            }
+                          }}
+                        >
+                          <Tab value="BUY" label={t('Buy', 'קנייה')} />
+                          <Tab value="SELL" label={t('Sell', 'מכירה') + ((portId && ticker && !portfolios.find(p => p.id === portId)?.holdings?.some(h => h.ticker === ticker)) ? ` (${t('Not Held', 'לא מוחזק')})` : '')} disabled={Boolean(portId && ticker && !portfolios.find(p => p.id === portId)?.holdings?.some(h => h.ticker === ticker))} />
+                          {(selectedPortfolio?.divPolicy === 'accumulate_tax_free') && (
+                            <Tab value="HOLDING_CHANGE" label={t('Holding Change', 'החלפת החזקה') + ((portId && ticker && !portfolios.find(p => p.id === portId)?.holdings?.some(h => h.ticker === ticker)) ? ` (${t('Not Held', 'לא מוחזק')})` : '')} disabled={Boolean(portId && ticker && !portfolios.find(p => p.id === portId)?.holdings?.some(h => h.ticker === ticker))} />
+                          )}
+                          <Tab value="GRANT" label={t('Grant', 'הענקה')} />
+                          <Tab value="DIV_EVENT" label={t('Dividend', 'דיבידנד')} />
+                        </Tabs>
+                      </Grid>
+
+                      {type !== 'DIVIDEND' && (
+                        <Grid item xs={12}>
+                          <Box sx={{ border: '1px solid', borderColor: validationErrors.portId ? 'error.main' : 'divider', borderRadius: 1, p: 1.5, bgcolor: !portId ? 'action.hover' : 'background.paper', display: 'flex', flexDirection: 'column', gap: 1 }}>
+                            <Typography variant="subtitle2" color={validationErrors.portId ? "error" : "textPrimary"}>
+                              {t('Portfolio', 'תיק ההשקעות')}{!portId && <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>({t('Required', 'חובה')})</Typography>}
+                            </Typography>
+                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                              {isPortfoliosLoading ? <CircularProgress size={24} /> : portfolios.map(p => (
+                                <Chip
+                                  key={p.id}
+                                  label={`${p.name} (${p.currency})`}
+                                  onClick={() => setPortId(p.id)}
+                                  color={portId === p.id ? "primary" : "default"}
+                                  variant={portId === p.id ? "filled" : "outlined"}
+                                  sx={{ fontWeight: portId === p.id ? 'bold' : 'normal', cursor: 'pointer' }}
+                                />
                               ))}
-                            </Select>
-                            {!portId && <Typography variant="caption" color="text.secondary" sx={{ ml: 1.5, mt: 0.5 }}>Required</Typography>}
-                          </FormControl>
+                            </Box>
+                          </Box>
                         </Grid>
                       )}
-                      <Grid item xs={12} sm={4}>
+                      <Grid item xs={12}>
                         <DateField
                           label="Date"
                           value={date}
                           onChange={v => handleDateChange(v)}
                         />
-                      </Grid>
-                      <Grid item xs={12} sm={4}>
-                        <FormControl size="small" fullWidth>
-                          <InputLabel>Type</InputLabel>
-                          <Select value={type} label="Type" onChange={handleTypeChange}>
-                            <MenuItem value="BUY">{t('Buy', 'קנייה')}</MenuItem>
-                            <MenuItem
-                              value="SELL"
-                              disabled={Boolean(portId && ticker && !portfolios.find(p => p.id === portId)?.holdings?.some(h => h.ticker === ticker))}
-                            >
-                              {t('Sell', 'מכירה')}
-                              {(portId && ticker && !portfolios.find(p => p.id === portId)?.holdings?.some(h => h.ticker === ticker)) ? ` (${t('Not Held', 'לא מוחזק')})` : ''}
-                            </MenuItem>
-                            {(selectedPortfolio?.divPolicy === 'accumulate_tax_free') && (
-                              <MenuItem
-                                value="HOLDING_CHANGE"
-                                disabled={Boolean(portId && ticker && !portfolios.find(p => p.id === portId)?.holdings?.some(h => h.ticker === ticker))}
-                              >
-                                {t('Holding Change', 'החלפת החזקה')}
-                                {(portId && ticker && !portfolios.find(p => p.id === portId)?.holdings?.some(h => h.ticker === ticker)) ? ` (${t('Not Held', 'לא מוחזק')})` : ''}
-                              </MenuItem>
-                            )}
-                            <MenuItem value="GRANT">{t('Grant (RSU / Vesting)', 'הענקה (RSU / תוכנית)')}</MenuItem>
-                            <MenuItem value="DIV_EVENT">{t('Record Dividend event', 'תיעוד אירוע דיבידנד')}</MenuItem>
-                          </Select>
-                        </FormControl>
                       </Grid>
 
                       {/* Holding Change Second Ticker Search */}
@@ -1638,7 +1658,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                             )}
                           </Box>
                         </Grid>
-                      ) : type === 'DIV_EVENT' ? (
+                      ) : type === 'DIVIDEND' ? (
                         <Grid item xs={12} sm={4}>
                           <NumericField
                             label={t("Dividend Amount", "סכום דיבידנד")}
@@ -1857,7 +1877,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                         </Button>
                       )}
                       <Button variant="contained" size="large" fullWidth startIcon={<AddCircleOutlineIcon />} onClick={handleSubmit} disabled={loading || Object.keys(validationErrors).length > 0} sx={{ flex: 2 }}>
-                        {loading ? (loadingMessage || t('Saving...', 'שומר...')) : (type === 'DIV_EVENT' ? (locationState?.editDividend ? t('Update Dividend', 'עדכן דיבידנד') : t('Record Dividend', 'שמור דיבידנד')) : (locationState?.editTransaction ? t('Update Transaction', 'עדכן עסקה') : t('Save Transaction', 'שמור עסקה')))}
+                        {loading ? (loadingMessage || t('Saving...', 'שומר...')) : (type === 'DIVIDEND' ? (locationState?.editDividend ? t('Update Dividend', 'עדכן דיבידנד') : t('Record Dividend', 'שמור דיבידנד')) : (locationState?.editTransaction ? t('Update Transaction', 'עדכן עסקה') : t('Save Transaction', 'שמור עסקה')))}
                       </Button>
                     </Box>
                   </>

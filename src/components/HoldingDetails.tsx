@@ -198,7 +198,7 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
     }, [portfolios]);
 
     const handleEditTransaction = (txn: Transaction) => {
-        navigate('/transaction', {
+        navigate(`/transaction?ticker=${encodeURIComponent(txn.ticker)}&exchange=${encodeURIComponent(txn.exchange || '')}`, {
             state: {
                 editTransaction: txn,
                 initialName: enriched?.displayName || (holding as any).displayName,

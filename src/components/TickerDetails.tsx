@@ -237,7 +237,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   };
 
   const handleAddTransaction = () => {
-    navigate('/transaction', {
+    navigate(`/transaction?ticker=${encodeURIComponent(ticker || '')}&exchange=${encodeURIComponent(data?.exchange || exchange || '')}`, {
       state: {
         prefilledTicker: ticker,
         prefilledExchange: data?.exchange || exchange,
