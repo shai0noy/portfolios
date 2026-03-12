@@ -225,7 +225,7 @@ export function MarketViewSummary({ isMobile }: MarketViewProps) {
 
             return (
               <Grid item xs={12} md={4} key={market.title} sx={{ height: isMobileRes ? 250 : '100%' }}>
-                <Paper variant="outlined" sx={{ p: 1, height: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+                <Paper variant="outlined" sx={{ p: 1, pb: isMobileRes ? 6 : 5, height: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }}>
                   <Box sx={{ display: 'flex', justifyContent: isMobileRes ? 'flex-end' : 'space-between', alignItems: 'center', mb: 1 }}>
                     {!isMobileRes && <Typography variant="subtitle2" fontWeight="bold">{market.title}</Typography>}
                     <IconButton size="small" onClick={() => handleOpenExpanded(market)}>
@@ -297,7 +297,7 @@ export function MarketViewSummary({ isMobile }: MarketViewProps) {
                         </Box>
 
                       {/* Legend / Key */}
-                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: isMobileRes ? 0.5 : 0.5, pb: isMobileRes ? 1 : 0, justifyContent: 'center' }}>
+                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: isMobileRes ? 0.5 : 0.5, pb: 0, justifyContent: 'center' }}>
                         {market.tickers.map((t, i) => (
                           <Box key={t.symbol} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                             <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: colors[i % colors.length] }} />

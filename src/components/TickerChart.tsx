@@ -1499,6 +1499,7 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
 
     return (
         <Box
+            className="chart-container"
             sx={{
                 width: '100%',
                 height,
@@ -1508,6 +1509,7 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                 display: 'flex',
                 flexDirection: 'column',
                 userSelect: 'none',
+                pb: 6,
                 '& *': {
                     outline: 'none !important',
                 }
