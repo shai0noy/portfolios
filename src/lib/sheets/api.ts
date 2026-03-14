@@ -594,7 +594,7 @@ export const batchAddTransactions = withAuthHandling(async (spreadsheetId: strin
     // 4. Rebuild Holdings
     // This is a full sync of the holdings sheet based on all transactions.
     await rebuildHoldingsSheet(spreadsheetId);
-    clearFinanceCache(spreadsheetId);
+    await clearFinanceCache(spreadsheetId);
 });
 
 type HoldingNonGeneratedData = Omit<SheetHolding, 'portfolioId' | 'totalValue' | 'price' | 'currency' | 'name' | 'nameHe' | 'sector' | 'changePct1d' | 'changePctRecent' | 'changePct1m' | 'changePct3m' | 'changePctYtd' | 'changePct1y' | 'changePct3y' | 'changePct5y' | 'changePct10y'>;
@@ -802,7 +802,7 @@ export const syncDividends = withAuthHandling(async (spreadsheetId: string, tick
             });
             // Update metadata
             await setMetadataValue(spreadsheetId, 'dividends_rebuild', toGoogleSheetDateFormat(new Date()));
-            clearFinanceCache(spreadsheetId);
+            await clearFinanceCache(spreadsheetId);
         }
     } catch (error: unknown) {
         const err = error as GapiError;
@@ -905,7 +905,7 @@ export const updateTransaction = withAuthHandling(async (spreadsheetId: string, 
     }
 
     await rebuildHoldingsSheet(spreadsheetId);
-    clearFinanceCache(spreadsheetId);
+    await clearFinanceCache(spreadsheetId);
 });
 
 export const updateDividend = withAuthHandling(async (spreadsheetId: string, rowIndex: number, ticker: string, exchange: Exchange, date: Date, amount: number, source: string, originalDiv: { ticker: string, amount: number }) => {
@@ -945,7 +945,7 @@ export const updateDividend = withAuthHandling(async (spreadsheetId: string, row
         spreadsheetId, range, valueInputOption: 'USER_ENTERED',
         resource: { values: [row] }
     });
-    clearFinanceCache(spreadsheetId);
+    await clearFinanceCache(spreadsheetId);
 });
 
 export const deleteTransaction = withAuthHandling(async (spreadsheetId: string, rowIndex: number, originalTxn: Transaction) => {
@@ -995,7 +995,7 @@ export const deleteTransaction = withAuthHandling(async (spreadsheetId: string, 
     });
 
     await rebuildHoldingsSheet(spreadsheetId);
-    clearFinanceCache(spreadsheetId);
+    await clearFinanceCache(spreadsheetId);
 });
 
 export const deleteDividend = withAuthHandling(async (spreadsheetId: string, rowIndex: number, originalDiv: { ticker: string, amount: number }) => {
@@ -1038,7 +1038,7 @@ export const deleteDividend = withAuthHandling(async (spreadsheetId: string, row
             }]
         }
     });
-    clearFinanceCache(spreadsheetId);
+    await clearFinanceCache(spreadsheetId);
 });
 
 
@@ -1068,7 +1068,7 @@ export const batchSyncDividends = withAuthHandling(async (spreadsheetId: string,
                 const date = new Date((row[2] - 25569) * 86400 * 1000);
                 rowDate = date.toISOString().split('T')[0];
             } else {
-                rowDate = new Date(row[2]).toISOString().split('T')[0];
+                const d = coerceDate(row[2]); rowDate = d ? toGoogleSheetDateFormat(d) : '';
             }
 
             const rowAmount = Number(row[3]).toFixed(6);
@@ -1119,7 +1119,7 @@ export const batchSyncDividends = withAuthHandling(async (spreadsheetId: string,
                 resource: { values: allNewRows }
             });
             await setMetadataValue(spreadsheetId, 'dividends_rebuild', toGoogleSheetDateFormat(new Date()));
-            clearFinanceCache(spreadsheetId);
+            await clearFinanceCache(spreadsheetId);
         }
 
     } catch (error: unknown) {
@@ -1250,7 +1250,7 @@ export const rebuildHoldingsSheet = withAuthHandling(async (spreadsheetId: strin
         });
     }
     await setMetadataValue(spreadsheetId, 'holdings_rebuild', toGoogleSheetDateFormat(new Date()));
-    clearFinanceCache(spreadsheetId);
+    await clearFinanceCache(spreadsheetId);
 });
 
 export const addPortfolio = withAuthHandling(async (spreadsheetId: string, p: Portfolio) => {
@@ -1267,7 +1267,7 @@ export const addPortfolio = withAuthHandling(async (spreadsheetId: string, p: Po
         spreadsheetId, range: `${PORTFOLIO_SHEET_NAME}!A:A`, valueInputOption: 'USER_ENTERED',
         resource: { values: [row] }
     });
-    clearFinanceCache(spreadsheetId);
+    await clearFinanceCache(spreadsheetId);
 });
 
 export const updatePortfolio = withAuthHandling(async (spreadsheetId: string, p: Portfolio) => {
@@ -1298,7 +1298,7 @@ export const updatePortfolio = withAuthHandling(async (spreadsheetId: string, p:
     await gapi.client.sheets.spreadsheets.values.update({
         spreadsheetId, range: range, valueInputOption: 'USER_ENTERED', resource: { values: [rowData] }
     });
-    clearFinanceCache(spreadsheetId);
+    await clearFinanceCache(spreadsheetId);
 });
 
 export const getMetadataValue = withAuthHandling(async function (spreadsheetId: string, key: string): Promise<string | null> {
@@ -1495,7 +1495,7 @@ export const addExternalPrice = withAuthHandling(async (spreadsheetId: string, t
         spreadsheetId, range: EXTERNAL_DATASETS_RANGE, valueInputOption: 'USER_ENTERED',
         insertDataOption: 'INSERT_ROWS', resource: { values: [row] }
     });
-    clearFinanceCache(spreadsheetId);
+    await clearFinanceCache(spreadsheetId);
 });
 
 export const getExternalPrices = withAuthHandling(async (spreadsheetId: string): Promise<Record<string, { date: Date, price: number, currency: Currency }[]>> => {

@@ -182,7 +182,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
             setPortId(editTxn.portfolioId);
             setType(editTxn.type as any); // BUY/SELL/FEE/DIVIDEND
             const d = coerceDate(editTxn.date);
-            setDate(d ? d.toISOString().split('T')[0] : '');
+            setDate(d ? formatDate(d) : '');
             setQty(editTxn.originalQty?.toString() || '');
             setPrice(editTxn.originalPrice?.toString() || '');
             // Calculate total?
@@ -190,7 +190,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
               setTotal((editTxn.originalQty * editTxn.originalPrice).toFixed(2)); // Approx
             }
             const vd = coerceDate(editTxn.vestDate);
-            setVestDate(vd ? vd.toISOString().split('T')[0] : '');
+            setVestDate(vd ? formatDate(vd) : '');
             setComment(editTxn.comment || '');
             setCommission(editTxn.commission?.toString() || '');
             setTickerCurrency(normalizeCurrency(editTxn.currency || data.currency || ''));
@@ -846,7 +846,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
         qty: periodQty,
         price: grantPrice,
         currency: tickerCurrency,
-        vestDate: vestDateObj.toISOString().split('T')[0],
+        vestDate: formatDate(vestDateObj),
         comment: comment ? `${comment} (${i + 1}/${vests})` : `Grant Vest ${i + 1}/${vests}`,
         commission: 0,
         creationDate: new Date().toISOString()
@@ -866,7 +866,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
       }
 
       setType('BUY');
-      setDate(new Date().toISOString().split('T')[0]);
+      setDate(formatDate(new Date()));
       setVestingMonth(new Date().getMonth());
       setVestingYear(new Date().getFullYear());
       setGrantDuration('');
@@ -1046,7 +1046,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
         setComment('');
         setVestDate('');
         setType('BUY');
-        setDate(new Date().toISOString().split('T')[0]);
+        setDate(formatDate(new Date()));
         setShowForm(false); // Hide form, show summary card again
         setHasManuallyEditedPrice(false);
         setSearchParams({});
