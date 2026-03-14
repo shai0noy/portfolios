@@ -20,6 +20,7 @@ export * from './yahoo_tickers';
 export * from './globes';
 export * from './gemelnet';
 export * from './pensyanet';
+export * from './yahoo_search';
 
 let tickersDataset: Record<string, TickerProfile[]> | null = null;
 let tickersDatasetLoading: Promise<Record<string, TickerProfile[]>> | null = null;
@@ -55,9 +56,9 @@ export function getTickersDataset(signal?: AbortSignal, forceRefresh = false): P
       // Add Predefined Yahoo Tickers (Futures, Commodities)
       const yahooTickers = getPredefinedYahooTickers();
       yahooTickers.forEach((t: TickerProfile) => {
-          const groupName = t.type.nameEn; // Use the English name of the classification as group
-          if (!combined[groupName]) combined[groupName] = [];
-          combined[groupName].push(t);
+        const groupName = t.type.nameEn; // Use the English name of the classification as group
+        if (!combined[groupName]) combined[groupName] = [];
+        combined[groupName].push(t);
       });
 
       tickersDataset = combined;
@@ -120,8 +121,8 @@ export async function getTickerData(
   // Lookup profile to determine group/type for smart fetching
   const profileLookupPromise = getTickersDataset(signal).then(dataset => {
     for (const list of Object.values(dataset)) {
-      const found = list.find(t => 
-        t.exchange === parsedExchange && 
+      const found = list.find(t =>
+        t.exchange === parsedExchange &&
         (t.symbol === ticker || (secId && t.securityId === secId) || (!isNaN(tickerNum) && t.securityId === tickerNum))
       );
       if (found) return found;
@@ -194,9 +195,9 @@ export async function getTickerData(
       // If we don't have securityId, we try to find it from the profile
       const sid = profile?.securityId;
       if (sid) {
-          globesPromise = fetchGlobesStockQuote(ticker, sid, parsedExchange, signal, forceRefresh);
+        globesPromise = fetchGlobesStockQuote(ticker, sid, parsedExchange, signal, forceRefresh);
       } else {
-          globesPromise = Promise.resolve(null);
+        globesPromise = Promise.resolve(null);
       }
     }
   } else {
@@ -326,11 +327,11 @@ export async function fetchTickerHistory(
   const profile = await getTickersDataset(signal).then(dataset => {
     const tickerNum = parseInt(ticker, 10);
     for (const list of Object.values(dataset)) {
-        const found = list.find(t => 
-            t.exchange === exchange && 
-            (t.symbol === ticker || (!isNaN(tickerNum) && t.securityId === tickerNum))
-        );
-        if (found) return found;
+      const found = list.find(t =>
+        t.exchange === exchange &&
+        (t.symbol === ticker || (!isNaN(tickerNum) && t.securityId === tickerNum))
+      );
+      if (found) return found;
     }
     return undefined;
   }).catch(() => undefined);

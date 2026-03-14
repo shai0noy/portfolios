@@ -4,7 +4,7 @@ import {
   List, ListItemButton, ListItemText, Paper, Box, Divider, Chip, Tooltip, InputAdornment, useTheme
 } from '@mui/material';
 import { useScrollShadows, ScrollShadows } from '../lib/ui-utils';
-import { getTickersDataset } from '../lib/fetching';
+import { getTickersDataset, searchYahooTickers } from '../lib/fetching';
 import type { TickerProfile } from '../lib/types/ticker';
 import { InstrumentGroup, INSTRUMENT_METADATA } from '../lib/types/instrument';
 import { type TrackingListItem, type Portfolio, Exchange, EXCHANGE_SETTINGS } from '../lib/types';
@@ -242,16 +242,18 @@ export const TickerSearch = React.memo(function TickerSearch({ onTickerSelect, p
   const { containerRef, showTop, showBottom } = useScrollShadows();
 
   const searchTickers = useCallback((term: string, exchange: string) => {
+    let results: SearchResult[] = [];
     startTransition(() => {
       try {
-        const results = performSearch(term, exchange, flatDataset, ownedTickers, favoriteTickers);
+        results = performSearch(term, exchange, flatDataset, ownedTickers, favoriteTickers);
         setSearchResults(results);
       } catch (err) {
         console.error("Search failed", err);
         setError("Search failed");
       }
     });
-  }, [flatDataset, ownedTickers]);
+    return results;
+  }, [flatDataset, ownedTickers, favoriteTickers]);
 
   const debouncedInput = useDebounce(inputValue, 150);
 
@@ -281,13 +283,48 @@ export const TickerSearch = React.memo(function TickerSearch({ onTickerSelect, p
 
   // Trigger search on input change
   useEffect(() => {
+    let active = true;
     if ((isFocused || debouncedInput) && !isPortfoliosLoading && !isDatasetLoading) {
       if (!debouncedInput) {
         setSearchResults([]);
         return;
       }
-      searchTickers(debouncedInput, selectedExchange);
+      const localResults = searchTickers(debouncedInput, selectedExchange);
+
+      // Async fetch for Yahoo Finance tickers
+      const fetchYahoo = async () => {
+        try {
+          // Check if we already have sufficient local results matching the current filters
+          const resultsAfterGroupFilter = selectedGroup === 'ALL'
+            ? localResults
+            : localResults.filter(res => res.profile.type.group === selectedGroup);
+
+          if (resultsAfterGroupFilter.length >= 10) return;
+
+          const yahooProfiles = await searchYahooTickers(debouncedInput);
+          if (!active) return;
+
+          setSearchResults(prev => {
+            const existingSymbols = new Set(prev.map(r => r.profile.symbol));
+            const newResults: SearchResult[] = [];
+            yahooProfiles.forEach(p => {
+              if (!existingSymbols.has(p.symbol)) {
+                newResults.push({ profile: p });
+              }
+            });
+            // If no new results, skip state update to avoid re-rendering
+            if (newResults.length === 0) return prev;
+            return [...prev, ...newResults];
+          });
+        } catch (e) {
+          console.error("Yahoo search failed in component", e);
+        }
+      };
+      fetchYahoo();
     }
+    return () => {
+      active = false;
+    };
   }, [debouncedInput, selectedExchange, isPortfoliosLoading, isDatasetLoading, isFocused, searchTickers]);
 
   // Filter results by selected Instrument Group
