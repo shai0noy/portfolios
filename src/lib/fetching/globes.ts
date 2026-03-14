@@ -26,6 +26,16 @@ function getText(element: Element, tagName: string): string {
   return getElementTextNS(element, GLOBES_API_NAMESPACE, tagName);
 }
 
+function parseSafeNumber(element: Element, tagName: string): number | undefined {
+  const el = element.getElementsByTagNameNS(GLOBES_API_NAMESPACE, tagName)[0];
+  if (!el) return undefined;
+  if (el.getAttribute('xsi:nil') === 'true' || el.getAttributeNS?.(XSI_NAMESPACE, 'nil') === 'true') return undefined;
+  const text = el.textContent;
+  if (!text || text.trim() === '' || text.toLowerCase() === 'null') return undefined;
+  const n = parseFloat(text);
+  return isNaN(n) ? undefined : n;
+}
+
 function extractCommonGlobesData(element: Element) {
   return {
     symbol: getText(element, 'symbol'),
@@ -83,28 +93,24 @@ function parseCurrencyData(instrument: Element, identifier: string): { currency:
 }
 
 function parseVolume(instrument: Element, last: number, baseCurrency: Currency, currency: Currency): number | undefined {
-  const totVolMoneyStr = getText(instrument, 'AverageQuarterTotVolMoney');
-  const totVolStr = getText(instrument, 'AverageQuarterTotVol');
+  const totVolMoney = parseSafeNumber(instrument, 'AverageQuarterTotVolMoney');
+  const totVolUnits = parseSafeNumber(instrument, 'AverageQuarterTotVol');
 
-  if (totVolMoneyStr) {
+  if (totVolMoney !== undefined) {
     // totVolMoney is in thousands
-    let volume = parseFloat(totVolMoneyStr) * 1000;
+    let volume = totVolMoney * 1000;
     if (baseCurrency === Currency.ILS && currency === Currency.ILA) {
       volume = volume * 100; // Convert NIS to Agorot
     }
     return volume;
-  } else if (totVolStr) {
+  } else if (totVolUnits !== undefined && last) {
     // Fallback: Volume in units * current price
-    const units = parseFloat(totVolStr);
-    if (!isNaN(units) && last) {
-      return units * last;
-    }
+    return totVolUnits * last;
   }
   return undefined;
 }
 
-function calculateChangePct(current: number, previousStr: string): number | undefined {
-  const prev = parseFloat(previousStr || '0');
+function calculateChangePct(current: number, prev: number | undefined): number | undefined {
   if (!prev || current === prev) return undefined;
   return (current - prev) / prev;
 }
@@ -236,7 +242,7 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
       try {
         const xmlDoc = parseXmlString(text);
       const instrument = xmlDoc.getElementsByTagNameNS(GLOBES_API_NAMESPACE, 'Instrument')[0];
-      if (!instrument) {
+        if (!instrument || instrument.getAttribute('xsi:nil') === 'true' || instrument.getAttributeNS?.('http://www.w3.org/2001/XMLSchema-instance', 'nil') === 'true') {
         return null;
       }
 
@@ -244,8 +250,12 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
       const tradeTimeStatus = parseTradeTimeStatus(instrument);
       const { currency, baseCurrency } = parseCurrencyData(instrument, identifier);
 
-      const last = parseFloat(getText(instrument, 'last') || '0');
-      const openPrice = parseFloat(getText(instrument, 'openPrice') || '0');
+        const last = parseSafeNumber(instrument, 'last');
+        if (last === undefined) {
+          // Essential field missing or explicity void, let Yahoo take over without overriding its data with undefined/0
+          return null;
+        }
+        const openPrice = parseSafeNumber(instrument, 'openPrice');
       const volume = parseVolume(instrument, last, baseCurrency, currency);
 
       // Exchange parsing
@@ -257,11 +267,10 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
       }
 
       // Percentage Change Calculation
-      const rawPercentageChange = getText(instrument, 'percentageChange');
-      let percentageChange: number | undefined = (rawPercentageChange && !isNaN(parseFloat(rawPercentageChange))) ? parseFloat(rawPercentageChange) : undefined;
+        let percentageChange = parseSafeNumber(instrument, 'percentageChange');
 
       if (percentageChange === undefined || percentageChange === 0) {
-        const changeVal = parseFloat(getText(instrument, 'change') || '0');
+        const changeVal = parseSafeNumber(instrument, 'change') || 0;
         if (changeVal !== 0 && last !== 0) {
           const prevClose = last - changeVal;
           if (prevClose !== 0) percentageChange = (changeVal / prevClose) * 100;
@@ -272,8 +281,8 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
       const parsedTimestamp = timestampStr ? new Date(timestampStr).valueOf() : NaN;
       const effectiveTimestamp = !isNaN(parsedTimestamp) ? parsedTimestamp : now;
 
-      const changePctYtdRaw = getText(instrument, 'ChangeFromLastYear');
-      const changePctYtd = (changePctYtdRaw && !isNaN(parseFloat(changePctYtdRaw))) ? parseFloat(changePctYtdRaw) / 100 : undefined;
+        const changePctYtdRaw = parseSafeNumber(instrument, 'ChangeFromLastYear');
+        const changePctYtd = changePctYtdRaw !== undefined ? changePctYtdRaw / 100 : undefined;
 
       let finalTicker = tickerSymbol;
       let finalNumericId = securityId || null;
@@ -295,11 +304,11 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
         changePct1d: percentageChange !== undefined ? percentageChange / 100 : undefined,
         timestamp: new Date(effectiveTimestamp),
         changePctYtd,
-        changePctRecent: calculateChangePct(last, getText(instrument, 'LastWeekClosePrice')),
+        changePctRecent: calculateChangePct(last, parseSafeNumber(instrument, 'LastWeekClosePrice')),
         recentChangeDays: 7,
-        changePct1m: calculateChangePct(last, getText(instrument, 'LastMonthClosePrice')),
-        changePct3m: calculateChangePct(last, getText(instrument, 'Last3MonthsAgoClosePrice')),
-        changePct3y: calculateChangePct(last, getText(instrument, 'Last3YearsAgoClosePrice')),
+        changePct1m: calculateChangePct(last, parseSafeNumber(instrument, 'LastMonthClosePrice')),
+        changePct3m: calculateChangePct(last, parseSafeNumber(instrument, 'Last3MonthsAgoClosePrice')),
+        changePct3y: calculateChangePct(last, parseSafeNumber(instrument, 'Last3YearsAgoClosePrice')),
         ticker: finalTicker,
         numericId: finalNumericId,
         source: 'Globes',
