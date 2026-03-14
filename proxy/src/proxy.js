@@ -15,6 +15,7 @@ const API_MAP = {
   "gemelnet_list": "https://gemelnet.cma.gov.il/tsuot/ui/tsuotHodXML.aspx?miTkfDivuach={startYear}{startMonth}&adTkfDivuach={endYear}{endMonth}&kupot=0000&Dochot=1&sug=1",
   "pensyanet_fund": "https://pensyanet.cma.gov.il/Parameters/ExportToXML",
   "pensyanet_list": "https://pensyanet.cma.gov.il/Parameters/ExportToXML",
+  "yahoo_search": "https://query2.finance.yahoo.com/v1/finance/search?q={searchTerm}",
 };
 
 const CACHE_TTL_MAP = {
@@ -34,6 +35,7 @@ const CACHE_TTL_MAP = {
   "gemelnet_list": 43200, // 12 hours
   "pensyanet_fund": 43200, // 12 hours
   "pensyanet_list": 43200, // 12 hours
+  "yahoo_search": 86400, // 24 hours
 };
 
 
