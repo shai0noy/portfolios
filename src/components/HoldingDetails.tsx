@@ -1,4 +1,5 @@
 import { Box, Typography, CircularProgress } from '@mui/material';
+import { formatDate, coerceDate } from '../lib/date';
 import { convertCurrency, getExchangeRates, normalizeCurrency } from '../lib/currency';
 import { useLanguage } from '../lib/i18n';
 import { Currency } from '../lib/types';
@@ -8,7 +9,9 @@ import type { EnrichedDashboardHolding } from '../lib/dashboard';
 import type { Lot, Holding, DividendRecord } from '../lib/data/model';
 import { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 
+import { deleteTransaction } from '../lib/sheets/api';
 import { aggregateDividends } from '../lib/dividends';
 import { aggregateHoldingValues, groupHoldingLayers, calculateHoldingWeights } from '../lib/data/holding_utils';
 import { HoldingStats } from './holding-details/HoldingStats';
@@ -31,22 +34,7 @@ interface HoldingDetailsProps {
     section?: HoldingDetailsSection;
 }
 
-const formatDate = (dateInput: string | Date | number) => {
-    if (!dateInput) return '';
-    if (typeof dateInput === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
-        const [y, m, d] = dateInput.split('-');
-        return `${d}/${m}/${y}`;
-    }
-    const date = new Date(dateInput);
-    return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
-};
 
-const coerceDate = (d: any): Date | null => {
-    if (!d) return null;
-    if (d instanceof Date) return d;
-    const date = new Date(d);
-    return isNaN(date.getTime()) ? null : date;
-};
 
 
 export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, portfolios, section = 'holdings' }: HoldingDetailsProps & { section?: string }) {
@@ -109,6 +97,7 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
 
     const [exchangeRates, setExchangeRates] = useState<ExchangeRates | null>(null);
     const [loading, setLoading] = useState(true);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     useEffect(() => {
         getExchangeRates(sheetId)
@@ -207,6 +196,25 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
         });
     };
 
+    const handleDeleteTransaction = async (txn: Transaction) => {
+        if (!txn.rowIndex) {
+            toast.error(t('Cannot delete transaction: row index is missing', 'לא ניתן למחוק פעולה: חסר מזהה שורה'));
+            return;
+        }
+
+        try {
+            setIsDeleting(true);
+            await deleteTransaction(sheetId, txn.rowIndex, txn);
+            toast.success(t('Transaction deleted successfully', 'העסקה נמחקה בהצלחה'));
+            window.location.reload(); // Simple reload to refresh data
+        } catch (error) {
+            console.error(error);
+            toast.error(t('Failed to delete transaction', 'שגיאה במחיקת העסקה'));
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
     // Pre-calculate Grant values for Stats
     const hasGrants = useMemo(() => layers.some(l => !!l.vestingDate || !!(l as any).vestDate), [layers]);
 
@@ -272,7 +280,7 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
     }, [enriched, holding]);
 
 
-    if (loading) {
+    if (loading || isDeleting) {
         return <Box sx={{ p: 4, display: 'flex', justifyContent: 'center' }}><CircularProgress /></Box>;
     }
 
@@ -341,6 +349,7 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                     portfolioNameMap={portfolioNameMap}
                     formatDate={formatDate}
                     onEditTransaction={handleEditTransaction}
+                    onDeleteTransaction={handleDeleteTransaction}
                     isFeeExempt={isFeeExempt}
                 />
             )}
