@@ -151,10 +151,10 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
       if (lh === 'trade date' || lh === 'תאריך העסקה' || ((lh.includes('date') || lh.includes('תאריך')) && !lh.includes('trade'))) newMap.date = h;
       if (lh.includes('type') || lh.includes('action') || lh.includes('סוג')) newMap.type = h;
       if (lh.includes('qty') || lh.includes('quantity') || lh.includes('shares') || lh.includes('כמות') || lh.includes('יחידות')) newMap.qty = h;
-      if (lh === 'purchase price' || lh.includes('price') || lh.includes('cost') || lh.includes('מחיר') || lh.includes('שער')) newMap.price = h;
+      if (lh === 'purchase price' || lh.includes('price') || lh.includes('cost') || lh.includes('מחיר') || lh === 'שער' || (lh.includes('שער') && !lh.includes('מטבע') && !lh.includes('יומי'))) newMap.price = h;
       if (lh.includes('exchange') || lh.includes('בורסה')) newMap.exchange = h;
       if (lh.includes('commission') || lh.includes('fee') || lh.includes('עמלה')) newMap.commission = h;
-      if (lh.includes('currency') || lh.includes('מטבע')) newMap.currency = h;
+      if (lh.includes('currency') || lh.includes('מטבע') || lh.includes('שער - מטבע')) newMap.currency = h;
       if (lh.includes('vest') || lh.includes('vesting') || lh.includes('הבשלה')) newMap.vestDate = h;
       if (lh.includes('comment') || lh.includes('note') || lh.includes('הערה')) newMap.comment = h;
     });
@@ -211,133 +211,133 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
         };
 
         // Date Parsing (handle 20241025 or 2025/12/30)
-      const rawDate = getVal('date');
-      let isoDate = '';
+        const rawDate = getVal('date');
+        let isoDate = '';
 
-      let d: Date | null = null;
-      // Try to parse YYYYMMDD
-      if (rawDate.match(/^\d{8}$/)) {
-        d = new Date(`${rawDate.substring(0, 4)}-${rawDate.substring(4, 6)}-${rawDate.substring(6, 8)}`);
-      } else {
-        d = coerceDate(rawDate);
-      }
+        let d: Date | null = null;
+        // Try to parse YYYYMMDD
+        if (rawDate.match(/^\d{8}$/)) {
+          d = new Date(`${rawDate.substring(0, 4)}-${rawDate.substring(4, 6)}-${rawDate.substring(6, 8)}`);
+        } else {
+          d = coerceDate(rawDate);
+        }
 
-      if (d && !isNaN(d.getTime())) {
-        isoDate = formatDate(d);
-      }
+        if (d && !isNaN(d.getTime())) {
+          isoDate = formatDate(d);
+        }
 
-      // Type Parsing
-      const rawType = getVal('type').toUpperCase();
-      let type: 'BUY' | 'SELL' | 'DIVIDEND' | 'FEE' = 'BUY'; // Default
-      if (rawType.includes('SELL') || rawType.includes('SOLD')) type = 'SELL';
-      if (rawType.includes('DIV')) type = 'DIVIDEND';
-      if (rawType.includes('FEE')) type = 'FEE';
+        // Type Parsing
+        const rawType = getVal('type').toUpperCase();
+        let type: 'BUY' | 'SELL' | 'DIVIDEND' | 'FEE' = 'BUY'; // Default
+        if (rawType.includes('SELL') || rawType.includes('SOLD')) type = 'SELL';
+        if (rawType.includes('DIV')) type = 'DIVIDEND';
+        if (rawType.includes('FEE')) type = 'FEE';
 
         const qty = parseFloat(getVal('qty').replace(/[^0-9.-]+/g, ''));
         const price = parseFloat(getVal('price').replace(/[^0-9.-]+/g, ''));
 
-      let rawTicker = getVal('ticker').toUpperCase().trim();
-      let deducedExchangeStr = '';
+        let rawTicker = getVal('ticker').toUpperCase().trim();
+        let deducedExchangeStr = '';
 
-      const safeParseExchange = (v: string) => {
-        if (v === 'IL') return 'TASE';
-        try { return parseExchange(v); } catch { return undefined; }
-      };
+        const safeParseExchange = (v: string) => {
+          if (v === 'IL') return 'TASE';
+          try { return parseExchange(v); } catch { return undefined; }
+        };
 
-      if (rawTicker.includes(':')) {
-        const parts = rawTicker.split(':');
-        if (parts.length === 2) {
-          const ex1 = safeParseExchange(parts[0]);
-          const ex2 = safeParseExchange(parts[1]);
-          if (ex1) { deducedExchangeStr = ex1; rawTicker = parts[1]; }
-          else if (ex2) { deducedExchangeStr = ex2; rawTicker = parts[0]; }
+        if (rawTicker.includes(':')) {
+          const parts = rawTicker.split(':');
+          if (parts.length === 2) {
+            const ex1 = safeParseExchange(parts[0]);
+            const ex2 = safeParseExchange(parts[1]);
+            if (ex1) { deducedExchangeStr = ex1; rawTicker = parts[1]; }
+            else if (ex2) { deducedExchangeStr = ex2; rawTicker = parts[0]; }
+          }
+        } else if (rawTicker.includes('.')) {
+          const parts = rawTicker.split('.');
+          if (parts.length === 2) {
+            const ex1 = safeParseExchange(parts[0]);
+            const ex2 = safeParseExchange(parts[1]);
+            if (ex2) { deducedExchangeStr = ex2; rawTicker = parts[0]; }
+            else if (ex1) { deducedExchangeStr = ex1; rawTicker = parts[1]; }
+          }
         }
-      } else if (rawTicker.includes('.')) {
-        const parts = rawTicker.split('.');
-        if (parts.length === 2) {
-          const ex1 = safeParseExchange(parts[0]);
-          const ex2 = safeParseExchange(parts[1]);
-          if (ex2) { deducedExchangeStr = ex2; rawTicker = parts[0]; }
-          else if (ex1) { deducedExchangeStr = ex1; rawTicker = parts[1]; }
+
+        const isNumericTicker = /^\d+$/.test(rawTicker);
+        let numericId: number | undefined = undefined;
+        if (isNumericTicker) {
+          numericId = parseInt(rawTicker, 10);
         }
-      }
 
-      const isNumericTicker = /^\d+$/.test(rawTicker);
-      let numericId: number | undefined = undefined;
-      if (isNumericTicker) {
-        numericId = parseInt(rawTicker, 10);
-      }
-
-      let colExchangeStr = '';
-      if (mapping.exchange) {
-        colExchangeStr = getVal('exchange').toUpperCase().trim();
-      } else if (exchangeMode === 'manual') {
-        colExchangeStr = manualExchange.toUpperCase().trim();
-      }
-
-      let parsedColExchange = undefined;
-      if (colExchangeStr) {
-        parsedColExchange = safeParseExchange(colExchangeStr);
-      }
-
-      if (parsedColExchange && deducedExchangeStr && parsedColExchange !== deducedExchangeStr) {
-        console.warn(`Exchange mismatch for ${rawTicker}: CSV column says ${parsedColExchange}, ticker prefix/suffix says ${deducedExchangeStr}`);
-        return null;
-      }
-
-      const finalExchangeStr = parsedColExchange || deducedExchangeStr || (isNumericTicker ? 'TASE' : 'NASDAQ');
-
-      let parsedExchange = undefined;
-      try {
-        parsedExchange = parseExchange(finalExchangeStr);
-      } catch {
-        // Fallback
-      }
-
-      const commissionStr = getVal('commission');
-      const commission = parseFloat(commissionStr);
-
-      const currencyStr = getVal('currency').toUpperCase();
-
-      const vestDateStr = getVal('vestDate');
-      let vestIsoDate = '';
-      if (vestDateStr) {
-        let vd: Date | null = null;
-        if (vestDateStr.match(/^\d{8}$/)) {
-          vd = new Date(`${vestDateStr.substring(0, 4)}-${vestDateStr.substring(4, 6)}-${vestDateStr.substring(6, 8)}`);
-        } else {
-          vd = coerceDate(vestDateStr);
+        let colExchangeStr = '';
+        if (mapping.exchange) {
+          colExchangeStr = getVal('exchange').toUpperCase().trim();
+        } else if (exchangeMode === 'manual') {
+          colExchangeStr = manualExchange.toUpperCase().trim();
         }
-        if (vd && !isNaN(vd.getTime())) {
-          vestIsoDate = formatDate(vd);
+
+        let parsedColExchange = undefined;
+        if (colExchangeStr) {
+          parsedColExchange = safeParseExchange(colExchangeStr);
         }
-      }
 
-      const comment = getVal('comment');
+        if (parsedColExchange && deducedExchangeStr && parsedColExchange !== deducedExchangeStr) {
+          console.warn(`Exchange mismatch for ${rawTicker}: CSV column says ${parsedColExchange}, ticker prefix/suffix says ${deducedExchangeStr}`);
+          return null;
+        }
 
-      let finalCurrency: string | undefined = currencyStr || undefined;
-      if (!finalCurrency && parsedExchange) {
-        finalCurrency = EXCHANGE_SETTINGS[parsedExchange as Exchange]?.defaultCurrency;
-      }
+        const finalExchangeStr = parsedColExchange || deducedExchangeStr || (isNumericTicker ? 'TASE' : 'NASDAQ');
 
-      const now = new Date();
-      const sourceId = `CSV_Import_${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}_${now.getHours().toString().padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}`;
+        let parsedExchange = undefined;
+        try {
+          parsedExchange = parseExchange(finalExchangeStr);
+        } catch {
+          // Fallback
+        }
 
-      return {
-        date: isoDate,
-        portfolioId,
-        ticker: rawTicker,
-        exchange: parsedExchange,
-        type,
-        originalQty: isNaN(qty) ? 0 : Math.abs(qty), // Store absolute qty, logic handles sign
-        originalPrice: isNaN(price) ? 0 : price,
-        comment: comment || 'Imported via CSV',
-        commission: isNaN(commission) ? undefined : Math.abs(commission),
-        currency: finalCurrency || undefined,
-        vestDate: vestIsoDate || undefined,
-        numericId,
-        Source: sourceId,
-      } as Transaction;
+        const commissionStr = getVal('commission');
+        const commission = parseFloat(commissionStr);
+
+        const currencyStr = getVal('currency').toUpperCase();
+
+        const vestDateStr = getVal('vestDate');
+        let vestIsoDate = '';
+        if (vestDateStr) {
+          let vd: Date | null = null;
+          if (vestDateStr.match(/^\d{8}$/)) {
+            vd = new Date(`${vestDateStr.substring(0, 4)}-${vestDateStr.substring(4, 6)}-${vestDateStr.substring(6, 8)}`);
+          } else {
+            vd = coerceDate(vestDateStr);
+          }
+          if (vd && !isNaN(vd.getTime())) {
+            vestIsoDate = formatDate(vd);
+          }
+        }
+
+        const comment = getVal('comment');
+
+        let finalCurrency: string | undefined = currencyStr || undefined;
+        if (!finalCurrency && parsedExchange) {
+          finalCurrency = EXCHANGE_SETTINGS[parsedExchange as Exchange]?.defaultCurrency;
+        }
+
+        const now = new Date();
+        const sourceId = `CSV_Import_${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}_${now.getHours().toString().padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}`;
+
+        return {
+          date: isoDate,
+          portfolioId,
+          ticker: rawTicker,
+          exchange: parsedExchange,
+          type,
+          originalQty: isNaN(qty) ? 0 : Math.abs(qty), // Store absolute qty, logic handles sign
+          originalPrice: isNaN(price) ? 0 : price,
+          comment: comment || 'Imported via CSV',
+          commission: isNaN(commission) ? undefined : Math.abs(commission),
+          currency: finalCurrency || undefined,
+          vestDate: vestIsoDate || undefined,
+          numericId,
+          Source: sourceId,
+        } as Transaction;
       } catch (err) {
         console.warn(`Error parsing row ${rowIdx}`, err, r);
         return null;
@@ -629,85 +629,85 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
             <Box sx={{ position: 'relative' }}>
               <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 400, overflow: 'auto' }} ref={containerRef}>
                 <Table size="small" stickyHeader sx={{ minWidth: 800 }}>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>{t('Date', 'תאריך')}</TableCell>
-                    <TableCell>{t('Ticker', 'סימול')}</TableCell>
-                    <TableCell>{t('Exchange', 'בורסה')}</TableCell>
-                    <TableCell>{t('Type', 'סוג')}</TableCell>
-                    <TableCell align="right">{t('Orig. Qty', 'כמות מקורית')}</TableCell>
-                    <TableCell align="right">{t('Orig. Price', 'מחיר מקורי')}</TableCell>
-                    <TableCell align="right">{t('Total', 'סה"כ')}</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {parsedTxns.map((t, i) => (
-                    <TableRow key={i} hover>
-                      <TableCell sx={{ minWidth: 160 }}>
-                        <DateField
-                          value={t.date}
-                          onChange={(v) => handleTxnChange(i, 'date', v)}
-                          sx={{ fontSize: '0.875rem' }}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <InputBase
-                          value={t.ticker}
-                          onChange={(e) => handleTxnChange(i, 'ticker', e.target.value.toUpperCase())}
-                          sx={{ fontSize: '0.875rem' }}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Select
-                          variant="standard"
-                          value={t.exchange || ''}
-                          onChange={(e) => handleTxnChange(i, 'exchange', e.target.value)}
-                          sx={{ fontSize: '0.875rem', width: 90, '&:before': { display: 'none' }, '&:after': { display: 'none' } }}
-                        >
-                          <MenuItem value=""><em>None</em></MenuItem>
-                          {Object.values(Exchange).map((ex) => (
-                            <MenuItem key={ex} value={ex}>{ex}</MenuItem>
-                          ))}
-                        </Select>
-                      </TableCell>
-                      <TableCell>
-                        <Select
-                          variant="standard"
-                          value={t.type}
-                          onChange={(e) => handleTxnChange(i, 'type', e.target.value)}
-                          sx={{ fontSize: '0.875rem', '&:before': { display: 'none' }, '&:after': { display: 'none' } }}
-                        >
-                          <MenuItem value="BUY">BUY</MenuItem>
-                          <MenuItem value="SELL">SELL</MenuItem>
-                          <MenuItem value="DIVIDEND">DIVIDEND</MenuItem>
-                          <MenuItem value="FEE">FEE</MenuItem>
-                        </Select>
-                      </TableCell>
-                      <TableCell align="right">
-                        <InputBase
-                          type="number"
-                          value={t.originalQty}
-                          onChange={(e) => handleTxnChange(i, 'originalQty', parseFloat(e.target.value) || 0)}
-                          inputProps={{ style: { textAlign: 'right' } }}
-                          sx={{ fontSize: '0.875rem', width: 80 }}
-                        />
-                      </TableCell>
-                      <TableCell align="right">
-                        <InputBase
-                          type="number"
-                          value={t.originalPrice}
-                          onChange={(e) => handleTxnChange(i, 'originalPrice', parseFloat(e.target.value) || 0)}
-                          inputProps={{ style: { textAlign: 'right' } }}
-                          sx={{ fontSize: '0.875rem', width: 80 }}
-                        />
-                      </TableCell>
-                      <TableCell align="right">
-                        {`${(Number(t.originalQty || 0) * Number(t.originalPrice || 0)).toFixed(2)} ${t.currency || ''}`}
-                      </TableCell>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>{t('Date', 'תאריך')}</TableCell>
+                      <TableCell>{t('Ticker', 'סימול')}</TableCell>
+                      <TableCell>{t('Exchange', 'בורסה')}</TableCell>
+                      <TableCell>{t('Type', 'סוג')}</TableCell>
+                      <TableCell align="right">{t('Orig. Qty', 'כמות מקורית')}</TableCell>
+                      <TableCell align="right">{t('Orig. Price', 'מחיר מקורי')}</TableCell>
+                      <TableCell align="right">{t('Total', 'סה"כ')}</TableCell>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHead>
+                  <TableBody>
+                    {parsedTxns.map((t, i) => (
+                      <TableRow key={i} hover>
+                        <TableCell sx={{ minWidth: 160 }}>
+                          <DateField
+                            value={t.date}
+                            onChange={(v) => handleTxnChange(i, 'date', v)}
+                            sx={{ fontSize: '0.875rem' }}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <InputBase
+                            value={t.ticker}
+                            onChange={(e) => handleTxnChange(i, 'ticker', e.target.value.toUpperCase())}
+                            sx={{ fontSize: '0.875rem' }}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Select
+                            variant="standard"
+                            value={t.exchange || ''}
+                            onChange={(e) => handleTxnChange(i, 'exchange', e.target.value)}
+                            sx={{ fontSize: '0.875rem', width: 90, '&:before': { display: 'none' }, '&:after': { display: 'none' } }}
+                          >
+                            <MenuItem value=""><em>None</em></MenuItem>
+                            {Object.values(Exchange).map((ex) => (
+                              <MenuItem key={ex} value={ex}>{ex}</MenuItem>
+                            ))}
+                          </Select>
+                        </TableCell>
+                        <TableCell>
+                          <Select
+                            variant="standard"
+                            value={t.type}
+                            onChange={(e) => handleTxnChange(i, 'type', e.target.value)}
+                            sx={{ fontSize: '0.875rem', '&:before': { display: 'none' }, '&:after': { display: 'none' } }}
+                          >
+                            <MenuItem value="BUY">BUY</MenuItem>
+                            <MenuItem value="SELL">SELL</MenuItem>
+                            <MenuItem value="DIVIDEND">DIVIDEND</MenuItem>
+                            <MenuItem value="FEE">FEE</MenuItem>
+                          </Select>
+                        </TableCell>
+                        <TableCell align="right">
+                          <InputBase
+                            type="number"
+                            value={t.originalQty}
+                            onChange={(e) => handleTxnChange(i, 'originalQty', parseFloat(e.target.value) || 0)}
+                            inputProps={{ style: { textAlign: 'right' } }}
+                            sx={{ fontSize: '0.875rem', width: 80 }}
+                          />
+                        </TableCell>
+                        <TableCell align="right">
+                          <InputBase
+                            type="number"
+                            value={t.originalPrice}
+                            onChange={(e) => handleTxnChange(i, 'originalPrice', parseFloat(e.target.value) || 0)}
+                            inputProps={{ style: { textAlign: 'right' } }}
+                            sx={{ fontSize: '0.875rem', width: 80 }}
+                          />
+                        </TableCell>
+                        <TableCell align="right">
+                          {`${(Number(t.originalQty || 0) * Number(t.originalPrice || 0)).toFixed(2)} ${t.currency || ''}`}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </TableContainer>
               <ScrollShadows top={showTop} bottom={showBottom} left={showLeft} right={showRight} theme={theme} />
             </Box>
