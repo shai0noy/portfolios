@@ -5,7 +5,7 @@ import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import {
   Box, TextField, Button, MenuItem, Select, InputLabel, FormControl, Autocomplete,
   Typography, Alert, InputAdornment, Grid, Card, CardContent, Divider, Tooltip, Chip, ToggleButton, ToggleButtonGroup,
-  Backdrop, CircularProgress, IconButton, useTheme, Tabs, Tab
+  Backdrop, CircularProgress, IconButton, useTheme, Tabs, Tab, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions
 } from '@mui/material';
 import { useScrollShadows, ScrollShadows } from '../lib/ui-utils';
 import RestoreIcon from '@mui/icons-material/Restore';
@@ -50,6 +50,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     initialCurrency?: string, numericId?: number, initialName?: string, initialNameHe?: string,
     editTransaction?: Transaction, editDividend?: { ticker: string, exchange: Exchange, date: Date, amount: number, source: string, rowIndex: number }
   } | null;
+  const isEditing = !!(locationState?.editTransaction || locationState?.editDividend);
 
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [isPortfoliosLoading, setIsPortfoliosLoading] = useState(true);
@@ -107,6 +108,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   const [commissionPct, setCommissionPct] = useState<string>('');
 
   const [hasManuallyEditedPrice, setHasManuallyEditedPrice] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Undo State
 
@@ -155,7 +157,8 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     const prefilledTicker = searchParams.get('ticker') || locationState?.prefilledTicker || editTxn?.ticker || editDiv?.ticker;
     const prefilledExchange = searchParams.get('exchange') || locationState?.prefilledExchange || (editTxn?.exchange as string) || (editDiv?.exchange as string);
 
-    if (prefilledTicker) {
+    // Prevent double-fetching if the selected ticker is already loaded and matches what we want
+    if (prefilledTicker && (!selectedTicker || selectedTicker.symbol !== prefilledTicker)) {
       const fetchData = async () => {
         setLoading(true);
         setLoadingMessage(t('Loading...', 'טוען...'));
@@ -172,7 +175,9 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
             nameHe: data.nameHe || locationState?.initialNameHe
           };
           setSelectedTicker(combinedData);
-      setSearchParams({ ticker: combinedData.symbol, exchange: combinedData.exchange || '' }, { replace: true });
+          if (searchParams.get('ticker') !== combinedData.symbol || searchParams.get('exchange') !== (combinedData.exchange || '')) {
+            setSearchParams({ ticker: combinedData.symbol, exchange: combinedData.exchange || '' }, { replace: true, state: locationState });
+          }
           setExchange(data.exchange || prefilledExchange || '');
           setTicker(prefilledTicker!)
           setShowForm(true);
@@ -184,7 +189,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
             const d = coerceDate(editTxn.date);
             setDate(d ? formatDate(d) : '');
             setQty(editTxn.originalQty?.toString() || '');
-            setPrice(editTxn.originalPrice?.toString() || '');
+            setPrice(editTxn.originalPrice?.toString() || editTxn.price?.toString() || '');
             // Calculate total?
             if (editTxn.originalQty && editTxn.originalPrice) {
               setTotal((editTxn.originalQty * editTxn.originalPrice).toFixed(2)); // Approx
@@ -601,13 +606,13 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   const handleDateChange = useCallback((newDateStr: string) => {
     console.log("handleDateChange", newDateStr, selectedTicker?.historical?.length);
     setDate(newDateStr);
-    if (!hasManuallyEditedPrice) {
+    if (!hasManuallyEditedPrice && !isEditing) {
       const p = getPriceForDate(newDateStr);
       if (p !== null) {
         applyPrice(p);
       }
     }
-  }, [hasManuallyEditedPrice, selectedTicker, applyPrice, getPriceForDate]);
+  }, [hasManuallyEditedPrice, isEditing, selectedTicker, applyPrice, getPriceForDate]);
 
   const handleResetPrice = useCallback(() => {
     if (priceAtDate !== null) {
@@ -706,9 +711,10 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     }
   };
 
-  const handleDelete = async () => {
-    if (!confirm(t("Are you sure you want to delete this transaction?", "האם אתה בטוח שברצונך למחוק עסקה זו?"))) return;
+  const handleDelete = () => setShowDeleteConfirm(true);
 
+  const confirmDelete = async () => {
+    setShowDeleteConfirm(false);
     setLoading(true);
     setLoadingMessage(t('Deleting...', 'מוחק...'));
     const editTxn = locationState?.editTransaction;
@@ -1383,9 +1389,19 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
 
 
 
-                {showForm && selectedTicker && (
+{showForm && selectedTicker && (
                   <>
-                    <Grid item xs={12}><Divider sx={{ my: 1 }}>{type === 'DIVIDEND' ? 'Dividend Details' : 'Transaction Details'}</Divider></Grid>
+                    <Grid item xs={12}>
+                      <Divider sx={{ my: 1 }}>
+                        {isEditing ? (
+                          <Typography variant="subtitle2" sx={{ color: '#fff' }} fontWeight="bold">
+                            {t('Editing Transaction', 'עריכת עסקה')}
+                          </Typography>
+                        ) : (
+                          type === 'DIVIDEND' ? 'Dividend Details' : 'Transaction Details'
+                        )}
+                      </Divider>
+                    </Grid>
                     <Grid container spacing={2}>
                       <Grid item xs={12}>
                         <Tabs 
@@ -1410,16 +1426,20 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                                 color: 'primary.main',
                                 bgcolor: 'action.hover',
                               },
+                              '&.Mui-disabled': {
+                                opacity: 0.3,
+                                color: 'text.disabled',
+                              }
                             }
                           }}
                         >
-                          <Tab value="BUY" label={t('Buy', 'קנייה')} />
-                          <Tab value="SELL" label={t('Sell', 'מכירה') + ((portId && ticker && !portfolios.find(p => p.id === portId)?.holdings?.some(h => h.ticker === ticker)) ? ` (${t('Not Held', 'לא מוחזק')})` : '')} disabled={Boolean(portId && ticker && !portfolios.find(p => p.id === portId)?.holdings?.some(h => h.ticker === ticker))} />
+                          <Tab value="BUY" label={t('Buy', 'קנייה')} disabled={isEditing && type !== 'BUY'} />
+                          <Tab value="SELL" label={t('Sell', 'מכירה') + ((portId && ticker && !portfolios.find(p => p.id === portId)?.holdings?.some(h => h.ticker === ticker)) ? ` (${t('Not Held', 'לא מוחזק')})` : '')} disabled={Boolean(isEditing && type !== 'SELL') || Boolean(portId && ticker && !portfolios.find(p => p.id === portId)?.holdings?.some(h => h.ticker === ticker))} />
                           {(selectedPortfolio?.divPolicy === 'accumulate_tax_free') && (
-                            <Tab value="HOLDING_CHANGE" label={t('Holding Change', 'החלפת החזקה') + ((portId && ticker && !portfolios.find(p => p.id === portId)?.holdings?.some(h => h.ticker === ticker)) ? ` (${t('Not Held', 'לא מוחזק')})` : '')} disabled={Boolean(portId && ticker && !portfolios.find(p => p.id === portId)?.holdings?.some(h => h.ticker === ticker))} />
+                            <Tab value="HOLDING_CHANGE" label={t('Holding Change', 'החלפת החזקה') + ((portId && ticker && !portfolios.find(p => p.id === portId)?.holdings?.some(h => h.ticker === ticker)) ? ` (${t('Not Held', 'לא מוחזק')})` : '')} disabled={Boolean(isEditing && type !== 'HOLDING_CHANGE') || Boolean(portId && ticker && !portfolios.find(p => p.id === portId)?.holdings?.some(h => h.ticker === ticker))} />
                           )}
-                          <Tab value="GRANT" label={t('Grant', 'הענקה')} />
-                          <Tab value="DIV_EVENT" label={t('Dividend', 'דיבידנד')} />
+                          <Tab value="GRANT" label={t('Grant', 'הענקה')} disabled={isEditing && type !== 'GRANT'} />
+                          <Tab value="DIVIDEND" label={t('Dividend', 'דיבידנד')} disabled={isEditing && type !== 'DIVIDEND'} />
                         </Tabs>
                       </Grid>
 
@@ -1871,18 +1891,28 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                         <TextField label="Comment" size="small" fullWidth value={comment} onChange={e => setComment(e.target.value)} />
                       </Grid>
                     </Grid>
-                    <Box mt={2} display="flex" gap={2} sx={{ display: type === 'GRANT' ? 'none' : undefined }}>
+                    <Box mt={2} display="flex" gap={2} sx={{ display: type === 'GRANT' ? 'none' : 'flex', width: '100%', flexDirection: 'row' }}>
                       {(locationState?.editTransaction || locationState?.editDividend) && (
                         <Button variant="outlined" color="error" size="large" startIcon={<DeleteIcon />} onClick={handleDelete} disabled={loading} sx={{ flex: 1 }}>
                           {t('Delete', 'מחק')}
                         </Button>
                       )}
-                      <Button variant="contained" size="large" fullWidth startIcon={<AddCircleOutlineIcon />} onClick={handleSubmit} disabled={loading || Object.keys(validationErrors).length > 0} sx={{ flex: 2 }}>
+                      <Button variant="contained" size="large" startIcon={<AddCircleOutlineIcon />} fullWidth={!locationState?.editTransaction && !locationState?.editDividend} onClick={handleSubmit} disabled={loading || Object.keys(validationErrors).length > 0} sx={{ flex: 2 }}>
                         {loading ? (loadingMessage || t('Saving...', 'שומר...')) : (type === 'DIVIDEND' ? (locationState?.editDividend ? t('Update Dividend', 'עדכן דיבידנד') : t('Record Dividend', 'שמור דיבידנד')) : (locationState?.editTransaction ? t('Update Transaction', 'עדכן עסקה') : t('Save Transaction', 'שמור עסקה')))}
                       </Button>
                     </Box>
                   </>
                 )}
+                <Dialog open={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)}>
+                  <DialogTitle>{type === 'DIVIDEND' ? t('Delete Dividend', 'מחיקת דיבידנד') : t('Delete Transaction', 'מחיקת עסקה')}</DialogTitle>
+                  <DialogContent>
+                    <DialogContentText>{t('Are you sure you want to permanently delete this? This action cannot be undone.', 'האם אתה בטוח שברצונך למחוק עסקה זו לצמיתות? לא ניתן לבטל פעולה זו.')}</DialogContentText>
+                  </DialogContent>
+                  <DialogActions>
+                    <Button onClick={() => setShowDeleteConfirm(false)} color="primary">{t('Cancel', 'ביטול')}</Button>
+                    <Button onClick={confirmDelete} color="error" variant="contained">{t('Delete', 'מחק')}</Button>
+                  </DialogActions>
+                </Dialog>
               </CardContent>
             </Card>
           </Grid>
