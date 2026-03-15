@@ -4,14 +4,15 @@ import {
   Button, TextField, Box, Typography, IconButton,
   CircularProgress, Paper, Tooltip, Select, MenuItem, FormControl,
   FormControlLabel, Chip, Stack, ToggleButton, ToggleButtonGroup, Switch, Alert, useTheme,
-  useMediaQuery, Menu, InputLabel
+  useMediaQuery, Menu
 } from '@mui/material';
 import BoltIcon from '@mui/icons-material/Bolt';
 import PsychologyIcon from '@mui/icons-material/Psychology';
 import CloseIcon from '@mui/icons-material/Close';
 import SendIcon from '@mui/icons-material/Send';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
-import SearchIcon from '@mui/icons-material/Search';
+
+import LaunchIcon from '@mui/icons-material/Launch';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import MenuIcon from '@mui/icons-material/Menu';
 import PersonIcon from '@mui/icons-material/Person';
@@ -35,6 +36,7 @@ import toast from 'react-hot-toast';
 
 interface ExtendedChatMessage extends ChatMessage {
   isError?: boolean;
+  portfolioName?: string;
 }
 
 
@@ -216,152 +218,185 @@ const ChatMessageItem = React.memo(({ msg, t, onRetry, lastPrompt, onPromptClick
           {msg.role === 'model' ? <SmartToyIcon color="primary" /> : <PersonIcon color="action" />}
         </Box>
       )}
-      <Paper
-        sx={{
-          p: 1.5,
-          bgcolor: msg.role === 'user' ? 'primary.main' : 'background.paper',
-          color: msg.role === 'user' ? 'primary.contrastText' : 'text.primary',
-          borderRadius: 2,
-          flexGrow: 1,
-          position: 'relative',
-          overflow: 'visible',
-          maxWidth: isMobile ? 'calc(100% - 20px)' : '85%',
-          // Paddings to make space for the icon inside
-          pl: isMobile && msg.role === 'model' ? '40px' : 1.5,
-          pr: isMobile && msg.role === 'user' ? '40px' : 1.5,
-        }}
-      >
-        {isMobile && (
-          <Box sx={{
-            position: 'absolute',
-            top: -8,
-            left: msg.role === 'model' ? -8 : 'auto',
-            right: msg.role === 'user' ? -8 : 'auto',
-            bgcolor: msg.role === 'model' ? 'primary.main' : 'background.paper',
-            borderRadius: '50%',
-            p: 0.5,
-            display: 'flex',
-            border: `2px solid ${theme.palette.text.primary}`,
-            boxShadow: 2,
-            opacity: 0.95
-          }}>
-            {msg.role === 'model' ?
-              <SmartToyIcon sx={{ fontSize: 20, color: 'primary.contrastText' }} /> :
-              <PersonIcon color="action" sx={{ fontSize: 20 }} />
-            }
-          </Box>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, flexGrow: 1, maxWidth: isMobile ? 'calc(100% - 20px)' : '85%' }}>
+        {msg.role === 'user' && msg.portfolioName && (
+          <Typography variant="caption" sx={{ alignSelf: 'flex-end', opacity: 0.7, mr: 0.5 }}>
+            {t('Context: ', 'הקשר: ')}{msg.portfolioName}
+          </Typography>
         )}
-        <Typography component="div" variant="body2" sx={{
-          whiteSpace: 'normal',
-          wordBreak: 'break-word',
-          '& p': { m: 0, mb: 1, '&:last-child': { mb: 0 } },
-          '& ul, & ol': { m: 0, pl: 2, mb: 1 },
-          '& h1, & h2, & h3, & h4, & h5, & h6': {
-            m: 0,
-            mb: 1.5,
-            fontWeight: 'bold',
-            lineHeight: 1.3,
-            '&:not(:first-of-type)': { mt: 2 }
-          },
-          '& code': { bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5, fontFamily: 'monospace' },
-          '& table': {
-            display: 'block',
+        <Paper
+          sx={{
+            p: 1.5,
+            bgcolor: msg.role === 'user' ? 'primary.main' : 'background.paper',
+            color: msg.role === 'user' ? 'primary.contrastText' : 'text.primary',
+            borderRadius: 2,
+            position: 'relative',
+            overflow: 'visible',
             width: '100%',
-            overflowX: 'auto',
-            WebkitOverflowScrolling: 'touch',
-            borderCollapse: 'separate',
-            borderSpacing: 0,
-            mb: 2,
-            borderRadius: 1,
-            boxShadow: 2,
-            border: '1px solid',
-            borderColor: 'divider',
-            direction: 'inherit',
-            '& th, & td': {
-              borderBottom: '1px solid',
-              borderRight: '1px solid',
-              borderColor: 'divider',
-              p: 1.5,
-              textAlign: 'inherit',
-              minWidth: 80,
-              fontSize: '0.8rem',
-              '&:last-child': {
-                borderRight: 'none'
+            // Paddings to make space for the icon inside
+            pl: isMobile && msg.role === 'model' ? '40px' : 1.5,
+            pr: isMobile && msg.role === 'user' ? '40px' : 1.5,
+          }}
+        >
+          {isMobile && (
+            <Box sx={{
+              position: 'absolute',
+              top: -8,
+              left: msg.role === 'model' ? -8 : 'auto',
+              right: msg.role === 'user' ? -8 : 'auto',
+              bgcolor: msg.role === 'model' ? 'primary.main' : 'background.paper',
+              borderRadius: '50%',
+              p: 0.5,
+              display: 'flex',
+              border: `2px solid ${theme.palette.text.primary}`,
+              boxShadow: 2,
+              opacity: 0.95
+            }}>
+              {msg.role === 'model' ?
+                <SmartToyIcon sx={{ fontSize: 20, color: 'primary.contrastText' }} /> :
+                <PersonIcon color="action" sx={{ fontSize: 20 }} />
               }
-            },
-            '& tr:last-child td': {
-              borderBottom: 'none'
-            },
-            '& th': {
-              bgcolor: 'action.hover',
+            </Box>
+          )}
+          <Typography component="div" variant="body2" sx={{
+            whiteSpace: msg.role === 'user' ? 'pre-wrap' : 'normal',
+            wordBreak: 'break-word',
+            '& p': { m: 0, mb: 1, '&:last-child': { mb: 0 } },
+            '& ul, & ol': { m: 0, pl: 2, mb: 1 },
+            '& h1, & h2, & h3, & h4, & h5, & h6': {
+              m: 0,
+              mb: 1.5,
               fontWeight: 'bold',
-              whiteSpace: 'nowrap',
-              color: 'text.secondary',
-              textTransform: 'uppercase',
-              fontSize: '0.7rem',
-              letterSpacing: '0.05em'
+              lineHeight: 1.3,
+              '&:not(:first-of-type)': { mt: 2 }
             },
-            '& tr:nth-of-type(even)': {
-              bgcolor: 'action.hover'
+            '& code': { bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5, fontFamily: 'monospace' },
+            '& table': {
+              display: 'block',
+              width: '100%',
+              overflowX: 'auto',
+              WebkitOverflowScrolling: 'touch',
+              borderCollapse: 'separate',
+              borderSpacing: 0,
+              mb: 2,
+              borderRadius: 1,
+              boxShadow: 2,
+              border: '1px solid',
+              borderColor: 'divider',
+              direction: 'inherit',
+              '& th, & td': {
+                borderBottom: '1px solid',
+                borderRight: '1px solid',
+                borderColor: 'divider',
+                p: 1.5,
+                textAlign: 'inherit',
+                minWidth: 80,
+                fontSize: '0.8rem',
+                '&:last-child': {
+                  borderRight: 'none'
+                }
+              },
+              '& tr:last-child td': {
+                borderBottom: 'none'
+              },
+              '& th': {
+                bgcolor: 'action.hover',
+                fontWeight: 'bold',
+                whiteSpace: 'nowrap',
+                color: 'text.secondary',
+                textTransform: 'uppercase',
+                fontSize: '0.7rem',
+                letterSpacing: '0.05em'
+              },
+              '& tr:nth-of-type(even)': {
+                bgcolor: 'action.hover'
+              }
             }
-          }
-        }}>
-          {msg.role === 'model' ? (
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              components={{
-                p: ({ children }) => <p><LinkParser t={t} onPromptClick={onPromptClick} onTickerClick={onTickerClick} onProfileClick={onProfileClick} onNavClick={onNavClick}>{children}</LinkParser></p>,
-                li: ({ children }) => <li><LinkParser t={t} onPromptClick={onPromptClick} onTickerClick={onTickerClick} onProfileClick={onProfileClick} onNavClick={onNavClick}>{children}</LinkParser></li>,
-                td: ({ children }) => <td><LinkParser t={t} onPromptClick={onPromptClick} onTickerClick={onTickerClick} onProfileClick={onProfileClick} onNavClick={onNavClick}>{children}</LinkParser></td>,
-                a: ({ node, ...props }) => {
-                  const href = props.href || '';
-                  const childArr = Array.isArray(props.children) ? props.children : [props.children];
-                  if (childArr[0] && typeof childArr[0] === 'string' && childArr[0].match(/^\[\d+\]$/)) {
-                    const num = childArr[0].replace(/\[|\]/g, '');
+          }}>
+            {msg.role === 'model' ? (
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  p: ({ children }) => <p><LinkParser t={t} onPromptClick={onPromptClick} onTickerClick={onTickerClick} onProfileClick={onProfileClick} onNavClick={onNavClick}>{children}</LinkParser></p>,
+                  li: ({ children }) => <li><LinkParser t={t} onPromptClick={onPromptClick} onTickerClick={onTickerClick} onProfileClick={onProfileClick} onNavClick={onNavClick}>{children}</LinkParser></li>,
+                  td: ({ children }) => <td><LinkParser t={t} onPromptClick={onPromptClick} onTickerClick={onTickerClick} onProfileClick={onProfileClick} onNavClick={onNavClick}>{children}</LinkParser></td>,
+                  a: ({ node, ...props }) => {
+                    const href = props.href || '';
+                    const childArr = Array.isArray(props.children) ? props.children : [props.children];
+                    if (childArr[0] && typeof childArr[0] === 'string' && childArr[0].match(/^\[\[?\s*\d+\s*\]\]?$/)) {
+                      // Note: the regex covers [[1]] or [1] or [[ 1 ]] formats
+                      return (
+                        <Tooltip title={href} arrow placement="top">
+                          <Box component="a" href={href} target="_blank"
+                            sx={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              verticalAlign: 'middle',
+                              color: 'primary.main',
+                              textDecoration: 'none',
+                              mx: 0.3,
+                              '&:hover': { color: 'primary.dark' }
+                            }}
+                          >
+                            <LaunchIcon sx={{ fontSize: '0.75rem' }} />
+                          </Box>
+                        </Tooltip>
+                      );
+                    }
                     return (
-                      <Tooltip title={href} arrow placement="top">
-                        <Chip
-                          component="a" href={href} target="_blank" clickable
-                          size="small" label={num}
-                          sx={{ height: 14, minWidth: 14, fontSize: '0.6rem', mx: 0.25, mb: 0.25, px: 0, textDecoration: 'none', cursor: 'pointer', verticalAlign: 'middle', bgcolor: 'primary.light', color: 'primary.contrastText', '&:hover': { bgcolor: 'primary.main' }, '.MuiChip-label': { px: 0.5 } }}
-                        />
-                      </Tooltip>
+                      <Box
+                        component="a"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        {...props}
+                        sx={{
+                          color: 'primary.main',
+                          textDecoration: 'none',
+                          fontWeight: 500,
+                          borderBottom: '1px solid transparent',
+                          transition: 'all 0.2s',
+                          '&:hover': {
+                            color: 'primary.dark',
+                            borderBottomColor: 'currentcolor'
+                          }
+                        }}
+                      />
                     );
                   }
-                  return <a {...props} />;
-                }
-              }}
+                }}
+              >
+                {msg.parts[0].text}
+              </ReactMarkdown>
+            ) : (
+              msg.parts[0].text
+            )}
+          </Typography>
+          {msg.isError && (
+            <Button
+              startIcon={<RefreshIcon />}
+              size="small"
+              variant="outlined"
+              color="error"
+              onClick={() => onRetry(lastPrompt)}
+              sx={{ mt: 1, textTransform: 'none', py: 0, fontSize: '0.7rem' }}
             >
-              {msg.parts[0].text}
-            </ReactMarkdown>
-          ) : (
-            msg.parts[0].text
+              {t('Retry', 'נסה שוב')}
+            </Button>
           )}
-        </Typography>
-        {msg.isError && (
-          <Button
-            startIcon={<RefreshIcon />}
-            size="small"
-            variant="outlined"
-            color="error"
-            onClick={() => onRetry(lastPrompt)}
-            sx={{ mt: 1, textTransform: 'none', py: 0, fontSize: '0.7rem' }}
-          >
-            {t('Retry', 'נסה שוב')}
-          </Button>
-        )}
-      </Paper>
+        </Paper>
+      </Box>
     </Box>
   );
 });
 
-const ChatInputSection = React.memo(({ onSend, isLoading, t, initialValue, enableGrounding, setEnableGrounding }: {
-  onSend: (val: string, enableSearch: boolean) => void,
+const ChatInputSection = React.memo(({ onSend, isLoading, t, initialValue, selectedPortfolioId, setSelectedPortfolioId, portfolios }: {
+  onSend: (val: string) => void,
   isLoading: boolean,
   t: (e: string, h: string) => string,
-  initialValue: string;
-  enableGrounding: boolean;
-  setEnableGrounding: React.Dispatch<React.SetStateAction<boolean>>
+  initialValue: string,
+  selectedPortfolioId: string | null,
+  setSelectedPortfolioId: (val: string | null) => void,
+  portfolios: Portfolio[]
 }) => {
   const [value, setValue] = useState(initialValue);
 
@@ -372,25 +407,23 @@ const ChatInputSection = React.memo(({ onSend, isLoading, t, initialValue, enabl
 
   const handleSend = () => {
     if (value.trim() && !isLoading) {
-      onSend(value, enableGrounding);
+      onSend(value);
       setValue('');
     }
   };
 
   return (
-    <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start' }}>
-        <FormControlLabel
-          control={<Switch size="small" checked={enableGrounding} onChange={(e) => setEnableGrounding(e.target.checked)} color="primary" />}
-          label={
-             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-               <SearchIcon fontSize="small" color={enableGrounding ? "primary" : "action"} />
-              <Typography variant="caption" color={enableGrounding ? "text.primary" : "text.secondary"}>{t('Enable Live Search', 'חיפוש חי')}</Typography>
-             </Box>
-          }
-        />
-      </Box>
-      <Box sx={{ display: 'flex', gap: 1 }}>
+    <Box sx={{ p: 2, display: 'flex', gap: 1, alignItems: 'center' }}>
+      <FormControl size="small" variant="outlined" sx={{ minWidth: { xs: 100, sm: 140 }, flexShrink: 0 }}>
+        <Select
+          value={selectedPortfolioId || 'All'}
+          onChange={(e) => setSelectedPortfolioId(e.target.value === 'All' ? null : e.target.value as string)}
+          sx={{ fontSize: '0.75rem', height: 36, borderRadius: 2, bgcolor: 'background.paper' }}
+        >
+          <MenuItem value="All" sx={{ fontSize: '0.8rem' }}><em>{t('All', 'הכל')}</em></MenuItem>
+          {portfolios.map(p => <MenuItem key={p.id} value={p.id} sx={{ fontSize: '0.8rem' }}>{p.name}</MenuItem>)}
+        </Select>
+      </FormControl>
       <TextField
         fullWidth
         placeholder={t('Ask a question...', 'שאל שאלה...')}
@@ -400,16 +433,25 @@ const ChatInputSection = React.memo(({ onSend, isLoading, t, initialValue, enabl
         onChange={(e) => setValue(e.target.value)}
         onKeyPress={(e) => e.key === 'Enter' && handleSend()}
         disabled={isLoading}
+        sx={{ '& .MuiInputBase-root': { height: 36 } }}
       />
-      <Button
-        variant="contained"
+      <IconButton
+        color="primary"
         onClick={handleSend}
         disabled={isLoading || !value.trim()}
-        endIcon={<SendIcon sx={{ transform: useLanguage().isRtl ? 'rotate(180deg)' : 'none' }} />}
+        sx={{
+          bgcolor: 'primary.main',
+          color: 'primary.contrastText',
+          borderRadius: 2,
+          height: 36,
+          width: 36,
+          '&:hover': { bgcolor: 'primary.dark' },
+          '&.Mui-disabled': { bgcolor: 'action.disabledBackground' }
+        }}
       >
-        {t('Send', 'שלח')}
-      </Button>
-    </Box></Box>
+        <SendIcon sx={{ transform: useLanguage().isRtl ? 'rotate(180deg)' : 'none', fontSize: 20 }} />
+      </IconButton>
+    </Box>
   );
 });
 
@@ -697,10 +739,10 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({
 
   const handleSend = async (customPrompt?: string | any, searchToggle?: boolean) => {
     if (!apiKey) return;
-    
+
     const actualPrompt = typeof customPrompt === 'string' ? customPrompt : '';
     const shouldSearch = (typeof searchToggle === 'boolean') ? searchToggle : enableGrounding;
-    
+
     // Use prompt if provided (chips/retry); otherwise use cached state if it was a chip,
     // but ChatInputSection actually calls this with the text.
     const userMsg = (actualPrompt || input).trim();
@@ -716,7 +758,8 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({
     }
 
     if (!messages.some(m => m.parts[0].text === userMsg && m.role === 'user')) {
-      setMessages(prev => [...prev, { role: 'user', parts: [{ text: userMsg }] }]);
+      const portName = selectedPortfolioId ? portfolios.find(p => p.id === selectedPortfolioId)?.name : t('All Portfolios', 'כל התיקים');
+      setMessages(prev => [...prev, { role: 'user', parts: [{ text: userMsg }], portfolioName: portName }]);
     }
 
     try {
@@ -730,6 +773,7 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({
       const systemInstruction = `
 You are a financial assistant. Be professional, objective, and direct. Avoid excessive praise or flattery. Focus on data-driven analysis and facts.
 Please be careful in your wording around suggestions - you are just an AI.
+- DO NOT list sources at the end of your response.
 - You can create interactive links in your response using these formats:
  * {prompt::Text to prefill} to suggest a new prompt for the user
  * {ticker::Label::EXCHANGE:SYMBOL} to link to a specific ticker e.g. {ticker::Google::NASDAQ:GOOGL}
@@ -845,20 +889,19 @@ ${marketOverview}
                   label={<Typography variant="caption">{t('Expert Mode', 'מצב מומחה')}</Typography>}
                   sx={{ ml: 0 }}
                 />
+                <FormControlLabel
+                  control={<Switch size="small" checked={enableGrounding} onChange={(e) => setEnableGrounding(e.target.checked)} color="primary" />}
+                  label={
+                    <Typography variant="caption" sx={{ color: enableGrounding ? 'text.primary' : 'text.secondary', display: { xs: 'none', md: 'block' } }}>
+                      {t('Live Web', 'רשת חיה')}
+                    </Typography>
+                  }
+                  sx={{ ml: 1, mr: 1 }}
+                />
               </Box>
 
-              {/* Portfolio Selector - Desktop */}
-              <FormControl size="small" variant="outlined" sx={{ minWidth: 150, display: { xs: 'none', sm: 'block' } }}>
-                <Select
-                  value={selectedPortfolioId || 'All'}
-                  onChange={(e) => setSelectedPortfolioId(e.target.value === 'All' ? null : e.target.value as string)}
-                  sx={{ fontSize: '0.85rem', height: 32, borderRadius: 2, '& .MuiSelect-select': { py: 0.5 } }}
-                >
-                  <MenuItem value="All"><em>{t('All Portfolios', 'כל התיקים')}</em></MenuItem>
-                  {portfolios.map(p => <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>)}
-                </Select>
-              </FormControl>
             </Box>
+
 
             <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.5, sm: 1 } }}>
               {/* Mobile Burger Menu */}
@@ -894,7 +937,15 @@ ${marketOverview}
                     <FormControlLabel
                       control={<Switch checked={isExpertMode} onChange={(e) => { setIsExpertMode(e.target.checked); handleMenuClose(); }} />}
                       label={t('Expert Mode', 'מצב מומחה')}
-                      sx={{ mt: 1, display: 'flex', justifyContent: 'space-between', ml: 0 }}
+                      sx={{ mt: 1, display: 'flex', justifyContent: 'space-between', ml: 0, width: '100%' }}
+                    />
+
+                    <FormControlLabel
+                      control={<Switch checked={enableGrounding} onChange={(e) => { setEnableGrounding(e.target.checked); }} color="primary" />}
+                      label={
+                        <Typography variant="body2">{t('Include Live Web Data', 'כלול נתוני רשת חיים')}</Typography>
+                      }
+                      sx={{ mt: 1, display: 'flex', justifyContent: 'space-between', ml: 0, width: '100%' }}
                     />
 
                     {isExpertMode && (
@@ -912,18 +963,6 @@ ${marketOverview}
                       </FormControl>
                     )}
 
-                    <FormControl size="small" fullWidth sx={{ mt: 2 }}>
-                      <InputLabel id="port-select-label" sx={{ fontSize: '0.8rem' }}>{t('Portfolio Context', 'הקשר תיק')}</InputLabel>
-                      <Select
-                        labelId="port-select-label"
-                        label={t('Portfolio Context', 'הקשר תיק')}
-                        value={selectedPortfolioId || 'All'}
-                        onChange={(e) => { setSelectedPortfolioId(e.target.value === 'All' ? null : e.target.value as string); handleMenuClose(); }}
-                      >
-                        <MenuItem value="All"><em>{t('All Portfolios', 'כל התיקים')}</em></MenuItem>
-                        {portfolios.map(p => <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>)}
-                      </Select>
-                    </FormControl>
                   </Box>
                 </Menu>
               </Box>
@@ -1089,12 +1128,13 @@ ${marketOverview}
           )}
         </DialogContent>
         <ChatInputSection
-          onSend={(text, useSearch) => handleSend(text, useSearch)}
+          onSend={(text) => handleSend(text)}
           isLoading={isLoading}
           t={t}
           initialValue={input}
-          enableGrounding={enableGrounding}
-          setEnableGrounding={setEnableGrounding}
+          selectedPortfolioId={selectedPortfolioId}
+          setSelectedPortfolioId={setSelectedPortfolioId}
+          portfolios={portfolios}
         />
       </Dialog>
 

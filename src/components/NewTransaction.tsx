@@ -604,7 +604,6 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   }, [date, getPriceForDate]);
 
   const handleDateChange = useCallback((newDateStr: string) => {
-    console.log("handleDateChange", newDateStr, selectedTicker?.historical?.length);
     setDate(newDateStr);
     if (!hasManuallyEditedPrice && !isEditing) {
       const p = getPriceForDate(newDateStr);
