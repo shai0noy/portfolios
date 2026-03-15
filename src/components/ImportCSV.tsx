@@ -73,7 +73,7 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
     const reader = new FileReader();
     reader.onload = (evt) => {
       const text = evt.target?.result as string;
-      if (!text || text.split('\\n').length < 2) {
+      if (!text || text.split(/\r\n|\n|\r/).length < 2) {
         setErrorMsg(t('The selected file does not appear to be a valid or structurally correct CSV.', 'הקובץ שנבחר אינו נראה כקובץ CSV תקין.'));
         return;
       }
@@ -123,42 +123,40 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
       } else if (char === '"') {
         inQuotes = !inQuotes;
       } else if (char === ',' && !inQuotes) {
-        result.push(current.trim());
+        result.push(current.trim().replace(/^"|"$/g, ''));
         current = '';
       } else {
         current += char;
       }
     }
-    result.push(current.trim());
+    result.push(current.trim().replace(/^"|"$/g, ''));
     return result;
   };
 
   const parseCSV = (text: string) => {
-    const lines = text.split('\n').filter(l => l.trim());
+    const lines = text.split(/\r\n|\n|\r/).filter((l: string) => l.trim());
     if (lines.length < 2) return;
 
     const head = parseCsvLine(lines[0]);
-    const data = lines.slice(1).map(l => parseCsvLine(l));
+    const data = lines.slice(1).map((l: string) => parseCsvLine(l));
 
     setHeaders(head);
     setRows(data);
 
     // Auto-guess mapping
     const newMap = { ...mapping };
-    head.forEach(h => {
+    head.forEach((h: string) => {
       const lh = h.toLowerCase();
-      if (lh.includes('symbol') || lh.includes('ticker')) newMap.ticker = h;
-      if (lh.includes('date') && !lh.includes('trade')) newMap.date = h; // Prefer 'Trade Date' if exists?
-      if (lh === 'trade date') newMap.date = h;
-      if (lh.includes('type') || lh.includes('action')) newMap.type = h;
-      if (lh.includes('qty') || lh.includes('quantity') || lh.includes('shares')) newMap.qty = h;
-      if (lh.includes('price') || lh.includes('cost')) newMap.price = h;
-      if (lh === 'purchase price') newMap.price = h;
-      if (lh.includes('exchange')) newMap.exchange = h;
-      if (lh.includes('commission') || lh.includes('fee')) newMap.commission = h;
-      if (lh.includes('currency')) newMap.currency = h;
-      if (lh.includes('vest') || lh.includes('vesting')) newMap.vestDate = h;
-      if (lh.includes('comment') || lh.includes('note')) newMap.comment = h;
+      if (lh.includes('symbol') || lh.includes('ticker') || lh.includes('סימול')) newMap.ticker = h;
+      if (lh === 'trade date' || lh === 'תאריך העסקה' || ((lh.includes('date') || lh.includes('תאריך')) && !lh.includes('trade'))) newMap.date = h;
+      if (lh.includes('type') || lh.includes('action') || lh.includes('סוג')) newMap.type = h;
+      if (lh.includes('qty') || lh.includes('quantity') || lh.includes('shares') || lh.includes('כמות') || lh.includes('יחידות')) newMap.qty = h;
+      if (lh === 'purchase price' || lh.includes('price') || lh.includes('cost') || lh.includes('מחיר') || lh.includes('שער')) newMap.price = h;
+      if (lh.includes('exchange') || lh.includes('בורסה')) newMap.exchange = h;
+      if (lh.includes('commission') || lh.includes('fee') || lh.includes('עמלה')) newMap.commission = h;
+      if (lh.includes('currency') || lh.includes('מטבע')) newMap.currency = h;
+      if (lh.includes('vest') || lh.includes('vesting') || lh.includes('הבשלה')) newMap.vestDate = h;
+      if (lh.includes('comment') || lh.includes('note') || lh.includes('הערה')) newMap.comment = h;
     });
     setMapping(newMap);
 
@@ -205,13 +203,14 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
   };
 
   const generatePreview = () => {
-    const txns: Transaction[] = rows.map(r => {
-      const getVal = (field: string) => {
-        const idx = headers.indexOf(mapping[field]);
-        return idx >= 0 ? r[idx] : '';
-      };
+    const txns: Transaction[] = rows.map((r, rowIdx) => {
+      try {
+        const getVal = (field: string) => {
+          const idx = headers.indexOf(mapping[field]);
+          return (idx >= 0 && r[idx] !== undefined && r[idx] !== null) ? String(r[idx]) : '';
+        };
 
-      // Date Parsing (handle 20241025 or 2025/12/30)
+        // Date Parsing (handle 20241025 or 2025/12/30)
       const rawDate = getVal('date');
       let isoDate = '';
 
@@ -234,8 +233,8 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
       if (rawType.includes('DIV')) type = 'DIVIDEND';
       if (rawType.includes('FEE')) type = 'FEE';
 
-      const qty = parseFloat(getVal('qty'));
-      const price = parseFloat(getVal('price'));
+        const qty = parseFloat(getVal('qty').replace(/[^0-9.-]+/g, ''));
+        const price = parseFloat(getVal('price').replace(/[^0-9.-]+/g, ''));
 
       let rawTicker = getVal('ticker').toUpperCase().trim();
       let deducedExchangeStr = '';
@@ -339,6 +338,10 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
         numericId,
         Source: sourceId,
       } as Transaction;
+      } catch (err) {
+        console.warn(`Error parsing row ${rowIdx}`, err, r);
+        return null;
+      }
     }).filter(t => t !== null && t.ticker && t.originalQty > 0) as Transaction[]; // Filter invalid rows
 
     txns.sort((a, b) => a.ticker.localeCompare(b.ticker) || a.date.localeCompare(b.date));
