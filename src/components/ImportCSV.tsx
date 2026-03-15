@@ -466,7 +466,7 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
               >
                 <Button component="label" variant="outlined" startIcon={<CloudUploadIcon />}>
                   {t('Upload CSV File', 'העלאת קובץ CSV')}
-                  <input type="file" hidden accept=".csv" onChange={handleFileChange} />
+                  <input type="file" hidden accept=".csv,text/csv,application/csv,application/vnd.ms-excel" onChange={handleFileChange} />
                 </Button>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
                   {t('or drag and drop here', 'או גרירה לכאן')}

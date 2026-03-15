@@ -2,7 +2,7 @@
 import { ensureGapi, findSpreadsheetByName } from '../google';
 import { clearFinanceCache } from '../data/loader';
 import { getTickerData, type TickerData } from '../fetching';
-import { toGoogleSheetDateFormat, coerceDate } from '../date';
+import { toGoogleSheetDateFormat, coerceDate, formatYYYYMMDD } from '../date';
 import {
     Exchange,
     isBuy,
@@ -445,9 +445,9 @@ export const fetchTransactions = withAuthHandling(async (spreadsheetId: string):
 
         return {
             ...t,
-            date: normalizedDate ? normalizedDate.toISOString().split('T')[0] : t.date,
-            vestDate: normalizedVestDate ? normalizedVestDate.toISOString().split('T')[0] : t.vestDate,
-            creationDate: normalizedCreationDate ? normalizedCreationDate.toISOString().split('T')[0] : t.creationDate,
+            date: normalizedDate ? formatYYYYMMDD(normalizedDate) : t.date,
+            vestDate: normalizedVestDate ? formatYYYYMMDD(normalizedVestDate) : t.vestDate,
+            creationDate: normalizedCreationDate ? formatYYYYMMDD(normalizedCreationDate) : t.creationDate,
             qty: cleanNumber(t.splitAdjustedQty, t.originalQty),
             price: cleanNumber(t.splitAdjustedPrice, t.originalPrice)
         } as Transaction;
