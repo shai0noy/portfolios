@@ -27,6 +27,8 @@ import { SummaryStat } from './SummaryStat';
 import { PerformanceStat } from './PerformanceStat';
 import { TopMovers } from './TopMovers';
 import { MarketViewSummary } from './MarketViewSummary';
+import { RecentEventsCard } from './RecentEventsCard';
+import { hasRecentEvents } from './RecentEventsCard';
 
 // Time constants for auto-stepping
 const AUTO_STEP_DELAY = 2 * 60 * 1000; // 2 minutes
@@ -62,6 +64,13 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   const [activeStep, setActiveStep] = useState(0);
+  const hasRecent = hasRecentEvents(holdings, favoriteHoldings || [], transactions);
+  const totalSteps = hasRecent ? 5 : 4;
+  const idxRecent = 1;
+  const idxPerf = hasRecent ? 2 : 1;
+  const idxTop = hasRecent ? 3 : 2;
+  const idxMarket = hasRecent ? 4 : 3;
+
   const [perfData, setPerfData] = useState<PerformancePoint[]>([]);
   const [isPerfLoading, setIsPerfLoading] = useState(false);
   // Merged: Included 'twr' from Incoming
@@ -483,7 +492,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
               </Box>
             </Fade>
           )}
-          {activeStep === 1 && (
+          {activeStep === idxPerf && (
             <Fade in={true} timeout={700}>
               <Box sx={{ height: isComparison ? (chartView === 'holdings' ? 320 : 260) : 230, position: 'relative', minWidth: 0, minHeight: 0, transition: 'height 0.3s ease' }}>
                 {isPerfLoading ? (
@@ -841,26 +850,36 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
               </Box>
             </Fade>
           )}
-          {activeStep === 2 && (
+          {activeStep === idxTop && (
             <Fade in={true} timeout={700}>
               <Box>
                 <TopMovers holdings={[...holdings, ...(favoriteHoldings || [])]} displayCurrency={displayCurrency} exchangeRates={exchangeRates} />
               </Box>
             </Fade>
           )}
-          <Box sx={{ display: activeStep === 3 ? 'block' : 'none', height: isMobile ? 'auto' : '100%' }}>
-            <Fade in={activeStep === 3} timeout={700}>
+          <Box sx={{ display: activeStep === idxMarket ? 'block' : 'none', height: isMobile ? 'auto' : '100%' }}>
+            <Fade in={activeStep === idxMarket} timeout={700}>
               <Box>
                 <MarketViewSummary isMobile={isMobile} />
               </Box>
             </Fade>
           </Box>
+
+          {hasRecent && (
+            <Box sx={{ display: activeStep === idxRecent ? 'block' : 'none', height: isMobile ? 'auto' : '100%' }}>
+              <Fade in={activeStep === idxRecent} timeout={700}>
+                <Box sx={{ height: '100%' }}>
+                   <RecentEventsCard holdings={[...holdings, ...(favoriteHoldings || [])]} transactions={transactions} />
+                </Box>
+              </Fade>
+            </Box>
+          )}
         </Box>
 
         {/* Mobile Pagination Indicator */}
         {isMobile && (
           <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2, mb: 0.5, gap: 1 }}>
-            {[0, 1, 2, 3].map((step) => (
+            {Array.from({ length: totalSteps }, (_, i) => i).map((step) => (
               <Box
                 key={step}
                 onClick={(e) => {
