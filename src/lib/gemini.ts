@@ -90,7 +90,8 @@ export async function askGemini(
     history: ChatMessage[],
     newPrompt: string,
     selectedModel: string,
-    systemInstruction?: string
+    systemInstruction?: string,
+    enableSearch: boolean = false
 ): Promise<string> {
     const url = `https://generativelanguage.googleapis.com/v1beta/${selectedModel}:generateContent?key=${apiKey}`;
 
@@ -102,6 +103,13 @@ export async function askGemini(
     const body: any = { contents };
     if (systemInstruction) {
         body.systemInstruction = { parts: [{ text: systemInstruction }] };
+    }
+
+    if (enableSearch) {
+        // Enable Google Search Grounding for up-to-date info
+        body.tools = [
+            { googleSearch: {} }
+        ];
     }
 
     const response = await fetch(url, {
@@ -118,5 +126,36 @@ export async function askGemini(
     }
 
     const data = await response.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const candidate = data.candidates?.[0];
+    let text = candidate?.content?.parts?.[0]?.text || '';
+
+    const grounding = candidate?.groundingMetadata;
+    const supports = grounding?.groundingSupports || [];
+    const chunks = grounding?.groundingChunks || [];
+
+    if (supports.length > 0 && chunks.length > 0) {
+        // Sort in reverse order so we don't mess up string indices when mutating from the end backwards
+        const sortedSupports = [...supports].sort((a: any, b: any) =>
+            (b.segment?.endIndex || 0) - (a.segment?.endIndex || 0)
+        );
+
+        for (const support of sortedSupports) {
+            const indices = support.groundingChunkIndices || [];
+            if (indices.length > 0) {
+                const end = support.segment?.endIndex || 0;
+                if (end > 0 && end <= text.length) {
+                    const citations = indices.map((idx: number) => {
+                        const uri = chunks[idx]?.web?.uri;
+                        return uri ? `[[${idx + 1}]](${uri})` : '';
+                    }).filter(Boolean).join('');
+
+                    if (citations) {
+                        text = text.substring(0, end) + citations + text.substring(end);
+                    }
+                }
+            }
+        }
+    }
+
+    return text;
 }

@@ -11,6 +11,7 @@ import PsychologyIcon from '@mui/icons-material/Psychology';
 import CloseIcon from '@mui/icons-material/Close';
 import SendIcon from '@mui/icons-material/Send';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import SearchIcon from '@mui/icons-material/Search';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import MenuIcon from '@mui/icons-material/Menu';
 import PersonIcon from '@mui/icons-material/Person';
@@ -312,6 +313,23 @@ const ChatMessageItem = React.memo(({ msg, t, onRetry, lastPrompt, onPromptClick
                 p: ({ children }) => <p><LinkParser t={t} onPromptClick={onPromptClick} onTickerClick={onTickerClick} onProfileClick={onProfileClick} onNavClick={onNavClick}>{children}</LinkParser></p>,
                 li: ({ children }) => <li><LinkParser t={t} onPromptClick={onPromptClick} onTickerClick={onTickerClick} onProfileClick={onProfileClick} onNavClick={onNavClick}>{children}</LinkParser></li>,
                 td: ({ children }) => <td><LinkParser t={t} onPromptClick={onPromptClick} onTickerClick={onTickerClick} onProfileClick={onProfileClick} onNavClick={onNavClick}>{children}</LinkParser></td>,
+                a: ({ node, ...props }) => {
+                  const href = props.href || '';
+                  const childArr = Array.isArray(props.children) ? props.children : [props.children];
+                  if (childArr[0] && typeof childArr[0] === 'string' && childArr[0].match(/^\[\d+\]$/)) {
+                    const num = childArr[0].replace(/\[|\]/g, '');
+                    return (
+                      <Tooltip title={href} arrow placement="top">
+                        <Chip
+                          component="a" href={href} target="_blank" clickable
+                          size="small" label={num}
+                          sx={{ height: 14, minWidth: 14, fontSize: '0.6rem', mx: 0.25, mb: 0.25, px: 0, textDecoration: 'none', cursor: 'pointer', verticalAlign: 'middle', bgcolor: 'primary.light', color: 'primary.contrastText', '&:hover': { bgcolor: 'primary.main' }, '.MuiChip-label': { px: 0.5 } }}
+                        />
+                      </Tooltip>
+                    );
+                  }
+                  return <a {...props} />;
+                }
               }}
             >
               {msg.parts[0].text}
@@ -337,11 +355,13 @@ const ChatMessageItem = React.memo(({ msg, t, onRetry, lastPrompt, onPromptClick
   );
 });
 
-const ChatInputSection = React.memo(({ onSend, isLoading, t, initialValue }: {
-  onSend: (val: string) => void,
+const ChatInputSection = React.memo(({ onSend, isLoading, t, initialValue, enableGrounding, setEnableGrounding }: {
+  onSend: (val: string, enableSearch: boolean) => void,
   isLoading: boolean,
   t: (e: string, h: string) => string,
-  initialValue: string
+  initialValue: string;
+  enableGrounding: boolean;
+  setEnableGrounding: React.Dispatch<React.SetStateAction<boolean>>
 }) => {
   const [value, setValue] = useState(initialValue);
 
@@ -352,13 +372,25 @@ const ChatInputSection = React.memo(({ onSend, isLoading, t, initialValue }: {
 
   const handleSend = () => {
     if (value.trim() && !isLoading) {
-      onSend(value);
+      onSend(value, enableGrounding);
       setValue('');
     }
   };
 
   return (
-    <DialogActions sx={{ p: 2 }}>
+    <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start' }}>
+        <FormControlLabel
+          control={<Switch size="small" checked={enableGrounding} onChange={(e) => setEnableGrounding(e.target.checked)} color="primary" />}
+          label={
+             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+               <SearchIcon fontSize="small" color={enableGrounding ? "primary" : "action"} />
+              <Typography variant="caption" color={enableGrounding ? "text.primary" : "text.secondary"}>{t('Enable Live Search', 'חיפוש חי')}</Typography>
+             </Box>
+          }
+        />
+      </Box>
+      <Box sx={{ display: 'flex', gap: 1 }}>
       <TextField
         fullWidth
         placeholder={t('Ask a question...', 'שאל שאלה...')}
@@ -377,7 +409,7 @@ const ChatInputSection = React.memo(({ onSend, isLoading, t, initialValue }: {
       >
         {t('Send', 'שלח')}
       </Button>
-    </DialogActions>
+    </Box></Box>
   );
 });
 
@@ -445,7 +477,9 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({
   const [userProfile, setUserProfile] = useState<UserFinancialProfile>({});
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
+  const [openClearConfirm, setOpenClearConfirm] = useState(false);
   const [marketOverview, setMarketOverview] = useState<string>('');
+  const [enableGrounding, setEnableGrounding] = useState<boolean>(false);
 
   useEffect(() => {
     if (open && apiKey) {
@@ -661,18 +695,22 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({
     });
   };
 
-  const handleSend = async (customPrompt?: string) => {
+  const handleSend = async (customPrompt?: string | any, searchToggle?: boolean) => {
     if (!apiKey) return;
+    
+    const actualPrompt = typeof customPrompt === 'string' ? customPrompt : '';
+    const shouldSearch = (typeof searchToggle === 'boolean') ? searchToggle : enableGrounding;
+    
     // Use prompt if provided (chips/retry); otherwise use cached state if it was a chip,
     // but ChatInputSection actually calls this with the text.
-    const userMsg = (customPrompt || input).trim();
+    const userMsg = (actualPrompt || input).trim();
     if (!userMsg) return;
 
     setIsLoading(true);
     lastPromptRef.current = userMsg;
     if (input) setInput(''); // Clear suggestion if it was used
 
-    if (customPrompt) {
+    if (actualPrompt) {
       // Remove any existing error messages before retrying
       setMessages(prev => prev.filter(m => !m.isError));
     }
@@ -710,7 +748,7 @@ ${marketOverview}
 
 ==User Session Start==`;
 
-      const response = await askGemini(apiKey, history, userMsg, selectedModel, systemInstruction);
+      const response = await askGemini(apiKey, history, userMsg, selectedModel, systemInstruction, shouldSearch);
       setMessages(prev => [...prev, { role: 'model', parts: [{ text: response }] }]);
     } catch (err: any) {
       console.error("Gemini Error:", err);
@@ -740,10 +778,13 @@ ${marketOverview}
   };
 
   const clearHistory = () => {
-    if (confirm(t('Are you sure you want to clear chat history?', 'האם אתה בטוח שברצונך למחוק את היסטוריית הצ׳אט?'))) {
-      setMessages([]);
-      localStorage.removeItem('ai_chat_history');
-    }
+    setOpenClearConfirm(true);
+  };
+
+  const confirmClearHistory = () => {
+    setMessages([]);
+    localStorage.removeItem('ai_chat_history');
+    setOpenClearConfirm(false);
   };
 
   return (
@@ -801,7 +842,7 @@ ${marketOverview}
                 )}
                 <FormControlLabel
                   control={<Switch size="small" checked={isExpertMode} onChange={(e) => setIsExpertMode(e.target.checked)} />}
-                  label={<Typography variant="caption">{t('Expert', 'מומחה')}</Typography>}
+                  label={<Typography variant="caption">{t('Expert Mode', 'מצב מומחה')}</Typography>}
                   sx={{ ml: 0 }}
                 />
               </Box>
@@ -1048,10 +1089,12 @@ ${marketOverview}
           )}
         </DialogContent>
         <ChatInputSection
-          onSend={handleSend}
+          onSend={(text, useSearch) => handleSend(text, useSearch)}
           isLoading={isLoading}
           t={t}
           initialValue={input}
+          enableGrounding={enableGrounding}
+          setEnableGrounding={setEnableGrounding}
         />
       </Dialog>
 
@@ -1068,6 +1111,38 @@ ${marketOverview}
           savingProfile={savingProfile}
         />
       )}
+
+      {/* Clear History Confirmation */}
+      <Dialog
+        open={openClearConfirm}
+        onClose={() => setOpenClearConfirm(false)}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{
+          sx: { borderRadius: 2 }
+        }}
+      >
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <DeleteOutlineIcon color="error" />
+          {t('Clear History', 'נקה היסטוריה')}
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary">
+            {t(
+              'Are you sure you want to clear the entire chat history? This action cannot be undone.',
+              'האם אתה בטוח שברצונך למחוק את כל היסטוריית הצ׳אט? פעולה זו אינה הפיכה.'
+            )}
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 3 }}>
+          <Button onClick={() => setOpenClearConfirm(false)} color="inherit" variant="text">
+            {t('Cancel', 'ביטול')}
+          </Button>
+          <Button onClick={confirmClearHistory} color="error" variant="contained" disableElevation>
+            {t('Clear', 'נקה')}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </>
   );
 };
