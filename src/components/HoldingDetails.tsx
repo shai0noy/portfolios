@@ -19,10 +19,11 @@ import { HoldingDistribution } from './holding-details/HoldingDistribution';
 import { HoldingLayers } from './holding-details/HoldingLayers';
 import { HoldingTransactions } from './holding-details/HoldingTransactions';
 import { HoldingDividends } from './holding-details/HoldingDividends';
+import { HoldingGrants } from './holding-details/HoldingGrants';
 import { HoldingUnderlyingAssets } from './holding-details/HoldingUnderlyingAssets';
 import type { HoldingValues } from './holding-details/types';
 
-export type HoldingDetailsSection = 'holdings' | 'transactions' | 'dividends' | 'assets';
+export type HoldingDetailsSection = 'holdings' | 'transactions' | 'dividends' | 'assets' | 'grants';
 
 interface HoldingDetailsProps {
     sheetId: string;
@@ -361,6 +362,19 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                     loading={loading}
                     displayCurrency={displayCurrency}
                     formatDate={formatDate}
+                />
+            )}
+
+            {/* SECTION: GRANTS */}
+            {section === 'grants' && (
+                <HoldingGrants
+                    layers={layers}
+                    displayCurrency={displayCurrency}
+                    exchangeRates={exchangeRates}
+                    stockCurrency={stockCurrency}
+                    portfolioNameMap={portfolioNameMap}
+                    formatDate={formatDate}
+                    currentPrice={(holding as any).currentPrice || (holding as any).price || 0}
                 />
             )}
         </Box>

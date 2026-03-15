@@ -170,6 +170,15 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
     return !!(enrichedHolding || (ownedInPortfolios && ownedInPortfolios.length > 0) || (engineHoldings && engineHoldings.length > 0) || holdingData);
   }, [enrichedHolding, ownedInPortfolios, engineHoldings, holdingData]);
 
+  const hasGrants = useMemo(() => {
+    if (!hasHolding) return false;
+    const checkLots = (lots: any[]) => lots?.some(l => !!l.vestingDate || !!l.vestDate);
+    if (enrichedHolding && checkLots(enrichedHolding.activeLots)) return true;
+    if (engineHoldings && engineHoldings.some((h: any) => checkLots(h.activeLots || h._lots))) return true;
+    if (holdingData && checkLots((holdingData as any)._lots)) return true;
+    return false;
+  }, [hasHolding, enrichedHolding, engineHoldings, holdingData]);
+
   // Force activeTab to 'analysis' if hasHolding is false and we are on a holding tab
   // Force activeTab to 'analysis' if hasHolding is false AND we are done loading.
   useEffect(() => {
@@ -410,6 +419,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
             <Tab label={t('Analysis', 'ניתוח')} value="analysis" />
             {hasHolding && <Tab label={t('Holdings', 'החזקות')} value="holdings" />}
             {hasHolding && <Tab label={t('Transactions', 'עסקאות')} value="transactions" />}
+            {hasGrants && <Tab label={t('Grants', 'מענקים')} value="grants" />}
             {hasHolding && <Tab label={t('Dividends', 'דיבידנדים')} value="dividends" />}
           </Tabs>
         </Box>
@@ -813,7 +823,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                   </TabPanelWithShadows>
                 )}
 
-                {(activeTab === 'holdings' || activeTab === 'transactions' || activeTab === 'dividends') && hasHolding && (
+                {(activeTab === 'holdings' || activeTab === 'transactions' || activeTab === 'dividends' || activeTab === 'grants') && hasHolding && (
                   <TabPanelWithShadows theme={theme}>
                     {(() => {
                       const has = (engineHoldings && engineHoldings.length > 0) || !!enrichedHolding || !!holdingData;
@@ -829,7 +839,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                             displayCurrency={normalizeCurrency(localStorage.getItem('displayCurrency') || 'USD')}
                             portfolios={portfolios}
                             onPortfolioClick={handlePortfolioClick}
-                            section={activeTab === 'holdings' ? 'holdings' : activeTab === 'transactions' ? 'transactions' : 'dividends'}
+                            section={activeTab as any}
                           />
                         );
                       })()
