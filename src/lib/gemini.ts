@@ -20,6 +20,13 @@ export interface GeminiModel {
     supportedGenerationMethods: string[];
 }
 
+export const MODEL_PATTERN_PRO = /gemini.*pro/i;
+export const MODEL_PATTERN_FOR_SEARCH = /gemini-2\.5-flash/i;
+export const MODEL_PATTERN_FLASH = /gemini.*flash/i;
+export const MODEL_PATTERN_EXCLUDE_8B = /8b/i;
+export const FALLBACK_MODEL_PRO = 'models/gemini-3-pro';
+export const FALLBACK_MODEL_FLASH = 'models/gemini-2.5-flash';
+
 export async function fetchModels(apiKey: string): Promise<GeminiModel[]> {
     const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
     const response = await fetch(url);
@@ -38,8 +45,11 @@ export async function fetchModels(apiKey: string): Promise<GeminiModel[]> {
  */
 /**
  * Finds the best model matching specific capability criteria
+ * @param models The list of available models
+ * @param type The desired performance profile
+ * @param requiresSearch Whether the model must support web search (forces 2.5 Flash if needed)
  */
-export function getModelByCapability(models: GeminiModel[], type: 'fast' | 'thinking'): string {
+export function getModelByCapability(models: GeminiModel[], type: 'fast' | 'thinking', requiresSearch: boolean = false): string {
     const getVersion = (name: string) => {
         const match = name.match(/(\d+(?:\.\d+)?)/);
         return match ? parseFloat(match[0]) : 0;
@@ -58,24 +68,14 @@ export function getModelByCapability(models: GeminiModel[], type: 'fast' | 'thin
         return candidates.sort((a, b) => getVersion(b.name) - getVersion(a.name))[0]?.name;
     };
 
+
     if (type === 'thinking') {
-        // High capability -> Pro
-        const bestPro = findBestModel(/gemini.*pro/i);
-        if (bestPro) return bestPro;
+        return findBestModel(MODEL_PATTERN_PRO) || FALLBACK_MODEL_PRO;
+    } else if (requiresSearch) {
+        return findBestModel(MODEL_PATTERN_FOR_SEARCH) || findBestModel(MODEL_PATTERN_FLASH, MODEL_PATTERN_EXCLUDE_8B) || FALLBACK_MODEL_SEARCH;
+    } else {
+        return findBestModel(MODEL_PATTERN_FLASH, MODEL_PATTERN_EXCLUDE_8B) || FALLBACK_MODEL_FLASH;
     }
-
-    // Default or 'fast' -> Flash (excluding 8b if possible)
-    const bestFlash = findBestModel(/gemini.*flash/i, /8b/i);
-    if (bestFlash) return bestFlash;
-
-    // Fallback to any Flash if no standard Flash is found
-    const anyFlash = findBestModel(/gemini.*flash/i);
-    if (anyFlash) return anyFlash;
-
-    // Fallback: Best Gemini (avoiding weird variants if possible)
-    return findBestModel(/gemini/i, /(large|expert|thinking|xl)/i)
-        || findBestModel(/gemini/i)
-        || 'models/gemini-3-flash';
 }
 
 /**

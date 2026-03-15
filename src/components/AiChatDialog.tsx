@@ -39,8 +39,6 @@ interface ExtendedChatMessage extends ChatMessage {
   portfolioName?: string;
 }
 
-
-
 interface AiChatDialogProps {
   open: boolean;
   onClose: () => void;
@@ -55,6 +53,18 @@ interface AiChatDialogProps {
   onNavClick?: (path: string) => void;
   initialPrompt?: string;
 }
+
+const SYSTEM_INSTRUCTION = `
+You are a financial assistant. Be professional, objective, and direct. Avoid excessive praise or flattery. Focus on data-driven analysis and facts.
+Please be careful in your wording around suggestions - you are just an AI.
+- Do NOT list sources at the end of your response.
+- You can create interactive links in your response using these formats:
+ * {prompt::Text to prefill} to suggest a new prompt for the user
+ * {ticker::Label::EXCHANGE:SYMBOL} to link to a specific ticker e.g. {ticker::Google::NASDAQ:GOOGL}
+ * {userinfo::Button Text} to link to the user profile info form
+ * {url::Label::Path} to navigate to any URL
+ * Not supported! - {portfolio::XYZ}
+`;
 
 function LinkParser({ children, t, onPromptClick, onTickerClick, onProfileClick, onNavClick }: {
   children: React.ReactNode,
@@ -219,11 +229,7 @@ const ChatMessageItem = React.memo(({ msg, t, onRetry, lastPrompt, onPromptClick
         </Box>
       )}
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, flexGrow: 1, maxWidth: isMobile ? 'calc(100% - 20px)' : '85%' }}>
-        {msg.role === 'user' && msg.portfolioName && (
-          <Typography variant="caption" sx={{ alignSelf: 'flex-end', opacity: 0.7, mr: 0.5 }}>
-            {t('Context: ', 'הקשר: ')}{msg.portfolioName}
-          </Typography>
-        )}
+
         <Paper
           sx={{
             p: 1.5,
@@ -368,7 +374,16 @@ const ChatMessageItem = React.memo(({ msg, t, onRetry, lastPrompt, onPromptClick
                 {msg.parts[0].text}
               </ReactMarkdown>
             ) : (
-              msg.parts[0].text
+                <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                  <Typography component="span" variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                    {msg.parts[0].text}
+                  </Typography>
+                  {msg.portfolioName && (
+                    <Typography variant="caption" sx={{ alignSelf: 'flex-start', opacity: 0.6, mt: 0.5, fontSize: '0.65rem' }}>
+                      {msg.portfolioName}
+                    </Typography>
+                  )}
+                </Box>
             )}
           </Typography>
           {msg.isError && (
@@ -420,7 +435,7 @@ const ChatInputSection = React.memo(({ onSend, isLoading, t, initialValue, selec
           onChange={(e) => setSelectedPortfolioId(e.target.value === 'All' ? null : e.target.value as string)}
           sx={{ fontSize: '0.75rem', height: 36, borderRadius: 2, bgcolor: 'background.paper' }}
         >
-          <MenuItem value="All" sx={{ fontSize: '0.8rem' }}><em>{t('All', 'הכל')}</em></MenuItem>
+          <MenuItem value="All" sx={{ fontSize: '0.8rem' }}><em>{t('All Portfolios', 'כל התיקים')}</em></MenuItem>
           {portfolios.map(p => <MenuItem key={p.id} value={p.id} sx={{ fontSize: '0.8rem' }}>{p.name}</MenuItem>)}
         </Select>
       </FormControl>
@@ -612,12 +627,12 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({
   // Sync chat mode with model selection when NOT in expert mode
   useEffect(() => {
     if (!isExpertMode && availableModels.length > 0) {
-      const bestModel = getModelByCapability(availableModels, chatMode);
+      const bestModel = getModelByCapability(availableModels, chatMode, enableGrounding);
       if (bestModel !== selectedModel) {
         setSelectedModel(bestModel);
       }
     }
-  }, [chatMode, availableModels, isExpertMode]); // Intentionally not depending on selectedModel to avoid loops
+  }, [chatMode, availableModels, isExpertMode, enableGrounding]); // Intentionally not depending on selectedModel to avoid loops
 
   // Ensure initial model selection/validation (only once or when list loads)
   const triggeredPromptRef = useRef<string | null>(null);
@@ -764,23 +779,13 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({
 
     try {
       // Ensure error messages are NOT sent to the model history
-      const history = messages.filter((m) => !m.isError);
+      const history = messages.filter((m) => !m.isError).map(m => ({ role: m.role, parts: [...m.parts] }));
 
       const profileContext = userProfile && Object.keys(userProfile).length > 0
         ? `\nUser Profile: ${JSON.stringify(userProfile)}`
         : '';
 
-      const systemInstruction = `
-You are a financial assistant. Be professional, objective, and direct. Avoid excessive praise or flattery. Focus on data-driven analysis and facts.
-Please be careful in your wording around suggestions - you are just an AI.
-- DO NOT list sources at the end of your response.
-- You can create interactive links in your response using these formats:
- * {prompt::Text to prefill} to suggest a new prompt for the user
- * {ticker::Label::EXCHANGE:SYMBOL} to link to a specific ticker e.g. {ticker::Google::NASDAQ:GOOGL}
- * {userinfo::Button Text} to link to the user profile info form
- * {url::Label::Path} to navigate to any URL
- * Not supported! - {portfolio::XYZ}
-
+      const systemInstruction = `${SYSTEM_INSTRUCTION}
 ==User Context==
 ${profileContext}
 
