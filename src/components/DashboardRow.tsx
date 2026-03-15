@@ -2,7 +2,7 @@ import React, { memo } from 'react';
 import { TableCell, TableRow, Typography } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { formatPercent as formatPct, formatMoneyValue, formatMoneyPrice, convertCurrency, normalizeCurrency, formatNumber } from '../lib/currencyUtils';
-import { getValueColor } from '../lib/utils';
+import { getValueColor, formatYears } from '../lib/utils';
 import type { EnrichedDashboardHolding } from '../lib/dashboard';
 import type { ExchangeRates } from '../lib/types';
 import { useLanguage } from '../lib/i18n';
@@ -68,7 +68,7 @@ export const DashboardRow = memo(function DashboardRow({
       case 'perf1y':
         return <TableCell align="left" sx={{ color: getValueColor(h.tickerChangePct1y || 0) }}>{formatPct(h.tickerChangePct1y || 0)}</TableCell>;
       case 'avgHoldingTimeYears':
-        return <TableCell align="left">{h.avgHoldingTimeYears > 0 ? formatNumber(h.avgHoldingTimeYears) : '-'}</TableCell>;
+        return <TableCell align="left">{h.avgHoldingTimeYears > 0 ? formatYears(h.avgHoldingTimeYears, t) : '-'}</TableCell>;
       case 'avgYearlyReturn':
         return <TableCell align="left" sx={{ color: getValueColor(h.avgYearlyReturn || 0) }}>{h.avgYearlyReturn !== undefined ? formatPct(h.avgYearlyReturn) : '-'}</TableCell>;
       case 'mv':

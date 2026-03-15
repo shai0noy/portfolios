@@ -1,5 +1,6 @@
 import { Box, Typography, Paper, Divider, Stack, Grid, Tooltip } from '@mui/material';
 import { formatValue, formatMoneyValue, formatMoneyPrice, formatPercent, formatNumber, convertCurrency } from '../../lib/currency';
+import { formatYears } from '../../lib/utils';
 import { useLanguage } from '../../lib/i18n';
 import type { HoldingValues } from './types';
 import type { HoldingWeight } from '../../lib/data/holding_utils';
@@ -133,8 +134,8 @@ export function HoldingStats({
                     </Box>
                 </Grid>
                 <Grid item xs={6} sm>
-                    <Typography variant="caption" color="text.secondary">{t('Avg Time (Years)', 'זמן ממוצע (שנים)')}</Typography>
-                    <Typography variant="body2" fontWeight="500">{vals.avgHoldingTimeYears && vals.avgHoldingTimeYears > 0 ? formatNumber(vals.avgHoldingTimeYears) : '-'}</Typography>
+                    <Typography variant="caption" color="text.secondary">{t('Avg Holding Time', 'זמן אחזקה ממוצע')}</Typography>
+                    <Typography variant="body2" fontWeight="500">{vals.avgHoldingTimeYears && vals.avgHoldingTimeYears > 0 ? formatYears(vals.avgHoldingTimeYears, t) : '-'}</Typography>
                 </Grid>
                 <Grid item xs={6} sm>
                     <Typography variant="caption" color="text.secondary">{t('Avg Yearly Return', 'תשואה שנתית ממוצעת')}</Typography>

@@ -135,6 +135,7 @@ export function formatNumber(n: number | undefined | null): string {
   return LTR_MARK + n.toLocaleString(undefined, options);
 }
 
+
 /** @deprecated Use formatMoneyValue instead to ensure type safety */
 export function formatValue(n: number, currency: string | Currency, decimals = 2, _t?: (key: string, fallback: string) => string): string {
   if (n === undefined || n === null || isNaN(n)) return '-';
