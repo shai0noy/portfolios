@@ -26,6 +26,7 @@ export const MODEL_PATTERN_FLASH = /gemini.*flash/i;
 export const MODEL_PATTERN_EXCLUDE_8B = /8b/i;
 export const FALLBACK_MODEL_PRO = 'models/gemini-3-pro';
 export const FALLBACK_MODEL_FLASH = 'models/gemini-2.5-flash';
+export const FALLBACK_MODEL_SEARCH = 'models/gemini-2.5-flash';
 
 export async function fetchModels(apiKey: string): Promise<GeminiModel[]> {
     const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;

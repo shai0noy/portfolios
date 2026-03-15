@@ -536,7 +536,7 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({
   const [savingProfile, setSavingProfile] = useState(false);
   const [openClearConfirm, setOpenClearConfirm] = useState(false);
   const [marketOverview, setMarketOverview] = useState<string>('');
-  const [enableGrounding, setEnableGrounding] = useState<boolean>(false);
+  const [enableGrounding, setEnableGrounding] = useState<boolean>(true);
 
   useEffect(() => {
     if (open && apiKey) {
@@ -898,7 +898,7 @@ ${marketOverview}
                   control={<Switch size="small" checked={enableGrounding} onChange={(e) => setEnableGrounding(e.target.checked)} color="primary" />}
                   label={
                     <Typography variant="caption" sx={{ color: enableGrounding ? 'text.primary' : 'text.secondary', display: { xs: 'none', md: 'block' } }}>
-                      {t('Live Web', 'רשת חיה')}
+                      {t('Live web search', 'חיפוש חי ברשת')}
                     </Typography>
                   }
                   sx={{ ml: 1, mr: 1 }}
@@ -948,7 +948,7 @@ ${marketOverview}
                     <FormControlLabel
                       control={<Switch checked={enableGrounding} onChange={(e) => { setEnableGrounding(e.target.checked); }} color="primary" />}
                       label={
-                        <Typography variant="body2">{t('Include Live Web Data', 'כלול נתוני רשת חיים')}</Typography>
+                        <Typography variant="body2">{t('Live web search', 'חיפוש חי ברשת')}</Typography>
                       }
                       sx={{ mt: 1, display: 'flex', justifyContent: 'space-between', ml: 0, width: '100%' }}
                     />
@@ -1019,10 +1019,11 @@ ${marketOverview}
                   <Stack direction="row" flexWrap="wrap" gap={1} justifyContent="center" sx={{ maxWidth: '100%', mx: 'auto', px: 2 }}>
                     {[
                       t("Perform a FIRE (Financial Independence) analysis", "בצע ניתוח FIRE (עצמאות כלכלית)"),
+                      t("Search for recent news about my top holdings", "חפש חדשות אחרונות על ההחזקות הגדולות שלי"),
+                      t("What is the current market sentiment today?", "מהו סנטימנט השוק הנוכחי כיום?"),
+                      t("Summarize the latest Fed meeting notes", "סכם את פרוטוקול פגישת הפד האחרונה"),
                       t("What are the key risks in my portfolio?", "מהם הסיכונים המרכזיים בתיק?"),
                       t("How is my asset allocation distributed?", "איך נראית הקצאת הנכסים שלי?"),
-                      t("Check for sector over-exposure", "בדוק חשיפת יתר למגזרים מסוימים"),
-                      t("Stress test: What if the market drops 20%?", "בדיקת עמידות: מה אם השוק יירד ב-20%?"),
                       t("Suggest 3 improvements for my portfolio", "הצע 3 שיפורים לתיק שלי"),
                       t("Compare my performance to the market", "השווה את הביצועים שלי לשוק"),
                       t("Predict my future portfolio growth", "חזה את צמיחת העתיד של התיק שלי"),
