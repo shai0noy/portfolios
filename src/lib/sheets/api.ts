@@ -524,7 +524,7 @@ export const batchAddTransactions = withAuthHandling(async (spreadsheetId: strin
         rowData.commission = isILA ? comm * 100 : comm;
 
         // Creation Date
-        const cDate = t.creationDate ? new Date(t.creationDate) : new Date();
+        const cDate = (t.creationDate ? coerceDate(t.creationDate) : null) || new Date();
         rowData.creationDate = toGoogleSheetDateFormat(cDate);
 
         // Numeric ID mapping
@@ -851,10 +851,10 @@ export const updateTransaction = withAuthHandling(async (spreadsheetId: string, 
 
     // Prepare row data (same logic as batchAddTransactions)
     const rowData: Record<string, string | number | null | undefined> = { ...t as any };
-    rowData.date = t.date ? toGoogleSheetDateFormat(new Date(t.date)) : '';
+    rowData.date = t.date ? toGoogleSheetDateFormat(coerceDate(t.date)!) : '';
     rowData.ticker = String(logIfFalsy(t.ticker, `Transaction ticker missing`, t)).toUpperCase();
     rowData.exchange = toGoogleSheetsExchangeCode(t.exchange!);
-    rowData.vestDate = t.vestDate ? toGoogleSheetDateFormat(new Date(t.vestDate)) : '';
+    rowData.vestDate = t.vestDate ? toGoogleSheetDateFormat(coerceDate(t.vestDate)!) : '';
     rowData.comment = t.comment || '';
     rowData.source = t.source || '';
 
@@ -862,7 +862,7 @@ export const updateTransaction = withAuthHandling(async (spreadsheetId: string, 
     const isILA = (t.currency || '').toUpperCase() === 'ILA';
     rowData.commission = isILA ? comm * 100 : comm;
 
-    const cDate = t.creationDate ? new Date(t.creationDate) : new Date();
+    const cDate = (t.creationDate ? coerceDate(t.creationDate) : null) || new Date();
     rowData.creationDate = toGoogleSheetDateFormat(cDate);
     rowData.numeric_id = t.numericId;
 
@@ -1177,7 +1177,7 @@ export const rebuildHoldingsSheet = withAuthHandling(async (spreadsheetId: strin
 
     const holdings: Record<string, { ticker: string, exchange: Exchange, qty: number, numericId: number | null }> = {};
 
-    transactions.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    transactions.sort((a, b) => (coerceDate(a.date)?.getTime() || 0) - (coerceDate(b.date)?.getTime() || 0));
 
     transactions.forEach(txn => {
         if (txn.type === 'BUY' || txn.type === 'SELL' || txn.type === 'BUY_TRANSFER' || txn.type === 'SELL_TRANSFER') {
@@ -1528,7 +1528,7 @@ export const getExternalPrices = withAuthHandling(async (spreadsheetId: string):
                 // OADate conversion (approximate, Google Sheets base date Dec 30 1899)
                 dateVal = new Date((rawDate - 25569) * 86400 * 1000);
             } else {
-                dateVal = new Date(rawDate);
+                dateVal = coerceDate(rawDate) || new Date(NaN);
             }
 
             if (isNaN(dateVal.getTime())) return; // Invalid date
@@ -1575,7 +1575,7 @@ export const fetchTickerLists = withAuthHandling(async (spreadsheetId: string): 
             if (typeof row[3] === 'number') {
                 dateAdded = new Date((row[3] - 25569) * 86400 * 1000);
             } else {
-                dateAdded = new Date(row[3]);
+                dateAdded = coerceDate(row[3]) || new Date(NaN);
             }
             return {
                 listName: String(row[0]),

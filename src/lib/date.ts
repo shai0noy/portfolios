@@ -9,7 +9,8 @@ export function toGoogleSheetDateFormat(date: Date): string {
   // User preferred format is dd-mm-yyyy for display, but for API submission 
   // via USER_ENTERED, ISO YYYY-MM-DD guarantees it gets interpreted as a date 
   // rather than a text string regardless of the Spreadsheet region locale.
-  return `${year}-${month}-${day}`;
+  // Google sheets in Israel locale requires DD/MM/YYYY to parse natively.
+  return `${day}/${month}/${year}`;
 }
 
 export function fromGoogleSheetDate(value: string | number | null | undefined): Date | null {
