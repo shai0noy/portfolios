@@ -784,6 +784,27 @@ export class Holding {
         return this.unrealizedGain.amount / this.costBasisVested.amount;
     }
 
+    get avgHoldingTimeYears(): number {
+        let totalUnitYears = 0;
+        let totalUnits = 0;
+        const now = new Date();
+
+        for (const lot of this.combinedLots) {
+            const endDate = lot.soldDate || now;
+            const years = (endDate.getTime() - lot.date.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+            totalUnitYears += lot.qty * years;
+            totalUnits += lot.qty;
+        }
+
+        return totalUnits > 0 ? totalUnitYears / totalUnits : 0;
+    }
+
+    get avgYearlyReturn(): number | undefined {
+        const time = this.avgHoldingTimeYears;
+        if (time <= 0 || this.perfAll === undefined) return undefined;
+        return this.perfAll / time;
+    }
+
     /**
      * Aggregated Realized Tax in Portfolio Currency (PC).
      * Sums:

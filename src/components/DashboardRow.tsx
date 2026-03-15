@@ -67,6 +67,10 @@ export const DashboardRow = memo(function DashboardRow({
         return <TableCell align="left" sx={{ color: getValueColor(h.tickerChangePctYtd || 0) }}>{formatPct(h.tickerChangePctYtd || 0)}</TableCell>;
       case 'perf1y':
         return <TableCell align="left" sx={{ color: getValueColor(h.tickerChangePct1y || 0) }}>{formatPct(h.tickerChangePct1y || 0)}</TableCell>;
+      case 'avgHoldingTimeYears':
+        return <TableCell align="left">{h.avgHoldingTimeYears > 0 ? formatNumber(h.avgHoldingTimeYears) : '-'}</TableCell>;
+      case 'avgYearlyReturn':
+        return <TableCell align="left" sx={{ color: getValueColor(h.avgYearlyReturn || 0) }}>{h.avgYearlyReturn !== undefined ? formatPct(h.avgYearlyReturn) : '-'}</TableCell>;
       case 'mv':
         return <TableCell align="left">{formatMoneyValue({ amount: vals.marketValue, currency: normalizeCurrency(displayCurrency) }, t)}</TableCell>;
       case 'unvestedValue':

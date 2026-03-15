@@ -133,6 +133,14 @@ export function HoldingStats({
                     </Box>
                 </Grid>
                 <Grid item xs={6} sm>
+                    <Typography variant="caption" color="text.secondary">{t('Avg Time (Years)', 'זמן ממוצע (שנים)')}</Typography>
+                    <Typography variant="body2" fontWeight="500">{vals.avgHoldingTimeYears && vals.avgHoldingTimeYears > 0 ? formatNumber(vals.avgHoldingTimeYears) : '-'}</Typography>
+                </Grid>
+                <Grid item xs={6} sm>
+                    <Typography variant="caption" color="text.secondary">{t('Avg Yearly Return', 'תשואה שנתית ממוצעת')}</Typography>
+                    <Typography variant="body2" fontWeight="500" color={(vals.avgYearlyReturn || -1) >= 0 ? 'success.main' : 'error.main'}>{vals.avgYearlyReturn !== undefined ? formatPercent(vals.avgYearlyReturn) : '-'}</Typography>
+                </Grid>
+                <Grid item xs={6} sm>
                     <Typography variant="caption" color="text.secondary">{t('Total Fees', 'סה"כ עמלות')}</Typography>
                     <Typography variant="body2" fontWeight="500">
                         {isFeeExempt

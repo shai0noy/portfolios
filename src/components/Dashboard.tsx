@@ -184,6 +184,7 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
         exchange: item.exchange,
         displayName: liveData?.nameMarket || liveData?.name || item.ticker,
         longName: liveData?.name || item.ticker,
+        avgHoldingTimeYears: 0,
         qtyVested: 0,
         qtyUnvested: 0,
         stockCurrency: (liveData?.currency as Currency) || Currency.USD,

@@ -213,6 +213,8 @@ export function calculateDashboardSummary(data: any[], displayCurrency: string, 
       transactions: h.transactions as Transaction[],
       dividends: h.dividends as DividendRecord[],
       qtyTotal: h.qtyTotal, // Mapped from getter
+      avgHoldingTimeYears: h.avgHoldingTimeYears,
+      avgYearlyReturn: h.avgYearlyReturn,
       realizedTax, // Added
       underlyingAssets: h.underlyingAssets,
       display

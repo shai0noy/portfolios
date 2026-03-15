@@ -230,7 +230,9 @@ export function aggregateHoldingValues(
         realizedTax: toMoney(aggValues.realizedTaxBase),
         unrealizedTax: toMoney(aggValues.unrealizedTaxBase),
         totalQty: totalQty,
-        realCost: toMoney(aggValues.realCost || aggValues.costBasis) // Fallback to costBasis if not calculated
+        realCost: toMoney(aggValues.realCost || aggValues.costBasis), // Fallback to costBasis if not calculated
+        avgHoldingTimeYears: (matchingHoldings[0] as any).avgHoldingTimeYears,
+        avgYearlyReturn: (matchingHoldings[0] as any).avgYearlyReturn
     };
 }
 

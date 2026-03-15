@@ -316,6 +316,9 @@ export interface DashboardHolding {
   // Display fields (Calculated in dashboard.ts)
   display: DashboardHoldingDisplay;
 
+  avgHoldingTimeYears: number;
+  avgYearlyReturn?: number;
+
   sector?: string;
   dayChangePct: number;
   perf1w: number;

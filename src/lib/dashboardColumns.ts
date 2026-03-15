@@ -23,6 +23,8 @@ export const DASHBOARD_COLUMNS: DashboardColumnConfig[] = [
   { key: 'perf1m', labelEn: '1M Return', labelHe: 'תשואה חודשית', defaultVisible: false, numeric: true },
   { key: 'perfYtd', labelEn: 'YTD Return', labelHe: 'תשואה מתחילת שנה', defaultVisible: false, numeric: true },
   { key: 'perf1y', labelEn: '1Y Return', labelHe: 'תשואה שנתית', defaultVisible: false, numeric: true },
+  { key: 'avgHoldingTimeYears', labelEn: 'Avg Holding Time', labelHe: 'זמן ממוצע (שנים)', defaultVisible: false, numeric: true },
+  { key: 'avgYearlyReturn', labelEn: 'Holding Avg Yearly Return', labelHe: 'תשואה שנתית ממוצעת', defaultVisible: false, numeric: true },
   { key: 'mv', labelEn: 'Market Value', labelHe: 'שווי שוק', defaultVisible: true, sortKey: 'marketValue', numeric: true },
   { key: 'unvestedValue', labelEn: 'Unvested Value', labelHe: 'שווי לא מובשל', defaultVisible: false, sortKey: 'mvUnvested', numeric: true },
   { key: 'dividends', labelEn: 'Dividends', labelHe: 'דיבידנדים', defaultVisible: false, numeric: true },
@@ -56,7 +58,7 @@ export type ColumnPresetType = 'custom' | 'overview' | 'gains' | 'analytics' | '
 export const PRESET_COLUMNS: Record<Exclude<ColumnPresetType, 'custom' | 'all'>, string[]> = {
   overview: ['displayName', 'ticker', 'type', 'qty', 'currentPrice', 'dayChangeVal', 'dayChangePct', 'perfYtd', 'perf1y', 'mv', 'totalGainPct'],
   gains: ['displayName', 'ticker', 'avgCost', 'currentPrice', 'costBasis', 'mv', 'dividends', 'unrealizedGain', 'unrealizedGainPct', 'realizedGain', 'realizedGainPct', 'totalGain', 'totalGainPct'],
-  analytics: ['displayName', 'ticker', 'type', 'sector', 'weight', 'avgCost', 'costBasis', 'mv', 'dividendYield1y', 'unvestedValue', 'realizedGainAfterTax', 'valueAfterTax'],
+  analytics: ['displayName', 'ticker', 'type', 'sector', 'weight', 'avgHoldingTimeYears', 'avgYearlyReturn', 'avgCost', 'costBasis', 'mv', 'dividendYield1y', 'unvestedValue', 'realizedGainAfterTax', 'valueAfterTax'],
   technical: ['displayName', 'ticker', 'currentPrice', 'dayChangeVal', 'dayChangePct', 'perf1w', 'perf1m', 'perfYtd', 'perf1y', 'mv'],
   income_costs: ['displayName', 'ticker', 'type', 'qty', 'avgCost', 'currentPrice', 'mv', 'dividends', 'dividendYield1y', 'fees', 'realizedTax', 'unrealizedTax']
 };

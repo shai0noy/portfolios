@@ -30,6 +30,8 @@ export interface HoldingValues {
     unrealizedTax: SimpleMoney;
     totalQty: number;
     realCost: SimpleMoney; // Inflation/Forex adjusted cost for remaining quantity
+    avgHoldingTimeYears?: number;
+    avgYearlyReturn?: number;
 }
 
 export interface UnifiedLayer {
