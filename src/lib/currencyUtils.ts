@@ -5,6 +5,13 @@ import type { ExchangeRates } from './types';
 // Unicode Left-to-Right Mark (LRM).
 const LTR_MARK = '\u200E';
 
+function cleanZero(n: number, maxDecimals: number): number {
+  if (n === 0) return 0; // standardizes -0
+  const factor = Math.pow(10, maxDecimals);
+  if (Math.round(n * factor) === 0) return 0;
+  return n;
+}
+
 export function normalizeCurrency(input: string): Currency {
   if (!input) return Currency.USD;
   const upper = input.trim().toUpperCase();
@@ -126,9 +133,11 @@ export const calculatePerformanceInDisplayCurrency = (
 
 export function formatNumber(n: number | undefined | null): string {
   if (n === undefined || n === null || isNaN(n)) return '-';
+  const decimals = Number.isInteger(n) ? 0 : 2;
+  n = cleanZero(n, decimals);
   const options: Intl.NumberFormatOptions = {
     useGrouping: true,
-    ...(Number.isInteger(n)
+    ...(decimals === 0
       ? { minimumFractionDigits: 0, maximumFractionDigits: 0 }
       : { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   };
@@ -147,6 +156,7 @@ export function formatValue(n: number, currency: string | Currency, decimals = 2
   }
 
   const activeDecimals = Math.abs(n) >= 100 ? 0 : decimals;
+  n = cleanZero(n, activeDecimals);
 
   try {
     return LTR_MARK + new Intl.NumberFormat(undefined, {
@@ -165,6 +175,7 @@ export function formatValue(n: number, currency: string | Currency, decimals = 2
 export function formatPercent(n: number, alwaysShowSign = false): string {
   if (n === undefined || n === null || isNaN(n)) return '-';
   const activeDecimals = Math.abs(n) >= 1 ? 0 : 2;
+  n = cleanZero(n, activeDecimals + 2); // percent shifts by 2 decimal places
   const formatter = new Intl.NumberFormat(undefined, {
     style: 'percent',
     minimumFractionDigits: 0,
@@ -184,6 +195,8 @@ export function formatPrice(n: number, currency: string | Currency, decimals = 2
     // Israeli stocks are quoted in Agorot (ILA). 1 ILS = 100 ILA.
     return formatPrice(n * 100, Currency.ILA, decimals, t);
   }
+
+  n = cleanZero(n, decimals);
 
   if (norm === Currency.ILA) {
     const val = n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: decimals, useGrouping: false });
@@ -225,6 +238,8 @@ export function formatCompactPrice(n: number, currency: string | Currency, t?: (
   if (Math.abs(n) < 1000) {
     return formatPrice(n, currency, 0, t);
   }
+
+  n = cleanZero(n, 1);
 
   if (norm === Currency.ILA) {
     const val = n.toLocaleString('en-US', {
@@ -289,6 +304,8 @@ export function formatCompactValue(n: number, currency: string | Currency, t?: (
   if (Math.abs(val) < 1000) {
     return formatValue(val, norm, 0, t);
   }
+
+  val = cleanZero(val, 1);
 
   try {
     return LTR_MARK + new Intl.NumberFormat(['en-US', 'en'], {
