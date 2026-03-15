@@ -72,14 +72,24 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
   const processFile = (file: File) => {
     const reader = new FileReader();
     reader.onload = (evt) => {
-      setCsvText(evt.target?.result as string);
+      const text = evt.target?.result as string;
+      if (!text || text.split('\\n').length < 2) {
+        setErrorMsg(t('The selected file does not appear to be a valid or structurally correct CSV.', 'הקובץ שנבחר אינו נראה כקובץ CSV תקין.'));
+        return;
+      }
+      setErrorMsg('');
+      setCsvText(text);
     };
     reader.readAsText(file);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) processFile(file);
+    if (file) {
+      processFile(file);
+    }
+    // Clear the input so the same file can be selected again
+    e.target.value = '';
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -466,7 +476,7 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
               >
                 <Button component="label" variant="outlined" startIcon={<CloudUploadIcon />}>
                   {t('Upload CSV File', 'העלאת קובץ CSV')}
-                  <input type="file" hidden accept=".csv,text/csv,application/csv,application/vnd.ms-excel" onChange={handleFileChange} />
+                  <input type="file" hidden onChange={handleFileChange} />
                 </Button>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
                   {t('or drag and drop here', 'או גרירה לכאן')}

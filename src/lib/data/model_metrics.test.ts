@@ -6,7 +6,7 @@ describe('Holding Metrics (avgHoldingTimeYears, avgYearlyReturn)', () => {
     const portfolio: Portfolio = {
         id: 'p1', name: 'Test', currency: Currency.USD,
         cgt: 0, incTax: 0, commRate: 0, commMin: 0, commMax: 0,
-        divPolicy: 'cash', divCommRate: 0, taxPolicy: 'IGNORE',
+        divPolicy: 'cash_taxed', divCommRate: 0, taxPolicy: 'TAX_FREE',
         mgmtVal: 0, mgmtType: 'percentage', mgmtFreq: 'yearly',
         feeHistory: []
     };
