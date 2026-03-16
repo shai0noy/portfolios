@@ -5,6 +5,7 @@ import AddIcon from '@mui/icons-material/Add';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import StarIcon from '@mui/icons-material/Star';
 import StarBorderIcon from '@mui/icons-material/StarBorder';
+import SmartToyIcon from '@mui/icons-material/SmartToy';
 import { useState, useMemo, useEffect } from 'react';
 import { useLocation, useParams } from 'react-router-dom';
 import { useLanguage } from '../lib/i18n';
@@ -19,9 +20,12 @@ import type { TickerProfile } from '../lib/types/ticker';
 import { useChartComparison, getAvailableRanges, getMaxLabel, SEARCH_OPTION_TICKER } from '../lib/hooks/useChartComparison';
 import { useTickerDetails, type TickerDetailsProps } from '../lib/hooks/useTickerDetails';
 import { TickerSearch } from './TickerSearch';
-import { Exchange, isUSExchange } from '../lib/types';
+import { Exchange, isUSExchange, type ExchangeRates } from '../lib/types';
 import { formatMoneyPrice, formatPercent, normalizeCurrency, formatMoneyValue } from '../lib/currency';
 import { AnalysisDialog } from './AnalysisDialog';
+import { TickerAiChat } from './TickerAiChat';
+import { checkGeminiKey } from '../lib/gemini';
+import toast from 'react-hot-toast';
 import { CustomRangeDialog } from './CustomRangeDialog';
 import { HoldingDetails } from './HoldingDetails';
 import { HoldingUnderlyingAssets } from './holding-details/HoldingUnderlyingAssets';
@@ -118,12 +122,29 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   const [settingsMenuAnchor, setSettingsMenuAnchor] = useState<null | HTMLElement>(null);
   const [rangeMenuAnchor, setRangeMenuAnchor] = useState<null | HTMLElement>(null);
   const [analysisOpen, setAnalysisOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [apiKey, setApiKey] = useState('');
+
+  const handleOpenChat = async () => {
+    try {
+      const key = await checkGeminiKey(sheetId);
+      if (key) {
+        setApiKey(key);
+        setChatOpen(true);
+      } else {
+        toast.error(t('Please set your Gemini API Key in the Dashboard first.', 'אנא הגדר מפתח API של Gemini במסך הראשי תחילה.'));
+      }
+    } catch (e) {
+      toast.error('Failed to load API key');
+    }
+  };
   const [customRangeOpen, setCustomRangeOpen] = useState(false);
   const [customDateRange, setCustomDateRange] = useState<{ start: Date | null, end: Date | null }>({ start: null, end: null });
 
   const [activeTab, setActiveTabRaw] = useState('analysis');
   const handleTabChange = (_: any, v: string) => setActiveTabRaw(v);
   const [engineHoldings, setEngineHoldings] = useState<Holding[]>([]);
+  const [exchangeRates, setExchangeRates] = useState<ExchangeRates | null>(null);
 
   // Resolve the "Active Holding" - from navigation state (enriched) or hook
   const enrichedHolding = useMemo(() => {
@@ -160,6 +181,9 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
           }
         });
         setEngineHoldings(matches);
+        import('../lib/currency').then(({ getExchangeRates }) => {
+          getExchangeRates(sheetId).then(setExchangeRates).catch(console.error);
+        });
       }).catch(console.error).finally(() => setIsEngineLoading(false));
     } else {
       setIsEngineLoading(false);
@@ -349,6 +373,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                     {isFavorite ? <StarIcon /> : <StarBorderIcon />}
                   </IconButton>
                 </Tooltip>
+
                 {ownedInPortfolios && ownedInPortfolios.length > 0 && (
                   <Tooltip title={`${t('Owned in', 'מוחזק ב')}: ${ownedInPortfolios.join(', ')}`} enterTouchDelay={0} leaveTouchDelay={3000}><BusinessCenterIcon color="action" /></Tooltip>
                 )}
@@ -855,10 +880,23 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
             <IconButton onClick={handleRefresh} disabled={refreshing} size="small">{refreshing ? <CircularProgress size={16} /> : <RefreshIcon fontSize="small" />}</IconButton>
           </Tooltip>
           <Box sx={{ flexGrow: 1 }} />
-          <Button onClick={handleClose} color="inherit" sx={{ textTransform: 'none' }}>{t('Close', 'סגור')}</Button>
+          <Button onClick={handleOpenChat} color="primary" variant="outlined" sx={{ textTransform: 'none', borderRadius: 2 }} startIcon={<SmartToyIcon fontSize="small" />}>
+            {t('AI Assistant', 'עוזר AI')}
+          </Button>
           <Button variant="contained" onClick={handleAddTransaction} startIcon={<AddIcon />} sx={{ borderRadius: 2, textTransform: 'none' }}>{t('Add Transaction', 'הוסף עסקה')}</Button>
+          <Button onClick={handleClose} color="inherit" sx={{ textTransform: 'none' }}>{t('Close', 'סגור')}</Button>
         </DialogActions>
       </Dialog>
+      <TickerAiChat
+        open={chatOpen}
+        onClose={() => setChatOpen(false)}
+        apiKey={apiKey}
+        tickerData={displayData}
+        holdings={engineHoldings}
+        displayCurrency={normalizeCurrency(localStorage.getItem('displayCurrency') || 'USD')}
+        exchangeRates={exchangeRates}
+        subjectName={ticker}
+      />
       <Dialog open={isSearchOpen} onClose={() => setIsSearchOpen(false)} maxWidth="md" fullWidth>
         <DialogTitle>{t('Search to Compare', 'חפש להשוואה')}</DialogTitle>
         <DialogContent>
