@@ -374,16 +374,16 @@ const ChatMessageItem = React.memo(({ msg, t, onRetry, lastPrompt, onPromptClick
                 {msg.parts[0].text}
               </ReactMarkdown>
             ) : (
-                <Box sx={{ display: 'flex', flexDirection: 'column' }}>
-                  <Typography component="span" variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
-                    {msg.parts[0].text}
+              <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                <Typography component="span" variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                  {msg.parts[0].text}
+                </Typography>
+                {msg.portfolioName && (
+                  <Typography variant="caption" sx={{ alignSelf: 'flex-start', opacity: 0.6, mt: 0.5, fontSize: '0.65rem' }}>
+                    {msg.portfolioName}
                   </Typography>
-                  {msg.portfolioName && (
-                    <Typography variant="caption" sx={{ alignSelf: 'flex-start', opacity: 0.6, mt: 0.5, fontSize: '0.65rem' }}>
-                      {msg.portfolioName}
-                    </Typography>
-                  )}
-                </Box>
+                )}
+              </Box>
             )}
           </Typography>
           {msg.isError && (
@@ -459,13 +459,13 @@ const ChatInputSection = React.memo(({ onSend, isLoading, t, initialValue, selec
 
       <FormControl size="small" variant="outlined" sx={{
         position: 'absolute',
-        bottom: isExpanded ? 64 : 18,
+        bottom: isExpanded ? 58 : 18,
         ...(useLanguage().isRtl
-          ? { right: isExpanded ? 'calc(100% - 46px)' : 16 }
-          : { left: isExpanded ? 'calc(100% - 46px)' : 16 }
+          ? { right: isExpanded ? 'calc(100% - 52px)' : 16 }
+          : { left: isExpanded ? 'calc(100% - 52px)' : 16 }
         ),
-        width: isExpanded ? 28 : { xs: 100, sm: 140 },
-        height: isExpanded ? 28 : 36,
+        width: isExpanded ? 36 : { xs: 100, sm: 140 },
+        height: isExpanded ? 22 : 36,
         zIndex: 10,
         transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         overflow: 'hidden',
@@ -482,7 +482,7 @@ const ChatInputSection = React.memo(({ onSend, isLoading, t, initialValue, selec
           ) : undefined}
           sx={{
             fontSize: '0.75rem',
-            height: isExpanded ? 28 : 36,
+            height: isExpanded ? 22 : 36,
             borderRadius: 2,
             bgcolor: 'background.paper',
             '& .MuiSelect-select': isExpanded ? {
@@ -746,7 +746,7 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({
   useEffect(() => {
     if (scrollRef.current) {
       if (isLoading) {
-      // Scroll to bottom when sending/loading
+        // Scroll to bottom when sending/loading
         scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
       } else if (messages.length > prevMessagesLengthRef.current) {
         // A new message arrived
@@ -966,17 +966,17 @@ ${marketOverview}
                     </ToggleButton>
                   </ToggleButtonGroup>
                 ) : (
-                    <FormControl size="small" sx={{ minWidth: 200 }}>
-                      <Select
-                        value={selectedModel}
-                        onChange={(e) => setSelectedModel(e.target.value)}
-                        sx={{ height: 32, fontSize: '0.8rem' }}
-                      >
-                        {availableModels.map(m => (
-                          <MenuItem key={m.name} value={m.name} sx={{ fontSize: '0.8rem' }}>
-                            {m.displayName}
-                          </MenuItem>
-                        ))}
+                  <FormControl size="small" sx={{ minWidth: 200 }}>
+                    <Select
+                      value={selectedModel}
+                      onChange={(e) => setSelectedModel(e.target.value)}
+                      sx={{ height: 32, fontSize: '0.8rem' }}
+                    >
+                      {availableModels.map(m => (
+                        <MenuItem key={m.name} value={m.name} sx={{ fontSize: '0.8rem' }}>
+                          {m.displayName}
+                        </MenuItem>
+                      ))}
                     </Select>
                   </FormControl>
                 )}
