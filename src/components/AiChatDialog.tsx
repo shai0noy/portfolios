@@ -34,7 +34,7 @@ You are a financial assistant. Be professional, objective, and direct. Avoid exc
 Please be careful in your wording around suggestions - you are just an AI.
 - Do NOT list sources at the end of your response.
 - You can create interactive links in your response using these formats:
- * {prompt::Text to prefill} to suggest a new prompt for the user
+ * {prompt::Text to prefill} to suggest a new prompt for the user - use it to suggest a followup question or two.
  * {ticker::Label::EXCHANGE:SYMBOL} to link to a specific ticker e.g. {ticker::Google::NASDAQ:GOOGL}
  * {userinfo::Button Text} to link to the user profile info form
  * {url::Label::Path} to navigate to any URL
@@ -156,7 +156,7 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({
       realizedGain: h.display.realizedGain,
       realizedGainPct: formatPercent(h.display.realizedGainPct),
       weightInAllHoldings: formatPercent(h.display.weightInGlobal),
-      portfolioId: h.portfolioId,
+      portfolioId: h.portfolioName,
       sector: h.sector,
       perf1w: formatPercent(h.perf1w),
       perf1m: formatPercent(h.perf1m),

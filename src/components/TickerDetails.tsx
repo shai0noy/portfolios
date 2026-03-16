@@ -892,6 +892,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
         onClose={() => setChatOpen(false)}
         apiKey={apiKey}
         tickerData={displayData}
+        historicalData={historicalData}
         holdings={engineHoldings}
         displayCurrency={normalizeCurrency(localStorage.getItem('displayCurrency') || 'USD')}
         exchangeRates={exchangeRates}
