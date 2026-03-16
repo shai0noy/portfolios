@@ -414,11 +414,33 @@ const ChatInputSection = React.memo(({ onSend, isLoading, t, initialValue, selec
   portfolios: Portfolio[]
 }) => {
   const [value, setValue] = useState(initialValue);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const inputContainerRef = useRef<HTMLDivElement>(null);
 
   // Sync when initialValue changes from outside (suggestion chips)
   useEffect(() => {
     setValue(initialValue);
   }, [initialValue]);
+
+  useEffect(() => {
+    if (!inputContainerRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        // A single-line TextField is ~40px. We trigger icon mode if > 45px.
+        if (entry.contentRect.height > 45) {
+          setIsExpanded(true);
+        }
+      }
+    });
+    observer.observe(inputContainerRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (value.trim() === '') {
+      setIsExpanded(false);
+    }
+  }, [value]);
 
   const handleSend = () => {
     if (value.trim() && !isLoading) {
@@ -428,28 +450,75 @@ const ChatInputSection = React.memo(({ onSend, isLoading, t, initialValue, selec
   };
 
   return (
-    <Box sx={{ p: 2, display: 'flex', gap: 1, alignItems: 'center' }}>
-      <FormControl size="small" variant="outlined" sx={{ minWidth: { xs: 100, sm: 140 }, flexShrink: 0 }}>
+    <Box sx={{ p: 2, display: 'flex', gap: 1, alignItems: 'flex-end', position: 'relative' }}>
+      <Box sx={{
+        width: isExpanded ? 0 : { xs: 100, sm: 140 },
+        transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        flexShrink: 0
+      }} />
+
+      <FormControl size="small" variant="outlined" sx={{
+        position: 'absolute',
+        bottom: isExpanded ? 64 : 18,
+        ...(useLanguage().isRtl
+          ? { right: isExpanded ? 'calc(100% - 46px)' : 16 }
+          : { left: isExpanded ? 'calc(100% - 46px)' : 16 }
+        ),
+        width: isExpanded ? 28 : { xs: 100, sm: 140 },
+        height: isExpanded ? 28 : 36,
+        zIndex: 10,
+        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        overflow: 'hidden',
+        mb: isExpanded ? 0 : '2px'
+      }}>
         <Select
           value={selectedPortfolioId || 'All'}
           onChange={(e) => setSelectedPortfolioId(e.target.value === 'All' ? null : e.target.value as string)}
-          sx={{ fontSize: '0.75rem', height: 36, borderRadius: 2, bgcolor: 'background.paper' }}
+          IconComponent={isExpanded ? () => null : undefined}
+          renderValue={isExpanded ? () => (
+            <Box sx={{ display: 'flex', justifyContent: 'center', width: '100%', alignItems: 'center', height: '100%' }}>
+              <MenuIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
+            </Box>
+          ) : undefined}
+          sx={{
+            fontSize: '0.75rem',
+            height: isExpanded ? 28 : 36,
+            borderRadius: 2,
+            bgcolor: 'background.paper',
+            '& .MuiSelect-select': isExpanded ? {
+              p: '0 !important',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              height: '100%'
+            } : {}
+          }}
         >
           <MenuItem value="All" sx={{ fontSize: '0.8rem' }}><em>{t('All Portfolios', 'כל התיקים')}</em></MenuItem>
           {portfolios.map(p => <MenuItem key={p.id} value={p.id} sx={{ fontSize: '0.8rem' }}>{p.name}</MenuItem>)}
         </Select>
       </FormControl>
-      <TextField
-        fullWidth
-        placeholder={t('Ask a question...', 'שאל שאלה...')}
-        variant="outlined"
-        size="small"
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-        disabled={isLoading}
-        sx={{ '& .MuiInputBase-root': { height: 36 } }}
-      />
+      <Box ref={inputContainerRef} sx={{ flexGrow: 1 }}>
+        <TextField
+          fullWidth
+          placeholder={t('Ask a question...', 'שאל שאלה...')}
+          variant="outlined"
+          size="small"
+          multiline
+          minRows={isExpanded ? 2 : 1}
+          maxRows={6}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              handleSend();
+            }
+          }}
+          disabled={isLoading}
+          sx={{ '& .MuiInputBase-root': { minHeight: 40, padding: '8.5px 14px' } }}
+        />
+      </Box>
       <IconButton
         color="primary"
         onClick={handleSend}
@@ -460,6 +529,8 @@ const ChatInputSection = React.memo(({ onSend, isLoading, t, initialValue, selec
           borderRadius: 2,
           height: 36,
           width: 36,
+          mb: '2px',
+          flexShrink: 0,
           '&:hover': { bgcolor: 'primary.dark' },
           '&.Mui-disabled': { bgcolor: 'action.disabledBackground' }
         }}
@@ -671,10 +742,30 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({
     localStorage.setItem('ai_chat_history', JSON.stringify(messages));
   }, [messages]);
 
+  const prevMessagesLengthRef = useRef(messages.length);
   useEffect(() => {
     if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      if (isLoading) {
+      // Scroll to bottom when sending/loading
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      } else if (messages.length > prevMessagesLengthRef.current) {
+        // A new message arrived
+        const lastMsg = messages[messages.length - 1];
+        if (lastMsg.role === 'model') {
+          // It's a bot response, scroll to the top of the message
+          const el = document.getElementById(`chat-msg-${messages.length - 1}`);
+          if (el) {
+            const containerTop = scrollRef.current.getBoundingClientRect().top;
+            const elTop = el.getBoundingClientRect().top;
+            const currentScrollTop = scrollRef.current.scrollTop;
+            scrollRef.current.scrollTo({ top: currentScrollTop + (elTop - containerTop) - 16, behavior: 'smooth' });
+          }
+        } else {
+          scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }
+      }
     }
+    prevMessagesLengthRef.current = messages.length;
   }, [messages, isLoading]);
 
   const summarizePortfolio = () => {
@@ -1018,6 +1109,7 @@ ${marketOverview}
                   </Box>
                   <Stack direction="row" flexWrap="wrap" gap={1} justifyContent="center" sx={{ maxWidth: '100%', mx: 'auto', px: 2 }}>
                     {[
+                      t("What current market events/trends are affecting my portfolio?", "אילו אירועי מאקרו או טרנדים בשוק משפיעים כרגע על התיק שלי?"),
                       t("Perform a FIRE (Financial Independence) analysis", "בצע ניתוח FIRE (עצמאות כלכלית)"),
                       t("Search for recent news about my top holdings", "חפש חדשות אחרונות על ההחזקות הגדולות שלי"),
                       t("What is the current market sentiment today?", "מהו סנטימנט השוק הנוכחי כיום?"),
@@ -1072,17 +1164,18 @@ ${marketOverview}
                 </Box>
               )}
               {messages.map((msg, i) => (
-                <ChatMessageItem
-                  key={i}
-                  msg={msg}
-                  t={t}
-                  onRetry={handleSend}
-                  lastPrompt={lastPromptRef.current}
-                  onPromptClick={(text) => setInput(text)}
-                  onTickerClick={(ex, sym) => extOnTickerClick?.({ exchange: ex, symbol: sym })}
-                  onProfileClick={() => setOpenProfile(true)}
-                  onNavClick={(path) => onNavClick?.(path)}
-                />
+                <Box key={i} id={`chat-msg-${i}`}>
+                  <ChatMessageItem
+                    msg={msg}
+                    t={t}
+                    onRetry={handleSend}
+                    lastPrompt={lastPromptRef.current}
+                    onPromptClick={(text) => setInput(text)}
+                    onTickerClick={(ex, sym) => extOnTickerClick?.({ exchange: ex, symbol: sym })}
+                    onProfileClick={() => setOpenProfile(true)}
+                    onNavClick={(path) => onNavClick?.(path)}
+                  />
+                </Box>
               ))}
               {isLoading && (
                 <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start', width: '100%' }}>
