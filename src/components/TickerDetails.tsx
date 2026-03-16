@@ -135,9 +135,16 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
         toast.error(t('Please set your Gemini API Key in the Dashboard first.', 'אנא הגדר מפתח API של Gemini במסך הראשי תחילה.'));
       }
     } catch (e) {
-      toast.error('Failed to load API key');
+      console.error(e);
+      toast.error(t('Please set your Gemini API Key in the Dashboard first.', 'אנא הגדר מפתח API של Gemini במסך הראשי תחילה.'));
     }
   };
+
+  useEffect(() => {
+    if (location.state && (location.state as any).openAiChatId && !chatOpen) {
+      handleOpenChat();
+    }
+  }, [location.state, chatOpen]);
   const [customRangeOpen, setCustomRangeOpen] = useState(false);
   const [customDateRange, setCustomDateRange] = useState<{ start: Date | null, end: Date | null }>({ start: null, end: null });
 
@@ -891,8 +898,8 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
         open={chatOpen}
         onClose={() => setChatOpen(false)}
         apiKey={apiKey}
-        tickerData={displayData}
-        historicalData={historicalData}
+        tickerData={(displayData && 'exchange' in displayData) ? (displayData as any) : undefined}
+        historicalData={historicalData ?? undefined}
         holdings={engineHoldings}
         displayCurrency={normalizeCurrency(localStorage.getItem('displayCurrency') || 'USD')}
         exchangeRates={exchangeRates}

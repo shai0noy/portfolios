@@ -1,0 +1,18 @@
+npm warn Unknown builtin config "globalignorefile". This will stop working in the next major version of npm.
+src/components/TickerDetails.tsx(901,9): error TS2322: Type 'TickerData | SheetHolding | null' is not assignable to type 'TickerData | undefined'.
+  Type 'null' is not assignable to type 'TickerData | undefined'.
+src/components/TickerDetails.tsx(902,9): error TS2322: Type '{ date: Date; price: number; adjClose?: number | undefined; }[] | null' is not assignable to type '{ date: Date; price: number; }[] | undefined'.
+  Type 'null' is not assignable to type '{ date: Date; price: number; }[] | undefined'.
+src/components/chat/BaseAiChatDialog.tsx(3,39): error TS6133: 'DialogActions' is declared but its value is never read.
+src/components/chat/BaseAiChatDialog.tsx(19,1): error TS6133: 'DeleteOutlineIcon' is declared but its value is never read.
+src/components/chat/BaseAiChatDialog.tsx(24,64): error TS1484: 'ChatSession' is a type and must be imported using a type-only import when 'verbatimModuleSyntax' is enabled.
+src/components/chat/BaseAiChatDialog.tsx(31,15): error TS6133: 'ChatMessage' is declared but its value is never read.
+src/components/chat/BaseAiChatDialog.tsx(653,10): error TS6133: 'openClearConfirm' is declared but its value is never read.
+src/components/chat/BaseAiChatDialog.tsx(653,28): error TS6133: 'setOpenClearConfirm' is declared but its value is never read.
+src/components/chat/ChatHistoryDrawer.tsx(2,102): error TS6133: 'Tooltip' is declared but its value is never read.
+src/components/chat/ChatHistoryDrawer.tsx(8,10): error TS1484: 'ChatSession' is a type and must be imported using a type-only import when 'verbatimModuleSyntax' is enabled.
+src/components/chat/ChatHistoryDrawer.tsx(8,23): error TS6133: 'deleteSession' is declared but its value is never read.
+src/components/chat/ChatHistoryDrawer.tsx(9,32): error TS6133: 'format' is declared but its value is never read.
+*** gpkg: This tool is configured to use Corp Airlock for package installs: http://go/corp-airlock
+*** gpkg: If Corp Airlock is breaking your workflow please report at: http://go/corp-airlock-feedback
+*** gpkg: Exceptions are available: http://go/corp-airlock#request-exception

@@ -287,6 +287,7 @@ ${marketOverview}
         onClose={onClose}
         apiKey={apiKey}
         chatId="portfolio_main"
+        contextUrl={window.location.pathname + window.location.search}
         title={t('AI Portfolio Assistant', 'עוזר תיק השקעות AI')}
         headerIcon={<SmartToyIcon color="primary" />}
         getSystemInstruction={getSystemInstruction}

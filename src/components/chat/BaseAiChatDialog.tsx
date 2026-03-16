@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Dialog, DialogTitle, DialogContent, DialogActions,
+  Dialog, DialogTitle, DialogContent,
   Button, TextField, Box, Typography, IconButton,
   CircularProgress, Paper, Tooltip, Select, MenuItem, FormControl,
   FormControlLabel, Chip, Stack, ToggleButton, ToggleButtonGroup, Switch, Alert, useTheme,
@@ -16,27 +16,29 @@ import LaunchIcon from '@mui/icons-material/Launch';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import MenuIcon from '@mui/icons-material/Menu';
 import PersonIcon from '@mui/icons-material/Person';
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import HistoryIcon from '@mui/icons-material/History';
+import AddCommentIcon from '@mui/icons-material/AddComment';
 
 import { useLanguage } from '../../lib/i18n';
+import { loadSessions, saveSession, getSession, deleteSession } from '../../lib/utils/chat_storage';
+import type { ChatSession } from '../../lib/utils/chat_storage';
+import { v4 as uuidv4 } from 'uuid';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { ChatHistoryDrawer } from './ChatHistoryDrawer';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { type ChatMessage, askGemini, fetchModels, type GeminiModel, getModelByCapability } from '../../lib/gemini';
+import { type ExtendedChatMessage, askGemini, fetchModels, type GeminiModel, getModelByCapability } from '../../lib/gemini';
 import { type Portfolio } from '../../lib/types';
 import ManageAccountsIcon from '@mui/icons-material/ManageAccounts';
 import { useScrollShadows, ScrollShadows, useResponsiveDialogProps } from '../../lib/ui-utils';
-
-export interface ExtendedChatMessage extends ChatMessage {
-  isError?: boolean;
-  portfolioName?: string;
-}
 
 export interface BaseAiChatDialogProps {
   open: boolean;
   onClose: () => void;
   apiKey: string;
   chatId: string;
+  contextUrl: string;
 
   title: React.ReactNode;
   headerIcon?: React.ReactNode;
@@ -539,7 +541,7 @@ const ChatInputSection = React.memo(({ onSend, isLoading, t, initialValue, selec
 });
 
 export const BaseAiChatDialog: React.FC<BaseAiChatDialogProps> = ({
-  open, onClose, apiKey, chatId, title, headerIcon,
+  open, onClose, apiKey, chatId, contextUrl, title, headerIcon,
   getSystemInstruction, suggestions = [], emptyStateContent,
   disclaimerText, customDisclaimer, headerMenuAddons,
   portfolios = [], selectedPortfolioId = null, onPortfolioChange = () => { },
@@ -548,13 +550,74 @@ export const BaseAiChatDialog: React.FC<BaseAiChatDialogProps> = ({
   const { t } = useLanguage();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const navigate = useNavigate();
+  const location = useLocation();
 
-  const historyKey = `ai_chat_history_${chatId}`;
-
-  const [messages, setMessages] = useState<ExtendedChatMessage[]>(() => {
-    const saved = localStorage.getItem(historyKey);
-    return saved ? JSON.parse(saved) : [];
+  const [activeSessionId, setActiveSessionId] = useState<string>(() => {
+    if (location.state && (location.state as any).openAiChatId) {
+      return (location.state as any).openAiChatId;
+    }
+    if (window.history.state && window.history.state.openAiChatId) {
+      return window.history.state.openAiChatId;
+    }
+    const sess = loadSessions().filter(s => s.contextId === chatId).sort((a, b) => b.updatedAt - a.updatedAt)[0];
+    return sess ? sess.id : uuidv4();
   });
+
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+
+  const [messages, setMessages] = useState<ExtendedChatMessage[]>([]);
+
+  // Load active session messages & all sessions on mount / sessionId change
+  useEffect(() => {
+    setSessions(loadSessions());
+    if (activeSessionId) {
+      const sess = getSession(activeSessionId);
+      setMessages(sess ? sess.messages : []);
+    }
+  }, [activeSessionId, open]);
+
+  // Save session when messages change
+  useEffect(() => {
+    if (messages.length > 0) {
+      const messageText = messages[0].parts[0].text || '';
+      const sessTitle = messageText.substring(0, 40) + (messageText.length > 40 ? '...' : '');
+      const newSession: ChatSession = {
+        id: activeSessionId,
+        contextId: chatId,
+        title: sessTitle,
+        contextUrl: contextUrl,
+        updatedAt: Date.now(),
+        messages: messages,
+      };
+      saveSession(newSession);
+      setSessions(loadSessions());
+    }
+  }, [messages, activeSessionId, chatId, contextUrl]);
+
+  const handleNewChat = () => {
+    setActiveSessionId(uuidv4());
+    setMessages([]);
+    setIsHistoryOpen(false);
+  };
+
+  const handleSelectSession = (session: ChatSession) => {
+    if (session.contextId === chatId) {
+      setActiveSessionId(session.id);
+      setIsHistoryOpen(false);
+    } else {
+      navigate(session.contextUrl, { state: { openAiChatId: session.id } });
+    }
+  };
+
+  const handleDeleteSession = (id: string) => {
+    deleteSession(id);
+    setSessions(loadSessions());
+    if (id === activeSessionId) {
+      handleNewChat();
+    }
+  };
 
   const [isLoading, setIsLoading] = useState(false);
   const [availableModels, setAvailableModels] = useState<GeminiModel[]>([]);
@@ -587,7 +650,8 @@ export const BaseAiChatDialog: React.FC<BaseAiChatDialogProps> = ({
 
   const [isExpertMode, setIsExpertMode] = useState(false);
   const [openDisclaimer, setOpenDisclaimer] = useState(true);
-  const [openClearConfirm, setOpenClearConfirm] = useState(false);
+  // Placeholder to remove the unused state line
+
   const [enableGrounding, setEnableGrounding] = useState<boolean>(true);
 
   useEffect(() => {
@@ -635,10 +699,6 @@ export const BaseAiChatDialog: React.FC<BaseAiChatDialogProps> = ({
   useEffect(() => {
     localStorage.setItem('gemini_selected_model', selectedModel);
   }, [selectedModel]);
-
-  useEffect(() => {
-    localStorage.setItem(historyKey, JSON.stringify(messages));
-  }, [messages, historyKey]);
 
   const prevMessagesLengthRef = useRef(messages.length);
   useEffect(() => {
@@ -714,15 +774,17 @@ export const BaseAiChatDialog: React.FC<BaseAiChatDialogProps> = ({
     }
   };
 
-  const clearHistory = () => setOpenClearConfirm(true);
-  const confirmClearHistory = () => {
-    setMessages([]);
-    localStorage.removeItem(historyKey);
-    setOpenClearConfirm(false);
-  };
-
   return (
     <>
+      <ChatHistoryDrawer
+        open={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+        sessions={sessions}
+        activeSessionId={activeSessionId}
+        onSelectSession={handleSelectSession}
+        onNewChat={handleNewChat}
+        onDeleteSession={handleDeleteSession}
+      />
       <Dialog
         open={open}
         onClose={onClose}
@@ -854,10 +916,17 @@ export const BaseAiChatDialog: React.FC<BaseAiChatDialogProps> = ({
                   </IconButton>
                 </Tooltip>
               )}
+              {sessions.length > 0 && (
+                <Tooltip title={t('Chat History', 'היסטוריית צ\'אט')}>
+                  <IconButton onClick={() => setIsHistoryOpen(true)} size="small" sx={{ color: 'text.primary' }}>
+                    <HistoryIcon />
+                  </IconButton>
+                </Tooltip>
+              )}
               {messages.length > 0 && (
-                <Tooltip title={t('Clear History', 'נקה היסטוריה')}>
-                  <IconButton onClick={clearHistory} size="small" sx={{ color: 'text.primary' }}>
-                    <DeleteOutlineIcon />
+                <Tooltip title={t('New Chat', 'צ\'אט חדש')}>
+                  <IconButton onClick={handleNewChat} size="small" sx={{ color: 'text.primary' }}>
+                    <AddCommentIcon />
                   </IconButton>
                 </Tooltip>
               )}
@@ -956,23 +1025,6 @@ export const BaseAiChatDialog: React.FC<BaseAiChatDialogProps> = ({
           setSelectedPortfolioId={onPortfolioChange}
           portfolios={portfolios}
         />
-      </Dialog>
-
-      {/* Clear History Confirmation */}
-      <Dialog open={openClearConfirm} onClose={() => setOpenClearConfirm(false)} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 2 } }}>
-        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <DeleteOutlineIcon color="error" />
-          {t('Clear History', 'נקה היסטוריה')}
-        </DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" color="text.secondary">
-            {t('Are you sure you want to clear the entire chat history? This action cannot be undone.', 'האם אתה בטוח שברצונך למחוק את כל היסטוריית הצ׳אט? פעולה זו אינה הפיכה.')}
-          </Typography>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 3 }}>
-          <Button onClick={() => setOpenClearConfirm(false)} color="inherit" variant="text">{t('Cancel', 'ביטול')}</Button>
-          <Button onClick={confirmClearHistory} color="error" variant="contained" disableElevation>{t('Clear', 'נקה')}</Button>
-        </DialogActions>
       </Dialog>
     </>
   );

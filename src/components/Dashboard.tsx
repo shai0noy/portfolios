@@ -126,7 +126,7 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
   };
 
   useEffect(() => {
-    const isAiPath = location.pathname === '/ai';
+    const isAiPath = location.pathname === '/ai' || (location.state && (location.state as any).openAiChatId);
     const promptParam = searchParams.get('prompt');
 
     if (isAiPath && !aiChatOpen && !loading) {

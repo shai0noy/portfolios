@@ -34,10 +34,12 @@ export const TickerAiChat: React.FC<TickerAiChatProps> = ({
     // Choose Benchmark based on Exchange
     let benchTicker = '^SPX';
     let benchExchange: Exchange = Exchange.NYSE;
+    let benchmarkName = 'S&P 500';
     const isIL = ['TASE', 'PENSION', 'GEMEL'].includes(tickerData.exchange);
     if (isIL || tickerData.currency === 'ILS' || tickerData.currency === 'ILA') {
       benchTicker = '137'; // TA-125
       benchExchange = Exchange.TASE;
+      benchmarkName = 'TA-125';
     }
 
     const fetchBenchmarkAndCompute = async () => {
@@ -56,9 +58,9 @@ export const TickerAiChat: React.FC<TickerAiChatProps> = ({
             const metrics = computeAnalysisMetrics(returnPairs, undefined, annualFactor);
             if (metrics) {
               setBenchmarkMetrics({
-                benchmarkUsed: isIL ? 'TA-125' : 'S&P 500',
+                benchmarkUsed: benchmarkName,
                 sharpeRatio: metrics.sharpeRatio.toFixed(2),
-                alpha: metrics.alpha.toFixed(4),
+                alpha: metrics.alpha.toFixed(3),
                 beta: metrics.beta.toFixed(2),
                 rSquared: metrics.rSquared.toFixed(2),
                 correlation: metrics.correlation.toFixed(2),
@@ -175,6 +177,7 @@ ${summarizeTicker()}`;
       onClose={onClose}
       apiKey={apiKey}
       chatId={`ticker_${tickerData.exchange}_${tickerData.ticker || subjectName} `}
+      contextUrl={window.location.pathname + window.location.search}
       title={`${t('AI Assistant', 'עוזר AI')} - ${tickerData.ticker || subjectName || ''} `}
       getSystemInstruction={getSystemInstruction}
       suggestions={suggestions}

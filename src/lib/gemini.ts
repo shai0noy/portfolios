@@ -12,6 +12,11 @@ export interface ChatMessage {
     parts: { text: string }[];
 }
 
+export interface ExtendedChatMessage extends ChatMessage {
+    isError?: boolean;
+    portfolioName?: string;
+}
+
 export interface GeminiModel {
     name: string;
     version: string;
