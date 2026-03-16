@@ -80,6 +80,8 @@ export const DashboardGroup = memo(function DashboardGroup(props: DashboardGroup
       case 'realizedGain': return h.display.realizedGain;
       case 'totalGain': return h.display.totalGain;
       case 'valueAfterTax': return h.display.valueAfterTax;
+      case 'avgHoldingTimeYears': return h.avgHoldingTimeYears || 0;
+      case 'avgYearlyReturn': return h.avgYearlyReturn || -Infinity;
       case 'unvestedValue':
       case 'mvUnvested': return h.display.unvestedValue;
       default: return (h.display as any)[key] || 0;
