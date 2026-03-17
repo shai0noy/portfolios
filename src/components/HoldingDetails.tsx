@@ -1,4 +1,4 @@
-import { Box, Typography, CircularProgress } from '@mui/material';
+import { Box, Typography, CircularProgress, Alert } from '@mui/material';
 import { formatDate, coerceDate } from '../lib/date';
 import { convertCurrency, getExchangeRates, normalizeCurrency } from '../lib/currency';
 import { useLanguage } from '../lib/i18n';
@@ -106,6 +106,21 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
             .catch(err => { console.error(err); setLoading(false); });
     }, [sheetId]);
 
+    const futureTransactions = useMemo(() => {
+        const now = new Date();
+        return transactions.filter(txn => {
+            const d = coerceDate(txn.date);
+            return d && d > now;
+        });
+    }, [transactions]);
+
+    useEffect(() => {
+        if (futureTransactions.length > 0) {
+            futureTransactions.forEach(txn => {
+                console.warn(`Future transaction detected for ${txn.ticker || (holding as any).ticker} on date ${txn.date}`);
+            });
+        }
+    }, [futureTransactions, holding]);
 
 
     const vals = useMemo(() => {
@@ -290,6 +305,12 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
 
     return (
         <Box sx={{ mt: 2 }}>
+            {futureTransactions.length > 0 && (
+                <Alert severity="warning" sx={{ mb: 2 }}>
+                    {t('Note: Some transactions with future dates exist and are not included in the calculations.', 'הערה: קיימות עסקאות עם תאריכים עתידיים והן אינן נכללות בחישובים.')}
+                </Alert>
+            )}
+
             {/* SECTION: HOLDINGS */}
             {section === 'holdings' && (
                 <Box>

@@ -15,11 +15,11 @@ import PieChartIcon from '@mui/icons-material/PieChart';
 import CandlestickChartIcon from '@mui/icons-material/CandlestickChart';
 import DateRangeIcon from '@mui/icons-material/DateRange';
 import QueryStatsIcon from '@mui/icons-material/QueryStats';
-import EventIcon from '@mui/icons-material/Event';
+import AssignmentIcon from '@mui/icons-material/Event';
 import RecordVoiceOverIcon from '@mui/icons-material/RecordVoiceOver';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
-import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
 import PaidIcon from '@mui/icons-material/Paid';
+import AssessmentIconOutlined from '@mui/icons-material/AssessmentOutlined';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { TickerChart, type TrendType, type GammaType, TrendLineIcon, GammaIcon } from './TickerChart';
 import type { TickerProfile } from '../lib/types/ticker';
@@ -229,6 +229,25 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
     if (holdingData && checkLots((holdingData as any)._lots)) return true;
     return false;
   }, [hasHolding, enrichedHolding, engineHoldings, holdingData]);
+
+  const totalVestedShares = useMemo(() => {
+    if (engineHoldings && engineHoldings.length > 0) {
+      return engineHoldings.reduce((acc: number, h: any) => acc + (h.qtyVested ?? h.qtyTotal ?? h.qty ?? 0), 0);
+    }
+    if (portfolios && portfolios.length > 0 && hasHolding) {
+      return portfolios.reduce((acc, p) => acc + (p.holdings?.filter(h =>
+        h.ticker.toUpperCase() === ticker?.toUpperCase() &&
+        (!exchange || h.exchange.toUpperCase() === exchange.toUpperCase() || (isUSExchange(h.exchange) && isUSExchange(exchange as any)))
+      ).reduce((sub, h: any) => sub + (h.qtyVested ?? h.qtyTotal ?? 0), 0) || 0), 0);
+    }
+    if (enrichedHolding) {
+      return enrichedHolding.qtyVested || 0;
+    }
+    if (holdingData) {
+      return (holdingData as any).qtyVested || (holdingData as any).qty || 0;
+    }
+    return 0;
+  }, [engineHoldings, portfolios, ticker, exchange, hasHolding, enrichedHolding, holdingData]);
 
   // Force activeTab to 'analysis' if hasHolding is false and we are on a holding tab
   // Force activeTab to 'analysis' if hasHolding is false AND we are done loading.
@@ -470,7 +489,24 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
         </DialogTitle>
 
         <Box sx={{ borderBottom: 1, borderColor: 'divider', px: 2 }}>
-          <Tabs value={activeTab} onChange={handleTabChange} variant="scrollable" scrollButtons="auto" allowScrollButtonsMobile>
+          <Tabs
+            value={
+              (activeTab === 'analysis') ||
+                (activeTab === 'financials' && (!!(displayData as any)?.calendarEvents || !!(displayData as any)?.incomeStatementHistory || !!(displayData as any)?.incomeStatementHistoryQuarterly)) ||
+                (activeTab === 'holdings' && hasHolding) ||
+                (activeTab === 'transactions' && hasHolding) ||
+                (activeTab === 'grants' && hasGrants) ||
+                (activeTab === 'dividends' && hasHolding) ||
+                (activeTab === 'assets' && !!(displayData as any)?.meta?.underlyingAssets) ||
+                (activeTab === 'ai')
+                ? activeTab
+                : false
+            }
+            onChange={handleTabChange}
+            variant="scrollable"
+            scrollButtons="auto"
+            allowScrollButtonsMobile
+          >
             <Tab label={t('Analysis', 'ניתוח')} value="analysis" />
             {(!!(displayData as any)?.calendarEvents || !!(displayData as any)?.incomeStatementHistory || !!(displayData as any)?.incomeStatementHistoryQuarterly) && <Tab label={t('Financials', 'פיננסי')} value="financials" />}
             {hasHolding && <Tab label={t('Holdings', 'החזקות')} value="holdings" />}
@@ -820,18 +856,23 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                                   variant="outlined"
                                   size="small"
                                   sx={{
-                                    minWidth: 80,
+                                    minWidth: 90,
                                     py: 0.5,
                                     px: 0.75,
                                     height: 'auto',
                                     '& .MuiChip-label': { display: 'flex', flexDirection: 'column', alignItems: 'center', overflow: 'hidden' },
-                                    '& .MuiTypography-caption, & .MuiTypography-body2': { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 84 }
+                                    '& .MuiTypography-caption, & .MuiTypography-body2': { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 120 }
                                   }}
                                   label={
                                     <>
                                       <Typography variant="caption" color="text.secondary">{translateRange(range)}</Typography>
                                       <Typography variant="body2" sx={{ fontWeight: 600, color: textColor }}>{formatPercent(value)}</Typography>
                                       <Typography variant="caption" sx={{ fontSize: '0.7rem', opacity: 0.8 }}>{formatMoneyValue({ amount: info.amount, currency: normalizeCurrency(displayData?.currency || 'USD') })}</Typography>
+                                      {totalVestedShares > 0 && (
+                                        <Typography variant="caption" sx={{ fontSize: '0.7rem', opacity: 0.8, fontWeight: 'bold' }}>
+                                          {t('Total:', 'סה״כ:')} {formatMoneyValue({ amount: info.amount * totalVestedShares, currency: normalizeCurrency(displayData?.currency || 'USD') })}
+                                        </Typography>
+                                      )}
                                     </>
                                   }
                                 />
@@ -882,7 +923,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                 {activeTab === 'financials' && ((displayData as any)?.incomeStatementHistory || (displayData as any)?.incomeStatementHistoryQuarterly || (displayData as any)?.calendarEvents) && (
                   <TabPanelWithShadows theme={theme}>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      {(displayData as any)?.calendarEvents && <CalendarEventsView events={(displayData as any).calendarEvents} t={t} />}
+                      {(displayData as any)?.calendarEvents && <CalendarEventsView events={(displayData as any).calendarEvents} currency={(displayData as any).currency || (displayData as any).stockCurrency || 'USD'} expectedDivTotal={totalVestedShares && (displayData as any).calendarEvents?.dividendAmount ? totalVestedShares * (displayData as any).calendarEvents.dividendAmount : undefined} t={t} />}
                       {((displayData as any)?.incomeStatementHistory || (displayData as any)?.incomeStatementHistoryQuarterly) && (
                         <IncomeStatementView
                           history={(displayData as any).incomeStatementHistory}
@@ -1022,7 +1063,7 @@ const formatDateWithRelative = (dateStr: string | number | Date, t: any) => {
   return `${dStr} (${t('{days} days ago', 'לפני {days} ימים').replace('{days}', String(Math.abs(days)))})`;
 };
 
-const CalendarEventsView = ({ events, t }: { events: any, t: any }) => {
+const CalendarEventsView = ({ events, currency, t, expectedDivTotal }: { events: any, currency?: string, t: any, expectedDivTotal?: number }) => {
   const earningsCallDays = events.earningsCallDate ? getDaysDiff(events.earningsCallDate) : undefined;
   const showEarningsCall = earningsCallDays !== undefined && earningsCallDays >= -30;
 
@@ -1034,10 +1075,10 @@ const CalendarEventsView = ({ events, t }: { events: any, t: any }) => {
     <Box sx={{ p: 1.5, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 1.5 }}>
       {events.earningsDate && (
         <EventCard
-          title={t('Earnings Date', 'תאריך דיווח נתונים')}
+          title={t('Earnings Date', 'תאריך דיווח רווחים')}
           value={formatDateWithRelative(events.earningsDate, t)}
           subValue={events.isEarningsDateEstimate ? t('Estimate', 'הערכה') : undefined}
-          icon={<EventIcon fontSize="small" />}
+          icon={<AssignmentIcon fontSize="small" />}
         />
       )}
       {showEarningsCall && events.earningsCallDate && (
@@ -1058,9 +1099,9 @@ const CalendarEventsView = ({ events, t }: { events: any, t: any }) => {
       {events.revenueEstimate?.avg != null && (
         <EventCard
           title={t('Revenue Estimate', 'הערכת הכנסות')}
-          value={formatMoneyCompactValue({ amount: events.revenueEstimate.avg, currency: events.revenueEstimate.currency || 'USD' })}
-          subValue={`${t('Low', 'נמוך')}: ${formatMoneyCompactValue({ amount: events.revenueEstimate.low, currency: events.revenueEstimate.currency || 'USD' })} | ${t('High', 'גבוה')}: ${formatMoneyCompactValue({ amount: events.revenueEstimate.high, currency: events.revenueEstimate.currency || 'USD' })}`}
-          icon={<MonetizationOnIcon fontSize="small" />}
+          value={formatMoneyCompactValue({ amount: events.revenueEstimate.avg, currency: (events.revenueEstimate.currency || 'USD') as any })}
+          subValue={`${t('Low', 'נמוך')}: ${formatMoneyCompactValue({ amount: events.revenueEstimate.low, currency: (events.revenueEstimate.currency || 'USD') as any })} | ${t('High', 'גבוה')}: ${formatMoneyCompactValue({ amount: events.revenueEstimate.high, currency: (events.revenueEstimate.currency || 'USD') as any })}`}
+          icon={<AssessmentIconOutlined fontSize="small" />}
         />
       )}
       {showDiv && (
@@ -1068,6 +1109,7 @@ const CalendarEventsView = ({ events, t }: { events: any, t: any }) => {
           title={t('Dividends', 'דיבידנדים')}
           value={
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+              {events.dividendAmount && <Typography variant="body2" sx={{ fontSize: '0.8rem', mb: 0.5 }}>{typeof events.dividendAmount === 'number' ? formatMoneyValue({ amount: events.dividendAmount, currency: (currency || 'USD') as any }, undefined, 2) : events.dividendAmount} {t('PS', 'למניה')}{expectedDivTotal ? ` • ${formatMoneyValue({ amount: expectedDivTotal, currency: (currency || 'USD') as any }, undefined, 0)} ${t('Total', 'סה״כ')}` : ''}</Typography>}
               {events.dividendDate && <Typography variant="body2" sx={{ fontSize: '0.8rem' }} noWrap>{t('Pay', 'תשלום')}: <strong>{formatDateWithRelative(events.dividendDate, t)}</strong></Typography>}
               {events.exDividendDate && <Typography variant="body2" sx={{ fontSize: '0.8rem' }} noWrap>{t('Ex', 'אקס')}: <strong>{formatDateWithRelative(events.exDividendDate, t)}</strong></Typography>}
             </Box>
@@ -1156,10 +1198,10 @@ const IncomeStatementView = ({ history, historyQuarterly, currency, t }: { histo
             {activeHistory.map((row, i) => (
               <TableRow key={i}>
                 <TableCell>{new Date(row.endDate).toLocaleDateString()}</TableCell>
-                {hasRevenue && <TableCell align="right">{formatValue(row.totalRevenue)}</TableCell>}
-                {hasGrossProfit && <TableCell align="right">{formatValue(row.grossProfit)}</TableCell>}
-                {hasOperatingIncome && <TableCell align="right">{formatValue(row.operatingIncome)}</TableCell>}
-                {hasNetIncome && <TableCell align="right">{formatValue(row.netIncome)}</TableCell>}
+                {hasRevenue && <TableCell align="right">{formatCompactVal(row.totalRevenue)}</TableCell>}
+                {hasGrossProfit && <TableCell align="right">{formatCompactVal(row.grossProfit)}</TableCell>}
+                {hasOperatingIncome && <TableCell align="right">{formatCompactVal(row.operatingIncome)}</TableCell>}
+                {hasNetIncome && <TableCell align="right">{formatCompactVal(row.netIncome)}</TableCell>}
               </TableRow>
             ))}
           </TableBody>
