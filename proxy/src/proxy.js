@@ -1,3 +1,7 @@
+import { isRateLimited } from './rateLimit.js';
+import { getYahooCrumb, clearYahooCache } from './yahooCrumb.js';
+import { VALID_VALUE_REGEX, replacePlaceholder, getTaseFetchDate, formatDate, configurePensyanetOptions, addApiSpecificHeaders } from './utils.js';
+
 const API_MAP = {
   "yahoo_hist": "https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1d&range={range}&events=split,div",
   "globes_data": "https://www.globes.co.il/data/webservices/financial.asmx/getInstrument?exchange={exchange}&symbol={ticker}",
@@ -39,142 +43,64 @@ const CACHE_TTL_MAP = {
 };
 
 
-// Rate limiting state (in-memory, per-isolate)
-const IP_LIMITS = new Map();
-const SHORT_LIMIT = 120;
-const SHORT_WINDOW = 5 * 60 * 1000; // 5 minutes
-const LONG_LIMIT = 450;
-const LONG_WINDOW = 12 * 60 * 60 * 1000; // 12 hours
 
-function isRateLimited(ip) {
-  if (!ip) return false;
-  const now = Date.now();
-  let record = IP_LIMITS.get(ip);
+async function invokeApi(apiId, params, env, ctx, corsHeaders) {
+  if (apiId === 'yahoo_quote_summary') {
+    try {
+      const ticker = params.get('ticker');
+      const modulesStr = params.get('modules') || 'calendarEvents';
+      if (!ticker) return new Response("Missing ticker", { status: 400, headers: corsHeaders });
 
-  if (!record) {
-    record = {
-      short: { count: 1, startTime: now },
-      long: { count: 1, startTime: now }
-    };
-    IP_LIMITS.set(ip, record);
-    return false;
-  }
+      const { cookie, crumb } = await getYahooCrumb();
+      let url = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=${modulesStr}&crumb=${crumb}`;
 
-  // Check/Update Short window (5 mins)
-  if (now - record.short.startTime > SHORT_WINDOW) {
-    record.short.count = 1;
-    record.short.startTime = now;
-  } else {
-    record.short.count++;
-  }
+      let res = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Cookie': cookie
+        }
+      });
 
-  // Check/Update Long window (24 hours)
-  if (now - record.long.startTime > LONG_WINDOW) {
-    record.long.count = 1;
-    record.long.startTime = now;
-  } else {
-    record.long.count++;
-  }
+      let text = await res.text();
+      let isUnauthorized = res.status === 401;
 
-  IP_LIMITS.set(ip, record);
-  return record.short.count > SHORT_LIMIT || record.long.count > LONG_LIMIT;
-}
+      if (!isUnauthorized && text.includes('"Unauthorized"')) {
+        try {
+          const data = JSON.parse(text);
+          if (data?.finance?.error?.code === 'Unauthorized') isUnauthorized = true;
+          if (data?.quoteSummary?.error?.code === 'Unauthorized') isUnauthorized = true;
+        } catch (e) { }
+      }
 
-// Regex: English (a-z), Hebrew (א-ת), Numbers (0-9) and symbols: , . : - ^ and space
-function replacePlaceholder(urlString, key, value) {
-  return urlString
-    .replaceAll(`{raw:${key}}`, () => value)
-    .replaceAll(`{${key}}`, encodeURIComponent(value));
-}
+      if (isUnauthorized) {
+        clearYahooCache();
+        const fresh = await getYahooCrumb();
+        url = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=${modulesStr}&crumb=${fresh.crumb}`;
 
-const VALID_VALUE_REGEX = /^[a-zA-Z0-9\u05D0-\u05EA,.:\-^ /_=]+$/;
+        res = await fetch(url, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Cookie': fresh.cookie
+          }
+        });
+        text = await res.text();
+      }
 
-function formatDate(date) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}/${m}/${d}`;
-}
+      const newResponse = new Response(text, res);
+      newResponse.headers.set("Cache-Control", `public, max-age=3600`);
+      newResponse.headers.set("X-Proxy-Cache", "MISS");
+      Object.keys(corsHeaders).forEach(key => newResponse.headers.set(key, corsHeaders[key]));
 
-function getTaseFetchDate(params) {
-  if (params.get('taseFetchDate')) {
-    return new Date(params.get('taseFetchDate'));
-  }
-  const taseFetchDate = new Date();
-  const daysToSubtract = taseFetchDate.getDay() === 0 ? 2 : 1;
-  const adjustedDate = new Date(taseFetchDate.getTime() - daysToSubtract * 24 * 60 * 60 * 1000);
-  params.set('taseFetchDate', formatDate(adjustedDate));
-  return adjustedDate;
-}
+      const cacheUrl = new URL(`https://proxy.internal/yahoo_quote_summary?ticker=${ticker}&modules=${modulesStr}`);
+      const cacheKey = new Request(cacheUrl.toString(), { method: "GET" });
+      ctx.waitUntil(caches.default.put(cacheKey, newResponse.clone()));
 
-function configurePensyanetOptions(apiId, params, fetchOpts) {
-  fetchOpts.headers["Content-Type"] = "application/x-www-form-urlencoded";
-  let startYear = params.get('startYear');
-  let startMonth = params.get('startMonth');
-  let endYear = params.get('endYear');
-  let endMonth = params.get('endMonth');
-
-  if (!startYear || !startMonth || !endYear || !endMonth) {
-    throw new Error(`Missing required parameters for ${apiId}: startYear, startMonth, endYear, endMonth`);
-  }
-
-  const isList = apiId === 'pensyanet_list';
-
-  if (isList) {
-    const today = new Date();
-    const limitDate = new Date(today.getFullYear(), today.getMonth() - 2, 1);
-    const requestedEndDate = new Date(parseInt(endYear, 10), parseInt(endMonth, 10) - 1, 1);
-
-    if (requestedEndDate > limitDate) {
-      endYear = limitDate.getFullYear().toString();
-      endMonth = String(limitDate.getMonth() + 1).padStart(2, '0');
+      return newResponse;
+    } catch (e) {
+      return new Response(e.message, { status: 500, headers: corsHeaders });
     }
   }
 
-  const startDateObj = new Date(parseInt(startYear, 10), parseInt(startMonth, 10) - 1, 1);
-  const endDateObj = new Date(parseInt(endYear, 10), parseInt(endMonth, 10) - 1, 1);
-
-  if (startDateObj > endDateObj) {
-    startYear = endYear;
-    startMonth = endMonth;
-  }
-
-  const startDate = new Date(Date.UTC(startYear, startMonth - 1, 1)).toISOString().slice(0, 10);
-  const endDate = new Date(Date.UTC(endYear, endMonth, 0)).toISOString().slice(0, 10);
-  const fundId = params.get('fundId');
-
-  if (!isList && !fundId) {
-    throw new Error("Missing required parameter for pensyanet_fund: fundId");
-  }
-
-  const vmObject = {
-    "ParametersTab": 0,
-    "BasicSearchVM": {
-      "SelectedFunds": isList ? [{ "FundID": 0, "IsGroup": true }] : [{ "FundID": parseInt(fundId, 10), "IsGroup": false }],
-      "SimpleSearchReportType": 1
-    },
-    "XmlExportVM": { "SelectedMainReportType": 1001, "SelectedReportType": isList ? "1" : "3" },
-    "ReportStartDate": `${startDate}T00:00:00.000Z`,
-    "ReportEndDate": `${endDate}T00:00:00.000Z`
-  };
-  fetchOpts.body = `vm=${encodeURIComponent(JSON.stringify(vmObject))}`;
-}
-
-function addApiSpecificHeaders(apiId, env, fetchOpts) {
-  if (apiId.startsWith('tase')) {
-    fetchOpts.headers["apiKey"] = env.TASE_API_KEY;
-  } else if (apiId === 'cbs_price_index') {
-    fetchOpts.headers["Referer"] = "https://www.cbs.gov.il/";
-  } else if (apiId.startsWith("globes")) {
-    fetchOpts.headers["Referer"] = "https://www.globes.co.il/";
-  } else if (apiId.startsWith("yahoo")) {
-    fetchOpts.headers["Referer"] = "https://finance.yahoo.com/";
-  } else if (apiId.startsWith("pensyanet")) {
-    fetchOpts.headers["Referer"] = "https://pensyanet.cma.gov.il/";
-  }
-}
-
-async function invokeApi(apiId, params, env, ctx, corsHeaders) {
   if (!apiId || !API_MAP[apiId]) {
     return new Response("Invalid or missing apiId", { status: 400, headers: corsHeaders });
   }
