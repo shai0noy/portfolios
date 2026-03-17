@@ -229,6 +229,7 @@ export class Holding {
     public nameHe?: string;
     public type?: any; // InstrumentClassification
     public underlyingAssets?: { name: string, weight: number }[];
+    public calendarEvents?: any;
 
 
     // Market Data (Mutable)

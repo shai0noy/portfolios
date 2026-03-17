@@ -217,6 +217,7 @@ export function calculateDashboardSummary(data: any[], displayCurrency: string, 
       avgYearlyReturn: h.avgYearlyReturn,
       realizedTax, // Added
       underlyingAssets: h.underlyingAssets,
+      calendarEvents: h.calendarEvents,
       display
     } as unknown as EnrichedDashboardHolding;
   });

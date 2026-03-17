@@ -479,6 +479,10 @@ export class FinanceEngine {
                     h.underlyingAssets = live.meta.underlyingAssets;
                 }
 
+                if (live.calendarEvents) {
+                    h.calendarEvents = live.calendarEvents;
+                }
+
                 if (live.dividends && Array.isArray(live.dividends)) {
                     const oneYearAgo = new Date();
                     oneYearAgo.setUTCFullYear(oneYearAgo.getUTCFullYear() - 1);

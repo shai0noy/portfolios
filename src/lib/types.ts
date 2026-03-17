@@ -3,6 +3,7 @@ import type { InstrumentClassification } from './types/instrument';
 import { InstrumentType } from './types/instrument';
 import type { ProvidentInfo } from './fetching/types';
 import type { MultiCurrencyValue } from './data/multiCurrency';
+import type { CalendarEvents } from './fetching/types';
 
 export type { ExchangeMetadata, InstrumentClassification, ProvidentInfo, MultiCurrencyValue };
 export { InstrumentType };
@@ -340,6 +341,7 @@ export interface DashboardHolding {
   tickerChangePctAll?: number;
 
   type?: InstrumentClassification;
+  calendarEvents?: CalendarEvents;
   generateGainForPeriod?: (
     startDate: Date,
     historyProvider: (ticker: string) => any,

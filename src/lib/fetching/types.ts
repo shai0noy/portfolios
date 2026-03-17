@@ -22,6 +22,7 @@ export interface CalendarEvents {
   revenueEstimate?: { low: number; high: number; avg: number };
   exDividendDate?: Date;
   dividendDate?: Date;
+  dividendAmount?: number;
 }
 
 export interface IncomeStatement {

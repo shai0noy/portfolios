@@ -154,7 +154,7 @@ export async function fetchYahooTickerData(
       let hasTransientError = false;
       const results = await Promise.all(candidates.map(async (yahooTicker) => {
         const histUrl = `https://portfolios.noy-shai.workers.dev/?apiId=yahoo_hist&ticker=${yahooTicker}&range=${range}`;
-        const calUrl = `https://portfolios.noy-shai.workers.dev/?apiId=yahoo_quote_summary&ticker=${encodeURIComponent(yahooTicker)}&modules=calendarEvents,incomeStatementHistory,incomeStatementHistoryQuarterly`;
+        const calUrl = `https://portfolios.noy-shai.workers.dev/?apiId=yahoo_quote_summary&ticker=${encodeURIComponent(yahooTicker)}&modules=calendarEvents,incomeStatementHistory,incomeStatementHistoryQuarterly,defaultKeyStatistics`;
 
         try {
           const fetchOpts: RequestInit = { signal, cache: forceRefresh ? 'no-cache' : 'force-cache' };
@@ -394,6 +394,18 @@ export async function fetchYahooTickerData(
             }
             if (calEvents.dividendDate?.raw) {
               eventMap.dividendDate = new Date(calEvents.dividendDate.raw * 1000);
+            }
+
+            const defaultKeyStatistics = calData?.quoteSummary?.result?.[0]?.defaultKeyStatistics;
+            if (defaultKeyStatistics?.lastDividendValue?.raw !== undefined && defaultKeyStatistics?.lastDividendDate?.raw !== undefined) {
+              const lastDivRaw = defaultKeyStatistics.lastDividendDate.raw;
+              const calExRaw = calEvents.exDividendDate?.raw;
+              const calPayRaw = calEvents.dividendDate?.raw;
+
+              // Only use the amount if the last dividend date explicitly matches the calendar ex or pay date.
+              if (lastDivRaw === calExRaw || lastDivRaw === calPayRaw) {
+                eventMap.dividendAmount = defaultKeyStatistics.lastDividendValue.raw;
+              }
             }
 
             if (Object.keys(eventMap).length > 0) {
