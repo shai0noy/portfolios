@@ -128,7 +128,17 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   const [settingsMenuAnchor, setSettingsMenuAnchor] = useState<null | HTMLElement>(null);
   const [rangeMenuAnchor, setRangeMenuAnchor] = useState<null | HTMLElement>(null);
   const [analysisOpen, setAnalysisOpen] = useState(false);
-  const [chatOpen, setChatOpen] = useState(false);
+  const initialHash = (location.hash || '').replace('#', '');
+  const isInitialAi = initialHash === 'ai';
+  const initialTab = (initialHash && initialHash !== 'ai') ? initialHash : 'analysis';
+
+  const [activeTab, setActiveTabRaw] = useState(initialTab);
+  const handleTabChange = (_: any, v: string) => {
+    setActiveTabRaw(v);
+    navigate({ hash: v }, { replace: true });
+  };
+
+  const [chatOpen, setChatOpen] = useState(isInitialAi);
   const [apiKey, setApiKey] = useState('');
 
   const handleOpenChat = async () => {
@@ -137,6 +147,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
       if (key) {
         setApiKey(key);
         setChatOpen(true);
+        navigate({ hash: 'ai' }, { replace: true });
       } else {
         toast.error(t('Please set your Gemini API Key in the Dashboard first.', 'אנא הגדר מפתח API של Gemini במסך הראשי תחילה.'));
       }
@@ -150,12 +161,15 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
     if (location.state && (location.state as any).openAiChatId && !chatOpen) {
       handleOpenChat();
     }
-  }, [location.state, chatOpen]);
+    // Also support hash change from external navigation if we mount with #ai or others
+    if (isInitialAi && !chatOpen && !apiKey) {
+      handleOpenChat();
+    }
+  }, [location.state, location.hash, chatOpen]);
+
   const [customRangeOpen, setCustomRangeOpen] = useState(false);
   const [customDateRange, setCustomDateRange] = useState<{ start: Date | null, end: Date | null }>({ start: null, end: null });
 
-  const [activeTab, setActiveTabRaw] = useState('analysis');
-  const handleTabChange = (_: any, v: string) => setActiveTabRaw(v);
   const [engineHoldings, setEngineHoldings] = useState<Holding[]>([]);
   const [exchangeRates, setExchangeRates] = useState<ExchangeRates | null>(null);
 
@@ -922,9 +936,12 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
       </Dialog>
       <TickerAiChat
         open={chatOpen}
-        onClose={() => setChatOpen(false)}
         apiKey={apiKey}
         tickerData={(displayData && 'exchange' in displayData) ? (displayData as any) : undefined}
+        onClose={() => {
+          setChatOpen(false);
+          navigate({ hash: activeTab }, { replace: true });
+        }}
         historicalData={historicalData ?? undefined}
         holdings={engineHoldings}
         displayCurrency={normalizeCurrency(localStorage.getItem('displayCurrency') || 'USD')}
