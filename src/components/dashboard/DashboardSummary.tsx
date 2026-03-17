@@ -105,9 +105,9 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
   const startTimer = useCallback((delay: number) => {
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
-      setActiveStep(prev => (prev + 1) % 4);
+      setActiveStep(prev => (prev + 1) % totalSteps);
     }, delay);
-  }, []);
+  }, [totalSteps]);
 
   const handleTickerSearchSelect = (ticker: TickerProfile) => {
     handleSelectComparison({
@@ -150,8 +150,8 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
   const handleManualStep = (direction: 'next' | 'prev') => {
     isManualRef.current = true;
     setActiveStep(prev => {
-      if (direction === 'next') return (prev + 1) % 4;
-      return (prev - 1 + 4) % 4;
+      if (direction === 'next') return (prev + 1) % totalSteps;
+      return (prev - 1 + totalSteps) % totalSteps;
     });
   };
 
@@ -860,7 +860,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
           <Box sx={{ display: activeStep === idxMarket ? 'block' : 'none', height: isMobile ? 'auto' : '100%' }}>
             <Fade in={activeStep === idxMarket} timeout={700}>
               <Box>
-                <MarketViewSummary isMobile={isMobile} />
+                <MarketViewSummary isMobile={isMobile} isActive={activeStep === idxMarket} />
               </Box>
             </Fade>
           </Box>

@@ -16,32 +16,32 @@ import { DARK_COLORS, LIGHT_COLORS } from '../../lib/hooks/useChartComparison';
 
 interface MarketSection {
   title: string;
-  tickers: { symbol: string; exchange: Exchange; name: string }[];
+  tickers: { symbol: string; exchange: Exchange; name: string; nameHe?: string }[];
 }
 
 const MARKETS: MarketSection[] = [
   {
     title: 'TLV',
     tickers: [
-      { symbol: '142', exchange: Exchange.TASE, name: 'TA-35' },
-      { symbol: '137', exchange: Exchange.TASE, name: 'TA-125' },
-      { symbol: '143', exchange: Exchange.TASE, name: 'TA-90 (Midcap)' },
+      { symbol: '142', exchange: Exchange.TASE, name: 'TA-35', nameHe: 'ת״א-35' },
+      { symbol: '137', exchange: Exchange.TASE, name: 'TA-125', nameHe: 'ת״א-125' },
+      { symbol: '143', exchange: Exchange.TASE, name: 'TA-90', nameHe: 'ת״א-90' },
     ]
   },
   {
     title: 'US',
     tickers: [
-      { symbol: '^GSPC', exchange: Exchange.NASDAQ, name: 'S&P 500' },
-      { symbol: '^IXIC', exchange: Exchange.NASDAQ, name: 'NASDAQ' },
-      { symbol: '^DJI', exchange: Exchange.NYSE, name: 'Dow Jones' },
+      { symbol: '^GSPC', exchange: Exchange.NASDAQ, name: 'S&P 500', nameHe: 'S&P 500' },
+      { symbol: '^IXIC', exchange: Exchange.NASDAQ, name: 'NASDAQ', nameHe: 'נאסד״ק' },
+      { symbol: '^DJI', exchange: Exchange.NYSE, name: 'Dow Jones', nameHe: 'דאו ג׳ונס' },
     ]
   },
   {
     title: 'World',
     tickers: [
-      { symbol: '^GDAXI', exchange: Exchange.FWB, name: 'DAX (Germany)' },
-      { symbol: '^FTSE', exchange: Exchange.LSE, name: 'FTSE 100 (UK)' },
-      { symbol: '^N225', exchange: Exchange.JPX, name: 'Nikkei 225 (Japan)' },
+      { symbol: '^GDAXI', exchange: Exchange.FWB, name: 'DAX (Germany)', nameHe: 'DAX (גרמניה)' },
+      { symbol: '^FTSE', exchange: Exchange.LSE, name: 'FTSE 100 (UK)', nameHe: 'FTSE 100 (בריטניה)' },
+      { symbol: '^N225', exchange: Exchange.JPX, name: 'Nikkei 225 (Japan)', nameHe: 'ניקיי 225 (יפן)' },
     ]
   }
 ];
@@ -51,11 +51,14 @@ const TOGGLE_RANGES: TimeRange[] = ['1W', '1M', '3M', '6M', 'YTD', '1Y', '5Y', '
 
 interface MarketViewProps {
   isMobile?: boolean;
+  isActive?: boolean;
 }
 
-export function MarketViewSummary({ isMobile }: MarketViewProps) {
-  const { t } = useLanguage();
+export function MarketViewSummary({ isMobile, isActive = true }: MarketViewProps) {
+  const { t, isRtl } = useLanguage();
   const theme = useTheme();
+
+  const getName = (ticker: any) => isRtl ? (ticker.nameHe || ticker.name) : ticker.name;
 
   const isMobileMediaQuery = useMediaQuery(theme.breakpoints.down('sm'));
   const isMobileRes = isMobile ?? isMobileMediaQuery;
@@ -67,6 +70,7 @@ export function MarketViewSummary({ isMobile }: MarketViewProps) {
   const [range, setRange] = useState<TimeRange>('6M');
   const [data, setData] = useState<Record<string, any[]>>({});
   const [loading, setLoading] = useState<boolean>(true);
+  const [hasLoaded, setHasLoaded] = useState<boolean>(false);
 
   // Dialog State
   const [expandedSection, setExpandedSection] = useState<MarketSection | null>(null);
@@ -118,8 +122,11 @@ export function MarketViewSummary({ isMobile }: MarketViewProps) {
   }, []);
 
   useEffect(() => {
-    fetchAllData();
-  }, [fetchAllData]);
+    if (isActive && !hasLoaded) {
+      setHasLoaded(true);
+      fetchAllData();
+    }
+  }, [isActive, hasLoaded, fetchAllData]);
 
   const processChartData = (tickers: MarketSection['tickers']) => {
     // Filter data by date range first
@@ -170,15 +177,15 @@ export function MarketViewSummary({ isMobile }: MarketViewProps) {
     if (!section) return [];
     return section.tickers.map((t, index) => {
       const hist = data[t.symbol];
-      if (!hist) return { name: t.name, data: [], color: colors[index % colors.length] };
+      if (!hist) return { name: getName(t), data: [], color: colors[index % colors.length] };
 
       return {
-        name: t.name,
+        name: getName(t),
         color: colors[index % colors.length],
         data: hist.filter(d => d.date >= startDate)
       };
     });
-  }, [data, startDate, colors]);
+  }, [data, startDate, colors, isRtl]);
 
   const rangeSelector = (
     <ToggleButtonGroup
@@ -277,7 +284,7 @@ export function MarketViewSummary({ isMobile }: MarketViewProps) {
                             formatter={(value: any, name: any) => {
                               if (value === undefined) return ['', ''];
                               const ticker = market.tickers.find(t => t.symbol === name);
-                              return [formatPercent(value), ticker?.name || name];
+                              return [formatPercent(value), ticker ? getName(ticker) : name];
                             }}
                             labelFormatter={(label) => new Date(label).toLocaleDateString()}
                           />
@@ -302,7 +309,7 @@ export function MarketViewSummary({ isMobile }: MarketViewProps) {
                           <Box key={t.symbol} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                             <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: colors[i % colors.length] }} />
                             <Typography variant="caption" sx={{ fontSize: '0.65rem', color: theme.palette.text.secondary }}>
-                              {t.name}
+                              {getName(t)}
                             </Typography>
                           </Box>
                         ))}
