@@ -13,10 +13,13 @@ import { useScrollShadows, ScrollShadows } from '../../lib/ui-utils';
  * Renders a single mover card.
  */
 const MoverItem = ({ mover, navigate, displayCurrency, sortBy }: { mover: Mover, navigate: any, displayCurrency: string, sortBy: 'change' | 'pct' }) => {
+    const { isRtl } = useLanguage();
     const isPositive = mover.change >= 0;
     const color = isPositive ? 'success.main' : 'error.main';
 
-    const potentialName = mover.holding.nameHe || mover.holding.longName || mover.holding.displayName || mover.name;
+    const potentialName = isRtl
+        ? (mover.holding.nameHe || mover.holding.longName || mover.holding.displayName || mover.name)
+        : (mover.holding.longName || mover.holding.displayName || mover.holding.nameHe || mover.name);
     const hasValidName = potentialName && potentialName !== mover.ticker;
     const nameNode = hasValidName ? potentialName : mover.ticker;
     const tickerNode = hasValidName ? mover.ticker : null;
@@ -96,10 +99,13 @@ const MoverItem = ({ mover, navigate, displayCurrency, sortBy }: { mover: Mover,
  * Renders a single mover item for mobile lists.
  */
 const MobileMoverListItem = ({ mover, navigate, displayCurrency, sortBy }: { mover: Mover, navigate: any, displayCurrency: string, sortBy: 'change' | 'pct' }) => {
+    const { isRtl } = useLanguage();
     const isPositive = mover.change >= 0;
     const color = isPositive ? 'success.main' : 'error.main';
 
-    const potentialName = mover.holding.nameHe || mover.holding.longName || mover.holding.displayName || mover.name;
+    const potentialName = isRtl
+        ? (mover.holding.nameHe || mover.holding.longName || mover.holding.displayName || mover.name)
+        : (mover.holding.longName || mover.holding.displayName || mover.holding.nameHe || mover.name);
     const hasValidName = potentialName && potentialName !== mover.ticker;
     const nameNode = hasValidName ? potentialName : mover.ticker;
     const tickerNode = hasValidName ? mover.ticker : null;

@@ -573,7 +573,7 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
                     variant="outlined"
                     size="small"
                     color="primary"
-                    sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600, minWidth: isMobile ? 36 : 64, px: isMobile ? 0 : 1.5 }}
+                    sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600, minWidth: isMobile ? 36 : 64, px: isMobile ? 0 : 1.5, height: 32 }}
                   >
                     <SmartToyIcon fontSize="small" sx={{ mr: isMobile ? 0 : 0.75 }} />
                     {!isMobile && t('AI Assistant', 'עוזר AI')}
@@ -652,7 +652,7 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
                       onChange={() => setShowClosed(!showClosed)}
                       size="small"
                       color="primary"
-                      sx={{ borderRadius: 2, textTransform: 'none', px: { xs: 1, sm: 1.5 }, py: 0.5, fontSize: { xs: '0.75rem', sm: '0.875rem' }, border: 1, borderTopRightRadius: 0, borderBottomRightRadius: 0, borderColor: 'divider', whiteSpace: 'nowrap' }}
+                        sx={{ borderRadius: 2, textTransform: 'none', px: { xs: 1, sm: 1.5 }, py: 0, height: 32, fontSize: { xs: '0.75rem', sm: '0.875rem' }, border: 1, borderTopRightRadius: 0, borderBottomRightRadius: 0, borderColor: 'divider', whiteSpace: 'nowrap' }}
                     >
                       {tShowClosed}
                     </ToggleButton>
@@ -662,7 +662,7 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
                       onChange={() => setGroupByPortfolio(!groupByPortfolio)}
                       size="small"
                       color="primary"
-                      sx={{ borderRadius: 2, textTransform: 'none', px: { xs: 1, sm: 1.5 }, py: 0.5, fontSize: { xs: '0.75rem', sm: '0.875rem' }, border: 1, borderTopLeftRadius: 0, borderBottomLeftRadius: 0, borderColor: 'divider', whiteSpace: 'nowrap', ml: '-1px' }}
+                        sx={{ borderRadius: 2, textTransform: 'none', px: { xs: 1, sm: 1.5 }, py: 0, height: 32, fontSize: { xs: '0.75rem', sm: '0.875rem' }, border: 1, borderTopLeftRadius: 0, borderBottomLeftRadius: 0, borderColor: 'divider', whiteSpace: 'nowrap', ml: '-1px' }}
                     >
                       {tGroupBy}
                     </ToggleButton>
