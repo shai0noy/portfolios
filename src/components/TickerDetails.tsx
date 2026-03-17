@@ -888,7 +888,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
           </Tooltip>
           <Box sx={{ flexGrow: 1 }} />
           <Button onClick={handleOpenChat} color="primary" variant="outlined" sx={{ textTransform: 'none', borderRadius: 2 }} startIcon={<SmartToyIcon fontSize="small" />}>
-            {t('AI Assistant', 'עוזר AI')}
+            <Box component="span" sx={{ display: { xs: 'none', md: 'inline' } }}>{t('AI Assistant', 'עוזר AI')}</Box>
           </Button>
           <Button variant="contained" onClick={handleAddTransaction} startIcon={<AddIcon />} sx={{ borderRadius: 2, textTransform: 'none' }}>{t('Add Transaction', 'הוסף עסקה')}</Button>
           <Button onClick={handleClose} color="inherit" sx={{ textTransform: 'none' }}>{t('Close', 'סגור')}</Button>

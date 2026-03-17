@@ -179,6 +179,7 @@ ${summarizeTicker()}`;
       chatId={`ticker_${tickerData.exchange}_${tickerData.ticker || subjectName} `}
       contextUrl={window.location.pathname + window.location.search}
       title={`${t('AI Assistant', 'עוזר AI')} - ${tickerData.ticker || subjectName || ''} `}
+      displayName={tickerData.ticker || subjectName}
       getSystemInstruction={getSystemInstruction}
       suggestions={suggestions}
     />

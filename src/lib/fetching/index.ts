@@ -305,7 +305,7 @@ export async function fetchTickerHistory(
   exchange: Exchange,
   signal?: AbortSignal,
   forceRefresh = false
-): Promise<Pick<TickerData, 'historical' | 'dividends' | 'splits' | 'fromCache' | 'fromCacheMax'>> {
+): Promise<Pick<TickerData, 'historical' | 'dividends' | 'splits' | 'fromCache' | 'fromCacheMax' | 'currency'>> {
   const tickerNum = Number(ticker);
 
   if (exchange === Exchange.GEMEL) {
@@ -348,6 +348,7 @@ export async function fetchTickerHistory(
     dividends: yahooDataMax?.dividends,
     splits: yahooDataMax?.splits,
     fromCache: yahooData5y?.fromCache,
-    fromCacheMax: yahooDataMax?.fromCache
+    fromCacheMax: yahooDataMax?.fromCache,
+    currency: yahooData5y?.currency || yahooDataMax?.currency
   };
 }

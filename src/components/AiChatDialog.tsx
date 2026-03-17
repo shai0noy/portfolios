@@ -280,6 +280,12 @@ ${marketOverview}
     </Box>
   );
 
+  const activePortfolioName = selectedPortfolioId ? portfolios.find(p => p.id === selectedPortfolioId)?.name : t('All Portfolios', 'כל התיקים');
+  const displayName = activePortfolioName || '';
+  const chatTitle = selectedPortfolioId
+    ? `${t('AI Portfolio Assistant', 'עוזר תיק השקעות AI')} - ${activePortfolioName}`
+    : t('AI Portfolio Assistant', 'עוזר תיק השקעות AI');
+
   return (
     <>
       <BaseAiChatDialog
@@ -288,7 +294,8 @@ ${marketOverview}
         apiKey={apiKey}
         chatId="portfolio_main"
         contextUrl={window.location.pathname + window.location.search}
-        title={t('AI Portfolio Assistant', 'עוזר תיק השקעות AI')}
+        title={chatTitle}
+        displayName={displayName}
         headerIcon={<SmartToyIcon color="primary" />}
         getSystemInstruction={getSystemInstruction}
         suggestions={[

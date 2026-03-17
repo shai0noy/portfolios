@@ -59,8 +59,8 @@ export interface BaseAiChatDialogProps {
   onTickerClick?: (exchange: string, symbol: string) => void;
   onNavClick?: (path: string) => void;
   onProfileClick?: () => void;
-
   initialPrompt?: string;
+  displayName?: string;
 }
 
 function LinkParser({ children, t, onPromptClick, onTickerClick, onProfileClick, onNavClick }: {
@@ -545,7 +545,7 @@ export const BaseAiChatDialog: React.FC<BaseAiChatDialogProps> = ({
   getSystemInstruction, suggestions = [], emptyStateContent,
   disclaimerText, customDisclaimer, headerMenuAddons,
   portfolios = [], selectedPortfolioId = null, onPortfolioChange = () => { },
-  onTickerClick, onNavClick, onProfileClick, initialPrompt
+  onTickerClick, onNavClick, onProfileClick, initialPrompt, displayName
 }) => {
   const { t } = useLanguage();
   const theme = useTheme();
@@ -582,7 +582,9 @@ export const BaseAiChatDialog: React.FC<BaseAiChatDialogProps> = ({
   useEffect(() => {
     if (messages.length > 0) {
       const messageText = messages[0].parts[0].text || '';
-      const sessTitle = messageText.substring(0, 40) + (messageText.length > 40 ? '...' : '');
+      const contextPrefix = displayName ? `${displayName}: ` : '';
+      const sessTitle = contextPrefix + messageText.substring(0, 40) + (messageText.length > 40 ? '...' : '');
+
       const newSession: ChatSession = {
         id: activeSessionId,
         contextId: chatId,
