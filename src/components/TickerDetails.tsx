@@ -472,11 +472,11 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
         <Box sx={{ borderBottom: 1, borderColor: 'divider', px: 2 }}>
           <Tabs value={activeTab} onChange={handleTabChange} variant="scrollable" scrollButtons="auto" allowScrollButtonsMobile>
             <Tab label={t('Analysis', 'ניתוח')} value="analysis" />
+            {(!!(displayData as any)?.calendarEvents || !!(displayData as any)?.incomeStatementHistory || !!(displayData as any)?.incomeStatementHistoryQuarterly) && <Tab label={t('Financials', 'פיננסי')} value="financials" />}
             {hasHolding && <Tab label={t('Holdings', 'החזקות')} value="holdings" />}
             {hasHolding && <Tab label={t('Transactions', 'עסקאות')} value="transactions" />}
             {hasGrants && <Tab label={t('Grants', 'מענקים')} value="grants" />}
             {hasHolding && <Tab label={t('Dividends', 'דיבידנדים')} value="dividends" />}
-            {(!!(displayData as any)?.calendarEvents || !!(displayData as any)?.incomeStatementHistory || !!(displayData as any)?.incomeStatementHistoryQuarterly) && <Tab label={t('Financials', 'פיננסי')} value="financials" />}
           </Tabs>
         </Box>
 
@@ -1026,6 +1026,10 @@ const CalendarEventsView = ({ events, t }: { events: any, t: any }) => {
   const earningsCallDays = events.earningsCallDate ? getDaysDiff(events.earningsCallDate) : undefined;
   const showEarningsCall = earningsCallDays !== undefined && earningsCallDays >= -30;
 
+  const divExDays = events.exDividendDate ? getDaysDiff(events.exDividendDate) : undefined;
+  const divPayDays = events.dividendDate ? getDaysDiff(events.dividendDate) : undefined;
+  const showDiv = (divExDays !== undefined && divExDays >= -30) || (divPayDays !== undefined && divPayDays >= -30);
+
   return (
     <Box sx={{ p: 1.5, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 1.5 }}>
       {events.earningsDate && (
@@ -1059,7 +1063,7 @@ const CalendarEventsView = ({ events, t }: { events: any, t: any }) => {
           icon={<MonetizationOnIcon fontSize="small" />}
         />
       )}
-      {(events.dividendDate || events.exDividendDate) && (
+      {showDiv && (
         <EventCard
           title={t('Dividends', 'דיבידנדים')}
           value={
@@ -1082,20 +1086,27 @@ const IncomeStatementView = ({ history, historyQuarterly, currency, t }: { histo
   const activeHistory = period === 'Quarterly' && historyQuarterly?.length ? historyQuarterly : history;
   if (!activeHistory || activeHistory.length === 0) return null;
 
+  const sanitizeZero = (val: any) => (val === 0 ? undefined : val);
+
   // Format data for chart (reverse to chronological order for chart)
   const chartData = [...activeHistory].reverse().map(item => {
     const d = new Date(item.endDate);
     return {
       periodName: period === 'Quarterly' ? `${d.getFullYear()} Q${Math.ceil((d.getMonth() + 1) / 3)}` : d.getFullYear().toString(),
-      Revenue: item.totalRevenue,
-      GrossProfit: item.grossProfit,
-      NetIncome: item.netIncome,
-      OperatingIncome: item.operatingIncome
+      Revenue: sanitizeZero(item.totalRevenue),
+      GrossProfit: sanitizeZero(item.grossProfit),
+      NetIncome: sanitizeZero(item.netIncome),
+      OperatingIncome: sanitizeZero(item.operatingIncome)
     };
   });
 
-  const formatValue = (val: number | undefined) => val !== undefined && val !== null ? formatMoneyValue({ amount: val, currency: normalizeCurrency(currency || 'USD') }) : '-';
-  const formatCompactVal = (val: number | undefined) => val !== undefined && val !== null ? formatCompactValue(val, normalizeCurrency(currency || 'USD')) : '-';
+  const formatValue = (val: number | undefined) => val !== undefined && val !== null && val !== 0 ? formatMoneyValue({ amount: val, currency: normalizeCurrency(currency || 'USD') }) : '-';
+  const formatCompactVal = (val: number | undefined) => val !== undefined && val !== null && val !== 0 ? formatCompactValue(val, normalizeCurrency(currency || 'USD')) : '-';
+
+  const hasRevenue = activeHistory.some(row => row.totalRevenue !== undefined && row.totalRevenue !== null && row.totalRevenue !== 0);
+  const hasGrossProfit = activeHistory.some(row => row.grossProfit !== undefined && row.grossProfit !== null && row.grossProfit !== 0);
+  const hasOperatingIncome = activeHistory.some(row => row.operatingIncome !== undefined && row.operatingIncome !== null && row.operatingIncome !== 0);
+  const hasNetIncome = activeHistory.some(row => row.netIncome !== undefined && row.netIncome !== null && row.netIncome !== 0);
 
   return (
     <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -1114,12 +1125,12 @@ const IncomeStatementView = ({ history, historyQuarterly, currency, t }: { histo
           </ToggleButtonGroup>
         </Box>
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={chartData} margin={{ top: 20, right: 0, left: -20, bottom: 5 }}>
+          <BarChart data={chartData} margin={{ top: 10, right: 0, left: 10, bottom: -10 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
             <XAxis dataKey="periodName" tick={{ fill: theme.palette.text.secondary, fontSize: 12 }} axisLine={false} tickLine={false} />
             <YAxis tickFormatter={(val) => formatCompactVal(val)} tick={{ fill: theme.palette.text.secondary, fontSize: 12 }} axisLine={false} tickLine={false} />
             <RechartsTooltip formatter={formatValue as any} cursor={{ fill: 'rgba(0,0,0,0.05)' }} contentStyle={{ backgroundColor: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}`, borderRadius: 8, color: theme.palette.text.primary }} />
-            <Legend wrapperStyle={{ paddingTop: 20 }} />
+            <Legend wrapperStyle={{ paddingTop: 0, paddingBottom: 20 }} />
             <Bar dataKey="Revenue" fill={theme.palette.text.disabled} fillOpacity={0.4} name={t('Revenue', 'הכנסות')} radius={[4, 4, 0, 0]}>
               <LabelList dataKey="Revenue" position="top" formatter={formatCompactVal as any} fill={theme.palette.text.secondary} fontSize={10} />
             </Bar>
@@ -1130,25 +1141,25 @@ const IncomeStatementView = ({ history, historyQuarterly, currency, t }: { histo
         </ResponsiveContainer>
       </Box>
 
-      <TableContainer component={Paper} variant="outlined">
+      <TableContainer component={Paper} variant="outlined" sx={{ mt: 2 }}>
         <Table size="small">
           <TableHead>
             <TableRow>
               <TableCell><b>{t('Period Ends', 'סוף תקופה')}</b></TableCell>
-              <TableCell align="right"><b>{t('Revenue', 'הכנסות')}</b></TableCell>
-              <TableCell align="right"><b>{t('Gross Profit', 'רווח גולמי')}</b></TableCell>
-              <TableCell align="right"><b>{t('Operating Income', 'רווח תפעולי')}</b></TableCell>
-              <TableCell align="right"><b>{t('Net Income', 'רווח נקי')}</b></TableCell>
+              {hasRevenue && <TableCell align="right"><b>{t('Revenue', 'הכנסות')}</b></TableCell>}
+              {hasGrossProfit && <TableCell align="right"><b>{t('Gross Profit', 'רווח גולמי')}</b></TableCell>}
+              {hasOperatingIncome && <TableCell align="right"><b>{t('Operating Income', 'רווח תפעולי')}</b></TableCell>}
+              {hasNetIncome && <TableCell align="right"><b>{t('Net Income', 'רווח נקי')}</b></TableCell>}
             </TableRow>
           </TableHead>
           <TableBody>
             {activeHistory.map((row, i) => (
               <TableRow key={i}>
                 <TableCell>{new Date(row.endDate).toLocaleDateString()}</TableCell>
-                <TableCell align="right">{formatValue(row.totalRevenue)}</TableCell>
-                <TableCell align="right">{formatValue(row.grossProfit)}</TableCell>
-                <TableCell align="right">{formatValue(row.operatingIncome)}</TableCell>
-                <TableCell align="right">{formatValue(row.netIncome)}</TableCell>
+                {hasRevenue && <TableCell align="right">{formatValue(row.totalRevenue)}</TableCell>}
+                {hasGrossProfit && <TableCell align="right">{formatValue(row.grossProfit)}</TableCell>}
+                {hasOperatingIncome && <TableCell align="right">{formatValue(row.operatingIncome)}</TableCell>}
+                {hasNetIncome && <TableCell align="right">{formatValue(row.netIncome)}</TableCell>}
               </TableRow>
             ))}
           </TableBody>
