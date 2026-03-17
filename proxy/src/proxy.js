@@ -3,105 +3,33 @@ import { getYahooCrumb, clearYahooCache } from './yahooCrumb.js';
 import { VALID_VALUE_REGEX, replacePlaceholder, getTaseFetchDate, formatDate, configurePensyanetOptions, addApiSpecificHeaders } from './utils.js';
 
 const API_MAP = {
-  "yahoo_hist": "https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1d&range={range}&events=split,div",
-  "globes_data": "https://www.globes.co.il/data/webservices/financial.asmx/getInstrument?exchange={exchange}&symbol={ticker}",
-  "globes_list": "https://www.globes.co.il/data/webservices/financial.asmx/listByType?exchange={exchange}&type={type}",
-  "globes_exchange_state": "https://www.globes.co.il/data/webservices/financial.asmx/ExchangeState?exchange={exchange}",
-  "globes_get_exchanges": "https://www.globes.co.il/data/webservices/financial.asmx/getExchange",
-  "globes_get_exchanges_details": "https://www.globes.co.il/data/webservices/financial.asmx/GetExchangesDetails",
-  "globes_articles": "https://www.globes.co.il/data/webservices/financial.asmx/getArticles?symbol={ticker}&exchange={exchange}&daysBefore=60&page=0&language=&quid=",
-  "cbs_price_index": "https://api.cbs.gov.il/index/data/price?id={id}&format=json&download=false&PageSize=1000&page={page}",
-  "tase_list_stocks": "https://datawise.tase.co.il/v1/basic-securities/trade-securities-list/{raw:taseFetchDate}",
-  "tase_list_funds": "https://datawise.tase.co.il/v1/fund/fund-list?listingStatusId=1",
-  "tase_list_indices": "https://datawise.tase.co.il/v1/basic-indices/indices-list",
-  "tase_index_comp": "https://datawise.tase.co.il/v1/basic-indices/index-components-basic/{raw:taseFetchDate}",
-  "gemelnet_fund": "https://gemelnet.cma.gov.il/tsuot/ui/tsuotHodXML.aspx?miTkfDivuach={startYear}{startMonth}&adTkfDivuach={endYear}{endMonth}&kupot={fundId}&Dochot=1&sug=3",
-  "gemelnet_list": "https://gemelnet.cma.gov.il/tsuot/ui/tsuotHodXML.aspx?miTkfDivuach={startYear}{startMonth}&adTkfDivuach={endYear}{endMonth}&kupot=0000&Dochot=1&sug=1",
-  "pensyanet_fund": "https://pensyanet.cma.gov.il/Parameters/ExportToXML",
-  "pensyanet_list": "https://pensyanet.cma.gov.il/Parameters/ExportToXML",
-  "yahoo_search": "https://query2.finance.yahoo.com/v1/finance/search?q={searchTerm}",
+  "yahoo_hist": { urlTemaplte: "https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1d&range={range}&events=split,div", ttl: 1800 },
+  "globes_data": { urlTemaplte: "https://www.globes.co.il/data/webservices/financial.asmx/getInstrument?exchange={exchange}&symbol={ticker}", ttl: 1800 },
+  "globes_list": { urlTemaplte: "https://www.globes.co.il/data/webservices/financial.asmx/listByType?exchange={exchange}&type={type}", ttl: 43200 },
+  "globes_exchange_state": { urlTemaplte: "https://www.globes.co.il/data/webservices/financial.asmx/ExchangeState?exchange={exchange}", ttl: 1800 },
+  "globes_get_exchanges": { urlTemaplte: "https://www.globes.co.il/data/webservices/financial.asmx/getExchange", ttl: 43200 },
+  "globes_get_exchanges_details": { urlTemaplte: "https://www.globes.co.il/data/webservices/financial.asmx/GetExchangesDetails", ttl: 43200 },
+  "globes_articles": { urlTemaplte: "https://www.globes.co.il/data/webservices/financial.asmx/getArticles?symbol={ticker}&exchange={exchange}&daysBefore=60&page=0&language=&quid=", ttl: 1800 },
+  "cbs_price_index": { urlTemaplte: "https://api.cbs.gov.il/index/data/price?id={id}&format=json&download=false&PageSize=1000&page={page}", ttl: 43200 },
+  "tase_list_stocks": { urlTemaplte: "https://datawise.tase.co.il/v1/basic-securities/trade-securities-list/{raw:taseFetchDate}", ttl: 43200 },
+  "tase_list_funds": { urlTemaplte: "https://datawise.tase.co.il/v1/fund/fund-list?listingStatusId=1", ttl: 43200 },
+  "tase_list_indices": { urlTemaplte: "https://datawise.tase.co.il/v1/basic-indices/indices-list", ttl: 43200 },
+  "tase_index_comp": { urlTemaplte: "https://datawise.tase.co.il/v1/basic-indices/index-components-basic/{raw:taseFetchDate}", ttl: 43200 },
+  "gemelnet_fund": { urlTemaplte: "https://gemelnet.cma.gov.il/tsuot/ui/tsuotHodXML.aspx?miTkfDivuach={startYear}{startMonth}&adTkfDivuach={endYear}{endMonth}&kupot={fundId}&Dochot=1&sug=3", ttl: 43200 },
+  "gemelnet_list": { urlTemaplte: "https://gemelnet.cma.gov.il/tsuot/ui/tsuotHodXML.aspx?miTkfDivuach={startYear}{startMonth}&adTkfDivuach={endYear}{endMonth}&kupot=0000&Dochot=1&sug=1", ttl: 43200 },
+  "pensyanet_fund": { urlTemaplte: "https://pensyanet.cma.gov.il/Parameters/ExportToXML", ttl: 43200 },
+  "pensyanet_list": { urlTemaplte: "https://pensyanet.cma.gov.il/Parameters/ExportToXML", ttl: 43200 },
+  "yahoo_search": { urlTemaplte: "https://query2.finance.yahoo.com/v1/finance/search?q={searchTerm}", ttl: 86400 },
+  "yahoo_quote_summary": {
+    urlTemaplte: "https://query2.finance.yahoo.com/v10/finance/quoteSummary/{ticker}?modules={modules}&crumb={crumb}",
+    ttl: 3600,
+    requiresCrumb: true
+  }
 };
-
-const CACHE_TTL_MAP = {
-  "yahoo_hist": 1800, // 30 minutes
-  "globes_data": 1800, // 30 minutes
-  "globes_list": 43200, // 12 hours
-  "globes_exchange_state": 1800, // 30 mins
-  "globes_get_exchanges": 43200, // 12 hours
-  "globes_get_exchanges_details": 43200, // 12 hours
-  "globes_articles": 1800, // 30 mins
-  "cbs_price_index": 43200, // 12 hours
-  "tase_list_stocks": 43200, // 12 hours
-  "tase_list_funds": 43200, // 12 hours
-  "tase_list_indices": 43200, // 12 hours
-  "tase_index_comp": 43200, // 12 hours
-  "gemelnet_fund": 43200, // 12 hours
-  "gemelnet_list": 43200, // 12 hours
-  "pensyanet_fund": 43200, // 12 hours
-  "pensyanet_list": 43200, // 12 hours
-  "yahoo_search": 86400, // 24 hours
-};
-
-
 
 async function invokeApi(apiId, params, env, ctx, corsHeaders) {
-  if (apiId === 'yahoo_quote_summary') {
-    try {
-      const ticker = params.get('ticker');
-      const modulesStr = params.get('modules') || 'calendarEvents';
-      if (!ticker) return new Response("Missing ticker", { status: 400, headers: corsHeaders });
-
-      const { cookie, crumb } = await getYahooCrumb();
-      let url = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=${modulesStr}&crumb=${crumb}`;
-
-      let res = await fetch(url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          'Cookie': cookie
-        }
-      });
-
-      let text = await res.text();
-      let isUnauthorized = res.status === 401;
-
-      if (!isUnauthorized && text.includes('"Unauthorized"')) {
-        try {
-          const data = JSON.parse(text);
-          if (data?.finance?.error?.code === 'Unauthorized') isUnauthorized = true;
-          if (data?.quoteSummary?.error?.code === 'Unauthorized') isUnauthorized = true;
-        } catch (e) { }
-      }
-
-      if (isUnauthorized) {
-        clearYahooCache();
-        const fresh = await getYahooCrumb();
-        url = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=${modulesStr}&crumb=${fresh.crumb}`;
-
-        res = await fetch(url, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            'Cookie': fresh.cookie
-          }
-        });
-        text = await res.text();
-      }
-
-      const newResponse = new Response(text, res);
-      newResponse.headers.set("Cache-Control", `public, max-age=3600`);
-      newResponse.headers.set("X-Proxy-Cache", "MISS");
-      Object.keys(corsHeaders).forEach(key => newResponse.headers.set(key, corsHeaders[key]));
-
-      const cacheUrl = new URL(`https://proxy.internal/yahoo_quote_summary?ticker=${ticker}&modules=${modulesStr}`);
-      const cacheKey = new Request(cacheUrl.toString(), { method: "GET" });
-      ctx.waitUntil(caches.default.put(cacheKey, newResponse.clone()));
-
-      return newResponse;
-    } catch (e) {
-      return new Response(e.message, { status: 500, headers: corsHeaders });
-    }
-  }
-
-  if (!apiId || !API_MAP[apiId]) {
+  const apiConfig = API_MAP[apiId];
+  if (!apiId || !apiConfig) {
     return new Response("Invalid or missing apiId", { status: 400, headers: corsHeaders });
   }
 
@@ -112,13 +40,29 @@ async function invokeApi(apiId, params, env, ctx, corsHeaders) {
     }
   }
 
+  if (apiConfig.handler) {
+    return apiConfig.handler(apiConfig, params, env, ctx, corsHeaders);
+  }
+
   const method = (apiId === 'pensyanet_list' || apiId === 'pensyanet_fund') ? "POST" : "GET";
   let taseFetchDate;
   if (apiId === 'tase_list_stocks' || apiId === 'tase_index_comp') {
     taseFetchDate = getTaseFetchDate(params);
   }
 
-  let targetUrlString = API_MAP[apiId];
+  let cookieHeader = null;
+  if (apiConfig.requiresCrumb) {
+    try {
+      const { cookie, crumb } = await getYahooCrumb();
+      cookieHeader = cookie;
+      params.set('crumb', crumb);
+      if (!params.has('modules')) params.set('modules', 'calendarEvents');
+    } catch (e) {
+      return new Response("Crumb fetch error: " + e.message, { status: 500, headers: corsHeaders });
+    }
+  }
+
+  let targetUrlString = apiConfig.urlTemaplte;
   for (const [key, value] of params.entries()) {
     if (key === "apiId") continue;
     targetUrlString = replacePlaceholder(targetUrlString, key, value);
@@ -132,7 +76,7 @@ async function invokeApi(apiId, params, env, ctx, corsHeaders) {
   if (method === "GET") {
     for (const [key, value] of params.entries()) {
       if (key === 'apiId') continue;
-      if (!API_MAP[apiId].includes(`{${key}}`) && !API_MAP[apiId].includes(`{raw:${key}}`)) {
+      if (!apiConfig.urlTemaplte.includes(`{${key}}`) && !apiConfig.urlTemaplte.includes(`{raw:${key}}`)) {
         targetUrl.searchParams.append(key, value);
       }
     }
@@ -166,9 +110,13 @@ async function invokeApi(apiId, params, env, ctx, corsHeaders) {
       },
       cf: {
         cacheEverything: true,
-        cacheTtl: CACHE_TTL_MAP[apiId] || 43200,
+        cacheTtl: apiConfig.ttl || 43200,
       }
     };
+
+    if (cookieHeader) {
+      fetchOpts.headers["Cookie"] = cookieHeader;
+    }
 
     if (apiId.startsWith('pensyanet')) {
       configurePensyanetOptions(apiId, params, fetchOpts);
@@ -183,6 +131,46 @@ async function invokeApi(apiId, params, env, ctx, corsHeaders) {
 
     console.log(`Fetching URL for ${apiId}: ${urlToFetch}`);
     response = await fetch(urlToFetch, fetchOpts);
+
+    if (apiConfig.requiresCrumb) {
+      let isUnauthorized = response.status === 401;
+      let text = await response.text();
+
+      if (!isUnauthorized && text.includes('"Unauthorized"')) {
+        try {
+          const data = JSON.parse(text);
+          if (data?.finance?.error?.code === 'Unauthorized') isUnauthorized = true;
+          if (data?.quoteSummary?.error?.code === 'Unauthorized') isUnauthorized = true;
+        } catch (e) { }
+      }
+
+      if (isUnauthorized) {
+        clearYahooCache();
+        const fresh = await getYahooCrumb();
+        params.set('crumb', fresh.crumb);
+        fetchOpts.headers['Cookie'] = fresh.cookie;
+
+        // Rebuild url
+        let freshUrlStr = apiConfig.urlTemaplte;
+        for (const [key, value] of params.entries()) {
+          if (key === "apiId") continue;
+          freshUrlStr = replacePlaceholder(freshUrlStr, key, value);
+        }
+
+        let freshUrl = new URL(freshUrlStr);
+        for (const [key, value] of params.entries()) {
+          if (key === 'apiId') continue;
+          if (!apiConfig.urlTemaplte.includes(`{${key}}`) && !apiConfig.urlTemaplte.includes(`{raw:${key}}`)) {
+            freshUrl.searchParams.append(key, value);
+          }
+        }
+        urlToFetch = freshUrl.toString();
+        response = await fetch(urlToFetch, fetchOpts);
+        text = await response.text(); // grab new response text
+      }
+
+      response = new Response(text, response);
+    }
 
     // Only return immediately (without caching) for transient errors or rate limiting.
     // Permanent errors like 404 (Not Found) should fall through and be cached.
@@ -203,7 +191,7 @@ async function invokeApi(apiId, params, env, ctx, corsHeaders) {
 
     const newResponse = new Response(response.body, response);
     // Explicitly set cache headers for Cloudflare Cache API
-    const ttl = CACHE_TTL_MAP[apiId] || 43200;
+    const ttl = apiConfig.ttl || 43200;
     newResponse.headers.set("Cache-Control", `public, max-age=${ttl}`);
     newResponse.headers.set("X-Proxy-Cache", "MISS");
     Object.keys(corsHeaders).forEach(key => newResponse.headers.set(key, corsHeaders[key]));
