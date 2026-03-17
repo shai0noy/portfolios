@@ -119,40 +119,47 @@ export const ensureSchema = withAuthHandling(async (spreadsheetId: string) => {
                 createHeaderUpdateRequest(sheetIds[DIV_SHEET_NAME], dividendHeaders as unknown as Headers),
                 createHeaderUpdateRequest(sheetIds[TRACKING_LISTS_SHEET_NAME], trackingListsHeaders as unknown as Headers),
 
-                // 3. Format Date columns in Transaction Log (A=date, K=vestDate, P=Creation_Date) to DD-MM-YYYY
+                // 3. Format Date columns in Transaction Log (A=date, K=vestDate, P=Creation_Date) to DD/MM/YYYY
                 // This ensures dates entered via code or UI appear correctly in the sheet.
                 {
                     repeatCell: {
                         range: { sheetId: sheetIds[TX_SHEET_NAME], startColumnIndex: 0, endColumnIndex: 1, startRowIndex: 1 },
-                        cell: { userEnteredFormat: { numberFormat: { type: 'DATE', pattern: 'dd-mm-yyyy' } } },
+                        cell: { userEnteredFormat: { numberFormat: { type: 'DATE', pattern: 'dd/mm/yyyy' } } },
                         fields: 'userEnteredFormat.numberFormat'
                     }
                 },
                 {
                     repeatCell: {
                         range: { sheetId: sheetIds[TX_SHEET_NAME], startColumnIndex: 10, endColumnIndex: 11, startRowIndex: 1 },
-                        cell: { userEnteredFormat: { numberFormat: { type: 'DATE', pattern: 'dd-mm-yyyy' } } },
+                        cell: { userEnteredFormat: { numberFormat: { type: 'DATE', pattern: 'dd/mm/yyyy' } } },
                         fields: 'userEnteredFormat.numberFormat'
                     }
                 },
                 {
                     repeatCell: {
                         range: { sheetId: sheetIds[TX_SHEET_NAME], startColumnIndex: 14, endColumnIndex: 15, startRowIndex: 1 },
-                        cell: { userEnteredFormat: { numberFormat: { type: 'DATE', pattern: 'dd-mm-yyyy' } } },
+                        cell: { userEnteredFormat: { numberFormat: { type: 'DATE', pattern: 'dd/mm/yyyy' } } },
                         fields: 'userEnteredFormat.numberFormat'
                     }
                 },
                 {
                     repeatCell: {
                         range: { sheetId: sheetIds[DIV_SHEET_NAME], startColumnIndex: 2, endColumnIndex: 3, startRowIndex: 1 },
-                        cell: { userEnteredFormat: { numberFormat: { type: 'DATE', pattern: 'dd-mm-yyyy' } } },
+                        cell: { userEnteredFormat: { numberFormat: { type: 'DATE', pattern: 'dd/mm/yyyy' } } },
+                        fields: 'userEnteredFormat.numberFormat'
+                    }
+                },
+                {
+                    repeatCell: {
+                        range: { sheetId: sheetIds[EXTERNAL_DATASETS_SHEET_NAME], startColumnIndex: 2, endColumnIndex: 3, startRowIndex: 1 },
+                        cell: { userEnteredFormat: { numberFormat: { type: 'DATE', pattern: 'dd/mm/yyyy' } } },
                         fields: 'userEnteredFormat.numberFormat'
                     }
                 },
                 {
                     repeatCell: {
                         range: { sheetId: sheetIds[TRACKING_LISTS_SHEET_NAME], startColumnIndex: 3, endColumnIndex: 4, startRowIndex: 1 },
-                        cell: { userEnteredFormat: { numberFormat: { type: 'DATE', pattern: 'dd-mm-yyyy' } } },
+                        cell: { userEnteredFormat: { numberFormat: { type: 'DATE', pattern: 'dd/mm/yyyy' } } },
                         fields: 'userEnteredFormat.numberFormat'
                     }
                 }
@@ -266,9 +273,10 @@ export const fetchPortfolios = withAuthHandling(async (spreadsheetId: string): P
     const res = await gapi.client.sheets.spreadsheets.values.batchGet({
         spreadsheetId,
         ranges,
-        // Use FORMATTED_VALUE to support formula retrieval and match original behavior. 
-        // Our mappers handle numeric parsing (commas, %, etc) robustly.
-        valueRenderOption: 'FORMATTED_VALUE'
+        // Use UNFORMATTED_VALUE to support robust retrieval of dates as serial numbers
+        // and numbers without comma/percentage formatting overhead. True formulas evaluated 
+        // to numbers/strings will still be returned properly.
+        valueRenderOption: 'UNFORMATTED_VALUE'
     });
 
     const valueRanges = res.result.valueRanges;
@@ -412,7 +420,7 @@ export const fetchTransactions = withAuthHandling(async (spreadsheetId: string):
             t.rowIndex = index + 2;
             return t;
         },
-        'FORMATTED_VALUE' // Fetch formulas to get the raw formulas for calculation
+        'UNFORMATTED_VALUE' // Fetch unformatted values to safely retrieve dates as numbers regardless of column format
     );
     return transactionsRaw.map(t_raw => {
         const t = t_raw as Transaction;
@@ -784,7 +792,7 @@ export const syncDividends = withAuthHandling(async (spreadsheetId: string, tick
                 return [
                     toGoogleSheetsExchangeCode(exchange),
                     ticker.toUpperCase(),
-                    dateStr,
+                    toGoogleSheetDateFormat(div.date),
                     div.amount,
                     effectiveSource,
                     priceFormula,
@@ -1104,7 +1112,7 @@ export const batchSyncDividends = withAuthHandling(async (spreadsheetId: string,
                 allNewRows.push([
                     exc,
                     tic,
-                    dateStr,
+                    toGoogleSheetDateFormat(div.date),
                     div.amount,
                     effectiveSource
                 ]);

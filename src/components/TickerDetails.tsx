@@ -1,4 +1,5 @@
-import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, Box, Chip, CircularProgress, Tooltip, IconButton, ToggleButtonGroup, ToggleButton, Menu, MenuItem, ListItemIcon, ListItemText, Tabs, Tab, useTheme, Divider } from '@mui/material';
+import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, Box, Chip, CircularProgress, Tooltip, IconButton, ToggleButtonGroup, ToggleButton, Menu, MenuItem, ListItemIcon, ListItemText, Tabs, Tab, useTheme, Divider, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper } from '@mui/material';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, LabelList } from 'recharts';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AddIcon from '@mui/icons-material/Add';
@@ -14,6 +15,11 @@ import PieChartIcon from '@mui/icons-material/PieChart';
 import CandlestickChartIcon from '@mui/icons-material/CandlestickChart';
 import DateRangeIcon from '@mui/icons-material/DateRange';
 import QueryStatsIcon from '@mui/icons-material/QueryStats';
+import EventIcon from '@mui/icons-material/Event';
+import RecordVoiceOverIcon from '@mui/icons-material/RecordVoiceOver';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
+import PaidIcon from '@mui/icons-material/Paid';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { TickerChart, type TrendType, type GammaType, TrendLineIcon, GammaIcon } from './TickerChart';
 import type { TickerProfile } from '../lib/types/ticker';
@@ -21,7 +27,7 @@ import { useChartComparison, getAvailableRanges, getMaxLabel, SEARCH_OPTION_TICK
 import { useTickerDetails, type TickerDetailsProps } from '../lib/hooks/useTickerDetails';
 import { TickerSearch } from './TickerSearch';
 import { Exchange, isUSExchange, type ExchangeRates } from '../lib/types';
-import { formatMoneyPrice, formatPercent, normalizeCurrency, formatMoneyValue } from '../lib/currency';
+import { formatMoneyPrice, formatPercent, normalizeCurrency, formatMoneyValue, formatMoneyCompactValue, formatCompactValue } from '../lib/currency';
 import { AnalysisDialog } from './AnalysisDialog';
 import { TickerAiChat } from './TickerAiChat';
 import { checkGeminiKey } from '../lib/gemini';
@@ -212,8 +218,11 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
 
   // Force activeTab to 'analysis' if hasHolding is false and we are on a holding tab
   // Force activeTab to 'analysis' if hasHolding is false AND we are done loading.
+  // Force activeTab to 'analysis' if hasHolding is false and we are on a holding tab
+  // Force activeTab to 'analysis' if hasHolding is false AND we are done loading.
   useEffect(() => {
-    if (!isEngineLoading && !hasHolding && activeTab !== 'analysis') {
+    const validTabsNoHolding = ['analysis', 'calendar', 'financials'];
+    if (!isEngineLoading && !hasHolding && !validTabsNoHolding.includes(activeTab)) {
       setActiveTabRaw('analysis');
     }
   }, [isEngineLoading, hasHolding, activeTab]);
@@ -453,6 +462,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
             {hasHolding && <Tab label={t('Transactions', 'עסקאות')} value="transactions" />}
             {hasGrants && <Tab label={t('Grants', 'מענקים')} value="grants" />}
             {hasHolding && <Tab label={t('Dividends', 'דיבידנדים')} value="dividends" />}
+            {(!!(displayData as any)?.calendarEvents || !!(displayData as any)?.incomeStatementHistory || !!(displayData as any)?.incomeStatementHistoryQuarterly) && <Tab label={t('Financials', 'פיננסי')} value="financials" />}
           </Tabs>
         </Box>
 
@@ -855,6 +865,22 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                   </TabPanelWithShadows>
                 )}
 
+                {activeTab === 'financials' && ((displayData as any)?.incomeStatementHistory || (displayData as any)?.incomeStatementHistoryQuarterly || (displayData as any)?.calendarEvents) && (
+                  <TabPanelWithShadows theme={theme}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {(displayData as any)?.calendarEvents && <CalendarEventsView events={(displayData as any).calendarEvents} t={t} />}
+                      {((displayData as any)?.incomeStatementHistory || (displayData as any)?.incomeStatementHistoryQuarterly) && (
+                        <IncomeStatementView
+                          history={(displayData as any).incomeStatementHistory}
+                          historyQuarterly={(displayData as any).incomeStatementHistoryQuarterly}
+                          currency={displayData?.currency}
+                          t={t}
+                        />
+                      )}
+                    </Box>
+                  </TabPanelWithShadows>
+                )}
+
                 {(activeTab === 'holdings' || activeTab === 'transactions' || activeTab === 'dividends' || activeTab === 'grants') && hasHolding && (
                   <TabPanelWithShadows theme={theme}>
                     {(() => {
@@ -940,11 +966,177 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
 const TabPanelWithShadows = ({ children, theme }: { children: React.ReactNode, theme: any }) => {
   const { containerRef, showTop, showBottom } = useScrollShadows();
   return (
-    <Box sx={{ mt: 2, flex: 1, position: 'relative', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+    <Box sx={{ mt: 0, flex: 1, position: 'relative', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       <Box ref={containerRef} sx={{ flex: 1, overflow: 'auto' }}>
         {children}
       </Box>
       <ScrollShadows top={showTop} bottom={showBottom} theme={theme} />
+    </Box>
+  );
+};
+
+const EventCard = ({ title, value, subValue, icon }: { title: string, value: React.ReactNode, subValue?: React.ReactNode, icon?: React.ReactNode }) => (
+  <Paper variant="outlined" sx={{ p: 1.5, flex: 1, minWidth: 200, display: 'flex', gap: 1.5, borderRadius: 2, alignItems: 'center', bgcolor: 'background.paper', overflow: 'hidden' }}>
+    {icon && (
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, borderRadius: '50%', bgcolor: 'primary.main', color: 'primary.contrastText', flexShrink: 0 }}>
+        {icon}
+      </Box>
+    )}
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, flex: 1, minWidth: 0 }}>
+      <Typography variant="subtitle2" color="text.secondary" noWrap sx={{ fontSize: '0.75rem', lineHeight: 1.2 }}>{title}</Typography>
+      {typeof value === 'string' ? <Typography variant="body2" fontWeight="600" noWrap>{value}</Typography> : value}
+      {subValue && <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block', fontSize: '0.65rem' }}>{subValue}</Typography>}
+    </Box>
+  </Paper>
+);
+
+const getDaysDiff = (dateStr: string | number | Date) => {
+  const diffTime = new Date(dateStr).setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0);
+  return Math.round(diffTime / (1000 * 60 * 60 * 24));
+};
+
+const formatDateWithRelative = (dateStr: string | number | Date, t: any) => {
+  const d = new Date(dateStr);
+  const dStr = d.toLocaleDateString('en-GB'); // dd/mm/yyyy
+  const days = getDaysDiff(d);
+
+  if (days === 0) return `${dStr} (${t('Today', 'היום')})`;
+  if (days > 0) return `${dStr} (${t('in {days} days', 'בעוד {days} ימים').replace('{days}', String(days))})`;
+  return `${dStr} (${t('{days} days ago', 'לפני {days} ימים').replace('{days}', String(Math.abs(days)))})`;
+};
+
+const CalendarEventsView = ({ events, t }: { events: any, t: any }) => {
+  const earningsCallDays = events.earningsCallDate ? getDaysDiff(events.earningsCallDate) : undefined;
+  const showEarningsCall = earningsCallDays !== undefined && earningsCallDays >= -30;
+
+  return (
+    <Box sx={{ p: 1.5, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 1.5 }}>
+      {events.earningsDate && (
+        <EventCard
+          title={t('Earnings Date', 'תאריך דיווח נתונים')}
+          value={formatDateWithRelative(events.earningsDate, t)}
+          subValue={events.isEarningsDateEstimate ? t('Estimate', 'הערכה') : undefined}
+          icon={<EventIcon fontSize="small" />}
+        />
+      )}
+      {showEarningsCall && events.earningsCallDate && (
+        <EventCard
+          title={earningsCallDays! < 0 ? t('Last Earning Call', 'שיחת נתונים אחרונה') : t('Earnings Call', 'שיחת נתונים')}
+          value={formatDateWithRelative(events.earningsCallDate, t)}
+          icon={<RecordVoiceOverIcon fontSize="small" />}
+        />
+      )}
+      {events.earningsAnalystEstimate?.avg != null && (
+        <EventCard
+          title={t('EPS Estimate', 'הערכת רווח למניה')}
+          value={`${events.earningsAnalystEstimate.avg}`}
+          subValue={`${t('Low', 'נמוך')}: ${events.earningsAnalystEstimate.low} | ${t('High', 'גבוה')}: ${events.earningsAnalystEstimate.high}`}
+          icon={<TrendingUpIcon fontSize="small" />}
+        />
+      )}
+      {events.revenueEstimate?.avg != null && (
+        <EventCard
+          title={t('Revenue Estimate', 'הערכת הכנסות')}
+          value={formatMoneyCompactValue({ amount: events.revenueEstimate.avg, currency: events.revenueEstimate.currency || 'USD' })}
+          subValue={`${t('Low', 'נמוך')}: ${formatMoneyCompactValue({ amount: events.revenueEstimate.low, currency: events.revenueEstimate.currency || 'USD' })} | ${t('High', 'גבוה')}: ${formatMoneyCompactValue({ amount: events.revenueEstimate.high, currency: events.revenueEstimate.currency || 'USD' })}`}
+          icon={<MonetizationOnIcon fontSize="small" />}
+        />
+      )}
+      {(events.dividendDate || events.exDividendDate) && (
+        <EventCard
+          title={t('Dividends', 'דיבידנדים')}
+          value={
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+              {events.dividendDate && <Typography variant="body2" sx={{ fontSize: '0.8rem' }} noWrap>{t('Pay', 'תשלום')}: <strong>{formatDateWithRelative(events.dividendDate, t)}</strong></Typography>}
+              {events.exDividendDate && <Typography variant="body2" sx={{ fontSize: '0.8rem' }} noWrap>{t('Ex', 'אקס')}: <strong>{formatDateWithRelative(events.exDividendDate, t)}</strong></Typography>}
+            </Box>
+          }
+          icon={<PaidIcon fontSize="small" />}
+        />
+      )}
+    </Box>
+  );
+};
+
+const IncomeStatementView = ({ history, historyQuarterly, currency, t }: { history?: any[], historyQuarterly?: any[], currency?: string, t: any }) => {
+  const theme = useTheme();
+  const [period, setPeriod] = useState<'Quarterly' | 'Annual'>('Quarterly');
+
+  const activeHistory = period === 'Quarterly' && historyQuarterly?.length ? historyQuarterly : history;
+  if (!activeHistory || activeHistory.length === 0) return null;
+
+  // Format data for chart (reverse to chronological order for chart)
+  const chartData = [...activeHistory].reverse().map(item => {
+    const d = new Date(item.endDate);
+    return {
+      periodName: period === 'Quarterly' ? `${d.getFullYear()} Q${Math.ceil((d.getMonth() + 1) / 3)}` : d.getFullYear().toString(),
+      Revenue: item.totalRevenue,
+      GrossProfit: item.grossProfit,
+      NetIncome: item.netIncome,
+      OperatingIncome: item.operatingIncome
+    };
+  });
+
+  const formatValue = (val: number | undefined) => val !== undefined && val !== null ? formatMoneyValue({ amount: val, currency: normalizeCurrency(currency || 'USD') }) : '-';
+  const formatCompactVal = (val: number | undefined) => val !== undefined && val !== null ? formatCompactValue(val, normalizeCurrency(currency || 'USD')) : '-';
+
+  return (
+    <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <Box sx={{ height: 280, minWidth: 0, mt: 1 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Typography variant="subtitle2" color="text.secondary">{t('Revenue & Income', 'הכנסות ורווחים')}</Typography>
+          <ToggleButtonGroup
+            value={period}
+            exclusive
+            onChange={(_, v) => v && setPeriod(v)}
+            size="small"
+            sx={{ height: 26 }}
+          >
+            <ToggleButton value="Quarterly" sx={{ px: 1, fontSize: '0.65rem' }}>{t('Quarterly', 'רבעוני')}</ToggleButton>
+            <ToggleButton value="Annual" sx={{ px: 1, fontSize: '0.65rem' }}>{t('Annual', 'שנתי')}</ToggleButton>
+          </ToggleButtonGroup>
+        </Box>
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={chartData} margin={{ top: 20, right: 0, left: -20, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
+            <XAxis dataKey="periodName" tick={{ fill: theme.palette.text.secondary, fontSize: 12 }} axisLine={false} tickLine={false} />
+            <YAxis tickFormatter={(val) => formatCompactVal(val)} tick={{ fill: theme.palette.text.secondary, fontSize: 12 }} axisLine={false} tickLine={false} />
+            <RechartsTooltip formatter={formatValue as any} cursor={{ fill: 'rgba(0,0,0,0.05)' }} contentStyle={{ backgroundColor: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}`, borderRadius: 8, color: theme.palette.text.primary }} />
+            <Legend wrapperStyle={{ paddingTop: 20 }} />
+            <Bar dataKey="Revenue" fill={theme.palette.text.disabled} fillOpacity={0.4} name={t('Revenue', 'הכנסות')} radius={[4, 4, 0, 0]}>
+              <LabelList dataKey="Revenue" position="top" formatter={formatCompactVal as any} fill={theme.palette.text.secondary} fontSize={10} />
+            </Bar>
+            <Bar dataKey="NetIncome" fill={theme.palette.primary.main} fillOpacity={0.6} name={t('Net Income', 'רווח נקי')} radius={[4, 4, 0, 0]}>
+              <LabelList dataKey="NetIncome" position="top" formatter={formatCompactVal as any} fill={theme.palette.text.secondary} fontSize={10} />
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </Box>
+
+      <TableContainer component={Paper} variant="outlined">
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell><b>{t('Period Ends', 'סוף תקופה')}</b></TableCell>
+              <TableCell align="right"><b>{t('Revenue', 'הכנסות')}</b></TableCell>
+              <TableCell align="right"><b>{t('Gross Profit', 'רווח גולמי')}</b></TableCell>
+              <TableCell align="right"><b>{t('Operating Income', 'רווח תפעולי')}</b></TableCell>
+              <TableCell align="right"><b>{t('Net Income', 'רווח נקי')}</b></TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {activeHistory.map((row, i) => (
+              <TableRow key={i}>
+                <TableCell>{new Date(row.endDate).toLocaleDateString()}</TableCell>
+                <TableCell align="right">{formatValue(row.totalRevenue)}</TableCell>
+                <TableCell align="right">{formatValue(row.grossProfit)}</TableCell>
+                <TableCell align="right">{formatValue(row.operatingIncome)}</TableCell>
+                <TableCell align="right">{formatValue(row.netIncome)}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
     </Box>
   );
 };

@@ -14,6 +14,25 @@ export interface Split {
   denominator: number; // The "old" number of shares (e.g., for a 2-for-1 split, numerator is 2, denominator is 1)
 }
 
+export interface CalendarEvents {
+  earningsDate?: Date;
+  earningsCallDate?: Date;
+  isEarningsDateEstimate?: boolean;
+  earningsAnalystEstimate?: { low: number; high: number; avg: number };
+  revenueEstimate?: { low: number; high: number; avg: number };
+  exDividendDate?: Date;
+  dividendDate?: Date;
+}
+
+export interface IncomeStatement {
+  endDate: Date;
+  totalRevenue?: number;
+  grossProfit?: number;
+  operatingIncome?: number;
+  ebit?: number;
+  netIncome?: number;
+}
+
 export interface TickerData {
   price: number;
   openPrice?: number;
@@ -47,7 +66,7 @@ export interface TickerData {
   changePctMax?: number;
   changeDateMax?: Date;
   ticker: string;
-  numericId : number|null; // Numeric ID for TASE
+  numericId: number | null; // Numeric ID for TASE
   source?: string;
   globesInstrumentId?: string;
   historical?: { date: Date; price: number; adjClose?: number; open?: number; high?: number; low?: number; volume?: number }[];
@@ -57,6 +76,9 @@ export interface TickerData {
   globesTypeHe?: string;
   volume?: number;
   dividendYield?: number;
+  calendarEvents?: CalendarEvents;
+  incomeStatementHistory?: IncomeStatement[];
+  incomeStatementHistoryQuarterly?: IncomeStatement[];
   providentInfo?: ProvidentInfo;
   fromCache?: boolean;
   fromCacheMax?: boolean;

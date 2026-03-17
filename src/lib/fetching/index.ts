@@ -258,6 +258,9 @@ export async function getTickerData(
       historical: globesData.historical ?? yahooData.historical, // Use the merged historical from yahooData if globes is missing it
       dividends: globesData.dividends ?? yahooData.dividends,
       splits: globesData.splits ?? yahooData.splits,
+      calendarEvents: globesData.calendarEvents ?? yahooData.calendarEvents,
+      incomeStatementHistory: globesData.incomeStatementHistory ?? yahooData.incomeStatementHistory,
+      incomeStatementHistoryQuarterly: globesData.incomeStatementHistoryQuarterly ?? yahooData.incomeStatementHistoryQuarterly,
       changePct1d: globesData.changePct1d ?? yahooData.changePct1d,
       changeDate1d: globesData.changePct1d !== undefined ? globesData.changeDate1d : yahooData.changeDate1d,
 

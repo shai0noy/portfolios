@@ -1,6 +1,6 @@
 // src/lib/fetching/yahoo.ts
 import { CACHE_TTL, fetchWithCache } from './utils/cache';
-import type { TickerData } from './types';
+import type { TickerData, IncomeStatement } from './types';
 import { Exchange, parseExchange, EXCHANGE_SETTINGS } from '../types';
 import { InstrumentGroup } from '../types/instrument';
 
@@ -141,7 +141,7 @@ export async function fetchYahooTickerData(
 
 
   const now = Date.now();
-  const cacheKey = `yahoo:quote:v4:${exchange}:${ticker}:${range}`;
+  const cacheKey = `yahoo:quote:v5:${exchange}:${ticker}:${range}`;
   const successKey = `${exchange}:${ticker.toUpperCase()}`;
   const knownSymbol = symbolSuccessMap.get(successKey);
   const candidates = knownSymbol ? [knownSymbol] : getYahooTickerCandidates(ticker, exchange, group);
@@ -153,18 +153,32 @@ export async function fetchYahooTickerData(
     async () => {
       let hasTransientError = false;
       const results = await Promise.all(candidates.map(async (yahooTicker) => {
-        const url = `https://portfolios.noy-shai.workers.dev/?apiId=yahoo_hist&ticker=${yahooTicker}&range=${range}`;
+        const histUrl = `https://portfolios.noy-shai.workers.dev/?apiId=yahoo_hist&ticker=${yahooTicker}&range=${range}`;
+        const calUrl = `https://portfolios.noy-shai.workers.dev/?apiId=yahoo_quote_summary&ticker=${encodeURIComponent(yahooTicker)}&modules=calendarEvents,incomeStatementHistory,incomeStatementHistoryQuarterly`;
+
         try {
-          const res = await fetch(url, { signal, cache: forceRefresh ? 'no-cache' : 'force-cache' });
+          const fetchOpts: RequestInit = { signal, cache: forceRefresh ? 'no-cache' : 'force-cache' };
+          const [res, calRes] = await Promise.all([
+            fetch(histUrl, fetchOpts),
+            fetch(calUrl, fetchOpts).catch(() => null)
+          ]);
+
           if (res.status === 429 || res.status >= 500) {
             hasTransientError = true;
             return null;
           }
           if (!res.ok) return null;
+
           const data = await res.json();
           const result = data?.chart?.result?.[0];
           if (!result) return null;
-          return { yahooTicker, result };
+
+          let calData = null;
+          if (calRes && calRes.ok) {
+            try { calData = await calRes.json(); } catch (e) { }
+          }
+
+          return { yahooTicker, result, calData };
         } catch {
           hasTransientError = true;
           return null;
@@ -183,162 +197,256 @@ export async function fetchYahooTickerData(
         return null;
       }
 
-    const { yahooTicker, result } = match;
-    symbolSuccessMap.set(successKey, yahooTicker);
+      const { yahooTicker, result, calData } = match;
+      symbolSuccessMap.set(successKey, yahooTicker);
 
-    try {
-      const quote = result.indicators?.quote?.[0];
-      const timestamps = result.timestamp || [];
-      let closes = quote?.close || [];
-      let openPrices = quote?.open || [];
-      let highPrices = quote?.high || [];
-      let lowPrices = quote?.low || [];
-      const periodVolumes = quote?.volume || [];
-      let adjCloses = result.indicators?.adjclose?.[0]?.adjclose || [];
-
-      const getLatestValidValue = (arr: (number | null)[], cutoffDays = 40) => {
-        for (let i = arr.length - 1; i >= 0; i--) {
-          if (timestamps[i] < Date.now() / 1000 - cutoffDays * 24 * 60 * 60) {
-            return null;
-          }
-          if (arr[i] !== null && arr[i] !== undefined) {
-            return arr[i];
-          }
-        }
-        return null;
-      };
-
-      const meta = result.meta;
-      const price = meta.regularMarketPrice;
-      const shareVolume = meta.regularMarketVolume || getLatestValidValue(periodVolumes);
-      const volume = (shareVolume && price) ? shareVolume * price : undefined;
-      const openPrice = getLatestValidValue(openPrices) ?? undefined;
-      const currency = meta.currency;
-      const exchangeCode = meta.exchangeName || 'OTHER';
-      let lastClose = getLatestValidValue(closes);
-
-      const lastCloseIsToday = timestamps.length > 0 && (Date.now() / 1000 - timestamps[timestamps.length - 1]) < 24 * 60 * 60;
-      if (lastClose === price && lastCloseIsToday && closes?.length > 1) {
-        lastClose = closes[closes.length - 2];
-      }
-
-      if (exchange === Exchange.TASE && meta.instrumentType !== "EQUITY") {
-        // Handle a rare case where price points are in ILS.
-        if (closes?.length > 0 && closes[closes.length - 1] < price / 90
-          && openPrices?.length > 0 && openPrices[openPrices.length - 1] < price / 90
-          && adjCloses?.length > 0 && adjCloses[adjCloses.length - 1] < price / 90) {
-          closes = closes.map((c: number) => c ? c * 100 : c);
-          openPrices = openPrices.map((c: number) => c ? c * 100 : c);
-          adjCloses = adjCloses.map((c: number) => c ? c * 100 : c);
-          highPrices = highPrices.map((c: number) => c ? c * 100 : c);
-          lowPrices = lowPrices.map((c: number) => c ? c * 100 : c);
-        }
-      }
-
-      let mappedExchange: Exchange;
       try {
-        mappedExchange = parseExchange(YAHOO_EXCHANGE_MAP[exchangeCode.toUpperCase()] || exchangeCode);
-      } catch {
-        mappedExchange = exchange;
-      }
+        const quote = result.indicators?.quote?.[0];
+        const timestamps = result.timestamp || [];
+        let closes = quote?.close || [];
+        let openPrices = quote?.open || [];
+        let highPrices = quote?.high || [];
+        let lowPrices = quote?.low || [];
+        const periodVolumes = quote?.volume || [];
+        let adjCloses = result.indicators?.adjclose?.[0]?.adjclose || [];
 
-      const longName = meta.longName || meta.shortName;
-      let changePct1d = lastClose !== null && lastClose !== 0 ? (price - lastClose) / lastClose : undefined;
-
-      let changePctRecent, changePct1m, changeDate1m, changePct3m, changeDate3m, changePct1y, changeDate1y, changePct3y, changeDate3y, changePct5y, changeDate5y, changePctYtd, changeDateYtd, changePctMax, changeDateMax;
-
-      let historical, dividends, splits;
-
-      if (result.events) {
-        if (result.events.dividends) {
-          dividends = Object.values(result.events.dividends).map((d: any) => ({
-            amount: d.amount,
-            date: new Date(d.date * 1000),
-          })).sort((a, b) => b.date.getTime() - a.date.getTime());
-        }
-        if (result.events.splits) {
-          splits = Object.values(result.events.splits).map((s: any) => ({
-            date: new Date(s.date * 1000),
-            numerator: s.numerator,
-            denominator: s.denominator,
-          })).sort((a, b) => b.date.getTime() - a.date.getTime());
-        }
-      }
-
-      if (closes.length > 0 && timestamps.length === closes.length) {
-        const points = timestamps.map((t: number, i: number) => ({
-          time: t,
-          close: closes[i],
-          adjClose: adjCloses[i],
-          open: openPrices[i],
-          high: highPrices[i],
-          low: lowPrices[i],
-          volume: periodVolumes[i]
-        })).filter((p: any) => p.close != null && p.time != null);
-
-        historical = points.map((p: any) => ({
-          date: new Date(p.time * 1000),
-          price: p.close,
-          adjClose: p.adjClose,
-          open: p.open,
-          high: p.high,
-          low: p.low,
-          volume: p.volume
-        }));
-
-        if (points.length > 0) {
-          const lastPoint = points[points.length - 1];
-          const findClosestPoint = (targetTs: number) => {
-            if (targetTs < points[0].time - 86400 * 5) return null; // Too far back
-            let closest = points[0], minDiff = Math.abs(points[0].time - targetTs);
-            for (let i = 1; i < points.length; i++) {
-              const diff = Math.abs(points[i].time - targetTs);
-              if (diff < minDiff) { minDiff = diff; closest = points[i]; }
+        const getLatestValidValue = (arr: (number | null)[], cutoffDays = 40) => {
+          for (let i = arr.length - 1; i >= 0; i--) {
+            if (timestamps[i] < Date.now() / 1000 - cutoffDays * 24 * 60 * 60) {
+              return null;
             }
-            return closest;
-          };
+            if (arr[i] !== null && arr[i] !== undefined) {
+              return arr[i];
+            }
+          }
+          return null;
+        };
 
-          const getDateAgo = (amount: number, unit: 'days' | 'months' | 'years') => {
-            const d = new Date(lastPoint.time * 1000);
-            if (unit === 'days') d.setUTCDate(d.getUTCDate() - amount);
-            else if (unit === 'months') d.setUTCMonth(d.getUTCMonth() - amount);
-            else if (unit === 'years') d.setUTCFullYear(d.getUTCFullYear() - amount);
-            return d.getTime() / 1000;
-          };
+        const meta = result.meta;
+        const price = meta.regularMarketPrice;
+        const shareVolume = meta.regularMarketVolume || getLatestValidValue(periodVolumes);
+        const volume = (shareVolume && price) ? shareVolume * price : undefined;
+        const openPrice = getLatestValidValue(openPrices) ?? undefined;
+        const currency = meta.currency;
+        const exchangeCode = meta.exchangeName || 'OTHER';
+        let lastClose = getLatestValidValue(closes);
 
-          const calcChange = (p: any) => (!p || Math.abs(p.time * 1000 - lastPoint.time * 1000) < 86400 * 1000) ? { pct: undefined, date: undefined } : { pct: (price - p.close) / p.close, date: new Date(p.time * 1000) };
-
-          // Calculate 1 Week Ago (Recent)
-          const w1 = findClosestPoint(getDateAgo(7, 'days'));
-          const res1w = calcChange(w1); changePctRecent = res1w.pct;
-
-          const m1 = findClosestPoint(getDateAgo(1, 'months')), m3 = findClosestPoint(getDateAgo(3, 'months')), y1 = findClosestPoint(getDateAgo(1, 'years')), y3 = findClosestPoint(getDateAgo(3, 'years')), y5 = findClosestPoint(getDateAgo(5, 'years'));
-
-          const res1m = calcChange(m1); changePct1m = res1m.pct; changeDate1m = res1m.date;
-          const res3m = calcChange(m3); changePct3m = res3m.pct; changeDate3m = res3m.date;
-          const res1y = calcChange(y1); changePct1y = res1y.pct; changeDate1y = res1y.date;
-          const res3y = calcChange(y3); changePct3y = res3y.pct; changeDate3y = res3y.date;
-          const res5y = calcChange(y5); changePct5y = res5y.pct; changeDate5y = res5y.date;
-
-          const targetYtd = new Date(lastPoint.time * 1000); targetYtd.setUTCMonth(0, 1); targetYtd.setUTCHours(0, 0, 0, 0);
-          const resYtd = calcChange(findClosestPoint(targetYtd.getTime() / 1000)); changePctYtd = resYtd.pct; changeDateYtd = resYtd.date;
-          const resMax = calcChange(points[0]); changePctMax = resMax.pct; changeDateMax = resMax.date;
+        const lastCloseIsToday = timestamps.length > 0 && (Date.now() / 1000 - timestamps[timestamps.length - 1]) < 24 * 60 * 60;
+        if (lastClose === price && lastCloseIsToday && closes?.length > 1) {
+          lastClose = closes[closes.length - 2];
         }
+
+        if (exchange === Exchange.TASE && meta.instrumentType !== "EQUITY") {
+          // Handle a rare case where price points are in ILS.
+          if (closes?.length > 0 && closes[closes.length - 1] < price / 90
+            && openPrices?.length > 0 && openPrices[openPrices.length - 1] < price / 90
+            && adjCloses?.length > 0 && adjCloses[adjCloses.length - 1] < price / 90) {
+            closes = closes.map((c: number) => c ? c * 100 : c);
+            openPrices = openPrices.map((c: number) => c ? c * 100 : c);
+            adjCloses = adjCloses.map((c: number) => c ? c * 100 : c);
+            highPrices = highPrices.map((c: number) => c ? c * 100 : c);
+            lowPrices = lowPrices.map((c: number) => c ? c * 100 : c);
+          }
+        }
+
+        let mappedExchange: Exchange;
+        try {
+          mappedExchange = parseExchange(YAHOO_EXCHANGE_MAP[exchangeCode.toUpperCase()] || exchangeCode);
+        } catch {
+          mappedExchange = exchange;
+        }
+
+        const longName = meta.longName || meta.shortName;
+        let changePct1d = lastClose !== null && lastClose !== 0 ? (price - lastClose) / lastClose : undefined;
+
+        let changePctRecent, changePct1m, changeDate1m, changePct3m, changeDate3m, changePct1y, changeDate1y, changePct3y, changeDate3y, changePct5y, changeDate5y, changePctYtd, changeDateYtd, changePctMax, changeDateMax;
+
+        let historical, dividends, splits;
+
+        if (result.events) {
+          if (result.events.dividends) {
+            dividends = Object.values(result.events.dividends).map((d: any) => ({
+              amount: d.amount,
+              date: new Date(d.date * 1000),
+            })).sort((a, b) => b.date.getTime() - a.date.getTime());
+          }
+          if (result.events.splits) {
+            splits = Object.values(result.events.splits).map((s: any) => ({
+              date: new Date(s.date * 1000),
+              numerator: s.numerator,
+              denominator: s.denominator,
+            })).sort((a, b) => b.date.getTime() - a.date.getTime());
+          }
+        }
+
+        if (closes.length > 0 && timestamps.length === closes.length) {
+          const points = timestamps.map((t: number, i: number) => ({
+            time: t,
+            close: closes[i],
+            adjClose: adjCloses[i],
+            open: openPrices[i],
+            high: highPrices[i],
+            low: lowPrices[i],
+            volume: periodVolumes[i]
+          })).filter((p: any) => p.close != null && p.time != null);
+
+          historical = points.map((p: any) => ({
+            date: new Date(p.time * 1000),
+            price: p.close,
+            adjClose: p.adjClose,
+            open: p.open,
+            high: p.high,
+            low: p.low,
+            volume: p.volume
+          }));
+
+          if (points.length > 0) {
+            const lastPoint = points[points.length - 1];
+            const findClosestPoint = (targetTs: number) => {
+              if (targetTs < points[0].time - 86400 * 5) return null; // Too far back
+              let closest = points[0], minDiff = Math.abs(points[0].time - targetTs);
+              for (let i = 1; i < points.length; i++) {
+                const diff = Math.abs(points[i].time - targetTs);
+                if (diff < minDiff) { minDiff = diff; closest = points[i]; }
+              }
+              return closest;
+            };
+
+            const getDateAgo = (amount: number, unit: 'days' | 'months' | 'years') => {
+              const d = new Date(lastPoint.time * 1000);
+              if (unit === 'days') d.setUTCDate(d.getUTCDate() - amount);
+              else if (unit === 'months') d.setUTCMonth(d.getUTCMonth() - amount);
+              else if (unit === 'years') d.setUTCFullYear(d.getUTCFullYear() - amount);
+              return d.getTime() / 1000;
+            };
+
+            const calcChange = (p: any) => (!p || Math.abs(p.time * 1000 - lastPoint.time * 1000) < 86400 * 1000) ? { pct: undefined, date: undefined } : { pct: (price - p.close) / p.close, date: new Date(p.time * 1000) };
+
+            // Calculate 1 Week Ago (Recent)
+            const w1 = findClosestPoint(getDateAgo(7, 'days'));
+            const res1w = calcChange(w1); changePctRecent = res1w.pct;
+
+            const m1 = findClosestPoint(getDateAgo(1, 'months')), m3 = findClosestPoint(getDateAgo(3, 'months')), y1 = findClosestPoint(getDateAgo(1, 'years')), y3 = findClosestPoint(getDateAgo(3, 'years')), y5 = findClosestPoint(getDateAgo(5, 'years'));
+
+            const res1m = calcChange(m1); changePct1m = res1m.pct; changeDate1m = res1m.date;
+            const res3m = calcChange(m3); changePct3m = res3m.pct; changeDate3m = res3m.date;
+            const res1y = calcChange(y1); changePct1y = res1y.pct; changeDate1y = res1y.date;
+            const res3y = calcChange(y3); changePct3y = res3y.pct; changeDate3y = res3y.date;
+            const res5y = calcChange(y5); changePct5y = res5y.pct; changeDate5y = res5y.date;
+
+            const targetYtd = new Date(lastPoint.time * 1000); targetYtd.setUTCMonth(0, 1); targetYtd.setUTCHours(0, 0, 0, 0);
+            const resYtd = calcChange(findClosestPoint(targetYtd.getTime() / 1000)); changePctYtd = resYtd.pct; changeDateYtd = resYtd.date;
+            const resMax = calcChange(points[0]); changePctMax = resMax.pct; changeDateMax = resMax.date;
+          }
+        }
+
+        if (!price) return null;
+
+        let calendarEvents: any = undefined;
+        let incomeStatementHistory: IncomeStatement[] | undefined;
+        let incomeStatementHistoryQuarterly: IncomeStatement[] | undefined;
+
+        if (calData) {
+          const calEvents = calData?.quoteSummary?.result?.[0]?.calendarEvents;
+          if (calEvents) {
+            const nowMs = Date.now();
+            const findClosestDate = (datesArray: any[]) => {
+              if (!datesArray || !datesArray.length) return undefined;
+              let closest = undefined;
+              let minDiff = Infinity;
+              for (const d of datesArray) {
+                if (d?.raw) {
+                  const diff = Math.abs(d.raw * 1000 - nowMs);
+                  if (diff < minDiff) {
+                    minDiff = diff;
+                    closest = new Date(d.raw * 1000);
+                  }
+                }
+              }
+              return closest;
+            };
+
+            const eventMap: any = {};
+            const earnings = calEvents.earnings;
+            if (earnings) {
+              eventMap.earningsDate = findClosestDate(earnings.earningsDate);
+              eventMap.earningsCallDate = findClosestDate(earnings.earningsCallDate);
+              eventMap.isEarningsDateEstimate = earnings.isEarningsDateEstimate;
+
+              if (earnings.earningsLow?.raw !== undefined && earnings.earningsHigh?.raw !== undefined && earnings.earningsAverage?.raw !== undefined) {
+                eventMap.earningsAnalystEstimate = {
+                  low: earnings.earningsLow.raw,
+                  high: earnings.earningsHigh.raw,
+                  avg: earnings.earningsAverage.raw
+                };
+              }
+              if (earnings.revenueLow?.raw !== undefined && earnings.revenueHigh?.raw !== undefined && earnings.revenueAverage?.raw !== undefined) {
+                eventMap.revenueEstimate = {
+                  low: earnings.revenueLow.raw,
+                  high: earnings.revenueHigh.raw,
+                  avg: earnings.revenueAverage.raw
+                };
+              }
+            }
+
+            if (calEvents.exDividendDate?.raw) {
+              eventMap.exDividendDate = new Date(calEvents.exDividendDate.raw * 1000);
+            }
+            if (calEvents.dividendDate?.raw) {
+              eventMap.dividendDate = new Date(calEvents.dividendDate.raw * 1000);
+            }
+
+            if (Object.keys(eventMap).length > 0) {
+              calendarEvents = eventMap;
+            }
+          }
+
+          const parseIncomeHistory = (historyArr: any[]) => {
+            if (!historyArr || !Array.isArray(historyArr)) return undefined;
+            const statements: IncomeStatement[] = [];
+            for (const item of historyArr) {
+              if (item.endDate?.raw) {
+                statements.push({
+                  endDate: new Date(item.endDate.raw * 1000),
+                  totalRevenue: item.totalRevenue?.raw,
+                  grossProfit: item.grossProfit?.raw,
+                  operatingIncome: item.operatingIncome?.raw,
+                  ebit: item.ebit?.raw,
+                  netIncome: item.netIncome?.raw
+                });
+              }
+            }
+            if (statements.length > 0) {
+              return statements.sort((a, b) => b.endDate.getTime() - a.endDate.getTime());
+            }
+            return undefined;
+          };
+
+          const incomeHistory = calData?.quoteSummary?.result?.[0]?.incomeStatementHistory?.incomeStatementHistory;
+          if (incomeHistory) {
+            incomeStatementHistory = parseIncomeHistory(incomeHistory);
+          }
+
+          const incomeHistoryQ = calData?.quoteSummary?.result?.[0]?.incomeStatementHistoryQuarterly?.incomeStatementHistory;
+          if (incomeHistoryQ) {
+            incomeStatementHistoryQuarterly = parseIncomeHistory(incomeHistoryQ);
+          }
+        }
+
+        const tickerData: TickerData = {
+          price, openPrice, name: longName, currency, exchange: mappedExchange,
+          changePct1d, changePctRecent, changePct1m, changeDate1m, changePct3m, changeDate3m, changePct1y, changeDate1y,
+          changePct3y, changeDate3y, changePct5y, changeDate5y, changePctYtd, changeDateYtd, changePctMax, changeDateMax,
+          timestamp: new Date(now), ticker, numericId: null, source: 'Yahoo Finance', historical, dividends, splits, volume,
+          calendarEvents,
+          incomeStatementHistory,
+          incomeStatementHistoryQuarterly
+        };
+
+        return tickerData;
+      } catch (error) {
+        console.error('Error parsing Yahoo data', error);
+        return null;
       }
-
-      if (!price) return null;
-
-      const tickerData: TickerData = {
-        price, openPrice, name: longName, currency, exchange: mappedExchange,
-        changePct1d, changePctRecent, changePct1m, changeDate1m, changePct3m, changeDate3m, changePct1y, changeDate1y,
-        changePct3y, changeDate3y, changePct5y, changeDate5y, changePctYtd, changeDateYtd, changePctMax, changeDateMax,
-        timestamp: new Date(now), ticker, numericId: null, source: 'Yahoo Finance', historical, dividends, splits, volume,
-      };
-
-      return tickerData;
-    } catch (error) {
-      console.error('Error parsing Yahoo data', error);
-      return null;
-    }
     }, (cachedData) => !(range === 'max' && cachedData.changePctMax === undefined));
 }

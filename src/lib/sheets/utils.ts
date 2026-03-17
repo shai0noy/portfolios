@@ -28,7 +28,9 @@ export function createRowMapper<T extends readonly string[]>(headers: T) {
                         }
                     }
                 } else {
-                    (obj as any)[key] = value;
+                    // Force non-numeric keys to be strings, because Google Sheets UNFORMATTED_VALUE 
+                    // returns numbers for numeric-looking strings (like ticker "147")
+                    (obj as any)[key] = typeof value === 'number' ? String(value) : value;
                 }
             }
         }

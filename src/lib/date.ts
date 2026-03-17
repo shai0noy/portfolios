@@ -6,11 +6,10 @@ export function toGoogleSheetDateFormat(date: Date): string {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const year = date.getFullYear();
 
-  // User preferred format is dd-mm-yyyy for display, but for API submission 
+  // User preferred format is dd/mm/yyyy for display, but for API submission 
   // via USER_ENTERED, ISO YYYY-MM-DD guarantees it gets interpreted as a date 
   // rather than a text string regardless of the Spreadsheet region locale.
-  // Google sheets in Israel locale requires DD/MM/YYYY to parse natively.
-  return `${day}/${month}/${year}`;
+  return `${year}-${month}-${day}`;
 }
 
 export function fromGoogleSheetDate(value: string | number | null | undefined): Date | null {
@@ -69,6 +68,11 @@ export function coerceDate(d: any): Date | null {
         return new Date(n2, n1 - 1, n0);
       }
     }
+  }
+
+  // Handle purely numeric strings (e.g. "45006") generated when UNFORMATTED_VALUE hits non-numeric keys
+  if (/^\\d+(\\.\\d+)?$/.test(str)) {
+    return fromGoogleSheetDate(Number(str));
   }
 
   const date = new Date(d);
