@@ -18,7 +18,8 @@ export function interpolateSparseHistory<T extends { date: Date; [key: string]: 
     // Adding 1 hour to handle possible DST jump issues to safely floor
     const daysDiff = Math.floor((tNext - tCurrent + 1000 * 60 * 60) / (1000 * 60 * 60 * 24));
 
-    if (daysDiff > 3) {
+    // Only interpolate reasonable gaps up to 10 years (3650 days) to prevent OOM
+    if (daysDiff > 3 && daysDiff <= 3650) {
       const keysToInterpolate = Object.keys(current).filter(
         (k) => k !== 'date' && typeof current[k] === 'number' && typeof next[k] === 'number'
       );
