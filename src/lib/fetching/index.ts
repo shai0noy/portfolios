@@ -152,8 +152,8 @@ export async function getTickerData(
   const group = profile?.type.group;
 
   const [yahooData5y, yahooDataMax] = await Promise.all([
-    fetchYahooTickerData(ticker, parsedExchange, signal, forceRefresh, '5y', group),
-    fetchYahooTickerData(ticker, parsedExchange, signal, forceRefresh, 'max', group)
+    fetchYahooTickerData(ticker, parsedExchange, signal, forceRefresh, '5y', group).catch(e => { console.warn('Yahoo 5y failed:', e); return null; }),
+    fetchYahooTickerData(ticker, parsedExchange, signal, forceRefresh, 'max', group).catch(e => { console.warn('Yahoo Max failed:', e); return null; })
   ]);
 
   let yahooData: TickerData | null = null;
@@ -190,18 +190,18 @@ export async function getTickerData(
     taseProfilePromise = Promise.resolve(profile);
 
     if (secId) {
-      globesPromise = fetchGlobesStockQuote(ticker, secId, parsedExchange, signal, forceRefresh);
+      globesPromise = fetchGlobesStockQuote(ticker, secId, parsedExchange, signal, forceRefresh).catch(e => { console.warn('Globes failed:', e); return null; });
     } else {
       // If we don't have securityId, we try to find it from the profile
       const sid = profile?.securityId;
       if (sid) {
-        globesPromise = fetchGlobesStockQuote(ticker, sid, parsedExchange, signal, forceRefresh);
+        globesPromise = fetchGlobesStockQuote(ticker, sid, parsedExchange, signal, forceRefresh).catch(e => { console.warn('Globes failed (sid):', e); return null; });
       } else {
         globesPromise = Promise.resolve(null);
       }
     }
   } else {
-    globesPromise = fetchGlobesStockQuote(ticker, secId, parsedExchange, signal, forceRefresh);
+    globesPromise = fetchGlobesStockQuote(ticker, secId, parsedExchange, signal, forceRefresh).catch(e => { console.warn('Globes failed:', e); return null; });
   }
 
   const [globesData, _unusedYahoo, taseProfile] = await Promise.all([
@@ -223,21 +223,28 @@ export async function getTickerData(
         subSector: taseProfile?.subSector || yahooData.subSector,
       };
     }
-    // No data from Globes or Yahoo, but maybe we have TASE profile info
+    // No data from Globes or Yahoo, but maybe we have a profile from the dataset
     if (taseProfile) {
       return {
         ticker: taseProfile.symbol,
-        exchange: Exchange.TASE,
+        exchange: taseProfile.exchange,
         numericId: taseProfile.securityId ?? null,
         name: taseProfile.name,
         nameHe: taseProfile.nameHe,
         type: taseProfile.type,
         meta: taseProfile.meta,
         price: 0,
-        source: 'TASE Profile'
+        source: `${taseProfile.exchange} Profile (Fallback)`
       };
     }
-    return yahooData;
+    // Absolutely no API data and no profile data. Build a barebones object.
+    return {
+      ticker: ticker,
+      exchange: parsedExchange,
+      numericId: secId ?? null,
+      price: 0,
+      source: 'Missing Data Fallback'
+    };
   }
 
   // Merge data: Prefer TASE Profile > Globes > Yahoo

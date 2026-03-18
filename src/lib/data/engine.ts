@@ -420,6 +420,16 @@ export class FinanceEngine {
             }
             if (live) {
                 let price = live.price || h.currentPrice;
+
+                // Fallback to the last known transaction price if API failed or returned 0
+                if (!price) {
+                    const sortedTxns = [...h.transactions].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+                    if (sortedTxns.length > 0) {
+                        const lastTxn = sortedTxns[sortedTxns.length - 1];
+                        price = lastTxn.price || lastTxn.originalPrice || 0;
+                    }
+                }
+
                 if (price > 0) {
                     let liveCurrencyStr = live.currency;
 
