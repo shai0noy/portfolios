@@ -477,7 +477,7 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
       {!isFavoritesOnly ? (
         <DashboardSummary
           summary={summary}
-          holdings={selectedPortfolioId ? holdings.filter(h => h.portfolioId === selectedPortfolioId) : holdings}
+          holdings={selectedPortfolioId ? enrichedHoldings.filter(h => h.portfolioId === selectedPortfolioId) : enrichedHoldings}
           displayCurrency={displayCurrency}
           exchangeRates={exchangeRates}
           selectedPortfolio={portfolios.find(p => p.id === (selectedPortfolioId || ''))?.name || null}

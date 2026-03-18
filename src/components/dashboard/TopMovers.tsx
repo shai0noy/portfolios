@@ -125,11 +125,11 @@ const MobileMoverListItem = ({ mover, navigate, displayCurrency, sortBy }: { mov
             <Box sx={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Box sx={{ display: 'flex', flexDirection: 'column', maxWidth: '60%', overflow: 'hidden' }}>
                     <Typography variant="body2" fontWeight="bold" noWrap>
-                        {tickerNode || nameNode}
+                        {nameNode}
                     </Typography>
                     {tickerNode && (
                         <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }} noWrap>
-                            {nameNode}
+                            {tickerNode}
                         </Typography>
                     )}
                 </Box>
@@ -148,7 +148,7 @@ const MobileMoverListItem = ({ mover, navigate, displayCurrency, sortBy }: { mov
     );
 };
 
-interface TopMoversProps { 
+interface TopMoversProps {
     holdings: DashboardHolding[];
     displayCurrency: string;
     exchangeRates: ExchangeRates;
@@ -186,41 +186,41 @@ export const TopMovers = ({ holdings, displayCurrency, exchangeRates, lockedMetr
         const theme = useTheme();
         const { containerRef, showLeft, showRight } = useScrollShadows('horizontal');
         return (
-        <Box sx={{ display: 'flex', alignItems: 'center', py: 0.25, borderBottom: isLast ? 'none' : '1px solid', borderColor: 'divider' }}>
-            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 'bold', textTransform: 'uppercase', minWidth: 60, mr: 0.5 }}>{periodLabels[period]}</Typography>
-            {allMovers[period].length === 0 ? (
-                <Box sx={{ textAlign: 'left', color: 'text.secondary', pl: 1 }}>
-                    <Typography variant="caption">{t('No significant movers.', 'אין תנודות משמעותיות.')}</Typography>
-                </Box>
-            ) : (
-                        <Box sx={{ position: 'relative', flex: 1, display: 'flex', minWidth: 0 }}>
-                            <Box
-                                ref={containerRef}
-                                sx={{
-                                    display: 'flex',
-                                    overflowX: 'auto',
-                                    py: 0.5,
-                                    flex: 1,
-                                    // Hide scrollbar but keep functionality
-                                    scrollbarWidth: 'none',
-                                    '&::-webkit-scrollbar': { display: 'none' }
-                                }}
-                            >
-                                {allMovers[period].map(mover => (
-                                    <MoverItem
-                                        key={`${mover.key}-${mover.holding.portfolioId}`}
-                                        mover={mover}
-                                        navigate={navigate}
-                                        displayCurrency={displayCurrency}
-                                        sortBy={sortBy}
-                                    />
-                                ))}
-                            </Box>
-                            <ScrollShadows left={showLeft} right={showRight} theme={theme} />
-                </Box>
-            )}
-        </Box>
-    );
+            <Box sx={{ display: 'flex', alignItems: 'center', py: 0.25, borderBottom: isLast ? 'none' : '1px solid', borderColor: 'divider' }}>
+                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 'bold', textTransform: 'uppercase', minWidth: 60, mr: 0.5 }}>{periodLabels[period]}</Typography>
+                {allMovers[period].length === 0 ? (
+                    <Box sx={{ textAlign: 'left', color: 'text.secondary', pl: 1 }}>
+                        <Typography variant="caption">{t('No significant movers.', 'אין תנודות משמעותיות.')}</Typography>
+                    </Box>
+                ) : (
+                    <Box sx={{ position: 'relative', flex: 1, display: 'flex', minWidth: 0 }}>
+                        <Box
+                            ref={containerRef}
+                            sx={{
+                                display: 'flex',
+                                overflowX: 'auto',
+                                py: 0.5,
+                                flex: 1,
+                                // Hide scrollbar but keep functionality
+                                scrollbarWidth: 'none',
+                                '&::-webkit-scrollbar': { display: 'none' }
+                            }}
+                        >
+                            {allMovers[period].map(mover => (
+                                <MoverItem
+                                    key={`${mover.key}-${mover.holding.portfolioId}`}
+                                    mover={mover}
+                                    navigate={navigate}
+                                    displayCurrency={displayCurrency}
+                                    sortBy={sortBy}
+                                />
+                            ))}
+                        </Box>
+                        <ScrollShadows left={showLeft} right={showRight} theme={theme} />
+                    </Box>
+                )}
+            </Box>
+        );
     };
 
     return (

@@ -3,6 +3,7 @@ import { Menu, MenuItem, Alert } from '@mui/material';
 import { logIfFalsy } from '../lib/utils';
 import type { ExchangeRates } from '../lib/types';
 import type { EnrichedDashboardHolding } from '../lib/dashboard';
+import { aggregateHoldingValues } from '../lib/data/holding_utils';
 import { useLanguage } from '../lib/i18n';
 import { DashboardGroup } from './DashboardGroup';
 
@@ -66,7 +67,15 @@ export function DashboardTable(props: TableProps) {
   return (
     <>
       {rateError && <Alert severity="error" sx={{ mb: 2 }}>{rateError}</Alert>}
-      {Object.entries(groupedData).map(([groupName, groupHoldings]) => (
+      {Object.entries(groupedData)
+        .sort(([nameA, holdingsA], [nameB, holdingsB]) => {
+          if (nameA === t('Favorites', 'מועדפים')) return 1;
+          if (nameB === t('Favorites', 'מועדפים')) return -1;
+          const valA = aggregateHoldingValues(holdingsA as any, exchangeRates, displayCurrency)?.marketValue.amount || 0;
+          const valB = aggregateHoldingValues(holdingsB as any, exchangeRates, displayCurrency)?.marketValue.amount || 0;
+          return valB - valA;
+        })
+        .map(([groupName, groupHoldings]) => (
         <DashboardGroup
           key={groupName}
           groupName={groupName}
