@@ -469,19 +469,19 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
 
                       const preTime = priceInfo.preMarketTime || 0;
                       const postTime = priceInfo.postMarketTime || 0;
-                      
+
                       // Show if we have any extended hours data
                       if (!priceInfo.preMarketPrice && !priceInfo.postMarketPrice) return null;
-                      
+
                       const isPre = (preTime >= postTime) && priceInfo.preMarketPrice;
                       const hasPost = !isPre && priceInfo.postMarketPrice;
-                      
+
                       if (!isPre && !hasPost) return null;
-                      
+
                       const pPrice = isPre ? priceInfo.preMarketPrice : priceInfo.postMarketPrice;
                       const pChange = isPre ? priceInfo.preMarketChangePercent : priceInfo.postMarketChangePercent;
                       const label = isPre ? t('Pre-Market:', 'טרום-מסחר:') : t('Post-Market:', 'אחרי-מסחר:');
-                      
+
                       if (!pPrice) return null;
 
                       const regTime = priceInfo.regularMarketTime || 0;
@@ -1004,110 +1004,110 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                         return (
                           <Box sx={{ mt: 3, mb: 2 }}>
                             {advStats.recommendationTrend && advStats.recommendationTrend.length > 0 && (() => {
-                                  const currentTrend = advStats.recommendationTrend[0];
-                                  const total = currentTrend.strongBuy + currentTrend.buy + currentTrend.hold + currentTrend.sell + currentTrend.strongSell;
-                                  if (total === 0) return null;
+                              const currentTrend = advStats.recommendationTrend[0];
+                              const total = currentTrend.strongBuy + currentTrend.buy + currentTrend.hold + currentTrend.sell + currentTrend.strongSell;
+                              if (total === 0) return null;
 
-                                  const isDark = theme.palette.mode === 'dark';
-                                  const categories = [
-                                    { key: 'strongBuy', label: t('Strong Buy', 'קניה חזקה'), color: isDark ? '#1b5e20' : '#2e7d32' },
-                                    { key: 'buy', label: t('Buy', 'קניה'), color: isDark ? '#43a047' : '#4caf50' },
-                                    { key: 'hold', label: t('Hold', 'החזק'), color: isDark ? '#607d8b' : '#78909c' },
-                                    { key: 'sell', label: t('Sell', 'מכירה'), color: isDark ? '#ed6c02' : '#f57c00' },
-                                    { key: 'strongSell', label: t('Strong Sell', 'מכירה חזקה'), color: isDark ? '#c62828' : '#d32f2f' },
-                                  ] as const;
+                              const isDark = theme.palette.mode === 'dark';
+                              const categories = [
+                                { key: 'strongBuy', label: t('Strong Buy', 'קניה חזקה'), color: isDark ? '#1b5e20' : '#2e7d32' },
+                                { key: 'buy', label: t('Buy', 'קניה'), color: isDark ? '#43a047' : '#4caf50' },
+                                { key: 'hold', label: t('Hold', 'החזק'), color: isDark ? '#607d8b' : '#78909c' },
+                                { key: 'sell', label: t('Sell', 'מכירה'), color: isDark ? '#ed6c02' : '#f57c00' },
+                                { key: 'strongSell', label: t('Strong Sell', 'מכירה חזקה'), color: isDark ? '#c62828' : '#d32f2f' },
+                              ] as const;
 
-                                  return (
-                                    <Box sx={{ mt: 4 }}>
-                                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1, fontWeight: 'bold' }}>
-                                        {t('Analyst Recommendations', 'המלצות אנליסטים')}
-                                      </Typography>
+                              return (
+                                <Box sx={{ mt: 4 }}>
+                                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1, fontWeight: 'bold' }}>
+                                    {t('Analyst Recommendations', 'המלצות אנליסטים')}
+                                  </Typography>
 
-                                      <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 3, alignItems: 'flex-start', mb: 0 }}>
-                                        {/* Current Trend Linear Pie */}
-                                        <Box sx={{ flex: 1, width: '100%', mt: 1.5 }}>
-                                          <Box sx={{ display: 'flex', width: '100%', height: 32, borderRadius: 1, overflow: 'hidden', boxShadow: 1 }}>
-                                            {categories.map(cat => {
-                                              const val = currentTrend[cat.key as keyof typeof currentTrend] as number;
-                                              if (val === 0) return null;
-                                              const pct = (val / total) * 100;
-
-                                              return (
-                                                <Tooltip key={cat.key} title={`${cat.label}: ${val} (${pct.toFixed(1)}%)`} placement="top" arrow>
-                                                  <Box sx={{ width: `${pct}%`, bgcolor: cat.color, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderRight: '1px solid rgba(255,255,255,0.2)' }}>
-                                                    {pct > 5 && (
-                                                      <Typography variant="caption" sx={{ color: 'white', fontWeight: 'bold', fontSize: '0.85rem', whiteSpace: 'nowrap', textShadow: '0px 1px 2px rgba(0,0,0,0.5)' }}>
-                                                        {val}
-                                                      </Typography>
-                                                    )}
-                                                  </Box>
-                                                </Tooltip>
-                                              );
-                                            })}
-                                          </Box>
-                                        </Box>
-                                        {/* Stacked Area Chart Sparkline for History */}
-                                        {advStats.recommendationTrend.length > 1 && (() => {
-                                          const chartData = [...advStats.recommendationTrend].reverse().map(trendObj => ({
-                                            name: trendObj.period === '0m' ? t('Cur.', 'נוכחי') : trendObj.period === '-1m' ? '1M' : trendObj.period === '-2m' ? '2M' : trendObj.period === '-3m' ? '3M' : trendObj.period,
-                                            strongBuy: trendObj.strongBuy,
-                                            buy: trendObj.buy,
-                                            hold: trendObj.hold,
-                                            sell: trendObj.sell,
-                                            strongSell: trendObj.strongSell
-                                          }));
+                                  <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 3, alignItems: 'flex-start', mb: 0 }}>
+                                    {/* Current Trend Linear Pie */}
+                                    <Box sx={{ flex: 1, width: '100%', mt: 1.5 }}>
+                                      <Box sx={{ display: 'flex', width: '100%', height: 32, borderRadius: 1, overflow: 'hidden', boxShadow: 1 }}>
+                                        {categories.map(cat => {
+                                          const val = currentTrend[cat.key as keyof typeof currentTrend] as number;
+                                          if (val === 0) return null;
+                                          const pct = (val / total) * 100;
 
                                           return (
-                                            <Tooltip title={t('Recommendation Trend Over Time', 'מגמת המלצות לאורך זמן')} arrow placement="top">
-                                              {/* Slightly wider, taller, to give XAxis room. right offset so the last label doesn't clip */}
-                                              <Box sx={{ width: { xs: '100%', sm: 160, md: 180 }, height: 70, flexShrink: 0 }}>
-                                                <ResponsiveContainer width="100%" height="100%">
-                                                  <AreaChart data={chartData} margin={{ top: 2, right: 10, left: 10, bottom: 0 }}>
-                                                    {/* interval={0} forces all labels to show! */}
-                                                    <XAxis dataKey="name" tick={{ fontSize: 9, fill: theme.palette.text.secondary }} axisLine={false} tickLine={false} dy={4} interval={0} />
-                                                    <RechartsTooltip
-                                                      contentStyle={{ fontSize: '0.65rem', borderRadius: 4, padding: '2px 4px', backgroundColor: theme.palette.background.paper }}
-                                                      itemStyle={{ padding: 0 }}
-                                                      labelStyle={{ display: 'none' }}
-                                                      formatter={(value: number | undefined, name: string | undefined, props: any) => {
-                                                        const p = props.payload;
-                                                        const tot = p.strongBuy + p.buy + p.hold + p.sell + p.strongSell;
-                                                        const pctStr = (tot > 0 && value !== undefined) ? ((value / tot) * 100).toFixed(1) : '0.0';
-                                                        return [`${value || 0} (${pctStr}%)`, name || ''];
-                                                      }}
-                                                      itemSorter={(item: any) => {
-                                                        const order: Record<string, number> = { strongBuy: 0, buy: 1, hold: 2, sell: 3, strongSell: 4 };
-                                                        return order[item.dataKey as string] ?? 99;
-                                                      }}
-                                                    />
-                                                    {/* Reverse order of mapping so they stack properly with strongBuy at the bottom (or top) */}
-                                                    <Area type="monotone" dataKey="strongSell" stackId="1" stroke="none" fillOpacity={1} fill={categories.find(c => c.key === 'strongSell')?.color} name={t('Strong Sell', 'מכירה חזקה')} />
-                                                    <Area type="monotone" dataKey="sell" stackId="1" stroke="none" fillOpacity={1} fill={categories.find(c => c.key === 'sell')?.color} name={t('Sell', 'מכירה')} />
-                                                    <Area type="monotone" dataKey="hold" stackId="1" stroke="none" fillOpacity={1} fill={categories.find(c => c.key === 'hold')?.color} name={t('Hold', 'החזק')} />
-                                                    <Area type="monotone" dataKey="buy" stackId="1" stroke="none" fillOpacity={1} fill={categories.find(c => c.key === 'buy')?.color} name={t('Buy', 'קניה')} />
-                                                    <Area type="monotone" dataKey="strongBuy" stackId="1" stroke="none" fillOpacity={1} fill={categories.find(c => c.key === 'strongBuy')?.color} name={t('Strong Buy', 'קניה חזקה')} />
-                                                  </AreaChart>
-                                                </ResponsiveContainer>
+                                            <Tooltip key={cat.key} title={`${cat.label}: ${val} (${pct.toFixed(1)}%)`} placement="top" arrow>
+                                              <Box sx={{ width: `${pct}%`, bgcolor: cat.color, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderRight: '1px solid rgba(255,255,255,0.2)' }}>
+                                                {pct > 5 && (
+                                                  <Typography variant="caption" sx={{ color: 'white', fontWeight: 'bold', fontSize: '0.85rem', whiteSpace: 'nowrap', textShadow: '0px 1px 2px rgba(0,0,0,0.5)' }}>
+                                                    {val}
+                                                  </Typography>
+                                                )}
                                               </Box>
                                             </Tooltip>
                                           );
-                                        })()}
-                                      </Box>
-
-                                      {/* Legend */}
-                                      <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 1, justifyContent: 'center' }}>
-                                        {categories.map(cat => (
-                                          currentTrend[cat.key as keyof typeof currentTrend] > 0 && (
-                                            <Box key={cat.key} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                              <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: cat.color }} />
-                                              <Typography variant="caption" color="text.secondary">{cat.label}</Typography>
-                                            </Box>
-                                          )
-                                        ))}
+                                        })}
                                       </Box>
                                     </Box>
-                                  );
-                                })()}
+                                    {/* Stacked Area Chart Sparkline for History */}
+                                    {advStats.recommendationTrend.length > 1 && (() => {
+                                      const chartData = [...advStats.recommendationTrend].reverse().map(trendObj => ({
+                                        name: trendObj.period === '0m' ? t('Cur.', 'נוכחי') : trendObj.period === '-1m' ? '1M' : trendObj.period === '-2m' ? '2M' : trendObj.period === '-3m' ? '3M' : trendObj.period,
+                                        strongBuy: trendObj.strongBuy,
+                                        buy: trendObj.buy,
+                                        hold: trendObj.hold,
+                                        sell: trendObj.sell,
+                                        strongSell: trendObj.strongSell
+                                      }));
+
+                                      return (
+                                        <Tooltip title={t('Recommendation Trend Over Time', 'מגמת המלצות לאורך זמן')} arrow placement="top">
+                                          {/* Slightly wider, taller, to give XAxis room. right offset so the last label doesn't clip */}
+                                          <Box sx={{ width: { xs: '100%', sm: 160, md: 180 }, height: 70, flexShrink: 0 }}>
+                                            <ResponsiveContainer width="100%" height="100%">
+                                              <AreaChart data={chartData} margin={{ top: 2, right: 10, left: 10, bottom: 0 }}>
+                                                {/* interval={0} forces all labels to show! */}
+                                                <XAxis dataKey="name" tick={{ fontSize: 9, fill: theme.palette.text.secondary }} axisLine={false} tickLine={false} dy={4} interval={0} />
+                                                <RechartsTooltip
+                                                  contentStyle={{ fontSize: '0.65rem', borderRadius: 4, padding: '2px 4px', backgroundColor: theme.palette.background.paper }}
+                                                  itemStyle={{ padding: 0 }}
+                                                  labelStyle={{ display: 'none' }}
+                                                  formatter={(value: number | undefined, name: string | undefined, props: any) => {
+                                                    const p = props.payload;
+                                                    const tot = p.strongBuy + p.buy + p.hold + p.sell + p.strongSell;
+                                                    const pctStr = (tot > 0 && value !== undefined) ? ((value / tot) * 100).toFixed(1) : '0.0';
+                                                    return [`${value || 0} (${pctStr}%)`, name || ''];
+                                                  }}
+                                                  itemSorter={(item: any) => {
+                                                    const order: Record<string, number> = { strongBuy: 0, buy: 1, hold: 2, sell: 3, strongSell: 4 };
+                                                    return order[item.dataKey as string] ?? 99;
+                                                  }}
+                                                />
+                                                {/* Reverse order of mapping so they stack properly with strongBuy at the bottom (or top) */}
+                                                <Area type="monotone" dataKey="strongSell" stackId="1" stroke="none" fillOpacity={1} fill={categories.find(c => c.key === 'strongSell')?.color} name={t('Strong Sell', 'מכירה חזקה')} />
+                                                <Area type="monotone" dataKey="sell" stackId="1" stroke="none" fillOpacity={1} fill={categories.find(c => c.key === 'sell')?.color} name={t('Sell', 'מכירה')} />
+                                                <Area type="monotone" dataKey="hold" stackId="1" stroke="none" fillOpacity={1} fill={categories.find(c => c.key === 'hold')?.color} name={t('Hold', 'החזק')} />
+                                                <Area type="monotone" dataKey="buy" stackId="1" stroke="none" fillOpacity={1} fill={categories.find(c => c.key === 'buy')?.color} name={t('Buy', 'קניה')} />
+                                                <Area type="monotone" dataKey="strongBuy" stackId="1" stroke="none" fillOpacity={1} fill={categories.find(c => c.key === 'strongBuy')?.color} name={t('Strong Buy', 'קניה חזקה')} />
+                                              </AreaChart>
+                                            </ResponsiveContainer>
+                                          </Box>
+                                        </Tooltip>
+                                      );
+                                    })()}
+                                  </Box>
+
+                                  {/* Legend */}
+                                  <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 1, justifyContent: 'center' }}>
+                                    {categories.map(cat => (
+                                      currentTrend[cat.key as keyof typeof currentTrend] > 0 && (
+                                        <Box key={cat.key} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                          <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: cat.color }} />
+                                          <Typography variant="caption" color="text.secondary">{cat.label}</Typography>
+                                        </Box>
+                                      )
+                                    ))}
+                                  </Box>
+                                </Box>
+                              );
+                            })()}
 
 
                             {/* Price Targets Chart */}
@@ -1146,19 +1146,19 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                                   <Box sx={{ position: 'relative', height: 6, bgcolor: 'action.hover', borderRadius: 3, mb: 8, opacity: 0.9 }}>
                                     {/* Background Bell Curve */}
                                     {advStats.targetLowPrice && advStats.targetHighPrice && advStats.targetMedianPrice && (() => {
-                                       const lowX = getPos(advStats.targetLowPrice);
-                                       const highX = getPos(advStats.targetHighPrice);
-                                       const medianX = getPos(advStats.targetMedianPrice);
-                                       return (
-                                         <Box sx={{ position: 'absolute', bottom: '100%', left: 0, right: 0, height: 40, pointerEvents: 'none', overflow: 'visible' }}>
-                                           <svg width="100%" height="100%" preserveAspectRatio="none" viewBox="0 0 100 100" style={{ overflow: 'visible' }}>
-                                             <defs>
-                                                <linearGradient id="bellGrad" x1="0" y1="0" x2="0" y2="1">
-                                                   <stop offset="0%" stopColor={theme.palette.primary.main} stopOpacity={0.25} />
-                                                   <stop offset="100%" stopColor={theme.palette.primary.main} stopOpacity={0.0} />
-                                                </linearGradient>
-                                             </defs>
-                                             <path d={`
+                                      const lowX = getPos(advStats.targetLowPrice);
+                                      const highX = getPos(advStats.targetHighPrice);
+                                      const medianX = getPos(advStats.targetMedianPrice);
+                                      return (
+                                        <Box sx={{ position: 'absolute', bottom: '100%', left: 0, right: 0, height: 40, pointerEvents: 'none', overflow: 'visible' }}>
+                                          <svg width="100%" height="100%" preserveAspectRatio="none" viewBox="0 0 100 100" style={{ overflow: 'visible' }}>
+                                            <defs>
+                                              <linearGradient id="bellGrad" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="0%" stopColor={theme.palette.primary.main} stopOpacity={0.25} />
+                                                <stop offset="100%" stopColor={theme.palette.primary.main} stopOpacity={0.0} />
+                                              </linearGradient>
+                                            </defs>
+                                            <path d={`
                                                M ${lowX} 100
                                                C ${lowX + (medianX - lowX) * 0.5} 100,
                                                  ${medianX - (medianX - lowX) * 0.4} 0,
@@ -1167,9 +1167,9 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                                                  ${highX - (highX - medianX) * 0.5} 100,
                                                  ${highX} 100
                                              `} fill="url(#bellGrad)" stroke={theme.palette.primary.main} strokeOpacity={0.3} strokeWidth="1" vectorEffect="non-scaling-stroke" />
-                                           </svg>
-                                         </Box>
-                                       );
+                                          </svg>
+                                        </Box>
+                                      );
                                     })()}
 
                                     {/* colored range from Low to High if both exist */}
@@ -1187,32 +1187,32 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                                       const pctChange = ((tgt.value - currentPrice) / currentPrice) * 100;
                                       const isPositive = pctChange > 0;
 
-                                    // Check if this is the median and it overlaps with the mean
-                                    const meanT = targets.find(x => x.label === t('Mean', 'ממוצע') || x.color === theme.palette.info.main);
-                                    const isMedian = tgt.label === t('Median', 'חציון') || tgt.color === theme.palette.primary.main;
-                                    const isOverlap = isMedian && meanT && Math.abs(getPos(tgt.value) - getPos(meanT.value)) < 15;
+                                      // Check if this is the median and it overlaps with the mean
+                                      const meanT = targets.find(x => x.label === t('Mean', 'ממוצע') || x.color === theme.palette.info.main);
+                                      const isMedian = tgt.label === t('Median', 'חציון') || tgt.color === theme.palette.primary.main;
+                                      const isOverlap = isMedian && meanT && Math.abs(getPos(tgt.value) - getPos(meanT.value)) < 15;
 
-                                    return (
-                                      <Box key={tgt.label} style={{ position: 'absolute', left: `${getPos(tgt.value)}%`, top: 0, transform: 'translateX(-50%)' }} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                        <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: tgt.color, border: '2px solid', borderColor: 'background.paper', mt: -0.4, zIndex: 2 }} />
-                                        <Box sx={{
-                                          position: isOverlap ? 'absolute' : 'relative',
-                                          bottom: isOverlap ? '100%' : 'auto',
-                                          mb: isOverlap ? 1.5 : 0,
-                                          mt: isOverlap ? 0 : 0.5,
-                                          display: 'flex', flexDirection: 'column', alignItems: 'center', bgcolor: 'background.paper', px: 0.5, borderRadius: 1, zIndex: 1, boxShadow: 1
-                                        }}>
-                                          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem', whiteSpace: 'nowrap' }}>{tgt.label}</Typography>
-                                          <Typography variant="caption" fontWeight="bold" sx={{ color: tgt.color, fontSize: '0.75rem', lineHeight: 1.1 }}>
-                                            {isPositive ? '+' : ''}{pctChange.toFixed(1)}%
-                                          </Typography>
-                                          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
-                                            {formatters.currency(tgt.value)}
-                                          </Typography>
+                                      return (
+                                        <Box key={tgt.label} style={{ position: 'absolute', left: `${getPos(tgt.value)}%`, top: 0, transform: 'translateX(-50%)' }} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                          <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: tgt.color, border: '2px solid', borderColor: 'background.paper', mt: -0.4, zIndex: 2 }} />
+                                          <Box sx={{
+                                            position: isOverlap ? 'absolute' : 'relative',
+                                            bottom: isOverlap ? '100%' : 'auto',
+                                            mb: isOverlap ? 1.5 : 0,
+                                            mt: isOverlap ? 0 : 0.5,
+                                            display: 'flex', flexDirection: 'column', alignItems: 'center', bgcolor: 'background.paper', px: 0.5, borderRadius: 1, zIndex: 1, boxShadow: 1
+                                          }}>
+                                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem', whiteSpace: 'nowrap' }}>{tgt.label}</Typography>
+                                            <Typography variant="caption" fontWeight="bold" sx={{ color: tgt.color, fontSize: '0.75rem', lineHeight: 1.1 }}>
+                                              {isPositive ? '+' : ''}{pctChange.toFixed(1)}%
+                                            </Typography>
+                                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
+                                              {formatters.currency(tgt.value)}
+                                            </Typography>
+                                          </Box>
                                         </Box>
-                                      </Box>
-                                    );
-                                  })}
+                                      );
+                                    })}
 
 
 
@@ -1394,10 +1394,12 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
             <IconButton onClick={handleRefresh} disabled={refreshing} size="small">{refreshing ? <CircularProgress size={16} /> : <RefreshIcon fontSize="small" />}</IconButton>
           </Tooltip>
           <Box sx={{ flexGrow: 1 }} />
-          <Button onClick={handleOpenChat} color="primary" variant="outlined" sx={{ textTransform: 'none', borderRadius: 2 }} startIcon={<SmartToyIcon fontSize="small" />}>
+          <Button onClick={handleOpenChat} color="primary" variant="outlined" sx={{ textTransform: 'none', borderRadius: 2, minWidth: { xs: 0, md: 64 }, px: { xs: 1.5, md: 2 }, '& .MuiButton-startIcon': { mr: { xs: 0, md: 1 }, ml: { xs: 0, md: -0.5 } } }} startIcon={<SmartToyIcon fontSize="small" />}>
             <Box component="span" sx={{ display: { xs: 'none', md: 'inline' } }}>{t('AI Assistant', 'עוזר AI')}</Box>
           </Button>
-          <Button variant="contained" onClick={handleAddTransaction} startIcon={<AddIcon />} sx={{ borderRadius: 2, textTransform: 'none' }}>{t('Add Transaction', 'הוסף עסקה')}</Button>
+          <Button variant="contained" onClick={handleAddTransaction} startIcon={isMobile ? undefined : <AddIcon />} sx={{ borderRadius: 2, textTransform: 'none', px: isMobile ? 1.5 : 2, minWidth: isMobile ? 0 : 64 }}>
+            {isMobile ? t('Add Transaction', 'הוסף עסקה') : t('Add Transaction', 'הוסף עסקה')}
+          </Button>
           <Button onClick={handleClose} color="inherit" sx={{ textTransform: 'none' }}>{t('Close', 'סגור')}</Button>
         </DialogActions>
       </Dialog>
