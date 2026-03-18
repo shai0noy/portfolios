@@ -34,6 +34,57 @@ export interface IncomeStatement {
   netIncome?: number;
 }
 
+export interface RecommendationTrend {
+  period: string;
+  strongBuy: number;
+  buy: number;
+  hold: number;
+  sell: number;
+  strongSell: number;
+}
+
+export interface AdvancedStats {
+  forwardPE?: number;
+  pegRatio?: number;
+  priceToBook?: number;
+  profitMargins?: number;
+  beta?: number;
+  trailingEps?: number;
+  forwardEps?: number;
+  fiftyTwoWeekChange?: number;
+  heldPercentInsiders?: number;
+  heldPercentInstitutions?: number;
+  shortPercentOfFloat?: number;
+  shortRatio?: number;
+  earningsQuarterlyGrowth?: number;
+  revenueQuarterlyGrowth?: number;
+  recommendationTrend?: RecommendationTrend[];
+  sharesOutstanding?: number;
+  floatShares?: number;
+  sharesShort?: number;
+  targetHighPrice?: number;
+  targetLowPrice?: number;
+  targetMeanPrice?: number;
+  targetMedianPrice?: number;
+  recommendationMean?: number;
+  totalCash?: number;
+  totalCashPerShare?: number;
+  totalDebt?: number;
+  quickRatio?: number;
+  currentRatio?: number;
+  totalRevenue?: number;
+  debtToEquity?: number;
+  returnOnAssets?: number;
+  returnOnEquity?: number;
+  freeCashflow?: number;
+  operatingCashflow?: number;
+  earningsGrowth?: number;
+  revenueGrowth?: number;
+  grossMargins?: number;
+  ebitdaMargins?: number;
+  operatingMargins?: number;
+}
+
 export interface TickerData {
   price: number;
   openPrice?: number;
@@ -86,6 +137,7 @@ export interface TickerData {
   meta?: ExchangeMetadata;
   type?: InstrumentClassification;
   isFeeExempt?: boolean;
+  advancedStats?: AdvancedStats;
 }
 
 export interface HistoricalDataPoint {

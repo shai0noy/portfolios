@@ -1,5 +1,6 @@
-import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, Box, Chip, CircularProgress, Tooltip, IconButton, ToggleButtonGroup, ToggleButton, Menu, MenuItem, ListItemIcon, ListItemText, Tabs, Tab, useTheme, Divider, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper } from '@mui/material';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, LabelList } from 'recharts';
+import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, Box, Chip, CircularProgress, Tooltip, IconButton, ToggleButtonGroup, ToggleButton, Menu, MenuItem, ListItemIcon, ListItemText, Tabs, Tab, useTheme, Divider, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Accordion, AccordionSummary, AccordionDetails, Grid } from '@mui/material';
+import { BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, LabelList } from 'recharts';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AddIcon from '@mui/icons-material/Add';
@@ -230,6 +231,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
     return false;
   }, [hasHolding, enrichedHolding, engineHoldings, holdingData]);
 
+  ///// XXXXXX
   const totalVestedShares = useMemo(() => {
     if (engineHoldings && engineHoldings.length > 0) {
       return engineHoldings.reduce((acc: number, h: any) => acc + (h.qtyVested ?? h.qtyTotal ?? h.qty ?? 0), 0);
@@ -492,7 +494,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
           <Tabs
             value={
               (activeTab === 'analysis') ||
-                (activeTab === 'financials' && (!!(displayData as any)?.calendarEvents || !!(displayData as any)?.incomeStatementHistory || !!(displayData as any)?.incomeStatementHistoryQuarterly)) ||
+                (activeTab === 'financials' && (!!(displayData as any)?.calendarEvents || !!(displayData as any)?.incomeStatementHistory || !!(displayData as any)?.incomeStatementHistoryQuarterly || !!(displayData as any)?.advancedStats)) ||
                 (activeTab === 'holdings' && hasHolding) ||
                 (activeTab === 'transactions' && hasHolding) ||
                 (activeTab === 'grants' && hasGrants) ||
@@ -508,7 +510,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
             allowScrollButtonsMobile
           >
             <Tab label={t('Analysis', 'ניתוח')} value="analysis" />
-            {(!!(displayData as any)?.calendarEvents || !!(displayData as any)?.incomeStatementHistory || !!(displayData as any)?.incomeStatementHistoryQuarterly) && <Tab label={t('Financials', 'פיננסי')} value="financials" />}
+            {(!!(displayData as any)?.calendarEvents || !!(displayData as any)?.incomeStatementHistory || !!(displayData as any)?.incomeStatementHistoryQuarterly || !!(displayData as any)?.advancedStats) && <Tab label={t('Financials', 'פיננסי')} value="financials" />}
             {hasHolding && <Tab label={t('Holdings', 'החזקות')} value="holdings" />}
             {hasHolding && <Tab label={t('Transactions', 'עסקאות')} value="transactions" />}
             {hasGrants && <Tab label={t('Grants', 'מענקים')} value="grants" />}
@@ -882,6 +884,235 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                         </>
                       )}
 
+                      {/* Advanced Stats Section */}
+                      {/* Advanced Stats Section */}
+                      {(() => {
+                        const advStats = (displayData as any)?.advancedStats;
+                        if (!advStats) return null;
+
+                        const formatters = {
+                          pct: (v: number | undefined) => v !== undefined ? formatPercent(v) : undefined,
+                          num: (v: number | undefined) => v !== undefined ? v.toFixed(2) : undefined,
+                          currency: (v: number | undefined) => v !== undefined ? formatMoneyPrice({ amount: v, currency: (displayData?.currency || 'USD') as any }, t) : undefined,
+                          compact: (v: number | undefined) => v !== undefined ? new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 2 }).format(v) : undefined,
+                        };
+
+                        const shortFloatRatio = advStats.sharesShort && advStats.floatShares ? (advStats.sharesShort / advStats.floatShares) : advStats.shortPercentOfFloat;
+
+                        const groups = [
+                          {
+                            title: t('Valuation & Targets', 'הערכת שווי ויעדים'),
+                            items: [
+                              { label: t('Forward P/E', 'מכפיל רווח עתידי'), value: formatters.num(advStats.forwardPE), tooltip: t('Estimated future price-to-earnings ratio.', 'הערכת מכפיל הרווח מבוסס על צפי הרווחים העתידי.') },
+                              { label: t('PEG Ratio', 'יחס PEG'), value: formatters.num(advStats.pegRatio), tooltip: t('Price/Earnings to Growth ratio.', 'יחס מכפיל רווח לצמיחת החברה.') },
+                              { label: t('Price to Book', 'מכפיל הון'), value: formatters.num(advStats.priceToBook), tooltip: t('Compares market value to book value.', 'היחס בין שווי השוק להון העצמי.') },
+                              { label: t('Target High', 'יעד גבוה'), value: formatters.currency(advStats.targetHighPrice), tooltip: t('Highest current price target from analysts.', 'מחיר היעד הגבוה ביותר לפי ממוצע אנליסטים.') },
+                              { label: t('Target Mean', 'יעד ממוצע'), value: formatters.currency(advStats.targetMeanPrice), tooltip: t('Average current price target.', 'מחיר היעד הממוצע.') },
+                              { label: t('Target Median', 'יעד חציון'), value: formatters.currency(advStats.targetMedianPrice), tooltip: t('Median current price target.', 'מחיר היעד החציוני.') },
+                              { label: t('Target Low', 'יעד נמוך'), value: formatters.currency(advStats.targetLowPrice), tooltip: t('Lowest current price target.', 'מחיר היעד הנמוך ביותר.') },
+                            ]
+                          },
+                          {
+                            title: t('Profitability', 'רווחיות'),
+                            items: [
+                              { label: t('Profit Margin', 'שולי רווח'), value: formatters.pct(advStats.profitMargins), tooltip: t('The percentage of revenue that remains as profit.', 'שיעור הרווח הנקי מתוך ההכנסות.') },
+                              { label: t('Operating Margin', 'שולי תפעולי'), value: formatters.pct(advStats.operatingMargins), tooltip: t('Profits before interest and taxes relative to revenue.', 'רווח לפני ריבית ומסים ביחס להכנסות.') },
+                              { label: t('Gross Margin', 'שולי גולמי'), value: formatters.pct(advStats.grossMargins), tooltip: t('Revenue left after COGS.', 'אחוז ההכנסה שנשאר לאחר עלות מכירות.') },
+                              { label: t('ROE', 'תשואה להון'), value: formatters.pct(advStats.returnOnEquity), tooltip: t('Net income relative to shareholder equity.', 'המשקף את רווחיות החברה ביחס להון העצמי.') },
+                              { label: t('ROA', 'תשואה לנכסים'), value: formatters.pct(advStats.returnOnAssets), tooltip: t('Net income relative to total assets.', 'הפעלת הנכסים ליצירת רווחים.') },
+                            ]
+                          },
+                          {
+                            title: t('Cash & Debt', 'מזומן וחוב'),
+                            items: [
+                              { label: t('Total Cash', 'סך המזומנים'), value: formatters.compact(advStats.totalCash), tooltip: t('Total cash on hand.', 'כמות המזומנים של החברה.') },
+                              { label: t('Cash / Share', 'מזומן למניה'), value: formatters.currency(advStats.totalCashPerShare), tooltip: t('Total cash per outstanding share.', 'סך המזומנים מחולק במספר המניות.') },
+                              { label: t('Total Debt', 'סך החוב'), value: formatters.compact(advStats.totalDebt), tooltip: t('Total outstanding debt.', 'סך החובות מכל הסוגים.') },
+                              { label: t('Debt / Equity', 'חוב להון'), value: formatters.pct(advStats.debtToEquity ? advStats.debtToEquity / 100 : undefined), tooltip: t('Total debt divided by shareholder equity.', 'היחס בין סך החוב להון העצמי.') },
+                              { label: t('Free Cash Flow', 'תזרים חופשי'), value: formatters.compact(advStats.freeCashflow), tooltip: t('Cash left after paying operating expenses and capital expenditures.', 'המזומן הפנוי לאחר הוצאות הון.') },
+                              { label: t('Operating Flow', 'תזרים תפעולי'), value: formatters.compact(advStats.operatingCashflow), tooltip: t('Cash generated by core business operations.', 'תזרים מפעילות הליבה.') },
+                              { label: t('Current Ratio', 'יחס שוטף'), value: formatters.num(advStats.currentRatio), tooltip: t('Current assets divided by current liabilities.', 'יחס בין נכסים שוטפים להתחייבויות שוטפות.') },
+                            ]
+                          },
+                          {
+                            title: t('Growth & Income', 'צמיחה והכנסות'),
+                            items: [
+                              { label: t('Total Revenue', 'סך הכנסות'), value: formatters.compact(advStats.totalRevenue), tooltip: t('Total sales in the period.', 'סך כל המכירות.') },
+                              { label: t('Revenue Q Grw.', 'צמיחת הכנסות Q'), value: formatters.pct(advStats.revenueQuarterlyGrowth ?? advStats.revenueGrowth), tooltip: t('Quarter-over-quarter revenue growth rate.', 'שיעור הצמיחה בהכנסות.') },
+                              { label: t('Earnings Q Grw.', 'צמיחת רווחים Q'), value: formatters.pct(advStats.earningsQuarterlyGrowth ?? advStats.earningsGrowth), tooltip: t('Quarter-over-quarter earnings growth rate.', 'שיעור הצמיחה ברווחים.') },
+                              { label: t('Trailing EPS', 'רווח עוקב למניה'), value: formatters.currency(advStats.trailingEps), tooltip: t('Company\'s actual profit per outstanding share.', 'הרווח הנקי שיוחס לכל מניה השנה.') },
+                              { label: t('Forward EPS', 'רווח למניה עתידי'), value: formatters.currency(advStats.forwardEps), tooltip: t('Estimated earnings per share for the upcoming 12 months.', 'הרווח החזוי למניה לשנה הבאה.') },
+                            ]
+                          },
+                          {
+                            title: t('Market & Shares', 'שוק ומניות'),
+                            items: [
+                              { label: t('Beta', 'בטא'), value: formatters.num(advStats.beta), tooltip: t('Volatility compared to the overall market.', 'תנודתיות ביחס לשוק כולו.') },
+                              { label: t('52W Change', 'שינוי שנתי'), value: formatters.pct(advStats.fiftyTwoWeekChange), tooltip: t('The stock\'s raw price performance over the last year.', 'תשואה מתחילת השנה.') },
+                              { label: t('Shares Out.', 'מניות רשומות'), value: formatters.compact(advStats.sharesOutstanding), tooltip: t('Total number of shares outstanding.', 'סך המניות הרשומות.') },
+                              { label: t('Float Shares', 'מניות סחירות'), value: formatters.compact(advStats.floatShares), tooltip: t('Number of shares manually floating publicly.', 'מספר המניות הזמינות ציבורית.') },
+                              { label: t('Insiders Held', 'בעלי עניין'), value: formatters.pct(advStats.heldPercentInsiders), tooltip: t('Percentage of shares held by company insiders.', 'אחוז המניות שבידי נושאי משרה או מייסדים.') },
+                              { label: t('Institutions', 'מוסדיים'), value: formatters.pct(advStats.heldPercentInstitutions), tooltip: t('Percentage held by large funds.', 'אחוז המניות שמשקיעים מוסדיים מחזיקים.') },
+                            ]
+                          },
+                          {
+                            title: t('Short Interest', 'שורט'),
+                            items: [
+                              { label: t('Shares Short', 'מניות שורט'), value: formatters.compact(advStats.sharesShort), tooltip: t('Total number of shares technically sold short in the open market.', 'סך המניות שנמכרו בחסר וטרם כוסו.') },
+                              { label: t('Short / Float', 'שורט מסחירות'), value: formatters.pct(shortFloatRatio), tooltip: t('Percentage of available traded shares currently sold short.', 'שיעור המניות המצויות פוזיציית חסר.') },
+                              { label: t('Short Ratio', 'ימי כיסוי לשורט'), value: formatters.num(advStats.shortRatio), tooltip: t('Days to cover short positions using average daily volume.', 'ימי כיסוי: משך הזמן המשוער לסגירת הפוזיציות.') },
+                            ]
+                          }
+                        ];
+
+                        return (
+                          <Box sx={{ mt: 3, mb: 2 }}>
+                            <Accordion variant="outlined" sx={{ borderRadius: 1, '&:before': { display: 'none' } }}>
+                              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                                <Typography variant="subtitle2">{t('Advanced Statistics', 'נתונים מתקדמים')}</Typography>
+                              </AccordionSummary>
+                              <AccordionDetails sx={{ pt: 0, pb: 2, px: 2 }}>
+                                <Grid container spacing={2}>
+                                  {groups.map((g, idx) => {
+                                    const validItems = g.items.filter(i => i.value !== undefined);
+                                    if (validItems.length === 0) return null;
+                                    return (
+                                      <Grid item xs={12} sm={6} md={4} key={idx}>
+                                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1, fontWeight: 'bold' }}>
+                                          {g.title}
+                                        </Typography>
+                                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                                          {validItems.map((item, i) => (
+                                            <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid', borderColor: 'divider', pb: 0.5 }}>
+                                              {item.tooltip ? (
+                                                <Tooltip title={item.tooltip} placement="top" arrow>
+                                                  <Typography variant="body2" color="text.secondary" sx={{ textDecoration: 'underline', textDecorationStyle: 'dotted', cursor: 'help' }}>
+                                                    {item.label}
+                                                  </Typography>
+                                                </Tooltip>
+                                              ) : (
+                                                <Typography variant="body2" color="text.secondary">{item.label}</Typography>
+                                              )}
+                                              <Typography variant="body2" fontWeight="medium">{item.value}</Typography>
+                                            </Box>
+                                          ))}
+                                        </Box>
+                                      </Grid>
+                                    );
+                                  })}
+                                </Grid>
+
+                                {advStats.recommendationTrend && advStats.recommendationTrend.length > 0 && (() => {
+                                  const currentTrend = advStats.recommendationTrend[0];
+                                  const total = currentTrend.strongBuy + currentTrend.buy + currentTrend.hold + currentTrend.sell + currentTrend.strongSell;
+                                  if (total === 0) return null;
+
+                                  const isDark = theme.palette.mode === 'dark';
+                                  const categories = [
+                                    { key: 'strongBuy', label: t('Strong Buy', 'קניה חזקה'), color: isDark ? '#1b5e20' : '#2e7d32' },
+                                    { key: 'buy', label: t('Buy', 'קניה'), color: isDark ? '#43a047' : '#4caf50' },
+                                    { key: 'hold', label: t('Hold', 'החזק'), color: isDark ? '#607d8b' : '#78909c' },
+                                    { key: 'sell', label: t('Sell', 'מכירה'), color: isDark ? '#ed6c02' : '#f57c00' },
+                                    { key: 'strongSell', label: t('Strong Sell', 'מכירה חזקה'), color: isDark ? '#c62828' : '#d32f2f' },
+                                  ] as const;
+
+                                  return (
+                                    <Box sx={{ mt: 4 }}>
+                                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1, fontWeight: 'bold' }}>
+                                        {t('Analyst Recommendations', 'המלצות אנליסטים')}
+                                      </Typography>
+
+                                      <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 3, alignItems: 'flex-start', mb: 0 }}>
+                                        {/* Current Trend Linear Pie */}
+                                        <Box sx={{ flex: 1, width: '100%', mt: 1.5 }}>
+                                          <Box sx={{ display: 'flex', width: '100%', height: 32, borderRadius: 1, overflow: 'hidden', boxShadow: 1 }}>
+                                            {categories.map(cat => {
+                                              const val = currentTrend[cat.key as keyof typeof currentTrend] as number;
+                                              if (val === 0) return null;
+                                              const pct = (val / total) * 100;
+
+                                              return (
+                                                <Tooltip key={cat.key} title={`${cat.label}: ${val} (${pct.toFixed(1)}%)`} placement="top" arrow>
+                                                  <Box sx={{ width: `${pct}%`, bgcolor: cat.color, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderRight: '1px solid rgba(255,255,255,0.2)' }}>
+                                                    {pct > 5 && (
+                                                      <Typography variant="caption" sx={{ color: 'white', fontWeight: 'bold', fontSize: '0.85rem', whiteSpace: 'nowrap', textShadow: '0px 1px 2px rgba(0,0,0,0.5)' }}>
+                                                        {val}
+                                                      </Typography>
+                                                    )}
+                                                  </Box>
+                                                </Tooltip>
+                                              );
+                                            })}
+                                          </Box>
+                                        </Box>
+                                        {/* Stacked Area Chart Sparkline for History */}
+                                        {advStats.recommendationTrend.length > 1 && (() => {
+                                          const chartData = [...advStats.recommendationTrend].reverse().map(trendObj => ({
+                                            name: trendObj.period === '0m' ? t('Cur.', 'נוכחי') : trendObj.period === '-1m' ? '1M' : trendObj.period === '-2m' ? '2M' : trendObj.period === '-3m' ? '3M' : trendObj.period,
+                                            strongBuy: trendObj.strongBuy,
+                                            buy: trendObj.buy,
+                                            hold: trendObj.hold,
+                                            sell: trendObj.sell,
+                                            strongSell: trendObj.strongSell
+                                          }));
+
+                                          return (
+                                            <Tooltip title={t('Recommendation Trend Over Time', 'מגמת המלצות לאורך זמן')} arrow placement="top">
+                                              {/* Slightly wider, taller, to give XAxis room. right offset so the last label doesn't clip */}
+                                              <Box sx={{ width: { xs: '100%', sm: 160, md: 180 }, height: 70, flexShrink: 0 }}>
+                                                <ResponsiveContainer width="100%" height="100%">
+                                                  <AreaChart data={chartData} margin={{ top: 2, right: 10, left: 10, bottom: 0 }}>
+                                                    {/* interval={0} forces all labels to show! */}
+                                                    <XAxis dataKey="name" tick={{ fontSize: 9, fill: theme.palette.text.secondary }} axisLine={false} tickLine={false} dy={4} interval={0} />
+                                                    <RechartsTooltip
+                                                      contentStyle={{ fontSize: '0.65rem', borderRadius: 4, padding: '2px 4px', backgroundColor: theme.palette.background.paper }}
+                                                      itemStyle={{ padding: 0 }}
+                                                      labelStyle={{ display: 'none' }}
+                                                      formatter={(value: number | undefined, name: string | undefined, props: any) => {
+                                                        const p = props.payload;
+                                                        const tot = p.strongBuy + p.buy + p.hold + p.sell + p.strongSell;
+                                                        const pctStr = (tot > 0 && value !== undefined) ? ((value / tot) * 100).toFixed(1) : '0.0';
+                                                        return [`${value || 0} (${pctStr}%)`, name || ''];
+                                                      }}
+                                                      itemSorter={(item: any) => {
+                                                        const order: Record<string, number> = { strongBuy: 0, buy: 1, hold: 2, sell: 3, strongSell: 4 };
+                                                        return order[item.dataKey as string] ?? 99;
+                                                      }}
+                                                    />
+                                                    {/* Reverse order of mapping so they stack properly with strongBuy at the bottom (or top) */}
+                                                    <Area type="monotone" dataKey="strongSell" stackId="1" stroke="none" fillOpacity={1} fill={categories.find(c => c.key === 'strongSell')?.color} name={t('Strong Sell', 'מכירה חזקה')} />
+                                                    <Area type="monotone" dataKey="sell" stackId="1" stroke="none" fillOpacity={1} fill={categories.find(c => c.key === 'sell')?.color} name={t('Sell', 'מכירה')} />
+                                                    <Area type="monotone" dataKey="hold" stackId="1" stroke="none" fillOpacity={1} fill={categories.find(c => c.key === 'hold')?.color} name={t('Hold', 'החזק')} />
+                                                    <Area type="monotone" dataKey="buy" stackId="1" stroke="none" fillOpacity={1} fill={categories.find(c => c.key === 'buy')?.color} name={t('Buy', 'קניה')} />
+                                                    <Area type="monotone" dataKey="strongBuy" stackId="1" stroke="none" fillOpacity={1} fill={categories.find(c => c.key === 'strongBuy')?.color} name={t('Strong Buy', 'קניה חזקה')} />
+                                                  </AreaChart>
+                                                </ResponsiveContainer>
+                                              </Box>
+                                            </Tooltip>
+                                          );
+                                        })()}
+                                      </Box>
+
+                                      {/* Legend */}
+                                      <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 1, justifyContent: 'center' }}>
+                                        {categories.map(cat => (
+                                          currentTrend[cat.key as keyof typeof currentTrend] > 0 && (
+                                            <Box key={cat.key} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                              <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: cat.color }} />
+                                              <Typography variant="caption" color="text.secondary">{cat.label}</Typography>
+                                            </Box>
+                                          )
+                                        ))}
+                                      </Box>
+                                    </Box>
+                                  );
+                                })()}
+                              </AccordionDetails>
+                            </Accordion>
+                          </Box>
+                        );
+                      })()}
+
                       {/* Underlying Assets Section */}
                       {displayData?.meta?.underlyingAssets && displayData.meta.underlyingAssets.length > 0 && (
                         <Box sx={{ mt: 3, mb: 2 }}>
@@ -920,7 +1151,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                   </TabPanelWithShadows>
                 )}
 
-                {activeTab === 'financials' && ((displayData as any)?.incomeStatementHistory || (displayData as any)?.incomeStatementHistoryQuarterly || (displayData as any)?.calendarEvents) && (
+                {activeTab === 'financials' && ((displayData as any)?.incomeStatementHistory || (displayData as any)?.incomeStatementHistoryQuarterly || (displayData as any)?.calendarEvents || (displayData as any)?.advancedStats) && (
                   <TabPanelWithShadows theme={theme}>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                       {(displayData as any)?.calendarEvents && <CalendarEventsView events={(displayData as any).calendarEvents} currency={(displayData as any).currency || (displayData as any).stockCurrency || 'USD'} expectedDivTotal={totalVestedShares && (displayData as any).calendarEvents?.dividendAmount ? totalVestedShares * (displayData as any).calendarEvents.dividendAmount : undefined} t={t} />}
@@ -932,6 +1163,44 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                           t={t}
                         />
                       )}
+
+                      {/* Key Financials (from Advanced Stats) */}
+                      {(() => {
+                        const advStats = (displayData as any)?.advancedStats;
+                        if (!advStats) return null;
+
+                        const formatters = {
+                          pct: (v: number | undefined) => v !== undefined ? formatPercent(v) : undefined,
+                          num: (v: number | undefined) => v !== undefined ? v.toFixed(2) : undefined,
+                          currency: (v: number | undefined) => v !== undefined ? formatMoneyPrice({ amount: v, currency: (displayData?.currency || 'USD') as any }, t) : undefined,
+                        };
+
+                        const keyStats = [
+                          { label: t('P/E (Fwd)', 'מכפיל עתידי'), value: formatters.num(advStats.forwardPE) },
+                          { label: t('Trailing 1y EPS', 'EPS עוקב שנתי'), value: formatters.currency(advStats.trailingEps) },
+                          { label: t('Forward 1y EPS', 'EPS צפי שנתי'), value: formatters.currency(advStats.forwardEps) },
+                          { label: t('Earnings Q Grw.', 'צמיחת רווחים'), value: formatters.pct(advStats.earningsQuarterlyGrowth ?? advStats.earningsGrowth) },
+                          { label: t('Revenue Q Grw.', 'צמיחת הכנסות'), value: formatters.pct(advStats.revenueQuarterlyGrowth ?? advStats.revenueGrowth) },
+                          { label: t('Profit Margin', 'שולי רווח'), value: formatters.pct(advStats.profitMargins) },
+                          { label: t('ROE', 'תשואה להון'), value: formatters.pct(advStats.returnOnEquity) },
+                        ].filter(s => s.value !== undefined);
+
+                        if (keyStats.length === 0) return null;
+
+                        return (
+                          <Box sx={{ mt: 2, pt: 1, mx: { xs: 1, sm: 3 } }}>
+                            <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 'bold' }}>{t('Key Financials', 'נתונים פיננסיים עיקריים')}</Typography>
+                            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1fr' }, columnGap: 4, rowGap: 1.5 }}>
+                              {keyStats.map((stat, idx) => (
+                                <Box key={idx} sx={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dotted', borderColor: 'divider', pb: 0.5 }}>
+                                  <Typography variant="body2" color="text.secondary">{stat.label}</Typography>
+                                  <Typography variant="body2" fontWeight="medium">{stat.value}</Typography>
+                                </Box>
+                              ))}
+                            </Box>
+                          </Box>
+                        );
+                      })()}
                     </Box>
                   </TabPanelWithShadows>
                 )}
@@ -1090,7 +1359,7 @@ const CalendarEventsView = ({ events, currency, t, expectedDivTotal }: { events:
       )}
       {events.earningsAnalystEstimate?.avg != null && (
         <EventCard
-          title={t('EPS Estimate', 'הערכת רווח למניה')}
+          title={t('Quarterly EPS Estimate', 'הערכת רווחים רבעונית למניה')}
           value={`${events.earningsAnalystEstimate.avg}`}
           subValue={`${t('Low', 'נמוך')}: ${events.earningsAnalystEstimate.low} | ${t('High', 'גבוה')}: ${events.earningsAnalystEstimate.high}`}
           icon={<TrendingUpIcon fontSize="small" />}

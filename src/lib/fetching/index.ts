@@ -259,6 +259,7 @@ export async function getTickerData(
       dividends: globesData.dividends ?? yahooData.dividends,
       splits: globesData.splits ?? yahooData.splits,
       calendarEvents: globesData.calendarEvents ?? yahooData.calendarEvents,
+      advancedStats: globesData.advancedStats ?? yahooData.advancedStats,
       incomeStatementHistory: globesData.incomeStatementHistory ?? yahooData.incomeStatementHistory,
       incomeStatementHistoryQuarterly: globesData.incomeStatementHistoryQuarterly ?? yahooData.incomeStatementHistoryQuarterly,
       changePct1d: globesData.changePct1d ?? yahooData.changePct1d,

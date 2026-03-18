@@ -141,7 +141,7 @@ export async function fetchYahooTickerData(
 
 
   const now = Date.now();
-  const cacheKey = `yahoo:quote:v5:${exchange}:${ticker}:${range}`;
+  const cacheKey = `yahoo:quote:v7:${exchange}:${ticker}:${range}`;
   const successKey = `${exchange}:${ticker.toUpperCase()}`;
   const knownSymbol = symbolSuccessMap.get(successKey);
   const candidates = knownSymbol ? [knownSymbol] : getYahooTickerCandidates(ticker, exchange, group);
@@ -154,7 +154,7 @@ export async function fetchYahooTickerData(
       let hasTransientError = false;
       const results = await Promise.all(candidates.map(async (yahooTicker) => {
         const histUrl = `https://portfolios.noy-shai.workers.dev/?apiId=yahoo_hist&ticker=${yahooTicker}&range=${range}`;
-        const calUrl = `https://portfolios.noy-shai.workers.dev/?apiId=yahoo_quote_summary&ticker=${encodeURIComponent(yahooTicker)}&modules=calendarEvents,incomeStatementHistory,incomeStatementHistoryQuarterly,defaultKeyStatistics`;
+        const calUrl = `https://portfolios.noy-shai.workers.dev/?apiId=yahoo_quote_summary&ticker=${encodeURIComponent(yahooTicker)}&modules=calendarEvents,incomeStatementHistory,incomeStatementHistoryQuarterly,defaultKeyStatistics,financialData,recommendationTrend`;
 
         try {
           const fetchOpts: RequestInit = { signal, cache: forceRefresh ? 'no-cache' : 'force-cache' };
@@ -445,6 +445,74 @@ export async function fetchYahooTickerData(
           }
         }
 
+        let advancedStats: any = undefined;
+        const defaultKeyStatistics = calData?.quoteSummary?.result?.[0]?.defaultKeyStatistics;
+        const financialData = calData?.quoteSummary?.result?.[0]?.financialData;
+        const recTrendResult = calData?.quoteSummary?.result?.[0]?.recommendationTrend?.trend;
+        const currentTrend = Array.isArray(recTrendResult) && recTrendResult.length > 0 ? recTrendResult[0] : undefined;
+
+        if (defaultKeyStatistics || currentTrend || financialData) {
+          const parseNum = (obj: any) => obj?.raw !== undefined ? obj.raw : undefined;
+
+          advancedStats = {
+            forwardPE: parseNum(defaultKeyStatistics?.forwardPE),
+            pegRatio: parseNum(defaultKeyStatistics?.pegRatio),
+            priceToBook: parseNum(defaultKeyStatistics?.priceToBook),
+            profitMargins: parseNum(defaultKeyStatistics?.profitMargins) ?? parseNum(financialData?.profitMargins),
+            beta: parseNum(defaultKeyStatistics?.beta),
+            trailingEps: parseNum(defaultKeyStatistics?.trailingEps),
+            forwardEps: parseNum(defaultKeyStatistics?.forwardEps),
+            fiftyTwoWeekChange: parseNum(defaultKeyStatistics?.['52WeekChange']),
+            heldPercentInsiders: parseNum(defaultKeyStatistics?.heldPercentInsiders),
+            heldPercentInstitutions: parseNum(defaultKeyStatistics?.heldPercentInstitutions),
+            shortPercentOfFloat: parseNum(defaultKeyStatistics?.shortPercentOfFloat),
+            shortRatio: parseNum(defaultKeyStatistics?.shortRatio),
+            earningsQuarterlyGrowth: parseNum(defaultKeyStatistics?.earningsQuarterlyGrowth),
+            revenueQuarterlyGrowth: parseNum(defaultKeyStatistics?.revenueQuarterlyGrowth),
+            sharesOutstanding: parseNum(defaultKeyStatistics?.sharesOutstanding),
+            floatShares: parseNum(defaultKeyStatistics?.floatShares),
+            sharesShort: parseNum(defaultKeyStatistics?.sharesShort),
+            targetHighPrice: parseNum(financialData?.targetHighPrice),
+            targetLowPrice: parseNum(financialData?.targetLowPrice),
+            targetMeanPrice: parseNum(financialData?.targetMeanPrice),
+            targetMedianPrice: parseNum(financialData?.targetMedianPrice),
+            recommendationMean: parseNum(financialData?.recommendationMean),
+            totalCash: parseNum(financialData?.totalCash),
+            totalCashPerShare: parseNum(financialData?.totalCashPerShare),
+            totalDebt: parseNum(financialData?.totalDebt),
+            quickRatio: parseNum(financialData?.quickRatio),
+            currentRatio: parseNum(financialData?.currentRatio),
+            totalRevenue: parseNum(financialData?.totalRevenue),
+            debtToEquity: parseNum(financialData?.debtToEquity),
+            returnOnAssets: parseNum(financialData?.returnOnAssets),
+            returnOnEquity: parseNum(financialData?.returnOnEquity),
+            freeCashflow: parseNum(financialData?.freeCashflow),
+            operatingCashflow: parseNum(financialData?.operatingCashflow),
+            earningsGrowth: parseNum(financialData?.earningsGrowth),
+            revenueGrowth: parseNum(financialData?.revenueGrowth),
+            grossMargins: parseNum(financialData?.grossMargins),
+            ebitdaMargins: parseNum(financialData?.ebitdaMargins),
+            operatingMargins: parseNum(financialData?.operatingMargins),
+          };
+
+          if (Array.isArray(recTrendResult) && recTrendResult.length > 0) {
+            advancedStats.recommendationTrend = recTrendResult.map((t: any) => ({
+              period: t.period || '',
+              strongBuy: t.strongBuy || 0,
+              buy: t.buy || 0,
+              hold: t.hold || 0,
+              sell: t.sell || 0,
+              strongSell: t.strongSell || 0,
+            }));
+          }
+
+          // Remove undefined keys
+          Object.keys(advancedStats).forEach(key => advancedStats[key] === undefined && delete advancedStats[key]);
+          if (Object.keys(advancedStats).length === 0) {
+            advancedStats = undefined;
+          }
+        }
+
         const tickerData: TickerData = {
           price, openPrice, name: longName, currency, exchange: mappedExchange,
           changePct1d, changePctRecent, changePct1m, changeDate1m, changePct3m, changeDate3m, changePct1y, changeDate1y,
@@ -452,7 +520,8 @@ export async function fetchYahooTickerData(
           timestamp: new Date(now), ticker, numericId: null, source: 'Yahoo Finance', historical, dividends, splits, volume,
           calendarEvents,
           incomeStatementHistory,
-          incomeStatementHistoryQuarterly
+          incomeStatementHistoryQuarterly,
+          advancedStats
         };
 
         return tickerData;
