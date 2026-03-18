@@ -161,16 +161,19 @@ Please be careful in your wording around suggestions - you are just an AI.
  * {url::Label::Path} to navigate to any URL
  * Not supported! - {portfolio::XYZ}
 
->> We are discussing the following asset:
+>> We are discussing the following asset - avoid parroting the data, use it to provide insights and refer to it as needed:
 
 ${summarizeTicker()}`;
   };
 
   const suggestions = [
     t('Summarize this asset', 'סכם את הנכס הזה'),
+    t('Summarize my holdings in this asset', 'סכם את האחזקות שלי בנכס הזה'),
     t('What are the recent news or events?', 'מה החדשות או האירועים האחרונים?'),
     t('Analyze performance over the last year', 'נתח את ביצועיו בשנה האחרונה'),
-    t('Compare to its sector peers', 'השווה אותו למתחרים בסקטור')
+    t('Compare to its sector peers', 'השווה אותו למתחרים בסקטור'),
+    t('How are the company fundamentals?', 'מהם יסודות החברה?'),
+    t('Help me understand this asset metrics', 'עזור לי להבין את מדדי הנכס הזה')
   ];
 
   return (

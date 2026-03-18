@@ -117,24 +117,25 @@ function LinkParser({ children, t, onPromptClick, onTickerClick, onProfileClick,
           const actualTicker = tickerStr || valStr;
           const [ex, sym] = actualTicker.includes(':') ? actualTicker.split(':') : ['', actualTicker];
           parts.push(
-            <Button
+            <Chip
               key={match.index}
               size="small"
+              label={label || sym || actualTicker}
               onClick={() => onTickerClick(ex, sym)}
+              color="primary"
+              variant="outlined"
               sx={{
-                mx: 0.2,
-                textTransform: 'none',
-                py: 0,
-                height: 24,
+                mx: 0.5,
+                height: 22,
                 fontSize: '0.75rem',
-                fontWeight: 700,
-                minWidth: 'auto',
-                color: 'primary.main',
-                filter: 'saturate(1.6)'
+                fontWeight: 600,
+                cursor: 'pointer',
+                bgcolor: 'background.paper',
+                '&:hover': {
+                  bgcolor: 'action.hover'
+                }
               }}
-            >
-              {label || sym || actualTicker}
-            </Button>
+            />
           );
         } else if (type === 'userinfo') {
           parts.push(
@@ -194,6 +195,68 @@ function LinkParser({ children, t, onPromptClick, onTickerClick, onProfileClick,
 
   return <>{process(children)}</>;
 }
+
+const MarkdownTable = ({ children, ...props }: React.ComponentProps<'table'>) => {
+  const { containerRef, showLeft, showRight } = useScrollShadows('horizontal');
+  const theme = useTheme();
+  return (
+    <Box sx={{ position: 'relative', width: '100%', mb: 2 }}>
+      <ScrollShadows left={showLeft} right={showRight} theme={theme} />
+      <Box
+        ref={containerRef}
+        sx={{
+          width: '100%',
+          overflowX: 'auto',
+          WebkitOverflowScrolling: 'touch',
+        }}
+      >
+        <Box component="table" sx={{
+          display: 'table',
+          borderCollapse: 'separate',
+          borderSpacing: 0,
+          borderRadius: 1,
+          boxShadow: 2,
+          border: '1px solid',
+          borderColor: 'divider',
+          direction: 'inherit',
+          width: 'max-content',
+          minWidth: '100%',
+          '& th, & td': {
+            borderBottom: '1px solid',
+            borderRight: '1px solid',
+            borderColor: 'divider',
+            p: 1.5,
+            textAlign: 'inherit',
+            minWidth: 80,
+            fontSize: '0.8rem',
+            '&:last-child': {
+              borderRight: 'none'
+            }
+          },
+          '& tr:last-child td': {
+            borderBottom: 'none'
+          },
+          '& th': {
+            bgcolor: 'action.hover',
+            fontWeight: 'bold',
+            whiteSpace: 'nowrap',
+            color: 'text.secondary',
+            textTransform: 'uppercase',
+            fontSize: '0.7rem',
+            letterSpacing: '0.05em'
+          },
+          '& tbody tr:nth-of-type(even)': {
+            bgcolor: 'action.hover'
+          }
+        }}
+          {...props}
+        >
+          {children}
+        </Box>
+      </Box>
+    </Box>
+  );
+};
 
 const ChatMessageItem = React.memo(({ msg, t, onRetry, lastPrompt, onPromptClick, onTickerClick, onProfileClick, onNavClick }: {
   msg: ExtendedChatMessage,
@@ -273,48 +336,7 @@ const ChatMessageItem = React.memo(({ msg, t, onRetry, lastPrompt, onPromptClick
               lineHeight: 1.3,
               '&:not(:first-of-type)': { mt: 2 }
             },
-            '& code': { bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5, fontFamily: 'monospace' },
-            '& table': {
-              display: 'block',
-              width: '100%',
-              overflowX: 'auto',
-              WebkitOverflowScrolling: 'touch',
-              borderCollapse: 'separate',
-              borderSpacing: 0,
-              mb: 2,
-              borderRadius: 1,
-              boxShadow: 2,
-              border: '1px solid',
-              borderColor: 'divider',
-              direction: 'inherit',
-              '& th, & td': {
-                borderBottom: '1px solid',
-                borderRight: '1px solid',
-                borderColor: 'divider',
-                p: 1.5,
-                textAlign: 'inherit',
-                minWidth: 80,
-                fontSize: '0.8rem',
-                '&:last-child': {
-                  borderRight: 'none'
-                }
-              },
-              '& tr:last-child td': {
-                borderBottom: 'none'
-              },
-              '& th': {
-                bgcolor: 'action.hover',
-                fontWeight: 'bold',
-                whiteSpace: 'nowrap',
-                color: 'text.secondary',
-                textTransform: 'uppercase',
-                fontSize: '0.7rem',
-                letterSpacing: '0.05em'
-              },
-              '& tr:nth-of-type(even)': {
-                bgcolor: 'action.hover'
-              }
-            }
+            '& code': { bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5, fontFamily: 'monospace' }
           }}>
             {msg.role === 'model' ? (
               <ReactMarkdown
@@ -323,6 +345,8 @@ const ChatMessageItem = React.memo(({ msg, t, onRetry, lastPrompt, onPromptClick
                   p: ({ children }) => <p><LinkParser t={t} onPromptClick={onPromptClick} onTickerClick={onTickerClick} onProfileClick={onProfileClick} onNavClick={onNavClick}>{children}</LinkParser></p>,
                   li: ({ children }) => <li><LinkParser t={t} onPromptClick={onPromptClick} onTickerClick={onTickerClick} onProfileClick={onProfileClick} onNavClick={onNavClick}>{children}</LinkParser></li>,
                   td: ({ children }) => <td><LinkParser t={t} onPromptClick={onPromptClick} onTickerClick={onTickerClick} onProfileClick={onProfileClick} onNavClick={onNavClick}>{children}</LinkParser></td>,
+                  th: ({ children }) => <th><LinkParser t={t} onPromptClick={onPromptClick} onTickerClick={onTickerClick} onProfileClick={onProfileClick} onNavClick={onNavClick}>{children}</LinkParser></th>,
+                  table: MarkdownTable,
                   a: ({ node, ...props }) => {
                     const href = props.href || '';
                     const childArr = Array.isArray(props.children) ? props.children : [props.children];
