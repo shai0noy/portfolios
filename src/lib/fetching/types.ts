@@ -64,6 +64,7 @@ export interface AdvancedStats {
   floatShares?: number;
   sharesShort?: number;
   targetHighPrice?: number;
+  numberOfAnalystOpinions?: number;
   targetLowPrice?: number;
   targetMeanPrice?: number;
   targetMedianPrice?: number;

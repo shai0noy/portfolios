@@ -1124,6 +1124,55 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
 
                               if (targets.length === 0) return null;
 
+                              const numAnalysts = advStats.numberOfAnalystOpinions || 0;
+
+                              if (numAnalysts === 1) {
+                                const targetPrice = advStats.targetMeanPrice || advStats.targetMedianPrice || targets[0]?.value;
+                                const pctChange = ((targetPrice - currentPrice) / currentPrice) * 100;
+                                return (
+                                  <Box sx={{ mt: 3, mb: 4, px: 2 }}>
+                                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1, fontWeight: 'bold' }}>
+                                      {t('Analyst Price Targets', 'יעדי מחיר אנליסטים')}
+                                    </Typography>
+                                    <Box display="flex" alignItems="center" bgcolor="action.hover" borderRadius={2} p={1.5} gap={1.5}>
+                                      <Typography variant="body2" color="text.secondary">
+                                        {t('Based on a single analyst target:', 'מבוסס על יעד אנליסט בודד:')}
+                                      </Typography>
+                                      <Typography variant="body2" fontWeight="bold">
+                                        {formatters.currency(targetPrice)}
+                                      </Typography>
+                                      <Typography variant="body2" sx={{ color: pctChange >= 0 ? 'success.main' : 'error.main', fontWeight: 'bold' }}>
+                                        {pctChange > 0 ? '+' : ''}{pctChange.toFixed(1)}%
+                                      </Typography>
+                                    </Box>
+                                  </Box>
+                                );
+                              } else if (numAnalysts === 2) {
+                                const minTarget = advStats.targetLowPrice || advStats.targetLowPrice || 0;
+                                const maxTarget = advStats.targetHighPrice || advStats.targetHighPrice || 0;
+                                const minPct = ((minTarget - currentPrice) / currentPrice) * 100;
+                                const maxPct = ((maxTarget - currentPrice) / currentPrice) * 100;
+
+                                return (
+                                  <Box sx={{ mt: 3, mb: 4, px: 2 }}>
+                                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1, fontWeight: 'bold' }}>
+                                      {t('Analyst Price Targets', 'יעדי מחיר אנליסטים')}
+                                    </Typography>
+                                    <Box display="flex" alignItems="center" bgcolor="action.hover" borderRadius={2} p={1.5} gap={1.5} flexWrap="wrap">
+                                      <Typography variant="body2" color="text.secondary">
+                                        {t('Based on two analyst targets:', 'מבוסס על שני יעדי אנליסטים:')}
+                                      </Typography>
+                                      <Typography variant="body2" fontWeight="bold">
+                                        {formatters.currency(minTarget)} - {formatters.currency(maxTarget)}
+                                      </Typography>
+                                      <Typography variant="body2" sx={{ color: maxPct >= 0 ? 'success.main' : 'error.main', fontWeight: 'bold' }}>
+                                        {minPct > 0 ? '+' : ''}{minPct.toFixed(1)}% {t('to', 'עד')} {maxPct > 0 ? '+' : ''}{maxPct.toFixed(1)}%
+                                      </Typography>
+                                    </Box>
+                                  </Box>
+                                );
+                              }
+
                               const allVals = [...targets.map(t => t.value), currentPrice];
                               const minVal = Math.min(...allVals);
                               const maxVal = Math.max(...allVals);

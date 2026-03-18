@@ -474,6 +474,7 @@ export async function fetchYahooTickerData(
             floatShares: parseNum(defaultKeyStatistics?.floatShares),
             sharesShort: parseNum(defaultKeyStatistics?.sharesShort),
             targetHighPrice: parseNum(financialData?.targetHighPrice),
+            numberOfAnalystOpinions: parseNum(financialData?.numberOfAnalystOpinions),
             targetLowPrice: parseNum(financialData?.targetLowPrice),
             targetMeanPrice: parseNum(financialData?.targetMeanPrice),
             targetMedianPrice: parseNum(financialData?.targetMedianPrice),
