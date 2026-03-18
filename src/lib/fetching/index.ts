@@ -98,7 +98,8 @@ export async function getTickerData(
   exchange: string,
   numericSecurityId: number | null,
   signal?: AbortSignal,
-  forceRefresh = false
+  forceRefresh = false,
+  maxAge?: number
 ): Promise<TickerData | null> {
   let parsedExchange: Exchange;
   try {
@@ -152,8 +153,8 @@ export async function getTickerData(
   const group = profile?.type.group;
 
   const [yahooData5y, yahooDataMax] = await Promise.all([
-    fetchYahooTickerData(ticker, parsedExchange, signal, forceRefresh, '5y', group).catch(e => { console.warn('Yahoo 5y failed:', e); return null; }),
-    fetchYahooTickerData(ticker, parsedExchange, signal, forceRefresh, 'max', group).catch(e => { console.warn('Yahoo Max failed:', e); return null; })
+    fetchYahooTickerData(ticker, parsedExchange, signal, forceRefresh, '5y', group, maxAge).catch(e => { console.warn('Yahoo 5y failed:', e); return null; }),
+    fetchYahooTickerData(ticker, parsedExchange, signal, forceRefresh, 'max', group, maxAge).catch(e => { console.warn('Yahoo Max failed:', e); return null; })
   ]);
 
   let yahooData: TickerData | null = null;

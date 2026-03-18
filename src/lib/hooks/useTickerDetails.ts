@@ -132,9 +132,10 @@ export const useTickerDetails = ({ sheetId, ticker: propTicker, exchange: propEx
                 console.warn(`Could not find numeric ID for ${ticker}.`);
             }
             const numericIdVal = currentNumericId ? parseInt(currentNumericId, 10) : null;
+            const ONE_HOUR = 60 * 60 * 1000;
 
             const [tickerData, holding, sheetRebuild, sheetDividends] = await Promise.all([
-                getTickerData(ticker, exchange, numericIdVal, undefined, forceRefresh),
+                getTickerData(ticker, exchange, numericIdVal, undefined, forceRefresh, ONE_HOUR),
                 fetchHolding(sheetId, ticker, exchange.toUpperCase()),
                 getMetadataValue(sheetId, 'holdings_rebuild'),
                 fetchDividends(sheetId, ticker, exchange)

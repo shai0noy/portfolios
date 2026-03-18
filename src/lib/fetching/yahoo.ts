@@ -1,5 +1,5 @@
 // src/lib/fetching/yahoo.ts
-import { CACHE_TTL, fetchWithCache } from './utils/cache';
+import { fetchWithCache } from './utils/cache';
 import type { TickerData, IncomeStatement } from './types';
 import { Exchange, parseExchange, EXCHANGE_SETTINGS } from '../types';
 import { InstrumentGroup } from '../types/instrument';
@@ -133,7 +133,8 @@ export async function fetchYahooTickerData(
   signal?: AbortSignal,
   forceRefresh = false,
   range: '1y' | '5y' | 'max' = '5y',
-  group?: InstrumentGroup
+  group?: InstrumentGroup,
+  maxAge?: number
 ): Promise<TickerData | null> {
   if (exchange === Exchange.GEMEL || exchange === Exchange.PENSION || exchange === Exchange.CBS) {
     return null;
@@ -146,9 +147,13 @@ export async function fetchYahooTickerData(
   const knownSymbol = symbolSuccessMap.get(successKey);
   const candidates = knownSymbol ? [knownSymbol] : getYahooTickerCandidates(ticker, exchange, group);
 
+  // 1 day + up to 2 hours of jitter
+  const defaultTTL = (24 * 60 * 60 * 1000) + Math.random() * (2 * 60 * 60 * 1000);
+  const ttl = maxAge ?? defaultTTL;
+
   return fetchWithCache(
     cacheKey,
-    CACHE_TTL,
+    ttl,
     forceRefresh,
     async () => {
       let hasTransientError = false;
