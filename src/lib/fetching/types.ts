@@ -44,6 +44,7 @@ export interface RecommendationTrend {
 }
 
 export interface AdvancedStats {
+  priceInfo?: PriceInfo;
   forwardPE?: number;
   pegRatio?: number;
   priceToBook?: number;
@@ -200,4 +201,15 @@ export interface SecurityTypeConfig {
     enabled: boolean;
     displayName: string; // Used for UI, e.g., "Stocks", "ETFs"
   };
+}
+
+export interface PriceInfo {
+  marketState?: string;
+  preMarketPrice?: number;
+  preMarketChangePercent?: number;
+  preMarketTime?: number;
+  postMarketPrice?: number;
+  postMarketChangePercent?: number;
+  postMarketTime?: number;
+  regularMarketTime?: number;
 }

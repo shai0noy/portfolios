@@ -154,7 +154,7 @@ export async function fetchYahooTickerData(
       let hasTransientError = false;
       const results = await Promise.all(candidates.map(async (yahooTicker) => {
         const histUrl = `https://portfolios.noy-shai.workers.dev/?apiId=yahoo_hist&ticker=${yahooTicker}&range=${range}`;
-        const calUrl = `https://portfolios.noy-shai.workers.dev/?apiId=yahoo_quote_summary&ticker=${encodeURIComponent(yahooTicker)}&modules=calendarEvents,incomeStatementHistory,incomeStatementHistoryQuarterly,defaultKeyStatistics,financialData,recommendationTrend`;
+        const calUrl = `https://portfolios.noy-shai.workers.dev/?apiId=yahoo_quote_summary&ticker=${encodeURIComponent(yahooTicker)}&modules=calendarEvents,incomeStatementHistory,incomeStatementHistoryQuarterly,defaultKeyStatistics,financialData,recommendationTrend,price`;
 
         try {
           const fetchOpts: RequestInit = { signal, cache: forceRefresh ? 'no-cache' : 'force-cache' };
@@ -449,9 +449,10 @@ export async function fetchYahooTickerData(
         const defaultKeyStatistics = calData?.quoteSummary?.result?.[0]?.defaultKeyStatistics;
         const financialData = calData?.quoteSummary?.result?.[0]?.financialData;
         const recTrendResult = calData?.quoteSummary?.result?.[0]?.recommendationTrend?.trend;
+        const priceData = calData?.quoteSummary?.result?.[0]?.price;
         const currentTrend = Array.isArray(recTrendResult) && recTrendResult.length > 0 ? recTrendResult[0] : undefined;
 
-        if (defaultKeyStatistics || currentTrend || financialData) {
+        if (defaultKeyStatistics || currentTrend || financialData || priceData) {
           const parseNum = (obj: any) => obj?.raw !== undefined ? obj.raw : undefined;
 
           advancedStats = {
@@ -494,6 +495,21 @@ export async function fetchYahooTickerData(
             ebitdaMargins: parseNum(financialData?.ebitdaMargins),
             operatingMargins: parseNum(financialData?.operatingMargins),
           };
+
+          if (priceData) {
+            advancedStats.priceInfo = {
+              marketState: priceData.marketState,
+              preMarketPrice: parseNum(priceData.preMarketPrice),
+              preMarketChangePercent: parseNum(priceData.preMarketChangePercent),
+              preMarketTime: priceData.preMarketTime,
+              postMarketPrice: parseNum(priceData.postMarketPrice),
+              postMarketChangePercent: parseNum(priceData.postMarketChangePercent),
+              postMarketTime: priceData.postMarketTime,
+              regularMarketTime: priceData.regularMarketTime,
+            };
+            // Clean up undefined
+            Object.keys(advancedStats.priceInfo).forEach(k => advancedStats.priceInfo[k] === undefined && delete advancedStats.priceInfo[k]);
+          }
 
           if (Array.isArray(recTrendResult) && recTrendResult.length > 0) {
             advancedStats.recommendationTrend = recTrendResult.map((t: any) => ({

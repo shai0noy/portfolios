@@ -463,6 +463,47 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                         <Typography variant="h6" sx={{ fontWeight: 700, color: dayChange >= 0 ? 'success.main' : 'error.main' }}>{formatPercent(dayChange)}</Typography>
                       </Tooltip>
                     </Box>
+                    {(() => {
+                      const priceInfo = ((displayData as any)?.advStats || data?.advancedStats)?.priceInfo;
+                      if (!priceInfo) return null;
+
+                      const preTime = priceInfo.preMarketTime || 0;
+                      const postTime = priceInfo.postMarketTime || 0;
+                      
+                      // Show if we have any extended hours data
+                      if (!priceInfo.preMarketPrice && !priceInfo.postMarketPrice) return null;
+                      
+                      const isPre = (preTime >= postTime) && priceInfo.preMarketPrice;
+                      const hasPost = !isPre && priceInfo.postMarketPrice;
+                      
+                      if (!isPre && !hasPost) return null;
+                      
+                      const pPrice = isPre ? priceInfo.preMarketPrice : priceInfo.postMarketPrice;
+                      const pChange = isPre ? priceInfo.preMarketChangePercent : priceInfo.postMarketChangePercent;
+                      const label = isPre ? t('Pre-Market:', 'טרום-מסחר:') : t('Post-Market:', 'אחרי-מסחר:');
+                      
+                      if (!pPrice) return null;
+
+                      const regTime = priceInfo.regularMarketTime || 0;
+                      const latestExtTime = Math.max(preTime, postTime);
+                      if (regTime > latestExtTime && priceInfo.marketState === 'REGULAR') return null;
+
+                      return (
+                        <Box display="flex" alignItems="baseline" justifyContent={isMobile ? 'flex-start' : 'flex-end'} gap={1}>
+                          <Typography variant="caption" color="text.secondary" fontWeight="bold">
+                            {label}
+                          </Typography>
+                          <Typography variant="caption" fontWeight={600}>
+                            {formatMoneyPrice({ amount: pPrice, currency: normalizeCurrency(isTase ? 'ILA' : (displayData?.currency || 'USD')) }, t)}
+                          </Typography>
+                          {pChange !== undefined && (
+                            <Typography variant="caption" sx={{ fontWeight: 600, color: pChange >= 0 ? 'success.main' : 'error.main' }}>
+                              {formatPercent(pChange)}
+                            </Typography>
+                          )}
+                        </Box>
+                      );
+                    })()}
                     {(openPrice != null && openPrice !== 0 || data?.tradeTimeStatus || volumeDisplay) && (
                       <Box display="flex" alignItems="baseline" justifyContent={isMobile ? 'flex-end' : 'flex-end'} gap={1} mt={0.25}>
                         {openPrice != null && openPrice !== 0 && <Typography variant="caption" color="text.secondary">{t('Open:', 'פתיחה:')} {formatMoneyPrice({ amount: openPrice, currency: normalizeCurrency(isTase ? 'ILA' : (displayData?.currency || 'USD')) }, t)}</Typography>}
