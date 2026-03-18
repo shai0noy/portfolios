@@ -29,6 +29,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { type ExtendedChatMessage, askGemini, fetchModels, type GeminiModel, getModelByCapability } from '../../lib/gemini';
+import { upsertChatSession } from '../../lib/sheets';
 import { type Portfolio } from '../../lib/types';
 import ManageAccountsIcon from '@mui/icons-material/ManageAccounts';
 import { useScrollShadows, ScrollShadows, useResponsiveDialogProps } from '../../lib/ui-utils';
@@ -55,6 +56,7 @@ export interface BaseAiChatDialogProps {
   portfolios?: Portfolio[];
   selectedPortfolioId?: string | null;
   onPortfolioChange?: (id: string | null) => void;
+  sheetId?: string;
 
   onTickerClick?: (exchange: string, symbol: string) => void;
   onNavClick?: (path: string) => void;
@@ -569,7 +571,7 @@ export const BaseAiChatDialog: React.FC<BaseAiChatDialogProps> = ({
   getSystemInstruction, suggestions = [], emptyStateContent,
   disclaimerText, customDisclaimer, headerMenuAddons,
   portfolios = [], selectedPortfolioId = null, onPortfolioChange = () => { },
-  onTickerClick, onNavClick, onProfileClick, initialPrompt, displayName
+  sheetId, onTickerClick, onNavClick, onProfileClick, initialPrompt, displayName
 }) => {
   const { t } = useLanguage();
   const theme = useTheme();
@@ -618,9 +620,12 @@ export const BaseAiChatDialog: React.FC<BaseAiChatDialogProps> = ({
         messages: messages,
       };
       saveSession(newSession);
+      if (sheetId) {
+        upsertChatSession(sheetId, newSession).catch(e => console.error("Sheet upsert error", e));
+      }
       setSessions(loadSessions());
     }
-  }, [messages, activeSessionId, chatId, contextUrl]);
+  }, [messages, activeSessionId, chatId, contextUrl, sheetId]);
 
   const handleNewChat = () => {
     setActiveSessionId(uuidv4());

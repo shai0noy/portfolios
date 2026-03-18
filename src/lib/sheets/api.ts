@@ -1639,4 +1639,71 @@ export const toggleTickerListMembership = withAuthHandling(async (spreadsheetId:
     }
 });
 
+export const upsertChatSession = withAuthHandling(async (sheetId: string, session: any) => {
+    const gapi = await ensureGapi();
+    const sheetName = 'AiChatHistory';
+
+    // Check if sheet exists
+    const sheetMeta = await gapi.client.sheets.spreadsheets.get({
+        spreadsheetId: sheetId,
+        fields: 'sheets.properties.title'
+    });
+    const exists = sheetMeta.result.sheets?.find(s => s.properties?.title === sheetName);
+
+    if (!exists) {
+        await gapi.client.sheets.spreadsheets.batchUpdate({
+            spreadsheetId: sheetId,
+            resource: {
+                requests: [{ addSheet: { properties: { title: sheetName } } }]
+            }
+        });
+        // Headers
+        await gapi.client.sheets.spreadsheets.values.update({
+            spreadsheetId: sheetId,
+            range: `${sheetName}!A1:E1`,
+            valueInputOption: 'USER_ENTERED',
+            resource: { values: [['Session ID', 'Updated', 'Context', 'Title', 'Messages JSON']] }
+        });
+    }
+
+    // Try to find the row
+    let rows: any[] = [];
+    try {
+        const response = await gapi.client.sheets.spreadsheets.values.get({
+            spreadsheetId: sheetId,
+            range: `${sheetName}!A:A`
+        });
+        rows = response.result.values || [];
+    } catch (err) { }
+
+    const rowIndex = rows.findIndex(row => row[0] === session.id);
+    const rowData = [
+        session.id,
+        new Date(session.updatedAt).toISOString(),
+        session.contextUrl,
+        session.title,
+        JSON.stringify(session.messages)
+    ];
+
+    if (rowIndex >= 0) {
+        // Update
+        const targetRow = rowIndex + 1;
+        await gapi.client.sheets.spreadsheets.values.update({
+            spreadsheetId: sheetId,
+            range: `${sheetName}!A${targetRow}:E${targetRow}`,
+            valueInputOption: 'RAW',
+            resource: { values: [rowData] }
+        });
+    } else {
+        // Append
+        await gapi.client.sheets.spreadsheets.values.append({
+            spreadsheetId: sheetId,
+            range: `${sheetName}!A:E`,
+            valueInputOption: 'RAW',
+            insertDataOption: 'INSERT_ROWS',
+            resource: { values: [rowData] }
+        });
+    }
+});
+
 export { };

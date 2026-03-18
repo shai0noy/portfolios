@@ -21,10 +21,11 @@ interface TickerAiChatProps {
   displayCurrency: string;
   exchangeRates?: ExchangeRates | null;
   subjectName?: string;
+  sheetId?: string;
 }
 
 export const TickerAiChat: React.FC<TickerAiChatProps> = ({
-  open, onClose, apiKey, tickerData, advancedStats, historicalData, holdings, displayCurrency, exchangeRates, subjectName
+  open, onClose, apiKey, tickerData, advancedStats, historicalData, holdings, displayCurrency, exchangeRates, subjectName, sheetId
 }) => {
   const { t } = useLanguage();
   const [benchmarkMetrics, setBenchmarkMetrics] = useState<any>(null);
@@ -181,8 +182,9 @@ ${summarizeTicker()}`;
       open={open}
       onClose={onClose}
       apiKey={apiKey}
-      chatId={`ticker_${tickerData.exchange}_${tickerData.ticker || subjectName} `}
-      contextUrl={window.location.pathname + window.location.search}
+      sheetId={sheetId}
+      chatId={`ticker_${tickerData?.exchange}_${tickerData?.ticker}`}
+      contextUrl={`/ticker/${tickerData?.exchange}/${tickerData?.ticker}` + window.location.search}
       title={`${t('AI Assistant', 'עוזר AI')} - ${tickerData.ticker || subjectName || ''} `}
       displayName={tickerData.ticker || subjectName}
       getSystemInstruction={getSystemInstruction}

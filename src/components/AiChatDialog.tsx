@@ -292,6 +292,7 @@ ${marketOverview}
         open={open}
         onClose={onClose}
         apiKey={apiKey}
+        sheetId={sheetId}
         chatId="portfolio_main"
         contextUrl={window.location.pathname + window.location.search}
         title={chatTitle}
