@@ -6,7 +6,7 @@ import { deduplicateRequest } from './request_deduplicator';
 export const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 export const TASE_CACHE_TTL = 5 * 24 * 60 * 60 * 1000; // 5 days
-export const GEMEL_CACHE_TTL = 48 * 60 * 60 * 1000; // 48 hours
+export const GEMEL_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 export const GEMEL_LIST_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 interface CachedData<T> {
@@ -63,7 +63,8 @@ export async function withTaseCache<T>(cacheKey: string, fetcher: () => Promise<
   try {
     const cached = await db.get<CachedData<T>>(cacheKey);
     if (cached) {
-      if (now - cached.timestamp < TASE_CACHE_TTL) {
+      const jitter = Math.min(TASE_CACHE_TTL * 0.1, 30 * 60 * 1000) * Math.random();
+      if (now - cached.timestamp < TASE_CACHE_TTL + jitter) {
         if (Array.isArray(cached.data) && cached.data.length === 0) {
           console.warn(`Cached data for ${cacheKey} is empty, invalidating.`);
           await db.del(cacheKey);
@@ -110,7 +111,8 @@ export async function fetchWithCache<T>(
 
   if (!forceRefresh) {
     const cached = await loadFromCache<T | null>(cacheKey);
-    if (cached?.timestamp && (now - new Date(cached.timestamp).getTime() < ttl)) {
+    const jitter = Math.min(ttl * 0.1, 30 * 60 * 1000) * Math.random();
+    if (cached?.timestamp && (now - new Date(cached.timestamp).getTime() < ttl + jitter)) {
       if (cached.data === null) {
         return null;
       }

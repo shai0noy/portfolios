@@ -148,7 +148,7 @@ export async function fetchYahooTickerData(
   const candidates = knownSymbol ? [knownSymbol] : getYahooTickerCandidates(ticker, exchange, group);
 
   // 1 day + up to 2 hours of jitter
-  const defaultTTL = (24 * 60 * 60 * 1000) + Math.random() * (2 * 60 * 60 * 1000);
+  const defaultTTL = (24 * 60 * 60 * 1000) + Math.random() * (30 * 60 * 1000);
   const ttl = maxAge ?? defaultTTL;
 
   return fetchWithCache(
