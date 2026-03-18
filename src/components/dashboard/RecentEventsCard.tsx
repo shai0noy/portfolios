@@ -190,8 +190,8 @@ export function RecentEventsCard({ holdings, transactions }: RecentEventsCardPro
         const group = grouped.get(key)!;
         if (cal.dividendAmount) {
           group.dividendAmount = cal.dividendAmount;
-          if (h.qtyVested > 0) {
-            group.expectedDivTotal = (group.expectedDivTotal || 0) + (cal.dividendAmount * h.qtyVested);
+          if (h.qtyTotal > 0) {
+            group.expectedDivTotal = (group.expectedDivTotal || 0) + (cal.dividendAmount * h.qtyTotal);
           }
 
           const psStr = `${formatMoneyValue({ amount: group.dividendAmount, currency: group.stockCurrency! })} ${t('PS', 'למניה')}`;

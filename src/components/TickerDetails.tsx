@@ -195,12 +195,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
 
           let isExchangeMatch = !targetExchange || (engineExchange === targetExchange);
 
-          // Relaxed matching for "US" region: If target is 'US', match 'NASDAQ' or 'NYSE'
-          if (!isExchangeMatch && targetExchange === 'US' && isUSExchange(engineExchange)) {
-            isExchangeMatch = true;
-          }
-          // Also reverse: if target is 'NASDAQ'/'NYSE' but engine (rarely) has 'US'
-          if (!isExchangeMatch && targetExchange && isUSExchange(targetExchange) && (engineExchange as any) === 'US') {
+          if (!isExchangeMatch && targetExchange && isUSExchange(engineExchange) && isUSExchange(targetExchange)) {
             isExchangeMatch = true;
           }
 
@@ -232,21 +227,21 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   }, [hasHolding, enrichedHolding, engineHoldings, holdingData]);
 
   ///// XXXXXX
-  const totalVestedShares = useMemo(() => {
+  const totalQty = useMemo(() => {
     if (engineHoldings && engineHoldings.length > 0) {
-      return engineHoldings.reduce((acc: number, h: any) => acc + (h.qtyVested ?? h.qtyTotal ?? h.qty ?? 0), 0);
+      return engineHoldings.reduce((acc: number, h: any) => acc + (h.qtyTotal ?? h.qty ?? 0), 0);
     }
     if (portfolios && portfolios.length > 0 && hasHolding) {
       return portfolios.reduce((acc, p) => acc + (p.holdings?.filter(h =>
         h.ticker.toUpperCase() === ticker?.toUpperCase() &&
         (!exchange || h.exchange.toUpperCase() === exchange.toUpperCase() || (isUSExchange(h.exchange) && isUSExchange(exchange as any)))
-      ).reduce((sub, h: any) => sub + (h.qtyVested ?? h.qtyTotal ?? 0), 0) || 0), 0);
+      ).reduce((sub, h: any) => sub + (h.qtyTotal ?? h.qty ?? 0), 0) || 0), 0);
     }
     if (enrichedHolding) {
-      return enrichedHolding.qtyVested || 0;
+      return enrichedHolding.qtyTotal || enrichedHolding.qty || 0;
     }
     if (holdingData) {
-      return (holdingData as any).qtyVested || (holdingData as any).qty || 0;
+      return (holdingData as any).qtyTotal || (holdingData as any).qty || 0;
     }
     return 0;
   }, [engineHoldings, portfolios, ticker, exchange, hasHolding, enrichedHolding, holdingData]);
@@ -870,9 +865,9 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                                       <Typography variant="caption" color="text.secondary">{translateRange(range)}</Typography>
                                       <Typography variant="body2" sx={{ fontWeight: 600, color: textColor }}>{formatPercent(value)}</Typography>
                                       <Typography variant="caption" sx={{ fontSize: '0.7rem', opacity: 0.8 }}>{formatMoneyValue({ amount: info.amount, currency: normalizeCurrency(displayData?.currency || 'USD') })}</Typography>
-                                      {totalVestedShares > 0 && (
+                                      {totalQty > 0 && (
                                         <Typography variant="caption" sx={{ fontSize: '0.7rem', opacity: 0.8, fontWeight: 'bold' }}>
-                                          {t('Total:', 'סה״כ:')} {formatMoneyValue({ amount: info.amount * totalVestedShares, currency: normalizeCurrency(displayData?.currency || 'USD') })}
+                                          {t('Total:', 'סה״כ:')} {formatMoneyValue({ amount: info.amount * totalQty, currency: normalizeCurrency(displayData?.currency || 'USD') })}
                                         </Typography>
                                       )}
                                     </>
@@ -1154,7 +1149,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                 {activeTab === 'financials' && ((displayData as any)?.incomeStatementHistory || (displayData as any)?.incomeStatementHistoryQuarterly || (displayData as any)?.calendarEvents || (displayData as any)?.advancedStats) && (
                   <TabPanelWithShadows theme={theme}>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      {(displayData as any)?.calendarEvents && <CalendarEventsView events={(displayData as any).calendarEvents} currency={(displayData as any).currency || (displayData as any).stockCurrency || 'USD'} expectedDivTotal={totalVestedShares && (displayData as any).calendarEvents?.dividendAmount ? totalVestedShares * (displayData as any).calendarEvents.dividendAmount : undefined} t={t} />}
+                      {(displayData as any)?.calendarEvents && <CalendarEventsView events={(displayData as any).calendarEvents} currency={(displayData as any).currency || (displayData as any).stockCurrency || 'USD'} expectedDivTotal={totalQty && (displayData as any).calendarEvents?.dividendAmount ? totalQty * (displayData as any).calendarEvents.dividendAmount : undefined} t={t} />}
                       {((displayData as any)?.incomeStatementHistory || (displayData as any)?.incomeStatementHistoryQuarterly) && (
                         <IncomeStatementView
                           history={(displayData as any).incomeStatementHistory}
