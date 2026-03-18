@@ -133,13 +133,11 @@ export const calculatePerformanceInDisplayCurrency = (
 
 export function formatNumber(n: number | undefined | null): string {
   if (n === undefined || n === null || isNaN(n)) return '-';
-  const decimals = Number.isInteger(n) ? 0 : 2;
-  n = cleanZero(n, decimals);
+  n = cleanZero(n, 2);
   const options: Intl.NumberFormatOptions = {
     useGrouping: true,
-    ...(decimals === 0
-      ? { minimumFractionDigits: 0, maximumFractionDigits: 0 }
-      : { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2
   };
   return LTR_MARK + n.toLocaleString(undefined, options);
 }
@@ -208,13 +206,13 @@ export function formatPrice(n: number, currency: string | Currency, decimals = 2
     return LTR_MARK + new Intl.NumberFormat(undefined, {
       style: 'currency',
       currency: norm,
-      minimumFractionDigits: decimals,
+      minimumFractionDigits: 0,
       maximumFractionDigits: decimals,
       useGrouping: false,
     }).format(n);
   } catch (e) {
     console.warn(`Could not format price for currency code: ${norm}. Using default format.`);
-    const val = n.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals, useGrouping: false });
+    const val = n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: decimals, useGrouping: false });
     return `${LTR_MARK}${val} ${norm}`;
   }
 }

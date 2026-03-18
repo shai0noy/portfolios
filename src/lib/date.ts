@@ -71,7 +71,7 @@ export function coerceDate(d: any): Date | null {
   }
 
   // Handle purely numeric strings (e.g. "45006") generated when UNFORMATTED_VALUE hits non-numeric keys
-  if (/^\\d+(\\.\\d+)?$/.test(str)) {
+  if (/^\d+(\.\d+)?$/.test(str)) {
     return fromGoogleSheetDate(Number(str));
   }
 
