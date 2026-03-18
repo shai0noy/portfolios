@@ -125,11 +125,11 @@ const MobileMoverListItem = ({ mover, navigate, displayCurrency, sortBy }: { mov
             <Box sx={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Box sx={{ display: 'flex', flexDirection: 'column', maxWidth: '60%', overflow: 'hidden' }}>
                     <Typography variant="body2" fontWeight="bold" noWrap>
-                        {nameNode}
+                        {tickerNode || nameNode}
                     </Typography>
                     {tickerNode && (
                         <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }} noWrap>
-                            {tickerNode}
+                            {nameNode}
                         </Typography>
                     )}
                 </Box>
