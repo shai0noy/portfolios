@@ -238,7 +238,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
       ).reduce((sub, h: any) => sub + (h.qtyTotal ?? h.qty ?? 0), 0) || 0), 0);
     }
     if (enrichedHolding) {
-      return enrichedHolding.qtyTotal || enrichedHolding.qty || 0;
+      return enrichedHolding.qtyTotal || (enrichedHolding as any).qty || 0;
     }
     if (holdingData) {
       return (holdingData as any).qtyTotal || (holdingData as any).qty || 0;
@@ -896,7 +896,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
 
                         const groups = [
                           {
-                            title: t('Valuation & Targets', 'הערכת שווי ויעדים'),
+                            title: t('Valuation', 'הערכת שווי'),
                             items: [
                               { label: t('Forward P/E', 'מכפיל רווח עתידי'), value: formatters.num(advStats.forwardPE), tooltip: t('Estimated future price-to-earnings ratio.', 'הערכת מכפיל הרווח מבוסס על צפי הרווחים העתידי.') },
                               { label: t('PEG Ratio', 'יחס PEG'), value: formatters.num(advStats.pegRatio), tooltip: t('Price/Earnings to Growth ratio.', 'יחס מכפיל רווח לצמיחת החברה.') },
@@ -962,42 +962,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
 
                         return (
                           <Box sx={{ mt: 3, mb: 2 }}>
-                            <Accordion variant="outlined" sx={{ borderRadius: 1, '&:before': { display: 'none' } }}>
-                              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                                <Typography variant="subtitle2">{t('Advanced Statistics', 'נתונים מתקדמים')}</Typography>
-                              </AccordionSummary>
-                              <AccordionDetails sx={{ pt: 0, pb: 2, px: 2 }}>
-                                <Grid container spacing={2}>
-                                  {groups.map((g, idx) => {
-                                    const validItems = g.items.filter(i => i.value !== undefined);
-                                    if (validItems.length === 0) return null;
-                                    return (
-                                      <Grid item xs={12} sm={6} md={4} key={idx}>
-                                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1, fontWeight: 'bold' }}>
-                                          {g.title}
-                                        </Typography>
-                                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                                          {validItems.map((item, i) => (
-                                            <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid', borderColor: 'divider', pb: 0.5 }}>
-                                              {item.tooltip ? (
-                                                <Tooltip title={item.tooltip} placement="top" arrow>
-                                                  <Typography variant="body2" color="text.secondary" sx={{ textDecoration: 'underline', textDecorationStyle: 'dotted', cursor: 'help' }}>
-                                                    {item.label}
-                                                  </Typography>
-                                                </Tooltip>
-                                              ) : (
-                                                <Typography variant="body2" color="text.secondary">{item.label}</Typography>
-                                              )}
-                                              <Typography variant="body2" fontWeight="medium">{item.value}</Typography>
-                                            </Box>
-                                          ))}
-                                        </Box>
-                                      </Grid>
-                                    );
-                                  })}
-                                </Grid>
-
-                                {advStats.recommendationTrend && advStats.recommendationTrend.length > 0 && (() => {
+                            {advStats.recommendationTrend && advStats.recommendationTrend.length > 0 && (() => {
                                   const currentTrend = advStats.recommendationTrend[0];
                                   const total = currentTrend.strongBuy + currentTrend.buy + currentTrend.hold + currentTrend.sell + currentTrend.strongSell;
                                   if (total === 0) return null;
@@ -1102,6 +1067,161 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                                     </Box>
                                   );
                                 })()}
+
+
+                            {/* Price Targets Chart */}
+                            {(advStats.targetHighPrice || advStats.targetMeanPrice || advStats.targetMedianPrice || advStats.targetLowPrice) && (() => {
+                              const currentPrice = advStats.currentPrice || (holdingData as any)?.currentPrice || (displayData as any)?.regularMarketPrice || (displayData as any)?.price;
+                              if (!currentPrice) return null;
+
+                              const targets = [
+                                { label: t('High', 'גבוה'), value: advStats.targetHighPrice, color: theme.palette.success.main },
+                                { label: t('Mean', 'ממוצע'), value: advStats.targetMeanPrice, color: theme.palette.info.main },
+                                { label: t('Median', 'חציון'), value: advStats.targetMedianPrice, color: theme.palette.primary.main },
+                                { label: t('Low', 'נמוך'), value: advStats.targetLowPrice, color: theme.palette.error.main }
+                              ].filter(t => t.value !== undefined) as { label: string, value: number, color: string }[];
+
+                              if (targets.length === 0) return null;
+
+                              const allVals = [...targets.map(t => t.value), currentPrice];
+                              const minVal = Math.min(...allVals);
+                              const maxVal = Math.max(...allVals);
+                              const range = maxVal - minVal || 1;
+
+                              // padding so dots and labels don't clip at boundaries
+                              const padding = range * 0.15;
+                              const paddedMin = minVal - padding;
+                              const paddedMax = maxVal + padding;
+                              const paddedRange = paddedMax - paddedMin;
+
+                              const getPos = (val: number) => ((val - paddedMin) / paddedRange) * 100;
+
+                              return (
+                                <Box sx={{ mt: 3, mb: 5, px: 2 }}>
+                                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 6, fontWeight: 'bold' }}>
+                                    {t('Analyst Price Targets', 'יעדי מחיר אנליסטים')}
+                                  </Typography>
+
+                                  <Box sx={{ position: 'relative', height: 6, bgcolor: 'action.hover', borderRadius: 3, mb: 8, opacity: 0.9 }}>
+                                    {/* Background Bell Curve */}
+                                    {advStats.targetLowPrice && advStats.targetHighPrice && advStats.targetMedianPrice && (() => {
+                                       const lowX = getPos(advStats.targetLowPrice);
+                                       const highX = getPos(advStats.targetHighPrice);
+                                       const medianX = getPos(advStats.targetMedianPrice);
+                                       return (
+                                         <Box sx={{ position: 'absolute', bottom: '100%', left: 0, right: 0, height: 40, pointerEvents: 'none', overflow: 'visible' }}>
+                                           <svg width="100%" height="100%" preserveAspectRatio="none" viewBox="0 0 100 100" style={{ overflow: 'visible' }}>
+                                             <defs>
+                                                <linearGradient id="bellGrad" x1="0" y1="0" x2="0" y2="1">
+                                                   <stop offset="0%" stopColor={theme.palette.primary.main} stopOpacity={0.25} />
+                                                   <stop offset="100%" stopColor={theme.palette.primary.main} stopOpacity={0.0} />
+                                                </linearGradient>
+                                             </defs>
+                                             <path d={`
+                                               M ${lowX} 100
+                                               C ${lowX + (medianX - lowX) * 0.5} 100,
+                                                 ${medianX - (medianX - lowX) * 0.4} 0,
+                                                 ${medianX} 0
+                                               C ${medianX + (highX - medianX) * 0.4} 0,
+                                                 ${highX - (highX - medianX) * 0.5} 100,
+                                                 ${highX} 100
+                                             `} fill="url(#bellGrad)" stroke={theme.palette.primary.main} strokeOpacity={0.3} strokeWidth="1" vectorEffect="non-scaling-stroke" />
+                                           </svg>
+                                         </Box>
+                                       );
+                                    })()}
+
+                                    {/* colored range from Low to High if both exist */}
+                                    {advStats.targetLowPrice && advStats.targetHighPrice && (
+                                      <Box style={{
+                                        position: 'absolute',
+                                        left: `${getPos(advStats.targetLowPrice)}%`,
+                                        right: `${100 - getPos(advStats.targetHighPrice)}%`,
+                                        top: 0, bottom: 0,
+                                      }} sx={{ bgcolor: 'action.selected', borderRadius: 3 }} />
+                                    )}
+
+                                    {/* Target Markers */}
+                                    {targets.map(tgt => {
+                                      const pctChange = ((tgt.value - currentPrice) / currentPrice) * 100;
+                                      const isPositive = pctChange > 0;
+
+                                    // Check if this is the median and it overlaps with the mean
+                                    const meanT = targets.find(x => x.label === t('Mean', 'ממוצע') || x.color === theme.palette.info.main);
+                                    const isMedian = tgt.label === t('Median', 'חציון') || tgt.color === theme.palette.primary.main;
+                                    const isOverlap = isMedian && meanT && Math.abs(getPos(tgt.value) - getPos(meanT.value)) < 15;
+
+                                    return (
+                                      <Box key={tgt.label} style={{ position: 'absolute', left: `${getPos(tgt.value)}%`, top: 0, transform: 'translateX(-50%)' }} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                        <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: tgt.color, border: '2px solid', borderColor: 'background.paper', mt: -0.4, zIndex: 2 }} />
+                                        <Box sx={{
+                                          position: isOverlap ? 'absolute' : 'relative',
+                                          bottom: isOverlap ? '100%' : 'auto',
+                                          mb: isOverlap ? 1.5 : 0,
+                                          mt: isOverlap ? 0 : 0.5,
+                                          display: 'flex', flexDirection: 'column', alignItems: 'center', bgcolor: 'background.paper', px: 0.5, borderRadius: 1, zIndex: 1, boxShadow: 1
+                                        }}>
+                                          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem', whiteSpace: 'nowrap' }}>{tgt.label}</Typography>
+                                          <Typography variant="caption" fontWeight="bold" sx={{ color: tgt.color, fontSize: '0.75rem', lineHeight: 1.1 }}>
+                                            {isPositive ? '+' : ''}{pctChange.toFixed(1)}%
+                                          </Typography>
+                                          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
+                                            {formatters.currency(tgt.value)}
+                                          </Typography>
+                                        </Box>
+                                      </Box>
+                                    );
+                                  })}
+
+
+
+                                    {/* Current Price Marker */}
+                                    <Box style={{ position: 'absolute', left: `${getPos(currentPrice)}%`, top: -38, transform: 'translateX(-50%)' }} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 10 }}>
+                                      <Typography variant="caption" sx={{ fontWeight: 'bold', mb: 0.5, bgcolor: theme.palette.mode === 'dark' ? '#333' : '#eee', px: 1, py: 0.25, borderRadius: 1, border: '1px solid', borderColor: 'divider', whiteSpace: 'nowrap', boxShadow: 1 }}>
+                                        {t('Current', 'נוכחי')}: {formatters.currency(currentPrice)}
+                                      </Typography>
+                                      <Box sx={{ width: 2, height: 38, bgcolor: 'text.primary', borderRadius: 1 }} />
+                                    </Box>
+                                  </Box>
+                                </Box>
+                              );
+                            })()}
+
+                            <Accordion variant="outlined" sx={{ borderRadius: 1, '&:before': { display: 'none' } }}>
+                              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                                <Typography variant="subtitle2">{t('Advanced Statistics', 'נתונים מתקדמים')}</Typography>
+                              </AccordionSummary>
+                              <AccordionDetails sx={{ pt: 0, pb: 2, px: 2 }}>
+                                <Grid container spacing={2}>
+                                  {groups.map((g, idx) => {
+                                    const validItems = g.items.filter(i => i.value !== undefined);
+                                    if (validItems.length === 0) return null;
+                                    return (
+                                      <Grid item xs={12} sm={6} md={4} key={idx}>
+                                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1, fontWeight: 'bold' }}>
+                                          {g.title}
+                                        </Typography>
+                                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                                          {validItems.map((item, i) => (
+                                            <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid', borderColor: 'divider', pb: 0.5 }}>
+                                              {item.tooltip ? (
+                                                <Tooltip title={item.tooltip} placement="top" arrow>
+                                                  <Typography variant="body2" color="text.secondary" sx={{ textDecoration: 'underline', textDecorationStyle: 'dotted', cursor: 'help' }}>
+                                                    {item.label}
+                                                  </Typography>
+                                                </Tooltip>
+                                              ) : (
+                                                <Typography variant="body2" color="text.secondary">{item.label}</Typography>
+                                              )}
+                                              <Typography variant="body2" fontWeight="medium">{item.value}</Typography>
+                                            </Box>
+                                          ))}
+                                        </Box>
+                                      </Grid>
+                                    );
+                                  })}
+                                </Grid>
+
                               </AccordionDetails>
                             </Accordion>
                           </Box>
@@ -1172,6 +1292,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
 
                         const keyStats = [
                           { label: t('P/E (Fwd)', 'מכפיל עתידי'), value: formatters.num(advStats.forwardPE) },
+                          { label: t('PEG Ratio', 'יחס PEG'), value: formatters.num(advStats.pegRatio) },
                           { label: t('Trailing 1y EPS', 'EPS עוקב שנתי'), value: formatters.currency(advStats.trailingEps) },
                           { label: t('Forward 1y EPS', 'EPS צפי שנתי'), value: formatters.currency(advStats.forwardEps) },
                           { label: t('Earnings Q Grw.', 'צמיחת רווחים'), value: formatters.pct(advStats.earningsQuarterlyGrowth ?? advStats.earningsGrowth) },
