@@ -1407,6 +1407,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
         open={chatOpen}
         apiKey={apiKey}
         tickerData={(displayData && 'exchange' in displayData) ? (displayData as any) : undefined}
+        advancedStats={(displayData as any)?.advStats || (displayData as any)?.advancedStats || (data?.advancedStats as any)}
         onClose={() => {
           setChatOpen(false);
           navigate({ hash: activeTab }, { replace: true });

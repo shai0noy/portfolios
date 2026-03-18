@@ -15,6 +15,7 @@ interface TickerAiChatProps {
   onClose: () => void;
   apiKey: string;
   tickerData?: TickerData;
+  advancedStats?: any;
   historicalData?: { date: Date; price: number }[];
   holdings: Holding[];
   displayCurrency: string;
@@ -23,7 +24,7 @@ interface TickerAiChatProps {
 }
 
 export const TickerAiChat: React.FC<TickerAiChatProps> = ({
-  open, onClose, apiKey, tickerData, historicalData, holdings, displayCurrency, exchangeRates, subjectName
+  open, onClose, apiKey, tickerData, advancedStats, historicalData, holdings, displayCurrency, exchangeRates, subjectName
 }) => {
   const { t } = useLanguage();
   const [benchmarkMetrics, setBenchmarkMetrics] = useState<any>(null);
@@ -125,6 +126,7 @@ export const TickerAiChat: React.FC<TickerAiChatProps> = ({
         },
         dividendYield: tickerData.dividendYield ? formatPercent(tickerData.dividendYield) : 'N/A',
       },
+      advancedStats,
       advancedTrailingMetrics: advancedMetrics,
       userHoldings: holdings.filter(h => h.ticker === tickerData.ticker).map(h => {
         const vals = exchangeRates ? aggregateHoldingValues([h], exchangeRates, displayCurrency) : null;
