@@ -56,7 +56,7 @@ export interface Money extends SimpleMoney {
 const EXCHANGES = [
   'NASDAQ', 'NYSE', 'TASE', 'LSE', 'FWB',
   'EURONEXT', 'JPX', 'HKEX', 'TSX', 'ASX', 'GEMEL', 'PENSION',
-  'FOREX', 'CBS',
+  'FOREX', 'CBS', 'CASH'
 ] as const;
 
 export type Exchange = typeof EXCHANGES[number];
@@ -218,6 +218,16 @@ export const EXCHANGE_SETTINGS: Record<Exchange, ExchangeSettings> = {
     labelEn: 'Israel Price indices',
     labelHe: 'מדדי מחירים'
   },
+  [Exchange.CASH]: {
+    aliases: ['CASH'],
+    googleFinanceCode: '',
+    googleSheetsCode: 'CASH',
+    yahooFinanceSuffix: '',
+    globesCode: '',
+    defaultCurrency: Currency.ILS,
+    labelEn: 'Cash',
+    labelHe: 'מזומן'
+  }
 };
 
 export function isUSExchange(exchange: Exchange | string): boolean {

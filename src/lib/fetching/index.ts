@@ -11,6 +11,7 @@ import { getPredefinedYahooTickers } from './yahoo_tickers';
 import type { TickerData } from './types';
 import { Exchange, parseExchange } from '../types';
 import type { TickerProfile } from '../types/ticker';
+import { InstrumentClassification, InstrumentType } from '../types/instrument';
 
 export * from './types';
 export * from './stock_list';
@@ -52,6 +53,16 @@ export function getTickersDataset(signal?: AbortSignal, forceRefresh = false): P
         if (!combined['Index']) combined['Index'] = [];
         combined['Index'] = combined['Index'].concat(cbsTickers);
       }
+
+      // Add Cash (ILS)
+      if (!combined['Currency']) combined['Currency'] = [];
+      combined['Currency'].push({
+        symbol: 'ILS',
+        exchange: Exchange.CASH,
+        name: 'Cash (ILS)',
+        nameHe: 'מזומן (שקל חדש)',
+        type: new InstrumentClassification(InstrumentType.CURRENCY, 'Cash')
+      });
 
       // Add Predefined Yahoo Tickers (Futures, Commodities)
       const yahooTickers = getPredefinedYahooTickers();
@@ -111,6 +122,22 @@ export async function getTickerData(
   }
 
   const secId = numericSecurityId ? Number(numericSecurityId) : undefined;
+
+  // CASH has its own dedicated treatment
+  if (parsedExchange === Exchange.CASH && ticker === 'ILS') {
+    return Promise.resolve({
+      ticker: 'ILS',
+      exchange: Exchange.CASH,
+      numericId: null,
+      price: 1,
+      currency: 'ILS',
+      name: 'Cash (ILS)',
+      nameHe: 'מזומן (שקל חדש)',
+      change: 0,
+      changePercent: 0,
+      provider: 'STATIC'
+    } as unknown as TickerData);
+  }
 
   // Normalize TASE ticker if needed (remove leading zeros)
   if (parsedExchange === Exchange.TASE && ticker) {
