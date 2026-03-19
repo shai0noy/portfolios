@@ -411,7 +411,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   };
 
   const handleQtyChange = useCallback((val: number, valStr?: string) => {
-  // NumericField passes number and valStr
+    // NumericField passes number and valStr
 
     // Check for negative? NumericField already clamps to 0? Yes.
     const finalStr = valStr !== undefined ? valStr : val.toString();
@@ -692,7 +692,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   }, [runValidation]);
 
   // Update commission when portfolio or type changes too
-// @ts-ignore
+  // @ts-ignore
   const handlePortChange = (e: any) => {
     const newPortId = e.target.value;
     setPortId(newPortId);
@@ -1059,7 +1059,8 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
       setValidationErrors({});
     } catch (e) {
       console.error(e);
-      toast.error(t('Error saving transaction', 'שגיאה בשמירת העסקה'));
+      const msg = t('Error saving transaction: ', 'שגיאה בשמירת העסקה: ') + (e instanceof Error ? e.message : String(e));
+      toast.error(msg, { duration: 10000 });
     } finally {
       setLoading(false);
     }
@@ -1388,7 +1389,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
 
 
 
-{showForm && selectedTicker && (
+                {showForm && selectedTicker && (
                   <>
                     <Grid item xs={12}>
                       <Divider sx={{ my: 1 }}>
@@ -1403,8 +1404,8 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                     </Grid>
                     <Grid container spacing={2}>
                       <Grid item xs={12}>
-                        <Tabs 
-                          value={type} 
+                        <Tabs
+                          value={type}
                           onChange={(_, newType) => handleTypeChange({ target: { value: newType } } as any)}
                           variant="scrollable"
                           scrollButtons="auto"

@@ -225,7 +225,8 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
             window.location.reload(); // Simple reload to refresh data
         } catch (error) {
             console.error(error);
-            toast.error(t('Failed to delete transaction', 'שגיאה במחיקת העסקה'));
+            const msg = t('Failed to delete transaction: ', 'שגיאה במחיקת העסקה: ') + (error instanceof Error ? error.message : String(error));
+            toast.error(msg, { duration: 10000 });
         } finally {
             setIsDeleting(false);
         }

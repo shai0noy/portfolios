@@ -305,7 +305,8 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
       onSuccess();
     } catch (e) {
       console.error(e);
-      toast.error(t('Error creating portfolio', 'שגיאה ביצירת התיק'));
+      const msg = t('Error creating portfolio: ', 'שגיאה ביצירת התיק: ') + (e instanceof Error ? e.message : String(e));
+      toast.error(msg, { duration: 10000 });
     } finally {
       setLoading(false);
     }
@@ -412,7 +413,8 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
       onSuccess();
     } catch (e) {
       console.error(e);
-      toast.error(t(`Error ${editMode ? 'updating' : 'creating'} portfolio`, `שגיאה ב${editMode ? 'עדכון' : 'יצירת'} התיק`));
+      const msg = t(`Error ${editMode ? 'updating' : 'creating'} portfolio: `, `שגיאה ב${editMode ? 'עדכון' : 'יצירת'} התיק: `) + (e instanceof Error ? e.message : String(e));
+      toast.error(msg, { duration: 10000 });
     } finally {
       setLoading(false);
     }

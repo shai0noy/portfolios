@@ -1,6 +1,7 @@
 import { clearAllCache } from '../fetching/utils/cache';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { getTickerData, getTickersDataset, fetchTickerHistory, getVerifiedYahooSymbol, type TickerData } from '../fetching';
 import { fetchHolding, getMetadataValue, syncDividends, fetchDividends, fetchTickerLists, toggleTickerListMembership } from '../sheets';
 import { Exchange, parseExchange, toGoogleFinanceExchangeCode, type Portfolio, type SheetHolding, type TrackingListItem } from '../types';
@@ -193,11 +194,16 @@ export const useTickerDetails = ({ sheetId, ticker: propTicker, exchange: propEx
     const toggleFavorite = useCallback(async () => {
         if (isUpdatingFavorite || !sheetId || !ticker || !exchange) return;
         setIsUpdatingFavorite(true);
+        // Optimistic UI update
+        setIsFavorite(prev => !prev);
         try {
             await toggleTickerListMembership(sheetId, 'Favorites', ticker, exchange);
-            setIsFavorite(prev => !prev);
         } catch (e) {
             console.error("Failed to toggle favorite", e);
+            // Revert optimistic update
+            setIsFavorite(prev => !prev);
+            const msg = "Failed to save favorite: " + (e instanceof Error ? e.message : String(e));
+            toast.error(msg, { duration: 8000 });
         } finally {
             setIsUpdatingFavorite(false);
         }
