@@ -39,7 +39,7 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
   const navigate = useNavigate();
   const location = useLocation();
   const isFavoritesOnly = propIsFavoritesOnly || location.pathname === '/favorites';
-  const [groupByPortfolio, setGroupByPortfolio] = useState(true);
+  const [groupByPortfolio, setGroupByPortfolio] = useState(() => localStorage.getItem('groupByPortfolio') !== 'false');
   // Persist Currency - normalize initial value
   const [displayCurrency, setDisplayCurrency] = useState<string>(() => normalizeCurrency(localStorage.getItem('displayCurrency') || 'USD'));
 
@@ -287,6 +287,10 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
   useEffect(() => {
     localStorage.setItem('showClosedPositions', String(showClosed));
   }, [showClosed]);
+
+  useEffect(() => {
+    localStorage.setItem('groupByPortfolio', String(groupByPortfolio));
+  }, [groupByPortfolio]);
 
   // Filter Holdings for Display
   const displayedHoldings = useMemo(() => {
