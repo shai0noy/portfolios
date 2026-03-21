@@ -221,11 +221,11 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({
 
   const getSystemInstruction = () => {
     const profileContext = userProfile && Object.keys(userProfile).length > 0
-      ? `\\nUser Profile: ${JSON.stringify(userProfile)}`
+      ? `\\My Profile: ${JSON.stringify(userProfile)}`
       : '';
 
     return `${SYSTEM_INSTRUCTION}
-==User Context==${profileContext}
+==My Profile==${profileContext}
 
 ==Current Portfolio Data==
 ${summarizePortfolio()}

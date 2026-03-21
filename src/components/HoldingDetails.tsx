@@ -384,6 +384,10 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                     loading={loading}
                     displayCurrency={displayCurrency}
                     formatDate={formatDate}
+                    calendarEvents={enriched?.calendarEvents || (holding as any)?.calendarEvents || (holding as any)?.meta?.calendarEvents}
+                    totalQty={totalQty}
+                    stockCurrency={stockCurrency}
+                    exchangeRates={exchangeRates}
                 />
             )}
 

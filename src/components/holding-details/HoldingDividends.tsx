@@ -30,16 +30,61 @@ interface HoldingDividendsProps {
     loading: boolean;
     displayCurrency: string;
     formatDate: (d: string | Date | number) => string;
+    calendarEvents?: any;
+    totalQty?: number;
+    stockCurrency?: string;
+    exchangeRates?: any;
 }
 
-export function HoldingDividends({ divHistory, loading, displayCurrency, formatDate }: HoldingDividendsProps) {
+const getDaysDiff = (dateStr: string | number | Date) => {
+    const diffTime = new Date(dateStr).setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0);
+    return Math.round(diffTime / (1000 * 60 * 60 * 24));
+};
+const formatDateWithRelative = (dateStr: string | number | Date, t: any, formatDateOrig: any) => {
+    const dStr = formatDateOrig(dateStr);
+    const days = getDaysDiff(dateStr);
+    if (days === 0) return `${dStr} (${t('Today', 'היום')})`;
+    if (days > 0) return `${dStr} (${t('in {days} days', 'בעוד {days} ימים').replace('{days}', String(days))})`;
+    return `${dStr} (${t('{days} days ago', 'לפני {days} ימים').replace('{days}', String(Math.abs(days)))})`;
+};
+
+import PaidIcon from '@mui/icons-material/Paid';
+import { convertCurrency } from '../../lib/currency';
+
+export function HoldingDividends({ divHistory, loading, displayCurrency, formatDate, calendarEvents, totalQty, stockCurrency, exchangeRates }: HoldingDividendsProps) {
     const { t } = useLanguage();
 
     const theme = useTheme();
     const { containerRef, showTop, showBottom, showLeft, showRight } = useScrollShadows('both');
 
+    const divExDays = calendarEvents?.exDividendDate ? getDaysDiff(calendarEvents.exDividendDate) : undefined;
+    const divPayDays = calendarEvents?.dividendDate ? getDaysDiff(calendarEvents.dividendDate) : undefined;
+    const isUpcoming = (divExDays !== undefined && divExDays >= 0) || (divPayDays !== undefined && divPayDays >= 0);
+
+    const calcTotalAmount = () => {
+        if (!calendarEvents?.dividendAmount || !totalQty || !stockCurrency || !exchangeRates) return null;
+        const totalStockCurrency = calendarEvents.dividendAmount * totalQty;
+        const totalDisplayCurrency = convertCurrency(totalStockCurrency, stockCurrency, displayCurrency, exchangeRates);
+        return formatPrice(totalDisplayCurrency, displayCurrency);
+    };
+
     return (
         <Box>
+            {isUpcoming && (
+                <Box sx={{ mb: 3 }}>
+                    <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'bold' }}>{t('Upcoming Dividend', 'דיבידנד צפוי')}</Typography>
+                    <Paper variant="outlined" sx={{ p: 1.5, display: 'flex', gap: 1.5, borderRadius: 2, alignItems: 'center', bgcolor: 'background.paper', overflow: 'hidden' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, borderRadius: '50%', bgcolor: theme.palette.mode === 'dark' ? 'rgba(74, 144, 226, 0.15)' : 'primary.light', color: 'primary.main', flexShrink: 0 }}>
+                            <PaidIcon fontSize="small" />
+                        </Box>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, flex: 1, minWidth: 0 }}>
+                            {calendarEvents.dividendAmount && <Typography variant="body2" sx={{ fontSize: '0.8rem', mb: 0.5 }}>{formatPrice(calendarEvents.dividendAmount, stockCurrency || 'USD')} {t('PS', 'למניה')}{totalQty ? ` • ${calcTotalAmount()} ${t('Total', 'סה״כ')}` : ''}</Typography>}
+                            {calendarEvents.dividendDate && <Typography variant="body2" sx={{ fontSize: '0.8rem' }} noWrap>{t('Pay', 'תשלום')}: <strong>{formatDateWithRelative(calendarEvents.dividendDate, t, formatDate)}</strong></Typography>}
+                            {calendarEvents.exDividendDate && <Typography variant="body2" sx={{ fontSize: '0.8rem' }} noWrap>{t('Ex', 'אקס')}: <strong>{formatDateWithRelative(calendarEvents.exDividendDate, t, formatDate)}</strong></Typography>}
+                        </Box>
+                    </Paper>
+                </Box>
+            )}
             <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'bold' }}>{t('Dividends Received', 'דיבידנדים שהתקבלו')}</Typography>
             <Box sx={{ position: 'relative' }}>
                 <Paper ref={containerRef} variant="outlined" sx={{ overflowX: 'auto', maxHeight: 500, overflowY: 'auto' }}>
