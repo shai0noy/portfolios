@@ -490,6 +490,7 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
           transactions={selectedPortfolioId ? (engine?.transactions?.filter(t => t.portfolioId === selectedPortfolioId) || []) : (engine?.transactions || [])}
           hasFutureTxns={hasFutureTxns}
           favoriteHoldings={favoriteHoldings}
+          showClosed={showClosed}
         />
       ) : (
         <Paper variant="outlined" sx={{ p: 3, mb: 4, position: 'relative' }}>

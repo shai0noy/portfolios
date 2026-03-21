@@ -13,8 +13,8 @@ import { useScrollShadows, ScrollShadows } from '../../lib/ui-utils';
  * Renders a single mover card.
  */
 const MoverItem = ({ mover, navigate, displayCurrency, sortBy }: { mover: Mover, navigate: any, displayCurrency: string, sortBy: 'change' | 'pct' }) => {
-    const { isRtl } = useLanguage();
-    const isPositive = mover.change >= 0;
+    const { isRtl, t } = useLanguage();
+    const isPositive = mover.change >= 0 || mover.pct >= 0;
     const color = isPositive ? 'success.main' : 'error.main';
 
     const potentialName = isRtl
@@ -26,7 +26,10 @@ const MoverItem = ({ mover, navigate, displayCurrency, sortBy }: { mover: Mover,
 
     const tooltipTitle = potentialName || mover.ticker;
 
-    const valueStr = formatMoneyValue({ amount: mover.change, currency: normalizeCurrency(displayCurrency) }, undefined, Math.abs(mover.change) >= 1000 ? 0 : 2);
+    const isNotHeld = Math.abs(mover.holding.qtyTotal) < 1e-6;
+    const valueStr = isNotHeld
+        ? t('Not Held', 'לא מוחזק')
+        : formatMoneyValue({ amount: mover.change, currency: normalizeCurrency(displayCurrency) }, undefined, Math.abs(mover.change) >= 1000 ? 0 : 2);
     const pctStr = formatPercent(mover.pct, true);
 
     return (
@@ -99,8 +102,8 @@ const MoverItem = ({ mover, navigate, displayCurrency, sortBy }: { mover: Mover,
  * Renders a single mover item for mobile lists.
  */
 const MobileMoverListItem = ({ mover, navigate, displayCurrency, sortBy }: { mover: Mover, navigate: any, displayCurrency: string, sortBy: 'change' | 'pct' }) => {
-    const { isRtl } = useLanguage();
-    const isPositive = mover.change >= 0;
+    const { isRtl, t } = useLanguage();
+    const isPositive = mover.change >= 0 || mover.pct >= 0;
     const color = isPositive ? 'success.main' : 'error.main';
 
     const potentialName = isRtl
@@ -110,7 +113,10 @@ const MobileMoverListItem = ({ mover, navigate, displayCurrency, sortBy }: { mov
     const nameNode = hasValidName ? potentialName : mover.ticker;
     const tickerNode = hasValidName ? mover.ticker : null;
 
-    const valueStr = formatMoneyValue({ amount: mover.change, currency: normalizeCurrency(displayCurrency) }, undefined, Math.abs(mover.change) >= 1000 ? 0 : 2);
+    const isNotHeld = Math.abs(mover.holding.qtyTotal) < 1e-6;
+    const valueStr = isNotHeld
+        ? t('Not Held', 'לא מוחזק')
+        : formatMoneyValue({ amount: mover.change, currency: normalizeCurrency(displayCurrency) }, undefined, Math.abs(mover.change) >= 1000 ? 0 : 2);
     const pctStr = formatPercent(mover.pct, true);
 
     const primaryVal = sortBy === 'pct' ? pctStr : valueStr;

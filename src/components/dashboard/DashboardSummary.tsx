@@ -45,6 +45,7 @@ interface SummaryProps {
   transactions: Transaction[];
   hasFutureTxns?: boolean;
   favoriteHoldings?: DashboardHolding[];
+  showClosed?: boolean;
 }
 
 /**
@@ -57,7 +58,7 @@ interface SummaryProps {
  * 
  * Supports "Stepping" through these 4 views automatically or manually.
  */
-export function DashboardSummary({ summary, holdings, displayCurrency, exchangeRates, selectedPortfolio, portfolios, isPortfoliosLoading, transactions, hasFutureTxns, favoriteHoldings }: SummaryProps) {
+export function DashboardSummary({ summary, holdings, displayCurrency, exchangeRates, selectedPortfolio, portfolios, isPortfoliosLoading, transactions, hasFutureTxns, favoriteHoldings, showClosed }: SummaryProps) {
   logIfFalsy(exchangeRates, "DashboardSummary: exchangeRates missing");
   const { t, isRtl } = useLanguage();
   const theme = useTheme();
@@ -850,13 +851,13 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
               </Box>
             </Fade>
           )}
-          {activeStep === idxTop && (
-            <Fade in={true} timeout={700}>
+          <Box sx={{ display: activeStep === idxTop ? 'block' : 'none' }}>
+            <Fade in={activeStep === idxTop} timeout={700}>
               <Box>
-                <TopMovers holdings={[...holdings, ...(favoriteHoldings || [])]} displayCurrency={displayCurrency} exchangeRates={exchangeRates} />
+                <TopMovers holdings={[...holdings.filter(h => showClosed ? true : Math.abs(h.qtyTotal) > 1e-6), ...(favoriteHoldings || [])]} displayCurrency={displayCurrency} exchangeRates={exchangeRates} />
               </Box>
             </Fade>
-          )}
+          </Box>
           <Box sx={{ display: activeStep === idxMarket ? 'block' : 'none', height: isMobile ? 'auto' : '100%' }}>
             <Fade in={activeStep === idxMarket} timeout={700}>
               <Box>
