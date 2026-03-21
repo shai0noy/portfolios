@@ -222,6 +222,7 @@ export function aggregateHoldingValues(
         costOfSold: toMoney(aggValues.costOfSold),
         proceeds: toMoney(aggValues.proceeds),
         dividends: toMoney(aggValues.dividends),
+        dividendsGross: toMoney(aggValues.dividendsGross),
         currentPrice: toMoney(currentPriceDisplay),
         avgCost: toMoney(avgCost),
         weightInPortfolio: 0,

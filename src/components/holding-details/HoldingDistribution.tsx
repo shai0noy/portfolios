@@ -1,7 +1,8 @@
-import { Box, Paper, Table, TableHead, TableRow, TableCell, TableBody } from '@mui/material';
+import { Box, Paper, Table, TableHead, TableRow, TableCell, TableBody, useTheme } from '@mui/material';
 import { formatPercent, formatNumber, formatMoneyValue } from '../../lib/currency';
 import { useLanguage } from '../../lib/i18n';
 import type { PortfolioGroup } from './types';
+import { useScrollShadows, ScrollShadows } from '../../lib/ui-utils';
 
 interface HoldingDistributionProps {
     groupedLayers: PortfolioGroup[];
@@ -9,10 +10,12 @@ interface HoldingDistributionProps {
 
 export function HoldingDistribution({ groupedLayers }: HoldingDistributionProps) {
     const { t } = useLanguage();
+    const theme = useTheme();
+    const { containerRef, showTop, showBottom, showLeft, showRight } = useScrollShadows('both');
 
     return (
-        <Box sx={{ mb: 4 }}>
-            <Paper variant="outlined" sx={{ overflowX: 'auto' }}>
+        <Box sx={{ mb: 4, position: 'relative' }}>
+            <Paper ref={containerRef} variant="outlined" sx={{ overflowX: 'auto' }}>
                 <Table size="small">
                     <TableHead>
                         <TableRow>
@@ -38,6 +41,7 @@ export function HoldingDistribution({ groupedLayers }: HoldingDistributionProps)
                     </TableBody>
                 </Table>
             </Paper>
+            <ScrollShadows top={showTop} bottom={showBottom} left={showLeft} right={showRight} theme={theme} />
         </Box>
     );
 }

@@ -179,6 +179,7 @@ export function calculateDashboardSummary(data: any[], displayCurrency: string, 
       costOfSold: costOfSoldDisplay,
       proceeds: proceedsDisplay,
       dividends: dividendsNet, // Net
+      dividendsGross,
       fees: feesDisplay,
       dividendYield1y,
       currentPrice: convertCurrency(h.currentPrice, h.stockCurrency, displayCurrency, exchangeRates),

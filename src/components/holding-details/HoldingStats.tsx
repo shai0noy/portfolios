@@ -1,10 +1,11 @@
-import { Box, Typography, Paper, Divider, Stack, Grid, Tooltip } from '@mui/material';
+import { Box, Typography, Paper, Divider, Stack, Grid, Tooltip, useTheme } from '@mui/material';
 import { formatValue, formatMoneyValue, formatMoneyPrice, formatPercent, formatNumber, convertCurrency } from '../../lib/currency';
 import { formatYears } from '../../lib/utils';
 import { useLanguage } from '../../lib/i18n';
 import type { HoldingValues } from './types';
 import type { HoldingWeight } from '../../lib/data/holding_utils';
 import type { SimpleMoney } from '../../lib/types';
+import { useScrollShadows, ScrollShadows } from '../../lib/ui-utils';
 
 interface HoldingStatsProps {
     vals: HoldingValues;
@@ -38,58 +39,63 @@ export function HoldingStats({
     exchangeRates
 }: HoldingStatsProps) {
     const { t } = useLanguage();
+    const theme = useTheme();
+    const { containerRef, showTop, showBottom, showLeft, showRight } = useScrollShadows('both');
 
     return (
         <Paper variant="outlined" sx={{ p: 2, mb: 6 }}>
-            <Stack direction="row" spacing={2} divider={<Divider orientation="vertical" flexItem />} justifyContent="space-around" sx={{ mb: 2, overflowX: 'auto', pb: 1 }}>
-                <Box>
-                    <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', display: 'block' }}>
-                        {t(hasGrants ? 'Vested Value' : 'Value', hasGrants ? 'שווי מובשל' : 'שווי')}
-                    </Typography>
-                    <Typography variant="h6" fontWeight="700">{formatMoneyValue(vestedValDisplay)}</Typography>
-                    <Tooltip title={t('Value After Tax', 'שווי לאחר מס')}>
-                        <Typography variant="caption" sx={{ display: 'block', mt: -0.5, cursor: 'help' }} color="text.secondary">
-                            {t('Net:', 'נטו:')} {formatMoneyValue(vals.valueAfterTax)}
-                        </Typography>
-                    </Tooltip>
-                </Box>
-                {hasGrants && (
+            <Box sx={{ position: 'relative' }}>
+                <Stack ref={containerRef} direction="row" spacing={2} divider={<Divider orientation="vertical" flexItem />} justifyContent="space-around" sx={{ mb: 2, overflowX: 'auto', pb: 1 }}>
                     <Box>
-                        <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', display: 'block' }}>{t('Unvested Value', 'שווי לא מובשל')}</Typography>
-                        <Typography variant="h6" fontWeight="700">{formatValue(unvestedValDisplay, displayCurrency)}</Typography>
-                        <Typography variant="caption" sx={{ display: 'block', mt: -0.5 }} color={unvestedGain >= 0 ? 'success.main' : 'error.main'}>
-                            {formatValue(unvestedGainDisplay, displayCurrency)} {t('unvested gains', 'רווח לא מובשל')}
+                        <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', display: 'block' }}>
+                            {t(hasGrants ? 'Vested Value' : 'Value', hasGrants ? 'שווי מובשל' : 'שווי')}
+                        </Typography>
+                        <Typography variant="h6" fontWeight="700">{formatMoneyValue(vestedValDisplay)}</Typography>
+                        <Tooltip title={t('Value After Tax', 'שווי לאחר מס')}>
+                            <Typography variant="caption" sx={{ display: 'block', mt: -0.5, cursor: 'help' }} color="text.secondary">
+                                {t('Net:', 'נטו:')} {formatMoneyValue(vals.valueAfterTax)}
+                            </Typography>
+                        </Tooltip>
+                    </Box>
+                    {hasGrants && (
+                        <Box>
+                            <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', display: 'block' }}>{t('Unvested Value', 'שווי לא מובשל')}</Typography>
+                            <Typography variant="h6" fontWeight="700">{formatValue(unvestedValDisplay, displayCurrency)}</Typography>
+                            <Typography variant="caption" sx={{ display: 'block', mt: -0.5 }} color={unvestedGain >= 0 ? 'success.main' : 'error.main'}>
+                                {formatValue(unvestedGainDisplay, displayCurrency)} {t('unvested gains', 'רווח לא מובשל')}
+                            </Typography>
+                        </Box>
+                    )}
+                    <Box>
+                        <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', display: 'block' }}>{t('Total Gain', 'רווח כולל')}</Typography>
+                        <Typography variant="h6" fontWeight="700" color={vals.totalGain.amount >= 0 ? 'success.main' : 'error.main'}>
+                            {formatMoneyValue(vals.totalGain)}
+                        </Typography>
+                        <Typography variant="caption" sx={{ display: 'block', mt: -0.5 }} color={vals.totalGain.amount >= 0 ? 'success.main' : 'error.main'}>
+                            {vals.totalGainPct > 0 ? '+' : ''}{formatPercent(vals.totalGainPct)}
                         </Typography>
                     </Box>
-                )}
-                <Box>
-                    <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', display: 'block' }}>{t('Total Gain', 'רווח כולל')}</Typography>
-                    <Typography variant="h6" fontWeight="700" color={vals.totalGain.amount >= 0 ? 'success.main' : 'error.main'}>
-                        {formatMoneyValue(vals.totalGain)}
-                    </Typography>
-                    <Typography variant="caption" sx={{ display: 'block', mt: -0.5 }} color={vals.totalGain.amount >= 0 ? 'success.main' : 'error.main'}>
-                        {vals.totalGainPct > 0 ? '+' : ''}{formatPercent(vals.totalGainPct)}
-                    </Typography>
-                </Box>
-                <Box>
-                    <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', display: 'block' }}>{t('Realized', 'מימוש')}</Typography>
-                    <Typography variant="h6" fontWeight="700" color={vals.realizedGain.amount >= 0 ? 'success.main' : 'error.main'}>
-                        {formatMoneyValue(vals.realizedGain)}
-                    </Typography>
-                    <Typography variant="caption" sx={{ display: 'block', mt: -0.5 }} color={vals.realizedGain.amount >= 0 ? 'success.main' : 'error.main'}>
-                        {formatPercent(vals.realizedGainPct)}
-                    </Typography>
-                </Box>
-                <Box>
-                    <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', display: 'block' }}>{t('Unrealized', 'לא ממומש')}</Typography>
-                    <Typography variant="h6" fontWeight="700" color={vals.unrealizedGain.amount >= 0 ? 'success.main' : 'error.main'}>
-                        {formatMoneyValue(vals.unrealizedGain)}
-                    </Typography>
-                    <Typography variant="caption" sx={{ display: 'block', mt: -0.5 }} color={vals.unrealizedGain.amount >= 0 ? 'success.main' : 'error.main'}>
-                        {vals.unrealizedGainPct > 0 ? '+' : ''}{formatPercent(vals.unrealizedGainPct)}
-                    </Typography>
-                </Box>
-            </Stack>
+                    <Box>
+                        <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', display: 'block' }}>{t('Realized', 'מימוש')}</Typography>
+                        <Typography variant="h6" fontWeight="700" color={vals.realizedGain.amount >= 0 ? 'success.main' : 'error.main'}>
+                            {formatMoneyValue(vals.realizedGain)}
+                        </Typography>
+                        <Typography variant="caption" sx={{ display: 'block', mt: -0.5 }} color={vals.realizedGain.amount >= 0 ? 'success.main' : 'error.main'}>
+                            {formatPercent(vals.realizedGainPct)}
+                        </Typography>
+                    </Box>
+                    <Box>
+                        <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', display: 'block' }}>{t('Unrealized', 'לא ממומש')}</Typography>
+                        <Typography variant="h6" fontWeight="700" color={vals.unrealizedGain.amount >= 0 ? 'success.main' : 'error.main'}>
+                            {formatMoneyValue(vals.unrealizedGain)}
+                        </Typography>
+                        <Typography variant="caption" sx={{ display: 'block', mt: -0.5 }} color={vals.unrealizedGain.amount >= 0 ? 'success.main' : 'error.main'}>
+                            {vals.unrealizedGainPct > 0 ? '+' : ''}{formatPercent(vals.unrealizedGainPct)}
+                        </Typography>
+                    </Box>
+                </Stack>
+                <ScrollShadows top={showTop} bottom={showBottom} left={showLeft} right={showRight} theme={theme} />
+            </Box>
 
             <Divider sx={{ my: 2 }} />
 
@@ -155,17 +161,21 @@ export function HoldingStats({
                     <Typography variant="body2" fontWeight="500">{formatMoneyValue(vals.realizedTax)}</Typography>
                 </Grid>
                 <Grid item xs={6} sm>
-                    <Typography variant="caption" color="text.secondary" noWrap>{t('Net Realized', 'מימוש נטו')}</Typography>
-                    <Typography variant="body2" fontWeight="500" color={vals.realizedGainNet.amount >= 0 ? 'success.main' : 'error.main'}>
-                        {formatMoneyValue(vals.realizedGainNet)}
-                    </Typography>
+                    <Typography variant="caption" color="text.secondary" noWrap>{t('Realized Profit (Net)', 'רווח ממומש (נטו)')}</Typography>
+                    <Tooltip title={t('Realized Capital Gains and Cash Dividends. Displayed as: Gross (Net)', 'רווחי הון ודיבידנדים שמומשו. מוצג כ: ברוטו (נטו)')}>
+                        <Typography variant="body2" fontWeight="500" color={vals.realizedGainGross.amount >= 0 ? 'success.main' : 'error.main'} sx={{ cursor: 'help', borderBottom: '1px dotted', borderColor: 'text.secondary', display: 'inline-block' }}>
+                            {formatMoneyValue(vals.realizedGainGross)} <Typography component="span" variant="caption" color="text.secondary" sx={{ opacity: 0.8 }}>({formatValue(vals.realizedGainNet.amount, vals.realizedGainNet.currency)})</Typography>
+                        </Typography>
+                    </Tooltip>
                 </Grid>
                 {vals.dividends.amount > 0 && (
                     <Grid item xs={6} sm>
-                        <Typography variant="caption" color="text.secondary" noWrap>{t('Total Dividends', 'סה״כ דיבידנדים')}</Typography>
-                        <Typography variant="body2" fontWeight="500" color="success.main">
-                            {formatMoneyValue(vals.dividends)}
-                        </Typography>
+                        <Typography variant="caption" color="text.secondary" noWrap>{t('Total Dividends (Net)', 'סה״כ דיבידנדים (נטו)')}</Typography>
+                        <Tooltip title={t('Displayed as: Gross (Net)', 'מוצג כ: ברוטו (נטו)')}>
+                            <Typography variant="body2" fontWeight="500" color="success.main" sx={{ cursor: 'help', borderBottom: '1px dotted', borderColor: 'text.secondary', display: 'inline-block' }}>
+                                {vals.dividendsGross ? formatMoneyValue(vals.dividendsGross) : formatMoneyValue(vals.dividends)} <Typography component="span" variant="caption" color="text.secondary" sx={{ opacity: 0.8 }}>({formatValue(vals.dividends.amount, vals.dividends.currency)})</Typography>
+                            </Typography>
+                        </Tooltip>
                     </Grid>
                 )}
             </Grid>

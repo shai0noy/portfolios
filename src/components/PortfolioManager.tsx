@@ -507,7 +507,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                         </Typography>
                         <Grid container spacing={3} mt={2}>
                           <Grid item xs={12}>
-                            <TextField fullWidth size="small" label={t('Display Name', 'שם תצוגה')} value={p.name} onChange={e => handleNameChange(e.target.value)} />
+                            <TextField fullWidth size="small" label={t('Display', 'שם')} value={p.name} onChange={e => handleNameChange(e.target.value)} />
                           </Grid>
                           <Grid item xs={12} sm={6}>
                             <Tooltip title={t("Unique System ID (auto-generated). No spaces.", "מזהה ייחודי (נוצר אוטומטית). ללא רווחים.")}>
