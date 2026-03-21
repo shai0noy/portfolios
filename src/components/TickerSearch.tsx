@@ -257,17 +257,22 @@ export const TickerSearch = React.memo(function TickerSearch({ onTickerSelect, p
 
   const debouncedInput = useDebounce(inputValue, 150);
 
+  const datasetLoadedRef = React.useRef(false);
+
   // Load the full ticker dataset once on mount/visibility
   useEffect(() => {
     let active = true;
 
     const loadDataset = async () => {
-      if (Object.keys(dataset).length > 0) return;
+      if (datasetLoadedRef.current || Object.keys(dataset).length > 0) return;
 
       setIsDatasetLoading(true);
       try {
         const data = await getTickersDataset();
-        if (active) setDataset(data);
+        if (active) {
+          setDataset(data);
+          datasetLoadedRef.current = true;
+        }
       } finally {
         if (active) setIsDatasetLoading(false);
       }
@@ -390,7 +395,7 @@ export const TickerSearch = React.memo(function TickerSearch({ onTickerSelect, p
               onBlur={() => {
                 // Delay onBlur to allow clicking on results
                 setTimeout(() => {
-                  if (!inputValue) setIsFocused(false);
+                  setIsFocused(false);
                 }, 200);
               }}
               label={isIdle ? null : `${t('Search Ticker', 'חפש נייר')} ${selectedExchange === 'ALL' ? '' : `(${selectedExchange})`}`}
@@ -464,7 +469,7 @@ export const TickerSearch = React.memo(function TickerSearch({ onTickerSelect, p
           {error && <Grid item xs={12}><Typography color="error">{error}</Typography></Grid>}
         </Grid>
 
-        {(filteredResults.length > 0) && (
+        {(isFocused && filteredResults.length > 0) && (
           <Box sx={{ position: 'relative', my: 1 }}>
             <Paper
               elevation={2}
