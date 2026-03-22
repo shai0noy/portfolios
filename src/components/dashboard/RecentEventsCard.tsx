@@ -17,6 +17,244 @@ interface RecentEventsCardProps {
   transactions: Transaction[];
 }
 
+export function getRecentEventsData(holdings: DashboardHolding[], transactions: Transaction[], t: (key: string, backup: string) => string) {
+  const today = new Date();
+  const oneMonthAgo = new Date();
+  oneMonthAgo.setDate(today.getDate() - 30);
+  const oneMonthFuture = new Date();
+  oneMonthFuture.setDate(today.getDate() + 30);
+
+  const holdingSymbols = new Set(holdings.map(h => h.ticker.toUpperCase()));
+
+  const grouped = new Map<string, {
+    id: string;
+    date: Date;
+    type: 'DIVIDEND' | 'VEST' | 'CAL_DIVIDEND' | 'CAL_EARNINGS';
+    ticker: string;
+    exchange: string;
+    qtySum?: number;
+    count?: number;
+    currency?: Currency;
+    price?: number;
+    customValueDesc?: string;
+    baseValueDesc?: string;
+    expectedDivTotal?: number;
+    stockCurrency?: Currency;
+    dividendAmount?: number;
+  }>();
+
+  const formatRelativeDays = (date: Date) => {
+    const diffMs = date.getTime() - today.getTime();
+    const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+    if (diffDays === 0) return t('Today', 'היום');
+    if (diffDays === -1) return t('Yesterday', 'אתמול');
+    if (diffDays === 1) return t('Tomorrow', 'מחר');
+    if (diffDays > 0) return t(`In ${diffDays} days`, `בעוד ${diffDays} ימים`);
+    return t(`${Math.abs(diffDays)} days ago`, `לפני ${Math.abs(diffDays)} ימים`);
+  };
+
+  const realDivDatesByTicker = new Map<string, Set<string>>();
+
+  for (const txn of transactions) {
+    if (!holdingSymbols.has(txn.ticker.toUpperCase())) continue;
+    const holding = holdings.find(h => h.ticker.toUpperCase() === txn.ticker.toUpperCase());
+    if (!holding) continue;
+
+    if (txn.type === 'DIVIDEND') {
+      const divDate = coerceDate(txn.date);
+      if (divDate) {
+        const dtStr = formatDate(divDate);
+        if (!realDivDatesByTicker.has(txn.ticker)) realDivDatesByTicker.set(txn.ticker, new Set());
+        realDivDatesByTicker.get(txn.ticker)!.add(dtStr);
+      }
+      if (divDate && divDate >= oneMonthAgo && divDate <= oneMonthFuture) {
+        const dateStr = formatDate(divDate);
+        const key = `${dateStr}_${txn.ticker}_DIVIDEND`;
+        const qty = txn.originalQty || 0;
+        if (!grouped.has(key)) {
+          grouped.set(key, {
+            id: txn.numericId ? String(txn.numericId) : Math.random().toString(),
+            date: divDate,
+            type: 'DIVIDEND',
+            ticker: txn.ticker,
+            exchange: holding.exchange,
+            qtySum: qty,
+            count: 1,
+            currency: (txn.currency || 'USD') as Currency,
+            price: holding.currentPrice
+          });
+        } else {
+          const existing = grouped.get(key)!;
+          existing.qtySum = (existing.qtySum || 0) + qty;
+          existing.count = (existing.count || 0) + 1;
+        }
+      }
+    } else if (txn.vestDate) {
+      const vDate = coerceDate(txn.vestDate);
+      if (vDate && vDate >= oneMonthAgo && vDate <= oneMonthFuture) {
+        const qty = txn.qty || txn.originalQty || 0;
+        const dateStr = formatDate(vDate);
+        const key = `${dateStr}_${txn.ticker}_VEST`;
+        if (!grouped.has(key)) {
+          grouped.set(key, {
+            id: txn.numericId ? String(txn.numericId) : Math.random().toString(),
+            date: vDate,
+            type: 'VEST',
+            ticker: txn.ticker,
+            exchange: holding.exchange,
+            qtySum: qty,
+            count: 1,
+            currency: (holding.stockCurrency || txn.currency || 'USD') as Currency,
+            price: holding.currentPrice
+          });
+        } else {
+          const existing = grouped.get(key)!;
+          existing.qtySum = (existing.qtySum || 0) + qty;
+          existing.count = (existing.count || 0) + 1;
+        }
+      }
+    }
+  }
+
+  // Process calendarEvents for Calendar Dividends & Earnings
+  for (const h of holdings) {
+    const cal = h.calendarEvents;
+    if (!cal) continue;
+
+    const exDate = cal.exDividendDate ? coerceDate(cal.exDividendDate) : null;
+    const payDate = cal.dividendDate ? coerceDate(cal.dividendDate) : null;
+
+    let closestDivDate: Date | null = null;
+    if (exDate && payDate) {
+      closestDivDate = Math.abs(exDate.getTime() - today.getTime()) < Math.abs(payDate.getTime() - today.getTime()) ? exDate : payDate;
+    } else {
+      closestDivDate = exDate || payDate;
+    }
+
+    let realDivKey: string | null = null;
+    if (payDate) {
+      const payStr = formatDate(payDate);
+      if (realDivDatesByTicker.get(h.ticker)?.has(payStr)) {
+        realDivKey = `${payStr}_${h.ticker}_DIVIDEND`;
+      }
+    }
+
+    if (realDivKey && grouped.has(realDivKey)) {
+      const group = grouped.get(realDivKey)!;
+      if (exDate && payDate) {
+        group.baseValueDesc = `${t('Ex', 'אקס')}: ${formatDate(exDate)} | ${t('Pay', 'תשלום')}: ${formatDate(payDate)}`;
+      } else if (exDate) {
+        group.baseValueDesc = `${t('Ex', 'אקס')}: ${formatDate(exDate)}`;
+      } else if (payDate) {
+        group.baseValueDesc = `${t('Pay', 'תשלום')}: ${formatDate(payDate)}`;
+      }
+
+      if (cal.dividendAmount) {
+        group.dividendAmount = cal.dividendAmount;
+        const curr = group.currency || h.stockCurrency!;
+        const psStr = `${formatMoneyValue({ amount: group.dividendAmount, currency: curr })} ${t('PS', 'למניה')}`;
+        const actualTotal = group.qtySum ? ` • ${formatMoneyValue({ amount: group.qtySum, currency: curr }, undefined, 0)} ${t('Total', 'סה״כ')}` : '';
+        group.customValueDesc = `${group.baseValueDesc || ''} | ${psStr}${actualTotal}`;
+      }
+    } else if (closestDivDate && closestDivDate >= oneMonthAgo && closestDivDate <= oneMonthFuture) {
+      const key = `CAL_DIV_${h.ticker}_${closestDivDate.getTime()}`;
+      if (!grouped.has(key)) {
+        let valueDesc = '';
+        if (exDate && payDate) {
+          valueDesc = `${t('Ex', 'אקס')}: ${formatDate(exDate)} | ${t('Pay', 'תשלום')}: ${formatDate(payDate)}`;
+        } else if (exDate) {
+          valueDesc = `${t('Ex', 'אקס')}: ${formatDate(exDate)}`;
+        } else if (payDate) {
+          valueDesc = `${t('Pay', 'תשלום')}: ${formatDate(payDate)}`;
+        }
+
+        grouped.set(key, {
+          id: `cal_div_${h.ticker}`,
+          date: closestDivDate,
+          type: 'CAL_DIVIDEND',
+          ticker: h.ticker,
+          exchange: h.exchange,
+          baseValueDesc: valueDesc,
+          expectedDivTotal: 0,
+          stockCurrency: h.stockCurrency,
+          customValueDesc: valueDesc
+        });
+      }
+
+      const group = grouped.get(key)!;
+      if (cal.dividendAmount) {
+        group.dividendAmount = cal.dividendAmount;
+        if (h.qtyTotal > 0) {
+          group.expectedDivTotal = (group.expectedDivTotal || 0) + (cal.dividendAmount * h.qtyTotal);
+        }
+
+        const psStr = `${formatMoneyValue({ amount: group.dividendAmount, currency: group.stockCurrency! })} ${t('PS', 'למניה')}`;
+        const expectedPart = group.expectedDivTotal ? ` • ${formatMoneyValue({ amount: group.expectedDivTotal, currency: group.stockCurrency! }, undefined, 0)} ${t('Total', 'סה״כ')}` : '';
+
+        group.customValueDesc = `${group.baseValueDesc} | ${psStr}${expectedPart}`;
+      }
+    }
+
+    const earnDate = cal.earningsDate ? coerceDate(cal.earningsDate) : null;
+    if (earnDate && earnDate >= oneMonthAgo && earnDate <= oneMonthFuture) {
+      const key = `CAL_EARN_${h.ticker}_${earnDate.getTime()}`;
+      if (!grouped.has(key)) {
+        grouped.set(key, {
+          id: `cal_earn_${h.ticker}`,
+          date: earnDate,
+          type: 'CAL_EARNINGS',
+          ticker: h.ticker,
+          exchange: h.exchange,
+          customValueDesc: (cal.isEarningsDateEstimate ? t('Estimated ', 'צפוי ') : '') + formatDate(earnDate)
+        });
+      }
+    }
+  }
+
+  const recentEvents = Array.from(grouped.values()).map(g => {
+    const isFuture = g.date > new Date();
+    let titleStr = '';
+    if (g.type === 'DIVIDEND' || g.type === 'CAL_DIVIDEND') {
+      titleStr = isFuture ? t('Upcoming Dividend', 'דיבידנד קרוב') : t('Dividend', 'דיבידנד');
+    } else if (g.type === 'CAL_EARNINGS') {
+      titleStr = isFuture ? t('Upcoming Earnings', 'דוחות קרובים') : t('Earnings', 'דוחות');
+    } else {
+      titleStr = isFuture ? t('Vesting', 'יבשיל') : t('Vested', 'הבשיל');
+    }
+
+    const countStr = g.count && g.count > 1 ? ` (${g.count} ${t('events', 'אירועים')})` : '';
+
+    let valueDesc = g.customValueDesc || '';
+    if (!g.customValueDesc) {
+      if (g.type === 'DIVIDEND' && g.qtySum !== undefined && g.currency) {
+        valueDesc = formatMoneyValue({ amount: g.qtySum, currency: g.currency }, undefined, 0);
+      } else if (g.type === 'VEST' && g.qtySum !== undefined && g.price !== undefined && g.currency) {
+        const totalValue = g.qtySum * g.price;
+        const units = g.qtySum > 0 && g.qtySum % 1 !== 0 ? g.qtySum.toFixed(1) : g.qtySum.toFixed(0);
+        valueDesc = `${units} ${t('units', 'יח׳')} - ${formatMoneyValue({ amount: totalValue, currency: g.currency }, undefined, 0)}`;
+      }
+    }
+
+    const diffMs = g.date.getTime() - today.getTime();
+    const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+    const isNamedDay = diffDays === 0 || diffDays === 1; // Today, Tomorrow
+
+    const desc = formatRelativeDays(g.date);
+    const isHighlighted = diffDays >= -1 && diffDays <= 3;
+
+    return {
+      ...g,
+      desc,
+      titleStr: `${titleStr}${countStr}`,
+      valueDesc,
+      dateDisplay: isNamedDay ? desc : `${formatDate(g.date)} • ${desc}`,
+      isHighlighted
+    };
+  });
+
+  return recentEvents.sort((a, b) => a.date.getTime() - b.date.getTime());
+}
+
 export function RecentEventsCard({ holdings, transactions }: RecentEventsCardProps) {
   const { t } = useLanguage();
   const scrollProps = useScrollShadows();
@@ -24,241 +262,7 @@ export function RecentEventsCard({ holdings, transactions }: RecentEventsCardPro
   const { containerRef, showTop, showBottom } = scrollProps;
 
   const events = useMemo(() => {
-    const today = new Date();
-    const oneMonthAgo = new Date();
-    oneMonthAgo.setDate(today.getDate() - 30);
-    const oneMonthFuture = new Date();
-    oneMonthFuture.setDate(today.getDate() + 30);
-
-    const holdingSymbols = new Set(holdings.map(h => h.ticker.toUpperCase()));
-
-    const grouped = new Map<string, {
-      id: string;
-      date: Date;
-      type: 'DIVIDEND' | 'VEST' | 'CAL_DIVIDEND' | 'CAL_EARNINGS';
-      ticker: string;
-      exchange: string;
-      qtySum?: number;
-      count?: number;
-      currency?: Currency;
-      price?: number;
-      customValueDesc?: string;
-      baseValueDesc?: string;
-      expectedDivTotal?: number;
-      stockCurrency?: Currency;
-      dividendAmount?: number;
-    }>();
-
-    const formatRelativeDays = (date: Date) => {
-      const diffMs = date.getTime() - today.getTime();
-      const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
-      if (diffDays === 0) return t('Today', 'היום');
-      if (diffDays === -1) return t('Yesterday', 'אתמול');
-      if (diffDays === 1) return t('Tomorrow', 'מחר');
-      if (diffDays > 0) return t(`In ${diffDays} days`, `בעוד ${diffDays} ימים`);
-      return t(`${Math.abs(diffDays)} days ago`, `לפני ${Math.abs(diffDays)} ימים`);
-    };
-
-    const realDivDatesByTicker = new Map<string, Set<string>>();
-
-    for (const txn of transactions) {
-      if (!holdingSymbols.has(txn.ticker.toUpperCase())) continue;
-      const holding = holdings.find(h => h.ticker.toUpperCase() === txn.ticker.toUpperCase());
-      if (!holding) continue;
-
-      if (txn.type === 'DIVIDEND') {
-        const divDate = coerceDate(txn.date);
-        if (divDate) {
-          const dtStr = formatDate(divDate);
-          if (!realDivDatesByTicker.has(txn.ticker)) realDivDatesByTicker.set(txn.ticker, new Set());
-          realDivDatesByTicker.get(txn.ticker)!.add(dtStr);
-        }
-        if (divDate && divDate >= oneMonthAgo && divDate <= oneMonthFuture) {
-          const dateStr = formatDate(divDate);
-          const key = `${dateStr}_${txn.ticker}_DIVIDEND`;
-          const qty = txn.originalQty || 0;
-          if (!grouped.has(key)) {
-            grouped.set(key, {
-              id: txn.numericId ? String(txn.numericId) : Math.random().toString(),
-              date: divDate,
-              type: 'DIVIDEND',
-              ticker: txn.ticker,
-              exchange: holding.exchange,
-              qtySum: qty,
-              count: 1,
-              currency: (txn.currency || 'USD') as Currency,
-              price: holding.currentPrice
-            });
-          } else {
-            const existing = grouped.get(key)!;
-            existing.qtySum = (existing.qtySum || 0) + qty;
-            existing.count = (existing.count || 0) + 1;
-          }
-        }
-      } else if (txn.vestDate) {
-        const vDate = coerceDate(txn.vestDate);
-        if (vDate && vDate >= oneMonthAgo && vDate <= oneMonthFuture) {
-          const qty = txn.qty || txn.originalQty || 0;
-          const dateStr = formatDate(vDate);
-          const key = `${dateStr}_${txn.ticker}_VEST`;
-          if (!grouped.has(key)) {
-            grouped.set(key, {
-              id: txn.numericId ? String(txn.numericId) : Math.random().toString(),
-              date: vDate,
-              type: 'VEST',
-              ticker: txn.ticker,
-              exchange: holding.exchange,
-              qtySum: qty,
-              count: 1,
-              currency: (holding.stockCurrency || txn.currency || 'USD') as Currency,
-              price: holding.currentPrice
-            });
-          } else {
-            const existing = grouped.get(key)!;
-            existing.qtySum = (existing.qtySum || 0) + qty;
-            existing.count = (existing.count || 0) + 1;
-          }
-        }
-      }
-    }
-
-    // Process calendarEvents for Calendar Dividends & Earnings
-    for (const h of holdings) {
-      const cal = h.calendarEvents;
-      if (!cal) continue;
-
-      const exDate = cal.exDividendDate ? coerceDate(cal.exDividendDate) : null;
-      const payDate = cal.dividendDate ? coerceDate(cal.dividendDate) : null;
-
-      let closestDivDate: Date | null = null;
-      if (exDate && payDate) {
-        closestDivDate = Math.abs(exDate.getTime() - today.getTime()) < Math.abs(payDate.getTime() - today.getTime()) ? exDate : payDate;
-      } else {
-        closestDivDate = exDate || payDate;
-      }
-
-      let realDivKey: string | null = null;
-      if (payDate) {
-        const payStr = formatDate(payDate);
-        if (realDivDatesByTicker.get(h.ticker)?.has(payStr)) {
-          realDivKey = `${payStr}_${h.ticker}_DIVIDEND`;
-        }
-      }
-
-      if (realDivKey && grouped.has(realDivKey)) {
-        const group = grouped.get(realDivKey)!;
-        if (exDate && payDate) {
-          group.baseValueDesc = `${t('Ex', 'אקס')}: ${formatDate(exDate)} | ${t('Pay', 'תשלום')}: ${formatDate(payDate)}`;
-        } else if (exDate) {
-          group.baseValueDesc = `${t('Ex', 'אקס')}: ${formatDate(exDate)}`;
-        } else if (payDate) {
-          group.baseValueDesc = `${t('Pay', 'תשלום')}: ${formatDate(payDate)}`;
-        }
-
-        if (cal.dividendAmount) {
-          group.dividendAmount = cal.dividendAmount;
-          const curr = group.currency || h.stockCurrency!;
-          const psStr = `${formatMoneyValue({ amount: group.dividendAmount, currency: curr })} ${t('PS', 'למניה')}`;
-          const actualTotal = group.qtySum ? ` • ${formatMoneyValue({ amount: group.qtySum, currency: curr }, undefined, 0)} ${t('Total', 'סה״כ')}` : '';
-          group.customValueDesc = `${group.baseValueDesc || ''} | ${psStr}${actualTotal}`;
-        }
-      } else if (closestDivDate && closestDivDate >= oneMonthAgo && closestDivDate <= oneMonthFuture) {
-        const key = `CAL_DIV_${h.ticker}_${closestDivDate.getTime()}`;
-        if (!grouped.has(key)) {
-          let valueDesc = '';
-          if (exDate && payDate) {
-            valueDesc = `${t('Ex', 'אקס')}: ${formatDate(exDate)} | ${t('Pay', 'תשלום')}: ${formatDate(payDate)}`;
-          } else if (exDate) {
-            valueDesc = `${t('Ex', 'אקס')}: ${formatDate(exDate)}`;
-          } else if (payDate) {
-            valueDesc = `${t('Pay', 'תשלום')}: ${formatDate(payDate)}`;
-          }
-
-          grouped.set(key, {
-            id: `cal_div_${h.ticker}`,
-            date: closestDivDate,
-            type: 'CAL_DIVIDEND',
-            ticker: h.ticker,
-            exchange: h.exchange,
-            baseValueDesc: valueDesc,
-            expectedDivTotal: 0,
-            stockCurrency: h.stockCurrency,
-            customValueDesc: valueDesc
-          });
-        }
-
-        const group = grouped.get(key)!;
-        if (cal.dividendAmount) {
-          group.dividendAmount = cal.dividendAmount;
-          if (h.qtyTotal > 0) {
-            group.expectedDivTotal = (group.expectedDivTotal || 0) + (cal.dividendAmount * h.qtyTotal);
-          }
-
-          const psStr = `${formatMoneyValue({ amount: group.dividendAmount, currency: group.stockCurrency! })} ${t('PS', 'למניה')}`;
-          const expectedPart = group.expectedDivTotal ? ` • ${formatMoneyValue({ amount: group.expectedDivTotal, currency: group.stockCurrency! }, undefined, 0)} ${t('Total', 'סה״כ')}` : '';
-
-          group.customValueDesc = `${group.baseValueDesc} | ${psStr}${expectedPart}`;
-        }
-      }
-
-      const earnDate = cal.earningsDate ? coerceDate(cal.earningsDate) : null;
-      if (earnDate && earnDate >= oneMonthAgo && earnDate <= oneMonthFuture) {
-        const key = `CAL_EARN_${h.ticker}_${earnDate.getTime()}`;
-        if (!grouped.has(key)) {
-          grouped.set(key, {
-            id: `cal_earn_${h.ticker}`,
-            date: earnDate,
-            type: 'CAL_EARNINGS',
-            ticker: h.ticker,
-            exchange: h.exchange,
-            customValueDesc: (cal.isEarningsDateEstimate ? t('Estimated ', 'צפוי ') : '') + formatDate(earnDate)
-          });
-        }
-      }
-    }
-
-    const recentEvents = Array.from(grouped.values()).map(g => {
-      const isFuture = g.date > new Date();
-      let titleStr = '';
-      if (g.type === 'DIVIDEND' || g.type === 'CAL_DIVIDEND') {
-        titleStr = isFuture ? t('Upcoming Dividend', 'דיבידנד קרוב') : t('Dividend', 'דיבידנד');
-      } else if (g.type === 'CAL_EARNINGS') {
-        titleStr = isFuture ? t('Upcoming Earnings', 'דוחות קרובים') : t('Earnings', 'דוחות');
-      } else {
-        titleStr = isFuture ? t('Vesting', 'יבשיל') : t('Vested', 'הבשיל');
-      }
-
-      const countStr = g.count && g.count > 1 ? ` (${g.count} ${t('events', 'אירועים')})` : '';
-
-      let valueDesc = g.customValueDesc || '';
-      if (!g.customValueDesc) {
-        if (g.type === 'DIVIDEND' && g.qtySum !== undefined && g.currency) {
-          valueDesc = formatMoneyValue({ amount: g.qtySum, currency: g.currency }, undefined, 0);
-        } else if (g.type === 'VEST' && g.qtySum !== undefined && g.price !== undefined && g.currency) {
-          const totalValue = g.qtySum * g.price;
-          const units = g.qtySum > 0 && g.qtySum % 1 !== 0 ? g.qtySum.toFixed(1) : g.qtySum.toFixed(0);
-          valueDesc = `${units} ${t('units', 'יח׳')} - ${formatMoneyValue({ amount: totalValue, currency: g.currency }, undefined, 0)}`;
-        }
-      }
-
-      const diffMs = g.date.getTime() - today.getTime();
-      const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
-      const isNamedDay = diffDays === 0 || diffDays === 1; // Today, Tomorrow
-
-      const desc = formatRelativeDays(g.date);
-      const isHighlighted = diffDays >= -1 && diffDays <= 3;
-
-      return {
-        ...g,
-        desc,
-        titleStr: `${titleStr}${countStr}`,
-        valueDesc,
-        dateDisplay: isNamedDay ? desc : `${formatDate(g.date)} • ${desc}`,
-        isHighlighted
-      };
-    });
-
-    return recentEvents.sort((a, b) => a.date.getTime() - b.date.getTime());
+    return getRecentEventsData(holdings, transactions, t);
   }, [holdings, transactions, t]);
 
   if (events.length === 0) return null;

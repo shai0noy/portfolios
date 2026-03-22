@@ -13,6 +13,7 @@ import { getMetadataValue, setMetadataValue } from '../lib/sheets/api';
 import { getTickerData } from '../lib/fetching';
 import toast from 'react-hot-toast';
 import { BaseAiChatDialog } from './chat/BaseAiChatDialog';
+import { getRecentEventsData } from './dashboard/RecentEventsCard';
 
 interface AiChatDialogProps {
   open: boolean;
@@ -77,7 +78,6 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({
             { ticker: '^NDX', exchange: Exchange.NASDAQ, name: 'NASDAQ 100' },
             { ticker: '137', exchange: Exchange.TASE, name: 'TA-125', sid: 137 },
             { ticker: '120010', exchange: Exchange.CBS, name: 'Israel Consumer Price Index (Inflation)', sid: 120010 },
-            { ticker: 'TCH-F91', exchange: Exchange.TASE, name: 'Israel 1Y Government Bond (rate)', isAnnualizedInterest: true },
           ];
 
           const results = await Promise.all(
@@ -86,51 +86,7 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({
 
           const overview = symbols.map((s, i) => {
             const data = results[i];
-
             if (!data) return `${s.name}: N/A`;
-
-            if (s.isAnnualizedInterest) {
-              const getPriceAt = (days: number) => {
-                const hist = data.historical;
-                if (!hist || hist.length === 0) return null;
-                const targetTime = new Date().getTime() - days * 24 * 60 * 60 * 1000;
-                let closest = hist[0];
-                let minDiff = Math.abs(new Date(closest.date).getTime() - targetTime);
-                for (const h of hist) {
-                  const diff = Math.abs(new Date(h.date).getTime() - targetTime);
-                  if (diff < minDiff) { minDiff = diff; closest = h; }
-                }
-                // allow up to 10 days gap for holidays/weekends
-                if (minDiff > 10 * 24 * 60 * 60 * 1000) return null;
-                return closest.price;
-              };
-
-              const calcRateAt = (daysAgo: number) => {
-                const pNow = getPriceAt(daysAgo);
-                const pPrev = getPriceAt(daysAgo + 30);
-                if (pNow === null || pPrev === null || pPrev === 0) return null;
-                return (pNow / pPrev - 1) * 12; // 1m yield * 12
-              };
-
-              const currentRate = calcRateAt(0);
-
-              if (currentRate === null) return `${s.name}: N/A`;
-
-              const rate1wAgo = calcRateAt(7);
-              const rate1mAgo = calcRateAt(30);
-              const rate3mAgo = calcRateAt(90);
-              const rate1yAgo = calcRateAt(365);
-
-              const rateChanges = [
-                rate1wAgo !== null ? `1W Change: ${formatPercent(currentRate - rate1wAgo)}` : null,
-                rate1mAgo !== null ? `1M Change: ${formatPercent(currentRate - rate1mAgo)}` : null,
-                rate3mAgo !== null ? `3M Change: ${formatPercent(currentRate - rate3mAgo)}` : null,
-                rate1yAgo !== null ? `1Y Change: ${formatPercent(currentRate - rate1yAgo)}` : null,
-              ].filter(Boolean).join(', ');
-
-              return `${s.name}: Current Implied Annual Interest Rate: ${formatPercent(currentRate)}. Rate Changes: ${rateChanges}`;
-            }
-
             const stats = [
               data.changePct1d !== undefined ? `1D: ${formatPercent(data.changePct1d)}` : null,
               data.changePctRecent !== undefined ? `1W: ${formatPercent(data.changePctRecent)}` : null,
@@ -246,6 +202,17 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({
         };
       });
 
+    const relevantTransactions = engine?.transactions
+      ? (selectedPortfolioId ? engine.transactions.filter(tx => tx.portfolioId === selectedPortfolioId) : engine.transactions)
+      : [];
+    const recentEventsRaw = getRecentEventsData(portfolioData.holdings, relevantTransactions, t);
+    const recentEvents = recentEventsRaw.map(e => ({
+      date: e.dateDisplay,
+      ticker: e.ticker,
+      type: e.titleStr,
+      description: e.valueDesc
+    }));
+
     return JSON.stringify({
       activePortfolios: portfoliosInfo,
       totalValue: portfolioData.summary.aum,
@@ -259,7 +226,8 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({
       perf5y: formatPercent(portfolioData.summary.perf5y),
       totalUnvestedValue: portfolioData.summary.totalUnvestedValue,
       valueAfterTax: portfolioData.summary.valueAfterTax,
-      holdings: hSummary
+      holdings: hSummary,
+      recentAndUpcomingEvents: recentEvents
     });
   };
 
@@ -351,6 +319,7 @@ ${marketOverview}
           t("Suggest improvements for my portfolio", "הצע 3 שיפורים לתיק שלי"),
           t("Compare my performance to the market", "השווה את הביצועים שלי לשוק"),
           t("Perform a FIRE (Financial Independence) analysis", "בצע ניתוח FIRE (עצמאות כלכלית)"),
+          t("Summarize upcoming and recent events in my portfolio", "סכם אירועים קרובים ועדכניים בתיק שלי"),
         ]}
         emptyStateContent={renderEmptyState}
         disclaimerText={t(
