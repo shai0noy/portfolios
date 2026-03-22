@@ -16,3 +16,10 @@ invocation_logs = true
 enabled = false
 persist = true
 head_sampling_rate = 1
+
+[[kv_namespaces]]
+binding = "SUBSCRIPTIONS"
+id = "0d7a6eaec2224c128ba97d50f41a8cc2"
+
+[triggers]
+crons = ["0 16 * * *"] # 16:00 UTC is 18:00 (6 PM) Israel Time (Standard Time)

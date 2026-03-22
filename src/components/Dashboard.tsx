@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, Link as RouterLink, useNavigate, useLocation } from 'react-router-dom';
 import {
-  Box, CircularProgress, IconButton, Tooltip, Typography, ToggleButton, Divider, Button, ToggleButtonGroup, Select, MenuItem, FormControl, Paper
+  Box, CircularProgress, IconButton, Tooltip, Typography, ToggleButton, Divider, Button, ToggleButtonGroup, Select, MenuItem, FormControl, Paper, Menu
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
@@ -10,8 +10,12 @@ import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import AddIcon from '@mui/icons-material/Add';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import NotificationsIcon from '@mui/icons-material/Notifications';
+
 import { ColumnSelector } from './ColumnSelector';
 import { normalizeCurrency } from '../lib/currency';
+import { SubscriptionDialog } from './SubscriptionDialog';
+
 import { DashboardSummary } from './dashboard/DashboardSummary';
 import { TopMovers } from './dashboard/TopMovers';
 import { AiChatDialog } from './AiChatDialog';
@@ -58,8 +62,10 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
   const [aiInitialPrompt, setAiInitialPrompt] = useState<string | undefined>(undefined);
   const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
   const [decryptedKey, setDecryptedKey] = useState<string | null>(null);
+  const [subDialogOpen, setSubDialogOpen] = useState(false);
 
   const handleClickColSelector = (event: React.MouseEvent<HTMLButtonElement>) => {
+
     setAnchorEl(event.currentTarget);
   };
 
@@ -646,8 +652,19 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
                             </FormGroup>
                           </>
                         )}
+                        <Divider sx={{ my: 1 }} />
+                        <Button
+                          variant="outlined"
+                          fullWidth
+                          onClick={() => setSubDialogOpen(true)}
+                          startIcon={<NotificationsIcon />}
+                          sx={{ py: 1, borderRadius: 2, textTransform: 'none' }}
+                        >
+                          {t('Manage Subscription', 'ניהול מנוי דוא"ל')}
+                        </Button>
                       </Box>
                     </ResponsiveDrawerMenu>
+
                   </>
                 ) : (
                   <>
@@ -657,7 +674,7 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
                       onChange={() => setShowClosed(!showClosed)}
                       size="small"
                       color="primary"
-                        sx={{ borderRadius: 2, textTransform: 'none', px: { xs: 1, sm: 1.5 }, py: 0, height: 32, fontSize: { xs: '0.75rem', sm: '0.875rem' }, border: 1, borderTopRightRadius: 0, borderBottomRightRadius: 0, borderColor: 'divider', whiteSpace: 'nowrap' }}
+                      sx={{ borderRadius: 2, textTransform: 'none', px: { xs: 1, sm: 1.5 }, py: 0, height: 32, fontSize: { xs: '0.75rem', sm: '0.875rem' }, border: 1, borderTopRightRadius: 0, borderBottomRightRadius: 0, borderColor: 'divider', whiteSpace: 'nowrap' }}
                     >
                       {tShowClosed}
                     </ToggleButton>
@@ -667,17 +684,30 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
                       onChange={() => setGroupByPortfolio(!groupByPortfolio)}
                       size="small"
                       color="primary"
-                        sx={{ borderRadius: 2, textTransform: 'none', px: { xs: 1, sm: 1.5 }, py: 0, height: 32, fontSize: { xs: '0.75rem', sm: '0.875rem' }, border: 1, borderTopLeftRadius: 0, borderBottomLeftRadius: 0, borderColor: 'divider', whiteSpace: 'nowrap', ml: '-1px' }}
+                      sx={{ borderRadius: 2, textTransform: 'none', px: { xs: 1, sm: 1.5 }, py: 0, height: 32, fontSize: { xs: '0.75rem', sm: '0.875rem' }, border: 1, borderTopLeftRadius: 0, borderBottomLeftRadius: 0, borderColor: 'divider', whiteSpace: 'nowrap', ml: '-1px' }}
                     >
                       {tGroupBy}
                     </ToggleButton>
+                    <Divider orientation="vertical" flexItem sx={{ mx: 0.5, height: 20, alignSelf: 'center' }} />
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      onClick={() => setSubDialogOpen(true)}
+                      startIcon={<NotificationsIcon fontSize="small" />}
+                      sx={{ borderRadius: 2, textTransform: 'none', px: 1.5, height: 32, mx: 0.5 }}
+                    >
+                      {t('Subscription', 'מנוי')}
+                    </Button>
                   </>
+
                 )}
 
-                <Divider orientation="vertical" flexItem sx={{ mx: 0.5, height: 20, alignSelf: 'center', display: { xs: 'none', sm: 'block' } }} />
+
+
                 <Tooltip title={t("Refresh Data", "רענן נתונים")}>
                   <IconButton
                     onClick={() => refresh(true)}
+
                     disabled={loading}
                     size="small"
                     sx={{ ml: 0.5 }}
@@ -754,6 +784,8 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
           />
         )
       }
+      <SubscriptionDialog open={subDialogOpen} onClose={() => setSubDialogOpen(false)} sheetId={sheetId} t={t} />
     </Box >
+
   );
 }

@@ -3,7 +3,8 @@ import { ensureGoogleApis } from './gapiLoader';
 import { SessionExpiredError } from './errors';
 
 const CLIENT_ID = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID;
-const SCOPES = 'https://www.googleapis.com/auth/drive.file';
+const SCOPES = 'https://www.googleapis.com/auth/drive.file email openid';
+
 const WORKER_URL = (import.meta as any).env?.VITE_WORKER_URL || '';
 
 let gapiInstance: typeof gapi | null = null;
