@@ -1,7 +1,5 @@
 import { handleAuth } from './auth.js';
 import { handleProxy } from './proxy.js';
-import { handleSubscription } from './subscription.js';
-import { handleScheduled } from './email.js';
 
 function getCorsHeaders(request) {
   const origin = request.headers.get("Origin");
@@ -22,11 +20,6 @@ export default {
       return new Response(null, { headers: corsHeaders });
     }
 
-    const url = new URL(request.url);
-    if (url.pathname === '/subscribe') {
-      return handleSubscription(request, env, corsHeaders);
-    }
-
     // Try handling Auth first
     const authResponse = await handleAuth(request, env, corsHeaders);
     if (authResponse) {
@@ -35,10 +28,5 @@ export default {
 
     // Fallback to Proxy logic
     return handleProxy(request, env, ctx, corsHeaders);
-  },
-
-  async scheduled(event, env, ctx) {
-    return handleScheduled(event, env, ctx);
   }
 };
-
