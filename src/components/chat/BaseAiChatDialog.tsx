@@ -260,7 +260,7 @@ const MarkdownTable = ({ children, ...props }: React.ComponentProps<'table'>) =>
   );
 };
 
-const ChatMessageItem = React.memo(({ msg, t, onRetry, lastPrompt, onPromptClick, onTickerClick, onProfileClick, onNavClick }: {
+const ChatMessageItem = React.memo(({ msg, t, onRetry, lastPrompt, onPromptClick, onTickerClick, onProfileClick, onNavClick, isLast, onRegenerate }: {
   msg: ExtendedChatMessage,
   t: (e: string, h: string) => string,
   onRetry: (prompt: string) => void,
@@ -268,7 +268,9 @@ const ChatMessageItem = React.memo(({ msg, t, onRetry, lastPrompt, onPromptClick
   onPromptClick: (text: string) => void,
   onTickerClick: (exchange: string, symbol: string) => void,
   onProfileClick: () => void,
-  onNavClick: (path: string) => void
+  onNavClick: (path: string) => void,
+  isLast: boolean,
+  onRegenerate: () => void
 }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -408,16 +410,26 @@ const ChatMessageItem = React.memo(({ msg, t, onRetry, lastPrompt, onPromptClick
               </Box>
             )}
           </Typography>
-          {msg.isError && (
+          {msg.role === 'model' && (msg.isError || isLast) && (
             <Button
-              startIcon={<RefreshIcon />}
+              startIcon={<RefreshIcon sx={{ fontSize: msg.isError ? 20 : 16 }} />}
               size="small"
-              variant="outlined"
-              color="error"
-              onClick={() => onRetry(lastPrompt)}
-              sx={{ mt: 1, textTransform: 'none', py: 0, fontSize: '0.7rem' }}
+              variant={msg.isError ? "outlined" : "text"}
+              color={msg.isError ? "error" : "primary"}
+              onClick={() => msg.isError ? onRetry(lastPrompt) : onRegenerate()}
+              sx={{
+                mt: 1,
+                textTransform: 'none',
+                py: msg.isError ? 0 : '2px',
+                px: msg.isError ? undefined : 1,
+                fontSize: msg.isError ? '0.7rem' : '0.6rem',
+                opacity: msg.isError ? 1 : 0.6,
+                minWidth: 'auto',
+                lineHeight: 1,
+                '&:hover': { opacity: 1 }
+              }}
             >
-              {t('Retry', 'נסה שוב')}
+              {msg.isError ? t('Retry', 'נסה שוב') : t('Regenerate', 'ייצר תשובה חדשה')}
             </Button>
           )}
         </Paper>
@@ -754,7 +766,7 @@ export const BaseAiChatDialog: React.FC<BaseAiChatDialogProps> = ({
     prevMessagesLengthRef.current = messages.length;
   }, [messages, isLoading]);
 
-  const handleSend = async (customPrompt?: string | any, searchToggle?: boolean) => {
+  const handleSend = async (customPrompt?: string | any, searchToggle?: boolean, isRegen?: boolean) => {
     if (!apiKey) return;
 
     const actualPrompt = typeof customPrompt === 'string' ? customPrompt : '';
@@ -767,20 +779,30 @@ export const BaseAiChatDialog: React.FC<BaseAiChatDialogProps> = ({
     lastPromptRef.current = userMsg;
     if (input) setInput('');
 
-    if (actualPrompt) {
+    const effectiveMessages = isRegen ? messages.slice(0, -1) : messages;
+
+    if (actualPrompt && !isRegen) {
       setMessages(prev => prev.filter(m => !m.isError));
+    } else if (isRegen) {
+      setMessages(prev => prev.slice(0, -1));
     }
 
-    if (!messages.some(m => m.parts[0].text === userMsg && m.role === 'user')) {
+    if (!effectiveMessages.some(m => m.parts[0].text === userMsg && m.role === 'user')) {
       const portName = portfolios.length > 0 && selectedPortfolioId ? portfolios.find(p => p.id === selectedPortfolioId)?.name : '';
-      setMessages(prev => [...prev, { role: 'user', parts: [{ text: userMsg }], portfolioName: portName }]);
+      setMessages(prev => [...prev.slice(0, isRegen ? -1 : undefined), { role: 'user', parts: [{ text: userMsg }], portfolioName: portName }]);
     }
 
     try {
-      const history = messages.filter((m) => !m.isError).map(m => ({ role: m.role, parts: [...m.parts] }));
+      const rawHistory = effectiveMessages.filter((m) => !m.isError).map(m => ({ role: m.role, parts: [...m.parts] }));
+
+      // Since `askGemini` automatically appends `userMsg` as the final user message, 
+      // we must ensure the history we pass to it does not already end with that user prompt.
+      const lastIsUser = rawHistory.length > 0 && rawHistory[rawHistory.length - 1].role === 'user';
+      const apiHistory = lastIsUser ? rawHistory.slice(0, -1) : rawHistory;
+
       const systemInstruction = await getSystemInstruction();
 
-      const response = await askGemini(apiKey, history, userMsg, selectedModel, systemInstruction, shouldSearch);
+      const response = await askGemini(apiKey, apiHistory, userMsg, selectedModel, systemInstruction, shouldSearch);
       setMessages(prev => [...prev, { role: 'model', parts: [{ text: response }] }]);
     } catch (err: any) {
       console.error("Gemini Error:", err);
@@ -1005,6 +1027,11 @@ export const BaseAiChatDialog: React.FC<BaseAiChatDialogProps> = ({
                 <Box key={i} id={`chat-msg-${i}`}>
                   <ChatMessageItem
                     msg={msg} t={t} onRetry={handleSend} lastPrompt={lastPromptRef.current}
+                    isLast={i === messages.length - 1}
+                    onRegenerate={() => {
+                      // Trigger regeneration
+                      handleSend(lastPromptRef.current, undefined, true);
+                    }}
                     onPromptClick={setInput}
                     onTickerClick={onTickerClick || (() => { })}
                     onProfileClick={onProfileClick || (() => { })}
