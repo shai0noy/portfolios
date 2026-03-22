@@ -1,4 +1,11 @@
 import React from 'react';
+import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import EventIcon from '@mui/icons-material/Event';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import BalanceIcon from '@mui/icons-material/Balance';
+import QueryStatsIcon from '@mui/icons-material/QueryStats';
+import LightbulbOutlinedIcon from '@mui/icons-material/LightbulbOutlined';
 import { BaseAiChatDialog } from './chat/BaseAiChatDialog';
 import { useLanguage } from '../lib/i18n';
 import type { Holding } from '../lib/data/model';
@@ -169,13 +176,13 @@ ${summarizeTicker()}`;
   };
 
   const suggestions = [
-    t('Summarize this asset', 'סכם את הנכס הזה'),
-    t('Summarize my holdings in this asset', 'סכם את האחזקות שלי בנכס הזה'),
-    t('What are the recent news or events?', 'מה החדשות או האירועים האחרונים?'),
-    t('Analyze performance over the last year', 'נתח את ביצועיו בשנה האחרונה'),
-    t('Compare to its sector peers', 'השווה אותו למתחרים בסקטור'),
-    t('How are the company fundamentals?', 'מהם יסודות החברה?'),
-    t('Help me understand this asset metrics', 'עזור לי להבין את מדדי הנכס הזה')
+    { text: t('Summarize this asset', 'סכם את הנכס הזה'), icon: <AssessmentOutlinedIcon fontSize="small" /> },
+    { text: t('Summarize my holdings in this asset', 'סכם את האחזקות שלי בנכס הזה'), icon: <AccountBalanceWalletIcon fontSize="small" /> },
+    { text: t('What are the recent news or events?', 'מה החדשות או האירועים האחרונים?'), icon: <EventIcon fontSize="small" /> },
+    { text: t('Analyze performance over the last year', 'נתח את ביצועיו בשנה האחרונה'), icon: <TrendingUpIcon fontSize="small" /> },
+    { text: t('Compare to its sector peers', 'השווה אותו למתחרים בסקטור'), icon: <BalanceIcon fontSize="small" /> },
+    { text: t('How are the company fundamentals?', 'מהם יסודות החברה?'), icon: <QueryStatsIcon fontSize="small" /> },
+    { text: t('Help me understand this asset metrics', 'עזור לי להבין את מדדי הנכס הזה'), icon: <LightbulbOutlinedIcon fontSize="small" /> }
   ];
 
   return (

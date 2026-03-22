@@ -46,7 +46,7 @@ export interface BaseAiChatDialogProps {
 
   getSystemInstruction: () => string | Promise<string>;
 
-  suggestions?: string[];
+  suggestions?: (string | { text: string, icon: React.ReactNode })[];
   emptyStateContent?: (onSend: (text: string) => void) => React.ReactNode;
   disclaimerText?: string;
   customDisclaimer?: React.ReactNode;
@@ -92,7 +92,7 @@ function LinkParser({ children, t, onPromptClick, onTickerClick, onProfileClick,
             <Button
               key={match.index}
               size="small"
-              variant="outlined"
+              variant="outlined" color="primary"
               onClick={() => onPromptClick(value)}
               sx={{
                 mx: 0.5,
@@ -132,7 +132,7 @@ function LinkParser({ children, t, onPromptClick, onTickerClick, onProfileClick,
                 fontSize: '0.75rem',
                 fontWeight: 600,
                 cursor: 'pointer',
-                bgcolor: 'background.paper',
+                bgcolor: 'background.paper', textAlign: 'left',
                 '&:hover': {
                   bgcolor: 'action.hover'
                 }
@@ -451,6 +451,8 @@ const ChatInputSection = React.memo(({ onSend, isLoading, t, initialValue, selec
   const [isExpanded, setIsExpanded] = useState(false);
   const inputContainerRef = useRef<HTMLDivElement>(null);
   const hasPortfolios = portfolios && portfolios.length > 0;
+  const { isRtl } = useLanguage();
+  const theme = useTheme();
 
   useEffect(() => {
     setValue(initialValue);
@@ -492,13 +494,10 @@ const ChatInputSection = React.memo(({ onSend, isLoading, t, initialValue, selec
             flexShrink: 0
           }} />
 
-          <FormControl size="small" variant="outlined" sx={{
+          <FormControl size="small" variant="outlined" color="primary" sx={{
             position: 'absolute',
             bottom: isExpanded ? 60 : 18,
-            ...(useLanguage().isRtl
-              ? { right: isExpanded ? 'calc(100% - 52px)' : 16 }
-              : { left: isExpanded ? 'calc(100% - 52px)' : 16 }
-            ),
+            left: isExpanded ? 'calc(100% - 52px)' : 16,
             width: isExpanded ? 36 : { xs: 100, sm: 140 },
             height: isExpanded ? 20 : 36,
             zIndex: 10,
@@ -507,6 +506,7 @@ const ChatInputSection = React.memo(({ onSend, isLoading, t, initialValue, selec
             mb: isExpanded ? 0 : '2px'
           }}>
             <Select
+              
               value={selectedPortfolioId || 'All'}
               onChange={(e) => setSelectedPortfolioId(e.target.value === 'All' ? null : e.target.value as string)}
               IconComponent={isExpanded ? () => null : undefined}
@@ -519,7 +519,7 @@ const ChatInputSection = React.memo(({ onSend, isLoading, t, initialValue, selec
                 fontSize: '0.75rem',
                 height: isExpanded ? 20 : 36,
                 borderRadius: 2,
-                bgcolor: 'background.paper',
+                bgcolor: 'background.paper', textAlign: 'left',
                 '& .MuiSelect-select': isExpanded ? {
                   p: '0 !important',
                   display: 'flex',
@@ -539,7 +539,7 @@ const ChatInputSection = React.memo(({ onSend, isLoading, t, initialValue, selec
         <TextField
           fullWidth
           placeholder={t('Ask a question...', 'שאל שאלה...')}
-          variant="outlined"
+          variant="outlined" color="primary"
           size="small"
           multiline
           minRows={isExpanded ? 2 : 1}
@@ -876,6 +876,7 @@ export const BaseAiChatDialog: React.FC<BaseAiChatDialogProps> = ({
                 ) : (
                   <FormControl size="small" sx={{ minWidth: 200 }}>
                     <Select
+                        
                       value={selectedModel}
                       onChange={(e) => setSelectedModel(e.target.value)}
                       sx={{ height: 32, fontSize: '0.8rem' }}
@@ -947,7 +948,8 @@ export const BaseAiChatDialog: React.FC<BaseAiChatDialogProps> = ({
 
                     {isExpertMode && (
                       <FormControl size="small" fullWidth sx={{ mt: 1 }}>
-                        <Select value={selectedModel} onChange={(e) => { setSelectedModel(e.target.value); handleMenuClose(); }}>
+                        <Select
+                           value={selectedModel} onChange={(e) => { setSelectedModel(e.target.value); handleMenuClose(); }}>
                           {availableModels.map(m => (
                             <MenuItem key={m.name} value={m.name} sx={{ fontSize: '0.8rem' }}>
                               {m.displayName}
@@ -1017,9 +1019,31 @@ export const BaseAiChatDialog: React.FC<BaseAiChatDialogProps> = ({
 
               {messages.length === 0 && suggestions.length > 0 && (
                 <Stack direction="row" flexWrap="wrap" gap={1} justifyContent="center" sx={{ maxWidth: '100%', mx: 'auto', px: 2, mt: 2 }}>
-                  {suggestions.map((sg, idx) => (
-                    <Chip key={idx} label={sg} onClick={() => handleSend(sg)} clickable color="primary" variant="outlined" size="small" sx={{ py: 1.5, height: 'auto', '& .MuiChip-label': { whiteSpace: 'normal', px: 2 } }} />
-                  ))}
+                  {suggestions.map((sg, idx) => {
+                    const isObj = typeof sg === 'object' && sg !== null;
+                    const text = isObj ? (sg as any).text : sg;
+                    const icon = isObj ? (sg as any).icon : undefined;
+                    return (
+                      <Button
+                        key={idx}
+                        variant="outlined"
+                        color="primary"
+                        size="small"
+                        startIcon={icon}
+                        onClick={() => handleSend(text)}
+                        sx={{
+                          textTransform: 'none',
+                          borderRadius: 2,
+                          py: 0.5,
+                          px: 1.5,
+                          textAlign: 'left',
+                          justifyContent: 'flex-start'
+                        }}
+                      >
+                        {text}
+                      </Button>
+                    );
+                  })}
                 </Stack>
               )}
 

@@ -2,7 +2,15 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Box, Typography, Button, Paper } from '@mui/material';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import ManageAccountsIcon from '@mui/icons-material/ManageAccounts';
-
+import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined';
+import PublicIcon from '@mui/icons-material/Public';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import PieChartIcon from '@mui/icons-material/PieChart';
+import TrendingDownIcon from '@mui/icons-material/TrendingDown';
+import LightbulbOutlinedIcon from '@mui/icons-material/LightbulbOutlined';
+import BalanceIcon from '@mui/icons-material/Balance';
+import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
+import EventIcon from '@mui/icons-material/Event';
 import { useLanguage } from '../lib/i18n';
 import { ProfileForm, type UserFinancialProfile } from './ProfileForm';
 import { calculateDashboardSummary } from '../lib/dashboard_calc';
@@ -248,7 +256,14 @@ ${marketOverview}
 ==User Session Start==`;
   };
 
-  const renderEmptyState = (_onSend: (text: string) => void) => (
+  const generateBriefingPrompt = (timeframe: string, t: any) => {
+    return t(
+      `Brief ${timeframe} portfolio summary. Compare gains to market and refer to market trends. Name top movers & key events. Provide data and add insights.`,
+      `סיכום מנהלים קצר לתיק ברמה ה${timeframe}. השתמש באימוג'ים ונקודות. השווה למדדי שוק (עליות וירידות), מניות בולטות, אירועי דיבידנד או דוחות. תן קונטקסט של טרנד ארוך משמעותי.`
+    );
+  };
+
+  const renderEmptyState = (onSend: (text: string) => void) => (
     <Box sx={{ textAlign: 'center', mt: 4, opacity: 0.8 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3, mb: 3 }}>
         <SmartToyIcon sx={{ fontSize: 48, color: 'primary.main', opacity: 0.5 }} />
@@ -260,6 +275,63 @@ ${marketOverview}
             {t('Try asking one of these:', 'נסה לשאול את אחת השאלות הבאות:')}
           </Typography>
         </Box>
+      </Box>
+
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mt: 4, mb: 4, alignItems: 'center' }}>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'center' }}>
+          <Button
+            variant="outlined" color="primary"
+            size="small"
+            startIcon={<AssessmentOutlinedIcon />}
+            onClick={() => onSend(generateBriefingPrompt(t('daily', 'יומי'), t))}
+            sx={{ textTransform: 'none', borderRadius: 2 }}
+          >
+            {t('Daily Summary', 'סיכום יומי')}
+          </Button>
+          <Button
+            variant="outlined" color="primary"
+            size="small"
+            startIcon={<AssessmentOutlinedIcon />}
+            onClick={() => onSend(generateBriefingPrompt(t('weekly', 'שבועי'), t))}
+            sx={{ textTransform: 'none', borderRadius: 2 }}
+          >
+            {t('Weekly Summary', 'סיכום שבועי')}
+          </Button>
+          <Button
+            variant="outlined" color="primary"
+            size="small"
+            startIcon={<AssessmentOutlinedIcon />}
+            onClick={() => onSend(generateBriefingPrompt(t('monthly', 'חודשי'), t))}
+            sx={{ textTransform: 'none', borderRadius: 2 }}
+          >
+            {t('Monthly Summary', 'סיכום חודשי')}
+          </Button>
+        </Box>
+      </Box>
+
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'center', mb: 4, px: 2 }}>
+        {[
+          { text: t("What current market events/trends are affecting my portfolio?", "אילו אירועי מאקרו או טרנדים בשוק משפיעים כרגע על התיק שלי?"), icon: <PublicIcon fontSize="small" /> },
+          { text: t("What are the key risks in my portfolio?", "מהם הסיכונים המרכזיים בתיק?"), icon: <WarningAmberIcon fontSize="small" /> },
+          { text: t("How is my asset allocation distributed?", "איך נראית הקצאת הנכסים שלי?"), icon: <PieChartIcon fontSize="small" /> },
+          { text: t("Stress test: What if the market drops 20%?", "בדיקת עמידות: מה אם השוק יירד ב-20%?"), icon: <TrendingDownIcon fontSize="small" /> },
+          { text: t("Suggest improvements for my portfolio", "הצע 3 שיפורים לתיק שלי"), icon: <LightbulbOutlinedIcon fontSize="small" /> },
+          { text: t("Compare my performance to the market", "השווה את הביצועים שלי לשוק"), icon: <BalanceIcon fontSize="small" /> },
+          { text: t("Perform a FIRE (Financial Independence) analysis", "בצע ניתוח FIRE (עצמאות כלכלית)"), icon: <LocalFireDepartmentIcon fontSize="small" /> },
+          { text: t("Summarize upcoming and recent events in my portfolio", "סכם אירועים קרובים ועדכניים בתיק שלי"), icon: <EventIcon fontSize="small" /> },
+        ].map((sg, i) => (
+          <Button
+            key={i}
+            variant="outlined"
+            color="primary"
+            size="small"
+            startIcon={sg.icon}
+            onClick={() => onSend(sg.text)}
+            sx={{ textTransform: 'none', borderRadius: 2, py: 0.5, px: 1.5, textAlign: 'left', justifyContent: 'flex-start' }}
+          >
+            {sg.text}
+          </Button>
+        ))}
       </Box>
 
       {(!userProfile.netYearlyEarnings || !userProfile.yearlySpending || !userProfile.age) && (
@@ -311,16 +383,6 @@ ${marketOverview}
         displayName={displayName}
         headerIcon={<SmartToyIcon color="primary" />}
         getSystemInstruction={getSystemInstruction}
-        suggestions={[
-          t("What current market events/trends are affecting my portfolio?", "אילו אירועי מאקרו או טרנדים בשוק משפיעים כרגע על התיק שלי?"),
-          t("What are the key risks in my portfolio?", "מהם הסיכונים המרכזיים בתיק?"),
-          t("How is my asset allocation distributed?", "איך נראית הקצאת הנכסים שלי?"),
-          t("Stress test: What if the market drops 20%?", "בדיקת עמידות: מה אם השוק יירד ב-20%?"),
-          t("Suggest improvements for my portfolio", "הצע 3 שיפורים לתיק שלי"),
-          t("Compare my performance to the market", "השווה את הביצועים שלי לשוק"),
-          t("Perform a FIRE (Financial Independence) analysis", "בצע ניתוח FIRE (עצמאות כלכלית)"),
-          t("Summarize upcoming and recent events in my portfolio", "סכם אירועים קרובים ועדכניים בתיק שלי"),
-        ]}
         emptyStateContent={renderEmptyState}
         disclaimerText={t(
           'Disclaimer: This AI assistant provides analysis for informational purposes only and does not constitute financial advice. Always consult with a qualified financial expert before making investment decisions.',
