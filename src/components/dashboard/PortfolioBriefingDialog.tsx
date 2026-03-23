@@ -27,7 +27,7 @@ type Timeframe = '1D' | '1W' | '1M';
 
 export function generateBriefingText(
   timeframe: '1D' | '1W' | '1M',
-  stats: { totalGain: number, totalPct: number, totalPct1M: number },
+  stats: { totalGain: number, totalPct: number, totalPct1M: number, allMovers?: { name: string, pct: number, gain: number }[] },
   marketData: { spx?: number, ndx?: number, tlv?: number },
   displayCurrency: string,
   t: (key: string, backup: string) => string
@@ -45,8 +45,53 @@ export function generateBriefingText(
   const moveSentence = getMoveSentence(timeWord, pfAbsPct, isUp, gainStr, pctStr, t);
   const marketSentence = getMarketSentence(pfAbsPct, isUp, mktUS, mktIL, t);
   const trendSentence = getTrendSentence(timeframe, pfAbsPct, isUp, stats.totalPct1M, t);
+  const moversSentence = getNotableMoversSentence(stats, t);
 
-  return [moveSentence, marketSentence, trendSentence].filter(Boolean).join('\n');
+  return [moveSentence, marketSentence, trendSentence, moversSentence].filter(Boolean).join('\n\n');
+}
+
+function getNotableMoversSentence(stats: { totalPct: number, allMovers?: { name: string, pct: number, gain: number }[] }, t: any) {
+  if (!stats.allMovers || stats.allMovers.length === 0) return "";
+
+  const pfPct = stats.totalPct;
+  const NOTABLE_THRESHOLD = 0.02;
+
+  // Find movers that significantly outperformed the portfolio (rose >= 2% AND rose MORE than the portfolio)
+  const outperforming = stats.allMovers.filter(m => m.pct >= NOTABLE_THRESHOLD && m.pct > pfPct);
+  // Find movers that significantly underperformed the portfolio (fell <= -2% AND fell WORSE than the portfolio)
+  const underperforming = stats.allMovers.filter(m => m.pct <= -NOTABLE_THRESHOLD && m.pct < pfPct);
+
+  outperforming.sort((a, b) => b.pct - a.pct);
+  underperforming.sort((a, b) => a.pct - b.pct);
+
+  const topOut = outperforming.slice(0, 2);
+  const topUnder = underperforming.slice(0, 2);
+
+  if (topOut.length === 0 && topUnder.length === 0) return "";
+
+  const formatList = (list: { name: string, pct: number }[]) =>
+    list.map(m => `${m.name} (${formatPercent(m.pct)})`).join(t(' and ', ' ו-'));
+
+  if (topOut.length > 0 && topUnder.length > 0) {
+    return t(
+      `Notably, ${formatList(topOut)} outperformed, while ${formatList(topUnder)} saw significant drops.`,
+      `ראוי לציון כי ${formatList(topOut)} בלטו לחיוב לראש הפסגה, בעוד ש-${formatList(topUnder)} רשמו ירידות משמעותיות.`
+    );
+  } else if (topOut.length > 0) {
+    if (pfPct < 0) {
+      return t(`Bright spots included ${formatList(topOut)}, which bucked the downward trend.`, `נקודות האור כללו את ${formatList(topOut)}, שעלו בניגוד למגמה השלילית בתיק.`);
+    } else {
+      return t(`Key drivers pushing the portfolio included ${formatList(topOut)}.`, `עליות התיק הובלו בין היתר על ידי ${formatList(topOut)} שבלטו במיוחד.`);
+    }
+  } else if (topUnder.length > 0) {
+    if (pfPct > 0) {
+      return t(`However, ${formatList(topUnder)} lagged behind with notable drops.`, `עם זאת, ${formatList(topUnder)} רשמו ירידות משמעותיות במנוגד למגמה הכללית בתיק.`);
+    } else {
+      return t(`The decline was largely driven by heavy drops in ${formatList(topUnder)}.`, `ירידות אלו הובלו והוחמרו בעיקר בעקבות צניחה של ${formatList(topUnder)}.`);
+    }
+  }
+
+  return "";
 }
 
 function getMoveSentence(timeWord: string, pfAbsPct: number, isUp: boolean, gainStr: string, pctStr: string, t: any) {
@@ -71,27 +116,72 @@ function getMoveSentence(timeWord: string, pfAbsPct: number, isUp: boolean, gain
 function getMarketSentence(pfAbsPct: number, isUp: boolean, mktUS: number, mktIL: number, t: any) {
   if (pfAbsPct < 0.005) return "";
 
-  const isUSDrop = mktUS < -0.01;
-  const isUSJump = mktUS > 0.01;
-  const isILDrop = mktIL < -0.01;
-  const isILJump = mktIL > 0.01;
+  const isUSSharpDrop = mktUS <= -0.02;
+  const isUSDrop = mktUS < -0.005 && !isUSSharpDrop;
+  const isUSSharpJump = mktUS >= 0.02;
+  const isUSJump = mktUS > 0.005 && !isUSSharpJump;
 
-  if (!isUp && (isUSDrop || isILDrop)) {
-    return isUSDrop
-      ? t(`This pullback mirrors a broader selloff in the US markets.`, `הירידה הזו משקפת מגמה שלילית רוחבית בשווקי ארה"ב.`)
-      : t(`This pullback reflects a red day in the local IL market.`, `המגמה השלילית תואמת ירידות בשוק המקומי (ת"א).`);
+  const isILSharpDrop = mktIL <= -0.02;
+  const isILDrop = mktIL < -0.005 && !isILSharpDrop;
+  const isILSharpJump = mktIL >= 0.02;
+  const isILJump = mktIL > 0.005 && !isILSharpJump;
+
+  if (isUp) {
+    if ((isILJump || isILSharpJump) && (isUSDrop || isUSSharpDrop)) {
+      const usText = isUSSharpDrop ? t(`sharp drops in the US markets`, `ירידות חדות בשווקי ארה"ב`) : t(`a red US market`, `ירידות מתונות בשווקי ארה"ב`);
+      return t(`The portfolio showed an increase following Israeli market trends, despite ${usText}.`, `העליות בתיק משתלבות עם המגמה החיובית בשוק הישראלי, למרות ${usText}.`);
+    }
+    if ((isUSJump || isUSSharpJump) && (isILDrop || isILSharpDrop)) {
+      const ilText = isILSharpDrop ? t(`sharp drops in the local IL market`, `ירידות חדות בשוק המקומי`) : t(`a red local market`, `ירידות מתונות בשוק המקומי`);
+      const usText = isUSSharpJump ? t(`a strong surge in the US markets`, `ראלי חד בשווקי ארה"ב`) : t(`positive momentum in the US markets`, `מומנטום חיובי בארה"ב`);
+      return t(`This rally aligns with ${usText}, despite ${ilText}.`, `העליות בתיק תואמות ל${usText}, למרות ${ilText}.`);
+    }
+    if (isUSSharpJump || isUSJump || isILSharpJump || isILJump) {
+      if (isUSSharpJump) return t(`This rally aligns with a broader surge in the US markets.`, `העלייה הזו תואמת לראלי שורי חזק בשווקי ארה"ב.`);
+      if (isUSJump) return t(`This rally aligns with steady positive momentum in the US markets.`, `העלייה הזו תואמת מומנטום חיובי מתון בשווקי ארה"ב.`);
+      if (isILSharpJump) return t(`This aligns with a very strong green day in the local IL market.`, `העליות בתיק משתלבות עם יום ירוק עז בבורסה המקומית.`);
+      if (isILJump) return t(`This aligns with a solid green day in the local IL market.`, `העליות בתיק משתלבות עם יום חיובי בבורסה המקומית.`);
+    }
+    if (mktUS < 0 && mktIL < 0) {
+      return t(`Impressively, your portfolio gained value despite red markets in both the US and IL.`, `מרשים לראות שהתיק עלה למרות יום אדום בשווקי ארה"ב וישראל.`);
+    }
+    if (mktUS < 0) {
+      const usText = isUSSharpDrop ? t(`sharp drops in the US`, `ירידות חדות בארה"ב`) : t(`a red US market`, `מגמה שלילית בארה"ב`);
+      return t(`Impressively, your portfolio gained value despite ${usText}.`, `מרשים לראות שהתיק עלה למרות ${usText}.`);
+    }
+    if (mktIL < 0) {
+      const ilText = isILSharpDrop ? t(`sharp drops in the local market`, `ירידות חדות בשוק הישראלי`) : t(`a red IL market`, `מגמה שלילית בארץ`);
+      return t(`Impressively, your portfolio gained value despite ${ilText}.`, `מרשים לראות שהתיק עלה למרות ${ilText}.`);
+    }
+  } else {
+    // isUp === false
+    if ((isILDrop || isILSharpDrop) && (isUSJump || isUSSharpJump)) {
+      const usText = isUSSharpJump ? t(`a broad rally in the US`, `ראלי חזק בארה"ב`) : t(`positive momentum in the US`, `מומנטום חיובי בארה"ב`);
+      return t(`This pullback reflects a red day in the local IL market, despite ${usText}.`, `המגמה השלילית תואמת לירידות בשוק המקומי, למרות ${usText}.`);
+    }
+    if ((isUSDrop || isUSSharpDrop) && (isILJump || isILSharpJump)) {
+      const usText = isUSSharpDrop ? t(`a massive selloff in the US markets`, `מגמה אדומה בוהקת בארה"ב`) : t(`a broader selloff in the US markets`, `מגמה שלילית רוחבית בשווקי ארה"ב`);
+      return t(`This pullback mirrors ${usText}, despite a green day in the local IL market.`, `הירידה הזו משקפת את ה${usText}, חרף עליות בבורסה המקומית.`);
+    }
+    if (isUSSharpDrop || isUSDrop || isILSharpDrop || isILDrop) {
+      if (isUSSharpDrop) return t(`This sharp pullback mirrors a major selloff in the US markets.`, `הירידה הזו משקפת יום אדום במיוחד ומגמה שלילית רוחבית בשווקי ארה"ב.`);
+      if (isUSDrop) return t(`This pullback mirrors a red day in the US markets.`, `הירידה הזו משקפת מגמה שלילית מתונה בשווקי ארה"ב.`);
+      if (isILSharpDrop) return t(`This reflects a particularly tough red day in the local IL market.`, `המגמה השלילית תואמת גל ירידות חדות בשוק המקומי (ת"א).`);
+      if (isILDrop) return t(`This reflects a red day in the local IL market.`, `המגמה השלילית תואמת יום אדום בשוק המקומי.`);
+    }
+    if (mktUS > 0 && mktIL > 0) {
+      return t(`The portfolio trended downwards despite generally positive markets in both the US and IL.`, `התיק ירד חרף יום ירוק בשווקי ארה"ב וישראל.`);
+    }
+    if (mktUS > 0) {
+      const usText = isUSSharpJump ? t(`a massive rally in the US`, `ראלי משמעותי בארה"ב`) : t(`a positive US market`, `מגמה חיובית בארה"ב`);
+      return t(`The portfolio trended downwards despite ${usText}.`, `התיק ירד חרף ${usText}.`);
+    }
+    if (mktIL > 0) {
+      const ilText = isILSharpJump ? t(`a strong jump in the local market`, `עליות חזקות בשוק המקומי`) : t(`a positive IL market`, `מגמה חיובית בארץ`);
+      return t(`The portfolio trended downwards despite ${ilText}.`, `התיק ירד חרף ${ilText}.`);
+    }
   }
-  if (isUp && (isUSJump || isILJump)) {
-    return isUSJump
-      ? t(`This rally aligns with strong positive momentum in the US markets.`, `העלייה הזו תואמת מומנטום חיובי חזק בשווקי ארה"ב.`)
-      : t(`This aligns with a strong day in the local IL market.`, `העליות בתיק משתלבות עם יום ירוק בבורסה המקומית.`);
-  }
-  if (isUp && mktUS < 0) {
-    return t(`Impressively, your portfolio gained value despite a red US market.`, `מרשים לראות שהתיק עלה למרות ירידות בשווקי ארה"ב.`);
-  }
-  if (!isUp && mktUS > 0) {
-    return t(`The portfolio trended downwards despite a generally positive US market.`, `התיק ירד חרף מגמה כללית חיובית בשווקי ארה"ב.`);
-  }
+
   return "";
 }
 
@@ -99,17 +189,29 @@ function getTrendSentence(timeframe: string, pfAbsPct: number, isUp: boolean, to
   if (timeframe === '1M' || pfAbsPct < 0.005) return "";
 
   const is1mUp = totalPct1M >= 0;
+  const currentPct = isUp ? pfAbsPct : -pfAbsPct;
   const monthlyFormatted = formatPercent(totalPct1M);
 
   if (isUp && is1mUp) {
-    return t(`This continues a solid 30-day uptrend (${monthlyFormatted}).`, `ממשיך מגמה חיובית יציבה של החודש האחרון (${monthlyFormatted}).`);
+    if (currentPct >= totalPct1M) {
+      return t(`This recent surge single-handedly pushed the 30-day return into the green (${monthlyFormatted}).`, `הזינוק האחרון העביר את החודש כולו לטריטוריה חיובית (${monthlyFormatted}).`);
+    } else {
+      return t(`This continues a solid 30-day uptrend (${monthlyFormatted}).`, `ממשיך מגמה חיובית יציבה של החודש האחרון (${monthlyFormatted}).`);
+    }
   }
+
   if (isUp && !is1mUp) {
     return t(`This helps reverse an ongoing 30-day slump (${monthlyFormatted}).`, `עלייה זו מסייעת לתקן את הירידה של החודש האחרון (${monthlyFormatted}).`);
   }
+
   if (!isUp && !is1mUp) {
-    return t(`This adds to a bearish 30-day trend (${monthlyFormatted}).`, `ירידה זו מעמיקה את המגמה השלילית של 30 הימים האחרונים (${monthlyFormatted}).`);
+    if (currentPct <= totalPct1M) {
+      return t(`This recent drop erased earlier gains, dragging the 30-day return into the red (${monthlyFormatted}).`, `הירידה האחרונה מוחקת עליות מוקדמות ומשכה את החודש כולו לטריטוריה שלילית (${monthlyFormatted}).`);
+    } else {
+      return t(`This adds to a bearish 30-day trend (${monthlyFormatted}).`, `ירידה זו מעמיקה את המגמה השלילית של 30 הימים האחרונים (${monthlyFormatted}).`);
+    }
   }
+
   return t(`A minor pullback following a strong 30-day gain (${monthlyFormatted}).`, `תיקון קל למטה אחרי חודש רווחי בסך הכל (${monthlyFormatted}).`);
 }
 
@@ -176,8 +278,9 @@ export function PortfolioBriefingDialog({ open, onClose, holdings, transactions,
     movers.sort((a, b) => b.gain - a.gain);
     const topGainers = movers.filter(m => m.gain > 0).slice(0, 3);
     const topLosers = movers.filter(m => m.gain < 0).reverse().slice(0, 3);
+    const allMovers = movers.map(m => ({ name: m.name, pct: m.pct, gain: m.gain }));
 
-    return { totalGain, totalPct, totalPct1M, topGainers, topLosers };
+    return { totalGain, totalPct, totalPct1M, topGainers, topLosers, allMovers };
   }, [holdings, timeframe]);
 
   const recentEvents = useMemo(() => {

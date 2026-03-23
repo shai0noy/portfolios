@@ -315,13 +315,16 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
       return { [name]: displayedHoldings };
     }
 
-    if (!groupByPortfolio) return { 'All Holdings': displayedHoldings };
-
     const groups: Record<string, EnrichedDashboardHolding[]> = {};
-    displayedHoldings.forEach(h => {
-      if (!groups[h.portfolioName]) groups[h.portfolioName] = [];
-      groups[h.portfolioName].push(h);
-    });
+
+    if (!groupByPortfolio) {
+      groups['All Holdings'] = displayedHoldings;
+    } else {
+      displayedHoldings.forEach(h => {
+        if (!groups[h.portfolioName]) groups[h.portfolioName] = [];
+        groups[h.portfolioName].push(h);
+      });
+    }
 
     // Add Favorites group if not empty and not already in favorites-only mode
     if (!isFavoritesOnly && favoriteHoldings.length > 0) {
