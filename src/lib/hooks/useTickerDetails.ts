@@ -278,7 +278,7 @@ export const useTickerDetails = ({ sheetId, ticker: propTicker, exchange: propEx
             links.push({ name: 'Google Finance', url: `https://www.google.com/finance/quote/${formattedTicker}` });
         } else {
             links.push({ name: 'Yahoo Finance', url: `https://finance.yahoo.com/quote/${getVerifiedYahooSymbol(ticker, exchange)}` });
-            const gExchange = toGoogleFinanceExchangeCode(exchange);
+            const gExchange = toGoogleFinanceExchangeCode(exchange) || ( (exchange === Exchange.NASDAQ || exchange === Exchange.NYSE) ? exchange : "" );
             links.push({ name: 'Google Finance', url: `https://www.google.com/finance/quote/${ticker}${gExchange ? `:${gExchange}` : ''}` });
         }
         if (data?.globesInstrumentId) links.push({ name: 'Globes', url: `https://www.globes.co.il/portal/instrument.aspx?instrumentid=${data.globesInstrumentId}` });

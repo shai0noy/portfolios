@@ -1,3 +1,4 @@
+import { PortfolioBriefingDialog } from "./dashboard/PortfolioBriefingDialog";
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, Link as RouterLink, useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -18,6 +19,7 @@ import { AiChatDialog } from './AiChatDialog';
 import { ApiKeyDialog } from './ApiKeyDialog';
 import { checkGeminiKey } from '../lib/gemini';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
+import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined';
 import { DashboardTable } from './DashboardTable';
 import { useLanguage } from '../lib/i18n';
 import { useDashboardData, calculateDashboardSummary, INITIAL_SUMMARY, type EnrichedDashboardHolding } from '../lib/dashboard';
@@ -55,6 +57,7 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
   const { showLoginModal } = useSession();
 
   const [aiChatOpen, setAiChatOpen] = useState(false);
+  const [briefingOpen, setBriefingOpen] = useState(false);
   const [aiInitialPrompt, setAiInitialPrompt] = useState<string | undefined>(undefined);
   const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
   const [decryptedKey, setDecryptedKey] = useState<string | null>(null);
@@ -577,11 +580,24 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
                     onClick={() => handleAiClick()}
                     variant="outlined"
                     size="small"
-                    color="primary"
-                    sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600, minWidth: isMobile ? 36 : 64, px: isMobile ? 0 : 1.5, height: 32 }}
+                    color="inherit"
+                    sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600, minWidth: isMobile ? 36 : 64, px: isMobile ? 0 : 1.5, height: 32, borderColor: 'divider', color: 'text.secondary' }}
                   >
                     <SmartToyIcon fontSize="small" sx={{ mr: isMobile ? 0 : 0.75 }} />
                     {!isMobile && t('AI Assistant', 'עוזר AI')}
+                  </Button>
+                </Tooltip>
+
+                <Tooltip title={t("Portfolio Briefing", "סיכום תיק")}>
+                  <Button
+                    onClick={() => setBriefingOpen(true)}
+                    variant="outlined"
+                    size="small"
+                    color="inherit"
+                    sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600, minWidth: isMobile ? 36 : 64, px: isMobile ? 0 : 1.5, height: 32, borderColor: 'divider', color: 'text.secondary' }}
+                  >
+                    <AssessmentOutlinedIcon fontSize="small" sx={{ mr: isMobile ? 0 : 0.75 }} />
+                    {!isMobile && t('Briefing', 'סיכום')}
                   </Button>
                 </Tooltip>
 
@@ -754,6 +770,15 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
           />
         )
       }
-    </Box >
+
+      {briefingOpen && (
+        <PortfolioBriefingDialog transactions={engine?.transactions || []}
+          open={true}
+          onClose={() => setBriefingOpen(false)}
+          holdings={displayedHoldings}
+          displayCurrency={displayCurrency}
+        />
+      )}
+    </Box>
   );
 }

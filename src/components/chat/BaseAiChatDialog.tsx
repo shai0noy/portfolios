@@ -451,9 +451,6 @@ const ChatInputSection = React.memo(({ onSend, isLoading, t, initialValue, selec
   const [isExpanded, setIsExpanded] = useState(false);
   const inputContainerRef = useRef<HTMLDivElement>(null);
   const hasPortfolios = portfolios && portfolios.length > 0;
-  const { isRtl } = useLanguage();
-  const theme = useTheme();
-
   useEffect(() => {
     setValue(initialValue);
   }, [initialValue]);
@@ -849,7 +846,7 @@ export const BaseAiChatDialog: React.FC<BaseAiChatDialogProps> = ({
           }
         }}
       >
-        <DialogTitle sx={{ p: { xs: 1, sm: 2 } }}>
+        <DialogTitle component="div" sx={{ p: { xs: 1, sm: 2 } }}>
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexGrow: 1, overflow: 'hidden' }}>
               {headerIcon || <AutoAwesomeIcon color="primary" />}
