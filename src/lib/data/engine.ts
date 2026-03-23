@@ -455,7 +455,10 @@ export class FinanceEngine {
 
                     h.currentPrice = finalPrice;
                 }
-                if (live.changePct1d !== undefined) h.dayChangePct = live.changePct1d;
+                if (live.changePct1d !== undefined) {
+                    h.dayChangePct = live.changePct1d;
+                    h.isStaleDayChange = !!live.isStaleDayChange;
+                }
 
                 // Use Personal Perf with Fallback to Market Perf
                 h.perf1w = calculatePersonalPerf(h, '1w', live.changePctRecent ?? live.perf1w);
@@ -940,6 +943,7 @@ export class FinanceEngine {
             totalDayChange: 0,
             aumWithDayChangeData: 0,
             holdingsWithDayChange: 0,
+            holdingsWithStaleDayChange: 0,
             totalUnvestedValue: 0,
             totalUnvestedGain: 0,
             totalUnvestedCost: 0,
@@ -1032,7 +1036,12 @@ export class FinanceEngine {
                 const dayChangeTotal = changeVal * h.qtyVested;
                 globalAcc.totalDayChange += dayChangeTotal;
                 globalAcc.aumWithDayChangeData += marketValue;
-                globalAcc.holdingsWithDayChange++;
+
+                if (h.isStaleDayChange) {
+                    (globalAcc as any).holdingsWithStaleDayChange++;
+                } else {
+                    globalAcc.holdingsWithDayChange++;
+                }
             }
 
             // Perf Periods Aggregation
@@ -1086,7 +1095,8 @@ export class FinanceEngine {
             totalTaxPaid: Math.max(0, globalAcc.totalRealizedTax), // Populate the new field
             valueAfterTax: globalAcc.aum - Math.max(0, globalAcc.totalUnrealizedTax),
             totalDayChangePct: globalAcc.aumWithDayChangeData > 0 ? globalAcc.totalDayChange / globalAcc.aumWithDayChangeData : 0,
-            totalDayChangeIsIncomplete: globalAcc.holdingsWithDayChange < this.holdings.size, // Approximate
+            totalDayChangeIsIncomplete: (globalAcc.holdingsWithDayChange + (globalAcc as any).holdingsWithStaleDayChange) < this.holdings.size,
+            totalDayChangeIsStale: (globalAcc as any).holdingsWithStaleDayChange > 0 && globalAcc.holdingsWithDayChange === 0,
 
 
             // Perf

@@ -459,7 +459,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                   <>
                     <Box display="flex" alignItems="baseline" justifyContent={isMobile ? 'flex-start' : 'flex-end'} gap={1.5}>
                       <Typography variant="h6" component="div" fontWeight={600}>{formatMoneyPrice({ amount: price || 0, currency: normalizeCurrency(isTase ? 'ILA' : (displayData?.currency || 'USD')) }, t)}</Typography>
-                      <Tooltip title={`${t('Day change', 'שינוי יומי')} (${lastUpdated})`} placement="top" enterTouchDelay={0} leaveTouchDelay={3000}>
+                      <Tooltip title={`${data?.isStaleDayChange ? t('Last Trading Day', 'מסחר אחרון') : t('Day change', 'שינוי יומי')} (${lastUpdated})`} placement="top" enterTouchDelay={0} leaveTouchDelay={3000}>
                         <Typography variant="h6" sx={{ fontWeight: 700, color: dayChange >= 0 ? 'success.main' : 'error.main' }}>{formatPercent(dayChange)}</Typography>
                       </Tooltip>
                     </Box>
@@ -616,7 +616,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                             .map(([range, item]) => item && (
                               <Tooltip key={range} title={item.date ? `Since ${formatDate(item.date)}` : ''} arrow enterTouchDelay={0} leaveTouchDelay={3000}>
                                 <Chip variant="outlined" size="small" sx={{ minWidth: 78, py: 0.5, px: 0.75, height: 'auto', color: item.val > 0 ? 'success.main' : item.val < 0 ? 'error.main' : 'text.primary', '& .MuiChip-label': { display: 'flex', flexDirection: 'column', alignItems: 'center' } }}
-                                  label={<><Typography variant="caption" color="text.secondary">{translateRange(range)}</Typography><Typography variant="body2" sx={{ fontWeight: 600 }}>{formatPercent(item.val)}</Typography></>}
+                                  label={<><Typography variant="caption" color="text.secondary">{range === '1D' && data?.isStaleDayChange ? t('Last Trading Day', 'מסחר אחרון') : translateRange(range)}</Typography><Typography variant="body2" sx={{ fontWeight: 600 }}>{formatPercent(item.val)}</Typography></>}
                                 />
                               </Tooltip>
                             ));

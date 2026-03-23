@@ -332,6 +332,7 @@ export interface DashboardHolding {
 
   sector?: string;
   dayChangePct: number;
+  isStaleDayChange?: boolean;
   perf1w: number;
   perf1m: number;
   perf3m: number;
@@ -410,6 +411,7 @@ export interface DashboardSummaryData {
   totalDayChange: number;
   totalDayChangePct: number;
   totalDayChangeIsIncomplete: boolean;
+  totalDayChangeIsStale?: boolean;
   totalTaxPaid: number; // Added
 
   // Performance
@@ -501,6 +503,7 @@ export interface SheetHolding {
   nameHe?: string;
   sector?: string;
   changePct1d?: number;
+  isStaleDayChange?: boolean;
   changeDate1d?: Date;
   changePctRecent?: number;
   changeDateRecent?: Date;

@@ -95,6 +95,7 @@ export interface TickerData {
   currency?: string;
   exchange: Exchange;
   changePct1d?: number; // Daily change percentage
+  isStaleDayChange?: boolean; // True if the 1d change reflects a previous trading day (e.g., during the weekend)
   changeDate1d?: Date; // Timestamp of the previous close used for daily change
   timestamp?: Date; // Last update time
   sector?: string;

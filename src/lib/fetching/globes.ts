@@ -302,6 +302,7 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
         currency,
         exchange: exchangeRes,
         changePct1d: percentageChange !== undefined ? percentageChange / 100 : undefined,
+        changeDate1d: new Date(effectiveTimestamp),
         timestamp: new Date(effectiveTimestamp),
         changePctYtd,
         changePctRecent: calculateChangePct(last, parseSafeNumber(instrument, 'LastWeekClosePrice')),

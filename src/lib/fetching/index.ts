@@ -118,7 +118,7 @@ export async function getTickerData(
   } catch (e) {
     console.warn(`getTickerData: Invalid exchange '${exchange}', defaulting to NASDAQ for Yahoo fallback logic.`, e);
     // For invalid exchange, we can only try yahoo.
-    return fetchYahooTickerData(ticker, Exchange.NASDAQ, signal, forceRefresh, 'max');
+    return fetchYahooTickerData(ticker, Exchange.NASDAQ, signal, forceRefresh, 'max').then(detectStaleDayChange);
   }
 
   const secId = numericSecurityId ? Number(numericSecurityId) : undefined;
@@ -163,17 +163,17 @@ export async function getTickerData(
 
   // GEMEL has its own dedicated fetcher
   if (parsedExchange === Exchange.GEMEL) {
-    return fetchGemelnetQuote(tickerNum, signal, forceRefresh).then((data: any) => data ? { ...data, historical: interpolateSparseHistory(data.historical) } : data);
+    return fetchGemelnetQuote(tickerNum, signal, forceRefresh).then((data: any) => data ? { ...data, historical: interpolateSparseHistory(data.historical) } : data).then(detectStaleDayChange);
   }
 
   // PENSION has its own dedicated fetcher
   if (parsedExchange === Exchange.PENSION) {
-    return fetchPensyanetQuote(tickerNum, signal, forceRefresh).then((data: any) => data ? { ...data, historical: interpolateSparseHistory(data.historical) } : data);
+    return fetchPensyanetQuote(tickerNum, signal, forceRefresh).then((data: any) => data ? { ...data, historical: interpolateSparseHistory(data.historical) } : data).then(detectStaleDayChange);
   }
 
   // CBS has its own dedicated fetcher
   if (parsedExchange === Exchange.CBS) {
-    return fetchCpi(tickerNum, signal).then((data: any) => data ? { ...data, historical: interpolateSparseHistory(data.historical) } : data);
+    return fetchCpi(tickerNum, signal).then((data: any) => data ? { ...data, historical: interpolateSparseHistory(data.historical) } : data).then(detectStaleDayChange);
   }
 
   const profile = await profileLookupPromise;
@@ -241,7 +241,7 @@ export async function getTickerData(
   // Fallback to Yahoo if the first source fails, or merge data if both succeed.
   if (!globesData) {
     if (yahooData) {
-      return {
+      return detectStaleDayChange({
         ...yahooData,
         meta: taseProfile?.meta || yahooData.meta,
         type: taseProfile?.type || yahooData.type,
@@ -249,11 +249,11 @@ export async function getTickerData(
         nameHe: taseProfile?.nameHe || yahooData.nameHe,
         sector: taseProfile?.sector || yahooData.sector,
         subSector: taseProfile?.subSector || yahooData.subSector,
-      };
+      });
     }
     // No data from Globes or Yahoo, but maybe we have a profile from the dataset
     if (taseProfile) {
-      return {
+      return detectStaleDayChange({
         ticker: taseProfile.symbol,
         exchange: taseProfile.exchange,
         numericId: taseProfile.securityId ?? null,
@@ -263,16 +263,16 @@ export async function getTickerData(
         meta: taseProfile.meta,
         price: 0,
         source: `${taseProfile.exchange} Profile (Fallback)`
-      };
+      });
     }
     // Absolutely no API data and no profile data. Build a barebones object.
-    return {
+    return detectStaleDayChange({
       ticker: ticker,
       exchange: parsedExchange,
       numericId: secId ?? null,
       price: 0,
       source: 'Missing Data Fallback'
-    };
+    });
   }
 
   // Merge data: Prefer TASE Profile > Globes > Yahoo
@@ -336,7 +336,31 @@ export async function getTickerData(
     };
   }
 
-  return finalData;
+  return detectStaleDayChange(finalData);
+}
+
+function detectStaleDayChange(data: TickerData | null): TickerData | null {
+  if (!data || data.changePct1d === undefined) return data;
+
+  const now = new Date();
+
+  // Use changeDate1d if available, otherwise fallback to timestamp
+  const date = data.changeDate1d || data.timestamp;
+  if (!date) return data;
+
+  // Calculate age of the data in hours
+  const ageInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
+
+  // Consider data stale if it's more than 16 hours old.
+  // This smoothly handles weekends and avoids the midnight flip issue
+  // (e.g., US markets closing at 11 PM won't be stale at 1 AM).
+  // 16 hours after an 11 PM close is 3 PM the next day, right before the market opens.
+  // 16 hours after a 5:30 PM TASE close is 9:30 AM the next day, right before TASE opens.
+  if (ageInHours > 16) {
+    data.isStaleDayChange = true;
+  }
+
+  return data;
 }
 
 export async function fetchTickerHistory(

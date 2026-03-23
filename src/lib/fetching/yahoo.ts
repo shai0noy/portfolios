@@ -537,7 +537,9 @@ export async function fetchYahooTickerData(
 
         const tickerData: TickerData = {
           price, openPrice, name: longName, currency, exchange: mappedExchange,
-          changePct1d, changePctRecent, changePct1m, changeDate1m, changePct3m, changeDate3m, changePct1y, changeDate1y,
+          changePct1d,
+          changeDate1d: meta.regularMarketTime ? new Date(meta.regularMarketTime * 1000) : undefined,
+          changePctRecent, changePct1m, changeDate1m, changePct3m, changeDate3m, changePct1y, changeDate1y,
           changePct3y, changeDate3y, changePct5y, changeDate5y, changePctYtd, changeDateYtd, changePctMax, changeDateMax,
           timestamp: new Date(now), ticker, numericId: null, source: 'Yahoo Finance', historical, dividends, splits, volume,
           calendarEvents,

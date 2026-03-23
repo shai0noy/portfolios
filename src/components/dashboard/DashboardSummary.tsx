@@ -433,7 +433,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                         flexWrap="wrap"
                       >
                         <SummaryStat
-                          label={t("1D", "יומי")}
+                          label={summary.totalDayChangeIsStale ? t("Last Trading Day", "מסחר אחרון") : t("1D", "יומי")}
                           value={summary.totalDayChange}
                           pct={summary.totalDayChangePct}
                           color={summary.totalDayChange >= 0 ? 'success.main' : 'error.main'}
@@ -530,7 +530,29 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                                   }
                                 }}
                                 size="small"
-                                sx={{ height: 26, flexShrink: 0 }}
+                                sx={{
+                                  height: 28,
+                                  bgcolor: 'action.hover',
+                                  p: 0.5,
+                                  borderRadius: 1.5,
+                                  flexShrink: 0,
+                                  '& .MuiToggleButton-root': {
+                                    margin: 0,
+                                    border: 0,
+                                    borderRadius: '6px !important',
+                                    px: 1,
+                                    py: 0,
+                                    fontSize: '0.65rem',
+                                    fontWeight: 600,
+                                    color: 'text.secondary',
+                                  },
+                                  '& .Mui-selected': {
+                                    bgcolor: 'background.paper',
+                                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                                    color: 'text.primary',
+                                    '&:hover': { bgcolor: 'background.paper' },
+                                  }
+                                }}
                               >
                                 <ToggleButton value="holdings" sx={{ px: 1, fontSize: '0.65rem' }}>{isMobile ? t('Holdings', 'החזקות') : t('Holdings', 'החזקות')}</ToggleButton>
                                 <ToggleButton value="twr" sx={{ px: 1, fontSize: '0.65rem' }}>{t('TWR', 'TWR')}</ToggleButton>
@@ -718,14 +740,36 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                                     }
                                   }}
                                   size="small"
-                                  sx={{ height: 26, flexShrink: 0 }} // Prevent shrinking
+                                    sx={{
+                                      height: 28,
+                                      bgcolor: 'action.hover',
+                                      p: 0.5,
+                                      borderRadius: 1.5,
+                                      flexShrink: 0,
+                                      '& .MuiToggleButton-root': {
+                                        margin: 0,
+                                        border: 0,
+                                        borderRadius: '6px !important',
+                                        px: 1,
+                                        py: 0,
+                                        fontSize: '0.65rem',
+                                        fontWeight: 600,
+                                        color: 'text.secondary',
+                                      },
+                                      '& .Mui-selected': {
+                                        bgcolor: 'background.paper',
+                                        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                                        color: 'text.primary',
+                                        '&:hover': { bgcolor: 'background.paper' },
+                                      }
+                                    }}
                                 >
                                   {availableRanges.map(r => (
-                                    <ToggleButton key={r} value={r} sx={{ px: 1, fontSize: '0.65rem' }}>
+                                    <ToggleButton key={r} value={r}>
                                       {r === 'ALL' ? maxLabel : r}
                                     </ToggleButton>
                                   ))}
-                                  <ToggleButton value="Custom" sx={{ px: 1 }}><DateRangeIcon sx={{ fontSize: '1rem' }} /></ToggleButton>
+                                    <ToggleButton value="Custom" sx={{ px: 0.5 }}><DateRangeIcon sx={{ fontSize: '1rem' }} /></ToggleButton>
                                 </ToggleButtonGroup>
                               </Box>
                             )}
