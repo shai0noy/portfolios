@@ -12,12 +12,15 @@ import { formatMoneyValue } from '../../lib/currency';
 import { Currency } from '../../lib/types';
 import { Link as RouterLink } from 'react-router-dom';
 
+import type { DividendRecord } from '../../lib/data/model';
+
 interface RecentEventsCardProps {
   holdings: DashboardHolding[];
   transactions: Transaction[];
+  dividendRecords?: (DividendRecord & { ticker: string, exchange: string, portfolioId: string })[];
 }
 
-export function getRecentEventsData(holdings: DashboardHolding[], transactions: Transaction[], t: (key: string, backup: string) => string) {
+export function getRecentEventsData(holdings: DashboardHolding[], transactions: Transaction[], dividendRecords: (DividendRecord & { ticker: string, exchange: string, portfolioId: string })[] = [], t: (key: string, backup: string) => string) {
   const today = new Date();
   const oneMonthAgo = new Date();
   oneMonthAgo.setDate(today.getDate() - 30);
@@ -112,6 +115,39 @@ export function getRecentEventsData(holdings: DashboardHolding[], transactions: 
           existing.qtySum = (existing.qtySum || 0) + qty;
           existing.count = (existing.count || 0) + 1;
         }
+      }
+    }
+  }
+
+  for (const div of dividendRecords) {
+    if (!holdingSymbols.has(div.ticker.toUpperCase())) continue;
+    const holding = holdings.find(h => h.ticker.toUpperCase() === div.ticker.toUpperCase());
+    if (!holding) continue;
+
+    const divDate = coerceDate(div.date);
+    if (divDate && divDate >= oneMonthAgo && divDate <= oneMonthFuture) {
+      const dtStr = formatDate(divDate);
+      if (!realDivDatesByTicker.has(div.ticker)) realDivDatesByTicker.set(div.ticker, new Set());
+      realDivDatesByTicker.get(div.ticker)!.add(dtStr);
+
+      const key = `${dtStr}_${div.ticker}_DIVIDEND`;
+      if (!grouped.has(key)) {
+        grouped.set(key, {
+          id: `div_${div.ticker}_${dtStr}`,
+          date: divDate,
+          type: 'DIVIDEND',
+          ticker: div.ticker,
+          exchange: div.exchange,
+          qtySum: div.unitsHeld,
+          dividendAmount: div.pricePerUnit || div.grossAmount.amount,
+          count: 1,
+          currency: div.grossAmount.currency,
+          price: holding.currentPrice
+        });
+      } else {
+        const existing = grouped.get(key)!;
+        existing.qtySum = (existing.qtySum || 0) + (div.unitsHeld || 0);
+        existing.count = (existing.count || 0) + 1;
       }
     }
   }
@@ -255,15 +291,15 @@ export function getRecentEventsData(holdings: DashboardHolding[], transactions: 
   return recentEvents.sort((a, b) => a.date.getTime() - b.date.getTime());
 }
 
-export function RecentEventsCard({ holdings, transactions }: RecentEventsCardProps) {
+export function RecentEventsCard({ holdings, transactions, dividendRecords = [] }: RecentEventsCardProps) {
   const { t } = useLanguage();
   const scrollProps = useScrollShadows();
   const theme = useTheme();
   const { containerRef, showTop, showBottom } = scrollProps;
 
   const events = useMemo(() => {
-    return getRecentEventsData(holdings, transactions, t);
-  }, [holdings, transactions, t]);
+    return getRecentEventsData(holdings, transactions, dividendRecords, t);
+  }, [holdings, transactions, dividendRecords, t]);
 
   if (events.length === 0) return null;
 
@@ -351,7 +387,7 @@ export function RecentEventsCard({ holdings, transactions }: RecentEventsCardPro
     </Box>
   );
 }
-export function hasRecentEvents(holdings: DashboardHolding[], favoriteHoldings: DashboardHolding[], transactions: Transaction[]) {
+export function hasRecentEvents(holdings: DashboardHolding[], favoriteHoldings: DashboardHolding[], transactions: Transaction[], dividendRecords: (DividendRecord & { ticker: string, exchange: string, portfolioId: string })[] = []) {
   const today = new Date();
   const oneMonthAgo = new Date();
   oneMonthAgo.setDate(today.getDate() - 30);
@@ -360,6 +396,12 @@ export function hasRecentEvents(holdings: DashboardHolding[], favoriteHoldings: 
 
   const allHoldings = [...holdings, ...favoriteHoldings];
   const holdingSymbols = new Set(allHoldings.map(h => h.ticker.toUpperCase()));
+
+  for (const div of dividendRecords) {
+    if (!holdingSymbols.has(div.ticker.toUpperCase())) continue;
+    const divDate = coerceDate(div.date);
+    if (divDate && divDate >= oneMonthAgo && divDate <= oneMonthFuture) return true;
+  }
 
   for (const txn of transactions) {
     if (!holdingSymbols.has(txn.ticker.toUpperCase())) continue;

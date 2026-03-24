@@ -43,6 +43,7 @@ interface SummaryProps {
   portfolios: Portfolio[];
   isPortfoliosLoading: boolean;
   transactions: Transaction[];
+  dividendRecords?: any[];
   hasFutureTxns?: boolean;
   favoriteHoldings?: DashboardHolding[];
   showClosed?: boolean;
@@ -58,14 +59,14 @@ interface SummaryProps {
  * 
  * Supports "Stepping" through these 4 views automatically or manually.
  */
-export function DashboardSummary({ summary, holdings, displayCurrency, exchangeRates, selectedPortfolio, portfolios, isPortfoliosLoading, transactions, hasFutureTxns, favoriteHoldings, showClosed }: SummaryProps) {
+export function DashboardSummary({ summary, holdings, displayCurrency, exchangeRates, selectedPortfolio, portfolios, isPortfoliosLoading, transactions, dividendRecords = [], hasFutureTxns, favoriteHoldings, showClosed }: SummaryProps) {
   logIfFalsy(exchangeRates, "DashboardSummary: exchangeRates missing");
   const { t, isRtl } = useLanguage();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   const [activeStep, setActiveStep] = useState(0);
-  const hasRecent = hasRecentEvents(holdings, favoriteHoldings || [], transactions);
+  const hasRecent = hasRecentEvents(holdings, favoriteHoldings || [], transactions, dividendRecords);
   const totalSteps = hasRecent ? 5 : 4;
   const idxRecent = 1;
   const idxPerf = hasRecent ? 2 : 1;
@@ -740,36 +741,36 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                                     }
                                   }}
                                   size="small"
-                                    sx={{
-                                      height: 28,
-                                      bgcolor: 'action.hover',
-                                      p: 0.5,
-                                      borderRadius: 1.5,
-                                      flexShrink: 0,
-                                      '& .MuiToggleButton-root': {
-                                        margin: 0,
-                                        border: 0,
-                                        borderRadius: '6px !important',
-                                        px: 1,
-                                        py: 0,
-                                        fontSize: '0.65rem',
-                                        fontWeight: 600,
-                                        color: 'text.secondary',
-                                      },
-                                      '& .Mui-selected': {
-                                        bgcolor: 'background.paper',
-                                        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                                        color: 'text.primary',
-                                        '&:hover': { bgcolor: 'background.paper' },
-                                      }
-                                    }}
+                                  sx={{
+                                    height: 28,
+                                    bgcolor: 'action.hover',
+                                    p: 0.5,
+                                    borderRadius: 1.5,
+                                    flexShrink: 0,
+                                    '& .MuiToggleButton-root': {
+                                      margin: 0,
+                                      border: 0,
+                                      borderRadius: '6px !important',
+                                      px: 1,
+                                      py: 0,
+                                      fontSize: '0.65rem',
+                                      fontWeight: 600,
+                                      color: 'text.secondary',
+                                    },
+                                    '& .Mui-selected': {
+                                      bgcolor: 'background.paper',
+                                      boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                                      color: 'text.primary',
+                                      '&:hover': { bgcolor: 'background.paper' },
+                                    }
+                                  }}
                                 >
                                   {availableRanges.map(r => (
                                     <ToggleButton key={r} value={r}>
                                       {r === 'ALL' ? maxLabel : r}
                                     </ToggleButton>
                                   ))}
-                                    <ToggleButton value="Custom" sx={{ px: 0.5 }}><DateRangeIcon sx={{ fontSize: '1rem' }} /></ToggleButton>
+                                  <ToggleButton value="Custom" sx={{ px: 0.5 }}><DateRangeIcon sx={{ fontSize: '1rem' }} /></ToggleButton>
                                 </ToggleButtonGroup>
                               </Box>
                             )}
@@ -914,7 +915,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
             <Box sx={{ display: activeStep === idxRecent ? 'block' : 'none', height: isMobile ? 'auto' : '100%' }}>
               <Fade in={activeStep === idxRecent} timeout={700}>
                 <Box sx={{ height: '100%' }}>
-                   <RecentEventsCard holdings={[...holdings, ...(favoriteHoldings || [])]} transactions={transactions} />
+                  <RecentEventsCard holdings={[...holdings, ...(favoriteHoldings || [])]} transactions={transactions} dividendRecords={dividendRecords} />
                 </Box>
               </Fade>
             </Box>

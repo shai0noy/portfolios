@@ -11,9 +11,9 @@ import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import EventIcon from '@mui/icons-material/Event';
 import { useLanguage } from '../../lib/i18n';
 import { formatMoneyValue, formatPercent, convertCurrency } from '../../lib/currencyUtils';
-import { ExchangeRates } from '../../lib/types';
+import type { ExchangeRates } from '../../lib/types';
 import { getTickerData } from '../../lib/fetching';
-import { Exchange, type DashboardHolding, type Transaction } from '../../lib/types';
+import { Exchange, type DashboardHolding, type Transaction, isBuy, isSell } from '../../lib/types';
 import { Link as RouterLink } from 'react-router-dom';
 import { useResponsiveDialogProps, useScrollShadows, ScrollShadows } from '../../lib/ui-utils';
 import { getRecentEventsData } from './RecentEventsCard';
@@ -23,6 +23,7 @@ interface PortfolioBriefingDialogProps {
   onClose: () => void;
   holdings: DashboardHolding[];
   transactions: Transaction[];
+  dividendRecords?: any[];
   displayCurrency: string;
   exchangeRates: ExchangeRates;
 }
@@ -31,7 +32,7 @@ type Timeframe = '1D' | '1W' | '1M' | '1Y';
 
 export function generateBriefingText(
   timeframe: '1D' | '1W' | '1M' | '1Y',
-  stats: { totalGain: number, totalPct: number, totalPct1M: number, totalDivs: number, allMovers?: { name: string, pct: number, gain: number }[] },
+  stats: { totalGain: number, totalPct: number, totalPct1M: number, totalDivs: number, totalFlow?: number, totalVests?: number, allMovers?: { name: string, pct: number, gain: number }[] },
   marketData: { spx?: number, ndx?: number, tlv?: number },
   displayCurrency: string,
   t: (key: string, backup: string) => string
@@ -46,16 +47,39 @@ export function generateBriefingText(
 
   const timeWord = timeframe === '1D' ? t('Today', 'היום') : timeframe === '1W' ? t('This week', 'השבוע') : timeframe === '1M' ? t('This month', 'החודש') : t('This year', 'השנה');
 
-  const moveSentence = getMoveSentence(timeWord, pfAbsPct, isUp, gainStr, pctStr, t);
+  const moveSentence = getMoveSentence(timeWord, timeframe, pfAbsPct, isUp, gainStr, pctStr, t);
   const marketSentence = getMarketSentence(pfAbsPct, isUp, mktUS, mktIL, t);
   const trendSentence = getTrendSentence(timeframe, pfAbsPct, isUp, stats.totalPct1M, t);
-  const moversSentence = getNotableMoversSentence(stats, t);
-  const divsSentence = stats.totalDivs > 0 ? t(`During this period, the portfolio also collected ${formatMoneyValue(stats.totalDivs, displayCurrency)} in dividends.`, `במהלך התקופה התיק הניב גם ${formatMoneyValue(stats.totalDivs, displayCurrency)} מדיבידנדים.`) : "";
+  const moversSentence = getNotableMoversSentence(stats, timeframe, t);
+  const divsValStr = stats.totalDivs > 0 ? formatMoneyValue({ amount: stats.totalDivs, currency: displayCurrency as any }, undefined, 0) : "";
+  const vestValStr = (stats.totalVests && stats.totalVests > 100) ? formatMoneyValue({ amount: stats.totalVests, currency: displayCurrency as any }, undefined, 0) : "";
+  const flowValStr = (stats.totalFlow && Math.abs(stats.totalFlow) > 100) ? formatMoneyValue({ amount: Math.abs(stats.totalFlow), currency: displayCurrency as any }, undefined, 0) : "";
 
-  return [moveSentence, marketSentence, trendSentence, moversSentence, divsSentence].filter(Boolean).join('\n\n');
+  let parts: string[] = [];
+  if (divsValStr) {
+    parts.push(t(`the portfolio earned ${divsValStr} in dividends`, `התיק הניב ${divsValStr} מדיבידנדים`));
+  }
+  if (vestValStr) {
+    parts.push(t(`equity grants worth about ${vestValStr} vested`, `הבשילו מניות ומענקים בשווי של כ-${vestValStr}`));
+  }
+
+  let activitySentence = "";
+  if (parts.length > 0) {
+    const combinedParts = parts.join(t(', and ', ', '));
+    activitySentence = `${timeWord} ${combinedParts}.`;
+  }
+
+  if (flowValStr) {
+    const flowText = stats.totalFlow! > 0 ?
+      t(`Additionally, you deposited ${flowValStr} into the portfolio.`, `בנוסף הפקדת ${flowValStr} לתיק.`) :
+      t(`Additionally, you withdrew ${flowValStr} from the portfolio.`, `בנוסף משכת ${flowValStr} מהתיק.`);
+    activitySentence = activitySentence ? `${activitySentence} ${flowText}` : flowText;
+  }
+
+  return [moveSentence, marketSentence, trendSentence, moversSentence, activitySentence].filter(Boolean).join('\n\n');
 }
 
-function getNotableMoversSentence(stats: { totalPct: number, allMovers?: { name: string, pct: number, gain: number }[] }, t: any) {
+function getNotableMoversSentence(stats: { totalPct: number, allMovers?: { name: string, pct: number, gain: number }[] }, timeframe: string, t: any) {
   if (!stats.allMovers || stats.allMovers.length === 0) return "";
 
   const pfPct = stats.totalPct;
@@ -76,6 +100,14 @@ function getNotableMoversSentence(stats: { totalPct: number, allMovers?: { name:
 
   const formatList = (list: { name: string, pct: number }[]) =>
     list.map(m => `${m.name} (${formatPercent(m.pct)})`).join(t(' and ', ' ו-'));
+
+  // Thresholds for "צניחה" based on timeframe
+  let severeThreshold = 0.05; // Default for 1D
+  if (timeframe === '1W') severeThreshold = 0.10;
+  if (timeframe === '1M') severeThreshold = 0.20;
+  if (timeframe === '1Y') severeThreshold = 0.40;
+
+  const hasSevereDrops = topUnder.some(m => m.pct <= -severeThreshold);
 
   if (topOut.length > 0 && topUnder.length > 0) {
     return t(
@@ -101,15 +133,23 @@ function getNotableMoversSentence(stats: { totalPct: number, allMovers?: { name:
   return "";
 }
 
-function getMoveSentence(timeWord: string, pfAbsPct: number, isUp: boolean, gainStr: string, pctStr: string, t: any) {
+function getMoveSentence(timeWord: string, timeframe: string, pfAbsPct: number, isUp: boolean, gainStr: string, pctStr: string, t: any) {
   if (pfAbsPct < 0.005) {
     return t(`${timeWord}, your portfolio saw a small change of ${gainStr} (${pctStr}).`, `${timeWord}, התיק רשם שינוי קל בלבד של ${gainStr} (${pctStr}).`);
   }
-  if (pfAbsPct > 0.04) {
+
+  // Thresholds for "צניחה" (plunge)
+  let severeThreshold = 0.05; // 1D
+  if (timeframe === '1W') severeThreshold = 0.10;
+  if (timeframe === '1M') severeThreshold = 0.20;
+  if (timeframe === '1Y') severeThreshold = 0.40;
+
+  if (pfAbsPct >= severeThreshold) {
     return isUp
       ? t(`${timeWord}, your portfolio experienced a sharp jump, soaring by ${gainStr} (${pctStr}).`, `${timeWord}, התיק חווה עלייה חדה, עם זינוק של ${gainStr} (${pctStr}).`)
-      : t(`${timeWord}, your portfolio suffered a sharp drop, plunging by ${gainStr} (${pctStr}).`, `${timeWord}, התיק חווה ירידה חדה, בסך ${gainStr} (${pctStr}).`);
+      : t(`${timeWord}, your portfolio suffered a sharp drop, plunging by ${gainStr} (${pctStr}).`, `${timeWord}, התיק חווה צניחה, עם ירידה חדה בסך ${gainStr} (${pctStr}).`);
   }
+
   if (pfAbsPct > 0.015) {
     return isUp
       ? t(`${timeWord}, your portfolio experienced a notable jump, gaining ${gainStr} (${pctStr}).`, `${timeWord}, התיק רשם עלייה בולטת של ${gainStr} (${pctStr}).`)
@@ -229,7 +269,7 @@ function getTrendSentence(timeframe: string, pfAbsPct: number, isUp: boolean, to
   return t(`A minor pullback following a strong 30-day gain (${monthlyFormatted}).`, `תיקון קל למטה אחרי חודש רווחי בסך הכל (${monthlyFormatted}).`);
 }
 
-export function PortfolioBriefingDialog({ open, onClose, holdings, transactions, displayCurrency, exchangeRates }: PortfolioBriefingDialogProps) {
+export function PortfolioBriefingDialog({ open, onClose, holdings, transactions, dividendRecords = [], displayCurrency, exchangeRates }: PortfolioBriefingDialogProps) {
   const { t } = useLanguage();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -245,7 +285,7 @@ export function PortfolioBriefingDialog({ open, onClose, holdings, transactions,
     if (open) {
       setLoadingMarket(true);
       Promise.all([
-        getTickerData('^GSPC', Exchange.NYSE, null, undefined, false),
+        getTickerData('^SPX', Exchange.NYSE, null, undefined, false),
         getTickerData('^IXIC', Exchange.NASDAQ, null, undefined, false),
         getTickerData('137', Exchange.TASE, 137, undefined, false)
       ]).then(([spx, ndx, tlv]) => {
@@ -262,24 +302,52 @@ export function PortfolioBriefingDialog({ open, onClose, holdings, transactions,
     let totalStartVal = 0;
     
     let totalDivs = 0;
-    const now = Date.now();
+    let totalFlow = 0;
+    let totalVests = 0;
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const msDaily = 86400000;
     
     transactions.forEach(txn => {
-      if (txn.type === 'DIVIDEND' && txn.amount) {
-        const d = new Date(txn.date);
-        d.setHours(0,0,0,0);
-        const diff = Math.round((d.getTime() - today.getTime()) / msDaily);
-        const inPeriod = (timeframe === '1D') ? (diff === 0) : 
-                         (timeframe === '1W') ? (diff >= -7 && diff <= 0) :
-                         (timeframe === '1M') ? (diff >= -30 && diff <= 0) :
-                         (diff >= -365 && diff <= 0);
-        if (inPeriod) {
-          totalDivs += convertCurrency(txn.amount, txn.currency || 'USD', displayCurrency, exchangeRates);
-        }
+      const d = new Date(txn.vestDate || txn.date);
+      d.setHours(0, 0, 0, 0);
+      const diff = Math.round((d.getTime() - today.getTime()) / msDaily);
+      const inPeriod = (timeframe === '1D') ? (diff === 0) :
+        (timeframe === '1W') ? (diff >= -7 && diff <= 0) :
+          (timeframe === '1M') ? (diff >= -30 && diff <= 0) :
+            (diff >= -365 && diff <= 0);
+
+      if (!inPeriod) return;
+
+      if (txn.type === 'DIVIDEND') {
+        totalDivs += convertCurrency((txn.qty || txn.originalQty || 0) * (txn.price || txn.originalPrice || 0), txn.currency || 'USD', displayCurrency, exchangeRates);
+      } else if (isBuy(txn.type)) {
+        totalFlow += convertCurrency((txn.qty || txn.originalQty || 0) * (txn.price || txn.originalPrice || 0), txn.currency || 'USD', displayCurrency, exchangeRates);
+      } else if (isSell(txn.type)) {
+        totalFlow -= convertCurrency((txn.qty || txn.originalQty || 0) * (txn.price || txn.originalPrice || 0), txn.currency || 'USD', displayCurrency, exchangeRates);
       }
+
+      if (txn.vestDate) {
+        const h = holdings.find(hd => hd.ticker === txn.ticker);
+        const cp = h?.display.currentPrice || (txn.price || txn.originalPrice || 0);
+        const vestVal = (txn.qty || txn.originalQty || 0) * cp;
+        totalVests += convertCurrency(vestVal, (txn.currency || 'USD') as any, displayCurrency, exchangeRates);
+      }
+    });
+
+    (dividendRecords || []).forEach(div => {
+      const d = new Date(div.date);
+      d.setHours(0, 0, 0, 0);
+      const diff = Math.round((d.getTime() - today.getTime()) / msDaily);
+      const inPeriod = (timeframe === '1D') ? (diff === 0) :
+        (timeframe === '1W') ? (diff >= -7 && diff <= 0) :
+          (timeframe === '1M') ? (diff >= -30 && diff <= 0) :
+            (diff >= -365 && diff <= 0);
+
+      if (!inPeriod) return;
+
+      totalDivs += convertCurrency((div.unitsHeld || 0) * (div.pricePerUnit || div.grossAmount.amount || 0), div.grossAmount.currency || 'USD', displayCurrency, exchangeRates);
     });
 
 
@@ -318,11 +386,11 @@ export function PortfolioBriefingDialog({ open, onClose, holdings, transactions,
     const topLosers = movers.filter(m => m.gain < 0).reverse().slice(0, 3);
     const allMovers = movers.map(m => ({ exchange: m.exchange, name: m.name, pct: m.pct, gain: m.gain, ticker: m.ticker }));
 
-    return { totalGain, totalPct, totalPct1M, topGainers, topLosers, allMovers, totalDivs };
+    return { totalGain, totalPct, totalPct1M, topGainers, topLosers, allMovers, totalDivs, totalFlow, totalVests };
   }, [holdings, timeframe, transactions, exchangeRates, displayCurrency]);
 
   const recentEvents = useMemo(() => {
-    const allEvents = getRecentEventsData(holdings, transactions, t);
+    const allEvents = getRecentEventsData(holdings, transactions, dividendRecords, t);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 

@@ -73,9 +73,33 @@ export class FinanceEngine {
 
     get transactions(): Transaction[] {
         const all: Transaction[] = [];
-        this.holdings.forEach(h => all.push(...h.transactions));
+        this.holdings.forEach(h => {
+            all.push(...h.transactions);
+        });
         return all;
     }
+
+    get dividendRecords() {
+        const all: (DividendRecord & { ticker: string, exchange: string, portfolioId: string })[] = [];
+        this.holdings.forEach(h => {
+            h.dividends.forEach(d => {
+                all.push({
+                    ...d,
+                    ticker: h.ticker,
+                    exchange: h.exchange as string,
+                    portfolioId: h.portfolioId
+                });
+            });
+        });
+        return all;
+    }
+
+    get allDividends(): DividendRecord[] {
+        const all: DividendRecord[] = [];
+        this.holdings.forEach(h => all.push(...h.dividends));
+        return all;
+    }
+
 
     private getHolding(portfolioId: string, ticker: string, exchange: Exchange, currency: Currency): Holding {
         const key = `${portfolioId}_${ticker}`;

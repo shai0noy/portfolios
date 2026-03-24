@@ -494,6 +494,7 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
           portfolios={portfolios}
           isPortfoliosLoading={loading}
           transactions={selectedPortfolioId ? (engine?.transactions?.filter(t => t.portfolioId === selectedPortfolioId) || []) : (engine?.transactions || [])}
+          dividendRecords={selectedPortfolioId ? (engine?.dividendRecords?.filter(t => t.portfolioId === selectedPortfolioId) || []) : (engine?.dividendRecords || [])}
           hasFutureTxns={hasFutureTxns}
           favoriteHoldings={favoriteHoldings}
           showClosed={showClosed}
@@ -776,11 +777,13 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
 
       {briefingOpen && (
         <PortfolioBriefingDialog transactions={engine?.transactions || []}
+          dividendRecords={engine?.dividendRecords || []}
           open={true}
           onClose={() => navigate(location.pathname.replace('/summary', ''))}
           holdings={displayedHoldings}
-          displayCurrency={displayCurrency}
-        />
+            displayCurrency={displayCurrency}
+            exchangeRates={exchangeRates}
+          />
       )}
     </Box>
   );

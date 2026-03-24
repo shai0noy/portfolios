@@ -47,7 +47,8 @@ Please be careful in your wording around suggestions - you are just an AI.
  * {ticker::Label::EXCHANGE:SYMBOL} to link to a specific ticker e.g. {ticker::Google::NASDAQ:GOOGL}
  * {userinfo::Button Text} to link to the user profile info form
  * {url::Label::Path} to navigate to any URL
- * Not supported! - {portfolio::XYZ}
+ * NOT supported - {portfolio::XYZ}
+ * They CANNOT be nested
 `;
 
 export const AiChatDialog: React.FC<AiChatDialogProps> = ({
@@ -213,7 +214,10 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({
     const relevantTransactions = engine?.transactions
       ? (selectedPortfolioId ? engine.transactions.filter(tx => tx.portfolioId === selectedPortfolioId) : engine.transactions)
       : [];
-    const recentEventsRaw = getRecentEventsData(portfolioData.holdings, relevantTransactions, t);
+    const relevantDividendRecords = engine?.dividendRecords
+      ? (selectedPortfolioId ? engine.dividendRecords.filter(tx => tx.portfolioId === selectedPortfolioId) : engine.dividendRecords)
+      : [];
+    const recentEventsRaw = getRecentEventsData(portfolioData.holdings, relevantTransactions, relevantDividendRecords, t);
     const recentEvents = recentEventsRaw.map(e => ({
       date: e.dateDisplay,
       ticker: e.ticker,

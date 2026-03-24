@@ -7,83 +7,116 @@ describe('generateBriefingText', () => {
   it('handles flat portfolio', () => {
     const text = generateBriefingText(
       '1D',
-      { totalGain: 10, totalPct: 0.001, totalPct1M: 0.02, allMovers: [] },
+      { totalGain: 10, totalPct: 0.001, totalPct1M: 0.02, totalDivs: 0, allMovers: [] },
       { spx: 0.01, ndx: 0.01, tlv: 0.01 },
       'USD',
       t
     );
-    console.log("ACTUAL TEXT::::", text); expect(text).toContain('your portfolio saw a small change');
+    expect(text).toContain('your portfolio saw a small change');
   });
 
   it('handles major gain', () => {
     const text = generateBriefingText(
       '1D',
-      { totalGain: 5000, totalPct: 0.05, totalPct1M: 0.1, allMovers: [] },
+      { totalGain: 5000, totalPct: 0.05, totalPct1M: 0.1, totalDivs: 0, allMovers: [] },
       { spx: 0.01, ndx: 0.01, tlv: 0.01 },
       'USD',
       t
     );
-    console.log("ACTUAL TEXT::::", text); expect(text).toContain('experienced a sharp jump');
+    expect(text).toContain('experienced a sharp jump');
   });
 
   it('handles notable loss', () => {
     const text = generateBriefingText(
       '1W',
-      { totalGain: -2000, totalPct: -0.02, totalPct1M: -0.05, allMovers: [] },
+      { totalGain: -2000, totalPct: -0.02, totalPct1M: -0.05, totalDivs: 0, allMovers: [] },
       { spx: -0.03, ndx: -0.03, tlv: -0.01 },
       'USD',
       t
     );
-    console.log("ACTUAL TEXT::::", text); expect(text).toContain('suffered a notable drop');
-    console.log("ACTUAL TEXT::::", text); expect(text).toContain('mirrors a major selloff');
+    expect(text).toContain('suffered a notable drop');
+    expect(text).toContain('mirrors heavy losses in the US');
   });
 
   it('handles gain against red US market', () => {
     const text = generateBriefingText(
       '1D',
-      { totalGain: 1000, totalPct: 0.01, totalPct1M: 0.02, allMovers: [] },
+      { totalGain: 1000, totalPct: 0.01, totalPct1M: 0.02, totalDivs: 0, allMovers: [] },
       { spx: -0.01, ndx: -0.01, tlv: 0.005 },
       'USD',
       t
     );
-    console.log("ACTUAL TEXT::::", text); expect(text).toContain('gained value despite a red US market');
+    expect(text).toContain('An impressive gain despite a red US market');
   });
-
 
   it('handles increase following Israel, despite US drop', () => {
     const text = generateBriefingText(
       '1D',
-      { totalGain: 1000, totalPct: 0.02, totalPct1M: 0.02, allMovers: [] },
+      { totalGain: 1000, totalPct: 0.02, totalPct1M: 0.02, totalDivs: 0, allMovers: [] },
       { spx: -0.02, ndx: -0.02, tlv: 0.02 },
       'USD',
       t
     );
-    console.log("ACTUAL TEXT::::", text); expect(text).toContain('following Israeli market trends, despite sharp drops in the US markets');
+    expect(text).toContain('aligns with strong surges in the local market');
   });
-});
 
-describe('getNotableMoversSentence', () => {
-  const t = (e: string, _h: string) => e;
-
-  it('handles notable outperformers when portfolio rises', () => {
+  it('handles dividends received', () => {
     const text = generateBriefingText(
-      '1D',
-      { totalGain: 1000, totalPct: 0.01, totalPct1M: 0.02, allMovers: [{ name: 'AAPL', pct: 0.03, gain: 100 }, { name: 'MSFT', pct: 0.005, gain: 10 }] },
+      '1M',
+      { totalGain: 1000, totalPct: 0.01, totalPct1M: 0.02, totalDivs: 500, allMovers: [] },
       { spx: 0.01 },
       'USD',
       t
     );
-    console.log("ACTUAL TEXT::::", text); expect(text).toContain('AAPL');
+    expect(text).toMatch(/the portfolio earned.*500 in dividends/);
   });
 
-  it('handles bright spots when portfolio drops', () => {
+  it('triggers tzniha (plunge) for 1D drop > 5%', () => {
+    const t_he = (_e: string, h: string) => h;
     const text = generateBriefingText(
       '1D',
-      { totalGain: -1000, totalPct: -0.01, totalPct1M: 0.02, allMovers: [{ name: 'TSLA', pct: 0.05, gain: 100 }, { name: 'MSFT', pct: -0.02, gain: -10 }] },
+      { totalGain: -6000, totalPct: -0.06, totalPct1M: -0.1, totalDivs: 0, allMovers: [] },
       { spx: -0.01 },
+      'USD',
+      t_he
+    );
+    expect(text).toContain('צניחה');
+  });
+
+  it('does NOT trigger tzniha for 1Y drop < 40%', () => {
+    const t_he = (_e: string, h: string) => h;
+    const text = generateBriefingText(
+      '1Y',
+      { totalGain: -10000, totalPct: -0.15, totalPct1M: -0.15, totalDivs: 0, allMovers: [] },
+      { spx: -0.05 },
+      'USD',
+      t_he
+    );
+    expect(text).not.toContain('צניחה');
+    expect(text).toContain('ירידה');
+  });
+
+  it('handles notable movers in Hebrew', () => {
+    const t_he = (_e: string, h: string) => h;
+    const text = generateBriefingText(
+      '1D',
+      { totalGain: -1000, totalPct: -0.01, totalPct1M: 0.02, totalDivs: 0, allMovers: [{ name: 'TSLA', pct: 0.05, gain: 100 }, { name: 'MSFT', pct: -0.02, gain: -10 }] },
+      { spx: -0.01 },
+      'USD',
+      t_he
+    );
+    expect(text).toContain('TSLA');
+  });
+
+  it('handles consolidated activity sentence', () => {
+    const text = generateBriefingText(
+      '1M',
+      { totalGain: 1000, totalPct: 0.01, totalPct1M: 0.02, totalDivs: 500, totalFlow: 2000, totalVests: 1500, allMovers: [] },
+      { spx: 0.01 },
       'USD',
       t
     );
-    console.log("ACTUAL TEXT::::", text); expect(text).toContain('TSLA');
+    expect(text).toMatch(/This month the portfolio earned .*500 in dividends, and equity grants worth about .*1,500.*vested\./);
+    expect(text).toMatch(/Additionally, you deposited .*2,000 into the portfolio\./);
   });
 });
