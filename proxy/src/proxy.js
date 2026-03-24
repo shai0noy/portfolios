@@ -1,4 +1,4 @@
-import { isRateLimited } from './rateLimit.js';
+import { checkRateLimit } from './rateLimit.js';
 import { getYahooCrumb, clearYahooCache } from './yahooCrumb.js';
 import { VALID_VALUE_REGEX, replacePlaceholder, getTaseFetchDate, formatDate, configurePensyanetOptions, addApiSpecificHeaders } from './utils.js';
 
@@ -207,8 +207,9 @@ async function invokeApi(apiId, params, env, ctx, corsHeaders) {
 
 export async function handleProxy(request, env, ctx, corsHeaders) {
   const ip = request.headers.get('cf-connecting-ip');
-  if (isRateLimited(ip)) {
-    return new Response("Too Many Requests", { status: 429, headers: corsHeaders });
+  const limitResult = checkRateLimit(ip);
+  if (!limitResult.allowed) {
+    return new Response("Too Many Requests - " + limitResult.message, { status: 429, headers: corsHeaders });
   }
 
   const url = new URL(request.url);

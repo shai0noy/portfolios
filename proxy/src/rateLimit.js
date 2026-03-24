@@ -4,7 +4,7 @@ const SHORT_WINDOW = 5 * 60 * 1000; // 5 minutes
 const LONG_LIMIT = 450;
 const LONG_WINDOW = 12 * 60 * 60 * 1000; // 12 hours
 
-export function isRateLimited(ip) {
+export function checkRateLimit(ip) {
   if (!ip) return false;
   const now = Date.now();
   let record = IP_LIMITS.get(ip);
@@ -35,5 +35,8 @@ export function isRateLimited(ip) {
   }
 
   IP_LIMITS.set(ip, record);
-  return record.short.count > SHORT_LIMIT || record.long.count > LONG_LIMIT;
+  return {
+    allowed: record.short.count <= SHORT_LIMIT && record.long.count <= LONG_LIMIT,
+    message: `Short window limit: ${record.short.count}/${SHORT_LIMIT} - renew in ${now - record.short.startTime / 1000}s, Long window limit: ${record.long.count}/${LONG_LIMIT} - renew in ${now - record.long.startTime / 1000}s`
+  };
 }
