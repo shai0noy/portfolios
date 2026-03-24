@@ -127,6 +127,44 @@ export function getVerifiedYahooSymbol(ticker: string, exchange: Exchange): stri
   return symbolSuccessMap.get(successKey) || toYahooSymbol(ticker, exchange);
 }
 
+const autoRetryTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
+let globalRefreshDebounceId: ReturnType<typeof setTimeout> | null = null;
+
+function scheduleAutoRetry(
+  ticker: string,
+  exchange: Exchange,
+  range: '1y' | '5y' | 'max',
+  group: InstrumentGroup | undefined,
+  maxAge: number | undefined,
+  retryAfterSec: number
+) {
+  const key = `${ticker}_${exchange}_${range}`;
+  if (autoRetryTimeouts.has(key)) return; // Already queued
+
+  // Wait exactly "Retry-After" seconds + a random few ms (5 to 150) as requested
+  const jitterMs = Math.floor(Math.random() * (150 - 5 + 1)) + 5;
+  const waitMs = (retryAfterSec * 1000) + jitterMs;
+
+  const timeoutId = setTimeout(async () => {
+    autoRetryTimeouts.delete(key);
+    try {
+      // Execute the fetch forcefully, bypassing short local cache errors
+      const result = await fetchYahooTickerData(ticker, exchange, undefined, true, range, group, maxAge);
+      if (result) {
+        // Debounce a unified UI update so 50 retries don't trigger 50 renders
+        if (globalRefreshDebounceId) clearTimeout(globalRefreshDebounceId);
+        globalRefreshDebounceId = setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('market-data-refreshed'));
+        }, 1500);
+      }
+    } catch (e) {
+      // silently fail the retry
+    }
+  }, waitMs);
+
+  autoRetryTimeouts.set(key, timeoutId);
+}
+
 export async function fetchYahooTickerData(
   ticker: string,
   exchange: Exchange,
@@ -170,6 +208,11 @@ export async function fetchYahooTickerData(
 
           if (res.status === 429 || res.status >= 500) {
             hasTransientError = true;
+            if (res.status === 429) {
+              const retryHeader = res.headers.get('Retry-After');
+              const waitSec = retryHeader ? parseInt(retryHeader, 10) : 60;
+              scheduleAutoRetry(ticker, exchange, range, group, maxAge, isNaN(waitSec) ? 60 : waitSec);
+            }
             return null;
           }
           if (!res.ok) return null;

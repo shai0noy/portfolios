@@ -66,6 +66,14 @@ export function useDashboardData(sheetId: string) {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  useEffect(() => {
+    const handleAutoRefresh = () => {
+      loadData(false); // Reload from primed cache without clearing
+    };
+    window.addEventListener('market-data-refreshed', handleAutoRefresh);
+    return () => window.removeEventListener('market-data-refreshed', handleAutoRefresh);
+  }, [loadData]);
+
   return { holdings, loading, error, portfolios, exchangeRates, hasFutureTxns, refresh: (force = false) => loadData(force), engine, trackingLists };
 }
 

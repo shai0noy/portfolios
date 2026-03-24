@@ -210,7 +210,7 @@ export async function handleProxy(request, env, ctx, corsHeaders) {
   const ip = request.headers.get('cf-connecting-ip');
   const limitResult = checkRateLimit(ip);
   if (!limitResult.allowed) {
-    return new Response("Too Many Requests - " + limitResult.message, { status: 429, headers: { ...corsHeaders, "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0" } });
+    return new Response("Too Many Requests - " + limitResult.message, { status: 429, headers: { ...corsHeaders, "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0", "Retry-After": String(limitResult.retryAfter || 60) } });
   }
 
   const url = new URL(request.url);
