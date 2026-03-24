@@ -3,7 +3,7 @@ import {
   Dialog, DialogTitle, DialogContent,
   Button, TextField, Box, Typography, IconButton,
   CircularProgress, Paper, Tooltip, Select, MenuItem, FormControl,
-  FormControlLabel, Chip, Stack, ToggleButton, ToggleButtonGroup, Switch, Alert, useTheme,
+  FormControlLabel, Stack, ToggleButton, ToggleButtonGroup, Switch, Alert, useTheme,
   useMediaQuery, Menu
 } from '@mui/material';
 import BoltIcon from '@mui/icons-material/Bolt';
@@ -11,6 +11,7 @@ import PsychologyIcon from '@mui/icons-material/Psychology';
 import CloseIcon from '@mui/icons-material/Close';
 import SendIcon from '@mui/icons-material/Send';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import SearchIcon from '@mui/icons-material/Search';
 
 import LaunchIcon from '@mui/icons-material/Launch';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
@@ -85,33 +86,18 @@ function LinkParser({ children, t, onPromptClick, onTickerClick, onProfileClick,
           parts.push(node.substring(lastIndex, match.index));
         }
         const type = match[1];
-        const value = match[2];
+        const value = match[2] ? decodeURIComponent(match[2]) : undefined;
 
         if (type === 'prompt') {
           parts.push(
-            <Button
+            <Box
+              component="span"
               key={match.index}
-              size="small"
-              variant="outlined" color="primary"
-              onClick={() => onPromptClick(value)}
-              sx={{
-                mx: 0.5,
-                my: 0.5,
-                textTransform: 'none',
-                height: 'auto',
-                minHeight: 26,
-                py: 0.5,
-                px: 1,
-                fontSize: '0.75rem',
-                display: 'inline-flex',
-                verticalAlign: 'middle',
-                whiteSpace: 'normal',
-                textAlign: 'inherit',
-                lineHeight: 1.2
-              }}
+              onClick={() => onPromptClick(value || '')}
+              sx={{ color: 'primary.main', cursor: 'pointer', mx: 0.2, textDecoration: 'underline', '&:hover': { color: 'primary.dark' } }}
             >
               {value}
-            </Button>
+            </Box>
           );
         } else if (type === 'ticker') {
           const valStr = value || '';
@@ -119,48 +105,35 @@ function LinkParser({ children, t, onPromptClick, onTickerClick, onProfileClick,
           const actualTicker = tickerStr || valStr;
           const [ex, sym] = actualTicker.includes(':') ? actualTicker.split(':') : ['', actualTicker];
           parts.push(
-            <Chip
+            <Box
+              component="span"
               key={match.index}
-              size="small"
-              label={label || sym || actualTicker}
               onClick={() => onTickerClick(ex, sym)}
-              color="primary"
-              variant="outlined"
-              sx={{
-                mx: 0.5,
-                height: 22,
-                fontSize: '0.75rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-                bgcolor: 'background.paper', textAlign: 'left',
-                '&:hover': {
-                  bgcolor: 'action.hover'
-                }
-              }}
-            />
+              sx={{ color: 'primary.main', cursor: 'pointer', mx: 0.2, textDecoration: 'underline', '&:hover': { color: 'primary.dark' } }}
+            >
+              <SearchIcon sx={{ fontSize: '1.2em', verticalAlign: 'middle', mr: 0.2, ml: 0.1, mt: '-2px' }} />
+              <span style={{ direction: 'ltr' }}>{label || sym || actualTicker}</span>
+            </Box>
           );
         } else if (type === 'userinfo') {
           parts.push(
-            <Button
+            <Box
+              component="span"
               key={match.index}
-              size="small"
-              color="secondary"
-              startIcon={<ManageAccountsIcon sx={{ fontSize: '1rem !important' }} />}
               onClick={() => onProfileClick()}
-              sx={{ mx: 0.5, textTransform: 'none', py: 0, height: 24, fontSize: '0.75rem' }}
+              sx={{ color: 'secondary.main', cursor: 'pointer', mx: 0.2, textDecoration: 'underline', '&:hover': { color: 'secondary.dark' } }}
             >
+              <ManageAccountsIcon sx={{ fontSize: '1.2em', verticalAlign: 'middle', mr: 0.2, ml: 0.1, mt: '-2px' }} />
               {value || t('Edit Profile', 'ערוך פרופיל')}
-            </Button>
+            </Box>
           );
         } else if (type === 'url') {
           const valStr = value || '';
           const [label, path] = valStr.includes('::') ? valStr.split('::') : [valStr, valStr];
           parts.push(
-            <Button
+            <Box
+              component="span"
               key={match.index}
-              size="small"
-              color="primary"
-              variant="text"
               onClick={() => {
                 if (path.startsWith('http') || path.startsWith('mailto:')) {
                   window.open(path, '_blank');
@@ -168,10 +141,10 @@ function LinkParser({ children, t, onPromptClick, onTickerClick, onProfileClick,
                   onNavClick(path);
                 }
               }}
-              sx={{ mx: 0.5, textTransform: 'none', py: 0, height: 24, fontSize: '0.75rem', textDecoration: 'underline' }}
+              sx={{ color: 'primary.main', cursor: 'pointer', mx: 0.2, textDecoration: 'underline', '&:hover': { color: 'primary.dark' } }}
             >
               {label || path}
-            </Button>
+            </Box>
           );
         }
         lastIndex = regex.lastIndex;
@@ -364,7 +337,8 @@ const ChatMessageItem = React.memo(({ msg, t, onRetry, lastPrompt, onPromptClick
                               verticalAlign: 'middle',
                               color: 'primary.main',
                               textDecoration: 'none',
-                              mx: 0.3,
+                              ml: 0.1,
+                              mr: 0.1,
                               '&:hover': { color: 'primary.dark' }
                             }}
                           >
@@ -395,7 +369,13 @@ const ChatMessageItem = React.memo(({ msg, t, onRetry, lastPrompt, onPromptClick
                   }
                 }}
               >
-                {msg.parts[0].text}
+                {((msg.parts[0].text || '').replace(
+                  /\{(prompt|ticker|userinfo|url)(?:::([^}]+))?\}/g,
+                  (match, type, content) => {
+                    if (content === undefined) return match;
+                    return `{${type}::${encodeURIComponent(content)}}`;
+                  }
+                )).replace(/((?:\[\[?\s*\d+\s*\]\]?\([^)]+\))+)([^\s\n]+)/g, "$2$1")}
               </ReactMarkdown>
             ) : (
               <Box sx={{ display: 'flex', flexDirection: 'column' }}>
@@ -503,7 +483,7 @@ const ChatInputSection = React.memo(({ onSend, isLoading, t, initialValue, selec
             mb: isExpanded ? 0 : '2px'
           }}>
             <Select
-              
+
               value={selectedPortfolioId || 'All'}
               onChange={(e) => setSelectedPortfolioId(e.target.value === 'All' ? null : e.target.value as string)}
               IconComponent={isExpanded ? () => null : undefined}
@@ -712,13 +692,23 @@ export const BaseAiChatDialog: React.FC<BaseAiChatDialogProps> = ({
   }, [chatMode, availableModels, isExpertMode, enableGrounding]);
 
   const triggeredPromptRef = useRef<string | null>(null);
+  const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
 
   useEffect(() => {
     if (open && initialPrompt && triggeredPromptRef.current !== initialPrompt) {
       triggeredPromptRef.current = initialPrompt;
-      handleSend(initialPrompt);
+      handleNewChat();
+      setPendingPrompt(initialPrompt);
     }
   }, [open, initialPrompt]);
+
+  useEffect(() => {
+    if (pendingPrompt && messages.length === 0 && open && activeSessionId) {
+      const p = pendingPrompt;
+      setPendingPrompt(null);
+      handleSend(p);
+    }
+  }, [pendingPrompt, messages, open, activeSessionId]);
 
   useEffect(() => {
     if (!open) {
@@ -873,7 +863,7 @@ export const BaseAiChatDialog: React.FC<BaseAiChatDialogProps> = ({
                 ) : (
                   <FormControl size="small" sx={{ minWidth: 200 }}>
                     <Select
-                        
+
                       value={selectedModel}
                       onChange={(e) => setSelectedModel(e.target.value)}
                       sx={{ height: 32, fontSize: '0.8rem' }}
@@ -946,7 +936,7 @@ export const BaseAiChatDialog: React.FC<BaseAiChatDialogProps> = ({
                     {isExpertMode && (
                       <FormControl size="small" fullWidth sx={{ mt: 1 }}>
                         <Select
-                           value={selectedModel} onChange={(e) => { setSelectedModel(e.target.value); handleMenuClose(); }}>
+                          value={selectedModel} onChange={(e) => { setSelectedModel(e.target.value); handleMenuClose(); }}>
                           {availableModels.map(m => (
                             <MenuItem key={m.name} value={m.name} sx={{ fontSize: '0.8rem' }}>
                               {m.displayName}

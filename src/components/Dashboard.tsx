@@ -113,8 +113,7 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
       if (prompt) setAiInitialPrompt(prompt);
 
       const newParams = new URLSearchParams(searchParams);
-      if (prompt) newParams.set('prompt', prompt);
-      else newParams.delete('prompt');
+      newParams.delete('prompt');
 
       navigate({
         pathname: '/ai',

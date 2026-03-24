@@ -14,7 +14,9 @@ import { formatMoneyValue, formatPercent, convertCurrency } from '../../lib/curr
 import type { ExchangeRates } from '../../lib/types';
 import { getTickerData } from '../../lib/fetching';
 import { Exchange, type DashboardHolding, type Transaction, isBuy, isSell } from '../../lib/types';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import SmartToyIcon from '@mui/icons-material/SmartToy';
+import { Button } from '@mui/material';
 import { useResponsiveDialogProps, useScrollShadows, ScrollShadows } from '../../lib/ui-utils';
 import { getRecentEventsData } from './RecentEventsCard';
 
@@ -122,10 +124,10 @@ function getNotableMoversSentence(stats: { totalPct: number, allMovers?: { name:
     }
   } else if (topUnder.length > 0) {
     if (pfPct > 0) {
-      return t(`However, ${formatList(topUnder)} lagged behind with notable drops.`, 
+      return t(`However, ${formatList(topUnder)} lagged behind with notable drops.`,
         hasSevereDrops ? `עם זאת, במנוגד למגמה הכללית בתיק נרשמה צניחה של ${formatList(topUnder)}.` : `עם זאת, ${formatList(topUnder)} רשמו ירידות משמעותיות במנוגד למגמה הכללית בתיק.`);
     } else {
-      return t(`The decline was largely driven by heavy drops in ${formatList(topUnder)}.`, 
+      return t(`The decline was largely driven by heavy drops in ${formatList(topUnder)}.`,
         hasSevereDrops ? `ירידות אלו הובלו והוחמרו בעיקר בעקבות צניחה של ${formatList(topUnder)}.` : `הירידות בתיק הושפעו בעיקר מירידות בולטות של ${formatList(topUnder)}.`);
     }
   }
@@ -179,10 +181,10 @@ function getMarketSentence(pfAbsPct: number, isUp: boolean, mktUS: number, mktIL
   const getMarketDesc = (dir: number, sharp: boolean, locale: 'US' | 'IL') => {
     if (dir === 1) {
       if (locale === 'US') return sharp ? t('a massive bull rally in the US', 'העליות המשמעותיות בשוק האמריקאי') : t('positive US markets', 'מגמה חיובית בבורסות ארה"ב');
-      return sharp ? t('strong surges in the local market', 'העליות החריגות בשוק הישראלי') : t('a solid local market', 'מגמה חיובית בארץ');
+      return sharp ? t('strong surges in the Israeli market', 'העליות החריגות בשוק הישראלי') : t('a solid Israeli market', 'מגמה חיובית בשוק הישראלי');
     } else {
       if (locale === 'US') return sharp ? t('heavy losses in the US', 'ירידות משמעותיות בשוק האמריקאי') : t('a red US market', 'מגמה שלילית בארה"ב');
-      return sharp ? t('sharp drops in the local market', 'ירידות חריגות בשוק המקומי') : t('a dropping local market', 'מגמה שלילית בארץ');
+      return sharp ? t('sharp drops in the Israeli market', 'ירידות חריגות בשוק הישראלי') : t('a dropping Israeli market', 'מגמה שלילית בשוק הישראלי');
     }
   };
 
@@ -199,14 +201,14 @@ function getMarketSentence(pfAbsPct: number, isUp: boolean, mktUS: number, mktIL
     } else if (usDir === 1 || ilDir === 1) {
       const activeLocale = usDir === 1 ? 'US' : 'IL';
       const text = getMarketDesc(1, usDir === 1 ? isUSSharp : isILSharp, activeLocale);
-      
+
       const mixed = usDir === -1 || ilDir === -1;
       if (mixed) {
-          return t(`Bucking a mixed trend, this aligns with ${text}.`, `מגמה מעורבת בעולם, אך העלייה בתיק תואמת ל${text}.`);
+        return t(`Bucking a mixed trend, this aligns with ${text}.`, `מגמה מעורבת בעולם, אך העלייה בתיק תואמת ל${text}.`);
       }
       return t(`This aligns with ${text}.`, `מגמה בהתאם ל${text}.`);
     } else if (usDir === -1 && ilDir === -1) {
-      return t(`An impressive gain despite a red day in both US and local markets.`, `עלייה מרשימה למרות ירידות בשווקי ארה"ב וישראל.`);
+      return t(`An impressive gain despite a red day in both US and Israeli markets.`, `עלייה מרשימה למרות ירידות בשווקי ארה"ב וישראל.`);
     } else if (usDir === -1 || ilDir === -1) {
       const dropLocale = usDir === -1 ? 'US' : 'IL';
       const text = getMarketDesc(-1, usDir === -1 ? isUSSharp : isILSharp, dropLocale);
@@ -228,7 +230,7 @@ function getMarketSentence(pfAbsPct: number, isUp: boolean, mktUS: number, mktIL
       const text = getMarketDesc(-1, usDir === -1 ? isUSSharp : isILSharp, activeLocale);
       return t(`This pullback mirrors ${text}.`, `הירידה תואמת בעיקר ל${text}.`);
     } else if (usDir === 1 && ilDir === 1) {
-      return t(`The portfolio dropped despite green rallies in both US and local markets.`, `ירידות קשות בתיק חרף עליות בשווקי ארה"ב וישראל.`);
+      return t(`The portfolio dropped despite green rallies in both US and Israeli markets.`, `ירידות קשות בתיק חרף עליות בשווקי ארה"ב וישראל.`);
     } else if (usDir === 1 || ilDir === 1) {
       const activeLocale = usDir === 1 ? 'US' : 'IL';
       const text = getMarketDesc(1, usDir === 1 ? isUSSharp : isILSharp, activeLocale);
@@ -274,8 +276,27 @@ export function PortfolioBriefingDialog({ open, onClose, holdings, transactions,
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const responsiveProps = useResponsiveDialogProps();
+  const navigate = useNavigate();
 
   const [timeframe, setTimeframe] = useState<Timeframe>('1D');
+
+  const handleAiSummary = () => {
+    const timeframeEn = timeframe === '1D' ? 'day (1D)' : timeframe === '1W' ? 'week (1W)' : timeframe === '1M' ? 'month (1M)' : 'year (1Y)';
+    const timeframeHe = timeframe === '1D' ? 'יום (1D)' : timeframe === '1W' ? 'שבוע (1W)' : timeframe === '1M' ? 'חודש (1M)' : 'שנה (1Y)';
+
+    const promptEn = `Please create a brief of my portfolio and the broader market (IL, US, and global) performance over the selected period (${timeframeEn}), and integrate my recent events and their effects.`;
+    const promptHe = `אנא צור סיכום של תפקוד התיק שלי ושל שוקי המניות (ישראל, ארה"ב וגלובלי) לתקופה שנבחרה (${timeframeHe}), ושלב את האירועים האחרונים בחשבון ואת השפעתם.`;
+
+    const prompt = t(promptEn, promptHe);
+
+    onClose();
+    setTimeout(() => {
+      navigate({
+        pathname: '/ai',
+        search: `?prompt=${encodeURIComponent(prompt)}`
+      });
+    }, 50);
+  };
   const [marketData, setMarketData] = useState<{ spx?: number, ndx?: number, tlv?: number }>({});
   const [loadingMarket, setLoadingMarket] = useState(false);
 
@@ -300,7 +321,7 @@ export function PortfolioBriefingDialog({ open, onClose, holdings, transactions,
 
   const stats = useMemo(() => {
     let totalStartVal = 0;
-    
+
     let totalDivs = 0;
     let totalFlow = 0;
     let totalVests = 0;
@@ -308,7 +329,7 @@ export function PortfolioBriefingDialog({ open, onClose, holdings, transactions,
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const msDaily = 86400000;
-    
+
     transactions.forEach(txn => {
       const d = new Date(txn.vestDate || txn.date);
       d.setHours(0, 0, 0, 0);
@@ -401,8 +422,8 @@ export function PortfolioBriefingDialog({ open, onClose, holdings, transactions,
 
       if (timeframe === '1D') return diffDays >= 0 && diffDays <= 1;
       if (timeframe === '1W') return diffDays >= -7 && diffDays <= 1;
-        if (timeframe === '1M') return diffDays >= -30 && diffDays <= 1;
-        return diffDays >= -365 && diffDays <= 1;
+      if (timeframe === '1M') return diffDays >= -30 && diffDays <= 1;
+      return diffDays >= -365 && diffDays <= 1;
     }).slice(0, 4);
   }, [holdings, transactions, t, timeframe]);
 
@@ -444,15 +465,56 @@ export function PortfolioBriefingDialog({ open, onClose, holdings, transactions,
         </Typography>
       </Paper>
     );
-    if(to) return <MuiLink component={RouterLink} to={to} onClick={onClose} sx={{ flex: 1, display: 'flex', textDecoration: 'none' }}>{card}</MuiLink>;
+    if (to) return <MuiLink component={RouterLink} to={to} onClick={onClose} sx={{ flex: 1, display: 'flex', textDecoration: 'none' }}>{card}</MuiLink>;
     return <Box sx={{ flex: 1, display: 'flex' }}>{card}</Box>;
   };
 
   return (
     <Dialog open={open} onClose={onClose} {...responsiveProps} maxWidth="sm" fullWidth scroll="paper">
-      <DialogTitle component="div" sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1, borderBottom: '1px solid', borderColor: 'divider' }}>
-        <Typography variant="h6" component="div" fontWeight={800}>{t('Portfolio Briefing', 'סיכום התיק')}</Typography>
-        <IconButton onClick={onClose} size="small"><CloseIcon /></IconButton>
+      <DialogTitle component="div" sx={{ display: 'flex', flexWrap: 'nowrap', justifyContent: 'space-between', alignItems: 'center', pb: 1.5, pt: 1.5, px: isMobile ? 2 : 3, borderBottom: '1px solid', borderColor: 'divider', gap: 1 }}>
+        <Typography variant="subtitle1" component="div" fontWeight={800} sx={{ display: { xs: 'none', sm: 'block' }, mr: 1, whiteSpace: 'nowrap' }}>
+          {t('Briefing', 'סיכום')}
+        </Typography>
+
+        <Box sx={{ display: 'flex', flex: 1, justifyContent: { xs: 'flex-start', sm: 'center' }, minWidth: 0 }}>
+          <ToggleButtonGroup
+            value={timeframe}
+            exclusive
+            onChange={(_, val) => val && setTimeframe(val)}
+            size="small"
+            sx={{
+              height: 32,
+              bgcolor: 'action.hover',
+              p: 0.3,
+              borderRadius: 2,
+              '& .MuiToggleButtonGroup-grouped': {
+                margin: 0,
+                border: 0,
+                borderRadius: 1.5,
+                px: { xs: 1.5, sm: 2 },
+                py: 0,
+                fontSize: { xs: '0.75rem', sm: '0.8rem' },
+                fontWeight: 700,
+                '&.Mui-disabled': { border: 0 },
+                '&:not(:first-of-type)': { borderRadius: 1.5 },
+                '&:first-of-type': { borderRadius: 1.5 },
+              },
+              '& .Mui-selected': { bgcolor: 'background.paper', boxShadow: 1 }
+            }}
+          >
+            <ToggleButton value="1D" sx={{ color: 'text.secondary', textTransform: 'capitalize' }}>{t('Day', 'יומי')}</ToggleButton>
+            <ToggleButton value="1W" sx={{ color: 'text.secondary', textTransform: 'capitalize' }}>{t('Week', 'שבועי')}</ToggleButton>
+            <ToggleButton value="1M" sx={{ color: 'text.secondary', textTransform: 'capitalize' }}>{t('Month', 'חודשי')}</ToggleButton>
+            <ToggleButton value="1Y" sx={{ color: 'text.secondary', textTransform: 'capitalize' }}>{t('Year', 'שנתי')}</ToggleButton>
+          </ToggleButtonGroup>
+        </Box>
+
+        <Box sx={{ display: 'flex', gap: 0.5 }}>
+          <Button variant="outlined" color="primary" size="small" startIcon={<SmartToyIcon fontSize="small" />} onClick={handleAiSummary} sx={{ borderRadius: 2, fontWeight: 'bold', minWidth: 0, px: { xs: 1, sm: 1.5 } }}>
+            <span style={{ display: isMobile ? 'none' : 'inline', whiteSpace: 'nowrap' }}>{t('AI Summary', 'סיכום AI')}</span>
+          </Button>
+          <IconButton onClick={onClose} size="small"><CloseIcon /></IconButton>
+        </Box>
       </DialogTitle>
 
       <DialogContent sx={{ p: 0, position: 'relative', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -469,39 +531,6 @@ export function PortfolioBriefingDialog({ open, onClose, holdings, transactions,
             scrollbarWidth: 'none'
           }}
         >
-          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
-            <ToggleButtonGroup
-              value={timeframe}
-              exclusive
-              onChange={(_, val) => val && setTimeframe(val)}
-              size="small"
-              sx={{
-                bgcolor: 'action.hover',
-                p: 0.5,
-                borderRadius: 2,
-                '& .MuiToggleButtonGroup-grouped': {
-                  margin: 0,
-                  border: 0,
-                  borderRadius: 1.5,
-                  '&.Mui-disabled': { border: 0 },
-                  '&:not(:first-of-type)': { borderRadius: 1.5 },
-                  '&:first-of-type': { borderRadius: 1.5 },
-                },
-                '& .Mui-selected': {
-                  bgcolor: 'background.paper',
-                  boxShadow: 1,
-                  color: 'text.primary',
-                  '&:hover': { bgcolor: 'background.paper' },
-                }
-              }}
-            >
-              <ToggleButton value="1D" sx={{ px: 3, py: 0.75, fontWeight: 'bold', color: 'text.secondary' }}>{t('1 Day', 'יומי')}</ToggleButton>
-              <ToggleButton value="1W" sx={{ px: 3, py: 0.75, fontWeight: 'bold', color: 'text.secondary' }}>{t('1 Week', 'שבועי')}</ToggleButton>
-              <ToggleButton value="1M" sx={{ px: 3, py: 0.75, fontWeight: 'bold', color: 'text.secondary' }}>{t('1 Month', 'חודשי')}</ToggleButton>
-              <ToggleButton value="1Y" sx={{ px: 3, py: 0.75, fontWeight: 'bold', color: 'text.secondary' }}>{t('1 Year', 'שנתי')}</ToggleButton>
-            </ToggleButtonGroup>
-          </Box>
-
           <Box sx={{ p: 2, borderRadius: 3, bgcolor: 'action.hover', border: 1, borderColor: 'divider', mb: 3 }}>
             <Typography variant="body1" sx={{ fontWeight: 500, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
               {renderBriefingTextWithLinks(generateBriefingText(timeframe, stats, marketData, displayCurrency, t))}
@@ -532,7 +561,7 @@ export function PortfolioBriefingDialog({ open, onClose, holdings, transactions,
               <Stack spacing={1.5}>
                 {stats.topGainers.map(m => {
                   return (
-                      <Box key={m.ticker} sx={{ position: 'relative', overflow: 'hidden', p: 1.5, py: 1, borderRadius: 1.5, bgcolor: 'background.default', border: '1px solid', borderColor: 'divider' }}>
+                    <Box key={m.ticker} sx={{ position: 'relative', overflow: 'hidden', p: 1.5, py: 1, borderRadius: 1.5, bgcolor: 'background.default', border: '1px solid', borderColor: 'divider' }}>
                       <Box sx={{ position: 'relative', display: 'flex', flexDirection: 'column' }}>
                         <MuiLink component={RouterLink} to={'/ticker/' + m.exchange + '/' + m.ticker} onClick={onClose} underline="hover" color="inherit" sx={{ display: 'block' }}>
                           <Typography component="div" variant="body2" fontWeight="bold" noWrap title={m.name} sx={{ mb: 0.25 }}>{m.name}</Typography>
@@ -558,7 +587,7 @@ export function PortfolioBriefingDialog({ open, onClose, holdings, transactions,
               <Stack spacing={1.5}>
                 {stats.topLosers.map(m => {
                   return (
-                      <Box key={m.ticker} sx={{ position: 'relative', overflow: 'hidden', p: 1.5, py: 1, borderRadius: 1.5, bgcolor: 'background.default', border: '1px solid', borderColor: 'divider' }}>
+                    <Box key={m.ticker} sx={{ position: 'relative', overflow: 'hidden', p: 1.5, py: 1, borderRadius: 1.5, bgcolor: 'background.default', border: '1px solid', borderColor: 'divider' }}>
                       <Box sx={{ position: 'relative', display: 'flex', flexDirection: 'column' }}>
                         <MuiLink component={RouterLink} to={'/ticker/' + m.exchange + '/' + m.ticker} onClick={onClose} underline="hover" color="inherit" sx={{ display: 'block' }}>
                           <Typography component="div" variant="body2" fontWeight="bold" noWrap title={m.name} sx={{ mb: 0.25 }}>{m.name}</Typography>
@@ -580,7 +609,7 @@ export function PortfolioBriefingDialog({ open, onClose, holdings, transactions,
 
           {recentEvents.length > 0 && (
             <Box>
-              <Typography variant="subtitle2" fontWeight={800} sx={{ mb: 1.5, mt: 1, color: 'text.secondary' }}>{t('Key Events & Updates', 'אירועים מרכזיים')}</Typography>
+              <Typography variant="subtitle2" fontWeight={800} sx={{ mb: 1.5, mt: 1, color: 'text.secondary' }}>{t('Events & Updates', 'אירועים ועדכונים')}</Typography>
               <Stack spacing={1}>
                 {recentEvents.map(ev => {
                   const h = holdings.find(h => h.ticker === ev.ticker);
