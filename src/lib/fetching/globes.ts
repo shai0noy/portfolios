@@ -192,7 +192,7 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
   }
 
   const now = Date.now();
-  let identifier = (exchange === Exchange.TASE && securityId) ? securityId.toString() : symbol.toUpperCase();
+  let identifier = (exchange === Exchange.TASE && securityId) ? securityId.toString() : symbol.toUpperCase().replace(/^\^/, '');
   let tickerSymbol = symbol.toUpperCase();
 
   // FOREX handling

@@ -40,7 +40,7 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const isFavoritesOnly = propIsFavoritesOnly || location.pathname === '/favorites';
+  const isFavoritesOnly = propIsFavoritesOnly || location.pathname.startsWith('/favorites');
   const [groupByPortfolio, setGroupByPortfolio] = useState(() => localStorage.getItem('groupByPortfolio') !== 'false');
   // Persist Currency - normalize initial value
   const [displayCurrency, setDisplayCurrency] = useState<string>(() => normalizeCurrency(localStorage.getItem('displayCurrency') || 'USD'));
@@ -57,7 +57,7 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
   const { showLoginModal } = useSession();
 
   const [aiChatOpen, setAiChatOpen] = useState(false);
-  const [briefingOpen, setBriefingOpen] = useState(false);
+  const briefingOpen = location.pathname.endsWith('/summary');
   const [aiInitialPrompt, setAiInitialPrompt] = useState<string | undefined>(undefined);
   const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
   const [decryptedKey, setDecryptedKey] = useState<string | null>(null);
@@ -593,7 +593,7 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
 
                 <Tooltip title={t("Portfolio Briefing", "סיכום תיק")}>
                   <Button
-                    onClick={() => setBriefingOpen(true)}
+                    onClick={() => navigate(location.pathname === '/' ? '/dashboard/summary' : (location.pathname + '/summary'))}
                     variant="outlined"
                     size="small"
                     color="inherit"
@@ -777,7 +777,7 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
       {briefingOpen && (
         <PortfolioBriefingDialog transactions={engine?.transactions || []}
           open={true}
-          onClose={() => setBriefingOpen(false)}
+          onClose={() => navigate(location.pathname.replace('/summary', ''))}
           holdings={displayedHoldings}
           displayCurrency={displayCurrency}
         />

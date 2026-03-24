@@ -653,8 +653,10 @@ function AppContent() {
 
                 <Routes>
                   <Route path="/dashboard" element={null} />
+                  <Route path="/dashboard/summary" element={null} />
                   <Route path="/ai" element={null} />
                   <Route path="/favorites" element={null} />
+                  <Route path="/favorites/summary" element={null} />
                   <Route path="/transaction" element={null} />
                   <Route path="/portfolios" element={<PortfolioManager sheetId={sheetId} onSuccess={() => setRefreshKey(k => k + 1)} />} />
                   <Route path="/portfolios/:portfolioId" element={<PortfolioManager sheetId={sheetId} onSuccess={() => setRefreshKey(k => k + 1)} />} />
