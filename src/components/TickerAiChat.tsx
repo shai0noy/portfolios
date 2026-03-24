@@ -168,7 +168,8 @@ Please be careful in your wording around suggestions - you are just an AI.
  * {ticker::Label::EXCHANGE:SYMBOL} to link to a specific ticker e.g. {ticker::Google::NASDAQ:GOOGL}
  * {userinfo::Button Text} to link to the user profile info form
  * {url::Label::Path} to navigate to any URL
- * Not supported! - {portfolio::XYZ}
+ * NOT supported - {portfolio::XYZ}
+ * They CANNOT be nested
 
 >> We are discussing the following asset - avoid parroting the data, use it to provide insights and refer to it as needed:
 

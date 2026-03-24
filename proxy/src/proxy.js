@@ -172,14 +172,6 @@ async function invokeApi(apiId, params, env, ctx, corsHeaders) {
       response = new Response(text, response);
     }
 
-    // Only return immediately (without caching) for transient errors or rate limiting.
-    // Permanent errors like 404 (Not Found) should fall through and be cached.
-    if (response.status === 429 || response.status === 403 || response.status >= 500) {
-      const errResponse = new Response(response.body, response);
-      Object.keys(corsHeaders).forEach(key => errResponse.headers.set(key, corsHeaders[key]));
-      return errResponse;
-    }
-
     // Retrying logic for TASE API when it returns empty results for the current date
     if (apiId === 'tase_list_stocks' || apiId === 'tase_index_comp') {
       const data = await response.clone().json();
@@ -190,18 +182,27 @@ async function invokeApi(apiId, params, env, ctx, corsHeaders) {
     }
 
     const newResponse = new Response(response.body, response);
-    // Explicitly set cache headers for Cloudflare Cache API
-    const ttl = apiConfig.ttl || 43200;
-    newResponse.headers.set("Cache-Control", `public, max-age=${ttl}`);
-    newResponse.headers.set("X-Proxy-Cache", "MISS");
-    Object.keys(corsHeaders).forEach(key => newResponse.headers.set(key, corsHeaders[key]));
+    const isTransientError = response.status === 429 || response.status === 403 || response.status >= 500;
 
-    // Use waitUntil to avoid delaying the response while updating the cache
-    ctx.waitUntil(cache.put(cacheKey, newResponse.clone()));
+    // Explicitly set cache headers for Cloudflare Cache API, but ONLY for successful or cacheable permanent error responses
+    if (!isTransientError) {
+      const ttl = apiConfig.ttl || 43200;
+      newResponse.headers.set("Cache-Control", `public, max-age=${ttl}`);
+      newResponse.headers.set("X-Proxy-Cache", "MISS");
+      Object.keys(corsHeaders).forEach(key => newResponse.headers.set(key, corsHeaders[key]));
+
+      // Use waitUntil to avoid delaying the response while updating the cache
+      ctx.waitUntil(cache.put(cacheKey, newResponse.clone()));
+    } else {
+      // Prevent browser from caching error states like 429, 403, 500
+      newResponse.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+      newResponse.headers.set("X-Proxy-Cache", "BYPASS");
+      Object.keys(corsHeaders).forEach(key => newResponse.headers.set(key, corsHeaders[key]));
+    }
 
     return newResponse;
   } catch (err) {
-    return new Response(`Network Error connecting to origin for ${apiId}`, { status: 502, headers: corsHeaders });
+    return new Response(`Network Error connecting to origin for ${apiId}`, { status: 502, headers: { ...corsHeaders, "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0" } });
   }
 }
 
@@ -209,7 +210,7 @@ export async function handleProxy(request, env, ctx, corsHeaders) {
   const ip = request.headers.get('cf-connecting-ip');
   const limitResult = checkRateLimit(ip);
   if (!limitResult.allowed) {
-    return new Response("Too Many Requests - " + limitResult.message, { status: 429, headers: corsHeaders });
+    return new Response("Too Many Requests - " + limitResult.message, { status: 429, headers: { ...corsHeaders, "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0" } });
   }
 
   const url = new URL(request.url);
