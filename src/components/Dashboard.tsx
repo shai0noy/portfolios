@@ -30,7 +30,8 @@ import { useSession } from '../lib/SessionContext';
 import MenuIcon from '@mui/icons-material/Menu';
 import { ResponsiveDrawerMenu } from './ResponsiveDrawerMenu';
 import { Checkbox, FormControlLabel, FormGroup } from '@mui/material';
-
+import { aggregateHoldingValues } from '../lib/data/holding_utils';
+import type { DashboardHoldingDisplay } from '../lib/dashboard';
 interface DashboardProps {
   sheetId: string;
   isFavoritesOnly?: boolean;
@@ -317,7 +318,75 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
     const groups: Record<string, EnrichedDashboardHolding[]> = {};
 
     if (!groupByPortfolio) {
-      groups['All Holdings'] = displayedHoldings;
+      const mergedMap = new Map<string, EnrichedDashboardHolding[]>();
+      displayedHoldings.forEach(h => {
+        const key = `${h.exchange}:${h.ticker}`;
+        if (!mergedMap.has(key)) mergedMap.set(key, []);
+        mergedMap.get(key)!.push(h);
+      });
+      const mergedHoldings: EnrichedDashboardHolding[] = [];
+      mergedMap.forEach((holdingsList) => {
+        if (holdingsList.length === 1) {
+          mergedHoldings.push(holdingsList[0]);
+        } else {
+          const vals = aggregateHoldingValues(holdingsList, exchangeRates, displayCurrency);
+          const base = holdingsList[0];
+
+          const mergedDisplay: DashboardHoldingDisplay = {
+            marketValue: vals.marketValue.amount,
+            unrealizedGain: vals.unrealizedGain.amount,
+            unrealizedGainPct: vals.unrealizedGainPct,
+            realizedGain: vals.realizedGain.amount,
+            realizedGainGross: vals.realizedGainGross.amount,
+            realizedGainNet: vals.realizedGainNet.amount,
+            realizedGainPct: vals.realizedGainPct,
+            realizedGainAfterTax: vals.realizedGainAfterTax.amount,
+            totalGain: vals.totalGain.amount,
+            totalGainPct: vals.totalGainPct,
+            valueAfterTax: vals.valueAfterTax.amount,
+            dayChangeVal: vals.dayChangeVal.amount,
+            dayChangePct: vals.dayChangePct,
+            costBasis: vals.costBasis.amount,
+            costOfSold: vals.costOfSold.amount,
+            proceeds: vals.proceeds.amount,
+            dividends: vals.dividends?.amount || 0,
+            dividendsGross: vals.dividendsGross?.amount || 0,
+            fees: holdingsList.reduce((sum, h) => sum + h.display.fees, 0),
+            dividendYield1y: base.display.dividendYield1y,
+            currentPrice: vals.currentPrice?.amount || 0,
+            avgCost: vals.avgCost?.amount || 0,
+            weightInPortfolio: holdingsList.reduce((sum, h) => sum + h.display.weightInPortfolio, 0),
+            weightInGlobal: holdingsList.reduce((sum, h) => sum + h.display.weightInGlobal, 0),
+            unvestedValue: vals.unvestedValue?.amount || 0,
+            realizedTax: vals.realizedTax?.amount || 0,
+            unrealizedTax: vals.unrealizedTax?.amount || 0
+          };
+
+          const qtyVested = holdingsList.reduce((sum, h) => sum + h.qtyVested, 0);
+          // If we merge across portfolios, average values should be recalculated if needed,
+          // but values from `vals` are properly aggregated.
+          const merged: EnrichedDashboardHolding = {
+            ...base,
+            id: `${base.exchange}_${base.ticker}_merged`,
+            key: `${base.exchange}_${base.ticker}_merged`,
+            portfolioId: 'All',
+            portfolioName: t('Multiple', 'מרובים'),
+            qtyTotal: vals.totalQty,
+            qtyVested: qtyVested,
+            qtyUnvested: holdingsList.reduce((sum, h) => sum + h.qtyUnvested, 0),
+            activeLots: holdingsList.flatMap(h => h.activeLots),
+            realizedLots: holdingsList.flatMap(h => h.realizedLots),
+            transactions: holdingsList.flatMap(h => h.transactions),
+            dividends: holdingsList.flatMap(h => h.dividends),
+            avgHoldingTimeYears: vals.avgHoldingTimeYears || 0,
+            avgYearlyReturn: vals.avgYearlyReturn || 0,
+            display: mergedDisplay,
+            realizedTax: vals.realizedTax.amount
+          };
+          mergedHoldings.push(merged);
+        }
+      });
+      groups['All Holdings'] = mergedHoldings;
     } else {
       displayedHoldings.forEach(h => {
         if (!groups[h.portfolioName]) groups[h.portfolioName] = [];
