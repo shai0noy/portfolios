@@ -35,7 +35,7 @@ type Timeframe = '1D' | '1W' | '1M' | '1Y';
 export function generateBriefingText(
   timeframe: '1D' | '1W' | '1M' | '1Y',
   stats: { totalGain: number, totalPct: number, totalPct1M: number, totalDivs: number, totalFlow?: number, totalVests?: number, allMovers?: { name: string, pct: number, gain: number }[] },
-  marketData: { spx?: number, ndx?: number, tlv?: number },
+  marketData: { spx?: number, ndx?: number, tlv?: number, energy?: number, it?: number },
   displayCurrency: string,
   t: (key: string, backup: string) => string
 ): string {
@@ -44,13 +44,13 @@ export function generateBriefingText(
   const gainStr = formatMoneyValue({ amount: Math.abs(stats.totalGain), currency: displayCurrency as any }, undefined, 0);
   const pctStr = formatPercent(stats.totalPct);
 
-  const mktUS = marketData.spx !== undefined ? marketData.spx : (marketData.ndx || 0);
-  const mktIL = marketData.tlv || 0;
+
+
 
   const timeWord = timeframe === '1D' ? t('Today', 'היום') : timeframe === '1W' ? t('This week', 'השבוע') : timeframe === '1M' ? t('This month', 'החודש') : t('This year', 'השנה');
 
   const moveSentence = getMoveSentence(timeWord, timeframe, pfAbsPct, isUp, gainStr, pctStr, t);
-  const marketSentence = getMarketSentence(pfAbsPct, isUp, mktUS, mktIL, t);
+  const marketSentence = getMarketSentence(timeframe, pfAbsPct, isUp, marketData.spx ?? 0, marketData.ndx ?? 0, marketData.tlv ?? 0, marketData.energy, marketData.it, t);
   const trendSentence = getTrendSentence(timeframe, pfAbsPct, isUp, stats.totalPct1M, t);
   const moversSentence = getNotableMoversSentence(stats, timeframe, t);
   const divsValStr = stats.totalDivs > 0 ? formatMoneyValue({ amount: stats.totalDivs, currency: displayCurrency as any }, undefined, 0) : "";
@@ -162,7 +162,7 @@ function getMoveSentence(timeWord: string, timeframe: string, pfAbsPct: number, 
     : t(`${timeWord}, your portfolio is down by ${gainStr} (${pctStr}).`, `${timeWord}, התיק שלך בירידה של ${gainStr} (${pctStr}).`);
 }
 
-function getMarketSentence(pfAbsPct: number, isUp: boolean, mktUS: number, mktIL: number, t: any) {
+function getCoreMarketSentence(pfAbsPct: number, isUp: boolean, mktUS: number, mktIL: number, t: any) {
   if (pfAbsPct < 0.005) return "";
 
   const usMag = Math.abs(mktUS);
@@ -239,6 +239,39 @@ function getMarketSentence(pfAbsPct: number, isUp: boolean, mktUS: number, mktIL
   }
 
   return "";
+}
+
+function getMarketSentence(timeframe: string, pfAbsPct: number, isUp: boolean, mktUS: number, mktNDX: number, mktIL: number, mktEnergy: number | undefined, mktIT: number | undefined, t: any) {
+  const core = getCoreMarketSentence(pfAbsPct, isUp, mktUS, mktIL, t);
+  if (!core) return "";
+
+  let divergenceStr = "";
+  const hasMktBase = mktUS !== 0 && mktNDX !== 0;
+  if (hasMktBase) {
+    const diffE = mktEnergy !== undefined ? Math.min(Math.abs(mktEnergy - mktUS), Math.abs(mktEnergy - mktNDX)) : 0;
+    const diffI = mktIT !== undefined ? Math.min(Math.abs(mktIT - mktUS), Math.abs(mktIT - mktNDX)) : 0;
+
+    // Scale thresholds depending on the observed period
+    let thresh = 0.015; // 1.5% for 1D default
+    if (timeframe === '1W') thresh = 0.03;       // 3% 
+    if (timeframe === '1M') thresh = 0.06;       // 6% 
+    if (timeframe === '1Y') thresh = 0.12;       // 12%
+
+    if (diffE > thresh || diffI > thresh) {
+      const eFmt = mktEnergy !== undefined ? formatPercent(mktEnergy) : "";
+      const iFmt = mktIT !== undefined ? formatPercent(mktIT) : "";
+
+      if (diffE > thresh && diffI > thresh) {
+        divergenceStr = t(` Notably, the Energy (${eFmt}) and Tech (${iFmt}) sectors moved quite differently than the broader US market.`, ` בנוסף ניכרת מגמה שונה במגזרי האנרגיה (${eFmt}) והטכנולוגיה (${iFmt}) ביחס לשאר השוק בארה"ב.`);
+      } else if (diffE > thresh) {
+        divergenceStr = t(` Notably, the Energy sector diverged, returning ${eFmt}.`, ` ניכרת התנהגות שונה במגזר האנרגיה (${eFmt}).`);
+      } else if (diffI > thresh) {
+        divergenceStr = t(` Notably, the Tech sector diverged, returning ${iFmt}.`, ` ניכרת התנהגות שונה במגזר הטכנולוגיה (${iFmt}).`);
+      }
+    }
+  }
+
+  return core + divergenceStr;
 }
 
 function getTrendSentence(timeframe: string, pfAbsPct: number, isUp: boolean, totalPct1M: number, t: any) {
