@@ -19,6 +19,7 @@ import SmartToyIcon from '@mui/icons-material/SmartToy';
 import { Button } from '@mui/material';
 import { useResponsiveDialogProps, useScrollShadows, ScrollShadows } from '../../lib/ui-utils';
 import { getRecentEventsData } from './RecentEventsCard';
+import { aggregateHoldingValues } from '../../lib/data/holding_utils';
 
 interface PortfolioBriefingDialogProps {
   open: boolean;
@@ -163,8 +164,6 @@ function getMoveSentence(timeWord: string, timeframe: string, pfAbsPct: number, 
 }
 
 function getCoreMarketSentence(pfAbsPct: number, isUp: boolean, mktUS: number, mktIL: number, t: any) {
-  if (pfAbsPct < 0.005) return "";
-
   const usMag = Math.abs(mktUS);
   const ilMag = Math.abs(mktIL);
 
@@ -187,6 +186,21 @@ function getCoreMarketSentence(pfAbsPct: number, isUp: boolean, mktUS: number, m
       return sharp ? t('sharp drops in the Israeli market', 'ירידות חריגות בשוק הישראלי') : t('a dropping Israeli market', 'מגמה שלילית בשוק הישראלי');
     }
   };
+
+  if (pfAbsPct < 0.005) {
+    if ((usDir === 1 || ilDir === 1) && (usDir === -1 || ilDir === -1)) {
+      return t(`The portfolio remained stable amidst a volatile session across global markets.`, `התיק שמר על יציבות על רקע תנודתיות ומגמה מעורבת בשווקים הכלליים.`);
+    } else if (usDir === -1 || ilDir === -1) {
+      const activeLocale = usDir === -1 ? 'US' : 'IL';
+      const text = getMarketDesc(-1, usDir === -1 ? isUSSharp : isILSharp, activeLocale);
+      return t(`The portfolio showed resilience, holding stable despite ${text}.`, `התיק הפגין חוסן מרשים ושמר על יציבות חרף ${text}.`);
+    } else if (usDir === 1 || ilDir === 1) {
+      const activeLocale = usDir === 1 ? 'US' : 'IL';
+      const text = getMarketDesc(1, usDir === 1 ? isUSSharp : isILSharp, activeLocale);
+      return t(`The portfolio saw no major shifts, remaining stable during ${text}.`, `התיק נותר ללא תנועה משמעותית בסביבה בה נרשמו ${text}.`);
+    }
+    return "";
+  }
 
   if (pfDir === 1) {
     if (usDir === 1 && ilDir === 1) {
@@ -408,21 +422,30 @@ export function PortfolioBriefingDialog({ open, onClose, holdings, transactions,
     let totalEndVal = 0;
     let totalStartVal1M = 0;
 
-    const movers = holdings.map(h => {
-      const val = h.display.marketValue;
+    const groupedHoldings = new Map<string, typeof holdings[0][]>();
+    for (const h of holdings) {
+      if (!groupedHoldings.has(h.ticker)) groupedHoldings.set(h.ticker, []);
+      groupedHoldings.get(h.ticker)!.push(h);
+    }
+
+    const movers = Array.from(groupedHoldings.values()).map(group => {
+      const first = group[0];
+      const agg = aggregateHoldingValues(group as any[], exchangeRates, displayCurrency);
+
+      const val = agg.marketValue.amount;
       let pct = 0;
-      if (timeframe === '1D') pct = h.display.dayChangePct || 0;
-      else if (timeframe === '1W') pct = h.perf1w || 0;
-      else if (timeframe === '1M') pct = h.perf1m || 0;
-      else pct = h.perf1y || 0;
+      if (timeframe === '1D') pct = agg.dayChangePct || 0;
+      else if (timeframe === '1W') pct = first.perf1w || 0;
+      else if (timeframe === '1M') pct = first.perf1m || 0;
+      else pct = first.perf1y || 0;
 
       const base = val / (1 + pct);
       const gain = val - base;
 
-      const pct1M = h.perf1m || 0;
+      const pct1M = first.perf1m || 0;
       const base1M = val / (1 + pct1M);
 
-      return { ticker: h.ticker, exchange: h.exchange, name: h.displayName || h.longName || h.nameHe || h.ticker, gain, pct, val, base, base1M };
+      return { ticker: first.ticker, exchange: first.exchange, name: first.displayName || first.longName || first.nameHe || first.ticker, gain, pct, val, base, base1M };
     });
 
     for (const m of movers) {
