@@ -3,23 +3,28 @@ import {
   Link as MuiLink,
   Dialog, DialogTitle, DialogContent, Box, Typography,
   ToggleButtonGroup, ToggleButton, IconButton, useTheme,
-  useMediaQuery, Grid, Paper, CircularProgress, Stack, Divider
+  useMediaQuery, Grid, Paper, CircularProgress, Stack,
+  Menu, MenuItem, ListItemIcon, ListItemText, Fade
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import EventIcon from '@mui/icons-material/Event';
+import SmartToyIcon from '@mui/icons-material/SmartToy';
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import DateRangeIcon from '@mui/icons-material/DateRange';
 import { useLanguage } from '../../lib/i18n';
+import { formatDate } from '../../lib/date';
 import { formatMoneyValue, formatPercent, convertCurrency } from '../../lib/currencyUtils';
 import type { ExchangeRates } from '../../lib/types';
 import { getTickerData } from '../../lib/fetching';
 import { Exchange, type DashboardHolding, type Transaction, isBuy, isSell } from '../../lib/types';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
-import SmartToyIcon from '@mui/icons-material/SmartToy';
 import { Button } from '@mui/material';
 import { useResponsiveDialogProps, useScrollShadows, ScrollShadows } from '../../lib/ui-utils';
 import { getRecentEventsData } from './RecentEventsCard';
 import { aggregateHoldingValues } from '../../lib/data/holding_utils';
+import { CustomRangeDialog } from '../CustomRangeDialog';
 
 interface PortfolioBriefingDialogProps {
   open: boolean;
@@ -29,29 +34,40 @@ interface PortfolioBriefingDialogProps {
   dividendRecords?: any[];
   displayCurrency: string;
   exchangeRates: ExchangeRates;
+  boiTickerData?: { ticker: string, exchange: string, historical: { date: Date, price: number }[] };
 }
 
-type Timeframe = '1D' | '1W' | '1M' | '1Y';
+type Timeframe = '1D' | '1W' | '1M' | '3M' | '6M' | 'YTD' | '1Y' | '3Y' | '5Y' | 'All' | 'Custom';
+
+const timeDays: Record<string, number> = { '1D': 1, '1W': 7, '1M': 30, '1Y': 365, 'YTD': 180, '3M': 90, '6M': 180, '3Y': 1095, '5Y': 1825, 'All': 1825 };
 
 export function generateBriefingText(
-  timeframe: '1D' | '1W' | '1M' | '1Y',
+  timeframe: Timeframe,
   stats: { totalGain: number, totalPct: number, totalPct1M: number, totalDivs: number, totalFlow?: number, totalVests?: number, allMovers?: { name: string, pct: number, gain: number }[] },
   marketData: { spx?: number, ndx?: number, tlv?: number, energy?: number, it?: number },
   displayCurrency: string,
-  t: (key: string, backup: string) => string
+  t: (key: string, backup: string) => string,
+  customDays?: number
 ): string {
   const pfAbsPct = Math.abs(stats.totalPct);
   const isUp = stats.totalGain > 0;
   const gainStr = formatMoneyValue({ amount: Math.abs(stats.totalGain), currency: displayCurrency as any }, undefined, 0);
   const pctStr = formatPercent(stats.totalPct);
 
-
-
-
-  const timeWord = timeframe === '1D' ? t('Today', 'היום') : timeframe === '1W' ? t('This week', 'השבוע') : timeframe === '1M' ? t('This month', 'החודש') : t('This year', 'השנה');
+  const timeWord = (timeframe === '1D') ? t('Today', 'היום') :
+    (timeframe === '1W') ? t('This week', 'השבוע') :
+      (timeframe === '1M') ? t('This month', 'החודש') :
+        (timeframe === '3M') ? t('In the past 3 months', 'בשלושת החודשים האחרונים') :
+          (timeframe === '6M') ? t('In the past 6 months', 'בחצי השנה האחרונה') :
+            (timeframe === 'YTD') ? t('Year to date', 'מתחילת השנה') :
+              (timeframe === '1Y') ? t('In the past year', 'בשנה האחרונה') :
+                (timeframe === '3Y') ? t('In the past 3 years', 'ב-3 השנים האחרונות') :
+                  (timeframe === '5Y') ? t('In the past 5 years', 'ב-5 השנים האחרונות') :
+                    (timeframe === 'All') ? t('Since inception', 'מאז הקמתו') :
+                      t('In the selected period', 'בתקופה הנבחרת');
 
   const moveSentence = getMoveSentence(timeWord, timeframe, pfAbsPct, isUp, gainStr, pctStr, t);
-  const marketSentence = getMarketSentence(timeframe, pfAbsPct, isUp, marketData.spx ?? 0, marketData.ndx ?? 0, marketData.tlv ?? 0, marketData.energy, marketData.it, t);
+  const marketSentence = getMarketSentence(timeframe, pfAbsPct, isUp, marketData.spx ?? 0, marketData.ndx ?? 0, marketData.tlv ?? 0, marketData.energy, marketData.it, t, customDays);
   const trendSentence = getTrendSentence(timeframe, pfAbsPct, isUp, stats.totalPct1M, t);
   const moversSentence = getNotableMoversSentence(stats, timeframe, t);
   const divsValStr = stats.totalDivs > 0 ? formatMoneyValue({ amount: stats.totalDivs, currency: displayCurrency as any }, undefined, 0) : "";
@@ -79,7 +95,8 @@ export function generateBriefingText(
     activitySentence = activitySentence ? `${activitySentence} ${flowText}` : flowText;
   }
 
-  return [moveSentence, marketSentence, trendSentence, moversSentence, activitySentence].filter(Boolean).join('\n\n');
+  const mainStory = [moveSentence, marketSentence, trendSentence].filter(Boolean).join('\n');
+  return [mainStory, moversSentence, activitySentence].filter(Boolean).join('\n\n');
 }
 
 function getNotableMoversSentence(stats: { totalPct: number, allMovers?: { name: string, pct: number, gain: number }[] }, timeframe: string, t: any) {
@@ -88,9 +105,7 @@ function getNotableMoversSentence(stats: { totalPct: number, allMovers?: { name:
   const pfPct = stats.totalPct;
   const NOTABLE_THRESHOLD = 0.02;
 
-  // Find movers that significantly outperformed the portfolio (rose >= 2% AND rose MORE than the portfolio)
   const outperforming = stats.allMovers.filter(m => m.pct >= NOTABLE_THRESHOLD && m.pct > pfPct);
-  // Find movers that significantly underperformed the portfolio (fell <= -2% AND fell WORSE than the portfolio)
   const underperforming = stats.allMovers.filter(m => m.pct <= -NOTABLE_THRESHOLD && m.pct < pfPct);
 
   outperforming.sort((a, b) => b.pct - a.pct);
@@ -104,8 +119,7 @@ function getNotableMoversSentence(stats: { totalPct: number, allMovers?: { name:
   const formatList = (list: { name: string, pct: number }[]) =>
     list.map(m => `${m.name} (${formatPercent(m.pct)})`).join(t(' and ', ' ו-'));
 
-  // Thresholds for "צניחה" based on timeframe
-  let severeThreshold = 0.05; // Default for 1D
+  let severeThreshold = 0.05;
   if (timeframe === '1W') severeThreshold = 0.10;
   if (timeframe === '1M') severeThreshold = 0.20;
   if (timeframe === '1Y') severeThreshold = 0.40;
@@ -141,8 +155,7 @@ function getMoveSentence(timeWord: string, timeframe: string, pfAbsPct: number, 
     return t(`${timeWord}, your portfolio saw a small change of ${gainStr} (${pctStr}).`, `${timeWord}, התיק רשם שינוי קל בלבד של ${gainStr} (${pctStr}).`);
   }
 
-  // Thresholds for "צניחה" (plunge)
-  let severeThreshold = 0.05; // 1D
+  let severeThreshold = 0.05;
   if (timeframe === '1W') severeThreshold = 0.10;
   if (timeframe === '1M') severeThreshold = 0.20;
   if (timeframe === '1Y') severeThreshold = 0.40;
@@ -163,31 +176,37 @@ function getMoveSentence(timeWord: string, timeframe: string, pfAbsPct: number, 
     : t(`${timeWord}, your portfolio is down by ${gainStr} (${pctStr}).`, `${timeWord}, התיק שלך בירידה של ${gainStr} (${pctStr}).`);
 }
 
-function getCoreMarketSentence(pfAbsPct: number, isUp: boolean, mktUS: number, mktIL: number, t: any) {
+function getCoreMarketSentence(timeframe: string, pfAbsPct: number, isUp: boolean, mktUS: number, mktIL: number, t: any, customDays?: number) {
   const usMag = Math.abs(mktUS);
   const ilMag = Math.abs(mktIL);
 
-  const usDir = mktUS > 0.005 ? 1 : mktUS < -0.005 ? -1 : 0;
-  const ilDir = mktIL > 0.005 ? 1 : mktIL < -0.005 ? -1 : 0;
+  const days = (timeframe === 'Custom' && customDays) ? customDays : (timeDays[timeframe] || 30);
+
+  const boundedDays = Math.min(days, 365);
+  const flat = 0.003 + boundedDays * ((0.03 - 0.003) / 365);
+  const sharp = 0.015 + boundedDays * ((0.15 - 0.015) / 365);
+
+  const usDir = mktUS > flat ? 1 : mktUS < -flat ? -1 : 0;
+  const ilDir = mktIL > flat ? 1 : mktIL < -flat ? -1 : 0;
   const pfDir = isUp ? 1 : -1;
 
-  const isUSSharp = usMag >= 0.02;
-  const isILSharp = ilMag >= 0.02;
+  const isUSSharp = usMag >= sharp;
+  const isILSharp = ilMag >= sharp;
 
   const avgMkt = usDir !== 0 && ilDir !== 0 ? (usMag + ilMag) / 2 : Math.max(usMag, ilMag);
   const avgMktMag = Math.abs(avgMkt);
 
-  const getMarketDesc = (dir: number, sharp: boolean, locale: 'US' | 'IL') => {
+  const getMarketDesc = (dir: number, isSharp: boolean, locale: 'US' | 'IL') => {
     if (dir === 1) {
-      if (locale === 'US') return sharp ? t('a massive bull rally in the US', 'העליות המשמעותיות בשוק האמריקאי') : t('positive US markets', 'מגמה חיובית בבורסות ארה"ב');
-      return sharp ? t('strong surges in the Israeli market', 'העליות החריגות בשוק הישראלי') : t('a solid Israeli market', 'מגמה חיובית בשוק הישראלי');
+      if (locale === 'US') return isSharp ? t('a massive bull rally in the US', 'העליות המשמעותיות בשוק האמריקאי') : t('positive US markets', 'מגמה חיובית בבורסות ארה"ב');
+      return isSharp ? t('strong surges in the Israeli market', 'העליות הבולטות בשוק הישראלי') : t('a solid Israeli market', 'מגמה חיובית בשוק הישראלי');
     } else {
-      if (locale === 'US') return sharp ? t('heavy losses in the US', 'ירידות משמעותיות בשוק האמריקאי') : t('a red US market', 'מגמה שלילית בארה"ב');
-      return sharp ? t('sharp drops in the Israeli market', 'ירידות חריגות בשוק הישראלי') : t('a dropping Israeli market', 'מגמה שלילית בשוק הישראלי');
+      if (locale === 'US') return isSharp ? t('heavy losses in the US', 'ירידות משמעותיות בשוק האמריקאי') : t('a red US market', 'מגמה שלילית בארה"ב');
+      return isSharp ? t('sharp drops in the Israeli market', 'ירידות בולטות בשוק הישראלי') : t('a dropping Israeli market', 'מגמה שלילית בשוק הישראלי');
     }
   };
 
-  if (pfAbsPct < 0.005) {
+  if (pfAbsPct < flat) {
     if ((usDir === 1 || ilDir === 1) && (usDir === -1 || ilDir === -1)) {
       return t(`The portfolio remained stable amidst a volatile session across global markets.`, `התיק שמר על יציבות על רקע תנודתיות ומגמה מעורבת בשווקים הכלליים.`);
     } else if (usDir === -1 || ilDir === -1) {
@@ -215,28 +234,26 @@ function getCoreMarketSentence(pfAbsPct: number, isUp: boolean, mktUS: number, m
     } else if (usDir === 1 || ilDir === 1) {
       const activeLocale = usDir === 1 ? 'US' : 'IL';
       const text = getMarketDesc(1, usDir === 1 ? isUSSharp : isILSharp, activeLocale);
-
       const mixed = usDir === -1 || ilDir === -1;
       if (mixed) {
         return t(`Bucking a mixed trend, this aligns with ${text}.`, `מגמה מעורבת בעולם, אך העלייה בתיק תואמת ל${text}.`);
       }
       return t(`This aligns with ${text}.`, `מגמה בהתאם ל${text}.`);
     } else if (usDir === -1 && ilDir === -1) {
-      return t(`An impressive gain despite a red day in both US and Israeli markets.`, `עלייה מרשימה למרות ירידות בשווקי ארה"ב וישראל.`);
+      return t(`This is an impressive gain despite a red day in both US and Israeli markets.`, `זאת עלייה מרשימה למרות ירידות בשווקי ארה"ב וישראל.`);
     } else if (usDir === -1 || ilDir === -1) {
       const dropLocale = usDir === -1 ? 'US' : 'IL';
       const text = getMarketDesc(-1, usDir === -1 ? isUSSharp : isILSharp, dropLocale);
-      return t(`An impressive gain despite ${text}.`, `עלייה מרשימה למרות ${text} במדדים.`);
+      return t(`This is an impressive gain despite ${text}.`, `זאת עלייה מרשימה למרות ${text} במדדים.`);
     }
   } else {
-    // Portfolio is Down
     if (usDir === -1 && ilDir === -1) {
       const usText = getMarketDesc(-1, isUSSharp, 'US');
       const ilText = getMarketDesc(-1, isILSharp, 'IL');
       if (pfAbsPct < avgMktMag * 0.6) {
         return t(`This pullback partially reflects ${usText} and ${ilText}.`, `הירידה הזו משקפת באופן חלקי את ${usText} ואת ${ilText}.`);
       } else if (pfAbsPct > avgMktMag * 1.5) {
-        return t(`This drop is heavier than the broader trend of ${usText} and ${ilText}.`, `נפילה חדה בתיק בהשוואה ל${usText} ול${ilText}.`);
+        return t(`This drop is heavier than the broader trend of ${usText} and ${ilText}.`, `זוהי נפילה חדה בתיק בהשוואה ל${usText} ול${ilText}.`);
       }
       return t(`This pullback mirrors ${usText} and ${ilText}.`, `הירידה תואמת למגמת ה${usText} וה${ilText}.`);
     } else if (usDir === -1 || ilDir === -1) {
@@ -244,19 +261,18 @@ function getCoreMarketSentence(pfAbsPct: number, isUp: boolean, mktUS: number, m
       const text = getMarketDesc(-1, usDir === -1 ? isUSSharp : isILSharp, activeLocale);
       return t(`This pullback mirrors ${text}.`, `הירידה תואמת בעיקר ל${text}.`);
     } else if (usDir === 1 && ilDir === 1) {
-      return t(`The portfolio dropped despite green rallies in both US and Israeli markets.`, `ירידות קשות בתיק חרף עליות בשווקי ארה"ב וישראל.`);
+      return t(`This is despite green rallies in both US and Israeli markets.`, `זאת חרף עליות בשווקי ארה"ב וישראל.`);
     } else if (usDir === 1 || ilDir === 1) {
       const activeLocale = usDir === 1 ? 'US' : 'IL';
       const text = getMarketDesc(1, usDir === 1 ? isUSSharp : isILSharp, activeLocale);
-      return t(`The portfolio trended downwards despite ${text}.`, `התיק ירד חרף ${text}.`);
+      return t(`This is despite ${text}.`, `זאת חרף ${text}.`);
     }
   }
-
   return "";
 }
 
-function getMarketSentence(timeframe: string, pfAbsPct: number, isUp: boolean, mktUS: number, mktNDX: number, mktIL: number, mktEnergy: number | undefined, mktIT: number | undefined, t: any) {
-  const core = getCoreMarketSentence(pfAbsPct, isUp, mktUS, mktIL, t);
+function getMarketSentence(timeframe: string, pfAbsPct: number, isUp: boolean, mktUS: number, mktNDX: number, mktIL: number, mktEnergy: number | undefined, mktIT: number | undefined, t: any, customDays?: number) {
+  const core = getCoreMarketSentence(timeframe, pfAbsPct, isUp, mktUS, mktIL, t, customDays);
   if (!core) return "";
 
   let divergenceStr = "";
@@ -265,11 +281,8 @@ function getMarketSentence(timeframe: string, pfAbsPct: number, isUp: boolean, m
     const diffE = mktEnergy !== undefined ? Math.min(Math.abs(mktEnergy - mktUS), Math.abs(mktEnergy - mktNDX)) : 0;
     const diffI = mktIT !== undefined ? Math.min(Math.abs(mktIT - mktUS), Math.abs(mktIT - mktNDX)) : 0;
 
-    // Scale thresholds depending on the observed period
-    let thresh = 0.015; // 1.5% for 1D default
-    if (timeframe === '1W') thresh = 0.03;       // 3% 
-    if (timeframe === '1M') thresh = 0.06;       // 6% 
-    if (timeframe === '1Y') thresh = 0.12;       // 12%
+    const boundedDays = Math.min((timeframe === 'Custom' && customDays ? customDays : (timeDays[timeframe] || 30)), 365);
+    const thresh = 0.01 + boundedDays * ((0.12 - 0.01) / 365);
 
     if (diffE > thresh || diffI > thresh) {
       const eFmt = mktEnergy !== undefined ? formatPercent(mktEnergy) : "";
@@ -284,7 +297,6 @@ function getMarketSentence(timeframe: string, pfAbsPct: number, isUp: boolean, m
       }
     }
   }
-
   return core + divergenceStr;
 }
 
@@ -297,9 +309,9 @@ function getTrendSentence(timeframe: string, pfAbsPct: number, isUp: boolean, to
 
   if (isUp && is1mUp) {
     if (currentPct >= totalPct1M) {
-      return t(`This recent surge single-handedly pushed the 30-day return into the green (${monthlyFormatted}).`, `הזינוק האחרון העביר את החודש כולו לטריטוריה חיובית (${monthlyFormatted}).`);
+      return t(`This recent surge single-handedly pushed the 30-day return into the green (${monthlyFormatted}).`, `זינוק אחרון זה העביר את החודש כולו לטריטוריה חיובית (${monthlyFormatted}).`);
     } else {
-      return t(`This continues a solid 30-day uptrend (${monthlyFormatted}).`, `ממשיך מגמה חיובית יציבה של החודש האחרון (${monthlyFormatted}).`);
+      return t(`This continues a solid 30-day uptrend (${monthlyFormatted}).`, `זה ממשיך מגמה חיובית יציבה של החודש האחרון (${monthlyFormatted}).`);
     }
   }
 
@@ -309,16 +321,16 @@ function getTrendSentence(timeframe: string, pfAbsPct: number, isUp: boolean, to
 
   if (!isUp && !is1mUp) {
     if (currentPct <= totalPct1M) {
-      return t(`This recent drop erased earlier gains, dragging the 30-day return into the red (${monthlyFormatted}).`, `הירידה האחרונה מוחקת עליות מוקדמות ומשכה את החודש כולו לטריטוריה שלילית (${monthlyFormatted}).`);
+      return t(`This recent drop erased earlier gains, dragging the 30-day return into the red (${monthlyFormatted}).`, `הירידה האחרונה הזו מוחקת עליות מוקדמות ומושכת את החודש כולו לטריטוריה שלילית (${monthlyFormatted}).`);
     } else {
-      return t(`This adds to a bearish 30-day trend (${monthlyFormatted}).`, `ירידה זו מעמיקה את המגמה השלילית של 30 הימים האחרונים (${monthlyFormatted}).`);
+      return t(`This adds to a bearish 30-day trend (${monthlyFormatted}).`, `ירידה זו מצטרפת ומעמיקה את המגמה השלילית של 30 הימים האחרונים (${monthlyFormatted}).`);
     }
   }
 
-  return t(`A minor pullback following a strong 30-day gain (${monthlyFormatted}).`, `תיקון קל למטה אחרי חודש רווחי בסך הכל (${monthlyFormatted}).`);
+  return t(`This is a minor pullback following a strong 30-day gain (${monthlyFormatted}).`, `זהו תיקון קל למטה אחרי חודש רווחי בסך הכל (${monthlyFormatted}).`);
 }
 
-export function PortfolioBriefingDialog({ open, onClose, holdings, transactions, dividendRecords = [], displayCurrency, exchangeRates }: PortfolioBriefingDialogProps) {
+export function PortfolioBriefingDialog({ open, onClose, holdings, transactions, dividendRecords = [], displayCurrency, exchangeRates, boiTickerData }: PortfolioBriefingDialogProps) {
   const { t } = useLanguage();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -326,49 +338,41 @@ export function PortfolioBriefingDialog({ open, onClose, holdings, transactions,
   const navigate = useNavigate();
 
   const [timeframe, setTimeframe] = useState<Timeframe>('1D');
-
-  const handleAiSummary = () => {
-    const timeframeEn = timeframe === '1D' ? 'day (1D)' : timeframe === '1W' ? 'week (1W)' : timeframe === '1M' ? 'month (1M)' : 'year (1Y)';
-    const timeframeHe = timeframe === '1D' ? 'יום (1D)' : timeframe === '1W' ? 'שבוע (1W)' : timeframe === '1M' ? 'חודש (1M)' : 'שנה (1Y)';
-
-    const promptEn = `Please create a brief of my portfolio and the broader market (IL, US, and global) performance over the selected period (${timeframeEn}), and integrate my recent events and their effects.`;
-    const promptHe = `אנא צור סיכום של תפקוד התיק שלי ושל שוקי המניות (ישראל, ארה"ב וגלובלי) לתקופה שנבחרה (${timeframeHe}), ושלב את האירועים האחרונים בחשבון ואת השפעתם.`;
-
-    const prompt = t(promptEn, promptHe);
-
-    onClose();
-    setTimeout(() => {
-      navigate({
-        pathname: '/ai',
-        search: `?prompt=${encodeURIComponent(prompt)}`
-      });
-    }, 50);
-  };
-  const [marketData, setMarketData] = useState<{ spx?: number, ndx?: number, tlv?: number }>({});
+  const [marketData, setMarketData] = useState<{ spx?: number, ndx?: number, tlv?: number, it?: number, energy?: number }>({});
   const [loadingMarket, setLoadingMarket] = useState(false);
+  const [customRangeOpen, setCustomRangeOpen] = useState(false);
+  const [customDateRange, setCustomDateRange] = useState<{ start: Date | null, end: Date | null }>({ start: null, end: null });
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
 
   const { containerRef, showTop, showBottom } = useScrollShadows('vertical');
 
   useEffect(() => {
     if (open) {
+      const dr = timeframe === 'Custom' && customDateRange.start ? { start: customDateRange.start, end: customDateRange.end } : undefined;
       setLoadingMarket(true);
       Promise.all([
-        getTickerData('^SPX', Exchange.NYSE, null, undefined, false),
-        getTickerData('^IXIC', Exchange.NASDAQ, null, undefined, false),
-        getTickerData('137', Exchange.TASE, 137, undefined, false)
-      ]).then(([spx, ndx, tlv]) => {
+        getTickerData('^SPX', Exchange.NYSE, null),
+        getTickerData('^IXIC', Exchange.NASDAQ, null),
+        getTickerData('137', Exchange.TASE, 137),
+        getTickerData('^NYETR', Exchange.NYSE, null),
+        getTickerData('^SP500-45', Exchange.NYSE, null)
+      ]).then(([spx, ndx, tlv, nyn, it]) => {
+        const field = dr ? 'changePct1y' : (timeframe === '1D' ? 'changePct1d' : timeframe === '1W' ? 'changePctRecent' : timeframe === '1M' ? 'changePct1m' : 'changePct1y');
         setMarketData({
-          spx: spx?.[timeframe === '1D' ? 'changePct1d' : timeframe === '1W' ? 'changePctRecent' : timeframe === '1M' ? 'changePct1m' : 'changePct1y'],
-          ndx: ndx?.[timeframe === '1D' ? 'changePct1d' : timeframe === '1W' ? 'changePctRecent' : timeframe === '1M' ? 'changePct1m' : 'changePct1y'],
-          tlv: tlv?.[timeframe === '1D' ? 'changePct1d' : timeframe === '1W' ? 'changePctRecent' : timeframe === '1M' ? 'changePct1m' : 'changePct1y']
+          spx: (spx as any)?.[field] || spx?.changePctRecent,
+          ndx: (ndx as any)?.[field] || ndx?.changePctRecent,
+          tlv: (tlv as any)?.[field] || tlv?.changePctRecent,
+          energy: (nyn as any)?.[field] || nyn?.changePctRecent,
+          it: (it as any)?.[field] || it?.changePctRecent
         });
-      }).finally(() => setLoadingMarket(false));
+      }).finally(() => {
+        setLoadingMarket(false);
+      });
     }
-  }, [open, timeframe]);
+  }, [open, timeframe, customDateRange.start, customDateRange.end]);
 
   const stats = useMemo(() => {
     let totalStartVal = 0;
-
     let totalDivs = 0;
     let totalFlow = 0;
     let totalVests = 0;
@@ -384,7 +388,11 @@ export function PortfolioBriefingDialog({ open, onClose, holdings, transactions,
       const inPeriod = (timeframe === '1D') ? (diff === 0) :
         (timeframe === '1W') ? (diff >= -7 && diff <= 0) :
           (timeframe === '1M') ? (diff >= -30 && diff <= 0) :
-            (diff >= -365 && diff <= 0);
+            (timeframe === 'Custom') ? (
+              (!customDateRange.start || d.getTime() >= customDateRange.start.getTime()) &&
+              (!customDateRange.end || d.getTime() <= customDateRange.end.getTime())
+            ) :
+              (diff >= -365 && diff <= 0);
 
       if (!inPeriod) return;
 
@@ -394,11 +402,9 @@ export function PortfolioBriefingDialog({ open, onClose, holdings, transactions,
         totalFlow += convertCurrency((txn.qty || txn.originalQty || 0) * (txn.price || txn.originalPrice || 0), txn.currency || 'USD', displayCurrency, exchangeRates);
       } else if (isSell(txn.type)) {
         totalFlow -= convertCurrency((txn.qty || txn.originalQty || 0) * (txn.price || txn.originalPrice || 0), txn.currency || 'USD', displayCurrency, exchangeRates);
-      }
-
-      if (txn.vestDate) {
-        const h = holdings.find(hd => hd.ticker === txn.ticker);
-        const cp = h?.display.currentPrice || (txn.price || txn.originalPrice || 0);
+      } else if (txn.vestDate) {
+        const h = holdings.find(h => h.ticker === txn.ticker);
+        const cp = h?.currentPrice || (txn.price || txn.originalPrice || 0);
         const vestVal = (txn.qty || txn.originalQty || 0) * cp;
         totalVests += convertCurrency(vestVal, (txn.currency || 'USD') as any, displayCurrency, exchangeRates);
       }
@@ -411,13 +417,15 @@ export function PortfolioBriefingDialog({ open, onClose, holdings, transactions,
       const inPeriod = (timeframe === '1D') ? (diff === 0) :
         (timeframe === '1W') ? (diff >= -7 && diff <= 0) :
           (timeframe === '1M') ? (diff >= -30 && diff <= 0) :
-            (diff >= -365 && diff <= 0);
+            (timeframe === 'Custom') ? (
+              (!customDateRange.start || d.getTime() >= customDateRange.start.getTime()) &&
+              (!customDateRange.end || d.getTime() <= customDateRange.end.getTime())
+            ) :
+              (diff >= -365 && diff <= 0);
 
       if (!inPeriod) return;
-
       totalDivs += convertCurrency((div.unitsHeld || 0) * (div.pricePerUnit || div.grossAmount.amount || 0), div.grossAmount.currency || 'USD', displayCurrency, exchangeRates);
     });
-
 
     let totalEndVal = 0;
     let totalStartVal1M = 0;
@@ -431,17 +439,34 @@ export function PortfolioBriefingDialog({ open, onClose, holdings, transactions,
     const movers = Array.from(groupedHoldings.values()).map(group => {
       const first = group[0];
       const agg = aggregateHoldingValues(group as any[], exchangeRates, displayCurrency);
-
       const val = agg.marketValue.amount;
       let pct = 0;
       if (timeframe === '1D') pct = agg.dayChangePct || 0;
       else if (timeframe === '1W') pct = first.perf1w || 0;
       else if (timeframe === '1M') pct = first.perf1m || 0;
+      else if (timeframe === '3M') pct = first.perf3m || 0;
+      else if (timeframe === '6M') pct = (first.perf3m || 0) * 2;
+      else if (timeframe === 'YTD') pct = first.perfYtd || 0;
+      else if (timeframe === '3Y') pct = first.perf3y || 0;
+      else if (timeframe === '5Y') pct = first.perf5y || 0;
+      else if (timeframe === 'All') pct = first.perfAll || 0;
+      else if (timeframe === 'Custom') {
+        const cDays = customDateRange.start
+          ? Math.round(((customDateRange.end || new Date()).getTime() - customDateRange.start.getTime()) / msDaily)
+          : 99999;
+        // Fallback to closest bucket for holdings without historical data access here
+        if (cDays <= 3) pct = agg.dayChangePct || 0;
+        else if (cDays <= 10) pct = first.perf1w || 0;
+        else if (cDays <= 45) pct = first.perf1m || 0;
+        else if (cDays <= 120) pct = first.perf3m || 0;
+        else if (cDays <= 450) pct = first.perf1y || 0;
+        else if (cDays <= 1200) pct = first.perf3y || 0;
+        else pct = first.perfAll || 0;
+      }
       else pct = first.perf1y || 0;
 
       const base = val / (1 + pct);
       const gain = val - base;
-
       const pct1M = first.perf1m || 0;
       const base1M = val / (1 + pct1M);
 
@@ -464,10 +489,10 @@ export function PortfolioBriefingDialog({ open, onClose, holdings, transactions,
     const allMovers = movers.map(m => ({ exchange: m.exchange, name: m.name, pct: m.pct, gain: m.gain, ticker: m.ticker }));
 
     return { totalGain, totalPct, totalPct1M, topGainers, topLosers, allMovers, totalDivs, totalFlow, totalVests };
-  }, [holdings, timeframe, transactions, exchangeRates, displayCurrency]);
+  }, [holdings, timeframe, transactions, exchangeRates, displayCurrency, dividendRecords, customDateRange.start, customDateRange.end]);
 
   const recentEvents = useMemo(() => {
-    const allEvents = getRecentEventsData(holdings, transactions, dividendRecords, t);
+    const allEvents = getRecentEventsData(holdings, transactions, dividendRecords, t, boiTickerData);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -481,7 +506,26 @@ export function PortfolioBriefingDialog({ open, onClose, holdings, transactions,
       if (timeframe === '1M') return diffDays >= -30 && diffDays <= 1;
       return diffDays >= -365 && diffDays <= 1;
     }).slice(0, 4);
-  }, [holdings, transactions, t, timeframe]);
+  }, [holdings, transactions, dividendRecords, t, timeframe]);
+
+  const handleAiSummary = () => {
+    const timeframeEn = timeframe === 'Custom' && customDateRange.start
+      ? `from ${formatDate(customDateRange.start)} to ${customDateRange.end ? formatDate(customDateRange.end) : 'today'}`
+      : timeframe;
+    const timeframeHe = timeframe === 'Custom' && customDateRange.start
+      ? `מ-${formatDate(customDateRange.start)} עד ${customDateRange.end ? formatDate(customDateRange.end) : t('Today', 'היום')}`
+      : t(timeframe, timeframe);
+
+    const promptEn = `Please provide a detailed financial briefing of my portfolio performance and the broader market (S&P 500, NASDAQ, TA-125) for the period: ${timeframeEn}. Highlight key movers and recent notable events.`;
+    const promptHe = `אנא ספק סיכום פיננסי מפורט של ביצועי התיק שלי ושל השוק הרחב (S&P 500, נאסד"ק, ת"א-125) לתקופה: ${timeframeHe}. ציין את המניות הבולטות ואירועים מרכזיים.`;
+
+    const prompt = t(promptEn, promptHe);
+
+    onClose();
+    setTimeout(() => {
+      navigate({ pathname: '/ai', search: `?prompt=${encodeURIComponent(prompt)}` });
+    }, 50);
+  };
 
   const renderBriefingTextWithLinks = (text: string) => {
     let chunks: React.ReactNode[] = [text];
@@ -554,15 +598,39 @@ export function PortfolioBriefingDialog({ open, onClose, holdings, transactions,
                 '&.Mui-disabled': { border: 0 },
                 '&:not(:first-of-type)': { borderRadius: 1.5 },
                 '&:first-of-type': { borderRadius: 1.5 },
-              },
-              '& .Mui-selected': { bgcolor: 'background.paper', boxShadow: 1 }
+                '&.Mui-selected': { bgcolor: 'background.paper', boxShadow: 1 }
+              }
             }}
           >
-            <ToggleButton value="1D" sx={{ color: 'text.secondary', textTransform: 'capitalize' }}>{t('Day', 'יומי')}</ToggleButton>
-            <ToggleButton value="1W" sx={{ color: 'text.secondary', textTransform: 'capitalize' }}>{t('Week', 'שבועי')}</ToggleButton>
-            <ToggleButton value="1M" sx={{ color: 'text.secondary', textTransform: 'capitalize' }}>{t('Month', 'חודשי')}</ToggleButton>
-            <ToggleButton value="1Y" sx={{ color: 'text.secondary', textTransform: 'capitalize' }}>{t('Year', 'שנתי')}</ToggleButton>
+            <ToggleButton value="1D">{t('Day', 'יומי')}</ToggleButton>
+            <ToggleButton value="1W">{t('Week', 'שבועי')}</ToggleButton>
+            <ToggleButton value="1M">{t('Month', 'חודשי')}</ToggleButton>
+            <ToggleButton value="1Y">{t('Year', 'שנתי')}</ToggleButton>
+            <ToggleButton
+              value="more"
+              onClick={(e) => setAnchorEl(e.currentTarget)}
+              sx={{
+                px: 1.5,
+                borderLeft: "1px solid rgba(0,0,0,0.1) !important",
+                color: (['3M', '6M', 'YTD', '3Y', '5Y', 'All', 'Custom'].includes(timeframe)) ? 'primary.main' : 'inherit',
+                fontWeight: 800
+              }}
+            >
+              {timeframe === 'Custom' ? <DateRangeIcon fontSize="small" /> :
+                ['3M', '6M', 'YTD', '3Y', '5Y', 'All'].includes(timeframe) ? timeframe :
+                  <KeyboardArrowDownIcon />}
+            </ToggleButton>
           </ToggleButtonGroup>
+
+          <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)} sx={{ mt: 1 }}>
+            <MenuItem onClick={() => { setTimeframe("3M"); setAnchorEl(null); }} selected={timeframe === "3M"}>{t("3 Months", "3 חודשים")}</MenuItem>
+            <MenuItem onClick={() => { setTimeframe("YTD"); setAnchorEl(null); }} selected={timeframe === "YTD"}>{t("YTD", "מתחילת שנה")}</MenuItem>
+            <MenuItem onClick={() => { setTimeframe("All"); setAnchorEl(null); }} selected={timeframe === "All"}>{t("Lifetime", "כל הזמן")}</MenuItem>
+            <MenuItem onClick={() => { setCustomRangeOpen(true); setAnchorEl(null); }} selected={timeframe === "Custom"}>
+              <ListItemIcon><DateRangeIcon fontSize="small" /></ListItemIcon>
+              <ListItemText>{t("Custom", "מותאם אישית")}</ListItemText>
+            </MenuItem>
+          </Menu>
         </Box>
 
         <Box sx={{ display: 'flex', gap: 0.5 }}>
@@ -587,10 +655,32 @@ export function PortfolioBriefingDialog({ open, onClose, holdings, transactions,
             scrollbarWidth: 'none'
           }}
         >
-          <Box sx={{ p: 2, borderRadius: 3, bgcolor: 'action.hover', border: 1, borderColor: 'divider', mb: 3 }}>
-            <Typography variant="body1" sx={{ fontWeight: 500, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
-              {renderBriefingTextWithLinks(generateBriefingText(timeframe, stats, marketData, displayCurrency, t))}
-            </Typography>
+          <Box sx={{ p: 2, borderRadius: 3, bgcolor: 'action.hover', border: 1, borderColor: 'divider', mb: 3, minHeight: isMobile ? 180 : 120 }}>
+            {timeframe === 'Custom' && (customDateRange.start || customDateRange.end) && (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1, fontWeight: 700 }}>
+                {customDateRange.start ? formatDate(customDateRange.start) : t('Inception', 'הקמה')} - {customDateRange.end ? formatDate(customDateRange.end) : t('Today', 'היום')}
+              </Typography>
+            )}
+            <Fade
+              key={timeframe + (customDateRange.start?.getTime() || '') + (customDateRange.end?.getTime() || '') + (loadingMarket ? 't' : 'f')}
+              in={!loadingMarket}
+              timeout={400}
+            >
+              <Box>
+                <Typography variant="body1" sx={{ fontWeight: 500, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                  {renderBriefingTextWithLinks(generateBriefingText(
+                    timeframe,
+                    stats,
+                    marketData,
+                    displayCurrency,
+                    t,
+                    (timeframe === 'Custom' && customDateRange.start)
+                      ? Math.round(((customDateRange.end || new Date()).getTime() - customDateRange.start.getTime()) / 86400000)
+                      : undefined
+                  ))}
+                </Typography>
+              </Box>
+            </Fade>
           </Box>
 
           <Typography variant="subtitle2" fontWeight={800} sx={{ mb: 1, color: 'text.secondary' }}>{t('Market Benchmark', 'השוואת שוק')}</Typography>
@@ -600,38 +690,33 @@ export function PortfolioBriefingDialog({ open, onClose, holdings, transactions,
               <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}><CircularProgress size={20} /></Box>
             ) : (
               <>
-                {renderStatCard('S&P 500', '', marketData.spx, 'transparent', 'text.primary', '/ticker/NASDAQ/^SPX')}
-                {renderStatCard('NASDAQ', '', marketData.ndx, 'transparent', 'text.primary', '/ticker/NASDAQ/^IXIC')}
-                {renderStatCard('TA-125', '', marketData.tlv, 'transparent', 'text.primary', '/ticker/TASE/137')}
+                  {renderStatCard('S&P 500', '', marketData.spx, 'transparent', 'text.primary')}
+                  {renderStatCard('TA-125', '', marketData.tlv, 'transparent', 'text.primary')}
               </>
             )}
           </Stack>
 
-          <Divider sx={{ my: 3 }} />
-
-          <Grid container spacing={2} sx={{ mb: 3 }}>
+          <Grid container spacing={2} sx={{ mb: 4 }}>
             <Grid item xs={6}>
               <Typography variant="subtitle2" fontWeight={800} sx={{ mb: 1.5, color: 'success.main', display: 'flex', alignItems: 'center', gap: 0.5 }}>
                 <ArrowUpwardIcon fontSize="small" /> {t('Top Gainers', 'עולות')}
               </Typography>
               <Stack spacing={1.5}>
-                {stats.topGainers.map(m => {
-                  return (
-                    <Box key={m.ticker} sx={{ position: 'relative', overflow: 'hidden', p: 1.5, py: 1, borderRadius: 1.5, bgcolor: 'background.default', border: '1px solid', borderColor: 'divider' }}>
-                      <Box sx={{ position: 'relative', display: 'flex', flexDirection: 'column' }}>
-                        <MuiLink component={RouterLink} to={'/ticker/' + m.exchange + '/' + m.ticker} onClick={onClose} underline="hover" color="inherit" sx={{ display: 'block' }}>
-                          <Typography component="div" variant="body2" fontWeight="bold" noWrap title={m.name} sx={{ mb: 0.25 }}>{m.name}</Typography>
-                        </MuiLink>
-                        <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.75 }}>
-                          <Typography variant="body2" fontWeight="bold" color="success.main"><span dir="ltr">+{formatMoneyValue({ amount: m.gain, currency: displayCurrency as any }, undefined, 0)}</span></Typography>
-                          <Typography variant="caption" color="success.main" sx={{ fontWeight: 'bold' }}>
-                            {formatPercent(m.pct)}
-                          </Typography>
-                        </Box>
+                {stats.topGainers.map(m => (
+                  <Box key={m.ticker} sx={{ position: 'relative', overflow: 'hidden', p: 1.5, py: 1, borderRadius: 1.5, bgcolor: 'background.default', border: '1px solid', borderColor: 'divider' }}>
+                    <Box sx={{ position: 'relative', display: 'flex', flexDirection: 'column' }}>
+                      <MuiLink component={RouterLink} to={'/ticker/' + m.exchange + '/' + m.ticker} onClick={onClose} underline="hover" color="inherit" sx={{ display: 'block' }}>
+                        <Typography component="div" variant="body2" fontWeight="bold" noWrap title={m.name} sx={{ mb: 0.25 }}>{m.name}</Typography>
+                      </MuiLink>
+                      <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.75 }}>
+                        <Typography variant="body2" fontWeight="bold" color="success.main"><span dir="ltr">+{formatMoneyValue({ amount: m.gain, currency: displayCurrency as any }, undefined, 0)}</span></Typography>
+                        <Typography variant="caption" color="success.main" sx={{ fontWeight: 'bold' }}>
+                          {formatPercent(m.pct)}
+                        </Typography>
                       </Box>
                     </Box>
-                  );
-                })}
+                  </Box>
+                ))}
                 {stats.topGainers.length === 0 && <Typography variant="caption" color="text.secondary">{t('No gainers', 'אין')}</Typography>}
               </Stack>
             </Grid>
@@ -641,23 +726,21 @@ export function PortfolioBriefingDialog({ open, onClose, holdings, transactions,
                 <ArrowDownwardIcon fontSize="small" /> {t('Top Losers', 'יורדות')}
               </Typography>
               <Stack spacing={1.5}>
-                {stats.topLosers.map(m => {
-                  return (
-                    <Box key={m.ticker} sx={{ position: 'relative', overflow: 'hidden', p: 1.5, py: 1, borderRadius: 1.5, bgcolor: 'background.default', border: '1px solid', borderColor: 'divider' }}>
-                      <Box sx={{ position: 'relative', display: 'flex', flexDirection: 'column' }}>
-                        <MuiLink component={RouterLink} to={'/ticker/' + m.exchange + '/' + m.ticker} onClick={onClose} underline="hover" color="inherit" sx={{ display: 'block' }}>
-                          <Typography component="div" variant="body2" fontWeight="bold" noWrap title={m.name} sx={{ mb: 0.25 }}>{m.name}</Typography>
-                        </MuiLink>
-                        <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.75 }}>
-                          <Typography variant="body2" fontWeight="bold" color="error.main"><span dir="ltr">{formatMoneyValue({ amount: m.gain, currency: displayCurrency as any }, undefined, 0)}</span></Typography>
-                          <Typography variant="caption" color="error.main" sx={{ fontWeight: 'bold' }}>
-                            {formatPercent(m.pct)}
-                          </Typography>
-                        </Box>
+                {stats.topLosers.map(m => (
+                  <Box key={m.ticker} sx={{ position: 'relative', overflow: 'hidden', p: 1.5, py: 1, borderRadius: 1.5, bgcolor: 'background.default', border: '1px solid', borderColor: 'divider' }}>
+                    <Box sx={{ position: 'relative', display: 'flex', flexDirection: 'column' }}>
+                      <MuiLink component={RouterLink} to={'/ticker/' + m.exchange + '/' + m.ticker} onClick={onClose} underline="hover" color="inherit" sx={{ display: 'block' }}>
+                        <Typography component="div" variant="body2" fontWeight="bold" noWrap title={m.name} sx={{ mb: 0.25 }}>{m.name}</Typography>
+                      </MuiLink>
+                      <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.75 }}>
+                        <Typography variant="body2" fontWeight="bold" color="error.main"><span dir="ltr">{formatMoneyValue({ amount: m.gain, currency: displayCurrency as any }, undefined, 0)}</span></Typography>
+                        <Typography variant="caption" color="error.main" sx={{ fontWeight: 'bold' }}>
+                          {formatPercent(m.pct)}
+                        </Typography>
                       </Box>
                     </Box>
-                  );
-                })}
+                  </Box>
+                ))}
                 {stats.topLosers.length === 0 && <Typography variant="caption" color="text.secondary">{t('No losers', 'אין')}</Typography>}
               </Stack>
             </Grid>
@@ -668,8 +751,8 @@ export function PortfolioBriefingDialog({ open, onClose, holdings, transactions,
               <Typography variant="subtitle2" fontWeight={800} sx={{ mb: 1.5, mt: 1, color: 'text.secondary' }}>{t('Events & Updates', 'אירועים ועדכונים')}</Typography>
               <Stack spacing={1}>
                 {recentEvents.map(ev => {
-                  const h = holdings.find(h => h.ticker === ev.ticker);
-                  const holdingName = h ? (h.displayName || h.longName || h.nameHe || h.ticker) : ev.ticker;
+                  const h = holdings.find(h => (h.ticker === ev.ticker && h.exchange === ev.exchange));
+                  const holdingName = h ? (h.displayName || h.longName || h.nameHe || h.ticker) : (ev.ticker === 'BOI' ? t('Bank of Israel', 'בנק ישראל') : ev.ticker);
                   return (
                     <Paper key={ev.id} variant="outlined" sx={{ p: 1.5, display: 'flex', alignItems: 'center', gap: 1.5, borderRadius: 2 }}>
                       <Box sx={{ fontSize: '1.2rem', lineHeight: 1 }}><EventIcon fontSize="inherit" /></Box>
@@ -678,7 +761,7 @@ export function PortfolioBriefingDialog({ open, onClose, holdings, transactions,
                           <span>{holdingName} &middot; {ev.titleStr}</span>
                           <Typography component="span" variant="caption" color="text.secondary">{ev.dateDisplay}</Typography>
                         </Typography>
-                        <Typography variant="caption" color="text.secondary">{ev.desc}</Typography>
+                        <Typography variant="caption" color="text.secondary">{ev.desc}{ev.valueDesc ? ` &middot; ${ev.valueDesc}` : ""}</Typography>
                       </Box>
                     </Paper>
                   );
@@ -689,6 +772,16 @@ export function PortfolioBriefingDialog({ open, onClose, holdings, transactions,
         </Box>
         <ScrollShadows top={showTop} bottom={showBottom} theme={theme} />
       </DialogContent>
+      <CustomRangeDialog
+        open={customRangeOpen}
+        onClose={() => setCustomRangeOpen(false)}
+        initialStart={customDateRange.start}
+        initialEnd={customDateRange.end}
+        onSave={(start, end) => {
+          setCustomDateRange({ start, end });
+          setTimeframe('Custom');
+        }}
+      />
     </Dialog>
   );
 }

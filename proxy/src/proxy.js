@@ -24,7 +24,8 @@ const API_MAP = {
     urlTemaplte: "https://query2.finance.yahoo.com/v10/finance/quoteSummary/{ticker}?modules={modules}&crumb={crumb}",
     ttl: 3600,
     requiresCrumb: true
-  }
+  },
+  "boi_statistics": { urlTemaplte: "https://edge.boi.gov.il/FusionEdgeServer/sdmx/v2/data/dataflow/BOI.STATISTICS/BR/1.0/{series}?locale=en&format=csv", ttl: 43200 }
 };
 
 async function invokeApi(apiId, params, env, ctx, corsHeaders) {

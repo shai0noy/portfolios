@@ -94,8 +94,26 @@ function LinkParser({ children, t, onPromptClick, onTickerClick, onProfileClick,
               component="span"
               key={match.index}
               onClick={() => onPromptClick(value || '')}
-              sx={{ color: 'primary.main', cursor: 'pointer', mx: 0.2, textDecoration: 'underline', '&:hover': { color: 'primary.dark' } }}
+              sx={{
+                color: 'primary.main',
+                bgcolor: (t) => t.palette.mode === 'dark' ? 'rgba(144, 202, 249, 0.12)' : 'rgba(25, 118, 210, 0.08)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                cursor: 'pointer',
+                mx: 0.5,
+                px: 1,
+                py: 0.2,
+                borderRadius: 4,
+                border: '1px solid',
+                borderColor: (t) => t.palette.mode === 'dark' ? 'rgba(144, 202, 249, 0.3)' : 'rgba(25, 118, 210, 0.3)',
+                fontWeight: 600,
+                fontSize: '0.85em',
+                verticalAlign: 'middle',
+                transition: '0.2s',
+                '&:hover': { bgcolor: 'primary.main', color: 'primary.contrastText', borderColor: 'primary.main' }
+              }}
             >
+              <AutoAwesomeIcon sx={{ fontSize: '1.2em', mr: 0.5, ml: 0.2 }} />
               {value}
             </Box>
           );
@@ -121,10 +139,27 @@ function LinkParser({ children, t, onPromptClick, onTickerClick, onProfileClick,
               component="span"
               key={match.index}
               onClick={() => onProfileClick()}
-              sx={{ color: 'secondary.main', cursor: 'pointer', mx: 0.2, textDecoration: 'underline', '&:hover': { color: 'secondary.dark' } }}
+              sx={{
+                color: 'secondary.main',
+                bgcolor: (t) => t.palette.mode === 'dark' ? 'rgba(206, 147, 216, 0.12)' : 'rgba(156, 39, 176, 0.08)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                cursor: 'pointer',
+                mx: 0.5,
+                px: 1,
+                py: 0.2,
+                borderRadius: 4,
+                border: '1px solid',
+                borderColor: (t) => t.palette.mode === 'dark' ? 'rgba(206, 147, 216, 0.3)' : 'rgba(156, 39, 176, 0.3)',
+                fontWeight: 600,
+                fontSize: '0.85em',
+                verticalAlign: 'middle',
+                transition: '0.2s',
+                '&:hover': { bgcolor: 'secondary.main', color: 'secondary.contrastText', borderColor: 'secondary.main' }
+              }}
             >
-              <ManageAccountsIcon sx={{ fontSize: '1.2em', verticalAlign: 'middle', mr: 0.2, ml: 0.1, mt: '-2px' }} />
-              {value || t('Edit Profile', 'ערוך פרופיל')}
+              <ManageAccountsIcon sx={{ fontSize: '1.2em', mr: 0.5, ml: 0.2 }} />
+              <Box component="span" sx={{ mt: '1px' }}>{value || t('Edit Profile', 'ערוך פרופיל')}</Box>
             </Box>
           );
         } else if (type === 'url') {
