@@ -47,6 +47,7 @@ interface SummaryProps {
   hasFutureTxns?: boolean;
   favoriteHoldings?: DashboardHolding[];
   showClosed?: boolean;
+  boiTickerData?: { ticker: string, exchange: string, historical: { date: Date, price: number }[] };
 }
 
 /**
@@ -59,14 +60,14 @@ interface SummaryProps {
  * 
  * Supports "Stepping" through these 4 views automatically or manually.
  */
-export function DashboardSummary({ summary, holdings, displayCurrency, exchangeRates, selectedPortfolio, portfolios, isPortfoliosLoading, transactions, dividendRecords = [], hasFutureTxns, favoriteHoldings, showClosed }: SummaryProps) {
+export function DashboardSummary({ summary, holdings, displayCurrency, exchangeRates, selectedPortfolio, portfolios, isPortfoliosLoading, transactions, dividendRecords = [], hasFutureTxns, favoriteHoldings, showClosed, boiTickerData }: SummaryProps) {
   logIfFalsy(exchangeRates, "DashboardSummary: exchangeRates missing");
   const { t, isRtl } = useLanguage();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   const [activeStep, setActiveStep] = useState(0);
-  const hasRecent = hasRecentEvents(holdings, favoriteHoldings || [], transactions, dividendRecords);
+  const hasRecent = hasRecentEvents(holdings, favoriteHoldings || [], transactions, dividendRecords, boiTickerData || undefined);
   const totalSteps = hasRecent ? 5 : 4;
   const idxRecent = 1;
   const idxPerf = hasRecent ? 2 : 1;
@@ -915,7 +916,12 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
             <Box sx={{ display: activeStep === idxRecent ? 'block' : 'none', height: isMobile ? 'auto' : '100%' }}>
               <Fade in={activeStep === idxRecent} timeout={700}>
                 <Box sx={{ height: '100%' }}>
-                  <RecentEventsCard holdings={[...holdings, ...(favoriteHoldings || [])]} transactions={transactions} dividendRecords={dividendRecords} />
+                  <RecentEventsCard
+                    holdings={[...holdings, ...(favoriteHoldings || [])]}
+                    transactions={transactions}
+                    dividendRecords={dividendRecords}
+                    boiTickerData={boiTickerData || undefined}
+                  />
                 </Box>
               </Fade>
             </Box>

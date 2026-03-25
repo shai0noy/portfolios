@@ -23,7 +23,8 @@ import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined';
 import { DashboardTable } from './DashboardTable';
 import { useLanguage } from '../lib/i18n';
 import { useDashboardData, calculateDashboardSummary, INITIAL_SUMMARY, type EnrichedDashboardHolding } from '../lib/dashboard';
-import { Currency, TrackingListId } from '../lib/types';
+import { Currency, TrackingListId, Exchange } from '../lib/types';
+import { fetchTickerHistory } from '../lib/fetching';
 import { getDefaultColumnVisibility, getColumnDisplayNames, getPresetVisibility, type ColumnPresetType } from '../lib/dashboardColumns';
 import { TickerSearch } from './TickerSearch';
 import { useSession } from '../lib/SessionContext';
@@ -62,6 +63,21 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
   const [aiInitialPrompt, setAiInitialPrompt] = useState<string | undefined>(undefined);
   const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
   const [decryptedKey, setDecryptedKey] = useState<string | null>(null);
+  const [boiData, setBoiData] = useState<{ ticker: string, exchange: string, historical: { date: Date, price: number }[] } | null>(null);
+
+  useEffect(() => {
+    fetchTickerHistory('MNT_RIB_BOI_D.D.RIB_BOI', Exchange.BOI, undefined, false)
+      .then(res => {
+        if (res && res.historical) {
+          setBoiData({
+            ticker: 'BOI',
+            exchange: 'BOI',
+            historical: res.historical
+          });
+        }
+      })
+      .catch(err => console.error("Failed to fetch BOI history", err));
+  }, []);
 
   const handleClickColSelector = (event: React.MouseEvent<HTMLButtonElement>) => {
     setAnchorEl(event.currentTarget);
@@ -566,6 +582,7 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
           hasFutureTxns={hasFutureTxns}
           favoriteHoldings={favoriteHoldings}
           showClosed={showClosed}
+          boiTickerData={boiData || undefined}
         />
       ) : (
         <Paper variant="outlined" sx={{ p: 3, mb: 4, position: 'relative' }}>
@@ -844,13 +861,15 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
       }
 
       {briefingOpen && (
-        <PortfolioBriefingDialog transactions={engine?.transactions || []}
+        <PortfolioBriefingDialog
+          transactions={engine?.transactions || []}
           dividendRecords={engine?.dividendRecords || []}
           open={true}
           onClose={() => navigate(location.pathname.replace('/summary', ''))}
           holdings={displayedHoldings}
             displayCurrency={displayCurrency}
             exchangeRates={exchangeRates}
+          boiTickerData={boiData || undefined}
           />
       )}
     </Box>

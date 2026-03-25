@@ -89,6 +89,7 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({
             { ticker: '^SP500-45', exchange: Exchange.NYSE, name: 'S&P 500 Info Tech' },
             { ticker: '137', exchange: Exchange.TASE, name: 'TA-125', sid: 137 },
             { ticker: '120010', exchange: Exchange.CBS, name: 'Israel Consumer Price Index (Inflation)', sid: 120010 },
+            { ticker: 'MNT_RIB_BOI_D.D.RIB_BOI', exchange: Exchange.BOI, name: 'Bank of Israel Interest Rate' },
           ];
 
           const results = await Promise.all(
@@ -98,6 +99,9 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({
           const overview = symbols.map((s, i) => {
             const data = results[i];
             if (!data) return `${s.name}: N/A`;
+
+            const priceStr = s.exchange === Exchange.BOI ? `: ${data.price}%` : '';
+
             const stats = [
               data.changePct1d !== undefined ? `1D: ${formatPercent(data.changePct1d)}` : null,
               data.changePctRecent !== undefined ? `1W: ${formatPercent(data.changePctRecent)}` : null,
@@ -108,7 +112,7 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({
               data.changePct5y !== undefined ? `5Y: ${formatPercent(data.changePct5y)}` : null,
             ].filter(Boolean).join(', ');
 
-            return `${s.name}: ${stats}`;
+            return `${s.name}${priceStr} (${stats})`;
           }).join('\\n');
 
           setMarketOverview(overview);

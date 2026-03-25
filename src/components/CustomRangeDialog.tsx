@@ -96,12 +96,10 @@ export function CustomRangeDialog({ open, onClose, onSave, initialStart, initial
   // Last 3 Years
   for (let i = 0; i < 3; i++) {
     const y = now.getFullYear() - i;
-    // Use YTD for current year
-    const isCurrentYear = i === 0;
     quickOptions.push({
       label: `${y}`,
       start: `01/01/${y}`,
-      end: isCurrentYear ? formatDate(now) : `31/12/${y}`
+      end: `31/12/${y}`
     });
   }
 
@@ -118,8 +116,7 @@ export function CustomRangeDialog({ open, onClose, onSave, initialStart, initial
     const mString = t(mStringEN, mStringHE);
 
     const startStr = `01/${String(m + 1).padStart(2, '0')}/${y}`;
-    const isCurrentMonth = (i === 0);
-    const endStr = isCurrentMonth ? formatDate(now) : `${new Date(y, m + 1, 0).getDate()}/${String(m + 1).padStart(2, '0')}/${y}`;
+    const endStr = `${new Date(y, m + 1, 0).getDate()}/${String(m + 1).padStart(2, '0')}/${y}`;
 
     quickOptions.push({
       label: `${mString} ${y}`,

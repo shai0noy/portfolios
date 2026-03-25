@@ -6,6 +6,7 @@ import { fetchAllTickers } from './stock_list';
 import { fetchGemelnetQuote } from './gemelnet';
 import { fetchPensyanetQuote } from './pensyanet';
 import { fetchCpi, getCbsTickers } from './cbs';
+import { fetchBoiData, getBoiTickers } from './boi';
 import { normalizeTaseTicker } from './utils/normalization';
 import { getPredefinedYahooTickers } from './yahoo_tickers';
 import type { TickerData } from './types';
@@ -22,6 +23,7 @@ export * from './globes';
 export * from './gemelnet';
 export * from './pensyanet';
 export * from './yahoo_search';
+export * from './boi';
 
 let tickersDataset: Record<string, TickerProfile[]> | null = null;
 let tickersDatasetLoading: Promise<Record<string, TickerProfile[]>> | null = null;
@@ -52,6 +54,13 @@ export function getTickersDataset(signal?: AbortSignal, forceRefresh = false): P
       if (cbsTickers.length > 0) {
         if (!combined['Index']) combined['Index'] = [];
         combined['Index'] = combined['Index'].concat(cbsTickers);
+      }
+
+      // Add BOI tickers
+      const boiTickers = getBoiTickers();
+      if (boiTickers.length > 0) {
+        if (!combined['Index']) combined['Index'] = [];
+        combined['Index'] = combined['Index'].concat(boiTickers);
       }
 
       // Add Cash (ILS)
@@ -174,6 +183,11 @@ export async function getTickerData(
   // CBS has its own dedicated fetcher
   if (parsedExchange === Exchange.CBS) {
     return fetchCpi(tickerNum, signal).then((data: any) => data ? { ...data, historical: interpolateSparseHistory(data.historical) } : data).then(detectStaleDayChange);
+  }
+
+  // BOI has its own dedicated fetcher
+  if (parsedExchange === Exchange.BOI) {
+    return fetchBoiData(ticker, signal).then((data: any) => data ? { ...data, historical: interpolateSparseHistory(data.historical) } : data).then(detectStaleDayChange);
   }
 
   const profile = await profileLookupPromise;
@@ -383,6 +397,11 @@ export async function fetchTickerHistory(
 
   if (exchange === Exchange.CBS) {
     const data = await fetchCpi(tickerNum, signal);
+    return { historical: interpolateSparseHistory(data?.historical), fromCache: data?.fromCache, fromCacheMax: data?.fromCacheMax };
+  }
+
+  if (exchange === Exchange.BOI) {
+    const data = await fetchBoiData(ticker, signal);
     return { historical: interpolateSparseHistory(data?.historical), fromCache: data?.fromCache, fromCacheMax: data?.fromCacheMax };
   }
 

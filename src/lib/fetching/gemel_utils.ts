@@ -7,7 +7,7 @@ export interface FundDataPoint {
 }
 
 export interface FundData {
-  fundId: number;
+  fundId: number | string;
   fundName: string;
   data: FundDataPoint[];
   lastUpdated: number;
@@ -102,7 +102,7 @@ export function calculateTickerDataFromFundHistory(
 
   const tickerData: TickerData = {
     ticker: String(fundId),
-    numericId: fundId,
+    numericId: typeof fundId === 'number' ? fundId : null,
     exchange: exchange,
     price: latestPrice,
     ...(chg1m && { changePct1m: chg1m.pct, changeDate1m: new Date(chg1m.date) }),
@@ -189,7 +189,7 @@ export function calculateTickerDataFromIndexHistory(
 
   const tickerData: TickerData = {
     ticker: String(fundId),
-    numericId: fundId,
+    numericId: typeof fundId === 'number' ? fundId : null,
     exchange: exchange,
     price: latestPrice,
     ...(chg1m && { changePct1m: chg1m.pct, changeDate1m: new Date(chg1m.date) }),

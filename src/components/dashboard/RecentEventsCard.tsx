@@ -7,6 +7,7 @@ import { coerceDate, formatDate } from '../../lib/date';
 import PaidOutlinedIcon from '@mui/icons-material/PaidOutlined';
 import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
+import AccountBalanceOutlinedIcon from '@mui/icons-material/AccountBalanceOutlined';
 import { ScrollShadows, useScrollShadows } from '../../lib/ui-utils';
 import { formatMoneyValue } from '../../lib/currency';
 import { Currency } from '../../lib/types';
@@ -18,9 +19,16 @@ interface RecentEventsCardProps {
   holdings: DashboardHolding[];
   transactions: Transaction[];
   dividendRecords?: (DividendRecord & { ticker: string, exchange: string, portfolioId: string })[];
+  boiTickerData?: { ticker: string, exchange: string, historical: { date: Date, price: number }[] };
 }
 
-export function getRecentEventsData(holdings: DashboardHolding[], transactions: Transaction[], dividendRecords: (DividendRecord & { ticker: string, exchange: string, portfolioId: string })[] = [], t: (key: string, backup: string) => string) {
+export function getRecentEventsData(
+  holdings: DashboardHolding[],
+  transactions: Transaction[],
+  dividendRecords: (DividendRecord & { ticker: string, exchange: string, portfolioId: string })[] = [],
+  t: (key: string, backup: string) => string,
+  boiTickerData?: { ticker: string, exchange: string, historical: { date: Date, price: number }[] }
+) {
   const today = new Date();
   const oneMonthAgo = new Date();
   oneMonthAgo.setDate(today.getDate() - 30);
@@ -32,7 +40,7 @@ export function getRecentEventsData(holdings: DashboardHolding[], transactions: 
   const grouped = new Map<string, {
     id: string;
     date: Date;
-    type: 'DIVIDEND' | 'VEST' | 'CAL_DIVIDEND' | 'CAL_EARNINGS';
+    type: 'DIVIDEND' | 'VEST' | 'CAL_DIVIDEND' | 'CAL_EARNINGS' | 'BOI_RATE_CHANGE';
     ticker: string;
     exchange: string;
     qtySum?: number;
@@ -247,6 +255,31 @@ export function getRecentEventsData(holdings: DashboardHolding[], transactions: 
     }
   }
 
+  // Process BOI Rate Changes
+  if (boiTickerData && boiTickerData.historical && boiTickerData.historical.length > 1) {
+    const hist = boiTickerData.historical.sort((a, b) => a.date.getTime() - b.date.getTime());
+    for (let i = 1; i < hist.length; i++) {
+      const current = hist[i];
+      const prev = hist[i - 1];
+      if (Math.abs(current.price - prev.price) > 0.0001) {
+        if (current.date >= oneMonthAgo && current.date <= oneMonthFuture) {
+          const dtStr = formatDate(current.date);
+          const key = `${dtStr}_BOI_RATE_CHANGE`;
+          const diff = current.price - prev.price;
+          const diffStr = diff > 0 ? `+${diff.toFixed(2)}%` : `${diff.toFixed(2)}%`;
+          grouped.set(key, {
+            id: `boi_rate_${dtStr}`,
+            date: current.date,
+            type: 'BOI_RATE_CHANGE',
+            ticker: 'BOI',
+            exchange: 'BOI',
+            customValueDesc: `${current.price}% (${t(diff > 0 ? 'up ' : 'down ', diff > 0 ? 'up ' : 'down ')}${diffStr})`
+          });
+        }
+      }
+    }
+  }
+
   const recentEvents = Array.from(grouped.values()).map(g => {
     const isFuture = g.date > new Date();
     let titleStr = '';
@@ -254,6 +287,8 @@ export function getRecentEventsData(holdings: DashboardHolding[], transactions: 
       titleStr = isFuture ? t('Upcoming Dividend', 'דיבידנד קרוב') : t('Dividend', 'דיבידנד');
     } else if (g.type === 'CAL_EARNINGS') {
       titleStr = isFuture ? t('Upcoming Earnings', 'דוחות קרובים') : t('Earnings', 'דוחות');
+    } else if (g.type === 'BOI_RATE_CHANGE') {
+      titleStr = t('BOI Rate Change', 'שינוי ריבית בנק ישראל');
     } else {
       titleStr = isFuture ? t('Vesting', 'יבשיל') : t('Vested', 'הבשיל');
     }
@@ -291,15 +326,15 @@ export function getRecentEventsData(holdings: DashboardHolding[], transactions: 
   return recentEvents.sort((a, b) => a.date.getTime() - b.date.getTime());
 }
 
-export function RecentEventsCard({ holdings, transactions, dividendRecords = [] }: RecentEventsCardProps) {
+export function RecentEventsCard({ holdings, transactions, dividendRecords = [], boiTickerData }: RecentEventsCardProps) {
   const { t } = useLanguage();
   const scrollProps = useScrollShadows();
   const theme = useTheme();
   const { containerRef, showTop, showBottom } = scrollProps;
 
   const events = useMemo(() => {
-    return getRecentEventsData(holdings, transactions, dividendRecords, t);
-  }, [holdings, transactions, dividendRecords, t]);
+    return getRecentEventsData(holdings, transactions, dividendRecords, t, boiTickerData);
+  }, [holdings, transactions, dividendRecords, t, boiTickerData]);
 
   if (events.length === 0) return null;
 
@@ -314,6 +349,8 @@ export function RecentEventsCard({ holdings, transactions, dividendRecords = [] 
       Icon = PaidOutlinedIcon;
     } else if (ev.type === 'CAL_EARNINGS') {
       Icon = AssessmentOutlinedIcon;
+    } else if (ev.type === 'BOI_RATE_CHANGE') {
+      Icon = AccountBalanceOutlinedIcon;
     } else {
       Icon = LockOpenIcon;
     }
@@ -321,8 +358,8 @@ export function RecentEventsCard({ holdings, transactions, dividendRecords = [] 
     return (
       <Box
         key={ev.id}
-        component={RouterLink}
-        to={`/ticker/${ev.exchange}/${ev.ticker}`}
+        component={ev.type === 'BOI_RATE_CHANGE' ? 'div' : RouterLink}
+        to={ev.type === 'BOI_RATE_CHANGE' ? undefined : `/ticker/${ev.exchange}/${ev.ticker}`}
         sx={{
           display: 'flex',
           flexDirection: { xs: 'column', sm: 'row' },
@@ -342,7 +379,14 @@ export function RecentEventsCard({ holdings, transactions, dividendRecords = [] 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <Icon sx={{ color: iconColor, fontSize: '1.4rem' }} />
           <Box>
-            <Typography variant="body2" fontWeight="bold" sx={{ fontSize: '0.85rem' }}>{ev.ticker}</Typography>
+            <Typography variant="body2" fontWeight="bold" sx={{ fontSize: '0.85rem' }}>
+              {(() => {
+                const h = holdings.find(x => x.ticker === ev.ticker && x.exchange === ev.exchange);
+                if (h) return h.displayName || h.longName || h.nameHe || h.ticker;
+                if (ev.ticker === 'BOI') return t('Bank of Israel', 'בנק ישראל');
+                return ev.ticker;
+              })()}
+            </Typography>
             <Typography variant="caption" sx={{ fontSize: '0.75rem', display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
               <Box component="span" sx={{ color: 'text.secondary' }}>{ev.titleStr} •</Box>
               <Box component="span" sx={{
@@ -387,12 +431,28 @@ export function RecentEventsCard({ holdings, transactions, dividendRecords = [] 
     </Box>
   );
 }
-export function hasRecentEvents(holdings: DashboardHolding[], favoriteHoldings: DashboardHolding[], transactions: Transaction[], dividendRecords: (DividendRecord & { ticker: string, exchange: string, portfolioId: string })[] = []) {
+export function hasRecentEvents(
+  holdings: DashboardHolding[],
+  favoriteHoldings: DashboardHolding[],
+  transactions: Transaction[],
+  dividendRecords: (DividendRecord & { ticker: string, exchange: string, portfolioId: string })[] = [],
+  boiTickerData?: { ticker: string, exchange: string, historical: { date: Date, price: number }[] }
+) {
   const today = new Date();
   const oneMonthAgo = new Date();
   oneMonthAgo.setDate(today.getDate() - 30);
   const oneMonthFuture = new Date();
   oneMonthFuture.setDate(today.getDate() + 30);
+
+  if (boiTickerData && boiTickerData.historical) {
+    for (let i = 1; i < boiTickerData.historical.length; i++) {
+      const current = boiTickerData.historical[i];
+      const prev = boiTickerData.historical[i - 1];
+      if (Math.abs(current.price - prev.price) > 0.0001) {
+        if (current.date >= oneMonthAgo && current.date <= oneMonthFuture) return true;
+      }
+    }
+  }
 
   const allHoldings = [...holdings, ...favoriteHoldings];
   const holdingSymbols = new Set(allHoldings.map(h => h.ticker.toUpperCase()));
