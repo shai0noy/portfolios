@@ -110,6 +110,7 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({
               data.changePctYtd !== undefined ? `YTD: ${formatPercent(data.changePctYtd)}` : null,
               data.changePct1y !== undefined ? `1Y: ${formatPercent(data.changePct1y)}` : null,
               data.changePct5y !== undefined ? `5Y: ${formatPercent(data.changePct5y)}` : null,
+              data.changePct10y !== undefined ? `10Y: ${formatPercent(data.changePct10y)}` : null,
             ].filter(Boolean).join(', ');
 
             return `${s.name}${priceStr} (${stats})`;

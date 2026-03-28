@@ -65,7 +65,7 @@ export const LIGHT_COLORS = [
     '#364FC7',
 ];
 
-export const RANGES = ['1M', '3M', '6M', 'YTD', '1Y', '3Y', '5Y', 'ALL'];
+export const RANGES = ['1M', '3M', '6M', 'YTD', '1Y', '3Y', '5Y', '10Y', 'ALL'];
 
 export function getAvailableRanges(startDate: Date | undefined): string[] {
     if (!startDate) return ['ALL'];
@@ -84,6 +84,7 @@ export function getAvailableRanges(startDate: Date | undefined): string[] {
     if (diffYears >= 1) ranges.push('1Y');
     if (diffYears >= 3) ranges.push('3Y');
     if (diffYears >= 5) ranges.push('5Y');
+    if (diffYears >= 10) ranges.push('10Y');
     ranges.push('ALL');
     return ranges;
 }
@@ -282,6 +283,7 @@ export function useChartComparison({ portfolios, getPortfolioHistory }: UseChart
                 case '1Y': startDate.setUTCFullYear(now.getUTCFullYear() - 1); break;
                 case '3Y': startDate.setUTCFullYear(now.getUTCFullYear() - 3); break;
                 case '5Y': startDate.setUTCFullYear(now.getUTCFullYear() - 5); break;
+                case '10Y': startDate.setUTCFullYear(now.getUTCFullYear() - 10); break;
                 default: return data;
             }
         }

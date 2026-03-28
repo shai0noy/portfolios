@@ -331,7 +331,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   };
 
   const translateRange = (range: string) => {
-    const map: Record<string, string> = { '1D': t('1D', 'יומי'), '7D': t('1W', 'שבוע'), '1W': t('1W', 'שבוע'), '1M': t('1M', 'חודש'), '3M': t('3M', '3 חודשים'), 'YTD': t('YTD', 'מתחילת שנה'), '1Y': t('1Y', 'שנה'), '3Y': t('3Y', '3 שנים'), '5Y': t('5Y', '5 שנים'), 'Max': t('Max', 'מקסימום') };
+    const map: Record<string, string> = { '1D': t('1D', 'יומי'), '7D': t('1W', 'שבוע'), '1W': t('1W', 'שבוע'), '1M': t('1M', 'חודש'), '3M': t('3M', '3 חודשים'), 'YTD': t('YTD', 'מתחילת שנה'), '1Y': t('1Y', 'שנה'), '3Y': t('3Y', '3 שנים'), '5Y': t('5Y', '5 שנים'), '10Y': t('10Y', '10 שנים'), 'Max': t('Max', 'מקסימום') };
     return map[range] || (range.endsWith('D') ? range.replace('D', t('D', ' ימים')) : range);
   };
 
@@ -350,6 +350,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
     '1Y': getPerf(data?.changePct1y ?? holdingData?.changePct1y, data?.changeDate1y ?? holdingData?.changeDate1y),
     '3Y': getPerf(data?.changePct3y ?? holdingData?.changePct3y, data?.changeDate3y ?? holdingData?.changeDate3y),
     '5Y': getPerf(data?.changePct5y ?? holdingData?.changePct5y, data?.changeDate5y ?? holdingData?.changeDate5y),
+    '10Y': getPerf(data?.changePct10y ?? holdingData?.changePct10y, data?.changeDate10y ?? holdingData?.changeDate10y),
     'Max': getPerf(data?.changePctMax ?? holdingData?.changePctMax, data?.changeDateMax ?? holdingData?.changeDateMax),
   };
 
@@ -385,6 +386,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
       '1Y': new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()),
       '3Y': new Date(now.getFullYear() - 3, now.getMonth(), now.getDate()),
       '5Y': new Date(now.getFullYear() - 5, now.getMonth(), now.getDate()),
+      '10Y': new Date(now.getFullYear() - 10, now.getMonth(), now.getDate()),
       'Max': new Date(0)
     };
 
@@ -599,6 +601,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                               case '1Y': return 365;
                               case '3Y': return 365 * 3;
                               case '5Y': return 365 * 5;
+                              case '10Y': return 365 * 10;
                               case 'Max': return 36500;
                               default:
                                 // Handle "XD" format (e.g. "5D")

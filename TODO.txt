@@ -1,11 +1,5 @@
 ### Pleae be carful not to override entire file when updating tasks ###
-
-מתחילת השנה, התיק רשם עלייה בולטת של ‎$3,170,774 (‎4.94%).
-העליה הזו משקפת באופן חלקי את העליות המשמעותיות בשוק האמריקאי ואת העליות הבולטות בשוק הישראלי.
-זינוק אחרון זה העביר את החודש כולו לטריטוריה חיובית (‎3.4%).
---
-the last part about the month change makes no senes given the from year start range...
-
+ 
 ניכרת התנהגות שונה במגזר הטכנולוגיה (‎23.85%).
 ---
 This should mention the tech sector's difference eg excess raise/fall

@@ -52,6 +52,7 @@ function filterDataByRange(data: { date: Date, price: number }[], range: string,
             case '1Y': startDate.setFullYear(now.getFullYear() - 1); break;
             case '3Y': startDate.setFullYear(now.getFullYear() - 3); break;
             case '5Y': startDate.setFullYear(now.getFullYear() - 5); break;
+            case '10Y': startDate.setFullYear(now.getFullYear() - 10); break;
             default: return data;
         }
     }
@@ -197,6 +198,7 @@ export function AnalysisDialog({ open, onClose, mainSeries, comparisonSeries, ti
         if (diffYears >= 1) ranges.push('1Y');
         if (diffYears >= 3) ranges.push('3Y');
         if (diffYears >= 5) ranges.push('5Y');
+        if (diffYears >= 10) ranges.push('10Y');
         ranges.push('ALL');
         return ranges;
     }, [oldestDate]);

@@ -294,6 +294,7 @@ export const useTickerDetails = ({ sheetId, ticker: propTicker, exchange: propEx
             'YTD': { amount: 0, pct: 0 },
             '1Y': { amount: 0, pct: 0 },
             '5Y': { amount: 0, pct: 0 },
+            '10Y': { amount: 0, pct: 0 },
             'Max': { amount: 0, pct: 0 },
         };
         if (!data?.dividends || !displayData?.currency || !historicalData?.length) return empty;
@@ -309,6 +310,7 @@ export const useTickerDetails = ({ sheetId, ticker: propTicker, exchange: propEx
             'YTD': calculateDividendsForRange(new Date(now.getFullYear(), 0, 1)),
             '1Y': calculateDividendsForRange(new Date(now.getFullYear() - 1, now.getMonth(), now.getDate())),
             '5Y': calculateDividendsForRange(new Date(now.getFullYear() - 5, now.getMonth(), now.getDate())),
+            '10Y': calculateDividendsForRange(new Date(now.getFullYear() - 10, now.getMonth(), now.getDate())),
             'Max': calculateDividendsForRange(historicalData[0].date),
         };
     }, [data?.dividends, displayData?.currency, historicalData]);
