@@ -7,7 +7,7 @@ describe('generateBriefingText', () => {
   it('handles flat portfolio', () => {
     const text = generateBriefingText(
       '1D',
-      { totalGain: 10, totalPct: 0.001, totalPct1M: 0.02, totalDivs: 0, allMovers: [] },
+      { totalGain: 10, totalPct: 0.001, totalPct1M: 0.02, totalPct1Y: 0.1, totalDivs: 0, allMovers: [] },
       { spx: 0.01, ndx: 0.01, tlv: 0.01 },
       'USD',
       t
@@ -18,7 +18,7 @@ describe('generateBriefingText', () => {
   it('handles major gain', () => {
     const text = generateBriefingText(
       '1D',
-      { totalGain: 5000, totalPct: 0.05, totalPct1M: 0.1, totalDivs: 0, allMovers: [] },
+      { totalGain: 5000, totalPct: 0.05, totalPct1M: 0.1, totalPct1Y: 0.1, totalDivs: 0, allMovers: [] },
       { spx: 0.01, ndx: 0.01, tlv: 0.01 },
       'USD',
       t
@@ -29,7 +29,7 @@ describe('generateBriefingText', () => {
   it('handles notable loss', () => {
     const text = generateBriefingText(
       '1W',
-      { totalGain: -2000, totalPct: -0.02, totalPct1M: -0.05, totalDivs: 0, allMovers: [] },
+      { totalGain: -2000, totalPct: -0.02, totalPct1M: -0.05, totalPct1Y: 0.1, totalDivs: 0, allMovers: [] },
       { spx: -0.03, ndx: -0.03, tlv: -0.01 },
       'USD',
       t
@@ -41,7 +41,7 @@ describe('generateBriefingText', () => {
   it('handles gain against red US market', () => {
     const text = generateBriefingText(
       '1D',
-      { totalGain: 1000, totalPct: 0.01, totalPct1M: 0.02, totalDivs: 0, allMovers: [] },
+      { totalGain: 1000, totalPct: 0.01, totalPct1M: 0.02, totalPct1Y: 0.1, totalDivs: 0, allMovers: [] },
       { spx: -0.01, ndx: -0.01, tlv: 0.005 },
       'USD',
       t
@@ -52,7 +52,7 @@ describe('generateBriefingText', () => {
   it('handles increase following Israel, despite US drop', () => {
     const text = generateBriefingText(
       '1D',
-      { totalGain: 1000, totalPct: 0.02, totalPct1M: 0.02, totalDivs: 0, allMovers: [] },
+      { totalGain: 1000, totalPct: 0.02, totalPct1M: 0.02, totalPct1Y: 0.1, totalDivs: 0, allMovers: [] },
       { spx: -0.02, ndx: -0.02, tlv: 0.02 },
       'USD',
       t
@@ -63,7 +63,7 @@ describe('generateBriefingText', () => {
   it('handles dividends received', () => {
     const text = generateBriefingText(
       '1M',
-      { totalGain: 1000, totalPct: 0.01, totalPct1M: 0.02, totalDivs: 500, allMovers: [] },
+      { totalGain: 1000, totalPct: 0.01, totalPct1M: 0.02, totalPct1Y: 0.1, totalDivs: 500, allMovers: [] },
       { spx: 0.01 },
       'USD',
       t
@@ -75,7 +75,7 @@ describe('generateBriefingText', () => {
     const t_he = (_e: string, h: string) => h;
     const text = generateBriefingText(
       '1D',
-      { totalGain: -6000, totalPct: -0.06, totalPct1M: -0.1, totalDivs: 0, allMovers: [] },
+      { totalGain: -6000, totalPct: -0.06, totalPct1M: -0.1, totalPct1Y: 0.1, totalDivs: 0, allMovers: [] },
       { spx: -0.01 },
       'USD',
       t_he
@@ -87,7 +87,7 @@ describe('generateBriefingText', () => {
     const t_he = (_e: string, h: string) => h;
     const text = generateBriefingText(
       '1Y',
-      { totalGain: -10000, totalPct: -0.15, totalPct1M: -0.15, totalDivs: 0, allMovers: [] },
+      { totalGain: -10000, totalPct: -0.15, totalPct1M: -0.15, totalPct1Y: 0.1, totalDivs: 0, allMovers: [] },
       { spx: -0.05 },
       'USD',
       t_he
@@ -100,7 +100,7 @@ describe('generateBriefingText', () => {
     const t_he = (_e: string, h: string) => h;
     const text = generateBriefingText(
       '1D',
-      { totalGain: -1000, totalPct: -0.01, totalPct1M: 0.02, totalDivs: 0, allMovers: [{ name: 'TSLA', pct: 0.05, gain: 100 }, { name: 'MSFT', pct: -0.02, gain: -10 }] },
+      { totalGain: -1000, totalPct: -0.01, totalPct1M: 0.02, totalPct1Y: 0.1, totalDivs: 0, allMovers: [{ name: 'TSLA', pct: 0.05, gain: 100 }, { name: 'MSFT', pct: -0.02, gain: -10 }] },
       { spx: -0.01 },
       'USD',
       t_he
@@ -111,7 +111,7 @@ describe('generateBriefingText', () => {
   it('handles consolidated activity sentence', () => {
     const text = generateBriefingText(
       '1M',
-      { totalGain: 1000, totalPct: 0.01, totalPct1M: 0.02, totalDivs: 500, totalFlow: 2000, totalVests: 1500, allMovers: [] },
+      { totalGain: 1000, totalPct: 0.01, totalPct1M: 0.02, totalPct1Y: 0.1, totalDivs: 500, totalFlow: 2000, totalVests: 1500, allMovers: [] },
       { spx: 0.01 },
       'USD',
       t

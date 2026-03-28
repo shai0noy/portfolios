@@ -43,11 +43,12 @@ const timeDays: Record<string, number> = { '1D': 1, '1W': 7, '1M': 30, '1Y': 365
 
 export function generateBriefingText(
   timeframe: Timeframe,
-  stats: { totalGain: number, totalPct: number, totalPct1M: number, totalDivs: number, totalFlow?: number, totalVests?: number, allMovers?: { name: string, pct: number, gain: number }[] },
+  stats: { totalGain: number, totalPct: number, totalPct1M: number, totalPct1Y: number, totalDivs: number, totalFlow?: number, totalVests?: number, allMovers?: { name: string, pct: number, gain: number }[] },
   marketData: { spx?: number, ndx?: number, tlv?: number, energy?: number, it?: number },
   displayCurrency: string,
   t: (key: string, backup: string) => string,
-  customDays?: number
+  customDays?: number,
+  customEnd?: Date | null
 ): string {
   const pfAbsPct = Math.abs(stats.totalPct);
   const isUp = stats.totalGain > 0;
@@ -68,7 +69,18 @@ export function generateBriefingText(
 
   const moveSentence = getMoveSentence(timeWord, timeframe, pfAbsPct, isUp, gainStr, pctStr, t);
   const marketSentence = getMarketSentence(timeframe, pfAbsPct, isUp, marketData.spx ?? 0, marketData.ndx ?? 0, marketData.tlv ?? 0, marketData.energy, marketData.it, t, customDays);
-  const trendSentence = getTrendSentence(timeframe, pfAbsPct, isUp, stats.totalPct1M, t);
+  let showTrend1M = timeframe === '1D' || timeframe === '1W';
+  let showTrend1Y = timeframe === '1M';
+
+  if (timeframe === 'Custom' && customDays !== undefined) {
+    if (!customEnd || (new Date().getTime() - customEnd.getTime() < 3 * 86400000)) {
+      if (customDays <= 14) showTrend1M = true;
+      else if (customDays >= 20 && customDays <= 45) showTrend1Y = true;
+    }
+  }
+
+  const trendSentence = showTrend1M ? getTrendSentence(pfAbsPct, isUp, stats.totalPct1M, t, '1m') :
+    showTrend1Y ? getTrendSentence(pfAbsPct, isUp, stats.totalPct1Y, t, '1y') : "";
   const moversSentence = getNotableMoversSentence(stats, timeframe, t);
   const divsValStr = stats.totalDivs > 0 ? formatMoneyValue({ amount: stats.totalDivs, currency: displayCurrency as any }, undefined, 0) : "";
   const vestValStr = (stats.totalVests && stats.totalVests > 100) ? formatMoneyValue({ amount: stats.totalVests, currency: displayCurrency as any }, undefined, 0) : "";
@@ -300,34 +312,41 @@ function getMarketSentence(timeframe: string, pfAbsPct: number, isUp: boolean, m
   return core + divergenceStr;
 }
 
-function getTrendSentence(timeframe: string, pfAbsPct: number, isUp: boolean, totalPct1M: number, t: any) {
-  if (timeframe === '1M' || timeframe === '1Y' || pfAbsPct < 0.005) return "";
+function getTrendSentence(pfAbsPct: number, isUp: boolean, refPct: number, t: any, type: '1m' | '1y') {
+  if (pfAbsPct < 0.005) return "";
 
-  const is1mUp = totalPct1M >= 0;
+  const isRefUp = refPct >= 0;
   const currentPct = isUp ? pfAbsPct : -pfAbsPct;
-  const monthlyFormatted = formatPercent(totalPct1M);
+  const refFormatted = formatPercent(refPct);
 
-  if (isUp && is1mUp) {
-    if (currentPct >= totalPct1M) {
-      return t(`This recent surge single-handedly pushed the 30-day return into the green (${monthlyFormatted}).`, `זינוק אחרון זה העביר את החודש כולו לטריטוריה חיובית (${monthlyFormatted}).`);
+  const refTextHE = type === '1m' ? 'החודש כולו' : 'השנה כולה';
+  const refTextEN = type === '1m' ? 'the 30-day return' : 'the 1-year return';
+
+  const refTrendHE = type === '1m' ? 'החודש האחרון' : 'השנה האחרונה';
+  const refTrendEN = type === '1m' ? '30-day' : '1-year';
+  const refProfitableHE = type === '1m' ? 'חודש רווחי' : 'שנה רווחית';
+
+  if (isUp && isRefUp) {
+    if (currentPct >= refPct) {
+      return t(`This recent surge single-handedly pushed ${refTextEN} into the green (${refFormatted}).`, `זינוק אחרון זה העביר את ${refTextHE} לטריטוריה חיובית (${refFormatted}).`);
     } else {
-      return t(`This continues a solid 30-day uptrend (${monthlyFormatted}).`, `זה ממשיך מגמה חיובית יציבה של החודש האחרון (${monthlyFormatted}).`);
+      return t(`This continues a solid ${refTrendEN} uptrend (${refFormatted}).`, `זה ממשיך מגמה חיובית יציבה של ${refTrendHE} (${refFormatted}).`);
     }
   }
 
-  if (isUp && !is1mUp) {
-    return t(`This helps reverse an ongoing 30-day slump (${monthlyFormatted}).`, `עלייה זו מסייעת לתקן את הירידה של החודש האחרון (${monthlyFormatted}).`);
+  if (isUp && !isRefUp) {
+    return t(`This helps reverse an ongoing ${refTrendEN} slump (${refFormatted}).`, `עלייה זו מסייעת לתקן את הירידה של ${refTrendHE} (${refFormatted}).`);
   }
 
-  if (!isUp && !is1mUp) {
-    if (currentPct <= totalPct1M) {
-      return t(`This recent drop erased earlier gains, dragging the 30-day return into the red (${monthlyFormatted}).`, `הירידה האחרונה הזו מוחקת עליות מוקדמות ומושכת את החודש כולו לטריטוריה שלילית (${monthlyFormatted}).`);
+  if (!isUp && !isRefUp) {
+    if (currentPct <= refPct) {
+      return t(`This recent drop erased earlier gains, dragging ${refTextEN} into the red (${refFormatted}).`, `הירידה האחרונה הזו מוחקת עליות מוקדמות ומושכת את ${refTextHE} לטריטוריה שלילית (${refFormatted}).`);
     } else {
-      return t(`This adds to a bearish 30-day trend (${monthlyFormatted}).`, `ירידה זו מצטרפת ומעמיקה את המגמה השלילית של 30 הימים האחרונים (${monthlyFormatted}).`);
+      return t(`This adds to a bearish ${refTrendEN} trend (${refFormatted}).`, `ירידה זו מצטרפת ומעמיקה את המגמה השלילית של ${refTrendHE} (${refFormatted}).`);
     }
   }
 
-  return t(`This is a minor pullback following a strong 30-day gain (${monthlyFormatted}).`, `זהו תיקון קל למטה אחרי חודש רווחי בסך הכל (${monthlyFormatted}).`);
+  return t(`This is a minor pullback following a strong ${refTrendEN} gain (${refFormatted}).`, `זהו תיקון קל למטה אחרי ${refProfitableHE} בסך הכל (${refFormatted}).`);
 }
 
 export function PortfolioBriefingDialog({ open, onClose, holdings, transactions, dividendRecords = [], displayCurrency, exchangeRates, boiTickerData }: PortfolioBriefingDialogProps) {
@@ -429,6 +448,7 @@ export function PortfolioBriefingDialog({ open, onClose, holdings, transactions,
 
     let totalEndVal = 0;
     let totalStartVal1M = 0;
+    let totalStartVal1Y = 0;
 
     const groupedHoldings = new Map<string, typeof holdings[0][]>();
     for (const h of holdings) {
@@ -470,25 +490,30 @@ export function PortfolioBriefingDialog({ open, onClose, holdings, transactions,
       const pct1M = first.perf1m || 0;
       const base1M = val / (1 + pct1M);
 
-      return { ticker: first.ticker, exchange: first.exchange, name: first.displayName || first.longName || first.nameHe || first.ticker, gain, pct, val, base, base1M };
+      const pct1Y = first.perf1y || 0;
+      const base1Y = val / (1 + pct1Y);
+
+      return { ticker: first.ticker, exchange: first.exchange, name: first.displayName || first.longName || first.nameHe || first.ticker, gain, pct, val, base, base1M, base1Y };
     });
 
     for (const m of movers) {
       totalStartVal += m.base;
       totalEndVal += m.val;
       totalStartVal1M += m.base1M;
+      totalStartVal1Y += m.base1Y;
     }
 
     const totalGain = totalEndVal - totalStartVal;
     const totalPct = totalStartVal > 0 ? totalGain / totalStartVal : 0;
     const totalPct1M = totalStartVal1M > 0 ? (totalEndVal - totalStartVal1M) / totalStartVal1M : 0;
+    const totalPct1Y = totalStartVal1Y > 0 ? (totalEndVal - totalStartVal1Y) / totalStartVal1Y : 0;
 
     movers.sort((a, b) => b.gain - a.gain);
     const topGainers = movers.filter(m => m.gain > 0).slice(0, 3);
     const topLosers = movers.filter(m => m.gain < 0).reverse().slice(0, 3);
     const allMovers = movers.map(m => ({ exchange: m.exchange, name: m.name, pct: m.pct, gain: m.gain, ticker: m.ticker }));
 
-    return { totalGain, totalPct, totalPct1M, topGainers, topLosers, allMovers, totalDivs, totalFlow, totalVests };
+    return { totalGain, totalPct, totalPct1M, totalPct1Y, topGainers, topLosers, allMovers, totalDivs, totalFlow, totalVests };
   }, [holdings, timeframe, transactions, exchangeRates, displayCurrency, dividendRecords, customDateRange.start, customDateRange.end]);
 
   const recentEvents = useMemo(() => {
@@ -676,7 +701,8 @@ export function PortfolioBriefingDialog({ open, onClose, holdings, transactions,
                     t,
                     (timeframe === 'Custom' && customDateRange.start)
                       ? Math.round(((customDateRange.end || new Date()).getTime() - customDateRange.start.getTime()) / 86400000)
-                      : undefined
+                      : undefined,
+                    customDateRange.end
                   ))}
                 </Typography>
               </Box>
