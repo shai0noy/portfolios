@@ -1,9 +1,5 @@
 ### Pleae be carful not to override entire file when updating tasks ###
  
-ניכרת התנהגות שונה במגזר הטכנולוגיה (‎23.85%).
----
-This should mention the tech sector's difference eg excess raise/fall
-
 Verify new exchanges
 Improve new txn UI (incl mode selector)
 Handle dashboard charts margin
