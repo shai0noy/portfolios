@@ -3,7 +3,7 @@ import { getYahooCrumb, clearYahooCache } from './yahooCrumb.js';
 import { VALID_VALUE_REGEX, replacePlaceholder, getTaseFetchDate, formatDate, configurePensyanetOptions, addApiSpecificHeaders } from './utils.js';
 
 const API_MAP = {
-  "yahoo_hist": { urlTemaplte: "https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1d&range={range}&events=split,div", ttl: 1800 },
+  "yahoo_hist": { urlTemaplte: "https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1d&range={range}&events=split,div&crumb={crumb}", ttl: 1800, requiresCrumb: true },
   "globes_data": { urlTemaplte: "https://www.globes.co.il/data/webservices/financial.asmx/getInstrument?exchange={exchange}&symbol={ticker}", ttl: 1800 },
   "globes_list": { urlTemaplte: "https://www.globes.co.il/data/webservices/financial.asmx/listByType?exchange={exchange}&type={type}", ttl: 43200 },
   "globes_exchange_state": { urlTemaplte: "https://www.globes.co.il/data/webservices/financial.asmx/ExchangeState?exchange={exchange}", ttl: 1800 },
@@ -19,7 +19,7 @@ const API_MAP = {
   "gemelnet_list": { urlTemaplte: "https://gemelnet.cma.gov.il/tsuot/ui/tsuotHodXML.aspx?miTkfDivuach={startYear}{startMonth}&adTkfDivuach={endYear}{endMonth}&kupot=0000&Dochot=1&sug=1", ttl: 43200 },
   "pensyanet_fund": { urlTemaplte: "https://pensyanet.cma.gov.il/Parameters/ExportToXML", ttl: 43200 },
   "pensyanet_list": { urlTemaplte: "https://pensyanet.cma.gov.il/Parameters/ExportToXML", ttl: 43200 },
-  "yahoo_search": { urlTemaplte: "https://query2.finance.yahoo.com/v1/finance/search?q={searchTerm}", ttl: 86400 },
+  "yahoo_search": { urlTemaplte: "https://query2.finance.yahoo.com/v1/finance/search?q={searchTerm}&crumb={crumb}", ttl: 86400, requiresCrumb: true },
   "yahoo_quote_summary": {
     urlTemaplte: "https://query2.finance.yahoo.com/v10/finance/quoteSummary/{ticker}?modules={modules}&crumb={crumb}",
     ttl: 3600,
