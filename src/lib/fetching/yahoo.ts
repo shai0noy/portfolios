@@ -69,7 +69,7 @@ export function getYahooTickerCandidates(ticker: string, exchange: Exchange, gro
   const baseCandidates = new Set<string>();
   baseCandidates.add(u); // Always include the raw symbol
 
-  if (group === InstrumentGroup.INDEX) {
+  if (group === InstrumentGroup.INDEX || (group === undefined && !isNumeric)) {
     if (!isNumeric) baseCandidates.add(`^${u}`);
   }
   else if (group === InstrumentGroup.FOREX || exchange === Exchange.FOREX) {

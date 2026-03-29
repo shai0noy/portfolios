@@ -32,9 +32,13 @@ export async function searchYahooTickers(term: string, signal?: AbortSignal): Pr
         } catch (error) {
           return null;
         }
+        let symbol = q.symbol.split('.')[0].replace('-', '.');
+        if (type === InstrumentType.INDEX && symbol.startsWith('^')) {
+          symbol = symbol.substring(1);
+        }
         return {
           // NWMD.TA -> NWMD ; MTF-F30 -> MTF.F30
-          symbol: q.symbol.split('.')[0].replace('-', '.'),
+          symbol,
           exchange: exchange,
           name: q.longname || q.shortname || q.symbol,
           type: new InstrumentClassification(type),

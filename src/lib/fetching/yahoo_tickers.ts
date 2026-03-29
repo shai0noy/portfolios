@@ -46,6 +46,12 @@ const PREDEFINED_YAHOO_TICKERS: { ticker: string; name: string; sector: string; 
   { ticker: 'ZT=F', name: '2-Year T-Note Futures', sector: 'USA Bonds', type: InstrumentType.FUTURE },
   { ticker: 'ZB=F', name: 'U.S. Treasury Bond Futures', sector: 'USA Bonds', type: InstrumentType.FUTURE },
   { ticker: 'ZR=F', name: 'USD/ZAR Futures', sector: 'Forex', type: InstrumentType.FUTURE },
+  // Major Indices
+  { ticker: 'NDX', name: 'NASDAQ 100', sector: 'Equity Indices', type: InstrumentType.INDEX },
+  { ticker: 'GSPC', name: 'S&P 500', sector: 'Equity Indices', type: InstrumentType.INDEX },
+  { ticker: 'DJI', name: 'Dow Jones Industrial Average', sector: 'Equity Indices', type: InstrumentType.INDEX },
+  { ticker: 'RUT', name: 'Russell 2000', sector: 'Equity Indices', type: InstrumentType.INDEX },
+  { ticker: 'VIX', name: 'CBOE Volatility Index', sector: 'Equity Indices', type: InstrumentType.INDEX },
 ];
 
 export function getPredefinedYahooTickers(): TickerProfile[] {

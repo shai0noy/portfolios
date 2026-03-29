@@ -95,8 +95,8 @@ function performSearch(
 ): SearchResult[] {
   if (!searchTerm) return [];
 
-  // Strip . and -
-  const rawTermClean = searchTerm.replace(/[.-]/g, '');
+  // Strip ., -, =, and ^
+  const rawTermClean = searchTerm.replace(/[.\-=^]/g, '');
   const rawTermUC = rawTermClean.toUpperCase();
   const searchTokens = rawTermUC.split(/\s+/).filter(Boolean);
   if (searchTokens.length === 0) return [];
@@ -185,9 +185,9 @@ function performSearch(
 // Pre-compute dataset for fast search
 function useFlatDataset(dataset: Record<string, TickerProfile[]>) {
   return useMemo(() => {
-    // Helper to strip out dots and dashes for flexible matching
+    // Helper to strip out dots, dashes, equals, and carets for flexible matching
     const normalize = (val: string | undefined) =>
-      (val || '').replace(/[.-]/g, '').toUpperCase();
+      (val || '').replace(/[.\-=^]/g, '').toUpperCase();
 
     return Object.values(dataset).flat().map(profile => ({
       profile,
