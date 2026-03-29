@@ -85,6 +85,7 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({
           const symbols = [
             { ticker: '^SPX', exchange: Exchange.NYSE, name: 'S&P 500' },
             { ticker: '^NDX', exchange: Exchange.NASDAQ, name: 'NASDAQ 100' },
+            { ticker: '^STOXX', exchange: Exchange.FWB, name: 'STOXX Europe 600' },
             { ticker: '^NYETR', exchange: Exchange.NYSE, name: 'NYSE Energy Sector' },
             { ticker: '^SP500-45', exchange: Exchange.NYSE, name: 'S&P 500 Info Tech' },
             { ticker: '137', exchange: Exchange.TASE, name: 'TA-125', sid: 137 },

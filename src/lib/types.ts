@@ -24,7 +24,7 @@ export interface TrackingListItem {
 
 export type PriceUnit = 'base' | 'agorot';
 
-export type Currency = 'USD' | 'ILS' | 'EUR' | 'GBP' | 'ILA' | 'CAD' | 'JPY' | 'HKD' | 'AUD';
+export type Currency = 'USD' | 'ILS' | 'EUR' | 'GBP' | 'ILA' | 'CAD' | 'JPY' | 'HKD' | 'AUD' | 'KRW';
 export const Currency = {
   USD: 'USD' as Currency,
   ILS: 'ILS' as Currency,
@@ -35,6 +35,8 @@ export const Currency = {
   JPY: 'JPY' as Currency,
   HKD: 'HKD' as Currency,
   AUD: 'AUD' as Currency,
+  KRW: 'KRW' as Currency,
+  CHF: 'CHF' as Currency,
 };
 
 export interface SimpleMoney {
@@ -54,8 +56,8 @@ export interface Money extends SimpleMoney {
 
 
 const EXCHANGES = [
-  'NASDAQ', 'NYSE', 'TASE', 'LSE', 'FWB',
-  'EURONEXT', 'JPX', 'HKEX', 'TSX', 'ASX', 'GEMEL', 'PENSION',
+  'NASDAQ', 'NYSE', 'TASE', 'LSE', 'FWB', 'SWX',
+  'EURONEXT', 'JPX', 'HKEX', 'TSX', 'ASX', 'KSE', 'GEMEL', 'PENSION',
   'FOREX', 'CBS', 'BOI', 'CASH'
 ] as const;
 
@@ -128,6 +130,16 @@ export const EXCHANGE_SETTINGS: Record<Exchange, ExchangeSettings> = {
     labelEn: 'FWB (Frankfurt)',
     labelHe: 'FWB (פרנקפורט)'
   },
+  [Exchange.SWX]: {
+    aliases: ['XSWX', 'SWX', 'ZURICH', 'ZRH', 'SIX'],
+    googleFinanceCode: 'SWX',
+    googleSheetsCode: 'SWX',
+    yahooFinanceSuffix: '.SW',
+    globesCode: 'SIXSWISS',
+    defaultCurrency: Currency.CHF,
+    labelEn: 'SIX (Zurich)',
+    labelHe: 'SIX (ציריך)'
+  },
   [Exchange.EURONEXT]: {
     aliases: ['XPAR', 'XAMS', 'XBRU', 'XLIS', 'XDUB', 'EURONEXT', 'EPA', 'PA', 'PAR', 'PARIS'],
     googleFinanceCode: 'EPA',
@@ -177,6 +189,16 @@ export const EXCHANGE_SETTINGS: Record<Exchange, ExchangeSettings> = {
     defaultCurrency: Currency.AUD,
     labelEn: 'ASX (Sydney)',
     labelHe: 'ASX (סידני)'
+  },
+  [Exchange.KSE]: {
+    aliases: ['XKRX', 'KRX', 'KSE', 'SEOUL', 'KS', 'KQ'],
+    googleFinanceCode: 'KRX',
+    googleSheetsCode: 'KRX',
+    yahooFinanceSuffix: '.KS',
+    globesCode: 'SEOUL',
+    defaultCurrency: Currency.KRW,
+    labelEn: 'KSE (Korea)',
+    labelHe: 'KSE (קוריאה)'
   },
   [Exchange.GEMEL]: {
     aliases: [],

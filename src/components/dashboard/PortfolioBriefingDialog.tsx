@@ -45,7 +45,7 @@ const timeDays: Record<string, number> = { '1D': 1, '1W': 7, '1M': 30, '1Y': 365
 export function generateBriefingText(
   timeframe: Timeframe,
   stats: { totalGain: number, totalPct: number, totalPct1M: number, totalPct1Y: number, totalDivs: number, totalFlow?: number, totalVests?: number, allMovers?: { name: string, pct: number, gain: number }[] },
-  marketData: { spx?: number, ndx?: number, tlv?: number, energy?: number, it?: number },
+  marketData: { spx?: number, ndx?: number, tlv?: number, energy?: number, it?: number, stoxx?: number },
   displayCurrency: string,
   t: (key: string, backup: string) => string,
   customDays?: number,
@@ -70,7 +70,7 @@ export function generateBriefingText(
                       t('In the selected period', 'בתקופה הנבחרת');
 
   const moveSentence = getMoveSentence(timeWord, timeframe, pfAbsPct, isUp, gainStr, pctStr, t);
-  const marketSentence = getMarketSentence(timeframe, pfAbsPct, isUp, marketData.spx ?? 0, marketData.ndx ?? 0, marketData.tlv ?? 0, marketData.energy, marketData.it, t, customDays);
+  const marketSentence = getMarketSentence(timeframe, pfAbsPct, isUp, marketData.spx ?? 0, marketData.ndx ?? 0, marketData.tlv ?? 0, marketData.energy, marketData.it, marketData.stoxx, t, customDays);
   let showTrend1M = timeframe === '1D' || timeframe === '1W';
   let showTrend1Y = timeframe === '1M';
 
@@ -285,7 +285,7 @@ function getCoreMarketSentence(timeframe: string, pfAbsPct: number, isUp: boolea
   return "";
 }
 
-function getMarketSentence(timeframe: string, pfAbsPct: number, isUp: boolean, mktUS: number, mktNDX: number, mktIL: number, mktEnergy: number | undefined, mktIT: number | undefined, t: any, customDays?: number) {
+function getMarketSentence(timeframe: string, pfAbsPct: number, isUp: boolean, mktUS: number, mktNDX: number, mktIL: number, mktEnergy: number | undefined, mktIT: number | undefined, mktSTOXX: number | undefined, t: any, customDays?: number) {
   const core = getCoreMarketSentence(timeframe, pfAbsPct, isUp, mktUS, mktIL, t, customDays);
   if (!core) return "";
 
@@ -311,6 +311,15 @@ function getMarketSentence(timeframe: string, pfAbsPct: number, isUp: boolean, m
         divergenceStr = t(` Notably, the Energy sector showed ${getDirEN(mktEnergy!)} against the broader US market, returning ${eFmt}.`, ` בנוסף ניכר ${getDirHE(mktEnergy!)} במגזר האנרגיה (${eFmt}) ביחס לשוק הכללי בארה"ב.`);
       } else if (diffI > thresh) {
         divergenceStr = t(` Notably, the Tech sector showed ${getDirEN(mktIT!)} against the broader US market, returning ${iFmt}.`, ` בנוסף ניכר ${getDirHE(mktIT!)} במגזר הטכנולוגיה (${iFmt}) ביחס לשוק הכללי בארה"ב.`);
+      }
+    }
+
+    if (mktSTOXX !== undefined) {
+      const diffSTOXX = Math.abs(mktSTOXX - mktUS);
+      const isSTOXXNotable = Math.abs(mktSTOXX) > 0.01;
+      if (diffSTOXX > thresh && isSTOXXNotable) {
+        const sFmt = formatPercent(mktSTOXX);
+        divergenceStr += t(` Meanwhile, European markets (STOXX) saw a notable divergence, returning ${sFmt}.`, ` במקביל, שוקי אירופה (STOXX) הציגו מגמה שונה עם תשואה של ${sFmt}.`);
       }
     }
   }
@@ -362,7 +371,7 @@ export function PortfolioBriefingDialog({ open, onClose, holdings, transactions,
   const navigate = useNavigate();
 
   const [timeframe, setTimeframe] = useState<Timeframe>('1D');
-  const [marketData, setMarketData] = useState<{ spx?: number, ndx?: number, tlv?: number, it?: number, energy?: number }>({});
+  const [marketData, setMarketData] = useState<{ spx?: number, ndx?: number, tlv?: number, it?: number, energy?: number, stoxx?: number }>({});
   const [loadingMarket, setLoadingMarket] = useState(false);
   const [customRangeOpen, setCustomRangeOpen] = useState(false);
   const [customDateRange, setCustomDateRange] = useState<{ start: Date | null, end: Date | null }>({ start: null, end: null });
@@ -379,15 +388,17 @@ export function PortfolioBriefingDialog({ open, onClose, holdings, transactions,
         getTickerData('^IXIC', Exchange.NASDAQ, null),
         getTickerData('137', Exchange.TASE, 137),
         getTickerData('^NYETR', Exchange.NYSE, null),
-        getTickerData('^SP500-45', Exchange.NYSE, null)
-      ]).then(([spx, ndx, tlv, nyn, it]) => {
+        getTickerData('^SP500-45', Exchange.NYSE, null),
+        getTickerData('^STOXX', Exchange.FWB, null)
+      ]).then(([spx, ndx, tlv, nyn, it, stoxx]) => {
         const field = dr ? 'changePct1y' : (timeframe === '1D' ? 'changePct1d' : timeframe === '1W' ? 'changePctRecent' : timeframe === '1M' ? 'changePct1m' : 'changePct1y');
         setMarketData({
           spx: (spx as any)?.[field] || spx?.changePctRecent,
           ndx: (ndx as any)?.[field] || ndx?.changePctRecent,
           tlv: (tlv as any)?.[field] || tlv?.changePctRecent,
           energy: (nyn as any)?.[field] || nyn?.changePctRecent,
-          it: (it as any)?.[field] || it?.changePctRecent
+          it: (it as any)?.[field] || it?.changePctRecent,
+          stoxx: (stoxx as any)?.[field] || stoxx?.changePctRecent
         });
       }).finally(() => {
         setLoadingMarket(false);

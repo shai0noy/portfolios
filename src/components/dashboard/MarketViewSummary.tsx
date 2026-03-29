@@ -39,9 +39,10 @@ const MARKETS: MarketSection[] = [
   {
     title: 'World',
     tickers: [
-      { symbol: '^GDAXI', exchange: Exchange.FWB, name: 'DAX (Germany)', nameHe: 'DAX (גרמניה)' },
+      { symbol: '^STOXX', exchange: Exchange.FWB, name: 'STOXX Europe 600', nameHe: 'STOXX Europe 600' },
       { symbol: '^FTSE', exchange: Exchange.LSE, name: 'FTSE 100 (UK)', nameHe: 'FTSE 100 (בריטניה)' },
       { symbol: '^N225', exchange: Exchange.JPX, name: 'Nikkei 225 (Japan)', nameHe: 'ניקיי 225 (יפן)' },
+      { symbol: 'KOSPI100.KS', exchange: Exchange.KSE, name: 'KOSPI 100 (Korea)', nameHe: 'KOSPI 100 (קוריאה)' },
     ]
   }
 ];
@@ -245,14 +246,14 @@ export function MarketViewSummary({ isMobile, isActive = true }: MarketViewProps
                       <CircularProgress size={20} />
                     </Box>
                   ) : (
-                      <>
+                    <>
                       <Box sx={{ flex: 1, minHeight: 1, minWidth: 1 }}>
                         <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
-                            <LineChart data={chartData} margin={{ top: 5, right: isMobileRes ? 20 : 0, left: isMobileRes ? -8 : 0, bottom: 0 }}>
+                          <LineChart data={chartData} margin={{ top: 5, right: isMobileRes ? 20 : 0, left: isMobileRes ? -8 : 0, bottom: 0 }}>
                             <CartesianGrid stroke={theme.palette.text.disabled} strokeDasharray="3 3" strokeOpacity={0.4} />
                             <ReferenceLine y={0} stroke={theme.palette.text.secondary} strokeOpacity={0.5} strokeWidth={1} />
-                          <XAxis
-                                dataKey="date"
+                            <XAxis
+                              dataKey="date"
                               tickFormatter={(time) => {
                                 const d = new Date(time);
                                 if (['1W', '1M', '3M'].includes(range)) return d.toLocaleDateString(undefined, { day: 'numeric', month: 'numeric' });
@@ -260,51 +261,51 @@ export function MarketViewSummary({ isMobile, isActive = true }: MarketViewProps
                                 return d.getFullYear().toString();
                               }}
                               tick={{ fontSize: 10, fill: theme.palette.text.secondary }}
-                            minTickGap={30}
-                            interval="preserveStartEnd"
+                              minTickGap={30}
+                              interval="preserveStartEnd"
                               axisLine={false}
                               tickLine={false}
-                          />
-                              <YAxis
+                            />
+                            <YAxis
                               orientation="right"
                               tickFormatter={(val) => `${(val * 100).toFixed(1)}%`}
                               domain={['auto', 'auto']}
                               tick={{ fontSize: 10, fill: theme.palette.text.secondary }}
-                                width={isMobileRes ? 45 : 45}
+                              width={isMobileRes ? 45 : 45}
                               axisLine={false}
                               tickLine={{ stroke: theme.palette.text.secondary, strokeWidth: 1 }}
-                          />
-                          <RechartsTooltip
-                            contentStyle={{
-                              backgroundColor: theme.palette.background.paper,
-                              border: `1px solid ${theme.palette.divider}`,
-                              fontSize: '0.7rem',
-                              padding: '4px'
-                            }}
-                            formatter={(value: any, name: any) => {
-                              if (value === undefined) return ['', ''];
-                              const ticker = market.tickers.find(t => t.symbol === name);
-                              return [formatPercent(value), ticker ? getName(ticker) : name];
-                            }}
-                            labelFormatter={(label) => new Date(label).toLocaleDateString()}
-                          />
-                          {market.tickers.map((t, i) => (
-                            <Line
-                              key={t.symbol}
-                              type="monotone"
-                              dataKey={t.symbol}
-                              stroke={colors[i % colors.length]}
-                              dot={false}
-                              strokeWidth={1.5}
-                              connectNulls
                             />
-                          ))}
-                        </LineChart>
-                      </ResponsiveContainer>
-                        </Box>
+                            <RechartsTooltip
+                              contentStyle={{
+                                backgroundColor: theme.palette.background.paper,
+                                border: `1px solid ${theme.palette.divider}`,
+                                fontSize: '0.7rem',
+                                padding: '4px'
+                              }}
+                              formatter={(value: any, name: any) => {
+                                if (value === undefined) return ['', ''];
+                                const ticker = market.tickers.find(t => t.symbol === name);
+                                return [formatPercent(value), ticker ? getName(ticker) : name];
+                              }}
+                              labelFormatter={(label) => new Date(label).toLocaleDateString()}
+                            />
+                            {market.tickers.map((t, i) => (
+                              <Line
+                                key={t.symbol}
+                                type="monotone"
+                                dataKey={t.symbol}
+                                stroke={colors[i % colors.length]}
+                                dot={false}
+                                strokeWidth={1.5}
+                                connectNulls
+                              />
+                            ))}
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </Box>
 
                       {/* Legend / Key */}
-                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: isMobileRes ? 0.5 : 0.5, pb: 0, justifyContent: 'center' }}>
+                      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: isMobileRes ? 0.5 : 0.5, pb: 0, justifyContent: 'center' }}>
                         {market.tickers.map((t, i) => (
                           <Box key={t.symbol} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                             <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: colors[i % colors.length] }} />
@@ -314,7 +315,7 @@ export function MarketViewSummary({ isMobile, isActive = true }: MarketViewProps
                           </Box>
                         ))}
                       </Box>
-                      </>
+                    </>
                   )}
                 </Paper>
               </Grid>
