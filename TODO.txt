@@ -1,9 +1,4 @@
 ### Pleae be carful not to override entire file when updating tasks ###
- 
-Verify new exchanges
-Improve new txn UI (incl mode selector)
-Handle dashboard charts margin
-Add view of recent txns, layer performance, monthly performance??
 
 In details of gemel funds, handle gains display/calc - and cost basis!
 דמי ניהול - לחשב בגמל וכו'
@@ -12,12 +7,15 @@ verify adj price of results from sheet and globes? is it adj or not? need to kno
 Include mgmt fee in gemel calc
 fetch mgmt fee from tase and also show
 
+Filter closed positions in top movers (unless in favorites)
+When adding txn at historic time, default to said day price
+
 Mobile viewing is all over the place
 Check crypto 1d change?...
 Discovery/selling points splash page
 tase types vs globes types??
 If there is no sheet document ID, do not show the "create first portfolio" screen, rather, you should send the user to exisitng the screen to enter an existing sheet ID or create one
-DONE: Handle RSU style and Gemmel/Pension style div policy 
+!! Handle RSU style and Gemmel/Pension style div policy 
 ON HOLD: Handle splits, etc, name changes
 ON HOLD: Support mobile screen sizes
 ON HOLD: Use Finhub or marketstack over yahoo if possible or in addition (will reuqire to guide use rto create API key and add it to spreadsheet as part of setup)
@@ -27,12 +25,11 @@ Update test data (no more divs there) need DIV test data too
 DONE?: Add all potfolios + "total" portfolio as comperission options to tickers and to the analysis table. Make sure not to allow comperission of portfolio to itself in the summary component
 
 Low priority:
-- DONE?? Smart layer based tax calc (FIFO selling and per layer taxing)
-- DONE: Use Gemini for anlysis and insight
+- Smart layer based tax calc (FIFO selling and per layer taxing)
+- ON HOLD: Use Gemini for anlysis and insight
 - ON HOLD: Forcast mode, where future txns, vesting are taken into account, and growth of holding is predicted based on custom uesr input or recent trends. Should also include taxes
 - Support cash holding for IRS accounts
 
-DONE: Add hisotry of bot chats
 DONE: When changing fields in "Add portfolio", it is very slow and laggy. Need a way to verify faster/with less laf (but on edit, not on focus loss)
 DONE: Show holdings of funds
 DONE: Consider if request deduping is needed in places (cuurently in yahoo, globes)
