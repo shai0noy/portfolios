@@ -47,8 +47,11 @@ export const DashboardGroup = memo(function DashboardGroup(props: DashboardGroup
       acc.totalMV += h.display.marketValue;
       acc.totalDayChange += h.display.dayChangeVal;
       acc.totalUnrealizedGain += h.display.unrealizedGain;
+      if (h.isStaleDayChange) {
+        acc.hasStale1d = true;
+      }
       return acc;
-    }, { totalMV: 0, totalDayChange: 0, totalUnrealizedGain: 0 });
+    }, { totalMV: 0, totalDayChange: 0, totalUnrealizedGain: 0, hasStale1d: false });
   }, [groupHoldings]);
 
   const groupDayChangePct = groupSummary.totalMV > 0 ? groupSummary.totalDayChange / (groupSummary.totalMV - groupSummary.totalDayChange) : 0;
@@ -129,7 +132,7 @@ export const DashboardGroup = memo(function DashboardGroup(props: DashboardGroup
                     {t('Total:', 'סה"כ:')} {formatMoneyValue({ amount: groupSummary.totalMV, currency: normalizeCurrency(displayCurrency) }, t)}
                   </Typography>
                   <Typography variant="body2" color={groupSummary.totalDayChange >= 0 ? 'success.main' : 'error.main'} sx={{ display: { xs: 'none', sm: 'block' } }}>
-                    {t('Day:', 'יומי:')} {formatMoneyValue({ amount: groupSummary.totalDayChange, currency: normalizeCurrency(displayCurrency) }, t)} ({formatPct(groupDayChangePct)})
+                    {groupSummary.hasStale1d ? t('Last Trading:', 'מסחר אחרון:') : t('Day:', 'יומי:')} {formatMoneyValue({ amount: groupSummary.totalDayChange, currency: normalizeCurrency(displayCurrency) }, t)} ({formatPct(groupDayChangePct)})
                   </Typography>
                   <Typography variant="body2" color={groupSummary.totalUnrealizedGain >= 0 ? 'success.main' : 'error.main'} sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, lineHeight: { xs: 1.35, sm: 1.5 } }}>
                     {t('Unrealized:', 'לא ממומש:')} {formatMoneyValue({ amount: groupSummary.totalUnrealizedGain, currency: normalizeCurrency(displayCurrency) }, t)}

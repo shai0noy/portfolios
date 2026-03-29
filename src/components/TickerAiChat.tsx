@@ -130,7 +130,8 @@ export const TickerAiChat: React.FC<TickerAiChatProps> = ({
           threeYear: tickerData.changePct3y ? formatPercent(tickerData.changePct3y) : 'N/A',
           fiveYear: tickerData.changePct5y ? formatPercent(tickerData.changePct5y) : 'N/A',
           tenYear: tickerData.changePct10y ? formatPercent(tickerData.changePct10y) : 'N/A',
-          max: tickerData.changePctMax ? formatPercent(tickerData.changePctMax) : 'N/A'
+          max: tickerData.changePctMax ? formatPercent(tickerData.changePctMax) : 'N/A',
+          isStaleDayChange: tickerData.isStaleDayChange || false
         },
         dividendYield: tickerData.dividendYield ? formatPercent(tickerData.dividendYield) : 'N/A',
       },

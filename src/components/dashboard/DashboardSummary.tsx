@@ -48,6 +48,7 @@ interface SummaryProps {
   favoriteHoldings?: DashboardHolding[];
   showClosed?: boolean;
   boiTickerData?: { ticker: string, exchange: string, historical: { date: Date, price: number }[] };
+  is1dStale?: boolean;
 }
 
 /**

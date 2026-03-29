@@ -294,10 +294,10 @@ ${marketOverview}
             variant="outlined" color="primary"
             size="small"
             startIcon={<AssessmentOutlinedIcon />}
-            onClick={() => onSend(generateBriefingPrompt(t('daily', 'יומי'), t))}
+            onClick={() => onSend(generateBriefingPrompt(portfolioData.summary.totalDayChangeIsStale ? t('last trading day', 'מסחר אחרון') : t('daily', 'יומי'), t))}
             sx={{ textTransform: 'none', borderRadius: 2 }}
           >
-            {t('Daily Summary', 'סיכום יומי')}
+            {portfolioData.summary.totalDayChangeIsStale ? t('Last Trading Summary', 'סיכום מסחר אחרון') : t('Daily Summary', 'סיכום יומי')}
           </Button>
           <Button
             variant="outlined" color="primary"

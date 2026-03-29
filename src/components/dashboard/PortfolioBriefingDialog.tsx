@@ -35,6 +35,7 @@ interface PortfolioBriefingDialogProps {
   displayCurrency: string;
   exchangeRates: ExchangeRates;
   boiTickerData?: { ticker: string, exchange: string, historical: { date: Date, price: number }[] };
+  is1dStale?: boolean;
 }
 
 type Timeframe = '1D' | '1W' | '1M' | '3M' | '6M' | 'YTD' | '1Y' | '3Y' | '5Y' | 'All' | 'Custom';
@@ -48,14 +49,15 @@ export function generateBriefingText(
   displayCurrency: string,
   t: (key: string, backup: string) => string,
   customDays?: number,
-  customEnd?: Date | null
+  customEnd?: Date | null,
+  is1dStale?: boolean
 ): string {
   const pfAbsPct = Math.abs(stats.totalPct);
   const isUp = stats.totalGain > 0;
   const gainStr = formatMoneyValue({ amount: Math.abs(stats.totalGain), currency: displayCurrency as any }, undefined, 0);
   const pctStr = formatPercent(stats.totalPct);
 
-  const timeWord = (timeframe === '1D') ? t('Today', 'היום') :
+  const timeWord = (timeframe === '1D') ? (is1dStale ? t('On the last trading day', 'ביום המסחר האחרון') : t('Today', 'היום')) :
     (timeframe === '1W') ? t('This week', 'השבוע') :
       (timeframe === '1M') ? t('This month', 'החודש') :
         (timeframe === '3M') ? t('In the past 3 months', 'בשלושת החודשים האחרונים') :
@@ -352,7 +354,7 @@ function getTrendSentence(pfAbsPct: number, isUp: boolean, refPct: number, t: an
   return t(`This is a minor pullback following a strong ${refTrendEN} gain (${refFormatted}).`, `זהו תיקון קל למטה אחרי ${refProfitableHE} בסך הכל (${refFormatted}).`);
 }
 
-export function PortfolioBriefingDialog({ open, onClose, holdings, transactions, dividendRecords = [], displayCurrency, exchangeRates, boiTickerData }: PortfolioBriefingDialogProps) {
+export function PortfolioBriefingDialog({ open, onClose, holdings, transactions, dividendRecords = [], displayCurrency, exchangeRates, boiTickerData, is1dStale }: PortfolioBriefingDialogProps) {
   const { t } = useLanguage();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -630,7 +632,7 @@ export function PortfolioBriefingDialog({ open, onClose, holdings, transactions,
               }
             }}
           >
-            <ToggleButton value="1D">{t('Day', 'יומי')}</ToggleButton>
+            <ToggleButton value="1D">{is1dStale ? t('Last Trading', 'מסחר אחרון') : t('Day', 'יומי')}</ToggleButton>
             <ToggleButton value="1W">{t('Week', 'שבועי')}</ToggleButton>
             <ToggleButton value="1M">{t('Month', 'חודשי')}</ToggleButton>
             <ToggleButton value="1Y">{t('Year', 'שנתי')}</ToggleButton>
@@ -705,7 +707,8 @@ export function PortfolioBriefingDialog({ open, onClose, holdings, transactions,
                     (timeframe === 'Custom' && customDateRange.start)
                       ? Math.round(((customDateRange.end || new Date()).getTime() - customDateRange.start.getTime()) / 86400000)
                       : undefined,
-                    customDateRange.end
+                    customDateRange.end,
+                    is1dStale
                   ))}
                 </Typography>
               </Box>

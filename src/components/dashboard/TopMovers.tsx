@@ -159,12 +159,13 @@ interface TopMoversProps {
     displayCurrency: string;
     exchangeRates: ExchangeRates;
     lockedMetric?: 'change' | 'pct';
+    is1dStale?: boolean;
 }
 
 /**
  * Displays the top moving assets for 1D, 1W, and 1M periods.
  */
-export const TopMovers = ({ holdings, displayCurrency, exchangeRates, lockedMetric }: TopMoversProps) => {
+export const TopMovers = ({ holdings, displayCurrency, exchangeRates, lockedMetric, is1dStale }: TopMoversProps) => {
     const { t } = useLanguage();
     const navigate = useNavigate();
     const [sortBy, setSortBy] = useState<'change' | 'pct'>(lockedMetric || 'change');
@@ -183,7 +184,7 @@ export const TopMovers = ({ holdings, displayCurrency, exchangeRates, lockedMetr
     }, [holdings, displayCurrency, exchangeRates, sortBy]);
 
     const periodLabels = {
-        '1d': t('Daily', 'יומי'),
+        '1d': is1dStale ? t('Last Trading', 'מסחר אחרון') : t('Daily', 'יומי'),
         '1w': t('Weekly', 'שבועי'),
         '1m': t('Monthly', 'חודשי')
     };

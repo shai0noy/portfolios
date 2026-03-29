@@ -16,6 +16,7 @@ interface DashboardGroupHeaderProps {
     totalMV: number;
     totalDayChange: number;
     totalUnrealizedGain: number;
+    hasStale1d?: boolean;
   };
   colSpan: number;
 }
@@ -46,7 +47,7 @@ export const DashboardGroupHeader = memo(function DashboardGroupHeader(props: Da
               {t('Total:', 'סה"כ:')} {formatMoneyValue({ amount: summary.totalMV, currency: normalizeCurrency(displayCurrency) }, t)}
             </Typography>
             <Typography variant="body2" color={summary.totalDayChange >= 0 ? 'success.main' : 'error.main'}>
-              {t('Day:', 'יומי:')} {formatMoneyValue({ amount: summary.totalDayChange, currency: normalizeCurrency(displayCurrency) }, t)} ({formatPct(groupDayChangePct)})
+              {summary.hasStale1d ? t('Last Trading:', 'מסחר אחרון:') : t('Day:', 'יומי:')} {formatMoneyValue({ amount: summary.totalDayChange, currency: normalizeCurrency(displayCurrency) }, t)} ({formatPct(groupDayChangePct)})
             </Typography>
             <Typography variant="body2" color={summary.totalUnrealizedGain >= 0 ? 'success.main' : 'error.main'}>
               {t('Unrealized:', 'לא ממומש:')} {formatMoneyValue({ amount: summary.totalUnrealizedGain, currency: normalizeCurrency(displayCurrency) }, t)}

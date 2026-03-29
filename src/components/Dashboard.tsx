@@ -583,6 +583,7 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
           favoriteHoldings={favoriteHoldings}
           showClosed={showClosed}
           boiTickerData={boiData || undefined}
+          is1dStale={summary.totalDayChangeIsStale}
         />
       ) : (
         <Paper variant="outlined" sx={{ p: 3, mb: 4, position: 'relative' }}>
@@ -591,6 +592,7 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
             displayCurrency={displayCurrency}
             exchangeRates={exchangeRates}
             lockedMetric='pct'
+              is1dStale={summary.totalDayChangeIsStale}
           />
           {hasFutureTxns && (
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'right', mt: 1, mr: 2, mb: -1, fontSize: '0.7rem' }}>
@@ -862,6 +864,7 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
 
       {briefingOpen && (
         <PortfolioBriefingDialog
+          is1dStale={summary.totalDayChangeIsStale}
           transactions={engine?.transactions || []}
           dividendRecords={engine?.dividendRecords || []}
           open={true}
