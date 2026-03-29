@@ -234,7 +234,7 @@ export class Holding {
 
     // Market Data (Mutable)
     public currentPrice: number = 0;
-    public dayChangePct: number = 0;
+    public dayChangePct?: number;
     public isStaleDayChange: boolean = false;
     public perf1w?: number;
     public perf1m?: number;

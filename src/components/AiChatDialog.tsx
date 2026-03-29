@@ -169,7 +169,7 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({
       value: h.display.marketValue,
       unrealizedGain: h.display.unrealizedGain,
       unrealizedGainPct: formatPercent(h.display.unrealizedGainPct),
-      dayChangePct: formatPercent(h.display.dayChangePct),
+      dayChangePct: h.display.dayChangePct == null ? null : formatPercent(h.display.dayChangePct),
       realizedGain: h.display.realizedGain,
       realizedGainPct: formatPercent(h.display.realizedGainPct),
       weightInAllHoldings: formatPercent(h.display.weightInGlobal),

@@ -206,7 +206,7 @@ export async function fetchYahooTickerData(
             fetch(calUrl, fetchOpts).catch(() => null)
           ]);
 
-          if (res.status === 429 || res.status >= 500) {
+          if (res.status === 401 || res.status === 403 || res.status === 429 || res.status >= 500) {
             hasTransientError = true;
             if (res.status === 429) {
               const retryHeader = res.headers.get('Retry-After');

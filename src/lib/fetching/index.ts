@@ -302,7 +302,7 @@ export async function getTickerData(
 
   if (yahooData) {
     // Fill in missing fields from Yahoo.
-    return {
+    const mergedData: TickerData = {
       ...finalData,
       historical: globesData.historical ?? yahooData.historical, // Use the merged historical from yahooData if globes is missing it
       dividends: globesData.dividends ?? yahooData.dividends,
@@ -348,6 +348,7 @@ export async function getTickerData(
       fromCache: yahooData.fromCache,
       fromCacheMax: yahooData.fromCacheMax
     };
+    return detectStaleDayChange(mergedData);
   }
 
   return detectStaleDayChange(finalData);

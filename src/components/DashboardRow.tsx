@@ -58,7 +58,7 @@ export const DashboardRow = memo(function DashboardRow({
       case 'dayChangeVal':
         return <TableCell align="left" sx={{ color: getValueColor(vals.dayChangePct) }}>{formatMoneyValue({ amount: vals.dayChangeVal, currency: normalizeCurrency(displayCurrency) }, t)}</TableCell>;
       case 'dayChangePct':
-        return <TableCell align="left" sx={{ color: getValueColor(vals.dayChangePct) }}>{formatPct(vals.dayChangePct)}</TableCell>;
+        return <TableCell align="left" sx={{ color: getValueColor(vals.dayChangePct) }}>{vals.dayChangePct == null ? '-' : formatPct(vals.dayChangePct)}</TableCell>;
       case 'perf1w':
         return <TableCell align="left" sx={{ color: getValueColor(h.tickerChangePct1w || 0) }}>{formatPct(h.tickerChangePct1w || 0)}</TableCell>;
       case 'perf1m':

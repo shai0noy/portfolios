@@ -363,7 +363,7 @@ export interface DashboardHolding {
   avgYearlyReturn?: number;
 
   sector?: string;
-  dayChangePct: number;
+  dayChangePct?: number;
   isStaleDayChange?: boolean;
   perf1w: number;
   perf1m: number;
@@ -411,7 +411,7 @@ export interface DashboardHoldingDisplay {
   totalGainPct: number;
   valueAfterTax: number;
   dayChangeVal: number;
-  dayChangePct: number;
+  dayChangePct?: number;
   costBasis: number;
   costOfSold: number;
   proceeds: number;

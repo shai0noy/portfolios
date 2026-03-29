@@ -115,6 +115,27 @@ function calculateChangePct(current: number, prev: number | undefined): number |
   return (current - prev) / prev;
 }
 
+function parseGlobesTimestamp(dateStr: string): number {
+  if (!dateStr) return NaN;
+
+  // Ensure space before AM/PM
+  let parsedStr = dateStr.replace(/([0-9])([APap][Mm])/, '$1 $2');
+
+  // Convert DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY to MM/DD/YYYY for native JS parser
+  parsedStr = parsedStr.replace(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/, '$2/$1/$3');
+
+  // Matches pure "HH:mm" or "HH:mm:ss" indicating today's local time
+  if (/^(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?$/.test(parsedStr)) {
+    const now = new Date();
+    parsedStr = `${now.getMonth() + 1}/${now.getDate()}/${now.getFullYear()} ${parsedStr}`;
+  }
+
+  // Fallback to JS standard parser
+  return new Date(parsedStr).valueOf();
+}
+
+
+
 // --- Main Fetch Functions ---
 
 export async function fetchGlobesTickersByType(type: string, exchange: Exchange, signal?: AbortSignal): Promise<TickerProfile[]> {
@@ -241,14 +262,14 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
 
       try {
         const xmlDoc = parseXmlString(text);
-      const instrument = xmlDoc.getElementsByTagNameNS(GLOBES_API_NAMESPACE, 'Instrument')[0];
+        const instrument = xmlDoc.getElementsByTagNameNS(GLOBES_API_NAMESPACE, 'Instrument')[0];
         if (!instrument || instrument.getAttribute('xsi:nil') === 'true' || instrument.getAttributeNS?.('http://www.w3.org/2001/XMLSchema-instance', 'nil') === 'true') {
-        return null;
-      }
+          return null;
+        }
 
-      const common = extractCommonGlobesData(instrument);
-      const tradeTimeStatus = parseTradeTimeStatus(instrument);
-      const { currency, baseCurrency } = parseCurrencyData(instrument, identifier);
+        const common = extractCommonGlobesData(instrument);
+        const tradeTimeStatus = parseTradeTimeStatus(instrument);
+        const { currency, baseCurrency } = parseCurrencyData(instrument, identifier);
 
         const last = parseSafeNumber(instrument, 'last');
         if (last === undefined) {
@@ -256,82 +277,82 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
           return null;
         }
         const openPrice = parseSafeNumber(instrument, 'openPrice');
-      const volume = parseVolume(instrument, last, baseCurrency, currency);
+        const volume = parseVolume(instrument, last, baseCurrency, currency);
 
-      // Exchange parsing
-      const rawExchange = getText(instrument, 'exchange');
-      let exchangeRes = exchange;
-      if (rawExchange) {
-        try { exchangeRes = parseExchange(rawExchange); }
-        catch (e) { console.warn(`Globes: Unknown exchange '${rawExchange}', keeping requested ${exchange}.`); }
-      }
+        // Exchange parsing
+        const rawExchange = getText(instrument, 'exchange');
+        let exchangeRes = exchange;
+        if (rawExchange) {
+          try { exchangeRes = parseExchange(rawExchange); }
+          catch (e) { console.warn(`Globes: Unknown exchange '${rawExchange}', keeping requested ${exchange}.`); }
+        }
 
-      // Percentage Change Calculation
+        // Percentage Change Calculation
         let percentageChange = parseSafeNumber(instrument, 'percentageChange');
 
-      if (percentageChange === undefined || percentageChange === 0) {
-        const changeVal = parseSafeNumber(instrument, 'change') || 0;
-        if (changeVal !== 0 && last !== 0) {
-          const prevClose = last - changeVal;
-          if (prevClose !== 0) percentageChange = (changeVal / prevClose) * 100;
+        if (percentageChange === undefined || percentageChange === 0) {
+          const changeVal = parseSafeNumber(instrument, 'change') || 0;
+          if (changeVal !== 0 && last !== 0) {
+            const prevClose = last - changeVal;
+            if (prevClose !== 0) percentageChange = (changeVal / prevClose) * 100;
+          }
         }
-      }
 
-      const timestampStr = getText(instrument, 'timestamp');
-      const parsedTimestamp = timestampStr ? new Date(timestampStr).valueOf() : NaN;
-      const effectiveTimestamp = !isNaN(parsedTimestamp) ? parsedTimestamp : now;
+        const timestampStr = getText(instrument, 'timestamp');
+        const parsedTimestamp = timestampStr ? parseGlobesTimestamp(timestampStr) : NaN;
+        const effectiveTimestamp = !isNaN(parsedTimestamp) ? parsedTimestamp : now;
 
         const changePctYtdRaw = parseSafeNumber(instrument, 'ChangeFromLastYear');
         const changePctYtd = changePctYtdRaw !== undefined ? changePctYtdRaw / 100 : undefined;
 
-      let finalTicker = tickerSymbol;
-      let finalNumericId = securityId || null;
+        let finalTicker = tickerSymbol;
+        let finalNumericId = securityId || null;
 
-      // If it's an index, prefer using the official index number as symbol/ID
-      const isIndex = common.rawType?.toLowerCase() === 'index';
-      if (isIndex && common.indexNumber) {
-        finalTicker = common.indexNumber;
-        finalNumericId = parseInt(common.indexNumber, 10) || finalNumericId;
-      }
+        // If it's an index, prefer using the official index number as symbol/ID
+        const isIndex = common.rawType?.toLowerCase() === 'index';
+        if (isIndex && common.indexNumber) {
+          finalTicker = common.indexNumber;
+          finalNumericId = parseInt(common.indexNumber, 10) || finalNumericId;
+        }
 
-      const tickerData: TickerData = {
-        price: last,
-        openPrice,
-        name: common.nameEn || undefined,
-        nameHe: common.nameHe || undefined,
-        currency,
-        exchange: exchangeRes,
-        changePct1d: percentageChange !== undefined ? percentageChange / 100 : undefined,
-        changeDate1d: new Date(effectiveTimestamp),
-        timestamp: new Date(effectiveTimestamp),
-        changePctYtd,
-        changePctRecent: calculateChangePct(last, parseSafeNumber(instrument, 'LastWeekClosePrice')),
-        recentChangeDays: 7,
-        changePct1m: calculateChangePct(last, parseSafeNumber(instrument, 'LastMonthClosePrice')),
-        changePct3m: calculateChangePct(last, parseSafeNumber(instrument, 'Last3MonthsAgoClosePrice')),
-        changePct3y: calculateChangePct(last, parseSafeNumber(instrument, 'Last3YearsAgoClosePrice')),
-        ticker: finalTicker,
-        numericId: finalNumericId,
-        source: 'Globes',
-        globesInstrumentId: common.instrumentId || undefined,
-        tradeTimeStatus,
-        globesTypeHe: common.instrumentTypeHe || undefined,
-        volume,
-        isFeeExempt: common.koteretAlName === 'קרן כספית',
-        type: new InstrumentClassification(
-          common.koteretAlName === 'קרן כספית' ? 'monetary_fund' : common.rawType || 'unknown',
-          undefined,
-          { he: common.instrumentTypeHe }
-        )
-      };
+        const tickerData: TickerData = {
+          price: last,
+          openPrice,
+          name: common.nameEn || undefined,
+          nameHe: common.nameHe || undefined,
+          currency,
+          exchange: exchangeRes,
+          changePct1d: percentageChange !== undefined ? percentageChange / 100 : undefined,
+          changeDate1d: new Date(effectiveTimestamp),
+          timestamp: new Date(effectiveTimestamp),
+          changePctYtd,
+          changePctRecent: calculateChangePct(last, parseSafeNumber(instrument, 'LastWeekClosePrice')),
+          recentChangeDays: 7,
+          changePct1m: calculateChangePct(last, parseSafeNumber(instrument, 'LastMonthClosePrice')),
+          changePct3m: calculateChangePct(last, parseSafeNumber(instrument, 'Last3MonthsAgoClosePrice')),
+          changePct3y: calculateChangePct(last, parseSafeNumber(instrument, 'Last3YearsAgoClosePrice')),
+          ticker: finalTicker,
+          numericId: finalNumericId,
+          source: 'Globes',
+          globesInstrumentId: common.instrumentId || undefined,
+          tradeTimeStatus,
+          globesTypeHe: common.instrumentTypeHe || undefined,
+          volume,
+          isFeeExempt: common.koteretAlName === 'קרן כספית',
+          type: new InstrumentClassification(
+            common.koteretAlName === 'קרן כספית' ? 'monetary_fund' : common.rawType || 'unknown',
+            undefined,
+            { he: common.instrumentTypeHe }
+          )
+        };
 
 
-      return tickerData;
+        return tickerData;
 
-    } catch (error) {
-      console.error(`Failed to parse ticker data for ${identifier}:`, error);
+      } catch (error) {
+        console.error(`Failed to parse ticker data for ${identifier}:`, error);
         // We throw error here so it won't be cached as a valid "null" result, since it's a parsing error
         throw error;
-    }
-  });
+      }
+    });
 }

@@ -1055,10 +1055,12 @@ export class FinanceEngine {
             globalAcc.totalUnrealizedTax += unrealizedTax;
 
             // Day Change
-            if (h.dayChangePct !== 0) {
-                const { changeVal } = calculatePerformanceInDisplayCurrency(h.currentPrice, h.stockCurrency, h.dayChangePct, displayCurrency, this.exchangeRates);
-                const dayChangeTotal = changeVal * h.qtyVested;
-                globalAcc.totalDayChange += dayChangeTotal;
+            if (h.dayChangePct !== undefined) {
+                if (h.dayChangePct !== 0) {
+                    const { changeVal } = calculatePerformanceInDisplayCurrency(h.currentPrice, h.stockCurrency, h.dayChangePct, displayCurrency, this.exchangeRates);
+                    const dayChangeTotal = changeVal * h.qtyVested;
+                    globalAcc.totalDayChange += dayChangeTotal;
+                }
                 globalAcc.aumWithDayChangeData += marketValue;
 
                 if (h.isStaleDayChange) {

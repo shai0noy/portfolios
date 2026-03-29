@@ -49,7 +49,9 @@ export function calculateTopMovers(
       }
     })();
 
-    if (isNaN(perf)) return { changeVal: 0, perf: 0, initialVal: 0, currentVal: 0 };
+    if (perf === undefined || isNaN(perf)) {
+      return { changeVal: 0, perf: 0, initialVal: 0, currentVal: 0 };
+    }
 
     const { changeVal } = calculatePerformanceInDisplayCurrency(h.currentPrice, h.stockCurrency, perf, displayCurrency, exchangeRates);
 
