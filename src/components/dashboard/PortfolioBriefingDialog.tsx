@@ -36,6 +36,7 @@ interface PortfolioBriefingDialogProps {
   exchangeRates: ExchangeRates;
   boiTickerData?: { ticker: string, exchange: string, historical: { date: Date, price: number }[] };
   is1dStale?: boolean;
+  summary?: any;
 }
 
 type Timeframe = '1D' | '1W' | '1M' | '3M' | '6M' | 'YTD' | '1Y' | '3Y' | '5Y' | 'All' | 'Custom';
@@ -83,7 +84,7 @@ export function generateBriefingText(
 
   const trendSentence = showTrend1M ? getTrendSentence(pfAbsPct, isUp, stats.totalPct1M, t, '1m') :
     showTrend1Y ? getTrendSentence(pfAbsPct, isUp, stats.totalPct1Y, t, '1y') : "";
-  const moversSentence = getNotableMoversSentence(stats, timeframe, t);
+  const moversSentence = getNotableMoversSentence(stats, timeframe, displayCurrency, t);
   const divsValStr = stats.totalDivs > 0 ? formatMoneyValue({ amount: stats.totalDivs, currency: displayCurrency as any }, undefined, 0) : "";
   const vestValStr = (stats.totalVests && stats.totalVests > 100) ? formatMoneyValue({ amount: stats.totalVests, currency: displayCurrency as any }, undefined, 0) : "";
   const flowValStr = (stats.totalFlow && Math.abs(stats.totalFlow) > 100) ? formatMoneyValue({ amount: Math.abs(stats.totalFlow), currency: displayCurrency as any }, undefined, 0) : "";
@@ -113,55 +114,87 @@ export function generateBriefingText(
   return [mainStory, moversSentence, activitySentence].filter(Boolean).join('\n\n');
 }
 
-function getNotableMoversSentence(stats: { totalPct: number, allMovers?: { name: string, pct: number, gain: number }[] }, timeframe: string, t: any) {
+function getNotableMoversSentence(stats: { totalPct: number, totalGain?: number, allMovers?: { name: string, pct: number, gain: number }[] }, timeframe: string, displayCurrency: string, t: any) {
   if (!stats.allMovers || stats.allMovers.length === 0) return "";
 
-  const pfPct = stats.totalPct;
-  const NOTABLE_THRESHOLD = 0.02;
+  const pfGain = stats.totalGain || 0;
+  const NOTABLE_GAIN_THRESHOLD = Math.abs(pfGain) * 0.1 > 100 ? Math.abs(pfGain) * 0.1 : (Math.abs(pfGain) > 0 ? Math.min(Math.abs(pfGain) * 0.5, 50) : 50);
 
-  const outperforming = stats.allMovers.filter(m => m.pct >= NOTABLE_THRESHOLD && m.pct > pfPct);
-  const underperforming = stats.allMovers.filter(m => m.pct <= -NOTABLE_THRESHOLD && m.pct < pfPct);
+  const outperformingValue = stats.allMovers.filter(m => m.gain >= NOTABLE_GAIN_THRESHOLD && m.gain > 0);
+  const underperformingValue = stats.allMovers.filter(m => m.gain <= -NOTABLE_GAIN_THRESHOLD && m.gain < 0);
 
-  outperforming.sort((a, b) => b.pct - a.pct);
-  underperforming.sort((a, b) => a.pct - b.pct);
+  outperformingValue.sort((a, b) => b.gain - a.gain);
+  underperformingValue.sort((a, b) => a.gain - b.gain);
 
-  const topOut = outperforming.slice(0, 2);
-  const topUnder = underperforming.slice(0, 2);
+  const topOutValue = outperformingValue.slice(0, 2);
+  const topUnderValue = underperformingValue.slice(0, 2);
 
-  if (topOut.length === 0 && topUnder.length === 0) return "";
+  const outValueNames = new Set(topOutValue.map(m => m.name));
+  const underValueNames = new Set(topUnderValue.map(m => m.name));
 
-  const formatList = (list: { name: string, pct: number }[]) =>
+  let severePctThreshold = 0.05;
+  if (timeframe === '1W') severePctThreshold = 0.10;
+  if (timeframe === '1M') severePctThreshold = 0.20;
+  if (timeframe === '1Y') severePctThreshold = 0.40;
+
+  const outperformingPct = stats.allMovers.filter(m => m.pct >= severePctThreshold && !outValueNames.has(m.name) && !underValueNames.has(m.name));
+  const underperformingPct = stats.allMovers.filter(m => m.pct <= -severePctThreshold && !outValueNames.has(m.name) && !underValueNames.has(m.name));
+
+  outperformingPct.sort((a, b) => b.pct - a.pct);
+  underperformingPct.sort((a, b) => a.pct - b.pct);
+
+  const topOutPct = outperformingPct.slice(0, 2);
+  const topUnderPct = underperformingPct.slice(0, 2);
+
+  if (topOutValue.length === 0 && topUnderValue.length === 0 && topOutPct.length === 0 && topUnderPct.length === 0) return "";
+
+  const formatListValue = (list: { name: string, gain: number }[]) =>
+    list.map(m => `${m.name} (${m.gain > 0 ? '+' : ''}${formatMoneyValue({ amount: m.gain, currency: displayCurrency as any }, undefined, 0)})`).join(t(' and ', ' ו-'));
+
+  const formatListPct = (list: { name: string, pct: number }[]) =>
     list.map(m => `${m.name} (${formatPercent(m.pct)})`).join(t(' and ', ' ו-'));
 
-  let severeThreshold = 0.05;
-  if (timeframe === '1W') severeThreshold = 0.10;
-  if (timeframe === '1M') severeThreshold = 0.20;
-  if (timeframe === '1Y') severeThreshold = 0.40;
+  let sentence = "";
 
-  const hasSevereDrops = topUnder.some(m => m.pct <= -severeThreshold);
-
-  if (topOut.length > 0 && topUnder.length > 0) {
-    return t(
-      `Notably, ${formatList(topOut)} outperformed, while ${formatList(topUnder)} saw significant drops.`,
-      `ראוי לציון כי ${formatList(topOut)} בלטו לחיוב לראש הפסגה, בעוד ש-${formatList(topUnder)} רשמו ירידות משמעותיות.`
+  if (topOutValue.length > 0 && topUnderValue.length > 0) {
+    sentence = t(
+      `Notably, ${formatListValue(topOutValue)} outperformed, while ${formatListValue(topUnderValue)} saw significant drops.`,
+      `ראוי לציון כי ${formatListValue(topOutValue)} בלטו לחיוב לראש הפסגה, בעוד ש-${formatListValue(topUnderValue)} רשמו ירידות משמעותיות.`
     );
-  } else if (topOut.length > 0) {
-    if (pfPct < 0) {
-      return t(`Bright spots included ${formatList(topOut)}, which bucked the downward trend.`, `נקודות האור כללו את ${formatList(topOut)}, שעלו בניגוד למגמה השלילית בתיק.`);
+  } else if (topOutValue.length > 0) {
+    if (pfGain < 0) {
+      sentence = t(`Bright spots included ${formatListValue(topOutValue)}, which bucked the downward trend.`, `נקודות האור כללו את ${formatListValue(topOutValue)}, שעלו בניגוד למגמה השלילית בתיק.`);
     } else {
-      return t(`Key drivers pushing the portfolio included ${formatList(topOut)}.`, `עליות התיק הובלו בין היתר על ידי ${formatList(topOut)} שבלטו במיוחד.`);
+      sentence = t(`Key drivers pushing the portfolio included ${formatListValue(topOutValue)}.`, `עליות התיק הובלו בין היתר על ידי ${formatListValue(topOutValue)} שבלטו במיוחד.`);
     }
-  } else if (topUnder.length > 0) {
-    if (pfPct > 0) {
-      return t(`However, ${formatList(topUnder)} lagged behind with notable drops.`,
-        hasSevereDrops ? `עם זאת, במנוגד למגמה הכללית בתיק נרשמה צניחה של ${formatList(topUnder)}.` : `עם זאת, ${formatList(topUnder)} רשמו ירידות משמעותיות במנוגד למגמה הכללית בתיק.`);
+  } else if (topUnderValue.length > 0) {
+    if (pfGain > 0) {
+      sentence = t(`However, ${formatListValue(topUnderValue)} lagged behind with notable drops.`,
+        `עם זאת, ${formatListValue(topUnderValue)} רשמו ירידות משמעותיות במנוגד למגמה הכללית בתיק.`);
     } else {
-      return t(`The decline was largely driven by heavy drops in ${formatList(topUnder)}.`,
-        hasSevereDrops ? `ירידות אלו הובלו והוחמרו בעיקר בעקבות צניחה של ${formatList(topUnder)}.` : `הירידות בתיק הושפעו בעיקר מירידות בולטות של ${formatList(topUnder)}.`);
+      sentence = t(`The decline was largely driven by heavy drops in ${formatListValue(topUnderValue)}.`,
+        `הירידות בתיק הושפעו בעיקר מירידות בולטות של ${formatListValue(topUnderValue)}.`);
     }
   }
 
-  return "";
+  const extraPctArr = [];
+  if (topOutPct.length > 0) {
+    extraPctArr.push(t(`${formatListPct(topOutPct)} surged`, `${formatListPct(topOutPct)} זינקו`));
+  }
+  if (topUnderPct.length > 0) {
+    extraPctArr.push(t(`${formatListPct(topUnderPct)} plunged`, `${formatListPct(topUnderPct)} צנחו`));
+  }
+
+  if (extraPctArr.length > 0) {
+    const extraSentence = extraPctArr.join(t(' and ', ' ו-')) + ".";
+    if (sentence) {
+      sentence += " " + t("Additionally, ", "בנוסף, ") + extraSentence;
+    } else {
+      sentence = t("On a percentage basis, ", "במונחי אחוזים, ") + extraSentence;
+    }
+  }
+
+  return sentence;
 }
 
 function getMoveSentence(timeWord: string, timeframe: string, pfAbsPct: number, isUp: boolean, gainStr: string, pctStr: string, t: any) {
@@ -363,7 +396,7 @@ function getTrendSentence(pfAbsPct: number, isUp: boolean, refPct: number, t: an
   return t(`This is a minor pullback following a strong ${refTrendEN} gain (${refFormatted}).`, `זהו תיקון קל למטה אחרי ${refProfitableHE} בסך הכל (${refFormatted}).`);
 }
 
-export function PortfolioBriefingDialog({ open, onClose, holdings, transactions, dividendRecords = [], displayCurrency, exchangeRates, boiTickerData, is1dStale }: PortfolioBriefingDialogProps) {
+export function PortfolioBriefingDialog({ open, onClose, holdings, transactions, dividendRecords = [], displayCurrency, exchangeRates, boiTickerData, is1dStale, summary }: PortfolioBriefingDialogProps) {
   const { t } = useLanguage();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -519,10 +552,39 @@ export function PortfolioBriefingDialog({ open, onClose, holdings, transactions,
       totalStartVal1Y += m.base1Y;
     }
 
-    const totalGain = totalEndVal - totalStartVal;
-    const totalPct = totalStartVal > 0 ? totalGain / totalStartVal : 0;
-    const totalPct1M = totalStartVal1M > 0 ? (totalEndVal - totalStartVal1M) / totalStartVal1M : 0;
-    const totalPct1Y = totalStartVal1Y > 0 ? (totalEndVal - totalStartVal1Y) / totalStartVal1Y : 0;
+    const totalGainRaw = totalEndVal - totalStartVal;
+    const totalPctRaw = totalStartVal > 0 ? totalGainRaw / totalStartVal : 0;
+    const totalPct1MRaw = totalStartVal1M > 0 ? (totalEndVal - totalStartVal1M) / totalStartVal1M : 0;
+    const totalPct1YRaw = totalStartVal1Y > 0 ? (totalEndVal - totalStartVal1Y) / totalStartVal1Y : 0;
+
+    let totalGain = totalGainRaw;
+    let totalPct = totalPctRaw;
+    let totalPct1M = totalPct1MRaw;
+    let totalPct1Y = totalPct1YRaw;
+
+    if (summary) {
+      totalPct1M = summary.perf1m || 0;
+      totalPct1Y = summary.perf1y || 0;
+
+      let exactPct: number | undefined;
+      if (timeframe === '1D') exactPct = summary.totalDayChangePct;
+      else if (timeframe === '1W') exactPct = summary.perf1w;
+      else if (timeframe === '1M') exactPct = summary.perf1m;
+      else if (timeframe === '3M') exactPct = summary.perf3m;
+      else if (timeframe === '6M') exactPct = (summary.perf3m || 0) * 2;
+      else if (timeframe === 'YTD') exactPct = summary.perfYtd;
+      else if (timeframe === '1Y') exactPct = summary.perf1y;
+      else if (timeframe === '3Y') exactPct = summary.perf3y;
+      else if (timeframe === '5Y') exactPct = summary.perf5y;
+      else if (timeframe === 'All') exactPct = summary.perfAll;
+
+      if (exactPct !== undefined) {
+        totalPct = exactPct;
+        const aum = summary.aum || totalEndVal;
+        const previousAUM = aum / (1 + exactPct);
+        totalGain = aum - previousAUM;
+      }
+    }
 
     movers.sort((a, b) => b.gain - a.gain);
     const topGainers = movers.filter(m => m.gain > 0).slice(0, 3);
@@ -530,7 +592,7 @@ export function PortfolioBriefingDialog({ open, onClose, holdings, transactions,
     const allMovers = movers.map(m => ({ exchange: m.exchange, name: m.name, pct: m.pct, gain: m.gain, ticker: m.ticker }));
 
     return { totalGain, totalPct, totalPct1M, totalPct1Y, topGainers, topLosers, allMovers, totalDivs, totalFlow, totalVests };
-  }, [holdings, timeframe, transactions, exchangeRates, displayCurrency, dividendRecords, customDateRange.start, customDateRange.end]);
+  }, [holdings, timeframe, transactions, exchangeRates, displayCurrency, dividendRecords, customDateRange.start, customDateRange.end, summary]);
 
   const recentEvents = useMemo(() => {
     const allEvents = getRecentEventsData(holdings, transactions, dividendRecords, t, boiTickerData);
@@ -804,7 +866,7 @@ export function PortfolioBriefingDialog({ open, onClose, holdings, transactions,
                           <span>{holdingName} &middot; {ev.titleStr}</span>
                           <Typography component="span" variant="caption" color="text.secondary">{ev.dateDisplay}</Typography>
                         </Typography>
-                        <Typography variant="caption" color="text.secondary">{ev.desc}{ev.valueDesc ? ` &middot; ${ev.valueDesc}` : ""}</Typography>
+                        <Typography variant="caption" color="text.secondary">{ev.desc}{ev.valueDesc ? ` · ${ev.valueDesc}` : ""}</Typography>
                       </Box>
                     </Paper>
                   );

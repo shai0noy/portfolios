@@ -865,6 +865,7 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
       {briefingOpen && (
         <PortfolioBriefingDialog
           is1dStale={summary.totalDayChangeIsStale}
+          summary={summary}
           transactions={engine?.transactions || []}
           dividendRecords={engine?.dividendRecords || []}
           open={true}

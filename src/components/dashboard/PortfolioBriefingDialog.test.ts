@@ -46,7 +46,7 @@ describe('generateBriefingText', () => {
       'USD',
       t
     );
-    expect(text).toContain('An impressive gain despite a red US market');
+    expect(text).toContain('Bucking a mixed trend, this aligns with a solid Israeli market');
   });
 
   it('handles increase following Israel, despite US drop', () => {
@@ -57,7 +57,7 @@ describe('generateBriefingText', () => {
       'USD',
       t
     );
-    expect(text).toContain('aligns with strong surges in the local market');
+    expect(text).toContain('Bucking a mixed trend, this aligns with strong surges in the Israeli market');
   });
 
   it('handles dividends received', () => {
