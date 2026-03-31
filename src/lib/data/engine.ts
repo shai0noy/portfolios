@@ -643,7 +643,7 @@ export class FinanceEngine {
 
             // 3. Metrics in Portfolio Currency (Cost Basis, Total Cost)
             // costBasisVested
-            const cbVestedVal = activeLots.reduce((acc, l) => acc + (l.isVested ? l.costTotal.amount : 0), 0);
+            const cbVestedVal = activeLots.reduce((acc, l) => acc + (l.isVested ? convertCurrency(l.costTotal.amount, l.costTotal.currency, h.portfolioCurrency, this.exchangeRates) : 0), 0);
             const cbVestedUSD = activeLots.reduce((acc, l) => acc + (l.isVested ? (l.costTotal.valUSD || 0) : 0), 0);
             const cbVestedILS = activeLots.reduce((acc, l) => acc + (l.isVested ? (l.costTotal.valILS || 0) : 0), 0);
             h.costBasisVested = { amount: cbVestedVal, currency: h.portfolioCurrency, valUSD: cbVestedUSD, valILS: cbVestedILS };
@@ -797,9 +797,9 @@ export class FinanceEngine {
             // Proceeds
             const proceedsVal = realizedLots.reduce((acc, l) => {
                 // Proceeds = cost + netGain + fees
-                const cost = l.costTotal.amount;
-                const buyFee = l.feesBuy.amount;
-                const sellFee = l.soldFees?.amount || 0;
+                const cost = convertCurrency(l.costTotal.amount, l.costTotal.currency, h.portfolioCurrency, this.exchangeRates);
+                const buyFee = convertCurrency(l.feesBuy.amount, l.feesBuy.currency, h.portfolioCurrency, this.exchangeRates);
+                const sellFee = l.soldFees ? convertCurrency(l.soldFees.amount, l.soldFees.currency, h.portfolioCurrency, this.exchangeRates) : 0;
                 const gain = l.realizedGainNet || 0;
                 return acc + gain + cost + buyFee + sellFee;
             }, 0);
@@ -808,14 +808,14 @@ export class FinanceEngine {
             h.proceedsTotal = { amount: proceedsVal, currency: h.portfolioCurrency, valUSD: proceedsUSD, valILS: proceedsILS };
 
             // Cost of Sold
-            const cosVal = realizedLots.reduce((acc, l) => acc + l.costTotal.amount, 0);
+            const cosVal = realizedLots.reduce((acc, l) => acc + convertCurrency(l.costTotal.amount, l.costTotal.currency, h.portfolioCurrency, this.exchangeRates), 0);
             const cosUSD = realizedLots.reduce((acc, l) => acc + (l.costTotal.valUSD || 0), 0) || undefined;
             const cosILS = realizedLots.reduce((acc, l) => acc + (l.costTotal.valILS || 0), 0) || undefined;
             h.costOfSoldTotal = { amount: cosVal, currency: h.portfolioCurrency, valUSD: cosUSD, valILS: cosILS };
 
             // Fees
-            const activeBuyFees = activeLots.reduce((acc, l) => acc + l.feesBuy.amount, 0);
-            const realizedFees = realizedLots.reduce((acc, l) => acc + l.feesBuy.amount + (l.soldFees?.amount || 0), 0);
+            const activeBuyFees = activeLots.reduce((acc, l) => acc + convertCurrency(l.feesBuy.amount, l.feesBuy.currency, h.portfolioCurrency, this.exchangeRates), 0);
+            const realizedFees = realizedLots.reduce((acc, l) => acc + convertCurrency(l.feesBuy.amount, l.feesBuy.currency, h.portfolioCurrency, this.exchangeRates) + (l.soldFees ? convertCurrency(l.soldFees.amount, l.soldFees.currency, h.portfolioCurrency, this.exchangeRates) : 0), 0);
             h.feesTotal = { amount: activeBuyFees + realizedFees, currency: h.portfolioCurrency };
 
             // Dividends
@@ -1006,7 +1006,7 @@ export class FinanceEngine {
             const unvestedCostPC = h.activeLots.reduce((acc, l) => {
                 if (l.isVested) return acc;
                 // Grant cost basis (grant price) is included to show relative gain/performance
-                return acc + l.costTotal.amount;
+                return acc + convertCurrency(l.costTotal.amount, l.costTotal.currency, h.portfolioCurrency, this.exchangeRates);
             }, 0);
             const unvestedCost = convertCurrency(unvestedCostPC, h.portfolioCurrency, displayCurrency, this.exchangeRates);
             globalAcc.totalUnvestedCost += unvestedCost;
