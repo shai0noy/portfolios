@@ -12,6 +12,7 @@ export interface PerfStatProps {
     aum: number;
     displayCurrency: string;
     size?: 'normal' | 'small';
+    onClick?: () => void;
 }
 
 /**
@@ -26,7 +27,8 @@ export const PerformanceStat = ({
     isLoading, 
     aum, 
     displayCurrency, 
-    size = 'normal' 
+    size = 'normal',
+    onClick
 }: PerfStatProps) => {
     const { t } = useLanguage();
 
@@ -47,7 +49,7 @@ export const PerformanceStat = ({
 
     // If percentage is undefined (and not loading), it implies no data
     if (percentage === undefined || isNaN(percentage)) {
-        return <SummaryStat label={label} value={0} pct={0} displayCurrency={displayCurrency} size={size} />;
+        return <SummaryStat label={label} value={0} pct={0} displayCurrency={displayCurrency} size={size} onClick={onClick} />;
     }
 
     let absoluteChange = 0;
@@ -70,6 +72,7 @@ export const PerformanceStat = ({
             tooltip={isIncomplete ? t("Calculation is based on partial data.", "החישוב מבוסס על נתונים חלקיים.") : undefined} 
             displayCurrency={displayCurrency} 
             size={size} 
+            onClick={onClick}
         />
     );
 }

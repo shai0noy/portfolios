@@ -45,8 +45,10 @@ import { prefixer } from 'stylis';
 import { SessionProvider, useSession } from './lib/SessionContext';
 import { ProfileForm, type UserFinancialProfile } from './components/ProfileForm';
 import { setMetadataValue } from './lib/sheets/api';
-import { ApiKeyDialog } from './components/ApiKeyDialog'; const ColorBlind = VisibilityOffIcon;
+import { ApiKeyDialog } from './components/ApiKeyDialog';
 import { Toaster, toast } from 'react-hot-toast';
+
+const ColorBlind = VisibilityOffIcon;
 
 const tabMap: Record<string, number> = {
   '/dashboard': 0,

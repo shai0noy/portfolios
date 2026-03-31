@@ -1,3 +1,6 @@
+import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TableSortLabel } from '@mui/material';
+import CloseIcon from '@mui/icons-material/Close';
+import { formatPercent } from '../../lib/currencyUtils';
 import { Box, Paper, Typography, Grid, Tooltip, ToggleButton, ToggleButtonGroup, IconButton, CircularProgress, Button, Menu, MenuItem, Chip, ListItemIcon, Dialog, DialogTitle, DialogContent, Fade, Alert, ListItemText, Divider } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
@@ -68,6 +71,112 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   const [activeStep, setActiveStep] = useState(0);
+  const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' }>({ key: 'metricPct', direction: 'desc' });
+  const [popupStat, setPopupStat] = useState<{
+    key: string;
+    label: string;
+  } | null>(null);
+
+  const getPopupData = useMemo(() => {
+    if (!popupStat || !holdings) return [];
+    const grouped = new Map<string, any>();
+
+    holdings.forEach(h => {
+      if (!grouped.has(h.ticker)) {
+        grouped.set(h.ticker, {
+          ticker: h.ticker,
+          displayName: h.displayName || h.ticker,
+          display: {
+            marketValue: 0,
+            unrealizedGain: 0,
+            realizedGain: 0,
+            valueAfterTax: 0,
+            dayChangeVal: 0,
+          },
+          aumForPerf1w: 0, perfSum1w: 0,
+          aumForPerf1m: 0, perfSum1m: 0,
+          aumForPerf3m: 0, perfSum3m: 0,
+          aumForPerfYtd: 0, perfSumYtd: 0,
+          aumForPerf1y: 0, perfSum1y: 0,
+          aumForPerf5y: 0, perfSum5y: 0,
+          aumForPerfAll: 0, perfSumAll: 0,
+          unvestedValue: 0,
+        });
+      }
+      const g = grouped.get(h.ticker)!;
+      const disp = h.display || {} as any;
+      const mv = disp.marketValue || 0;
+
+      g.display.marketValue += mv;
+      g.display.unrealizedGain += disp.unrealizedGain || 0;
+      g.display.realizedGain += (disp.realizedGain || 0) + (disp.dividends || 0);
+      g.display.valueAfterTax += disp.valueAfterTax || 0;
+      g.display.dayChangeVal += disp.dayChangeVal || 0;
+      g.unvestedValue += (h.marketValueUnvested?.amount || 0);
+
+      if (h.perf1w !== undefined) { g.perfSum1w += h.perf1w * mv; g.aumForPerf1w += mv; }
+      if (h.perf1m !== undefined) { g.perfSum1m += h.perf1m * mv; g.aumForPerf1m += mv; }
+      if (h.perf3m !== undefined) { g.perfSum3m += h.perf3m * mv; g.aumForPerf3m += mv; }
+      if (h.perfYtd !== undefined) { g.perfSumYtd += h.perfYtd * mv; g.aumForPerfYtd += mv; }
+      if (h.perf1y !== undefined) { g.perfSum1y += h.perf1y * mv; g.aumForPerf1y += mv; }
+      if (h.perf5y !== undefined) { g.perfSum5y += h.perf5y * mv; g.aumForPerf5y += mv; }
+      if (h.perfAll !== undefined) { g.perfSumAll += h.perfAll * mv; g.aumForPerfAll += mv; }
+    });
+
+    return Array.from(grouped.values()).map(g => {
+      const calcPerf = (sum: number, aum: number) => {
+        const pct = aum > 0 ? sum / aum : 0;
+        const val = pct === 0 ? 0 : aum - (aum / (1 + pct));
+        return { pct, val };
+      };
+
+      const row = {
+        ...g,
+        unrealizedGainPct: (g.display.marketValue - g.display.unrealizedGain) > 0 ? g.display.unrealizedGain / (g.display.marketValue - g.display.unrealizedGain) : 0,
+        perf1w: calcPerf(g.perfSum1w, g.aumForPerf1w),
+        perf1m: calcPerf(g.perfSum1m, g.aumForPerf1m),
+        perf3m: calcPerf(g.perfSum3m, g.aumForPerf3m),
+        perfYtd: calcPerf(g.perfSumYtd, g.aumForPerfYtd),
+        perf1y: calcPerf(g.perfSum1y, g.aumForPerf1y),
+        perf5y: calcPerf(g.perfSum5y, g.aumForPerf5y),
+        perfAll: calcPerf(g.perfSumAll, g.aumForPerfAll),
+      };
+
+      let metricValue = 0;
+      let metricPct: number | undefined = undefined;
+
+      if (popupStat?.key === 'valueAfterTax') { metricValue = row.display.valueAfterTax; }
+      else if (popupStat?.key === 'totalUnrealized') { metricValue = row.display.unrealizedGain; metricPct = row.unrealizedGainPct; }
+      else if (popupStat?.key === 'totalRealized') { metricValue = row.display.realizedGain; }
+      else if (popupStat?.key === 'totalUnvestedValue') { metricValue = row.unvestedValue; }
+      else if (popupStat?.key === 'totalDayChange') { metricValue = row.display.dayChangeVal; metricPct = row.display.marketValue > 0 ? row.display.dayChangeVal / (row.display.marketValue - row.display.dayChangeVal) : 0; }
+      else if (['1W', '1M', '3M', 'YTD', '1Y', '5Y', 'ALL'].includes(popupStat?.key || '')) {
+        const p = (row as any)[`perf${popupStat!.key === 'ALL' ? 'All' : popupStat!.key.toLowerCase()}`];
+        metricValue = p.val;
+        metricPct = p.pct;
+      }
+      return { ...row, metricValue, metricPct };
+    }).sort((a, b) => {
+      let sortKey = sortConfig.key;
+      if (sortKey === 'metricPct' && a.metricPct === undefined && b.metricPct === undefined) {
+        sortKey = 'metricValue';
+      }
+
+      let valA: any = a[sortKey as keyof typeof a];
+      let valB: any = b[sortKey as keyof typeof b];
+      if (sortKey === 'marketValue') {
+        valA = a.display.marketValue; valB = b.display.marketValue;
+      }
+      valA = valA ?? 0;
+      valB = valB ?? 0;
+
+      if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+      if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [popupStat, holdings, sortConfig]);
+
+
   const hasRecent = hasRecentEvents(holdings, favoriteHoldings || [], transactions, dividendRecords, boiTickerData || undefined);
   const totalSteps = hasRecent ? 5 : 4;
   const idxRecent = 1;
@@ -341,6 +450,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                           <Grid item xs={6}>
                             <SummaryStat
                               label={t("Value After Tax", "שווי אחרי מס")}
+                              onClick={() => setPopupStat({ key: "valueAfterTax", label: t("Value After Tax", "שווי אחרי מס") })}
                               value={summary.valueAfterTax}
                               pct={summary.aum > 0 ? summary.valueAfterTax / summary.aum : undefined}
                               displayCurrency={displayCurrency}
@@ -351,6 +461,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                           <Grid item xs={6}>
                             <SummaryStat
                               label={t("Unrealized Gain", "רווח לא ממומש")}
+                              onClick={() => setPopupStat({ key: "totalUnrealized", label: t("Unrealized Gain", "רווח לא ממומש") })}
                               value={summary.totalUnrealized}
                               pct={summary.totalUnrealizedGainPct}
                               color={summary.totalUnrealized >= 0 ? 'success.main' : 'error.main'}
@@ -361,6 +472,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                           <Grid item xs={6}>
                             <SummaryStat
                               label={t("Realized Gain", "רווח ממומש")}
+                              onClick={() => setPopupStat({ key: "totalRealized", label: t("Realized Gain", "רווח ממומש") })}
                               value={summary.totalRealized + summary.totalDividends}
                               pct={(summary.totalRealized + summary.totalDividends) / ((summary.totalCostOfSold + ((summary.aum - summary.totalUnvestedValue) - summary.totalUnrealized)) > 0 ? (summary.totalCostOfSold + ((summary.aum - summary.totalUnvestedValue) - summary.totalUnrealized)) : 1)}
                               color={(summary.totalRealized + summary.totalDividends) >= 0 ? 'success.main' : 'error.main'}
@@ -372,6 +484,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                             <Grid item xs={6}>
                               <SummaryStat
                                 label={t("Unvested Value", "שווי לא מובשל")}
+                                onClick={() => setPopupStat({ key: "totalUnvestedValue", label: t("Unvested Value", "שווי לא מובשל") })}
                                 value={summary.totalUnvestedValue}
                                 pct={summary.totalUnvestedGainPct}
                                 gainValue={summary.totalUnvestedGain}
@@ -386,6 +499,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                         <Box display="flex" gap={4} justifyContent="flex-end" alignItems="center" flexWrap="wrap">
                           <SummaryStat
                             label={t("Value After Tax", "שווי אחרי מס")}
+                              onClick={() => setPopupStat({ key: "valueAfterTax", label: t("Value After Tax", "שווי אחרי מס") })}
                             value={summary.valueAfterTax}
                             pct={summary.aum > 0 ? summary.valueAfterTax / summary.aum : undefined}
                             displayCurrency={displayCurrency}
@@ -393,6 +507,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                           />
                           <SummaryStat
                             label={t("Unrealized Gain", "רווח לא ממומש")}
+                              onClick={() => setPopupStat({ key: "totalUnrealized", label: t("Unrealized Gain", "רווח לא ממומש") })}
                             value={summary.totalUnrealized}
                             pct={summary.totalUnrealizedGainPct}
                             color={summary.totalUnrealized >= 0 ? 'success.main' : 'error.main'}
@@ -400,6 +515,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                           />
                           <SummaryStat
                             label={t("Realized Gain", "רווח ממומש")}
+                              onClick={() => setPopupStat({ key: "totalRealized", label: t("Realized Gain", "רווח ממומש") })}
                             value={summary.totalRealized + summary.totalDividends}
                             pct={(summary.totalRealized + summary.totalDividends) / ((summary.totalCostOfSold + ((summary.aum - summary.totalUnvestedValue) - summary.totalUnrealized)) > 0 ? (summary.totalCostOfSold + ((summary.aum - summary.totalUnvestedValue) - summary.totalUnrealized)) : 1)}
                             color={(summary.totalRealized + summary.totalDividends) >= 0 ? 'success.main' : 'error.main'}
@@ -416,6 +532,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                           {summary.totalUnvestedValue > 0.01 && (
                             <SummaryStat
                               label={t("Unvested Value", "שווי לא מובשל")}
+                                onClick={() => setPopupStat({ key: "totalUnvestedValue", label: t("Unvested Value", "שווי לא מובשל") })}
                               value={summary.totalUnvestedValue}
                               pct={summary.totalUnvestedGainPct}
                               gainValue={summary.totalUnvestedGain}
@@ -437,6 +554,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                       >
                         <SummaryStat
                           label={summary.totalDayChangeIsStale ? t("Last Trading Day", "מסחר אחרון") : t("1D", "יומי")}
+                          onClick={() => setPopupStat({ key: "totalDayChange", label: summary.totalDayChangeIsStale ? t("Last Trading Day", "מסחר אחרון") : t("1D", "יומי") })}
                           value={summary.totalDayChange}
                           pct={summary.totalDayChangePct}
                           color={summary.totalDayChange >= 0 ? 'success.main' : 'error.main'}
@@ -479,6 +597,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
                               <PerformanceStat
                                 key={cfg.label}
                                 label={cfg.labelVs}
+                                onClick={() => setPopupStat({ key: cfg.label, label: cfg.labelVs })}
                                 percentage={(summary as any)[cfg.keyPct]}
                                 gainValue={cfg.fallbackGain ? (summary as any)[cfg.fallbackGain] : (summary as any)[cfg.keyGain]}
                                 isLoading={isPortfoliosLoading && (summary as any)[cfg.keyPct] === 0}
@@ -994,6 +1113,79 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
           setChartRange('Custom');
         }}
       />
+
+      <Dialog open={!!popupStat} onClose={() => setPopupStat(null)} maxWidth="md" fullWidth>
+        <DialogTitle sx={{ m: 0, p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          {popupStat?.label}
+          <IconButton
+            aria-label="close"
+            onClick={() => setPopupStat(null)}
+            sx={{ color: (theme) => theme.palette.grey[500] }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent dividers sx={{ maxHeight: '60vh', overflowY: 'auto' }}>
+          <TableContainer>
+            <Table size="small" stickyHeader>
+              <TableHead>
+                <TableRow>
+                  <TableCell>
+                    <TableSortLabel active={sortConfig.key === 'displayName'} direction={sortConfig.key === 'displayName' ? sortConfig.direction : 'desc'} onClick={() => setSortConfig({ key: 'displayName', direction: sortConfig.key === 'displayName' && sortConfig.direction === 'desc' ? 'asc' : 'desc' })}>
+                      {t('Name', 'שם')}
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell>
+                    <TableSortLabel active={sortConfig.key === 'ticker'} direction={sortConfig.key === 'ticker' ? sortConfig.direction : 'desc'} onClick={() => setSortConfig({ key: 'ticker', direction: sortConfig.key === 'ticker' && sortConfig.direction === 'desc' ? 'asc' : 'desc' })}>
+                      {t('Ticker', 'סימול')}
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell align="right">
+                    <TableSortLabel active={sortConfig.key === 'marketValue'} direction={sortConfig.key === 'marketValue' ? sortConfig.direction : 'desc'} onClick={() => setSortConfig({ key: 'marketValue', direction: sortConfig.key === 'marketValue' && sortConfig.direction === 'desc' ? 'asc' : 'desc' })}>
+                      {t('Value', 'שווי')}
+                    </TableSortLabel>
+                  </TableCell>
+                  {getPopupData.some(r => r.metricPct !== undefined) && (
+                    <TableCell align="right">
+                      <TableSortLabel active={sortConfig.key === 'metricPct'} direction={sortConfig.key === 'metricPct' ? sortConfig.direction : 'desc'} onClick={() => setSortConfig({ key: 'metricPct', direction: sortConfig.key === 'metricPct' && sortConfig.direction === 'desc' ? 'asc' : 'desc' })}>
+                        {popupStat?.label} %
+                      </TableSortLabel>
+                    </TableCell>
+                  )}
+                  <TableCell align="right">
+                    <TableSortLabel active={sortConfig.key === 'metricValue'} direction={sortConfig.key === 'metricValue' ? sortConfig.direction : 'desc'} onClick={() => setSortConfig({ key: 'metricValue', direction: sortConfig.key === 'metricValue' && sortConfig.direction === 'desc' ? 'asc' : 'desc' })}>
+                      {popupStat?.label}
+                    </TableSortLabel>
+                  </TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {getPopupData.map(row => (
+                  <TableRow key={row.ticker} hover>
+                    <TableCell>{row.displayName}</TableCell>
+                    <TableCell>{row.ticker}</TableCell>
+                    <TableCell align="right">{formatMoneyValue({ amount: row.display.marketValue, currency: normalizeCurrency(displayCurrency) }, undefined)}</TableCell>
+                    {getPopupData.some(r => r.metricPct !== undefined) && (
+                      <TableCell align="right">
+                        {row.metricPct !== undefined && !isNaN(row.metricPct) && (
+                          <Typography variant="body2" color={row.metricPct > 0 ? 'success.main' : row.metricPct < 0 ? 'error.main' : 'text.primary'}>
+                            {row.metricPct > 0 ? '+' : ''}{formatPercent(row.metricPct)}
+                          </Typography>
+                        )}
+                      </TableCell>
+                    )}
+                    <TableCell align="right">
+                      <Typography variant="body2" color={row.metricValue > 0 ? 'success.main' : row.metricValue < 0 ? 'error.main' : 'text.primary'}>
+                        {formatMoneyValue({ amount: row.metricValue, currency: normalizeCurrency(displayCurrency) }, undefined)}
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

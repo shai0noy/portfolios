@@ -15,6 +15,7 @@ export interface StatProps {
     size?: 'normal' | 'small';
     displayCurrency: string;
     showSign?: boolean;
+    onClick?: () => void;
 }
 
 /**
@@ -32,12 +33,18 @@ export const SummaryStat = ({
     isMain = false, 
     size = 'normal', 
     displayCurrency, 
-    showSign = true 
+    showSign = true,
+    onClick
 }: StatProps) => {
     const isSmall = size === 'small';
 
     return (
-        <Box textAlign="left" minWidth={isSmall ? 'auto' : 120}>
+        <Box
+            textAlign="left"
+            minWidth={isSmall ? 'auto' : 120}
+            onClick={onClick}
+            sx={onClick ? { cursor: 'pointer', '&:hover': { opacity: 0.8 }, transition: 'opacity 0.2s' } : {}}
+        >
             <Box display="flex" alignItems="center">
                 <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', fontSize: isSmall ? '0.7rem' : '0.75rem' }}>{label}</Typography>
                 {tooltip && (
