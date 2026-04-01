@@ -311,6 +311,7 @@ interface TickerChartProps {
     valueType?: 'price' | 'value';
     height?: number | string;
     hideCurrentPrice?: boolean;
+    isEqualSeries?: boolean;
     allowFullscreen?: boolean;
     topControls?: React.ReactNode;
     scaleType?: 'linear' | 'log';
@@ -346,6 +347,7 @@ interface CustomTooltipProps {
     mode: 'percent' | 'price' | 'candle';
     valueType?: 'price' | 'value';
     hideCurrentPrice?: boolean;
+    isEqualSeries?: boolean;
 }
 
 const CandleStickShape = (props: any) => {
@@ -583,6 +585,7 @@ interface SelectionSummaryProps {
     mode: 'percent' | 'price' | 'candle';
     valueType?: 'price' | 'value';
     hideCurrentPrice?: boolean;
+    isEqualSeries?: boolean;
 }
 
 const SelectionSummary = ({ startPoint, endPoint, currency, t, isComparison, series, mainLineColor, mode, valueType = 'price', hideCurrentPrice }: SelectionSummaryProps) => {
@@ -716,7 +719,7 @@ const SelectionSummary = ({ startPoint, endPoint, currency, t, isComparison, ser
     );
 };
 
-export function TickerChart({ series, currency, mode = 'percent', valueType = 'price', height = 300, hideCurrentPrice, allowFullscreen = true, topControls, scaleType: propScaleType, onScaleTypeChange, trendType: propTrendType, onTrendTypeChange, gammaType: propsGammaType, onGammaTypeChange: propsOnGammaTypeChange, gammaWindow: propsGammaWindow, onGammaWindowChange: propsOnGammaWindowChange, denseTicks }: TickerChartProps) {
+export function TickerChart({ series, currency, mode = 'percent', valueType = 'price', height = 300, hideCurrentPrice, isEqualSeries, allowFullscreen = true, topControls, scaleType: propScaleType, onScaleTypeChange, trendType: propTrendType, onTrendTypeChange, gammaType: propsGammaType, onGammaTypeChange: propsOnGammaTypeChange, gammaWindow: propsGammaWindow, onGammaWindowChange: propsOnGammaWindowChange, denseTicks }: TickerChartProps) {
     const FADE_MS = 170;          // Speed of the opacity transition
     const TRANSFORM_MS = 360;     // Speed of the line movement (Very fast)
     const BUFFER_MS = 30;        // Safety window for browser paint
@@ -1809,54 +1812,61 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                                     <ReferenceLine yAxisId="gamma" y={0} stroke={theme.palette.secondary.main} strokeOpacity={0.3} strokeWidth={1} />
                                 )}
 
-                            {/* Threshold line (dashed) - used for base price in price mode. Avoid if it duplicates 0 (which is covered above) */}
+                                {/* Threshold line (dashed) - used for base price in price mode. Avoid if it duplicates 0 (which is covered above) */}
                             {threshold !== 0 && (
                                 <ReferenceLine y={threshold} stroke={theme.palette.text.secondary} strokeDasharray="3 3" />
                             )}
 
-                            {displaySeries.slice(1).map((s, i) => (
-                                <Line
-                                    key={i}
-                                    type="monotone"
-                                    dataKey={`series_${i}`}
-                                    stroke={s.color}
-                                    strokeWidth={1.2}
-                                    dot={false}
-                                    isAnimationActive={true}
-                                    connectNulls
-                                    animationDuration={TRANSFORM_MS}
-                                    animationEasing="ease-in-out"
-                                />
-                            ))}
+                                {displaySeries.slice(isEqualSeries ? 0 : 1).map((s, originalIdx) => {
+                                    const i = isEqualSeries ? originalIdx : originalIdx + 1;
+                                    const dataKey = i === 0 ? "yValue" : `series_${i - 1}`;
+                                    return (
+                                        <Line
+                                            key={i}
+                                            type="monotone"
+                                        dataKey={dataKey}
+                                        stroke={s.color}
+                                        strokeWidth={isEqualSeries ? 1.5 : 1.2}
+                                        dot={false}
+                                        isAnimationActive={true}
+                                        connectNulls
+                                        animationDuration={TRANSFORM_MS}
+                                        animationEasing="ease-in-out"
+                                    />
+                                );
+                            })}
 
-                            <Line
-                                type="monotone"
-                                dataKey="yValue"
-                                stroke={`url(#${gradientId})`}
-                                strokeWidth={2}
-                                dot={false}
-                                activeDot={{ r: 4, strokeWidth: 0 }}
-                                animationDuration={TRANSFORM_MS}
-                                    isAnimationActive={true}
-                                />
+                                {!isEqualSeries && (
+                                    <>
+                                        <Line
+                                            type="monotone"
+                                            dataKey="yValue"
+                                            stroke={`url(#${gradientId})`}
+                                            strokeWidth={2}
+                                            dot={false}
+                                            activeDot={{ r: 4, strokeWidth: 0 }}
+                                            animationDuration={TRANSFORM_MS}
+                                            isAnimationActive={true}
+                                        />
 
-                            <Area
-                                type="monotone"
-                                dataKey="yValue"
-                                stroke={mainLineColor}
-                                strokeWidth={2}
-                                    fill={(isComparison || (trendType && trendType !== 'none') || (gammaType && gammaType !== 'none')) ? "none" : `url(#${gradientId})`}
-                                baseValue={threshold}
-                                fillOpacity={shadeOpacity}
-                                isAnimationActive={hasData}
-                                animationDuration={TRANSFORM_MS}
-                                animationBegin={0}
-                                animationEasing="ease-in-out"
-                                style={{
-                                    transition: `fill-opacity ${FADE_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`,
-                                    pointerEvents: 'none'
-                                }}
-                            />
+                                        <Area
+                                            type="monotone"
+                                            dataKey="yValue"
+                                            stroke={mainLineColor}
+                                            strokeWidth={2}
+                                            fill={(isComparison || (trendType && trendType !== 'none') || (gammaType && gammaType !== 'none')) ? "none" : `url(#${gradientId})`}
+                                            baseValue={threshold}
+                                            fillOpacity={shadeOpacity}
+                                            isAnimationActive={hasData}
+                                            animationDuration={TRANSFORM_MS}
+                                            animationEasing="ease-in-out"
+                                            style={{
+                                                transition: `fill-opacity ${FADE_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`,
+                                                pointerEvents: 'none'
+                                            }}
+                                        />
+                                    </>
+                                )}
 
                                 {trendType && trendType !== 'none' && (
                                     <Line

@@ -31,9 +31,10 @@ const MARKETS: MarketSection[] = [
   {
     title: 'US',
     tickers: [
-      { symbol: '^GSPC', exchange: Exchange.NASDAQ, name: 'S&P 500', nameHe: 'S&P 500' },
+      { symbol: '^GSPC', exchange: Exchange.NYSE, name: 'S&P 500', nameHe: 'S&P 500' },
       { symbol: '^IXIC', exchange: Exchange.NASDAQ, name: 'NASDAQ', nameHe: 'נאסד״ק' },
       { symbol: '^DJI', exchange: Exchange.NYSE, name: 'Dow Jones', nameHe: 'דאו ג׳ונס' },
+      { symbol: '^RUT', exchange: Exchange.NYSE, name: 'Russell 2000', nameHe: 'ראסל 2000' },
     ]
   },
   {
@@ -42,7 +43,7 @@ const MARKETS: MarketSection[] = [
       { symbol: '^STOXX', exchange: Exchange.FWB, name: 'STOXX Europe 600', nameHe: 'STOXX Europe 600' },
       { symbol: '^FTSE', exchange: Exchange.LSE, name: 'FTSE 100 (UK)', nameHe: 'FTSE 100 (בריטניה)' },
       { symbol: '^N225', exchange: Exchange.JPX, name: 'Nikkei 225 (Japan)', nameHe: 'ניקיי 225 (יפן)' },
-      { symbol: 'KOSPI100.KS', exchange: Exchange.KSE, name: 'KOSPI 100 (Korea)', nameHe: 'KOSPI 100 (קוריאה)' },
+      { symbol: '^KS200', exchange: Exchange.KSE, name: 'KOSPI 200 (Korea)', nameHe: 'KOSPI 200 (קוריאה)' },
     ]
   }
 ];
@@ -140,6 +141,22 @@ export function MarketViewSummary({ isMobile, isActive = true }: MarketViewProps
 
     const activeTickers = tickers.filter(t => filteredData[t.symbol] && filteredData[t.symbol].length > 0);
     if (activeTickers.length === 0) return [];
+
+    const maxPoints = 50;
+    activeTickers.forEach(t => {
+      const arr = filteredData[t.symbol];
+      if (arr.length > maxPoints) {
+        const step = Math.ceil(arr.length / maxPoints);
+        const downsampled = [];
+        for (let i = 0; i < arr.length; i += step) {
+          downsampled.push(arr[i]);
+        }
+        if (downsampled[downsampled.length - 1] !== arr[arr.length - 1]) {
+          downsampled.push(arr[arr.length - 1]);
+        }
+        filteredData[t.symbol] = downsampled;
+      }
+    });
 
     // Combine dates
     const allDates = new Set<number>();
@@ -248,7 +265,8 @@ export function MarketViewSummary({ isMobile, isActive = true }: MarketViewProps
                   ) : (
                     <>
                       <Box sx={{ flex: 1, minHeight: 1, minWidth: 1 }}>
-                        <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
+                        <ResponsiveContainer width="100%" height="100%"
+                    minWidth={1} minHeight={1}>
                           <LineChart data={chartData} margin={{ top: 5, right: isMobileRes ? 20 : 0, left: isMobileRes ? -8 : 0, bottom: 0 }}>
                             <CartesianGrid stroke={theme.palette.text.disabled} strokeDasharray="3 3" strokeOpacity={0.4} />
                             <ReferenceLine y={0} stroke={theme.palette.text.secondary} strokeOpacity={0.5} strokeWidth={1} />
@@ -267,7 +285,7 @@ export function MarketViewSummary({ isMobile, isActive = true }: MarketViewProps
                               tickLine={false}
                             />
                             <YAxis
-                              orientation="right"
+                              orientation={theme.direction === 'rtl' ? 'left' : 'right'}
                               tickFormatter={(val) => `${(val * 100).toFixed(1)}%`}
                               domain={['auto', 'auto']}
                               tick={{ fontSize: 10, fill: theme.palette.text.secondary }}
@@ -342,10 +360,22 @@ export function MarketViewSummary({ isMobile, isActive = true }: MarketViewProps
                 currency="USD"
                 mode="percent"
                 height="100%"
+                    isEqualSeries={true}
+                topControls={rangeSelector}
               />
             )}
           </Box>
-          <Box sx={{ mt: 2, display: 'flex', justifyContent: 'center', gap: 2 }}>
+          <Box sx={{ mt: 2, display: 'flex', justifyContent: 'center', gap: 2, flexWrap: 'wrap' }}>
+            {expandedSection?.tickers.map((ticker, i) => (
+              <Box key={ticker.symbol} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: colors[i % colors.length] }} />
+                <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                  {getName(ticker)}
+                </Typography>
+              </Box>
+            ))}
+          </Box>
+          <Box sx={{ mt: 1, display: 'flex', justifyContent: 'center' }}>
             <Typography variant="caption" color="text.secondary">
               {t('Comparing percentage change over the selected period.', 'השוואת שינוי באחוזים לאורך התקופה הנבחרת.')}
             </Typography>
