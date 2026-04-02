@@ -21,7 +21,7 @@ import type { TickerProfile } from '../lib/types/ticker';
 import { addTransaction, batchAddTransactions, fetchPortfolios, addExternalPrice, syncDividends, addDividendEvent, updateTransaction, updateDividend, deleteTransaction, deleteDividend } from '../lib/sheets/index';
 import { getTickerData, fetchTickerHistory, type TickerData } from '../lib/fetching';
 import { TickerSearch } from './TickerSearch';
-import { convertCurrency, formatPrice, getExchangeRates, normalizeCurrency } from '../lib/currency';
+import { convertCurrency, formatPrice, getExchangeRates, normalizeCurrency, roundDivAmount } from '../lib/currency';
 import { Currency, type ExchangeRates, isBuy, isSell, type TransactionType } from '../lib/types';
 import { useLanguage } from '../lib/i18n';
 import { NumericField, DateField } from './PortfolioInputFields';
@@ -225,7 +225,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
             if (finCurr && exCurr && normalizeCurrency(finCurr) !== normalizeCurrency(exCurr)) {
               divsToSync = data.dividends.map(d => ({
                 ...d,
-                amount: convertCurrency(d.amount, exCurr, finCurr, exchangeRates),
+                amount: roundDivAmount(convertCurrency(d.amount, exCurr, finCurr, exchangeRates)),
                 currency: finCurr
               }));
             }
@@ -283,7 +283,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
         if (finCurr && exCurr && normalizeCurrency(finCurr) !== normalizeCurrency(exCurr)) {
           divsToSync = data.dividends.map(d => ({
             ...d,
-            amount: convertCurrency(d.amount, exCurr, finCurr, exchangeRates),
+            amount: roundDivAmount(convertCurrency(d.amount, exCurr, finCurr, exchangeRates)),
             currency: finCurr
           }));
         }

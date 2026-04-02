@@ -6,7 +6,7 @@ import { getTickerData, getTickersDataset, fetchTickerHistory, getVerifiedYahooS
 import { fetchHolding, getMetadataValue, syncDividends, fetchDividends, fetchTickerLists, toggleTickerListMembership } from '../sheets';
 import { Exchange, parseExchange, toGoogleFinanceExchangeCode, type Portfolio, type SheetHolding, type TrackingListItem } from '../types';
 
-import { formatPrice, toILS, normalizeCurrency, getExchangeRates, convertCurrency } from '../currency';
+import { formatPrice, toILS, normalizeCurrency, getExchangeRates, convertCurrency, roundDivAmount } from '../currency';
 import { useLanguage } from '../i18n';
 import { getOwnedInPortfolios } from '../portfolioUtils';
 import type { Dividend } from '../fetching/types';
@@ -162,7 +162,7 @@ export const useTickerDetails = ({ sheetId, ticker: propTicker, exchange: propEx
                     const rates = await getExchangeRates(sheetId);
                     divsToSync = tickerData.dividends.map(d => ({
                         ...d,
-                        amount: convertCurrency(d.amount, exCurr, finCurr, rates),
+                        amount: roundDivAmount(convertCurrency(d.amount, exCurr, finCurr, rates)),
                         currency: finCurr
                     }));
                 }
@@ -261,7 +261,7 @@ export const useTickerDetails = ({ sheetId, ticker: propTicker, exchange: propEx
                         getExchangeRates(sheetId).then(rates => {
                             divsToSync = historyResponse.dividends!.map(d => ({
                                 ...d,
-                                amount: convertCurrency(d.amount, exCurr, finCurr, rates),
+                                amount: roundDivAmount(convertCurrency(d.amount, exCurr, finCurr, rates)),
                                 currency: finCurr
                             }));
                             syncDividends(sheetId, ticker, exchange, divsToSync, 'Yahoo History');

@@ -100,6 +100,14 @@ export function convertCurrency(amount: number, from: Currency | string, to: Cur
   return result;
 }
 
+export function roundDivAmount(amount: number): number {
+  const nearestTenth = Math.round(amount * 10) / 10;
+  if (Math.abs(amount - nearestTenth) <= 0.010001) {
+    return nearestTenth;
+  }
+  return amount;
+}
+
 export const calculatePerformanceInDisplayCurrency = (
   currentPrice: number,
   stockCurrency: Currency | string,
