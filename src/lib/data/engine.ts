@@ -51,7 +51,7 @@ const perfPeriods = {
 
 type ProcessingEvent =
     | { kind: 'TXN', data: Transaction }
-    | { kind: 'DIV', data: { ticker: string, exchange: Exchange, date: Date, amount: number, source: string, rowIndex?: number, assetPriceAtDrip?: number } };
+    | { kind: 'DIV', data: { ticker: string, exchange: Exchange, date: Date, amount: number, source: string, rowIndex?: number, assetPriceAtDrip?: number, currency?: string } };
 
 export class FinanceEngine {
     holdings: Map<string, Holding> = new Map();
@@ -132,7 +132,7 @@ export class FinanceEngine {
         return this.holdings.get(key)!;
     }
 
-    public processEvents(rawTxns: Transaction[], dividends: { ticker: string, exchange: Exchange, date: Date, amount: number, source: string, rowIndex?: number }[]) {
+    public processEvents(rawTxns: Transaction[], dividends: { ticker: string, exchange: Exchange, date: Date, amount: number, source: string, rowIndex?: number, currency?: string }[]) {
         const events: ProcessingEvent[] = [
             ...rawTxns.map(t => ({ kind: 'TXN' as const, data: t })),
             ...dividends.map(d => ({ kind: 'DIV' as const, data: d }))
@@ -187,7 +187,9 @@ export class FinanceEngine {
                         const totalQty = vested + unvested;
 
                         if (totalQty > 0) {
-                            const grossSC = totalQty * d.amount;
+                            const divCurrency = (d.currency || h.stockCurrency) as Currency;
+                            const grossDC = totalQty * d.amount;
+                            const grossSC = convertCurrency(grossDC, divCurrency, h.stockCurrency, this.exchangeRates);
                             const p = this.portfolios.get(h.portfolioId);
                             let divFeeRate = 0;
                             if (p) {
@@ -197,7 +199,7 @@ export class FinanceEngine {
 
                             const feeSC = grossSC * divFeeRate;
                             const feePC = convertCurrency(feeSC, h.stockCurrency, h.portfolioCurrency, this.exchangeRates);
-                            const grossPC = convertCurrency(grossSC, h.stockCurrency, h.portfolioCurrency, this.exchangeRates);
+                            const grossPC = convertCurrency(grossDC, divCurrency, h.portfolioCurrency, this.exchangeRates);
 
                             let ratioCashed = totalQty > 0 ? vested / totalQty : 0;
                             let ratioReinvested = totalQty > 0 ? unvested / totalQty : 0;
@@ -254,9 +256,9 @@ export class FinanceEngine {
                             const divRecord: DividendRecord = {
                                 date: d.date,
                                 grossAmount: {
-                                    amount: grossSC,
-                                    currency: h.stockCurrency,
-                                    rateToPortfolio: grossPC / grossSC // approx
+                                    amount: grossDC,
+                                    currency: divCurrency,
+                                    rateToPortfolio: grossPC / grossDC // approx
                                 },
                                 netAmountPC: netPC,
                                 taxAmountPC,

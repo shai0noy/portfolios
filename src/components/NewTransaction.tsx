@@ -48,7 +48,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   const locationState = location.state as {
     prefilledTicker?: string, prefilledExchange?: string, initialPrice?: string,
     initialCurrency?: string, numericId?: number, initialName?: string, initialNameHe?: string,
-    editTransaction?: Transaction, editDividend?: { ticker: string, exchange: Exchange, date: Date, amount: number, source: string, rowIndex: number }
+    editTransaction?: Transaction, editDividend?: { ticker: string, exchange: Exchange, date: Date, amount: number, source: string, rowIndex: number, currency?: string }
   } | null;
   const isEditing = !!(locationState?.editTransaction || locationState?.editDividend);
 
@@ -104,6 +104,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   const [comment, setComment] = useState('');
   const [commission, setCommission] = useState<string>('');
   const [tickerCurrency, setTickerCurrency] = useState<Currency>(normalizeCurrency(locationState?.initialCurrency || ''));
+  const [dividendCurrency, setDividendCurrency] = useState<string>('');
   const [validationErrors, setValidationErrors] = useState<{ [key: string]: boolean }>({});
   const [commissionPct, setCommissionPct] = useState<string>('');
 
@@ -205,16 +206,30 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
             const d = coerceDate(editDiv.date);
             setDate(d ? formatDate(d) : '');
             setPrice(editDiv.amount.toString());
-            setTickerCurrency(normalizeCurrency(data.currency || '')); // Dividends usually in stock currency
+            const tCurr = normalizeCurrency(data.currency || '');
+            setTickerCurrency(tCurr); // Dividends usually in stock currency
+            setDividendCurrency(editDiv.currency || (tCurr === 'ILA' ? 'ILS' : tCurr));
           } else {
             // New Entry defaults
             setPrice(data.price ? parseFloat(data.price.toFixed(6)).toString() : '');
-            setTickerCurrency(normalizeCurrency(data.currency || ''));
+            const tCurr = normalizeCurrency(data.currency || '');
+            setTickerCurrency(tCurr);
+            setDividendCurrency(tCurr === 'ILA' ? 'ILS' : tCurr);
           }
 
           // Sync dividends if from a fresh fetch (not from cache)
           if (!editTxn && !editDiv && data.dividends && data.dividends.length > 0 && !data.fromCacheMax) {
-            syncDividends(sheetId, prefilledTicker!, parseExchange(data.exchange || prefilledExchange || ''), data.dividends, 'YAHOO');
+            let divsToSync = data.dividends;
+            const finCurr = data.advancedStats?.financialCurrency;
+            const exCurr = data.currency;
+            if (finCurr && exCurr && normalizeCurrency(finCurr) !== normalizeCurrency(exCurr)) {
+              divsToSync = data.dividends.map(d => ({
+                ...d,
+                amount: convertCurrency(d.amount, exCurr, finCurr, exchangeRates),
+                currency: finCurr
+              }));
+            }
+            syncDividends(sheetId, prefilledTicker!, parseExchange(data.exchange || prefilledExchange || ''), divsToSync, 'YAHOO');
           }
         } else {
           setPriceError(`${t('Ticker not found on', 'הנייר לא נמצא ב-')}${prefilledExchange}`);
@@ -262,7 +277,17 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     if (data) {
       // Sync dividends if from a fresh fetch (not from cache)
       if (data.dividends && data.dividends.length > 0 && !data.fromCacheMax) {
-        syncDividends(sheetId, profile.symbol, profile.exchange, data.dividends, data.source || 'API');
+        let divsToSync = data.dividends;
+        const finCurr = data.advancedStats?.financialCurrency;
+        const exCurr = data.currency;
+        if (finCurr && exCurr && normalizeCurrency(finCurr) !== normalizeCurrency(exCurr)) {
+          divsToSync = data.dividends.map(d => ({
+            ...d,
+            amount: convertCurrency(d.amount, exCurr, finCurr, exchangeRates),
+            currency: finCurr
+          }));
+        }
+        syncDividends(sheetId, profile.symbol, profile.exchange, divsToSync, data.source || 'API');
       }
 
       const combinedData: TickerData & { symbol: string } = {
@@ -926,12 +951,12 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
 
       if (type === 'DIVIDEND') {
         if (editDiv) {
-          await updateDividend(sheetId, editDiv.rowIndex, ticker, parseExchange(exchange), coerceDate(date)!, p, editDiv.source, editDiv);
-          const newState = { ticker, amount: p, rowIndex: editDiv.rowIndex };
+          await updateDividend(sheetId, editDiv.rowIndex, ticker, parseExchange(exchange), coerceDate(date)!, p, editDiv.source, editDiv, dividendCurrency);
+          const newState = { ticker, amount: p, rowIndex: editDiv.rowIndex, currency: dividendCurrency };
           setUndoData({ type: 'div', action: 'update', data: newState, originalData: editDiv });
           if (onSaveSuccess) onSaveSuccess(t('Dividend updated', 'הדיבידנד עודכן'), handleUndo);
         } else {
-          await addDividendEvent(sheetId, ticker, parseExchange(exchange), coerceDate(date)!, p);
+          await addDividendEvent(sheetId, ticker, parseExchange(exchange), coerceDate(date)!, p, dividendCurrency);
           if (onSaveSuccess) onSaveSuccess(t('Dividend added', 'הדיבידנד נוסף'));
         }
       } else if (type === 'HOLDING_CHANGE') {
@@ -1680,20 +1705,35 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                           </Box>
                         </Grid>
                       ) : type === 'DIVIDEND' ? (
-                        <Grid item xs={12} sm={4}>
-                          <NumericField
-                            label={t("Dividend Amount", "סכום דיבידנד")}
-                            field="price"
-                            value={price}
-                            onChange={handlePriceChange}
-                            endAdornment={tickerCurrency === 'ILA' ? <InputAdornment position="end">{t('ag.', "א'")}</InputAdornment> : undefined}
-                            startAdornment={tickerCurrency !== 'ILA' ? <InputAdornment position="start">{tickerCurrency}</InputAdornment> : undefined}
-                            error={!!validationErrors.price}
-                            required
-                            helperText={!price ? "Required" : ""}
-                            tooltip="Dividend amount per share."
-                          />
-                        </Grid>
+                        <>
+                          <Grid item xs={12} sm={4}>
+                            <NumericField
+                              label={t("Dividend Amount", "סכום דיבידנד")}
+                              field="price"
+                              value={price}
+                              onChange={handlePriceChange}
+                              error={!!validationErrors.price}
+                              required
+                              helperText={!price ? "Required" : ""}
+                              tooltip="Dividend amount per share."
+                            />
+                          </Grid>
+                          <Grid item xs={12} sm={4}>
+                            <FormControl fullWidth size="small">
+                              <InputLabel id="dividend-currency-label">{t("Currency", "מטבע")}</InputLabel>
+                              <Select
+                                labelId="dividend-currency-label"
+                                value={dividendCurrency || tickerCurrency || ''}
+                                onChange={(e) => setDividendCurrency(e.target.value)}
+                                label={t("Currency", "מטבע")}
+                              >
+                                {Object.values(Currency).map(c => (
+                                  <MenuItem key={c} value={c}>{c}</MenuItem>
+                                ))}
+                              </Select>
+                            </FormControl>
+                          </Grid>
+                        </>
                       ) : (
                         <>
                           {/* Dynamic Layout based on Type */}

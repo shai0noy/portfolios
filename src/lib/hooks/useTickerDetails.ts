@@ -6,7 +6,7 @@ import { getTickerData, getTickersDataset, fetchTickerHistory, getVerifiedYahooS
 import { fetchHolding, getMetadataValue, syncDividends, fetchDividends, fetchTickerLists, toggleTickerListMembership } from '../sheets';
 import { Exchange, parseExchange, toGoogleFinanceExchangeCode, type Portfolio, type SheetHolding, type TrackingListItem } from '../types';
 
-import { formatPrice, toILS, normalizeCurrency } from '../currency';
+import { formatPrice, toILS, normalizeCurrency, getExchangeRates, convertCurrency } from '../currency';
 import { useLanguage } from '../i18n';
 import { getOwnedInPortfolios } from '../portfolioUtils';
 import type { Dividend } from '../fetching/types';
@@ -155,7 +155,18 @@ export const useTickerDetails = ({ sheetId, ticker: propTicker, exchange: propEx
             setSheetRebuildTime(sheetRebuild);
 
             if (tickerData?.dividends && !tickerData.fromCacheMax) {
-                syncDividends(sheetId, ticker, exchange, tickerData.dividends, tickerData.source || 'API');
+                let divsToSync = tickerData.dividends;
+                const finCurr = tickerData.advancedStats?.financialCurrency;
+                const exCurr = tickerData.currency;
+                if (finCurr && exCurr && normalizeCurrency(finCurr) !== normalizeCurrency(exCurr)) {
+                    const rates = await getExchangeRates(sheetId);
+                    divsToSync = tickerData.dividends.map(d => ({
+                        ...d,
+                        amount: convertCurrency(d.amount, exCurr, finCurr, rates),
+                        currency: finCurr
+                    }));
+                }
+                syncDividends(sheetId, ticker, exchange, divsToSync, tickerData.source || 'API');
             }
             if (tickerData?.historical) setHistoricalData(tickerData.historical);
             if (!tickerData && !holding) setError(t('Ticker not found.', 'הנייר לא נמצא.'));
@@ -243,7 +254,21 @@ export const useTickerDetails = ({ sheetId, ticker: propTicker, exchange: propEx
                     } as TickerData;
                 });
                 if (historyResponse?.dividends && !historyResponse.fromCacheMax) {
-                    syncDividends(sheetId, ticker, exchange, historyResponse.dividends, 'Yahoo History');
+                    let divsToSync = historyResponse.dividends;
+                    const finCurr = historyResponse.advancedStats?.financialCurrency;
+                    const exCurr = historyResponse.currency;
+                    if (finCurr && exCurr && normalizeCurrency(finCurr) !== normalizeCurrency(exCurr)) {
+                        getExchangeRates(sheetId).then(rates => {
+                            divsToSync = historyResponse.dividends!.map(d => ({
+                                ...d,
+                                amount: convertCurrency(d.amount, exCurr, finCurr, rates),
+                                currency: finCurr
+                            }));
+                            syncDividends(sheetId, ticker, exchange, divsToSync, 'Yahoo History');
+                        });
+                    } else {
+                        syncDividends(sheetId, ticker, exchange, divsToSync, 'Yahoo History');
+                    }
                 }
             });
         }

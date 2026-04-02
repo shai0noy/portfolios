@@ -6,6 +6,7 @@ import { InstrumentClassification } from '../types/instrument';
 export interface Dividend {
   date: Date; // Unix timestamp (in milliseconds) of the dividend payout
   amount: number; // Dividend amount per share
+  currency?: string; // Optional currency code for the dividend
 }
 
 export interface Split {

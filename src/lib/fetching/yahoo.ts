@@ -567,7 +567,7 @@ export async function fetchYahooTickerData(
               regularMarketTime: priceData.regularMarketTime,
             };
             // Clean up undefined
-            Object.keys(advancedStats.priceInfo).forEach(k => advancedStats.priceInfo[k] === undefined && delete advancedStats.priceInfo[k]);
+            Object.keys(advancedStats.priceInfo).forEach(k => (advancedStats!.priceInfo as any)[k] === undefined && delete (advancedStats!.priceInfo as any)[k]);
           }
 
           if (Array.isArray(recTrendResult) && recTrendResult.length > 0) {
@@ -582,10 +582,17 @@ export async function fetchYahooTickerData(
           }
 
           // Remove undefined keys
-          Object.keys(advancedStats).forEach(key => advancedStats[key] === undefined && delete advancedStats[key]);
+          Object.keys(advancedStats).forEach(key => (advancedStats as any)[key] === undefined && delete (advancedStats as any)[key]);
           if (Object.keys(advancedStats).length === 0) {
             advancedStats = undefined;
           }
+        }
+
+        if (dividends && dividends.length > 0) {
+          dividends = dividends.map((d: any) => ({
+            ...d,
+            currency: currency
+          }));
         }
 
         const tickerData: TickerData = {

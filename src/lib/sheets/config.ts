@@ -149,8 +149,8 @@ export const HOLDINGS_SHEET = 'Holdings';
 export const HOLDINGS_RANGE = `${HOLDINGS_SHEET}!A2:${String.fromCharCode(65 + holdingsHeaders.length - 1)}`;
 
 export const DIV_SHEET_NAME = 'Dividends';
-export const dividendHeaders = ['Exchange', 'Ticker', 'Date', 'Div_Amount', 'Source', 'Asset_Price_At_Time', 'Currency'] as const;
-export const DIVIDENDS_RANGE = `${DIV_SHEET_NAME}!A2:G`;
+export const dividendHeaders = ['Exchange', 'Ticker', 'Date', 'Div_Amount', 'Source', 'Asset_Price_At_Time', 'Asset_Price_Currency', 'Div_Currency'] as const;
+export const DIVIDENDS_RANGE = `${DIV_SHEET_NAME}!A2:H`;
 
 export const EXTERNAL_DATASETS_SHEET_NAME = 'External_Datasets';
 export const externalDatasetsHeaders = ['Ticker', 'Exchange', 'Date', 'Price', 'Currency'] as const;

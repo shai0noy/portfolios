@@ -672,7 +672,8 @@ export const fetchDividends = withAuthHandling(async (spreadsheetId: string, tic
                 }
                 return {
                     date,
-                    amount: Number(row[3])
+                    amount: Number(row[3]),
+                    currency: row[7] ? String(row[7]) : undefined
                 };
             })
             .filter(div => !isNaN(div.date.getTime()) && !isNaN(div.amount));
@@ -713,7 +714,7 @@ export const fetchAllDividends = withAuthHandling(async (spreadsheetId: string):
                 amount: Number(row[3]),
                 source: String(row[4] || ''),
                 assetPriceAtTime: (row[5] !== undefined && row[5] !== null && String(row[5]).trim() !== "" && !isNaN(Number(row[5]))) ? Number(row[5]) : undefined,
-                currency: row[6] ? String(row[6]) : undefined,
+                currency: row[7] ? String(row[7]) : undefined,
                 rowIndex: index + 2
             };
         })
@@ -787,7 +788,8 @@ export const syncDividends = withAuthHandling(async (spreadsheetId: string, tick
                 if (exactMatches.has(`${prefix}:${amountStr}`)) return null;
 
                 const priceFormula = `=IFERROR(INDEX(GOOGLEFINANCE(IF(TRIM(INDIRECT("A"&ROW()))="", INDIRECT("B"&ROW()), INDIRECT("A"&ROW())&":"&INDIRECT("B"&ROW())), "price", INDIRECT("C"&ROW())), 2, 2), "")`;
-                const currencyFormula = `=IFERROR(GOOGLEFINANCE(IF(TRIM(INDIRECT("A"&ROW()))="", INDIRECT("B"&ROW()), INDIRECT("A"&ROW())&":"&INDIRECT("B"&ROW())), "currency"), "")`;
+                const assetPriceCurrencyFormula = `=IFERROR(GOOGLEFINANCE(IF(TRIM(INDIRECT("A"&ROW()))="", INDIRECT("B"&ROW()), INDIRECT("A"&ROW())&":"&INDIRECT("B"&ROW())), "currency"), "")`;
+                const divCurrency = div.currency || (exchange === Exchange.TASE ? 'ILS' : '');
 
                 return [
                     toGoogleSheetsExchangeCode(exchange),
@@ -796,7 +798,8 @@ export const syncDividends = withAuthHandling(async (spreadsheetId: string, tick
                     div.amount,
                     effectiveSource,
                     priceFormula,
-                    currencyFormula
+                    assetPriceCurrencyFormula,
+                    divCurrency
                 ];
             })
             .filter((row): row is any[] => row !== null);
@@ -822,12 +825,12 @@ export const syncDividends = withAuthHandling(async (spreadsheetId: string, tick
     }
 });
 
-export const addDividendEvent = withAuthHandling(async (spreadsheetId: string, ticker: string, exchange: Exchange, date: Date, amount: number) => {
+export const addDividendEvent = withAuthHandling(async (spreadsheetId: string, ticker: string, exchange: Exchange, date: Date, amount: number, currency?: string) => {
     // Clear lock for this ticker so it can re-fetch/re-sync if needed, though syncDividends handles dupes
     const lockKey = `${exchange}:${ticker.toUpperCase()}`;
     dividendSyncLock.delete(lockKey);
 
-    await syncDividends(spreadsheetId, ticker, exchange, [{ date, amount }], 'MANUAL');
+    await syncDividends(spreadsheetId, ticker, exchange, [{ date, amount, currency }], 'MANUAL');
 });
 
 export const updateTransaction = withAuthHandling(async (spreadsheetId: string, t: Transaction, originalTxn: Transaction) => {
@@ -916,7 +919,7 @@ export const updateTransaction = withAuthHandling(async (spreadsheetId: string, 
     await clearFinanceCache(spreadsheetId);
 });
 
-export const updateDividend = withAuthHandling(async (spreadsheetId: string, rowIndex: number, ticker: string, exchange: Exchange, date: Date, amount: number, source: string, originalDiv: { ticker: string, amount: number }) => {
+export const updateDividend = withAuthHandling(async (spreadsheetId: string, rowIndex: number, ticker: string, exchange: Exchange, date: Date, amount: number, source: string, originalDiv: { ticker: string, amount: number, currency?: string }, currency?: string) => {
     const gapi = await ensureGapi();
 
     // Verification
@@ -945,10 +948,13 @@ export const updateDividend = withAuthHandling(async (spreadsheetId: string, row
         ticker.toUpperCase(),
         dateStr,
         amount,
-        source
+        source,
+        `=IFERROR(INDEX(GOOGLEFINANCE(IF(TRIM(INDIRECT("A"&ROW()))="", INDIRECT("B"&ROW()), INDIRECT("A"&ROW())&":"&INDIRECT("B"&ROW())), "price", INDIRECT("C"&ROW())), 2, 2), "")`,
+        `=IFERROR(GOOGLEFINANCE(IF(TRIM(INDIRECT("A"&ROW()))="", INDIRECT("B"&ROW()), INDIRECT("A"&ROW())&":"&INDIRECT("B"&ROW())), "currency"), "")`,
+        currency || (exchange === Exchange.TASE ? 'ILS' : '')
     ];
 
-    const range = `${DIV_SHEET_NAME}!A${rowIndex}:E${rowIndex}`;
+    const range = `${DIV_SHEET_NAME}!A${rowIndex}:H${rowIndex}`;
     await gapi.client.sheets.spreadsheets.values.update({
         spreadsheetId, range, valueInputOption: 'USER_ENTERED',
         resource: { values: [row] }
