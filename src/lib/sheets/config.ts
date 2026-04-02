@@ -162,7 +162,7 @@ export const TRACKING_LISTS_RANGE = `${TRACKING_LISTS_SHEET_NAME}!A2:D`;
 
 // Manually update this date (YYYY-MM-DD) whenever the schema (columns, formulas) changes.
 // The app will verify if the sheet's last setup date is older than this.
-export const SHEET_STRUCTURE_VERSION_DATE = '2026-03-09';
+export const SHEET_STRUCTURE_VERSION_DATE = '2026-04-02';
 
 // --- Mappings from Sheet Headers to Typescript Object Keys ---
 
