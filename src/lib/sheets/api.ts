@@ -748,7 +748,7 @@ export const syncDividends = withAuthHandling(async (spreadsheetId: string, tick
         const rows = res.result.values || [];
 
         const manualDates = new Set<string>();
-        const exactMatches = new Set<string>();
+        const existingDates = new Set<string>();
 
         rows.forEach(row => {
             const rowEx = String(row[0]);
@@ -763,7 +763,6 @@ export const syncDividends = withAuthHandling(async (spreadsheetId: string, tick
                 rowDate = d ? d.toISOString().split('T')[0] : '';
             }
 
-            const rowAmount = Number(row[3]).toFixed(6);
             const rowSource = String(row[4] || '').toUpperCase();
 
             const commonPrefix = `${rowEx}:${rowTicker}:${rowDate}`;
@@ -771,21 +770,22 @@ export const syncDividends = withAuthHandling(async (spreadsheetId: string, tick
             if (rowSource === 'MANUAL') {
                 manualDates.add(commonPrefix);
             }
-            exactMatches.add(`${commonPrefix}:${rowAmount}`);
+            existingDates.add(commonPrefix);
         });
 
         const newRows = dividends
             .map(div => {
                 const dateStr = div.date.toISOString().split('T')[0];
-                const amountStr = div.amount.toFixed(6);
                 const prefix = `${toGoogleSheetsExchangeCode(exchange)}:${ticker.toUpperCase()}:${dateStr}`;
 
                 // Rule 1: If a MANUAL entry exists for this date, ignore the incoming auto-dividend.
                 // This allows users to "override" Yahoo data by entering a manual row.
                 if (manualDates.has(prefix)) return null;
 
-                // Rule 2: If an exact match exists (same amount), ignore to prevent duplicates.
-                if (exactMatches.has(`${prefix}:${amountStr}`)) return null;
+                // Rule 2: If any entry exists for this date in the sheet, ignore to prevent duplicates.
+                // This ensures we don't insert duplicate dates on subsequent syncs, while still allowing
+                // multiple divs on the same date to be inserted together during a single sync.
+                if (existingDates.has(prefix)) return null;
 
                 const priceFormula = `=IFERROR(INDEX(GOOGLEFINANCE(IF(TRIM(INDIRECT("A"&ROW()))="", INDIRECT("B"&ROW()), INDIRECT("A"&ROW())&":"&INDIRECT("B"&ROW())), "price", INDIRECT("C"&ROW())), 2, 2), "")`;
                 const assetPriceCurrencyFormula = `=IFERROR(GOOGLEFINANCE(IF(TRIM(INDIRECT("A"&ROW()))="", INDIRECT("B"&ROW()), INDIRECT("A"&ROW())&":"&INDIRECT("B"&ROW())), "currency"), "")`;
@@ -1071,7 +1071,7 @@ export const batchSyncDividends = withAuthHandling(async (spreadsheetId: string,
         const rows = res.result.values || [];
 
         const manualDates = new Set<string>();
-        const exactMatches = new Set<string>();
+        const existingDates = new Set<string>();
 
         rows.forEach(row => {
             const rowEx = String(row[0]);
@@ -1085,7 +1085,6 @@ export const batchSyncDividends = withAuthHandling(async (spreadsheetId: string,
                 const d = coerceDate(row[2]); rowDate = d ? toGoogleSheetDateFormat(d) : '';
             }
 
-            const rowAmount = Number(row[3]).toFixed(6);
             const rowSource = String(row[4] || '').toUpperCase();
 
             const commonPrefix = `${rowEx}:${rowTicker}:${rowDate}`;
@@ -1093,7 +1092,7 @@ export const batchSyncDividends = withAuthHandling(async (spreadsheetId: string,
             if (rowSource === 'MANUAL') {
                 manualDates.add(commonPrefix);
             }
-            exactMatches.add(`${commonPrefix}:${rowAmount}`);
+            existingDates.add(commonPrefix);
         });
 
         const allNewRows: any[][] = [];
@@ -1105,22 +1104,28 @@ export const batchSyncDividends = withAuthHandling(async (spreadsheetId: string,
 
             item.dividends.forEach(div => {
                 const dateStr = div.date.toISOString().split('T')[0];
-                const amountStr = div.amount.toFixed(6);
                 const prefix = `${exc}:${tic}:${dateStr}`;
 
                 if (manualDates.has(prefix)) return;
-                if (exactMatches.has(`${prefix}:${amountStr}`)) return;
+                
+                // If any entry exists for this date in the sheet, ignore to prevent duplicates on subsequent syncs.
+                // We do NOT add this prefix to existingDates during the batch process, allowing multiple 
+                // incoming divs for the same date to all be inserted at once if Yahoo sends duplicates.
+                if (existingDates.has(prefix)) return;
 
-                // Avoid adding duplicates within the same batch
-                if (exactMatches.has(`${prefix}:${amountStr}`)) return;
-                exactMatches.add(`${prefix}:${amountStr}`); // Mark as added for this batch
+                const priceFormula = `=IFERROR(INDEX(GOOGLEFINANCE(IF(TRIM(INDIRECT("A"&ROW()))="", INDIRECT("B"&ROW()), INDIRECT("A"&ROW())&":"&INDIRECT("B"&ROW())), "price", INDIRECT("C"&ROW())), 2, 2), "")`;
+                const assetPriceCurrencyFormula = `=IFERROR(GOOGLEFINANCE(IF(TRIM(INDIRECT("A"&ROW()))="", INDIRECT("B"&ROW()), INDIRECT("A"&ROW())&":"&INDIRECT("B"&ROW())), "currency"), "")`;
+                const divCurrency = div.currency || (item.exchange === Exchange.TASE ? 'ILS' : '');
 
                 allNewRows.push([
                     exc,
                     tic,
                     toGoogleSheetDateFormat(div.date),
                     div.amount,
-                    effectiveSource
+                    effectiveSource,
+                    priceFormula,
+                    assetPriceCurrencyFormula,
+                    divCurrency
                 ]);
             });
         });
