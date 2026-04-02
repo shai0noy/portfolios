@@ -135,7 +135,10 @@ export const TickerAiChat: React.FC<TickerAiChatProps> = ({
         },
         dividendYield: tickerData.dividendYield ? formatPercent(tickerData.dividendYield) : 'N/A',
       },
-      advancedStats,
+      advancedStats: {
+        advancedStatsCurrency: advancedStats.financialCurrency,
+        ...advancedStats,
+      },
       advancedTrailingMetrics: advancedMetrics,
       userHoldings: holdings.filter(h => h.ticker === tickerData.ticker).map(h => {
         const vals = exchangeRates ? aggregateHoldingValues([h], exchangeRates, displayCurrency) : null;

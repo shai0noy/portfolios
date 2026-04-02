@@ -2,6 +2,10 @@ import { Box, Typography, Paper, Table, TableHead, TableRow, TableCell, TableBod
 import { useScrollShadows, ScrollShadows } from '../../lib/ui-utils';
 import { formatValue, formatNumber, formatPrice } from '../../lib/currency';
 import { useLanguage } from '../../lib/i18n';
+import PaidIcon from '@mui/icons-material/Paid';
+import { convertCurrency } from '../../lib/currency';
+import type { CalendarEvents } from '../../lib/fetching';
+import type { Currency } from '../../lib/types';
 
 // We might need to import explicit types if we want strict typing for divHistory
 // For now, using any[] or defining a local interface if simpler, but better to use real types.
@@ -30,9 +34,9 @@ interface HoldingDividendsProps {
     loading: boolean;
     displayCurrency: string;
     formatDate: (d: string | Date | number) => string;
-    calendarEvents?: any;
+    calendarEvents?: CalendarEvents;
     totalQty?: number;
-    stockCurrency?: string;
+    stockCurrency?: Currency;
     exchangeRates?: any;
 }
 
@@ -48,8 +52,6 @@ const formatDateWithRelative = (dateStr: string | number | Date, t: any, formatD
     return `${dStr} (${t('{days} days ago', 'לפני {days} ימים').replace('{days}', String(Math.abs(days)))})`;
 };
 
-import PaidIcon from '@mui/icons-material/Paid';
-import { convertCurrency } from '../../lib/currency';
 
 export function HoldingDividends({ divHistory, loading, displayCurrency, formatDate, calendarEvents, totalQty, stockCurrency, exchangeRates }: HoldingDividendsProps) {
     const { t } = useLanguage();
@@ -63,8 +65,9 @@ export function HoldingDividends({ divHistory, loading, displayCurrency, formatD
 
     const calcTotalAmount = () => {
         if (!calendarEvents?.dividendAmount || !totalQty || !stockCurrency || !exchangeRates) return null;
+        const divCurrency = calendarEvents.dividendCurrency || stockCurrency;
         const totalStockCurrency = calendarEvents.dividendAmount * totalQty;
-        const totalDisplayCurrency = convertCurrency(totalStockCurrency, stockCurrency, displayCurrency, exchangeRates);
+        const totalDisplayCurrency = convertCurrency(totalStockCurrency, divCurrency, displayCurrency, exchangeRates);
         return formatPrice(totalDisplayCurrency, displayCurrency);
     };
 
@@ -78,9 +81,9 @@ export function HoldingDividends({ divHistory, loading, displayCurrency, formatD
                             <PaidIcon fontSize="small" />
                         </Box>
                         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, flex: 1, minWidth: 0 }}>
-                            {calendarEvents.dividendAmount && <Typography variant="body2" sx={{ fontSize: '0.8rem', mb: 0.5 }}>{formatPrice(calendarEvents.dividendAmount, stockCurrency || 'USD')} {t('PS', 'למניה')}{totalQty ? ` • ${calcTotalAmount()} ${t('Total', 'סה״כ')}` : ''}</Typography>}
-                            {calendarEvents.dividendDate && <Typography variant="body2" sx={{ fontSize: '0.8rem' }} noWrap>{t('Pay', 'תשלום')}: <strong>{formatDateWithRelative(calendarEvents.dividendDate, t, formatDate)}</strong></Typography>}
-                            {calendarEvents.exDividendDate && <Typography variant="body2" sx={{ fontSize: '0.8rem' }} noWrap>{t('Ex', 'אקס')}: <strong>{formatDateWithRelative(calendarEvents.exDividendDate, t, formatDate)}</strong></Typography>}
+                            {calendarEvents?.dividendAmount && <Typography variant="body2" sx={{ fontSize: '0.8rem', mb: 0.5 }}>{formatPrice(calendarEvents.dividendAmount, calendarEvents.dividendCurrency || stockCurrency || 'USD')} {t('PS', 'למניה')}{totalQty ? ` • ${calcTotalAmount()} ${t('Total', 'סה״כ')}` : ''}</Typography>}
+                            {calendarEvents?.dividendDate && <Typography variant="body2" sx={{ fontSize: '0.8rem' }} noWrap>{t('Pay', 'תשלום')}: <strong>{formatDateWithRelative(calendarEvents.dividendDate, t, formatDate)}</strong></Typography>}
+                            {calendarEvents?.exDividendDate && <Typography variant="body2" sx={{ fontSize: '0.8rem' }} noWrap>{t('Ex', 'אקס')}: <strong>{formatDateWithRelative(calendarEvents.exDividendDate, t, formatDate)}</strong></Typography>}
                         </Box>
                     </Paper>
                 </Box>

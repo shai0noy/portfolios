@@ -29,7 +29,7 @@ interface HoldingDetailsProps {
     sheetId: string;
     holding: Holding | EnrichedDashboardHolding;
     holdings?: any[];
-    displayCurrency: string;
+    displayCurrency: Currency;
     portfolios: Portfolio[];
     onPortfolioClick: (id: string) => void;
     section?: HoldingDetailsSection;

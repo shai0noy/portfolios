@@ -1,8 +1,9 @@
 // src/lib/fetching/yahoo.ts
 import { fetchWithCache } from './utils/cache';
-import type { TickerData, IncomeStatement } from './types';
+import type { TickerData, IncomeStatement, AdvancedStats } from './types';
 import { Exchange, parseExchange, EXCHANGE_SETTINGS } from '../types';
 import { InstrumentGroup } from '../types/instrument';
+import { convertCurrency, normalizeCurrency } from '../currency';
 
 /**
  * Maps Yahoo Finance exchange codes (e.g. 'NMS', 'NYQ') to canonical Exchange names.
@@ -394,6 +395,10 @@ export async function fetchYahooTickerData(
         let incomeStatementHistory: IncomeStatement[] | undefined;
         let incomeStatementHistoryQuarterly: IncomeStatement[] | undefined;
 
+        const defaultKeyStatistics = calData?.quoteSummary?.result?.[0]?.defaultKeyStatistics;
+        const financialData = calData?.quoteSummary?.result?.[0]?.financialData;
+        const finCurr = financialData?.financialCurrency ? normalizeCurrency(financialData.financialCurrency) : currency;
+
         if (calData) {
           const calEvents = calData?.quoteSummary?.result?.[0]?.calendarEvents;
           if (calEvents) {
@@ -444,15 +449,13 @@ export async function fetchYahooTickerData(
               eventMap.dividendDate = new Date(calEvents.dividendDate.raw * 1000);
             }
 
-            const defaultKeyStatistics = calData?.quoteSummary?.result?.[0]?.defaultKeyStatistics;
             if (defaultKeyStatistics?.lastDividendValue?.raw !== undefined && defaultKeyStatistics?.lastDividendDate?.raw !== undefined) {
-              const lastDivRaw = defaultKeyStatistics.lastDividendDate.raw;
-              const calExRaw = calEvents.exDividendDate?.raw;
-              const calPayRaw = calEvents.dividendDate?.raw;
-
-              // Only use the amount if the last dividend date explicitly matches the calendar ex or pay date.
-              if (lastDivRaw === calExRaw || lastDivRaw === calPayRaw) {
-                eventMap.dividendAmount = defaultKeyStatistics.lastDividendValue.raw;
+              eventMap.dividendAmount = defaultKeyStatistics.lastDividendValue.raw;
+              // Check if the stock currency is ILA and the financial currency is different
+              if (financialData?.financialCurrency && financialData.financialCurrency !== currency) {
+                eventMap.dividendCurrency = finCurr;
+              } else {
+                eventMap.dividendCurrency = currency;
               }
             }
 
@@ -493,9 +496,7 @@ export async function fetchYahooTickerData(
           }
         }
 
-        let advancedStats: any = undefined;
-        const defaultKeyStatistics = calData?.quoteSummary?.result?.[0]?.defaultKeyStatistics;
-        const financialData = calData?.quoteSummary?.result?.[0]?.financialData;
+        let advancedStats: AdvancedStats | undefined = undefined;
         const recTrendResult = calData?.quoteSummary?.result?.[0]?.recommendationTrend?.trend;
         const priceData = calData?.quoteSummary?.result?.[0]?.price;
         const currentTrend = Array.isArray(recTrendResult) && recTrendResult.length > 0 ? recTrendResult[0] : undefined;
@@ -504,6 +505,7 @@ export async function fetchYahooTickerData(
           const parseNum = (obj: any) => obj?.raw !== undefined ? obj.raw : undefined;
 
           advancedStats = {
+            financialCurrency: finCurr,
             forwardPE: parseNum(defaultKeyStatistics?.forwardPE),
             pegRatio: parseNum(defaultKeyStatistics?.pegRatio),
             priceToBook: parseNum(defaultKeyStatistics?.priceToBook),
@@ -544,6 +546,14 @@ export async function fetchYahooTickerData(
             ebitdaMargins: parseNum(financialData?.ebitdaMargins),
             operatingMargins: parseNum(financialData?.operatingMargins),
           };
+
+          // Manual fwdPE calculation for Israeli stocks due to Yahoo API wrong values
+          if (exchange === Exchange.TASE && advancedStats.forwardEps && price) {
+            const priceInFinancialCurrency = convertCurrency(price, currency, finCurr);
+            if (priceInFinancialCurrency && advancedStats.forwardEps > 0) {
+              advancedStats.forwardPE = priceInFinancialCurrency / advancedStats.forwardEps;
+            }
+          }
 
           if (priceData) {
             advancedStats.priceInfo = {

@@ -27,8 +27,8 @@ import type { TickerProfile } from '../lib/types/ticker';
 import { useChartComparison, getAvailableRanges, getMaxLabel, SEARCH_OPTION_TICKER } from '../lib/hooks/useChartComparison';
 import { useTickerDetails, type TickerDetailsProps } from '../lib/hooks/useTickerDetails';
 import { TickerSearch } from './TickerSearch';
-import { Exchange, isUSExchange, type ExchangeRates } from '../lib/types';
-import { formatMoneyPrice, formatPercent, normalizeCurrency, formatMoneyValue, formatMoneyCompactValue, formatCompactValue } from '../lib/currency';
+import { Currency, Exchange, isUSExchange, type ExchangeRates } from '../lib/types';
+import { formatMoneyPrice, formatPercent, normalizeCurrency, formatMoneyValue, formatMoneyCompactValue, formatCompactValue, formatCompactPrice } from '../lib/currency';
 import { AnalysisDialog } from './AnalysisDialog';
 import { TickerAiChat } from './TickerAiChat';
 import { checkGeminiKey } from '../lib/gemini';
@@ -40,6 +40,7 @@ import type { EnrichedDashboardHolding } from '../lib/dashboard';
 import { loadFinanceEngine } from '../lib/data/loader';
 import type { Holding } from '../lib/data/model';
 import { useScrollShadows, ScrollShadows, useResponsiveDialogProps } from '../lib/ui-utils';
+import type { AdvancedStats } from '../lib/fetching';
 
 
 const formatDate = (timestamp?: Date | string | number | null) => {
@@ -64,10 +65,10 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const { ticker: paramTicker, exchange: paramExchange } = useParams();
   const resolvedTickerInput = propTicker || paramTicker;
-  const resolvedExchangeInput = propExchange || (paramExchange as any);
+  const resolvedExchangeInput = propExchange || paramExchange;
 
   const { t, tTry } = useLanguage();
-  const location = useLocation() as any;
+  const location = useLocation();
   const responsiveDialogProps = useResponsiveDialogProps();
   const tickerDetailsResult = useTickerDetails({ sheetId, ticker: resolvedTickerInput, exchange: resolvedExchangeInput, numericId: propNumericId, initialName: propInitialName, initialNameHe: propInitialNameHe, portfolios, isPortfoliosLoading });
 
@@ -86,12 +87,12 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
       const allHoldings = Array.from(engine.holdings.values());
       const allTransactions = Array.from(engine.transactions.values());
 
-      let relevantHoldings: any[] = allHoldings;
-      let relevantTransactions: any[] = allTransactions;
+      let relevantHoldings: Holding[] = allHoldings;
+      let relevantTransactions = allTransactions;
 
       if (portfolioId) {
-        relevantHoldings = allHoldings.filter((h: any) => h.portfolioId === portfolioId);
-        relevantTransactions = allTransactions.filter((t: any) => t.portfolioId === portfolioId);
+        relevantHoldings = allHoldings.filter(h => h.portfolioId === portfolioId);
+        relevantTransactions = allTransactions.filter(t => t.portfolioId === portfolioId);
       }
 
       const { getExchangeRates } = await import('../lib/currency');
@@ -100,7 +101,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
       const rates = await getExchangeRates(sheetId);
       const displayCurrency = normalizeCurrency(localStorage.getItem('displayCurrency') || 'USD');
 
-      const { points } = await calculatePortfolioPerformance(relevantHoldings, relevantTransactions, displayCurrency, rates);
+      const { points } = await calculatePortfolioPerformance(relevantHoldings as any, relevantTransactions, displayCurrency, rates);
 
       return points.map(p => ({
         date: new Date(p.date),
@@ -159,7 +160,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   };
 
   useEffect(() => {
-    if (location.state && (location.state as any).openAiChatId && !chatOpen) {
+    if ((location.state as { openAiChatId?: string })?.openAiChatId && !chatOpen) {
       handleOpenChat();
     }
     // Also support hash change from external navigation if we mount with #ai or others
@@ -176,8 +177,8 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
 
   // Resolve the "Active Holding" - from navigation state (enriched) or hook
   const enrichedHolding = useMemo(() => {
-    const stateHolding = location.state?.holding;
-    if (stateHolding && stateHolding.ticker === ticker) return stateHolding as EnrichedDashboardHolding;
+    const stateHolding = (location.state as { holding?: EnrichedDashboardHolding })?.holding;
+    if (stateHolding && stateHolding.ticker === ticker) return stateHolding;
     return null;
   }, [location.state, ticker]);
 
@@ -908,10 +909,10 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                                     <>
                                       <Typography variant="caption" color="text.secondary">{translateRange(range)}</Typography>
                                       <Typography variant="body2" sx={{ fontWeight: 600, color: textColor }}>{formatPercent(value)}</Typography>
-                                      <Typography variant="caption" sx={{ fontSize: '0.7rem', opacity: 0.8 }}>{formatMoneyValue({ amount: info.amount, currency: normalizeCurrency(displayData?.currency || 'USD') })}</Typography>
+                                      <Typography variant="caption" sx={{ fontSize: '0.7rem', opacity: 0.8 }}>{formatMoneyValue({ amount: info.amount, currency: normalizeCurrency(displayData?.currency || 'USD') as Currency })}</Typography>
                                       {totalQty > 0 && (
                                         <Typography variant="caption" sx={{ fontSize: '0.7rem', opacity: 0.8, fontWeight: 'bold' }}>
-                                          {t('Total:', 'סה״כ:')} {formatMoneyValue({ amount: info.amount * totalQty, currency: normalizeCurrency(displayData?.currency || 'USD') })}
+                                          {t('Total:', 'סה״כ:')} {formatMoneyValue({ amount: info.amount * totalQty, currency: normalizeCurrency(displayData?.currency || 'USD') as Currency })}
                                         </Typography>
                                       )}
                                     </>
@@ -926,14 +927,15 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                       {/* Advanced Stats Section */}
                       {/* Advanced Stats Section */}
                       {(() => {
-                        const advStats = (displayData as any)?.advancedStats;
+                        const advStats: AdvancedStats | undefined = (displayData as any)?.advancedStats;
                         if (!advStats) return null;
 
                         const formatters = {
                           pct: (v: number | undefined) => v !== undefined ? formatPercent(v) : undefined,
                           num: (v: number | undefined) => v !== undefined ? v.toFixed(2) : undefined,
-                          currency: (v: number | undefined) => v !== undefined ? formatMoneyPrice({ amount: v, currency: (displayData?.currency || 'USD') as any }, t) : undefined,
+                          currency: (v: number | undefined, cur: Currency) => v !== undefined ? formatMoneyPrice({ amount: v, currency: cur }, t) : undefined,
                           compact: (v: number | undefined) => v !== undefined ? new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 2 }).format(v) : undefined,
+                          compactCurr: (v: number | undefined, cur: Currency) => v !== undefined ? formatCompactPrice(v, cur, t) : undefined,
                         };
 
                         const shortFloatRatio = advStats.sharesShort && advStats.floatShares ? (advStats.sharesShort / advStats.floatShares) : advStats.shortPercentOfFloat;
@@ -945,10 +947,10 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                               { label: t('Forward P/E', 'מכפיל רווח עתידי'), value: formatters.num(advStats.forwardPE), tooltip: t('Estimated future price-to-earnings ratio.', 'הערכת מכפיל הרווח מבוסס על צפי הרווחים העתידי.') },
                               { label: t('PEG Ratio', 'יחס PEG'), value: formatters.num(advStats.pegRatio), tooltip: t('Price/Earnings to Growth ratio.', 'יחס מכפיל רווח לצמיחת החברה.') },
                               { label: t('Price to Book', 'מכפיל הון'), value: formatters.num(advStats.priceToBook), tooltip: t('Compares market value to book value.', 'היחס בין שווי השוק להון העצמי.') },
-                              { label: t('Target High', 'יעד גבוה'), value: formatters.currency(advStats.targetHighPrice), tooltip: t('Highest current price target from analysts.', 'מחיר היעד הגבוה ביותר לפי ממוצע אנליסטים.') },
-                              { label: t('Target Mean', 'יעד ממוצע'), value: formatters.currency(advStats.targetMeanPrice), tooltip: t('Average current price target.', 'מחיר היעד הממוצע.') },
-                              { label: t('Target Median', 'יעד חציון'), value: formatters.currency(advStats.targetMedianPrice), tooltip: t('Median current price target.', 'מחיר היעד החציוני.') },
-                              { label: t('Target Low', 'יעד נמוך'), value: formatters.currency(advStats.targetLowPrice), tooltip: t('Lowest current price target.', 'מחיר היעד הנמוך ביותר.') },
+                              { label: t('Target High', 'יעד גבוה'), value: formatters.currency(advStats.targetHighPrice, (displayData?.currency || advStats.financialCurrency) as Currency), tooltip: t('Highest current price target from analysts.', 'מחיר היעד הגבוה ביותר לפי ממוצע אנליסטים.') },
+                              { label: t('Target Mean', 'יעד ממוצע'), value: formatters.currency(advStats.targetMeanPrice, (displayData?.currency || advStats.financialCurrency) as Currency), tooltip: t('Average current price target.', 'מחיר היעד הממוצע.') },
+                              { label: t('Target Median', 'יעד חציון'), value: formatters.currency(advStats.targetMedianPrice, (displayData?.currency || advStats.financialCurrency) as Currency), tooltip: t('Median current price target.', 'מחיר היעד החציוני.') },
+                              { label: t('Target Low', 'יעד נמוך'), value: formatters.currency(advStats.targetLowPrice, (displayData?.currency || advStats.financialCurrency) as Currency), tooltip: t('Lowest current price target.', 'מחיר היעד הנמוך ביותר.') },
                             ]
                           },
                           {
@@ -964,23 +966,23 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                           {
                             title: t('Cash & Debt', 'מזומן וחוב'),
                             items: [
-                              { label: t('Total Cash', 'סך המזומנים'), value: formatters.compact(advStats.totalCash), tooltip: t('Total cash on hand.', 'כמות המזומנים של החברה.') },
-                              { label: t('Cash / Share', 'מזומן למניה'), value: formatters.currency(advStats.totalCashPerShare), tooltip: t('Total cash per outstanding share.', 'סך המזומנים מחולק במספר המניות.') },
-                              { label: t('Total Debt', 'סך החוב'), value: formatters.compact(advStats.totalDebt), tooltip: t('Total outstanding debt.', 'סך החובות מכל הסוגים.') },
+                              { label: t('Total Cash', 'סך המזומנים'), value: formatters.compactCurr(advStats.totalCash, advStats.financialCurrency as Currency), tooltip: t('Total cash on hand.', 'כמות המזומנים של החברה.') },
+                              { label: t('Cash / Share', 'מזומן למניה'), value: formatters.currency(advStats.totalCashPerShare, advStats.financialCurrency as Currency), tooltip: t('Total cash per outstanding share.', 'סך המזומנים מחולק במספר המניות.') },
+                              { label: t('Total Debt', 'סך החוב'), value: formatters.compactCurr(advStats.totalDebt, advStats.financialCurrency as Currency), tooltip: t('Total outstanding debt.', 'סך החובות מכל הסוגים.') },
                               { label: t('Debt / Equity', 'חוב להון'), value: formatters.pct(advStats.debtToEquity ? advStats.debtToEquity / 100 : undefined), tooltip: t('Total debt divided by shareholder equity.', 'היחס בין סך החוב להון העצמי.') },
-                              { label: t('Free Cash Flow', 'תזרים חופשי'), value: formatters.compact(advStats.freeCashflow), tooltip: t('Cash left after paying operating expenses and capital expenditures.', 'המזומן הפנוי לאחר הוצאות הון.') },
-                              { label: t('Operating Flow', 'תזרים תפעולי'), value: formatters.compact(advStats.operatingCashflow), tooltip: t('Cash generated by core business operations.', 'תזרים מפעילות הליבה.') },
+                              { label: t('Free Cash Flow', 'תזרים חופשי'), value: formatters.compactCurr(advStats.freeCashflow, advStats.financialCurrency as Currency), tooltip: t('Cash left after paying operating expenses and capital expenditures.', 'המזומן הפנוי לאחר הוצאות הון.') },
+                              { label: t('Operating Flow', 'תזרים תפעולי'), value: formatters.compactCurr(advStats.operatingCashflow, advStats.financialCurrency as Currency), tooltip: t('Cash generated by core business operations.', 'תזרים מפעילות הליבה.') },
                               { label: t('Current Ratio', 'יחס שוטף'), value: formatters.num(advStats.currentRatio), tooltip: t('Current assets divided by current liabilities.', 'יחס בין נכסים שוטפים להתחייבויות שוטפות.') },
                             ]
                           },
                           {
                             title: t('Growth & Income', 'צמיחה והכנסות'),
                             items: [
-                              { label: t('Total Revenue', 'סך הכנסות'), value: formatters.compact(advStats.totalRevenue), tooltip: t('Total sales in the period.', 'סך כל המכירות.') },
+                              { label: t('Total Revenue', 'סך הכנסות'), value: formatters.compactCurr(advStats.totalRevenue, advStats.financialCurrency as Currency), tooltip: t('Total sales in the period.', 'סך כל המכירות.') },
                               { label: t('Revenue Q Grw.', 'צמיחת הכנסות Q'), value: formatters.pct(advStats.revenueQuarterlyGrowth ?? advStats.revenueGrowth), tooltip: t('Quarter-over-quarter revenue growth rate.', 'שיעור הצמיחה בהכנסות.') },
                               { label: t('Earnings Q Grw.', 'צמיחת רווחים Q'), value: formatters.pct(advStats.earningsQuarterlyGrowth ?? advStats.earningsGrowth), tooltip: t('Quarter-over-quarter earnings growth rate.', 'שיעור הצמיחה ברווחים.') },
-                              { label: t('Trailing EPS', 'רווח עוקב למניה'), value: formatters.currency(advStats.trailingEps), tooltip: t('Company\'s actual profit per outstanding share.', 'הרווח הנקי שיוחס לכל מניה השנה.') },
-                              { label: t('Forward EPS', 'רווח למניה עתידי'), value: formatters.currency(advStats.forwardEps), tooltip: t('Estimated earnings per share for the upcoming 12 months.', 'הרווח החזוי למניה לשנה הבאה.') },
+                              { label: t('Trailing EPS', 'רווח עוקב למניה'), value: formatters.currency(advStats.trailingEps, advStats.financialCurrency as Currency), tooltip: t('Company\'s actual profit per outstanding share.', 'הרווח הנקי שיוחס לכל מניה השנה.') },
+                              { label: t('Forward EPS', 'רווח למניה עתידי'), value: formatters.currency(advStats.forwardEps, advStats.financialCurrency as Currency), tooltip: t('Estimated earnings per share for the upcoming 12 months.', 'הרווח החזוי למניה לשנה הבאה.') },
                             ]
                           },
                           {
@@ -1100,7 +1102,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                                   {/* Legend */}
                                   <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 1, justifyContent: 'center' }}>
                                     {categories.map(cat => (
-                                      currentTrend[cat.key as keyof typeof currentTrend] > 0 && (
+                                      currentTrend[cat.key as keyof typeof currentTrend] && (
                                         <Box key={cat.key} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                           <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: cat.color }} />
                                           <Typography variant="caption" color="text.secondary">{cat.label}</Typography>
@@ -1115,7 +1117,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
 
                             {/* Price Targets Chart */}
                             {(advStats.targetHighPrice || advStats.targetMeanPrice || advStats.targetMedianPrice || advStats.targetLowPrice) && (() => {
-                              const currentPrice = advStats.currentPrice || (holdingData as any)?.currentPrice || (displayData as any)?.regularMarketPrice || (displayData as any)?.price;
+                              const currentPrice = (holdingData as any)?.currentPrice || (displayData as any)?.regularMarketPrice || (displayData as any)?.price;
                               if (!currentPrice) return null;
 
                               const targets = [
@@ -1142,7 +1144,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                                         {t('Based on a single analyst target:', 'מבוסס על יעד אנליסט בודד:')}
                                       </Typography>
                                       <Typography variant="body2" fontWeight="bold">
-                                        {formatters.currency(targetPrice)}
+                                        {formatters.currency(targetPrice, (displayData?.currency || advStats.financialCurrency) as Currency)}
                                       </Typography>
                                       <Typography variant="body2" sx={{ color: pctChange >= 0 ? 'success.main' : 'error.main', fontWeight: 'bold' }}>
                                         {pctChange > 0 ? '+' : ''}{pctChange.toFixed(1)}%
@@ -1166,7 +1168,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                                         {t('Based on two analyst targets:', 'מבוסס על שני יעדי אנליסטים:')}
                                       </Typography>
                                       <Typography variant="body2" fontWeight="bold">
-                                        {formatters.currency(minTarget)} - {formatters.currency(maxTarget)}
+                                        {formatters.currency(minTarget, (displayData?.currency || advStats.financialCurrency) as Currency)} - {formatters.currency(maxTarget, (displayData?.currency || advStats.financialCurrency) as Currency)}
                                       </Typography>
                                       <Typography variant="body2" sx={{ color: maxPct >= 0 ? 'success.main' : 'error.main', fontWeight: 'bold' }}>
                                         {minPct > 0 ? '+' : ''}{minPct.toFixed(1)}% {t('to', 'עד')} {maxPct > 0 ? '+' : ''}{maxPct.toFixed(1)}%
@@ -1259,7 +1261,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                                               {isPositive ? '+' : ''}{pctChange.toFixed(1)}%
                                             </Typography>
                                             <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
-                                              {formatters.currency(tgt.value)}
+                                              {formatters.currency(tgt.value, (displayData?.currency || advStats.financialCurrency) as Currency)}
                                             </Typography>
                                           </Box>
                                         </Box>
@@ -1271,7 +1273,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                                     {/* Current Price Marker */}
                                     <Box style={{ position: 'absolute', left: `${getPos(currentPrice)}%`, top: -38, transform: 'translateX(-50%)' }} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 10 }}>
                                       <Typography variant="caption" sx={{ fontWeight: 'bold', mb: 0.5, bgcolor: theme.palette.mode === 'dark' ? '#333' : '#eee', px: 1, py: 0.25, borderRadius: 1, border: '1px solid', borderColor: 'divider', whiteSpace: 'nowrap', boxShadow: 1 }}>
-                                        {t('Current', 'נוכחי')}: {formatters.currency(currentPrice)}
+                                        {t('Current', 'נוכחי')}: {formatters.currency(currentPrice, (displayData?.currency || advStats.financialCurrency) as Currency)}
                                       </Typography>
                                       <Box sx={{ width: 2, height: 38, bgcolor: 'text.primary', borderRadius: 1 }} />
                                     </Box>
@@ -1342,9 +1344,6 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                   </TabPanelWithShadows>
                 )}
 
-
-
-
                 {activeTab === 'assets' && displayData?.meta?.underlyingAssets && (
                   <TabPanelWithShadows theme={theme}>
                     <HoldingDetails
@@ -1367,27 +1366,28 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                         <IncomeStatementView
                           history={(displayData as any).incomeStatementHistory}
                           historyQuarterly={(displayData as any).incomeStatementHistoryQuarterly}
-                          currency={displayData?.currency}
+                          priceCurrency={((displayData as any).currency || 'USD') as Currency}
+                          finanacialCurrency={((displayData as any)?.advancedStats?.financialCurrency || (displayData as any).currency || 'ILS') as Currency}
                           t={t}
                         />
                       )}
 
                       {/* Key Financials (from Advanced Stats) */}
                       {(() => {
-                        const advStats = (displayData as any)?.advancedStats;
-                        if (!advStats) return null;
+                        const advStats: AdvancedStats | undefined = (displayData as any)?.advancedStats;
+                      if (!advStats) return null;
 
-                        const formatters = {
+                      const formatters = {
                           pct: (v: number | undefined) => v !== undefined ? formatPercent(v) : undefined,
                           num: (v: number | undefined) => v !== undefined ? v.toFixed(2) : undefined,
-                          currency: (v: number | undefined) => v !== undefined ? formatMoneyPrice({ amount: v, currency: (displayData?.currency || 'USD') as any }, t) : undefined,
-                        };
+                          currency: (v: number | undefined, curr: Currency) => v !== undefined ? formatMoneyPrice({ amount: v, currency: curr}, t) : undefined,
+                      };
 
-                        const keyStats = [
+                      const keyStats = [
                           { label: t('P/E (Fwd)', 'מכפיל עתידי'), value: formatters.num(advStats.forwardPE) },
                           { label: t('PEG Ratio', 'יחס PEG'), value: formatters.num(advStats.pegRatio) },
-                          { label: t('Trailing 1y EPS', 'EPS עוקב שנתי'), value: formatters.currency(advStats.trailingEps) },
-                          { label: t('Forward 1y EPS', 'EPS צפי שנתי'), value: formatters.currency(advStats.forwardEps) },
+                          { label: t('Trailing 1y EPS', 'EPS עוקב שנתי'), value: formatters.currency(advStats.trailingEps, advStats.financialCurrency as Currency) },
+                          { label: t('Forward 1y EPS', 'EPS צפי שנתי'), value: formatters.currency(advStats.forwardEps, advStats.financialCurrency as Currency) },
                           { label: t('Earnings Q Grw.', 'צמיחת רווחים'), value: formatters.pct(advStats.earningsQuarterlyGrowth ?? advStats.earningsGrowth) },
                           { label: t('Revenue Q Grw.', 'צמיחת הכנסות'), value: formatters.pct(advStats.revenueQuarterlyGrowth ?? advStats.revenueGrowth) },
                           { label: t('Profit Margin', 'שולי רווח'), value: formatters.pct(advStats.profitMargins) },
@@ -1484,7 +1484,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
         comparisonSeries={comparisonSeries}
         title={`${t('Overview', 'סקירה')}: ${tTry(resolvedName || ticker || '', resolvedNameHe)}`}
         initialRange={chartRange}
-        currency={data?.currency || 'USD'}
+        currency={(data?.currency || 'USD') as Currency}
         subjectName={ticker}
       />
       <CustomRangeDialog
@@ -1591,7 +1591,7 @@ const CalendarEventsView = ({ events, currency, t, expectedDivTotal }: { events:
           title={t('Dividends', 'דיבידנדים')}
           value={
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
-              {events.dividendAmount && <Typography variant="body2" sx={{ fontSize: '0.8rem', mb: 0.5 }}>{typeof events.dividendAmount === 'number' ? formatMoneyValue({ amount: events.dividendAmount, currency: (currency || 'USD') as any }, undefined, 2) : events.dividendAmount} {t('PS', 'למניה')}{expectedDivTotal ? ` • ${formatMoneyValue({ amount: expectedDivTotal, currency: (currency || 'USD') as any }, undefined, 0)} ${t('Total', 'סה״כ')}` : ''}</Typography>}
+              {events.dividendAmount && <Typography variant="body2" sx={{ fontSize: '0.8rem', mb: 0.5 }}>{typeof events.dividendAmount === 'number' ? formatMoneyValue({ amount: events.dividendAmount, currency: (events.dividendCurrency || currency || 'USD') as any }, undefined, 2) : events.dividendAmount} {t('PS', 'למניה')}{expectedDivTotal ? ` • ${formatMoneyValue({ amount: expectedDivTotal, currency: (currency || 'USD') as any }, undefined, 0)} ${t('Total', 'סה״כ')}` : ''}</Typography>}
               {events.dividendDate && <Typography variant="body2" sx={{ fontSize: '0.8rem' }} noWrap>{t('Pay', 'תשלום')}: <strong>{formatDateWithRelative(events.dividendDate, t)}</strong></Typography>}
               {events.exDividendDate && <Typography variant="body2" sx={{ fontSize: '0.8rem' }} noWrap>{t('Ex', 'אקס')}: <strong>{formatDateWithRelative(events.exDividendDate, t)}</strong></Typography>}
             </Box>
@@ -1603,7 +1603,7 @@ const CalendarEventsView = ({ events, currency, t, expectedDivTotal }: { events:
   );
 };
 
-const IncomeStatementView = ({ history, historyQuarterly, currency, t }: { history?: any[], historyQuarterly?: any[], currency?: string, t: any }) => {
+const IncomeStatementView = ({ history, historyQuarterly, finanacialCurrency, t }: { history?: any[], historyQuarterly?: any[], priceCurrency: Currency, finanacialCurrency: Currency, t: any }) => {
   const theme = useTheme();
   const [period, setPeriod] = useState<'Quarterly' | 'Annual'>('Quarterly');
 
@@ -1624,8 +1624,8 @@ const IncomeStatementView = ({ history, historyQuarterly, currency, t }: { histo
     };
   });
 
-  const formatValue = (val: number | undefined) => val !== undefined && val !== null && val !== 0 ? formatMoneyValue({ amount: val, currency: normalizeCurrency(currency || 'USD') }) : '-';
-  const formatCompactVal = (val: number | undefined) => val !== undefined && val !== null && val !== 0 ? formatCompactValue(val, normalizeCurrency(currency || 'USD')) : '-';
+  const formatValue = (val: number | undefined, curr: Currency) => val !== undefined && val !== null && val !== 0 ? formatMoneyValue({ amount: val, currency: curr }) : '-';
+  const formatCompactVal = (val: number | undefined, curr: Currency) => val !== undefined && val !== null && val !== 0 ? formatCompactValue(val, curr) : '-';
 
   const hasRevenue = activeHistory.some(row => row.totalRevenue !== undefined && row.totalRevenue !== null && row.totalRevenue !== 0);
   const hasGrossProfit = activeHistory.some(row => row.grossProfit !== undefined && row.grossProfit !== null && row.grossProfit !== 0);
@@ -1652,14 +1652,14 @@ const IncomeStatementView = ({ history, historyQuarterly, currency, t }: { histo
           <BarChart data={chartData} margin={{ top: 10, right: 0, left: 10, bottom: -10 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
             <XAxis dataKey="periodName" tick={{ fill: theme.palette.text.secondary, fontSize: 12 }} axisLine={false} tickLine={false} />
-            <YAxis tickFormatter={(val) => formatCompactVal(val)} tick={{ fill: theme.palette.text.secondary, fontSize: 12 }} axisLine={false} tickLine={false} />
-            <RechartsTooltip formatter={formatValue as any} cursor={{ fill: 'rgba(0,0,0,0.05)' }} contentStyle={{ backgroundColor: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}`, borderRadius: 8, color: theme.palette.text.primary }} />
+            <YAxis tickFormatter={(val) => formatCompactVal(val, finanacialCurrency)} tick={{ fill: theme.palette.text.secondary, fontSize: 12 }} axisLine={false} tickLine={false} />
+            <RechartsTooltip formatter={(val: any) => formatValue(val, finanacialCurrency)} cursor={{ fill: 'rgba(0,0,0,0.05)' }} contentStyle={{ backgroundColor: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}`, borderRadius: 8, color: theme.palette.text.primary }} />
             <Legend wrapperStyle={{ paddingTop: 0, paddingBottom: 20 }} />
             <Bar dataKey="Revenue" fill={theme.palette.text.disabled} fillOpacity={0.4} name={t('Revenue', 'הכנסות')} radius={[4, 4, 0, 0]}>
-              <LabelList dataKey="Revenue" position="top" formatter={formatCompactVal as any} fill={theme.palette.text.secondary} fontSize={10} />
+              <LabelList dataKey="Revenue" position="top" formatter={(val: any) => formatCompactVal(val, finanacialCurrency)} fill={theme.palette.text.secondary} fontSize={10} />
             </Bar>
             <Bar dataKey="NetIncome" fill={theme.palette.primary.main} fillOpacity={0.6} name={t('Net Income', 'רווח נקי')} radius={[4, 4, 0, 0]}>
-              <LabelList dataKey="NetIncome" position="top" formatter={formatCompactVal as any} fill={theme.palette.text.secondary} fontSize={10} />
+              <LabelList dataKey="NetIncome" position="top" formatter={(val: any) => formatCompactVal(val, finanacialCurrency)} fill={theme.palette.text.secondary} fontSize={10} />
             </Bar>
           </BarChart>
         </ResponsiveContainer>
@@ -1680,10 +1680,10 @@ const IncomeStatementView = ({ history, historyQuarterly, currency, t }: { histo
             {activeHistory.map((row, i) => (
               <TableRow key={i}>
                 <TableCell>{new Date(row.endDate).toLocaleDateString()}</TableCell>
-                {hasRevenue && <TableCell align="right">{formatCompactVal(row.totalRevenue)}</TableCell>}
-                {hasGrossProfit && <TableCell align="right">{formatCompactVal(row.grossProfit)}</TableCell>}
-                {hasOperatingIncome && <TableCell align="right">{formatCompactVal(row.operatingIncome)}</TableCell>}
-                {hasNetIncome && <TableCell align="right">{formatCompactVal(row.netIncome)}</TableCell>}
+                {hasRevenue && <TableCell align="right">{formatCompactVal(row.totalRevenue, finanacialCurrency)}</TableCell>}
+                {hasGrossProfit && <TableCell align="right">{formatCompactVal(row.grossProfit, finanacialCurrency)}</TableCell>}
+                {hasOperatingIncome && <TableCell align="right">{formatCompactVal(row.operatingIncome, finanacialCurrency)}</TableCell>}
+                {hasNetIncome && <TableCell align="right">{formatCompactVal(row.netIncome, finanacialCurrency)}</TableCell>}
               </TableRow>
             ))}
           </TableBody>

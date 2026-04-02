@@ -52,6 +52,7 @@ export function getRecentEventsData(
     expectedDivTotal?: number;
     stockCurrency?: Currency;
     dividendAmount?: number;
+    dividendCurrency?: Currency;
   }>();
 
   const formatRelativeDays = (date: Date) => {
@@ -195,7 +196,8 @@ export function getRecentEventsData(
 
       if (cal.dividendAmount) {
         group.dividendAmount = cal.dividendAmount;
-        const curr = group.currency || h.stockCurrency!;
+        group.dividendCurrency = cal.dividendCurrency;
+        const curr = group.dividendCurrency || group.currency || h.stockCurrency!;
         const psStr = `${formatMoneyValue({ amount: group.dividendAmount, currency: curr })} ${t('PS', 'למניה')}`;
         const actualTotal = group.qtySum ? ` • ${formatMoneyValue({ amount: group.qtySum, currency: curr }, undefined, 0)} ${t('Total', 'סה״כ')}` : '';
         group.customValueDesc = `${group.baseValueDesc || ''} | ${psStr}${actualTotal}`;
@@ -228,12 +230,14 @@ export function getRecentEventsData(
       const group = grouped.get(key)!;
       if (cal.dividendAmount) {
         group.dividendAmount = cal.dividendAmount;
+        group.dividendCurrency = cal.dividendCurrency;
         if (h.qtyTotal > 0) {
           group.expectedDivTotal = (group.expectedDivTotal || 0) + (cal.dividendAmount * h.qtyTotal);
         }
 
-        const psStr = `${formatMoneyValue({ amount: group.dividendAmount, currency: group.stockCurrency! })} ${t('PS', 'למניה')}`;
-        const expectedPart = group.expectedDivTotal ? ` • ${formatMoneyValue({ amount: group.expectedDivTotal, currency: group.stockCurrency! }, undefined, 0)} ${t('Total', 'סה״כ')}` : '';
+        const curr = group.dividendCurrency || group.stockCurrency!;
+        const psStr = `${formatMoneyValue({ amount: group.dividendAmount, currency: curr })} ${t('PS', 'למניה')}`;
+        const expectedPart = group.expectedDivTotal ? ` • ${formatMoneyValue({ amount: group.expectedDivTotal, currency: curr }, undefined, 0)} ${t('Total', 'סה״כ')}` : '';
 
         group.customValueDesc = `${group.baseValueDesc} | ${psStr}${expectedPart}`;
       }

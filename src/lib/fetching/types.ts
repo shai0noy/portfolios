@@ -1,5 +1,5 @@
 // src/lib/fetching/types.ts
-import { Exchange } from '../types';
+import { Currency, Exchange } from '../types';
 import type { ExchangeMetadata } from '../types/ticker';
 import { InstrumentClassification } from '../types/instrument';
 
@@ -23,6 +23,7 @@ export interface CalendarEvents {
   exDividendDate?: Date;
   dividendDate?: Date;
   dividendAmount?: number;
+  dividendCurrency: Currency;
 }
 
 export interface IncomeStatement {
@@ -44,6 +45,7 @@ export interface RecommendationTrend {
 }
 
 export interface AdvancedStats {
+  financialCurrency: Currency
   priceInfo?: PriceInfo;
   forwardPE?: number;
   pegRatio?: number;
