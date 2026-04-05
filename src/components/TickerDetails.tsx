@@ -1591,7 +1591,7 @@ const CalendarEventsView = ({ events, currency, t, expectedDivTotal }: { events:
           title={t('Dividends', 'דיבידנדים')}
           value={
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
-              {events.dividendAmount && <Typography variant="body2" sx={{ fontSize: '0.8rem', mb: 0.5 }}>{typeof events.dividendAmount === 'number' ? formatMoneyValue({ amount: events.dividendAmount, currency: (events.dividendCurrency || currency || 'USD') as any }, undefined, 2) : events.dividendAmount} {t('PS', 'למניה')}{expectedDivTotal ? ` • ${formatMoneyValue({ amount: expectedDivTotal, currency: (currency || 'USD') as any }, undefined, 0)} ${t('Total', 'סה״כ')}` : ''}</Typography>}
+              {events.dividendAmount && <Typography variant="body2" sx={{ fontSize: '0.8rem', mb: 0.5 }}>{typeof events.dividendAmount === 'number' ? formatMoneyValue({ amount: events.dividendAmount, currency: (events.dividendCurrency || currency || 'USD') as any }, undefined, 2) : events.dividendAmount} {t('PS', 'למניה')}{expectedDivTotal ? ` • ${formatMoneyValue({ amount: expectedDivTotal, currency: (events.dividendCurrency || currency || 'USD') as any }, undefined, 0)} ${t('Total', 'סה״כ')}` : ''}</Typography>}
               {events.dividendDate && <Typography variant="body2" sx={{ fontSize: '0.8rem' }} noWrap>{t('Pay', 'תשלום')}: <strong>{formatDateWithRelative(events.dividendDate, t)}</strong></Typography>}
               {events.exDividendDate && <Typography variant="body2" sx={{ fontSize: '0.8rem' }} noWrap>{t('Ex', 'אקס')}: <strong>{formatDateWithRelative(events.exDividendDate, t)}</strong></Typography>}
             </Box>
