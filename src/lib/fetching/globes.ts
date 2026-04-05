@@ -1,6 +1,7 @@
 // src/lib/fetching/globes.ts
 import { WORKER_URL } from '../../config';
 import { CACHE_TTL, fetchWithCache } from './utils/cache';
+import { deduplicateRequest } from './utils/request_deduplicator';
 import { fetchXml, parseXmlString, extractDataFromXmlNS } from './utils/xml_parser';
 import type { TickerData } from './types';
 import { Exchange, parseExchange, Currency, EXCHANGE_SETTINGS } from '../types';
@@ -139,64 +140,67 @@ function parseGlobesTimestamp(dateStr: string): number {
 // --- Main Fetch Functions ---
 
 export async function fetchGlobesTickersByType(type: string, exchange: Exchange, signal?: AbortSignal): Promise<TickerProfile[]> {
-  const exchangeCode = toGlobesExchangeCode(exchange);
+  const reqKey = `fetchGlobesTickersByType:${type}:${exchange}`;
+  return deduplicateRequest(reqKey, async () => {
+    const exchangeCode = toGlobesExchangeCode(exchange);
 
-  const globesApiUrl = `${WORKER_URL}/?apiId=globes_list&exchange=${exchangeCode}&type=${type}`;
-  const xmlString = await fetchXml(globesApiUrl, signal, { cache: 'force-cache' });
-  const xmlDoc = parseXmlString(xmlString);
+    const globesApiUrl = `${WORKER_URL}/?apiId=globes_list&exchange=${exchangeCode}&type=${type}`;
+    const xmlString = await fetchXml(globesApiUrl, signal, { cache: 'force-cache' });
+    const xmlDoc = parseXmlString(xmlString);
 
-  const data = extractDataFromXmlNS(xmlDoc, GLOBES_API_NAMESPACE, 'anyType', (element): TickerProfile | null => {
-    if (element.getAttributeNS(XSI_NAMESPACE, 'type') !== 'Instrument') return null;
+    const data = extractDataFromXmlNS(xmlDoc, GLOBES_API_NAMESPACE, 'anyType', (element): TickerProfile | null => {
+      if (element.getAttributeNS(XSI_NAMESPACE, 'type') !== 'Instrument') return null;
 
-    const common = extractCommonGlobesData(element);
-    if (!common.symbol || !common.instrumentId) return null;
+      const common = extractCommonGlobesData(element);
+      if (!common.symbol || !common.instrumentId) return null;
 
-    let effectiveType = type;
-    if (common.koteretAlName === 'קרן כספית') {
-      effectiveType = 'monetary_fund';
-    }
-
-    const classification = new InstrumentClassification(effectiveType, undefined, { he: common.instrumentTypeHe });
-
-    let symbol = common.symbol;
-    let rawSecurityId: string | undefined = common.symbol;
-
-    const isIndex = common.rawType?.toLowerCase() === 'index' || classification.type === 'INDEX';
-
-    if (isIndex && common.indexNumber) {
-      symbol = common.indexNumber;
-      rawSecurityId = common.indexNumber;
-    }
-
-    // Encode TASE normalization
-    if (exchange === Exchange.TASE) {
-      symbol = symbol.trim();
-    }
-
-    if (exchange === Exchange.FOREX) {
-      symbol = formatForexSymbol(symbol);
-      rawSecurityId = undefined; // Forex doesn't have numeric security IDs in this context
-    }
-
-    const securityId = rawSecurityId ? parseInt(rawSecurityId, 10) : undefined;
-
-    return {
-      symbol,
-      exchange,
-      securityId: (securityId && !isNaN(securityId)) ? securityId : undefined,
-      name: common.nameEn,
-      nameHe: common.nameHe,
-      type: classification,
-      isFeeExempt: common.koteretAlName === 'קרן כספית',
-      meta: {
-        type: 'GLOBES',
-        instrumentId: common.instrumentId,
+      let effectiveType = type;
+      if (common.koteretAlName === 'קרן כספית') {
+        effectiveType = 'monetary_fund';
       }
-    };
+
+      const classification = new InstrumentClassification(effectiveType, undefined, { he: common.instrumentTypeHe });
+
+      let symbol = common.symbol;
+      let rawSecurityId: string | undefined = common.symbol;
+
+      const isIndex = common.rawType?.toLowerCase() === 'index' || classification.type === 'INDEX';
+
+      if (isIndex && common.indexNumber) {
+        symbol = common.indexNumber;
+        rawSecurityId = common.indexNumber;
+      }
+
+      // Encode TASE normalization
+      if (exchange === Exchange.TASE) {
+        symbol = symbol.trim();
+      }
+
+      if (exchange === Exchange.FOREX) {
+        symbol = formatForexSymbol(symbol);
+        rawSecurityId = undefined; // Forex doesn't have numeric security IDs in this context
+      }
+
+      const securityId = rawSecurityId ? parseInt(rawSecurityId, 10) : undefined;
+
+      return {
+        symbol,
+        exchange,
+        securityId: (securityId && !isNaN(securityId)) ? securityId : undefined,
+        name: common.nameEn,
+        nameHe: common.nameHe,
+        type: classification,
+        isFeeExempt: common.koteretAlName === 'קרן כספית',
+        meta: {
+          type: 'GLOBES',
+          instrumentId: common.instrumentId,
+        }
+      };
+    });
+
+
+    return data.filter(item => item !== null) as TickerProfile[];
   });
-
-
-  return data;
 }
 
 export async function fetchGlobesCurrencies(signal?: AbortSignal): Promise<TickerProfile[]> {

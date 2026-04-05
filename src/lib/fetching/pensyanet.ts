@@ -15,6 +15,7 @@ import {
   GEMEL_CACHE_TTL,
   GEMEL_LIST_CACHE_TTL
 } from './utils/cache';
+import { deduplicateRequest } from './utils/request_deduplicator';
 import { WORKER_URL } from '../../config';
 import type { 
   FundData, 
@@ -140,75 +141,78 @@ function decompressTickers(compact: CompactTicker[]): TickerProfile[] {
 }
 
 export async function fetchPensyanetTickers(signal?: AbortSignal, forceRefresh = false): Promise<TickerProfile[]> {
-  const now = Date.now();
+  const reqKey = `fetchPensyanetTickers`;
+  return deduplicateRequest(reqKey, async () => {
+    const now = Date.now();
 
-  // 1. Check Cache
-  if (!forceRefresh) {
-    try {
-      const cached = await loadFromCache<CompactTicker[]>(LIST_CACHE_KEY);
-      if (cached) {
-        if (now - cached.timestamp < GEMEL_LIST_CACHE_TTL) {
-          return decompressTickers(cached.data);
-        }
-      }
-    } catch (e) {
-      console.warn('[Pensyanet] Cache read error', e);
-    }
-  }
-
-  // 2. Fetch Data
-  const endDate = new Date();
-  const startDate = new Date();
-  startDate.setFullYear(startDate.getFullYear() - 1);
-
-  const sParts = getDateParts(startDate);
-  const eParts = getDateParts(endDate);
-  const url = `${WORKER_URL}/?apiId=pensyanet_list&startYear=${sParts.year}&startMonth=${sParts.month}&endYear=${eParts.year}&endMonth=${eParts.month}`;
-
-  try {
-    const xmlText = await fetchXml(url, signal);
-    const xmlDoc = parseXmlString(xmlText);
-    const rows = Array.from(xmlDoc.querySelectorAll('ROW'));
-    const tickersMap = new Map<number, TickerProfile>();
-    const parseFee = (feeStr: string): number | undefined => {
-      const fee = parseFloat(feeStr);
-      return isNaN(fee) ? undefined : fee;
-    };
-    rows.forEach(row => {
-      const getText = (tag: string) => row.querySelector(tag)?.textContent || '';
-      const idStr = getText('ID');
-      const id = parseInt(idStr, 10);
-      if (id && !tickersMap.has(id)) {
-        const name = getText('SHM_KRN');
-        tickersMap.set(id, {
-          symbol: idStr,
-          exchange: Exchange.PENSION,
-          securityId: id,
-          name: name,
-          nameHe: name,
-          type: new InstrumentClassification(InstrumentType.SAVING_PENSION, getText('SUG_KRN')),
-          meta: {
-            type: 'PROVIDENT',
-            fundId: id,
-            managementFee: parseFee(getText('SHIUR_D_NIHUL_AHARON_NCHASIM')),
-            depositFee: parseFee(getText('SHIUR_D_NIHUL_AHARON_HAFKADOT')),
+    // 1. Check Cache
+    if (!forceRefresh) {
+      try {
+        const cached = await loadFromCache<CompactTicker[]>(LIST_CACHE_KEY);
+        if (cached) {
+          if (now - cached.timestamp < GEMEL_LIST_CACHE_TTL) {
+            return decompressTickers(cached.data);
           }
-        });
+        }
+      } catch (e) {
+        console.warn('[Pensyanet] Cache read error', e);
       }
-    });
-
-    const tickers = Array.from(tickersMap.values());
-    try {
-      const compressed = compressTickers(tickers);
-      await saveToCache(LIST_CACHE_KEY, compressed);
-    } catch (e) {
-      console.warn('[Pensyanet] Cache write error', e);
     }
-    return tickers;
-  } catch (e) {
-    console.error('[Pensyanet] Error fetching tickers', e);
-    return [];
-  }
+
+    // 2. Fetch Data
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setFullYear(startDate.getFullYear() - 1);
+
+    const sParts = getDateParts(startDate);
+    const eParts = getDateParts(endDate);
+    const url = `${WORKER_URL}/?apiId=pensyanet_list&startYear=${sParts.year}&startMonth=${sParts.month}&endYear=${eParts.year}&endMonth=${eParts.month}`;
+
+    try {
+      const xmlText = await fetchXml(url, signal);
+      const xmlDoc = parseXmlString(xmlText);
+      const rows = Array.from(xmlDoc.querySelectorAll('ROW'));
+      const tickersMap = new Map<number, TickerProfile>();
+      const parseFee = (feeStr: string): number | undefined => {
+        const fee = parseFloat(feeStr);
+        return isNaN(fee) ? undefined : fee;
+      };
+      rows.forEach(row => {
+        const getText = (tag: string) => row.querySelector(tag)?.textContent || '';
+        const idStr = getText('ID');
+        const id = parseInt(idStr, 10);
+        if (id && !tickersMap.has(id)) {
+          const name = getText('SHM_KRN');
+          tickersMap.set(id, {
+            symbol: idStr,
+            exchange: Exchange.PENSION,
+            securityId: id,
+            name: name,
+            nameHe: name,
+            type: new InstrumentClassification(InstrumentType.SAVING_PENSION, getText('SUG_KRN')),
+            meta: {
+              type: 'PROVIDENT',
+              fundId: id,
+              managementFee: parseFee(getText('SHIUR_D_NIHUL_AHARON_NCHASIM')),
+              depositFee: parseFee(getText('SHIUR_D_NIHUL_AHARON_HAFKADOT')),
+            }
+          });
+        }
+      });
+
+      const tickers = Array.from(tickersMap.values());
+      try {
+        const compressed = compressTickers(tickers);
+        await saveToCache(LIST_CACHE_KEY, compressed);
+      } catch (e) {
+        console.warn('[Pensyanet] Cache write error', e);
+      }
+      return tickers;
+    } catch (e) {
+      console.error('[Pensyanet] Error fetching tickers', e);
+      return [];
+    }
+  });
 }
 
 export async function fetchPensyanetQuote(

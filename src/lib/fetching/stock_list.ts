@@ -12,6 +12,7 @@ import taseTypeIds from './tase_type_ids.json';
 import { Exchange } from '../types';
 import { fetchGlobesTickersByType } from './globes';
 import { WORKER_URL } from '../../config';
+import { deduplicateRequest } from './utils/request_deduplicator';
 import { normalizeTaseTicker } from './utils/normalization';
 
 // Pattern matching for TASE main type to our canonical InstrumentType
@@ -189,44 +190,46 @@ export async function fetchAllTickers(
   _config: any = {}, // Deprecated config
   signal?: AbortSignal
 ): Promise<Record<string, TickerProfile[]>> {
-  if (exchange === Exchange.TASE) {
-    return fetchTaseTickers(signal);
-  }
-  
-  if (exchange === Exchange.GEMEL) {
-    const tickers = await fetchGemelnetTickers(signal);
-    return { 'gemel_fund': tickers }; // Key matches legacy/globes key for compatibility if needed, or just grouping key
-  }
-
-  if (exchange === Exchange.PENSION) {
-    const tickers = await fetchPensyanetTickers(signal);
-    return { 'pension_fund': tickers };
-  }
-
-  // Fetch from Globes alone for other exchanges (US, Forex)
-  const allGlobesTickers = await fetchGlobesTickers(exchange, signal);
-
-   const allTickers: TickerProfile[] = allGlobesTickers.map(globesTicker => ({
-      ...globesTicker,
-      symbol: getEffectiveTicker(globesTicker.symbol, exchange) || globesTicker.symbol,
-      exchange: exchange,
-      // Ensure type is classified if not already (Globes fetcher does this, but good to ensure)
-   }));
-
-   // Group by canonical type code
-   const grouped = allTickers.reduce((acc, ticker) => {
-    const typeCode = ticker.type.type;
-    if (!acc[typeCode]) {
-      acc[typeCode] = [];
+  const reqKey = `fetchAllTickers:${exchange}`;
+  return deduplicateRequest(reqKey, async () => {
+    if (exchange === Exchange.TASE) {
+      return fetchTaseTickers(signal);
     }
-    acc[typeCode].push(ticker);
-    return acc;
-  }, {} as Record<string, TickerProfile[]>);
 
-  console.log(`Final ${exchange} tickers distribution:`, Object.keys(grouped).map(k => `${k}: ${grouped[k].length}`));
-  return grouped;
+    if (exchange === Exchange.GEMEL) {
+      const tickers = await fetchGemelnetTickers(signal);
+      return { 'gemel_fund': tickers }; // Key matches legacy/globes key for compatibility if needed, or just grouping key
+    }
+
+    if (exchange === Exchange.PENSION) {
+      const tickers = await fetchPensyanetTickers(signal);
+      return { 'pension_fund': tickers };
+    }
+
+    // Fetch from Globes alone for other exchanges (US, Forex)
+    const allGlobesTickers = await fetchGlobesTickers(exchange, signal);
+
+     const allTickers: TickerProfile[] = allGlobesTickers.map(globesTicker => ({
+        ...globesTicker,
+        symbol: getEffectiveTicker(globesTicker.symbol, exchange) || globesTicker.symbol,
+        exchange: exchange,
+        // Ensure type is classified if not already (Globes fetcher does this, but good to ensure)
+     }));
+
+     // Group by canonical type code
+     const grouped = allTickers.reduce((acc, ticker) => {
+      const typeCode = ticker.type.type;
+      if (!acc[typeCode]) {
+        acc[typeCode] = [];
+      }
+      acc[typeCode].push(ticker);
+      return acc;
+    }, {} as Record<string, TickerProfile[]>);
+
+    console.log(`Final ${exchange} tickers distribution:`, Object.keys(grouped).map(k => `${k}: ${grouped[k].length}`));
+    return grouped;
+  });
 }
-
 /**
  * Fetches all TASE tickers, enriched with data from Globes.
  * Private implementation for TASE specific logic (fetching from TASE API and merging with Globes).

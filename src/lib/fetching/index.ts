@@ -1,3 +1,4 @@
+import { deduplicateRequest } from './utils/request_deduplicator';
 import { interpolateSparseHistory } from './utils/interpolate';
 // src/lib/fetching/index.ts
 import { fetchGlobesStockQuote } from './globes';
@@ -26,17 +27,13 @@ export * from './yahoo_search';
 export * from './boi';
 
 let tickersDataset: Record<string, TickerProfile[]> | null = null;
-let tickersDatasetLoading: Promise<Record<string, TickerProfile[]>> | null = null;
 
 export function getTickersDataset(signal?: AbortSignal, forceRefresh = false): Promise<Record<string, TickerProfile[]>> {
   if (tickersDataset && !forceRefresh) {
     return Promise.resolve(tickersDataset);
   }
-  if (tickersDatasetLoading) {
-    return tickersDatasetLoading;
-  }
 
-  tickersDatasetLoading = (async () => {
+  return deduplicateRequest('tickersDataset', async () => {
     try {
       const exchanges = Object.values(Exchange).filter((ex) => ex !== Exchange.CBS);
       const results = await Promise.all(exchanges.map(ex => fetchAllTickers(ex, undefined, signal)));
@@ -85,12 +82,9 @@ export function getTickersDataset(signal?: AbortSignal, forceRefresh = false): P
       return combined;
     } catch (e) {
       console.error('Failed to load tickers dataset:', e);
-      return {};
-    } finally {
-      tickersDatasetLoading = null;
+      return tickersDataset || {};
     }
-  })();
-  return tickersDatasetLoading;
+  });
 }
 
 function combineHistory(histShort: { date: Date; price: number }[] | undefined, histMax: { date: Date; price: number }[] | undefined) {
@@ -121,69 +115,71 @@ export async function getTickerData(
   forceRefresh = false,
   maxAge?: number
 ): Promise<TickerData | null> {
-  let parsedExchange: Exchange;
-  try {
-    parsedExchange = parseExchange(exchange);
-  } catch (e) {
-    console.warn(`getTickerData: Invalid exchange '${exchange}', defaulting to NASDAQ for Yahoo fallback logic.`, e);
-    // For invalid exchange, we can only try yahoo.
-    return fetchYahooTickerData(ticker, Exchange.NASDAQ, signal, forceRefresh, 'max').then(detectStaleDayChange);
-  }
-
-  const secId = numericSecurityId ? Number(numericSecurityId) : undefined;
-
-  // CASH has its own dedicated treatment
-  if (parsedExchange === Exchange.CASH && ticker === 'ILS') {
-    return Promise.resolve({
-      ticker: 'ILS',
-      exchange: Exchange.CASH,
-      numericId: null,
-      price: 1,
-      currency: 'ILS',
-      name: 'Cash (ILS)',
-      nameHe: 'מזומן (שקל חדש)',
-      change: 0,
-      changePercent: 0,
-      provider: 'STATIC'
-    } as unknown as TickerData);
-  }
-
-  // Normalize TASE ticker if needed (remove leading zeros)
-  if (parsedExchange === Exchange.TASE && ticker) {
-    ticker = normalizeTaseTicker(ticker);
-  }
-
-  const tickerNum = Number(ticker);
-
-  // Lookup profile to determine group/type for smart fetching
-  const profileLookupPromise = getTickersDataset(signal).then(dataset => {
-    for (const list of Object.values(dataset)) {
-      const found = list.find(t =>
-        t.exchange === parsedExchange &&
-        (t.symbol === ticker || (secId && t.securityId === secId) || (!isNaN(tickerNum) && t.securityId === tickerNum))
-      );
-      if (found) return found;
+  const reqKey = `getTickerData:${ticker}:${exchange}:${numericSecurityId}:${forceRefresh}:${maxAge}`;
+  return deduplicateRequest(reqKey, async () => {
+    let parsedExchange: Exchange;
+    try {
+      parsedExchange = parseExchange(exchange);
+    } catch (e) {
+      console.warn(`getTickerData: Invalid exchange '${exchange}', defaulting to NASDAQ for Yahoo fallback logic.`, e);
+      // For invalid exchange, we can only try yahoo.
+      return fetchYahooTickerData(ticker, Exchange.NASDAQ, signal, forceRefresh, 'max').then(detectStaleDayChange);
     }
-    return undefined;
-  }).catch(e => {
-    console.warn('Error looking up ticker profile:', e);
-    return undefined;
-  });
 
-  // GEMEL has its own dedicated fetcher
-  if (parsedExchange === Exchange.GEMEL) {
-    return fetchGemelnetQuote(tickerNum, signal, forceRefresh).then((data: any) => data ? { ...data, historical: interpolateSparseHistory(data.historical) } : data).then(detectStaleDayChange);
-  }
+    const secId = numericSecurityId ? Number(numericSecurityId) : undefined;
 
-  // PENSION has its own dedicated fetcher
-  if (parsedExchange === Exchange.PENSION) {
-    return fetchPensyanetQuote(tickerNum, signal, forceRefresh).then((data: any) => data ? { ...data, historical: interpolateSparseHistory(data.historical) } : data).then(detectStaleDayChange);
-  }
+    // CASH has its own dedicated treatment
+    if (parsedExchange === Exchange.CASH && ticker === 'ILS') {
+      return {
+        ticker: 'ILS',
+        exchange: Exchange.CASH,
+        numericId: null,
+        price: 1,
+        currency: 'ILS',
+        name: 'Cash (ILS)',
+        nameHe: 'מזומן (שקל חדש)',
+        change: 0,
+        changePercent: 0,
+        provider: 'STATIC'
+      } as unknown as TickerData;
+    }
 
-  // CBS has its own dedicated fetcher
-  if (parsedExchange === Exchange.CBS) {
-    return fetchCpi(tickerNum, signal).then((data: any) => data ? { ...data, historical: interpolateSparseHistory(data.historical) } : data).then(detectStaleDayChange);
-  }
+    // Normalize TASE ticker if needed (remove leading zeros)
+    if (parsedExchange === Exchange.TASE && ticker) {
+      ticker = normalizeTaseTicker(ticker);
+    }
+
+    const tickerNum = Number(ticker);
+
+    // Lookup profile to determine group/type for smart fetching
+    const profileLookupPromise = getTickersDataset(signal).then(dataset => {
+      for (const list of Object.values(dataset)) {
+        const found = list.find(t =>
+          t.exchange === parsedExchange &&
+          (t.symbol === ticker || (secId && t.securityId === secId) || (!isNaN(tickerNum) && t.securityId === tickerNum))
+        );
+        if (found) return found;
+      }
+      return undefined;
+    }).catch(e => {
+      console.warn('Error looking up ticker profile:', e);
+      return undefined;
+    });
+
+    // GEMEL has its own dedicated fetcher
+    if (parsedExchange === Exchange.GEMEL) {
+      return fetchGemelnetQuote(tickerNum, signal, forceRefresh).then((data: any) => data ? { ...data, historical: interpolateSparseHistory(data.historical) } : data).then(detectStaleDayChange);
+    }
+
+    // PENSION has its own dedicated fetcher
+    if (parsedExchange === Exchange.PENSION) {
+      return fetchPensyanetQuote(tickerNum, signal, forceRefresh).then((data: any) => data ? { ...data, historical: interpolateSparseHistory(data.historical) } : data).then(detectStaleDayChange);
+    }
+
+    // CBS has its own dedicated fetcher
+    if (parsedExchange === Exchange.CBS) {
+      return fetchCpi(tickerNum, signal).then((data: any) => data ? { ...data, historical: interpolateSparseHistory(data.historical) } : data).then(detectStaleDayChange);
+    }
 
   // BOI has its own dedicated fetcher
   if (parsedExchange === Exchange.BOI) {
@@ -352,6 +348,7 @@ export async function getTickerData(
   }
 
   return detectStaleDayChange(finalData);
+  });
 }
 
 function detectStaleDayChange(data: TickerData | null): TickerData | null {
@@ -384,55 +381,58 @@ export async function fetchTickerHistory(
   signal?: AbortSignal,
   forceRefresh = false
 ): Promise<Pick<TickerData, 'historical' | 'dividends' | 'splits' | 'fromCache' | 'fromCacheMax' | 'currency' | 'advancedStats'>> {
-  const tickerNum = Number(ticker);
+  const reqKey = `fetchTickerHistory:${ticker}:${exchange}:${forceRefresh}`;
+  return deduplicateRequest(reqKey, async () => {
+    const tickerNum = Number(ticker);
 
-  if (exchange === Exchange.GEMEL) {
-    const data = await fetchGemelnetQuote(tickerNum, signal, forceRefresh);
-    return { historical: interpolateSparseHistory(data?.historical), dividends: data?.dividends, splits: data?.splits, fromCache: data?.fromCache, fromCacheMax: data?.fromCacheMax };
-  }
-
-  if (exchange === Exchange.PENSION) {
-    const data = await fetchPensyanetQuote(tickerNum, signal, forceRefresh);
-    return { historical: interpolateSparseHistory(data?.historical), dividends: data?.dividends, splits: data?.splits, fromCache: data?.fromCache, fromCacheMax: data?.fromCacheMax };
-  }
-
-  if (exchange === Exchange.CBS) {
-    const data = await fetchCpi(tickerNum, signal);
-    return { historical: interpolateSparseHistory(data?.historical), fromCache: data?.fromCache, fromCacheMax: data?.fromCacheMax };
-  }
-
-  if (exchange === Exchange.BOI) {
-    const data = await fetchBoiData(ticker, signal);
-    return { historical: interpolateSparseHistory(data?.historical), fromCache: data?.fromCache, fromCacheMax: data?.fromCacheMax };
-  }
-
-  // Lookup profile to determine group for smart fetching
-  const profile = await getTickersDataset(signal).then(dataset => {
-    const tickerNum = parseInt(ticker, 10);
-    for (const list of Object.values(dataset)) {
-      const found = list.find(t =>
-        t.exchange === exchange &&
-        (t.symbol === ticker || (!isNaN(tickerNum) && t.securityId === tickerNum))
-      );
-      if (found) return found;
+    if (exchange === Exchange.GEMEL) {
+      const data = await fetchGemelnetQuote(tickerNum, signal, forceRefresh);
+      return { historical: interpolateSparseHistory(data?.historical), dividends: data?.dividends, splits: data?.splits, fromCache: data?.fromCache, fromCacheMax: data?.fromCacheMax };
     }
-    return undefined;
-  }).catch(() => undefined);
 
-  const group = profile?.type.group;
+    if (exchange === Exchange.PENSION) {
+      const data = await fetchPensyanetQuote(tickerNum, signal, forceRefresh);
+      return { historical: interpolateSparseHistory(data?.historical), dividends: data?.dividends, splits: data?.splits, fromCache: data?.fromCache, fromCacheMax: data?.fromCacheMax };
+    }
 
-  const [yahooData5y, yahooDataMax] = await Promise.all([
-    fetchYahooTickerData(ticker, exchange, signal, forceRefresh, '5y', group),
-    fetchYahooTickerData(ticker, exchange, signal, false, 'max', group)
-  ]);
+    if (exchange === Exchange.CBS) {
+      const data = await fetchCpi(tickerNum, signal);
+      return { historical: interpolateSparseHistory(data?.historical), fromCache: data?.fromCache, fromCacheMax: data?.fromCacheMax };
+    }
 
-  return {
-    historical: combineHistory(yahooData5y?.historical, yahooDataMax?.historical),
-    dividends: yahooDataMax?.dividends,
-    splits: yahooDataMax?.splits,
-    fromCache: yahooData5y?.fromCache,
-    fromCacheMax: yahooDataMax?.fromCache,
-    currency: yahooData5y?.currency || yahooDataMax?.currency,
-    advancedStats: yahooData5y?.advancedStats || yahooDataMax?.advancedStats
-  };
+    if (exchange === Exchange.BOI) {
+      const data = await fetchBoiData(ticker, signal);
+      return { historical: interpolateSparseHistory(data?.historical), fromCache: data?.fromCache, fromCacheMax: data?.fromCacheMax };
+    }
+
+    // Lookup profile to determine group for smart fetching
+    const profile = await getTickersDataset(signal).then(dataset => {
+      const tickerNum = parseInt(ticker, 10);
+      for (const list of Object.values(dataset)) {
+        const found = list.find(t =>
+          t.exchange === exchange &&
+          (t.symbol === ticker || (!isNaN(tickerNum) && t.securityId === tickerNum))
+        );
+        if (found) return found;
+      }
+      return undefined;
+    }).catch(() => undefined);
+
+    const group = profile?.type.group;
+
+    const [yahooData5y, yahooDataMax] = await Promise.all([
+      fetchYahooTickerData(ticker, exchange, signal, forceRefresh, '5y', group),
+      fetchYahooTickerData(ticker, exchange, signal, false, 'max', group)
+    ]);
+
+    return {
+      historical: combineHistory(yahooData5y?.historical, yahooDataMax?.historical),
+      dividends: yahooDataMax?.dividends,
+      splits: yahooDataMax?.splits,
+      fromCache: yahooData5y?.fromCache,
+      fromCacheMax: yahooDataMax?.fromCache,
+      currency: yahooData5y?.currency || yahooDataMax?.currency,
+      advancedStats: yahooData5y?.advancedStats || yahooDataMax?.advancedStats
+    };
+  });
 }
