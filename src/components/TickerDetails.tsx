@@ -1143,7 +1143,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                                       <Typography variant="body2" color="text.secondary">
                                         {t('Based on a single analyst target:', 'מבוסס על יעד אנליסט בודד:')}
                                       </Typography>
-                                      <Typography variant="body2" fontWeight="bold">
+                                      <Typography variant="body2" fontWeight="bold" sx={{ color: targetPrice >= currentPrice ? 'success.main' : 'error.main' }}>
                                         {formatters.currency(targetPrice, (displayData?.currency || advStats.financialCurrency) as Currency)}
                                       </Typography>
                                       <Typography variant="body2" sx={{ color: pctChange >= 0 ? 'success.main' : 'error.main', fontWeight: 'bold' }}>
@@ -1168,10 +1168,22 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                                         {t('Based on two analyst targets:', 'מבוסס על שני יעדי אנליסטים:')}
                                       </Typography>
                                       <Typography variant="body2" fontWeight="bold">
-                                        {formatters.currency(minTarget, (displayData?.currency || advStats.financialCurrency) as Currency)} - {formatters.currency(maxTarget, (displayData?.currency || advStats.financialCurrency) as Currency)}
+                                        <Box component="span" sx={{ color: minTarget >= currentPrice ? 'success.main' : 'error.main' }}>
+                                          {formatters.currency(minTarget, (displayData?.currency || advStats.financialCurrency) as Currency)}
+                                        </Box>
+                                        {' - '}
+                                        <Box component="span" sx={{ color: maxTarget >= currentPrice ? 'success.main' : 'error.main' }}>
+                                          {formatters.currency(maxTarget, (displayData?.currency || advStats.financialCurrency) as Currency)}
+                                        </Box>
                                       </Typography>
-                                      <Typography variant="body2" sx={{ color: maxPct >= 0 ? 'success.main' : 'error.main', fontWeight: 'bold' }}>
-                                        {minPct > 0 ? '+' : ''}{minPct.toFixed(1)}% {t('to', 'עד')} {maxPct > 0 ? '+' : ''}{maxPct.toFixed(1)}%
+                                      <Typography variant="body2" fontWeight="bold">
+                                        <Box component="span" sx={{ color: minPct >= 0 ? 'success.main' : 'error.main' }}>
+                                          {minPct > 0 ? '+' : ''}{minPct.toFixed(1)}%
+                                        </Box>
+                                        {` ${t('to', 'עד')} `}
+                                        <Box component="span" sx={{ color: maxPct >= 0 ? 'success.main' : 'error.main' }}>
+                                          {maxPct > 0 ? '+' : ''}{maxPct.toFixed(1)}%
+                                        </Box>
                                       </Typography>
                                     </Box>
                                   </Box>
