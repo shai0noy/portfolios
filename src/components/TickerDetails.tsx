@@ -43,6 +43,24 @@ import { useScrollShadows, ScrollShadows, useResponsiveDialogProps } from '../li
 import type { AdvancedStats } from '../lib/fetching';
 
 
+const isNonEmptyObject = (obj: any) => obj && Object.values(obj).some(v => v !== undefined && v !== null && v !== '');
+const isNonEmptyArray = (arr: any) => Array.isArray(arr) && arr.length > 0;
+
+const isAdvancedStatsNonEmpty = (advStats?: AdvancedStats) => {
+  if (!advStats) return false;
+  const fields = [
+    advStats.forwardPE, advStats.pegRatio, advStats.priceToBook,
+    advStats.targetHighPrice, advStats.targetMeanPrice, advStats.targetMedianPrice, advStats.targetLowPrice,
+    advStats.totalCash, advStats.totalCashPerShare, advStats.totalDebt, advStats.debtToEquity,
+    advStats.freeCashflow, advStats.operatingCashflow, advStats.currentRatio,
+    advStats.totalRevenue, advStats.revenueQuarterlyGrowth, advStats.revenueGrowth,
+    advStats.earningsQuarterlyGrowth, advStats.earningsGrowth, advStats.trailingEps, advStats.forwardEps
+  ];
+  const hasFields = fields.some(v => v !== undefined && v !== null);
+  const hasTrend = advStats.recommendationTrend && advStats.recommendationTrend.length > 0;
+  return hasFields || hasTrend;
+};
+
 const formatDate = (timestamp?: Date | string | number | null) => {
   if (!timestamp) return 'N/A';
   const date = (timestamp instanceof Date) ? timestamp : new Date(timestamp);
@@ -378,6 +396,15 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
 
   const exposure = displayData?.meta && 'exposureProfile' in displayData.meta ? parseExposureProfile(displayData.meta.exposureProfile) : null;
 
+  const hasFinancialsData = useMemo(() => {
+    return !!(
+      isNonEmptyArray((displayData as any)?.incomeStatementHistory) ||
+      isNonEmptyArray((displayData as any)?.incomeStatementHistoryQuarterly) ||
+      isNonEmptyObject((displayData as any)?.calendarEvents) ||
+      isAdvancedStatsNonEmpty((displayData as any)?.advancedStats)
+    );
+  }, [displayData]);
+
   const dividendGains = useMemo(() => {
     if (!data?.dividends || !displayData?.price) return {};
 
@@ -533,7 +560,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
           <Tabs
             value={
               (activeTab === 'analysis') ||
-                (activeTab === 'financials' && (!!(displayData as any)?.calendarEvents || !!(displayData as any)?.incomeStatementHistory || !!(displayData as any)?.incomeStatementHistoryQuarterly || !!(displayData as any)?.advancedStats)) ||
+                (activeTab === 'financials' && hasFinancialsData) ||
                 (activeTab === 'holdings' && hasHolding) ||
                 (activeTab === 'transactions' && hasHolding) ||
                 (activeTab === 'grants' && hasGrants) ||
@@ -549,7 +576,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
             allowScrollButtonsMobile
           >
             <Tab label={t('Analysis', 'ניתוח')} value="analysis" />
-            {(!!(displayData as any)?.calendarEvents || !!(displayData as any)?.incomeStatementHistory || !!(displayData as any)?.incomeStatementHistoryQuarterly || !!(displayData as any)?.advancedStats) && <Tab label={t('Financials', 'פיננסי')} value="financials" />}
+            {hasFinancialsData && <Tab label={t('Financials', 'פיננסי')} value="financials" />}
             {hasHolding && <Tab label={t('Holdings', 'החזקות')} value="holdings" />}
             {hasHolding && <Tab label={t('Transactions', 'עסקאות')} value="transactions" />}
             {hasGrants && <Tab label={t('Grants', 'מענקים')} value="grants" />}
@@ -928,7 +955,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                       {/* Advanced Stats Section */}
                       {(() => {
                         const advStats: AdvancedStats | undefined = (displayData as any)?.advancedStats;
-                        if (!advStats) return null;
+                        if (!isAdvancedStatsNonEmpty(advStats)) return null;
 
                         const formatters = {
                           pct: (v: number | undefined) => v !== undefined ? formatPercent(v) : undefined,
@@ -1088,19 +1115,19 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                                                   }}
                                                 />
                                                 <Bar dataKey="strongSell" stackId="1" fill={categories.find(c => c.key === 'strongSell')?.color} fillOpacity={0.8} name={t('Strong Sell', 'מכירה חזקה')}>
-                                                  <LabelList dataKey="strongSell" position="inside" fontSize={8} fill="#fff" formatter={(v: number) => v > 0 ? v : ''} />
+                                                  <LabelList dataKey="strongSell" position="inside" fontSize={8} fill="#fff" formatter={(v: number) => v > 0 ? v : null} />
                                                 </Bar>
                                                 <Bar dataKey="sell" stackId="1" fill={categories.find(c => c.key === 'sell')?.color} fillOpacity={0.8} name={t('Sell', 'מכירה')}>
-                                                  <LabelList dataKey="sell" position="inside" fontSize={8} fill="#fff" formatter={(v: number) => v > 0 ? v : ''} />
+                                                  <LabelList dataKey="sell" position="inside" fontSize={8} fill="#fff" formatter={(v: number) => v > 0 ? v : null} />
                                                 </Bar>
                                                 <Bar dataKey="hold" stackId="1" fill={categories.find(c => c.key === 'hold')?.color} fillOpacity={0.8} name={t('Hold', 'החזק')}>
-                                                  <LabelList dataKey="hold" position="inside" fontSize={8} fill="#fff" formatter={(v: number) => v > 0 ? v : ''} />
+                                                  <LabelList dataKey="hold" position="inside" fontSize={8} fill="#fff" formatter={(v: number) => v > 0 ? v : null} />
                                                 </Bar>
                                                 <Bar dataKey="buy" stackId="1" fill={categories.find(c => c.key === 'buy')?.color} fillOpacity={0.8} name={t('Buy', 'קניה')}>
-                                                  <LabelList dataKey="buy" position="inside" fontSize={8} fill="#fff" formatter={(v: number) => v > 0 ? v : ''} />
+                                                  <LabelList dataKey="buy" position="inside" fontSize={8} fill="#fff" formatter={(v: number) => v > 0 ? v : null} />
                                                 </Bar>
                                                 <Bar dataKey="strongBuy" stackId="1" fill={categories.find(c => c.key === 'strongBuy')?.color} fillOpacity={0.8} name={t('Strong Buy', 'קניה חזקה')}>
-                                                  <LabelList dataKey="strongBuy" position="inside" fontSize={8} fill="#fff" formatter={(v: number) => v > 0 ? v : ''} />
+                                                  <LabelList dataKey="strongBuy" position="inside" fontSize={8} fill="#fff" formatter={(v: number) => v > 0 ? v : null} />
                                                 </Bar>
                                               </BarChart>
                                             </ResponsiveContainer>
@@ -1113,7 +1140,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                                   {/* Legend */}
                                   <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 1, justifyContent: 'center' }}>
                                     {categories.map(cat => (
-                                      currentTrend[cat.key as keyof typeof currentTrend] && (
+                                      !!currentTrend[cat.key as keyof typeof currentTrend] && (
                                         <Box key={cat.key} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                           <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: cat.color }} />
                                           <Typography variant="caption" color="text.secondary">{cat.label}</Typography>
