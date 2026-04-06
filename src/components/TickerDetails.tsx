@@ -1054,7 +1054,10 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                                     {/* Stacked Area Chart Sparkline for History */}
                                     {advStats.recommendationTrend.length > 1 && (() => {
                                       const chartData = [...advStats.recommendationTrend].reverse().map(trendObj => ({
-                                        name: trendObj.period === '0m' ? t('Cur.', 'נוכחי') : trendObj.period === '-1m' ? '1M' : trendObj.period === '-2m' ? '2M' : trendObj.period === '-3m' ? '3M' : trendObj.period,
+                                        name: trendObj.period === '0m' ? t('Current', 'נוכחי') :
+                                              trendObj.period === '-1m' ? t('1M ago', 'לפני חודש') :
+                                              trendObj.period === '-2m' ? t('2M ago', 'לפני 2ח\'') :
+                                              trendObj.period === '-3m' ? t('3M ago', 'לפני 3ח\'') : trendObj.period,
                                         strongBuy: trendObj.strongBuy,
                                         buy: trendObj.buy,
                                         hold: trendObj.hold,
@@ -1067,8 +1070,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                                           {/* Slightly wider, taller, to give XAxis room. right offset so the last label doesn't clip */}
                                           <Box sx={{ width: { xs: '100%', sm: 160, md: 180 }, height: 70, flexShrink: 0 }}>
                                             <ResponsiveContainer width="100%" height="100%">
-                                              <AreaChart data={chartData} margin={{ top: 2, right: 10, left: 10, bottom: 0 }}>
-                                                {/* interval={0} forces all labels to show! */}
+                                              <BarChart data={chartData} barCategoryGap={5} margin={{ top: 10, right: 20, left: 20, bottom: 0 }}>
                                                 <XAxis dataKey="name" tick={{ fontSize: 9, fill: theme.palette.text.secondary }} axisLine={false} tickLine={false} dy={4} interval={0} />
                                                 <RechartsTooltip
                                                   contentStyle={{ fontSize: '0.65rem', borderRadius: 4, padding: '2px 4px', backgroundColor: theme.palette.background.paper }}
@@ -1085,13 +1087,22 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                                                     return order[item.dataKey as string] ?? 99;
                                                   }}
                                                 />
-                                                {/* Reverse order of mapping so they stack properly with strongBuy at the bottom (or top) */}
-                                                <Area type="monotone" dataKey="strongSell" stackId="1" stroke="none" fillOpacity={1} fill={categories.find(c => c.key === 'strongSell')?.color} name={t('Strong Sell', 'מכירה חזקה')} />
-                                                <Area type="monotone" dataKey="sell" stackId="1" stroke="none" fillOpacity={1} fill={categories.find(c => c.key === 'sell')?.color} name={t('Sell', 'מכירה')} />
-                                                <Area type="monotone" dataKey="hold" stackId="1" stroke="none" fillOpacity={1} fill={categories.find(c => c.key === 'hold')?.color} name={t('Hold', 'החזק')} />
-                                                <Area type="monotone" dataKey="buy" stackId="1" stroke="none" fillOpacity={1} fill={categories.find(c => c.key === 'buy')?.color} name={t('Buy', 'קניה')} />
-                                                <Area type="monotone" dataKey="strongBuy" stackId="1" stroke="none" fillOpacity={1} fill={categories.find(c => c.key === 'strongBuy')?.color} name={t('Strong Buy', 'קניה חזקה')} />
-                                              </AreaChart>
+                                                <Bar dataKey="strongSell" stackId="1" fill={categories.find(c => c.key === 'strongSell')?.color} fillOpacity={0.8} name={t('Strong Sell', 'מכירה חזקה')}>
+                                                  <LabelList dataKey="strongSell" position="inside" fontSize={8} fill="#fff" formatter={(v: number) => v > 0 ? v : ''} />
+                                                </Bar>
+                                                <Bar dataKey="sell" stackId="1" fill={categories.find(c => c.key === 'sell')?.color} fillOpacity={0.8} name={t('Sell', 'מכירה')}>
+                                                  <LabelList dataKey="sell" position="inside" fontSize={8} fill="#fff" formatter={(v: number) => v > 0 ? v : ''} />
+                                                </Bar>
+                                                <Bar dataKey="hold" stackId="1" fill={categories.find(c => c.key === 'hold')?.color} fillOpacity={0.8} name={t('Hold', 'החזק')}>
+                                                  <LabelList dataKey="hold" position="inside" fontSize={8} fill="#fff" formatter={(v: number) => v > 0 ? v : ''} />
+                                                </Bar>
+                                                <Bar dataKey="buy" stackId="1" fill={categories.find(c => c.key === 'buy')?.color} fillOpacity={0.8} name={t('Buy', 'קניה')}>
+                                                  <LabelList dataKey="buy" position="inside" fontSize={8} fill="#fff" formatter={(v: number) => v > 0 ? v : ''} />
+                                                </Bar>
+                                                <Bar dataKey="strongBuy" stackId="1" fill={categories.find(c => c.key === 'strongBuy')?.color} fillOpacity={0.8} name={t('Strong Buy', 'קניה חזקה')}>
+                                                  <LabelList dataKey="strongBuy" position="inside" fontSize={8} fill="#fff" formatter={(v: number) => v > 0 ? v : ''} />
+                                                </Bar>
+                                              </BarChart>
                                             </ResponsiveContainer>
                                           </Box>
                                         </Tooltip>
