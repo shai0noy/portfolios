@@ -197,8 +197,15 @@ export async function fetchYahooTickerData(
     async () => {
       let hasTransientError = false;
       const results = await Promise.all(candidates.map(async (yahooTicker) => {
-        const histUrl = `https://portfolios.noy-shai.workers.dev/?apiId=yahoo_hist&ticker=${yahooTicker}&range=${range}`;
-        const calUrl = `https://portfolios.noy-shai.workers.dev/?apiId=yahoo_quote_summary&ticker=${encodeURIComponent(yahooTicker)}&modules=calendarEvents,incomeStatementHistory,incomeStatementHistoryQuarterly,defaultKeyStatistics,financialData,recommendationTrend,price`;
+        let histUrl = `https://portfolios.noy-shai.workers.dev/?apiId=yahoo_hist&ticker=${yahooTicker}&range=${range}`;
+        let calUrl = `https://portfolios.noy-shai.workers.dev/?apiId=yahoo_quote_summary&ticker=${encodeURIComponent(yahooTicker)}&modules=calendarEvents,incomeStatementHistory,incomeStatementHistoryQuarterly,defaultKeyStatistics,financialData,recommendationTrend,price`;
+
+        if (forceRefresh) {
+          if (range !== 'max') {
+            histUrl += '&refresh=true';
+          }
+          calUrl += '&refresh=true';
+        }
 
         try {
           const fetchOpts: RequestInit = { signal, cache: forceRefresh ? 'no-cache' : 'force-cache' };

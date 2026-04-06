@@ -139,12 +139,13 @@ function parseGlobesTimestamp(dateStr: string): number {
 
 // --- Main Fetch Functions ---
 
-export async function fetchGlobesTickersByType(type: string, exchange: Exchange, signal?: AbortSignal): Promise<TickerProfile[]> {
-  const reqKey = `fetchGlobesTickersByType:${type}:${exchange}`;
+export async function fetchGlobesTickersByType(type: string, exchange: Exchange, signal?: AbortSignal, forceRefresh = false): Promise<TickerProfile[]> {
+  const reqKey = `fetchGlobesTickersByType:${type}:${exchange}:${forceRefresh}`;
   return deduplicateRequest(reqKey, async () => {
     const exchangeCode = toGlobesExchangeCode(exchange);
 
-    const globesApiUrl = `${WORKER_URL}/?apiId=globes_list&exchange=${exchangeCode}&type=${type}`;
+    let globesApiUrl = `${WORKER_URL}/?apiId=globes_list&exchange=${exchangeCode}&type=${type}`;
+    if (forceRefresh) globesApiUrl += '&refresh=true';
     const xmlString = await fetchXml(globesApiUrl, signal, { cache: 'force-cache' });
     const xmlDoc = parseXmlString(xmlString);
 
@@ -244,7 +245,8 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
   }
 
   const cacheKey = `globes:quote:v4:${requestedExchangeCode}:${identifier}`;
-  const globesApiUrl = `${WORKER_URL}/?apiId=globes_data&exchange=${requestedExchangeCode}&ticker=${identifier}`;
+  let globesApiUrl = `${WORKER_URL}/?apiId=globes_data&exchange=${requestedExchangeCode}&ticker=${identifier}`;
+  if (forceRefresh) globesApiUrl += '&refresh=true';
 
   return fetchWithCache(
     cacheKey,

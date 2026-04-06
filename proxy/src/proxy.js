@@ -34,6 +34,9 @@ async function invokeApi(apiId, params, env, ctx, corsHeaders) {
     return new Response("Invalid or missing apiId", { status: 400, headers: corsHeaders });
   }
 
+  const shouldRefresh = params.get('refresh') === 'true';
+  params.delete('refresh');
+
   for (const [key, value] of params.entries()) {
     if (key === "apiId") continue;
     if (!VALID_VALUE_REGEX.test(value)) {
@@ -92,6 +95,10 @@ async function invokeApi(apiId, params, env, ctx, corsHeaders) {
   }
   const cacheKey = new Request(cacheUrl.toString(), { method: "GET" });
   const cache = caches.default;
+
+  if (shouldRefresh) {
+    await cache.delete(cacheKey);
+  }
 
   let response = await cache.match(cacheKey);
   if (response) {

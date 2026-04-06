@@ -191,7 +191,7 @@ export async function getTickerData(
 
   const [yahooData5y, yahooDataMax] = await Promise.all([
     fetchYahooTickerData(ticker, parsedExchange, signal, forceRefresh, '5y', group, maxAge).catch(e => { console.warn('Yahoo 5y failed:', e); return null; }),
-    fetchYahooTickerData(ticker, parsedExchange, signal, forceRefresh, 'max', group, maxAge).catch(e => { console.warn('Yahoo Max failed:', e); return null; })
+    fetchYahooTickerData(ticker, parsedExchange, signal, false, 'max', group, maxAge).catch(e => { console.warn('Yahoo Max failed:', e); return null; })
   ]);
 
   let yahooData: TickerData | null = null;
