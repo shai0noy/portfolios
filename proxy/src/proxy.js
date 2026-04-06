@@ -183,7 +183,7 @@ async function invokeApi(apiId, params, env, ctx, corsHeaders) {
     }
 
     const newResponse = new Response(response.body, response);
-    const isTransientError = response.status === 429 || response.status === 403 || response.status >= 500;
+    const isTransientError = response.status === 401 || response.status === 429 || response.status === 403 || response.status >= 500;
 
     // Explicitly set cache headers for Cloudflare Cache API, but ONLY for successful or cacheable permanent error responses
     if (!isTransientError) {

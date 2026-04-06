@@ -35,7 +35,16 @@ export async function getYahooCrumb() {
     }
   });
 
-  cachedCrumb = await crumbRes.text();
+  if (!crumbRes.ok) {
+    throw new Error(`Failed to fetch crumb: ${crumbRes.status} ${crumbRes.statusText}`);
+  }
+
+  const text = await crumbRes.text();
+  if (text.includes('{') || text.includes('<') || text.length > 50) {
+    throw new Error("Invalid crumb received (appears to be HTML or JSON): " + text.substring(0, 100));
+  }
+
+  cachedCrumb = text;
   return { cookie: cachedCookie, crumb: cachedCrumb };
 }
 
