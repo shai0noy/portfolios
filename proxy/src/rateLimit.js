@@ -5,9 +5,9 @@ const LONG_LIMIT = 450;
 const LONG_WINDOW = 12 * 60 * 60 * 1000; // 12 hours
 
 export function checkRateLimit(ip) {
-  if (!ip) return false;
+  const targetIp = ip || 'unknown';
   const now = Date.now();
-  let record = IP_LIMITS.get(ip);
+  let record = IP_LIMITS.get(targetIp);
 
   if (!record) {
     record = {
@@ -34,7 +34,7 @@ export function checkRateLimit(ip) {
     record.long.count++;
   }
 
-  IP_LIMITS.set(ip, record);
+  IP_LIMITS.set(targetIp, record);
   const shortBlocked = record.short.count > SHORT_LIMIT;
   const longBlocked = record.long.count > LONG_LIMIT;
   let retryAfter = 0;
