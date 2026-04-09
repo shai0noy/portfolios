@@ -347,12 +347,39 @@ function getMarketSentence(timeframe: string, pfAbsPct: number, isUp: boolean, m
       }
     }
 
+    const getDivergenceDesc = (mktVal: number, baseVal: number) => {
+      if (baseVal < 0) {
+        if (mktVal > 0) {
+          return { en: 'notably overperformed', he: 'הציגו ביצועי יתר משמעותיים' };
+        } else if (mktVal > baseVal) {
+          const isMostlySteady = Math.abs(mktVal) < 0.005;
+          return isMostlySteady 
+            ? { en: 'remained mostly steady', he: 'נותרו יציבים יחסית' }
+            : { en: 'showed lesser drops', he: 'הציגו ירידות מתונות יותר' };
+        } else {
+          return { en: 'showed larger drops', he: 'הציגו ירידות חדות יותר' };
+        }
+      } else {
+        if (mktVal > baseVal) {
+          return { en: 'notably overperformed', he: 'הציגו ביצועי יתר משמעותיים' };
+        } else if (mktVal > 0) {
+          const isMostlySteady = Math.abs(mktVal) < 0.005;
+          return isMostlySteady 
+            ? { en: 'remained mostly steady', he: 'נותרו יציבים יחסית' }
+            : { en: 'showed lesser gains', he: 'הציגו עליות מתונות יותר' };
+        } else {
+          return { en: 'notably underperformed', he: 'הציגו ביצועי חסר משמעותיים' };
+        }
+      }
+    };
+
     if (mktSTOXX !== undefined) {
       const diffSTOXX = Math.abs(mktSTOXX - mktUS);
       const isSTOXXNotable = Math.abs(mktSTOXX) > 0.01;
       if (diffSTOXX > thresh && isSTOXXNotable) {
         const sFmt = formatPercent(mktSTOXX);
-        divergenceStr += t(` Meanwhile, European markets (STOXX) saw a notable divergence, returning ${sFmt}.`, ` במקביל, שוקי אירופה (STOXX) הציגו מגמה שונה עם תשואה של ${sFmt}.`);
+        const desc = getDivergenceDesc(mktSTOXX, mktUS);
+        divergenceStr += t(` Meanwhile, European markets (STOXX) ${desc.en}, returning ${sFmt}.`, ` במקביל, שוקי אירופה (STOXX) ${desc.he} עם תשואה של ${sFmt}.`);
       }
     }
   }
