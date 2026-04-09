@@ -72,36 +72,7 @@ export function getRecentEventsData(
     const holding = holdings.find(h => h.ticker.toUpperCase() === txn.ticker.toUpperCase());
     if (!holding) continue;
 
-    if (txn.type === 'DIVIDEND') {
-      const divDate = coerceDate(txn.date);
-      if (divDate) {
-        const dtStr = formatDate(divDate);
-        if (!realDivDatesByTicker.has(txn.ticker)) realDivDatesByTicker.set(txn.ticker, new Set());
-        realDivDatesByTicker.get(txn.ticker)!.add(dtStr);
-      }
-      if (divDate && divDate >= oneMonthAgo && divDate <= oneMonthFuture) {
-        const dateStr = formatDate(divDate);
-        const key = `${dateStr}_${txn.ticker}_DIVIDEND`;
-        const qty = txn.originalQty || 0;
-        if (!grouped.has(key)) {
-          grouped.set(key, {
-            id: txn.numericId ? String(txn.numericId) : Math.random().toString(),
-            date: divDate,
-            type: 'DIVIDEND',
-            ticker: txn.ticker,
-            exchange: holding.exchange,
-            qtySum: qty,
-            count: 1,
-            currency: (txn.currency || 'USD') as Currency,
-            price: holding.currentPrice
-          });
-        } else {
-          const existing = grouped.get(key)!;
-          existing.qtySum = (existing.qtySum || 0) + qty;
-          existing.count = (existing.count || 0) + 1;
-        }
-      }
-    } else if (txn.vestDate) {
+    if (txn.vestDate) {
       const vDate = coerceDate(txn.vestDate);
       if (vDate && vDate >= oneMonthAgo && vDate <= oneMonthFuture) {
         const qty = txn.qty || txn.originalQty || 0;
@@ -470,12 +441,7 @@ export function hasRecentEvents(
   for (const txn of transactions) {
     if (!holdingSymbols.has(txn.ticker.toUpperCase())) continue;
 
-    if (txn.type === 'DIVIDEND') {
-      const divDate = coerceDate(txn.date);
-      if (divDate && divDate >= oneMonthAgo && divDate <= oneMonthFuture) {
-        return true;
-      }
-    } else if (txn.vestDate) {
+    if (txn.vestDate) {
       const vDate = coerceDate(txn.vestDate);
       if (vDate && vDate >= oneMonthAgo && vDate <= oneMonthFuture) {
         return true;

@@ -16,6 +16,7 @@ import { computeAnalysisMetrics, calculateReturns, getAnnualizationFactor, synch
 import type { TickerData } from '../lib/fetching/types';
 import { fetchTickerHistory } from '../lib/fetching';
 import { useState, useEffect } from 'react';
+import { formatDate } from '../lib/date';
 
 interface TickerAiChatProps {
   open: boolean;
@@ -29,10 +30,11 @@ interface TickerAiChatProps {
   exchangeRates?: ExchangeRates | null;
   subjectName?: string;
   sheetId?: string;
+  dividends?: any[];
 }
 
 export const TickerAiChat: React.FC<TickerAiChatProps> = ({
-  open, onClose, apiKey, tickerData, advancedStats, historicalData, holdings, displayCurrency, exchangeRates, subjectName, sheetId
+  open, onClose, apiKey, tickerData, advancedStats, historicalData, holdings, displayCurrency, exchangeRates, subjectName, sheetId, dividends
 }) => {
   const { t } = useLanguage();
   const [benchmarkMetrics, setBenchmarkMetrics] = useState<any>(null);
@@ -135,6 +137,7 @@ export const TickerAiChat: React.FC<TickerAiChatProps> = ({
         },
         dividendYield: tickerData.dividendYield ? formatPercent(tickerData.dividendYield) : 'N/A',
       },
+      dividends: (dividends || []).map((d: any) => `${formatDate(d.date)} ${d.amount} ${advancedStats?.financialCurrency || tickerData.currency} per-share`),
       advancedStats: {
         advancedStatsCurrency: advancedStats.financialCurrency,
         ...advancedStats,

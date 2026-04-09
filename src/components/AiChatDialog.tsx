@@ -22,6 +22,7 @@ import { getTickerData } from '../lib/fetching';
 import toast from 'react-hot-toast';
 import { BaseAiChatDialog } from './chat/BaseAiChatDialog';
 import { getRecentEventsData } from './dashboard/RecentEventsCard';
+import { formatDate } from '../lib/date';
 
 interface AiChatDialogProps {
   open: boolean;
@@ -226,12 +227,28 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({
       ? (selectedPortfolioId ? engine.dividendRecords.filter(tx => tx.portfolioId === selectedPortfolioId) : engine.dividendRecords)
       : [];
     const recentEventsRaw = getRecentEventsData(portfolioData.holdings, relevantTransactions, relevantDividendRecords, t);
-    const recentEvents = recentEventsRaw.map(e => ({
-      date: e.dateDisplay,
-      ticker: e.ticker,
-      type: e.titleStr,
-      description: e.valueDesc
-    }));
+    const recentEvents = recentEventsRaw.map(e => {
+      let description = e.valueDesc;
+      if (e.type === 'DIVIDEND' || e.type === 'CAL_DIVIDEND') {
+        const amount = e.dividendAmount;
+        const currency = e.dividendCurrency || e.currency || 'USD';
+        if (amount) {
+          description = `${amount} ${currency} per-share`;
+          if (e.qtySum) {
+            const total = e.qtySum * amount;
+            description += ` • ${total.toFixed(2)} ${currency} Total`;
+          } else if (e.expectedDivTotal) {
+            description += ` • ${e.expectedDivTotal.toFixed(2)} ${currency} Total`;
+          }
+        }
+      }
+      return {
+        date: e.dateDisplay,
+        ticker: e.ticker,
+        type: e.titleStr,
+        description: description
+      };
+    });
 
     return JSON.stringify({
       activePortfolios: portfoliosInfo,
