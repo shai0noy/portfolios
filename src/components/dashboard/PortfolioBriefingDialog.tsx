@@ -229,7 +229,7 @@ function getCoreMarketSentence(timeframe: string, pfAbsPct: number, isUp: boolea
 
   const days = (timeframe === 'Custom' && customDays) ? customDays : (timeDays[timeframe] || 30);
 
-  const boundedDays = Math.min(days, 365);
+  const boundedDays = days;
   const flat = 0.003 + boundedDays * ((0.03 - 0.003) / 365);
   const sharp = 0.015 + boundedDays * ((0.15 - 0.015) / 365);
 
@@ -237,19 +237,31 @@ function getCoreMarketSentence(timeframe: string, pfAbsPct: number, isUp: boolea
   const ilDir = mktIL > flat ? 1 : mktIL < -flat ? -1 : 0;
   const pfDir = isUp ? 1 : -1;
 
-  const isUSSharp = usMag >= sharp;
-  const isILSharp = ilMag >= sharp;
-
   const avgMkt = usDir !== 0 && ilDir !== 0 ? (usMag + ilMag) / 2 : Math.max(usMag, ilMag);
   const avgMktMag = Math.abs(avgMkt);
 
-  const getMarketDesc = (dir: number, isSharp: boolean, locale: 'US' | 'IL') => {
+  const getMarketDesc = (dir: number, mag: number, locale: 'US' | 'IL') => {
+    const localeStr = locale === 'US' ? 'the US' : 'the Israeli';
+    const localeStrHE = locale === 'US' ? 'האמריקאי' : 'הישראלי';
+    
     if (dir === 1) {
-      if (locale === 'US') return isSharp ? t('a massive bull rally in the US', 'העליות המשמעותיות בשוק האמריקאי') : t('positive US markets', 'מגמה חיובית בבורסות ארה"ב');
-      return isSharp ? t('strong surges in the Israeli market', 'העליות הבולטות בשוק הישראלי') : t('a solid Israeli market', 'מגמה חיובית בשוק הישראלי');
+      if (mag >= sharp * 2) {
+        return t(`a substantial rally in ${localeStr} market`, `עליות חדות במיוחד בשוק ${localeStrHE}`);
+      } else if (mag >= sharp) {
+        return t(`strong surges in ${localeStr} market`, `עליות בולטות בשוק ${localeStrHE}`);
+      } else if (mag >= flat) {
+        return t(`positive trend in ${localeStr} market`, `מגמה חיובית בשוק ${localeStrHE}`);
+      }
+      return t(`stable conditions in ${localeStr} market`, `יציבות יחסית בשוק ${localeStrHE}`);
     } else {
-      if (locale === 'US') return isSharp ? t('heavy losses in the US', 'ירידות משמעותיות בשוק האמריקאי') : t('a red US market', 'מגמה שלילית בארה"ב');
-      return isSharp ? t('sharp drops in the Israeli market', 'ירידות בולטות בשוק הישראלי') : t('a dropping Israeli market', 'מגמה שלילית בשוק הישראלי');
+      if (mag >= sharp * 2) {
+        return t(`heavy losses in ${localeStr} market`, `ירידות חדות במיוחד בשוק ${localeStrHE}`);
+      } else if (mag >= sharp) {
+        return t(`sharp drops in ${localeStr} market`, `ירידות בולטות בשוק ${localeStrHE}`);
+      } else if (mag >= flat) {
+        return t(`negative trend in ${localeStr} market`, `מגמה שלילית בשוק ${localeStrHE}`);
+      }
+      return t(`stable conditions in ${localeStr} market`, `יציבות יחסית בשוק ${localeStrHE}`);
     }
   };
 
@@ -258,11 +270,11 @@ function getCoreMarketSentence(timeframe: string, pfAbsPct: number, isUp: boolea
       return t(`The portfolio remained stable amidst a volatile session across global markets.`, `התיק שמר על יציבות על רקע תנודתיות ומגמה מעורבת בשווקים הכלליים.`);
     } else if (usDir === -1 || ilDir === -1) {
       const activeLocale = usDir === -1 ? 'US' : 'IL';
-      const text = getMarketDesc(-1, usDir === -1 ? isUSSharp : isILSharp, activeLocale);
+      const text = getMarketDesc(-1, usDir === -1 ? usMag : ilMag, activeLocale);
       return t(`The portfolio showed resilience, holding stable despite ${text}.`, `התיק הפגין חוסן מרשים ושמר על יציבות חרף ${text}.`);
     } else if (usDir === 1 || ilDir === 1) {
       const activeLocale = usDir === 1 ? 'US' : 'IL';
-      const text = getMarketDesc(1, usDir === 1 ? isUSSharp : isILSharp, activeLocale);
+      const text = getMarketDesc(1, usDir === 1 ? usMag : ilMag, activeLocale);
       return t(`The portfolio saw no major shifts, remaining stable during ${text}.`, `התיק נותר ללא תנועה משמעותית בסביבה בה נרשמו ${text}.`);
     }
     return "";
@@ -270,8 +282,8 @@ function getCoreMarketSentence(timeframe: string, pfAbsPct: number, isUp: boolea
 
   if (pfDir === 1) {
     if (usDir === 1 && ilDir === 1) {
-      const usText = getMarketDesc(1, isUSSharp, 'US');
-      const ilText = getMarketDesc(1, isILSharp, 'IL');
+      const usText = getMarketDesc(1, usMag, 'US');
+      const ilText = getMarketDesc(1, ilMag, 'IL');
       if (pfAbsPct < avgMktMag * 0.6) {
         return t(`This rise partially reflects ${usText} and ${ilText}.`, `העליה הזו משקפת באופן חלקי את ${usText} ואת ${ilText}.`);
       } else if (pfAbsPct > avgMktMag * 1.5) {
@@ -280,7 +292,7 @@ function getCoreMarketSentence(timeframe: string, pfAbsPct: number, isUp: boolea
       return t(`This rise aligns with ${usText} and ${ilText}.`, `העלייה הזו תואמת ל${usText} ול${ilText}.`);
     } else if (usDir === 1 || ilDir === 1) {
       const activeLocale = usDir === 1 ? 'US' : 'IL';
-      const text = getMarketDesc(1, usDir === 1 ? isUSSharp : isILSharp, activeLocale);
+      const text = getMarketDesc(1, usDir === 1 ? usMag : ilMag, activeLocale);
       const mixed = usDir === -1 || ilDir === -1;
       if (mixed) {
         return t(`Bucking a mixed trend, this aligns with ${text}.`, `מגמה מעורבת בעולם, אך העלייה בתיק תואמת ל${text}.`);
@@ -290,13 +302,13 @@ function getCoreMarketSentence(timeframe: string, pfAbsPct: number, isUp: boolea
       return t(`This is an impressive gain despite a red day in both US and Israeli markets.`, `זאת עלייה מרשימה למרות ירידות בשווקי ארה"ב וישראל.`);
     } else if (usDir === -1 || ilDir === -1) {
       const dropLocale = usDir === -1 ? 'US' : 'IL';
-      const text = getMarketDesc(-1, usDir === -1 ? isUSSharp : isILSharp, dropLocale);
+      const text = getMarketDesc(-1, usDir === -1 ? usMag : ilMag, dropLocale);
       return t(`This is an impressive gain despite ${text}.`, `זאת עלייה מרשימה למרות ${text} במדדים.`);
     }
   } else {
     if (usDir === -1 && ilDir === -1) {
-      const usText = getMarketDesc(-1, isUSSharp, 'US');
-      const ilText = getMarketDesc(-1, isILSharp, 'IL');
+      const usText = getMarketDesc(-1, usMag, 'US');
+      const ilText = getMarketDesc(-1, ilMag, 'IL');
       if (pfAbsPct < avgMktMag * 0.6) {
         return t(`This pullback partially reflects ${usText} and ${ilText}.`, `הירידה הזו משקפת באופן חלקי את ${usText} ואת ${ilText}.`);
       } else if (pfAbsPct > avgMktMag * 1.5) {
@@ -305,13 +317,13 @@ function getCoreMarketSentence(timeframe: string, pfAbsPct: number, isUp: boolea
       return t(`This pullback mirrors ${usText} and ${ilText}.`, `הירידה תואמת למגמת ה${usText} וה${ilText}.`);
     } else if (usDir === -1 || ilDir === -1) {
       const activeLocale = usDir === -1 ? 'US' : 'IL';
-      const text = getMarketDesc(-1, usDir === -1 ? isUSSharp : isILSharp, activeLocale);
+      const text = getMarketDesc(-1, usDir === -1 ? usMag : ilMag, activeLocale);
       return t(`This pullback mirrors ${text}.`, `הירידה תואמת בעיקר ל${text}.`);
     } else if (usDir === 1 && ilDir === 1) {
       return t(`This is despite green rallies in both US and Israeli markets.`, `זאת חרף עליות בשווקי ארה"ב וישראל.`);
     } else if (usDir === 1 || ilDir === 1) {
       const activeLocale = usDir === 1 ? 'US' : 'IL';
-      const text = getMarketDesc(1, usDir === 1 ? isUSSharp : isILSharp, activeLocale);
+      const text = getMarketDesc(1, usDir === 1 ? usMag : ilMag, activeLocale);
       return t(`This is despite ${text}.`, `זאת חרף ${text}.`);
     }
   }
@@ -328,7 +340,7 @@ function getMarketSentence(timeframe: string, pfAbsPct: number, isUp: boolean, m
     const diffE = mktEnergy !== undefined ? Math.min(Math.abs(mktEnergy - mktUS), Math.abs(mktEnergy - mktNDX)) : 0;
     const diffI = mktIT !== undefined ? Math.min(Math.abs(mktIT - mktUS), Math.abs(mktIT - mktNDX)) : 0;
 
-    const boundedDays = Math.min((timeframe === 'Custom' && customDays ? customDays : (timeDays[timeframe] || 30)), 365);
+    const boundedDays = (timeframe === 'Custom' && customDays) ? customDays : (timeDays[timeframe] || 30);
     const thresh = 0.01 + boundedDays * ((0.12 - 0.01) / 365);
 
     if (diffE > thresh || diffI > thresh) {
