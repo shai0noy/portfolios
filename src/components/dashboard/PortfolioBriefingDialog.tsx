@@ -267,7 +267,15 @@ function getCoreMarketSentence(timeframe: string, pfAbsPct: number, isUp: boolea
 
   if (pfAbsPct < flat) {
     if ((usDir === 1 || ilDir === 1) && (usDir === -1 || ilDir === -1)) {
-      return t(`The portfolio remained stable amidst a volatile session across global markets.`, `התיק שמר על יציבות על רקע תנודתיות ומגמה מעורבת בשווקים הכלליים.`);
+      const timeWord = timeframe === '1D' ? 'session' : 'period';
+      const timeWordHE = timeframe === '1D' ? 'יום המסחר' : 'התקופה';
+      
+      if (usDir === 1 && ilDir === -1) {
+        return t(`The portfolio remained stable despite gains in the US and losses in the Israeli market during this ${timeWord}.`, `התיק שמר על יציבות למרות עליות בארה"ב וירידות בישראל במהלך ${timeWordHE}.`);
+      } else if (usDir === -1 && ilDir === 1) {
+        return t(`The portfolio remained stable despite losses in the US and gains in the Israeli market during this ${timeWord}.`, `התיק שמר על יציבות למרות ירידות בארה"ב ועליות בישראל במהלך ${timeWordHE}.`);
+      }
+      return t(`The portfolio remained stable amidst mixed trends across global markets.`, `התיק שמר על יציבות על רקע מגמה מעורבת בשווקים הכלליים.`);
     } else if (usDir === -1 || ilDir === -1) {
       const activeLocale = usDir === -1 ? 'US' : 'IL';
       const text = getMarketDesc(-1, usDir === -1 ? usMag : ilMag, activeLocale);
@@ -299,7 +307,10 @@ function getCoreMarketSentence(timeframe: string, pfAbsPct: number, isUp: boolea
       }
       return t(`This aligns with ${text}.`, `מגמה בהתאם ל${text}.`);
     } else if (usDir === -1 && ilDir === -1) {
-      return t(`This is an impressive gain despite a red day in both US and Israeli markets.`, `זאת עלייה מרשימה למרות ירידות בשווקי ארה"ב וישראל.`);
+      if (timeframe === '1D') {
+        return t(`This is an impressive gain despite a red day in both US and Israeli markets.`, `זאת עלייה מרשימה למרות ירידות בשווקי ארה"ב וישראל.`);
+      }
+      return t(`This is an impressive gain despite a bearish period in both US and Israeli markets.`, `זאת עלייה מרשימה למרות ירידות בשווקי ארה"ב וישראל.`);
     } else if (usDir === -1 || ilDir === -1) {
       const dropLocale = usDir === -1 ? 'US' : 'IL';
       const text = getMarketDesc(-1, usDir === -1 ? usMag : ilMag, dropLocale);
