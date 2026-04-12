@@ -515,17 +515,17 @@ export function PortfolioBriefingDialog({ open, onClose, holdings, transactions,
 
       if (!inPeriod) return;
 
-      if (txn.type === 'DIVIDEND') {
-        totalDivs += convertCurrency((txn.qty || txn.originalQty || 0) * (txn.price || txn.originalPrice || 0), txn.currency || 'USD', displayCurrency, exchangeRates);
-      } else if (isBuy(txn.type)) {
-        totalFlow += convertCurrency((txn.qty || txn.originalQty || 0) * (txn.price || txn.originalPrice || 0), txn.currency || 'USD', displayCurrency, exchangeRates);
-      } else if (isSell(txn.type)) {
-        totalFlow -= convertCurrency((txn.qty || txn.originalQty || 0) * (txn.price || txn.originalPrice || 0), txn.currency || 'USD', displayCurrency, exchangeRates);
-      } else if (txn.vestDate) {
+      if (txn.vestDate) {
         const h = holdings.find(h => h.ticker === txn.ticker);
         const cp = h?.currentPrice || (txn.price || txn.originalPrice || 0);
         const vestVal = (txn.qty || txn.originalQty || 0) * cp;
         totalVests += convertCurrency(vestVal, (txn.currency || 'USD') as any, displayCurrency, exchangeRates);
+      } else if (txn.type === 'DIVIDEND') {
+        totalDivs += convertCurrency((txn.qty || txn.originalQty || 0) * (txn.price || txn.originalPrice || 0), txn.currency || 'USD', displayCurrency, exchangeRates);
+      } else if (isBuy(txn.type) && !txn.isDrip) {
+        totalFlow += convertCurrency((txn.qty || txn.originalQty || 0) * (txn.price || txn.originalPrice || 0), txn.currency || 'USD', displayCurrency, exchangeRates);
+      } else if (isSell(txn.type)) {
+        totalFlow -= convertCurrency((txn.qty || txn.originalQty || 0) * (txn.price || txn.originalPrice || 0), txn.currency || 'USD', displayCurrency, exchangeRates);
       }
     });
 
