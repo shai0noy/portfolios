@@ -7,6 +7,7 @@ import { useTheme } from '@mui/material/styles';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
 import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
+import CloseIcon from '@mui/icons-material/Close';
 import { Menu, MenuItem } from '@mui/material';
 
 export type TrendType = 'none' | 'linear' | 'exponential' | 'polynomial' | 'logarithmic';
@@ -586,9 +587,10 @@ interface SelectionSummaryProps {
     valueType?: 'price' | 'value';
     hideCurrentPrice?: boolean;
     isEqualSeries?: boolean;
+    onClearSelection?: () => void;
 }
 
-const SelectionSummary = ({ startPoint, endPoint, currency, t, isComparison, series, mainLineColor, mode, valueType = 'price', hideCurrentPrice }: SelectionSummaryProps) => {
+const SelectionSummary = ({ startPoint, endPoint, currency, t, isComparison, series, mainLineColor, mode, valueType = 'price', hideCurrentPrice, onClearSelection }: SelectionSummaryProps) => {
     if (!startPoint || !endPoint) return null;
 
     const theme = useTheme();
@@ -652,6 +654,23 @@ const SelectionSummary = ({ startPoint, endPoint, currency, t, isComparison, ser
 
         return (
             <Box sx={boxStyle}>
+                {onClearSelection && (
+                    <IconButton
+                        size="small"
+                        onClick={onClearSelection}
+                        sx={{
+                            position: 'absolute',
+                            top: 2,
+                            right: 2,
+                            padding: '1px',
+                            pointerEvents: 'auto',
+                            color: theme.palette.text.secondary,
+                            '&:hover': { color: theme.palette.text.primary }
+                        }}
+                    >
+                        <CloseIcon sx={{ fontSize: '0.75rem' }} />
+                    </IconButton>
+                )}
                 <Typography variant="caption" sx={{ fontWeight: 'bold', display: 'block', color: isDarkMode ? 'white' : 'black', textAlign: 'center', mb: 1 }}>
                     {startDateStr} to {endDateStr} ({duration} days)
                 </Typography>
@@ -709,6 +728,23 @@ const SelectionSummary = ({ startPoint, endPoint, currency, t, isComparison, ser
 
     return (
         <Box sx={{ ...boxStyle, textAlign: 'center', minWidth: 'auto' }}>
+            {onClearSelection && (
+                <IconButton
+                    size="small"
+                    onClick={onClearSelection}
+                    sx={{
+                        position: 'absolute',
+                        top: 2,
+                        right: 2,
+                        padding: '1px',
+                        pointerEvents: 'auto',
+                        color: theme.palette.text.secondary,
+                        '&:hover': { color: theme.palette.text.primary }
+                    }}
+                >
+                    <CloseIcon sx={{ fontSize: '0.75rem' }} />
+                </IconButton>
+            )}
             <Typography variant="caption" sx={{ fontWeight: 'bold', display: 'block', color: isDarkMode ? 'white' : 'black' }}>
                 {startDateStr} to {endDateStr} ({duration} days)
             </Typography>
@@ -744,6 +780,10 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
         end: null,
         isSelecting: false,
     });
+
+    const handleClearSelection = useCallback(() => {
+        setSelection({ start: null, end: null, isSelecting: false });
+    }, []);
 
     const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -1296,6 +1336,10 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
             if (prev.isSelecting) {
                 return { ...prev, end: point, isSelecting: false };
             }
+            // If a range was already selected, dismiss it on first click
+            if (prev.start && prev.end && prev.start.date.getTime() !== prev.end.date.getTime()) {
+                return { start: null, end: null, isSelecting: false };
+            }
             return { start: point, end: point, isSelecting: true };
         });
     }, [findClosestPoint]);
@@ -1637,7 +1681,7 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                 )
             }
             <Box sx={{ flex: 1, minHeight: 1, minWidth: 1, position: 'relative' }}>
-                <SelectionSummary startPoint={startPoint} endPoint={endPoint} currency={currency} t={t} isComparison={isComparison} series={displaySeries} mainLineColor={mainLineColor} mode={currentMode} hideCurrentPrice={hideCurrentPrice} />
+                <SelectionSummary startPoint={startPoint} endPoint={endPoint} currency={currency} t={t} isComparison={isComparison} series={displaySeries} mainLineColor={mainLineColor} mode={currentMode} hideCurrentPrice={hideCurrentPrice} valueType={valueType} onClearSelection={handleClearSelection} />
                 <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                     {currentMode === 'candle' ? (
                         <ComposedChart
