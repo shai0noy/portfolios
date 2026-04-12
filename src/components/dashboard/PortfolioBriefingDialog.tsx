@@ -51,14 +51,15 @@ export function generateBriefingText(
   t: (key: string, backup: string) => string,
   customDays?: number,
   customEnd?: Date | null,
-  is1dStale?: boolean
+  is1dStale?: boolean,
+  isMobile?: boolean
 ): string {
   const pfAbsPct = Math.abs(stats.totalPct);
   const isUp = stats.totalGain > 0;
   const gainStr = formatMoneyValue({ amount: Math.abs(stats.totalGain), currency: displayCurrency as any }, undefined, 0);
   const pctStr = formatPercent(stats.totalPct);
 
-  const timeWord = (timeframe === '1D') ? (is1dStale ? t('On the last trading day', 'ביום המסחר האחרון') : t('Today', 'היום')) :
+  const timeWord = (timeframe === '1D') ? (is1dStale ? (isMobile ? t('Last day', 'ביום האחרון') : t('On the last trading day', 'ביום המסחר האחרון')) : t('Today', 'היום')) :
     (timeframe === '1W') ? t('This week', 'השבוע') :
       (timeframe === '1M') ? t('This month', 'החודש') :
         (timeframe === '3M') ? t('In the past 3 months', 'בשלושת החודשים האחרונים') :
@@ -786,10 +787,16 @@ export function PortfolioBriefingDialog({ open, onClose, holdings, transactions,
           </Menu>
         </Box>
 
-        <Box sx={{ display: 'flex', gap: 0.5 }}>
-          <Button variant="outlined" color="primary" size="small" startIcon={<SmartToyIcon fontSize="small" />} onClick={handleAiSummary} sx={{ borderRadius: 2, fontWeight: 'bold', minWidth: 0, px: { xs: 1, sm: 1.5 } }}>
-            <span style={{ display: isMobile ? 'none' : 'inline', whiteSpace: 'nowrap' }}>{t('AI Summary', 'סיכום AI')}</span>
-          </Button>
+        <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+          {isMobile ? (
+            <IconButton color="primary" size="small" onClick={handleAiSummary} sx={{ border: 1, borderColor: 'primary.main', borderRadius: 2, p: '5px' }}>
+              <SmartToyIcon fontSize="small" />
+            </IconButton>
+          ) : (
+            <Button variant="outlined" color="primary" size="small" startIcon={<SmartToyIcon fontSize="small" />} onClick={handleAiSummary} sx={{ borderRadius: 2, fontWeight: 'bold', minWidth: 0, px: 1.5 }}>
+              <span>{t('AI Summary', 'סיכום AI')}</span>
+            </Button>
+          )}
           <IconButton onClick={onClose} size="small"><CloseIcon /></IconButton>
         </Box>
       </DialogTitle>
@@ -831,7 +838,8 @@ export function PortfolioBriefingDialog({ open, onClose, holdings, transactions,
                       ? Math.round(((customDateRange.end || new Date()).getTime() - customDateRange.start.getTime()) / 86400000)
                       : undefined,
                     customDateRange.end,
-                    is1dStale
+                    is1dStale,
+                    isMobile
                   ))}
                 </Typography>
               </Box>
