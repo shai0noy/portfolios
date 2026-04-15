@@ -349,8 +349,8 @@ function getMarketSentence(timeframe: string, pfAbsPct: number, isUp: boolean, m
   let divergenceStr = "";
   const hasMktBase = mktUS !== 0 && mktNDX !== 0;
   if (hasMktBase) {
-    const diffE = mktEnergy !== undefined ? Math.min(Math.abs(mktEnergy - mktUS), Math.abs(mktEnergy - mktNDX)) : 0;
-    const diffI = mktIT !== undefined ? Math.min(Math.abs(mktIT - mktUS), Math.abs(mktIT - mktNDX)) : 0;
+    const diffE = (mktEnergy !== undefined && mktEnergy !== 0) ? Math.min(Math.abs(mktEnergy - mktUS), Math.abs(mktEnergy - mktNDX)) : 0;
+    const diffI = (mktIT !== undefined && mktIT !== 0) ? Math.min(Math.abs(mktIT - mktUS), Math.abs(mktIT - mktNDX)) : 0;
 
     const boundedDays = (timeframe === 'Custom' && customDays) ? customDays : (timeDays[timeframe] || 30);
     const thresh = 0.01 + boundedDays * ((0.12 - 0.01) / 365);
@@ -363,7 +363,7 @@ function getMarketSentence(timeframe: string, pfAbsPct: number, isUp: boolean, m
       const getDirEN = (val: number) => val > mktUS ? 'outperformance' : 'underperformance';
 
       if (diffE > thresh && diffI > thresh) {
-        divergenceStr = t(` Notably, the Energy (${eFmt}) and Tech (${iFmt}) sectors showed ${getDirEN(mktEnergy!)} and ${getDirEN(mktIT!)} respectively compared to the broader US market.`, ` בנוסף ניכר ${getDirHE(mktEnergy!)} במגזר האנרגיה (${eFmt}) ו${getDirHE(mktIT!)} במגזר הטכנולוגיה (${iFmt}) ביחס לשוק הכללי בארה"ב.`);
+        divergenceStr = t(` Notably, the Energy sector showed ${getDirEN(mktEnergy!)} (${eFmt}) and the Tech sector showed ${getDirEN(mktIT!)} (${iFmt}) compared to the broader US market.`, ` בנוסף ניכר ${getDirHE(mktEnergy!)} במגזר האנרגיה (${eFmt}) ו${getDirHE(mktIT!)} במגזר הטכנולוגיה (${iFmt}) ביחס לשוק הכללי בארה"ב.`);
       } else if (diffE > thresh) {
         divergenceStr = t(` Notably, the Energy sector showed ${getDirEN(mktEnergy!)} against the broader US market, returning ${eFmt}.`, ` בנוסף ניכר ${getDirHE(mktEnergy!)} במגזר האנרגיה (${eFmt}) ביחס לשוק הכללי בארה"ב.`);
       } else if (diffI > thresh) {
