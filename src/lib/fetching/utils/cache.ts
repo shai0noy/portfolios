@@ -102,6 +102,9 @@ export async function withTaseCache<T>(cacheKey: string, fetcher: () => Promise<
     console.log(`[Cache] Fetch failed for ${cacheKey}, falling back to expired cache.`, e);
     const cached = await db.get<CachedData<T>>(cacheKey);
     if (cached && cached.data !== null) {
+        if (typeof cached.data === 'object' && !Array.isArray(cached.data)) {
+          return { ...cached.data, isStaleFallback: true } as unknown as T;
+        }
         return cached.data;
     }
     throw e;
@@ -146,6 +149,9 @@ export async function fetchWithCache<T>(
       const data = await fetcher();
       if (data === null && cachedData !== null) {
           console.log(`[Cache] Fetcher returned null but valid cache exists for ${cacheKey}. Keeping cache.`);
+          if (typeof cachedData === 'object' && !Array.isArray(cachedData)) {
+            return { ...cachedData, isStaleFallback: true } as unknown as T;
+          }
           return cachedData;
       }
       await saveToCache(cacheKey, data, now);
@@ -154,7 +160,7 @@ export async function fetchWithCache<T>(
       if (cachedData !== null) {
           console.log(`[Cache] Fetch failed for ${cacheKey}, falling back to expired cache.`, e);
           if (typeof cachedData === 'object' && !Array.isArray(cachedData)) {
-            return { ...cachedData, fromCache: true } as unknown as T;
+            return { ...cachedData, fromCache: true, isStaleFallback: true } as unknown as T;
           }
           return cachedData;
       }

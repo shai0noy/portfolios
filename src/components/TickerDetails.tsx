@@ -612,6 +612,11 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                   <TabPanelWithShadows theme={theme}>
                     <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
                       {isStale && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>{t('Data is from', 'הנתונים מתאריך')}: {formatDate(dataTimestamp)}</Typography>}
+                      {data?.isStaleFallback && (
+                        <Typography variant="caption" color="warning.main" sx={{ display: 'block', mb: 1, fontWeight: 'bold' }}>
+                          {t('Warning: Failed to fetch fresh data. Showing cached data.', 'אזהרה: נכשל עדכון הנתונים. מציג נתוני מטמון.')}
+                        </Typography>
+                      )}
                       <Typography variant="subtitle2" gutterBottom>{t('Performance', 'ביצועים')}</Typography>
                       <Box display="flex" flexWrap="wrap" gap={1} sx={{ mb: 2 }}>
                         {(() => {

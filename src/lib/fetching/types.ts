@@ -140,6 +140,7 @@ export interface TickerData {
   providentInfo?: ProvidentInfo;
   fromCache?: boolean;
   fromCacheMax?: boolean;
+  isStaleFallback?: boolean;
   meta?: ExchangeMetadata;
   type?: InstrumentClassification;
   isFeeExempt?: boolean;
