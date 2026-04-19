@@ -56,11 +56,11 @@ export function getColumnDisplayNames(t: (en: string, he: string) => string): Re
 export type ColumnPresetType = 'custom' | 'overview' | 'gains' | 'analytics' | 'technical' | 'income_costs' | 'all';
 
 export const PRESET_COLUMNS: Record<Exclude<ColumnPresetType, 'custom' | 'all'>, string[]> = {
-  overview: ['displayName', 'ticker', 'type', 'qty', 'currentPrice', 'dayChangeVal', 'dayChangePct', 'perfYtd', 'perf1y', 'mv', 'totalGainPct'],
-  gains: ['displayName', 'ticker', 'avgCost', 'currentPrice', 'costBasis', 'mv', 'dividends', 'unrealizedGain', 'unrealizedGainPct', 'realizedGain', 'realizedGainPct', 'totalGain', 'totalGainPct'],
-  analytics: ['displayName', 'ticker', 'type', 'sector', 'weight', 'avgHoldingTimeYears', 'avgYearlyReturn', 'avgCost', 'costBasis', 'mv', 'dividendYield1y', 'unvestedValue', 'realizedGainAfterTax', 'valueAfterTax'],
-  technical: ['displayName', 'ticker', 'currentPrice', 'dayChangeVal', 'dayChangePct', 'perf1w', 'perf1m', 'perfYtd', 'perf1y', 'mv'],
-  income_costs: ['displayName', 'ticker', 'type', 'qty', 'avgCost', 'currentPrice', 'mv', 'dividends', 'dividendYield1y', 'fees', 'realizedTax', 'unrealizedTax']
+  overview: ['displayName', 'ticker', 'qty', 'currentPrice', 'mv', 'dayChangePct', 'totalGainPct'],
+  gains: ['displayName', 'costBasis', 'mv', 'totalGain', 'totalGainPct', 'unrealizedGain', 'unrealizedGainPct', 'realizedGain'],
+  analytics: ['displayName', 'type', 'sector', 'weight', 'avgHoldingTimeYears', 'avgYearlyReturn'],
+  technical: ['displayName', 'currentPrice', 'dayChangePct', 'perf1w', 'perf1m', 'perfYtd', 'perf1y'],
+  income_costs: ['displayName', 'dividends', 'dividendYield1y', 'fees', 'realizedTax', 'unrealizedTax']
 };
 
 export function getPresetVisibility(preset: Exclude<ColumnPresetType, 'custom'>): Record<string, boolean> {
