@@ -11,7 +11,9 @@ vi.mock('./stock_list', () => ({
   fetchAllTickers: vi.fn(),
   getCbsTickers: () => []
 }));
-vi.mock('./globes');
+vi.mock('./globes', () => ({
+  fetchGlobesStockQuote: vi.fn().mockResolvedValue(null)
+}));
 vi.mock('./yahoo', () => ({
   fetchYahooTickerData: vi.fn().mockResolvedValue(null)
 }));

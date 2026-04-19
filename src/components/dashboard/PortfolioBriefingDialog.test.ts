@@ -35,7 +35,7 @@ describe('generateBriefingText', () => {
       t
     );
     expect(text).toContain('suffered a notable drop');
-    expect(text).toContain('mirrors heavy losses in the US');
+    expect(text).toContain('This pullback mirrors sharp drops in the US market');
   });
 
   it('handles gain against red US market', () => {
@@ -46,7 +46,7 @@ describe('generateBriefingText', () => {
       'USD',
       t
     );
-    expect(text).toContain('Bucking a mixed trend, this aligns with a solid Israeli market');
+    expect(text).toContain('Bucking a mixed trend, this aligns with positive trend in the Israeli market');
   });
 
   it('handles increase following Israel, despite US drop', () => {
