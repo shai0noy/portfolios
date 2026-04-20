@@ -325,12 +325,6 @@ export function HoldingDetails({ sheetId, holding, holdings, displayCurrency, po
                                 {t('My Position', 'הפוזיציה שלי')}
                             </Typography>
 
-                            {(enriched?.sector || (holding as any).sector) && (
-                                <Typography variant="body2" color="text.secondary" sx={{ mt: -0.5, mb: 2 }}>
-                                    {t('Sector:', 'מגזר:')} {enriched?.sector || (holding as any).sector}
-                                </Typography>
-                            )}
-
                             <HoldingStatsComponent
                                 vals={vals as HoldingValues}
                                 displayCurrency={displayCurrency}

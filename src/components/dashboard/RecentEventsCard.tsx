@@ -53,6 +53,7 @@ export function getRecentEventsData(
     stockCurrency?: Currency;
     dividendAmount?: number;
     dividendCurrency?: Currency;
+    totalDivAmount?: number;
   }>();
 
   const formatRelativeDays = (date: Date) => {
@@ -120,6 +121,7 @@ export function getRecentEventsData(
           exchange: div.exchange,
           qtySum: div.unitsHeld,
           dividendAmount: div.pricePerUnit || div.grossAmount.amount,
+          totalDivAmount: div.grossAmount.amount,
           count: 1,
           currency: div.grossAmount.currency,
           price: holding.currentPrice
@@ -127,6 +129,7 @@ export function getRecentEventsData(
       } else {
         const existing = grouped.get(key)!;
         existing.qtySum = (existing.qtySum || 0) + (div.unitsHeld || 0);
+        existing.totalDivAmount = (existing.totalDivAmount || 0) + div.grossAmount.amount;
         existing.count = (existing.count || 0) + 1;
       }
     }
@@ -272,8 +275,8 @@ export function getRecentEventsData(
 
     let valueDesc = g.customValueDesc || '';
     if (!g.customValueDesc) {
-      if (g.type === 'DIVIDEND' && g.qtySum !== undefined && g.currency) {
-        valueDesc = formatMoneyValue({ amount: g.qtySum, currency: g.currency }, undefined, 0);
+      if (g.type === 'DIVIDEND' && g.totalDivAmount !== undefined && g.currency) {
+        valueDesc = formatMoneyValue({ amount: g.totalDivAmount, currency: g.currency }, undefined, 0);
       } else if (g.type === 'VEST' && g.qtySum !== undefined && g.price !== undefined && g.currency) {
         const totalValue = g.qtySum * g.price;
         const units = g.qtySum > 0 && g.qtySum % 1 !== 0 ? g.qtySum.toFixed(1) : g.qtySum.toFixed(0);
