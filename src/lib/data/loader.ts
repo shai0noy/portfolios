@@ -75,13 +75,13 @@ async function saveToCache(sheetId: string, data: Omit<FinanceCache, 'timestamp'
     }
 }
 
-async function loadFromCache(sheetId: string): Promise<FinanceCache | null> {
+async function loadFromCache(sheetId: string, ignoreTtl = false): Promise<FinanceCache | null> {
     try {
         const cache = await getCacheItem<FinanceCache>(CACHE_KEY);
         if (!cache) return null;
 
         if (cache.sheetId !== sheetId) return null;
-        if (Date.now() - cache.timestamp > CACHE_TTL) return null;
+        if (!ignoreTtl && Date.now() - cache.timestamp > CACHE_TTL) return null;
 
         return cache;
     } catch (e) {
@@ -90,70 +90,74 @@ async function loadFromCache(sheetId: string): Promise<FinanceCache | null> {
     }
 }
 
+function hydrateEngineFromCache(cached: FinanceCache): { engine: FinanceEngine, trackingLists: TrackingListItem[] } {
+    const { transactions, portfolios, rawDivs, exchangeRates, cpiData, livePrices } = cached;
+
+    // Reconstruct Dividends
+    const dividends: DividendEvent[] = rawDivs.map((d: any) => ({
+        ticker: d.ticker,
+        exchange: d.exchange,
+        date: new Date(d.date),
+        amount: d.amount,
+        source: d.source || 'SHEET',
+        assetPriceAtDrip: d.assetPriceAtTime !== undefined && !isNaN(Number(d.assetPriceAtTime)) ? Number(d.assetPriceAtTime) : undefined
+    }));
+
+    // Reconstruct Engine
+    const engine = new FinanceEngine(portfolios, exchangeRates as unknown as ExchangeRates, cpiData);
+
+    // Fetch historical prices for DRIP logic
+    const livePricesMap = new Map<string, TickerData>(livePrices);
+    dividends.forEach(d => {
+        if (d.assetPriceAtDrip !== undefined && !isNaN(d.assetPriceAtDrip)) return; // Skip if explicitly read from sheet
+
+        const key = `${d.exchange}:${d.ticker}`;
+        const tdata = livePricesMap.get(key);
+        if (tdata && tdata.historical) {
+            const dateStr = d.date.toISOString().split('T')[0];
+            const hp = tdata.historical.find(h => h.date.toISOString().split('T')[0] === dateStr);
+            if (hp) {
+                d.assetPriceAtDrip = hp.price;
+            }
+        }
+    });
+
+    engine.processEvents(transactions, dividends);
+
+    // Hydrate Prices
+    const priceMap = new Map<string, TickerData>(livePrices);
+    engine.hydrateLivePrices(priceMap);
+
+    // Generate Recurring Fees
+    const holdingsWithFees = Array.from(engine.holdings.values()).filter(h => {
+        const p = engine.portfolios.get(h.portfolioId);
+        return p && (p.mgmtType === 'percentage' || (p.feeHistory && p.feeHistory.some(f => f.mgmtType === 'percentage')));
+    });
+
+    if (holdingsWithFees.length > 0) {
+        engine.generateRecurringFees((ticker, exchange, _date) => {
+            const h = engine.holdings.get(`${holdingsWithFees.find(h => h.ticker === ticker && h.exchange === exchange)?.portfolioId}_${ticker}`);
+            return h ? h.currentPrice : 0;
+        });
+    }
+
+    engine.calculateSnapshot();
+    return { engine, trackingLists: cached.trackingLists || [] };
+}
+
 export const loadFinanceEngine = async (sheetId: string, forceRefresh = false) => {
     // 0. Try Load from Cache
     if (!forceRefresh) {
         const cached = await loadFromCache(sheetId);
         if (cached) {
             console.log('Loader: Using cached data');
-            const { transactions, portfolios, rawDivs, exchangeRates, cpiData, livePrices } = cached;
-
-            // Reconstruct Dividends
-            const dividends: DividendEvent[] = rawDivs.map((d: any) => ({
-                ticker: d.ticker,
-                exchange: d.exchange,
-                date: new Date(d.date),
-                amount: d.amount,
-                source: d.source || 'SHEET',
-                assetPriceAtDrip: d.assetPriceAtTime !== undefined && !isNaN(Number(d.assetPriceAtTime)) ? Number(d.assetPriceAtTime) : undefined
-            }));
-
-            // Reconstruct Engine
-            const engine = new FinanceEngine(portfolios, exchangeRates as unknown as ExchangeRates, cpiData);
-
-            // Fetch historical prices for DRIP logic
-            const livePricesMap = new Map<string, TickerData>(livePrices);
-            dividends.forEach(d => {
-                if (d.assetPriceAtDrip !== undefined && !isNaN(d.assetPriceAtDrip)) return; // Skip if explicitly read from sheet
-
-                const key = `${d.exchange}:${d.ticker}`;
-                const tdata = livePricesMap.get(key);
-                if (tdata && tdata.historical) {
-                    const dateStr = d.date.toISOString().split('T')[0];
-                    const hp = tdata.historical.find(h => h.date.toISOString().split('T')[0] === dateStr);
-                    if (hp) {
-                        d.assetPriceAtDrip = hp.price;
-                    }
-                }
-            });
-
-            engine.processEvents(transactions, dividends);
-
-            // Hydrate Prices
-            const priceMap = new Map<string, TickerData>(livePrices);
-            engine.hydrateLivePrices(priceMap);
-
-            // Generate Recurring Fees
-            const holdingsWithFees = Array.from(engine.holdings.values()).filter(h => {
-                const p = engine.portfolios.get(h.portfolioId);
-                return p && (p.mgmtType === 'percentage' || (p.feeHistory && p.feeHistory.some(f => f.mgmtType === 'percentage')));
-            });
-
-            if (holdingsWithFees.length > 0) {
-                engine.generateRecurringFees((ticker, exchange, _date) => {
-                    const h = engine.holdings.get(`${holdingsWithFees.find(h => h.ticker === ticker && h.exchange === exchange)?.portfolioId}_${ticker}`);
-                    return h ? h.currentPrice : 0;
-                });
-            }
-
-            engine.calculateSnapshot();
-            return { engine, trackingLists: cached.trackingLists || [] };
+            return hydrateEngineFromCache(cached);
         }
     }
 
     console.log('Loader: Fetching fresh data');
-
-    // 1. Fetch Base Data
+    try {
+        // 1. Fetch Base Data
     const [transactions, portfolios, trackingLists] = await Promise.all([
         fetchTransactions(sheetId),
         fetchPortfolios(sheetId),
@@ -328,7 +332,16 @@ export const loadFinanceEngine = async (sheetId: string, forceRefresh = false) =
     }
 
     // 7. Calculate Final Snapshot
-    engine.calculateSnapshot();
+        engine.calculateSnapshot();
 
-    return { engine, trackingLists };
+        return { engine, trackingLists };
+    } catch (e) {
+        console.error('Loader: Failed to fetch fresh data, attempting to fall back to stale cache.', e);
+        const staleCache = await loadFromCache(sheetId, true);
+        if (staleCache) {
+            console.log('Loader: Falling back to stale cached data');
+            return hydrateEngineFromCache(staleCache);
+        }
+        throw e;
+    }
 };

@@ -38,9 +38,8 @@ export function useDashboardData(sheetId: string) {
     setLoading(true);
     setError(null);
     try {
-      if (force) {
-        await clearAllCache();
-      }
+      // If force=true, loadFinanceEngine bypasses cache, but we keep old cache 
+      // in DB so it can be used as a fallback if the fetch fails.
       const { engine: eng, trackingLists: lists } = await loadFinanceEngine(sheetId, force);
       setEngine(eng);
       setTrackingLists(lists);

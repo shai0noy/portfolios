@@ -1,7 +1,7 @@
 const IP_LIMITS = new Map();
 const SHORT_LIMIT = 120;
-const SHORT_WINDOW = 5 * 60 * 1000; // 5 minutes
-const LONG_LIMIT = 450;
+const SHORT_WINDOW = 4 * 60 * 1000; // 4 minutes
+const LONG_LIMIT = 1000;
 const LONG_WINDOW = 12 * 60 * 60 * 1000; // 12 hours
 
 export function checkRateLimit(ip) {
@@ -44,6 +44,6 @@ export function checkRateLimit(ip) {
   return {
     allowed: !shortBlocked && !longBlocked,
     retryAfter: retryAfter > 0 ? retryAfter : 60, // fail-safe 60 if somehow calculated negative
-    message: `Short window limit: ${record.short.count}/${SHORT_LIMIT} - renew in ${shortBlocked ? retryAfter : 0}s, Long window limit: ${record.long.count}/${LONG_LIMIT}`
+    message: `Short window limit: ${record.short.count}/${SHORT_LIMIT} - renew in ${shortBlocked ? retryAfter : 0}s, Long window limit: ${record.long.count}/${LONG_LIMIT} - renew in ${longBlocked ? retryAfter : 0}s`
   };
 }

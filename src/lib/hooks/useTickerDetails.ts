@@ -181,7 +181,6 @@ export const useTickerDetails = ({ sheetId, ticker: propTicker, exchange: propEx
     const handleRefresh = useCallback(async () => {
         setRefreshing(true);
         if (ticker && exchange) {
-            await clearAllCache();
             await fetchData(true);
             const historyResponse = await fetchTickerHistory(ticker, exchange, undefined, true);
             let hist = historyResponse?.historical || [];
