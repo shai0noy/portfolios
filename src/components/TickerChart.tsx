@@ -3,6 +3,7 @@ import { useLanguage } from '../lib/i18n';
 import { formatPrice, formatPercent, formatCompactPrice, formatValue, formatCompactValue } from '../lib/currency';
 import { formatDate } from '../lib/date';
 import { Paper, Typography, Box, IconButton, Dialog, DialogContent, ToggleButton, ToggleButtonGroup, SvgIcon } from '@mui/material';
+import type { Transaction } from '../lib/types';
 import { useTheme } from '@mui/material/styles';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
@@ -324,6 +325,8 @@ interface TickerChartProps {
     gammaWindow?: number;
     onGammaWindowChange?: (window: number) => void;
     denseTicks?: boolean;
+    events?: Transaction[];
+    showEvents?: boolean;
 }
 
 interface ChartPoint {
@@ -755,7 +758,7 @@ const SelectionSummary = ({ startPoint, endPoint, currency, t, isComparison, ser
     );
 };
 
-export function TickerChart({ series, currency, mode = 'percent', valueType = 'price', height = 300, hideCurrentPrice, isEqualSeries, allowFullscreen = true, topControls, scaleType: propScaleType, onScaleTypeChange, trendType: propTrendType, onTrendTypeChange, gammaType: propsGammaType, onGammaTypeChange: propsOnGammaTypeChange, gammaWindow: propsGammaWindow, onGammaWindowChange: propsOnGammaWindowChange, denseTicks }: TickerChartProps) {
+export function TickerChart({ series, currency, mode = 'percent', valueType = 'price', height = 300, hideCurrentPrice, isEqualSeries, allowFullscreen = true, topControls, scaleType: propScaleType, onScaleTypeChange, trendType: propTrendType, onTrendTypeChange, gammaType: propsGammaType, onGammaTypeChange: propsOnGammaTypeChange, gammaWindow: propsGammaWindow, onGammaWindowChange: propsOnGammaWindowChange, denseTicks, events = [], showEvents = false }: TickerChartProps) {
     const FADE_MS = 170;          // Speed of the opacity transition
     const TRANSFORM_MS = 360;     // Speed of the line movement (Very fast)
     const BUFFER_MS = 30;        // Safety window for browser paint
@@ -1788,6 +1791,35 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                                 />
                                 </>
                             )}
+                            {showEvents && !isComparison && events.map((event, index) => {
+                                const date = new Date(event.date).getTime();
+                                const point = findClosestPoint(date);
+                                if (!point) return null;
+
+                                const isBuyEvent = event.type === 'BUY' || event.type === 'BUY_TRANSFER';
+                                const color = isBuyEvent ? successColor : errorColor;
+                                const totalValue = (event.originalQty ?? event.qty ?? 0) * (event.originalPrice ?? event.price ?? 0);
+
+                                return (
+                                    <ReferenceDot
+                                        key={index}
+                                        x={date}
+                                        y={point.yValue}
+                                        yAxisId="price"
+                                        r={6}
+                                        fill={color}
+                                        stroke="white"
+                                        strokeWidth={2}
+                                        label={{
+                                            value: formatCompactValue(totalValue, currency, t),
+                                            fill: theme.palette.text.primary,
+                                            fontSize: 10,
+                                            position: 'top',
+                                            offset: 10
+                                        }}
+                                    />
+                                );
+                            })}
                         </ComposedChart>
                     ) : (
                         <AreaChart
@@ -1968,6 +2000,34 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                                     <ReferenceLine x={endPoint.date.getTime()} stroke={theme.palette.text.secondary} strokeWidth={1} strokeDasharray="2 2" strokeOpacity={0.5} />
                                 </>
                             )}
+                            {showEvents && !isComparison && events.map((event, index) => {
+                                const date = new Date(event.date).getTime();
+                                const point = findClosestPoint(date);
+                                if (!point) return null;
+
+                                const isBuyEvent = event.type === 'BUY' || event.type === 'BUY_TRANSFER';
+                                const color = isBuyEvent ? successColor : errorColor;
+                                const totalValue = (event.originalQty ?? event.qty ?? 0) * (event.originalPrice ?? event.price ?? 0);
+
+                                return (
+                                    <ReferenceDot
+                                        key={index}
+                                        x={date}
+                                        y={point.yValue}
+                                        r={6}
+                                        fill={color}
+                                        stroke="white"
+                                        strokeWidth={2}
+                                        label={{
+                                            value: formatCompactValue(totalValue, currency, t),
+                                            fill: theme.palette.text.primary,
+                                            fontSize: 10,
+                                            position: 'top',
+                                            offset: 10
+                                        }}
+                                    />
+                                );
+                            })}
                         </AreaChart>
                     )}
                 </ResponsiveContainer>

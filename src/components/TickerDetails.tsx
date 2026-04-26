@@ -1,5 +1,5 @@
 import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, Box, Chip, CircularProgress, Tooltip, IconButton, ToggleButtonGroup, ToggleButton, Menu, MenuItem, ListItemIcon, ListItemText, Tabs, Tab, useTheme, Divider, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Accordion, AccordionSummary, AccordionDetails, Grid } from '@mui/material';
-import { BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, LabelList } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, LabelList } from 'recharts';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import RefreshIcon from '@mui/icons-material/Refresh';
@@ -27,7 +27,7 @@ import type { TickerProfile } from '../lib/types/ticker';
 import { useChartComparison, getAvailableRanges, getMaxLabel, SEARCH_OPTION_TICKER } from '../lib/hooks/useChartComparison';
 import { useTickerDetails, type TickerDetailsProps } from '../lib/hooks/useTickerDetails';
 import { TickerSearch } from './TickerSearch';
-import { Currency, Exchange, isUSExchange, type ExchangeRates } from '../lib/types';
+import { Currency, Exchange, isUSExchange, type ExchangeRates, type Transaction, isBuy, isSell } from '../lib/types';
 import { formatMoneyPrice, formatPercent, normalizeCurrency, formatMoneyValue, formatMoneyCompactValue, formatCompactValue, formatCompactPrice } from '../lib/currency';
 import { AnalysisDialog } from './AnalysisDialog';
 import { TickerAiChat } from './TickerAiChat';
@@ -192,6 +192,8 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
 
   const [engineHoldings, setEngineHoldings] = useState<Holding[]>([]);
   const [exchangeRates, setExchangeRates] = useState<ExchangeRates | null>(null);
+  const [tickerTransactions, setTickerTransactions] = useState<Transaction[]>([]);
+  const [showBuySellEvents, setShowBuySellEvents] = useState(false);
 
   // Resolve the "Active Holding" - from navigation state (enriched) or hook
   const enrichedHolding = useMemo(() => {
@@ -223,6 +225,25 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
           }
         });
         setEngineHoldings(matches);
+
+        const txMatches: Transaction[] = [];
+        eng.transactions.forEach((t: Transaction) => {
+          const isTickerMatch = t.ticker.toUpperCase() === ticker.toUpperCase();
+          const engineExchange = t.exchange;
+          const targetExchange = exchange?.toUpperCase();
+
+          let isExchangeMatch = !targetExchange || (engineExchange === targetExchange);
+
+          if (!isExchangeMatch && targetExchange && engineExchange && isUSExchange(engineExchange) && isUSExchange(targetExchange)) {
+            isExchangeMatch = true;
+          }
+
+          if (isTickerMatch && isExchangeMatch && (isBuy(t.type) || isSell(t.type))) {
+            txMatches.push(t);
+          }
+        });
+        setTickerTransactions(txMatches);
+
         import('../lib/currency').then(({ getExchangeRates }) => {
           getExchangeRates(sheetId).then(setExchangeRates).catch(console.error);
         });
@@ -675,6 +696,8 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                             onGammaTypeChange={setGammaType}
                             gammaWindow={gammaWindow}
                             onGammaWindowChange={setGammaWindow}
+                            events={tickerTransactions}
+                            showEvents={showBuySellEvents && !isComparison}
                             topControls={
                               <Box sx={{ flex: 1, minWidth: 0 }}>
                                 <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: comparisonSeries.length > 0 ? 1 : 0, flexWrap: { xs: 'nowrap', md: 'wrap' }, overflowX: { xs: 'auto', md: 'visible' }, pb: { xs: 1, md: 0 }, scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' } }}>
@@ -723,6 +746,17 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                                     <ToggleButton value="price" sx={{ px: 1, fontSize: '0.65rem' }}>$</ToggleButton>
                                     <ToggleButton value="candle" sx={{ px: 1, fontSize: '0.65rem' }}><CandlestickChartIcon sx={{ fontSize: '1rem' }} /></ToggleButton>
                                   </ToggleButtonGroup>
+                                  {!isComparison && (
+                                    <ToggleButton
+                                      value="events"
+                                      selected={showBuySellEvents}
+                                      onChange={() => setShowBuySellEvents(!showBuySellEvents)}
+                                      size="small"
+                                      sx={{ height: 26, px: 1 }}
+                                    >
+                                      <PaidIcon sx={{ fontSize: '1rem' }} />
+                                    </ToggleButton>
+                                  )}
                                   {isMobile ? (
                                     <>
                                       <ToggleButtonGroup
@@ -960,7 +994,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                       {/* Advanced Stats Section */}
                       {(() => {
                         const advStats: AdvancedStats | undefined = (displayData as any)?.advancedStats;
-                        if (!isAdvancedStatsNonEmpty(advStats)) return null;
+                        if (!isAdvancedStatsNonEmpty(advStats) || !advStats) return null;
 
                         const formatters = {
                           pct: (v: number | undefined) => v !== undefined ? formatPercent(v) : undefined,
@@ -1123,19 +1157,19 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                                                   }}
                                                 />
                                                 <Bar dataKey="strongSell" stackId="1" fill={categories.find(c => c.key === 'strongSell')?.color} fillOpacity={0.8} name={t('Strong Sell', 'מכירה חזקה')}>
-                                                  <LabelList dataKey="strongSell" position="inside" fontSize={8} fill="#fff" formatter={(v: number) => v > 0 ? v : null} />
+                                                  <LabelList dataKey="strongSell" position="inside" fontSize={8} fill="#fff" formatter={(v: any) => v > 0 ? v : ''} />
                                                 </Bar>
                                                 <Bar dataKey="sell" stackId="1" fill={categories.find(c => c.key === 'sell')?.color} fillOpacity={0.8} name={t('Sell', 'מכירה')}>
-                                                  <LabelList dataKey="sell" position="inside" fontSize={8} fill="#fff" formatter={(v: number) => v > 0 ? v : null} />
+                                                  <LabelList dataKey="sell" position="inside" fontSize={8} fill="#fff" formatter={(v: any) => v > 0 ? v : ''} />
                                                 </Bar>
                                                 <Bar dataKey="hold" stackId="1" fill={categories.find(c => c.key === 'hold')?.color} fillOpacity={0.8} name={t('Hold', 'החזק')}>
-                                                  <LabelList dataKey="hold" position="inside" fontSize={8} fill="#fff" formatter={(v: number) => v > 0 ? v : null} />
+                                                  <LabelList dataKey="hold" position="inside" fontSize={8} fill="#fff" formatter={(v: any) => v > 0 ? v : ''} />
                                                 </Bar>
                                                 <Bar dataKey="buy" stackId="1" fill={categories.find(c => c.key === 'buy')?.color} fillOpacity={0.8} name={t('Buy', 'קניה')}>
-                                                  <LabelList dataKey="buy" position="inside" fontSize={8} fill="#fff" formatter={(v: number) => v > 0 ? v : null} />
+                                                  <LabelList dataKey="buy" position="inside" fontSize={8} fill="#fff" formatter={(v: any) => v > 0 ? v : ''} />
                                                 </Bar>
                                                 <Bar dataKey="strongBuy" stackId="1" fill={categories.find(c => c.key === 'strongBuy')?.color} fillOpacity={0.8} name={t('Strong Buy', 'קניה חזקה')}>
-                                                  <LabelList dataKey="strongBuy" position="inside" fontSize={8} fill="#fff" formatter={(v: number) => v > 0 ? v : null} />
+                                                  <LabelList dataKey="strongBuy" position="inside" fontSize={8} fill="#fff" formatter={(v: any) => v > 0 ? v : ''} />
                                                 </Bar>
                                               </BarChart>
                                             </ResponsiveContainer>
