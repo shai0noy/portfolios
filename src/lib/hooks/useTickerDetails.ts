@@ -12,6 +12,8 @@ import { getOwnedInPortfolios } from '../portfolioUtils';
 import type { Dividend } from '../fetching/types';
 import { Currency } from '../types';
 import { synthesizeHistory } from '../performance';
+import { SessionExpiredError } from '../errors';
+import { useSession } from '../SessionContext';
 
 export interface TickerDetailsProps {
     sheetId: string;
@@ -65,6 +67,7 @@ export const useTickerDetails = ({ sheetId, ticker: propTicker, exchange: propEx
     const [isUpdatingFavorite, setIsUpdatingFavorite] = useState(false);
 
     const { t, language } = useLanguage();
+    const { showLoginModal } = useSession();
 
     const mergeDividends = useCallback((apiDivs: Dividend[] = [], sheetDivs: Dividend[] = []): Dividend[] => {
         const seen = new Set<string>();
@@ -171,7 +174,12 @@ export const useTickerDetails = ({ sheetId, ticker: propTicker, exchange: propEx
             if (tickerData?.historical) setHistoricalData(tickerData.historical);
             if (!tickerData && !holding) setError(t('Ticker not found.', 'הנייר לא נמצא.'));
         } catch (err) {
-            setError(t('Error fetching ticker data.', 'שגיאה בטעינת נתוני הנייר.'));
+            if (err instanceof SessionExpiredError) {
+                setError('session_expired');
+                showLoginModal();
+            } else {
+                setError(t('Error fetching ticker data.', 'שגיאה בטעינת נתוני הנייר.'));
+            }
             console.error(err);
         } finally {
             if (!forceRefresh) setLoading(false);
@@ -268,6 +276,11 @@ export const useTickerDetails = ({ sheetId, ticker: propTicker, exchange: propEx
                     } else {
                         syncDividends(sheetId, ticker, exchange, divsToSync, 'Yahoo History');
                     }
+                }
+            }).catch(e => {
+                console.error("Failed to fetch history or dividends", e);
+                if (e instanceof SessionExpiredError) {
+                    showLoginModal();
                 }
             });
         }
