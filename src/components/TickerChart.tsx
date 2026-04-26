@@ -1806,16 +1806,24 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                                         x={date}
                                         y={point.yValue}
                                         yAxisId="price"
-                                        r={6}
-                                        fill={color}
-                                        stroke="white"
-                                        strokeWidth={2}
-                                        label={{
-                                            value: formatCompactValue(totalValue, currency, t),
-                                            fill: theme.palette.text.primary,
-                                            fontSize: 10,
-                                            position: 'top',
-                                            offset: 10
+                                        shape={(props: any) => {
+                                            const { cx, cy } = props;
+                                            const poleHeight = 20;
+                                            const flagWidth = 70;
+                                            const flagHeight = 16;
+                                            
+                                            const poleEndY = isBuyEvent ? cy - poleHeight : cy + poleHeight;
+                                            const flagY = isBuyEvent ? poleEndY - flagHeight : poleEndY;
+                                            
+                                            return (
+                                                <g>
+                                                    <line x1={cx} y1={cy} x2={cx} y2={poleEndY} stroke={color} strokeWidth={1.5} />
+                                                    <rect x={cx - flagWidth / 2} y={flagY} width={flagWidth} height={flagHeight} fill={theme.palette.background.paper} stroke={color} strokeWidth={1} rx={2} />
+                                                    <text x={cx} y={flagY + 12} fill={theme.palette.text.primary} fontSize={9} fontWeight="bold" textAnchor="middle">
+                                                        {isBuyEvent ? t('Buy', 'קניה') : t('Sell', 'מכירה')} {formatCompactValue(totalValue, currency, t)}
+                                                    </text>
+                                                </g>
+                                            );
                                         }}
                                     />
                                 );
@@ -2014,16 +2022,24 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                                         key={index}
                                         x={date}
                                         y={point.yValue}
-                                        r={6}
-                                        fill={color}
-                                        stroke="white"
-                                        strokeWidth={2}
-                                        label={{
-                                            value: formatCompactValue(totalValue, currency, t),
-                                            fill: theme.palette.text.primary,
-                                            fontSize: 10,
-                                            position: 'top',
-                                            offset: 10
+                                        shape={(props: any) => {
+                                            const { cx, cy } = props;
+                                            const poleHeight = 20;
+                                            const flagWidth = 70;
+                                            const flagHeight = 16;
+                                            
+                                            const poleEndY = isBuyEvent ? cy - poleHeight : cy + poleHeight;
+                                            const flagY = isBuyEvent ? poleEndY - flagHeight : poleEndY;
+                                            
+                                            return (
+                                                <g>
+                                                    <line x1={cx} y1={cy} x2={cx} y2={poleEndY} stroke={color} strokeWidth={1.5} />
+                                                    <rect x={cx - flagWidth / 2} y={flagY} width={flagWidth} height={flagHeight} fill={theme.palette.background.paper} stroke={color} strokeWidth={1} rx={2} />
+                                                    <text x={cx} y={flagY + 12} fill={theme.palette.text.primary} fontSize={9} fontWeight="bold" textAnchor="middle">
+                                                        {isBuyEvent ? t('Buy', 'קניה') : t('Sell', 'מכירה')} {formatCompactValue(totalValue, currency, t)}
+                                                    </text>
+                                                </g>
+                                            );
                                         }}
                                     />
                                 );

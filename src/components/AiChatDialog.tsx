@@ -22,7 +22,6 @@ import { getTickerData } from '../lib/fetching';
 import toast from 'react-hot-toast';
 import { BaseAiChatDialog } from './chat/BaseAiChatDialog';
 import { getRecentEventsData } from './dashboard/RecentEventsCard';
-import { formatDate } from '../lib/date';
 
 interface AiChatDialogProps {
   open: boolean;

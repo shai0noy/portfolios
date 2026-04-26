@@ -5,9 +5,9 @@ import * as currency from '../currency';
 import * as cache from './utils/cache';
 
 // Mocking fetch
-global.fetch = vi.fn();
+vi.stubGlobal('fetch', vi.fn());
 
-vi.spyOn(cache, 'fetchWithCache').mockImplementation((key, ttl, force, fn) => fn());
+vi.spyOn(cache, 'fetchWithCache').mockImplementation((_key, _ttl, _force, fn) => fn());
 vi.spyOn(currency, 'convertCurrency').mockImplementation((amount, from, to) => {
   if (from === 'ILA' && to === 'ILS') return amount / 100;
   if (from === 'ILA' && to === 'USD') return (amount / 100) / 3.7;

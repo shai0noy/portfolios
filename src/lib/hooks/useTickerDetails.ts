@@ -1,4 +1,3 @@
-import { clearAllCache } from '../fetching/utils/cache';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
