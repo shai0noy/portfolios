@@ -267,6 +267,15 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
     return false;
   }, [hasHolding, enrichedHolding, engineHoldings, holdingData]);
 
+  const isLongTerm = useMemo(() => {
+    if (chartRange === '5Y' || chartRange === '10Y' || chartRange === 'Max') return true;
+    if (chartRange === 'Custom' && customDateRange.start && customDateRange.end) {
+      const diffYears = (customDateRange.end.getTime() - customDateRange.start.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+      return diffYears >= 4;
+    }
+    return false;
+  }, [chartRange, customDateRange]);
+
   ///// XXXXXX
   const totalQty = useMemo(() => {
     if (engineHoldings && engineHoldings.length > 0) {
@@ -699,8 +708,10 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                             onGammaWindowChange={setGammaWindow}
                             events={[
                               ...tickerTransactions,
-                              ...(data?.calendarEvents?.allEarningsDates?.map(date => ({ date, type: 'EARNINGS' } as any)) || []),
-                              ...(data?.calendarEvents?.earningsDate && !data?.calendarEvents?.allEarningsDates ? [{ date: data.calendarEvents.earningsDate, type: 'EARNINGS' } as any] : [])
+                              ...(!isLongTerm ? [
+                                ...(data?.calendarEvents?.allEarningsDates?.map(date => ({ date, type: 'EARNINGS' } as any)) || []),
+                                ...(data?.calendarEvents?.earningsDate && !data?.calendarEvents?.allEarningsDates ? [{ date: data.calendarEvents.earningsDate, type: 'EARNINGS' } as any] : [])
+                              ] : [])
                             ]}
                             showEvents={showBuySellEvents && !isComparison}
                             topControls={
@@ -1488,9 +1499,9 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                           { label: t('P/E (Fwd)', 'מכפיל עתידי'), value: formatters.num(advStats.forwardPE) },
                           { label: t('PEG Ratio', 'יחס PEG'), value: formatters.num(advStats.pegRatio) },
                           { label: t('Trailing 1y EPS', 'EPS עוקב שנתי'), value: formatters.currency(advStats.trailingEps, advStats.financialCurrency as Currency) },
-                          { label: t('EPS Yield (Trailing)', 'תשואת EPS עוקב'), value: currentPrice && advStats.trailingEps ? formatters.pct(advStats.trailingEps / currentPrice) : undefined },
+                          { label: t('Ann. EPS Yield (Trailing)', 'תשואת EPS שנתית עוקבת'), value: currentPrice && advStats.trailingEps ? formatters.pct((advStats.trailingEps / currentPrice) * 4) : undefined },
                           { label: t('Forward 1y EPS', 'EPS צפי שנתי'), value: formatters.currency(advStats.forwardEps, advStats.financialCurrency as Currency) },
-                          { label: t('EPS Yield (Fwd)', 'תשואת EPS צפי'), value: currentPrice && advStats.forwardEps ? formatters.pct(advStats.forwardEps / currentPrice) : undefined },
+                          { label: t('Ann. EPS Yield (Fwd)', 'תשואת EPS שנתית צפויה'), value: currentPrice && advStats.forwardEps ? formatters.pct((advStats.forwardEps / currentPrice) * 4) : undefined },
                           { label: t('Earnings Q Grw.', 'צמיחת רווחים'), value: formatters.pct(advStats.earningsQuarterlyGrowth ?? advStats.earningsGrowth) },
                           { label: t('Revenue Q Grw.', 'צמיחת הכנסות'), value: formatters.pct(advStats.revenueQuarterlyGrowth ?? advStats.revenueGrowth) },
                           { label: t('Profit Margin', 'שולי רווח'), value: formatters.pct(advStats.profitMargins) },
