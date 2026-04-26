@@ -3,7 +3,6 @@ import { useLanguage } from '../lib/i18n';
 import { formatPrice, formatPercent, formatCompactPrice, formatValue, formatCompactValue } from '../lib/currency';
 import { formatDate } from '../lib/date';
 import { Paper, Typography, Box, IconButton, Dialog, DialogContent, ToggleButton, ToggleButtonGroup, SvgIcon } from '@mui/material';
-import type { Transaction } from '../lib/types';
 import { useTheme } from '@mui/material/styles';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
@@ -306,6 +305,15 @@ export interface ChartSeries {
     color?: string;
 }
 
+export interface ChartEvent {
+    date: Date | string;
+    type: string;
+    originalQty?: number;
+    qty?: number;
+    originalPrice?: number;
+    price?: number;
+}
+
 interface TickerChartProps {
     series: ChartSeries[];
     currency: string;
@@ -325,7 +333,7 @@ interface TickerChartProps {
     gammaWindow?: number;
     onGammaWindowChange?: (window: number) => void;
     denseTicks?: boolean;
-    events?: Transaction[];
+    events?: ChartEvent[];
     showEvents?: boolean;
 }
 
@@ -1797,9 +1805,14 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                                 if (!point) return null;
 
                                 const isBuyEvent = event.type === 'BUY' || event.type === 'BUY_TRANSFER';
-                                const color = isBuyEvent ? successColor : errorColor;
+                                const isEarnings = event.type === 'EARNINGS';
+                                const color = isEarnings ? theme.palette.info.main : (isBuyEvent ? successColor : errorColor);
                                 const totalValue = (event.originalQty ?? event.qty ?? 0) * (event.originalPrice ?? event.price ?? 0);
 
+                                const poleHeight = 20;
+                                const flagWidth = isEarnings ? 60 : 70;
+                                const flagHeight = 16;
+                                
                                 return (
                                     <ReferenceDot
                                         key={index}
@@ -1808,19 +1821,15 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                                         yAxisId="price"
                                         shape={(props: any) => {
                                             const { cx, cy } = props;
-                                            const poleHeight = 20;
-                                            const flagWidth = 70;
-                                            const flagHeight = 16;
-                                            
-                                            const poleEndY = isBuyEvent ? cy - poleHeight : cy + poleHeight;
-                                            const flagY = isBuyEvent ? poleEndY - flagHeight : poleEndY;
+                                            const poleEndY = (isBuyEvent || isEarnings) ? cy - poleHeight : cy + poleHeight;
+                                            const flagY = (isBuyEvent || isEarnings) ? poleEndY - flagHeight : poleEndY;
                                             
                                             return (
                                                 <g>
                                                     <line x1={cx} y1={cy} x2={cx} y2={poleEndY} stroke={color} strokeWidth={1.5} />
                                                     <rect x={cx - flagWidth / 2} y={flagY} width={flagWidth} height={flagHeight} fill={theme.palette.background.paper} stroke={color} strokeWidth={1} rx={2} />
                                                     <text x={cx} y={flagY + 12} fill={theme.palette.text.primary} fontSize={9} fontWeight="bold" textAnchor="middle">
-                                                        {isBuyEvent ? t('Buy', 'קניה') : t('Sell', 'מכירה')} {formatCompactValue(totalValue, currency, t)}
+                                                        {isEarnings ? t('Earnings', 'דוחות') : (isBuyEvent ? t('Buy', 'קניה') : t('Sell', 'מכירה'))} {!isEarnings ? formatCompactValue(totalValue, currency, t) : ''}
                                                     </text>
                                                 </g>
                                             );
@@ -2014,9 +2023,14 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                                 if (!point) return null;
 
                                 const isBuyEvent = event.type === 'BUY' || event.type === 'BUY_TRANSFER';
-                                const color = isBuyEvent ? successColor : errorColor;
+                                const isEarnings = event.type === 'EARNINGS';
+                                const color = isEarnings ? theme.palette.info.main : (isBuyEvent ? successColor : errorColor);
                                 const totalValue = (event.originalQty ?? event.qty ?? 0) * (event.originalPrice ?? event.price ?? 0);
 
+                                const poleHeight = 20;
+                                const flagWidth = isEarnings ? 60 : 70;
+                                const flagHeight = 16;
+                                
                                 return (
                                     <ReferenceDot
                                         key={index}
@@ -2024,19 +2038,15 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                                         y={point.yValue}
                                         shape={(props: any) => {
                                             const { cx, cy } = props;
-                                            const poleHeight = 20;
-                                            const flagWidth = 70;
-                                            const flagHeight = 16;
-                                            
-                                            const poleEndY = isBuyEvent ? cy - poleHeight : cy + poleHeight;
-                                            const flagY = isBuyEvent ? poleEndY - flagHeight : poleEndY;
+                                            const poleEndY = (isBuyEvent || isEarnings) ? cy - poleHeight : cy + poleHeight;
+                                            const flagY = (isBuyEvent || isEarnings) ? poleEndY - flagHeight : poleEndY;
                                             
                                             return (
                                                 <g>
                                                     <line x1={cx} y1={cy} x2={cx} y2={poleEndY} stroke={color} strokeWidth={1.5} />
                                                     <rect x={cx - flagWidth / 2} y={flagY} width={flagWidth} height={flagHeight} fill={theme.palette.background.paper} stroke={color} strokeWidth={1} rx={2} />
                                                     <text x={cx} y={flagY + 12} fill={theme.palette.text.primary} fontSize={9} fontWeight="bold" textAnchor="middle">
-                                                        {isBuyEvent ? t('Buy', 'קניה') : t('Sell', 'מכירה')} {formatCompactValue(totalValue, currency, t)}
+                                                        {isEarnings ? t('Earnings', 'דוחות') : (isBuyEvent ? t('Buy', 'קניה') : t('Sell', 'מכירה'))} {!isEarnings ? formatCompactValue(totalValue, currency, t) : ''}
                                                     </text>
                                                 </g>
                                             );

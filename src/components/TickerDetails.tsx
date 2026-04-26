@@ -8,6 +8,7 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import StarIcon from '@mui/icons-material/Star';
 import StarBorderIcon from '@mui/icons-material/StarBorder';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
+import EventIcon from '@mui/icons-material/Event';
 import { useState, useMemo, useEffect } from 'react';
 import { useLocation, useParams } from 'react-router-dom';
 import { useLanguage } from '../lib/i18n';
@@ -193,7 +194,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
   const [engineHoldings, setEngineHoldings] = useState<Holding[]>([]);
   const [exchangeRates, setExchangeRates] = useState<ExchangeRates | null>(null);
   const [tickerTransactions, setTickerTransactions] = useState<Transaction[]>([]);
-  const [showBuySellEvents, setShowBuySellEvents] = useState(false);
+  const [showBuySellEvents, setShowBuySellEvents] = useState(true);
 
   // Resolve the "Active Holding" - from navigation state (enriched) or hook
   const enrichedHolding = useMemo(() => {
@@ -696,7 +697,11 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                             onGammaTypeChange={setGammaType}
                             gammaWindow={gammaWindow}
                             onGammaWindowChange={setGammaWindow}
-                            events={tickerTransactions}
+                            events={[
+                              ...tickerTransactions,
+                              ...(data?.calendarEvents?.allEarningsDates?.map(date => ({ date, type: 'EARNINGS' } as any)) || []),
+                              ...(data?.calendarEvents?.earningsDate && !data?.calendarEvents?.allEarningsDates ? [{ date: data.calendarEvents.earningsDate, type: 'EARNINGS' } as any] : [])
+                            ]}
                             showEvents={showBuySellEvents && !isComparison}
                             topControls={
                               <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -742,20 +747,22 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                                     </ToggleButtonGroup>
                                   )}
                                   <ToggleButtonGroup value={effectiveChartMetric} exclusive onChange={(_, v) => v && setChartMetric(v)} size="small" disabled={isComparison} sx={{ height: 26 }}>
-                                    <ToggleButton value="percent" sx={{ px: 1, fontSize: '0.65rem' }}>%</ToggleButton>
-                                    <ToggleButton value="price" sx={{ px: 1, fontSize: '0.65rem' }}>$</ToggleButton>
-                                    <ToggleButton value="candle" sx={{ px: 1, fontSize: '0.65rem' }}><CandlestickChartIcon sx={{ fontSize: '1rem' }} /></ToggleButton>
+                                    <Tooltip title={t('Percent', 'אחוזים')} arrow><ToggleButton value="percent" sx={{ px: 1, fontSize: '0.65rem' }}>%</ToggleButton></Tooltip>
+                                    <Tooltip title={t('Price', 'מחיר')} arrow><ToggleButton value="price" sx={{ px: 1, fontSize: '0.65rem' }}>$</ToggleButton></Tooltip>
+                                    <Tooltip title={t('Candlestick', 'נרות')} arrow><ToggleButton value="candle" sx={{ px: 1, fontSize: '0.65rem' }}><CandlestickChartIcon sx={{ fontSize: '1rem' }} /></ToggleButton></Tooltip>
                                   </ToggleButtonGroup>
                                   {!isComparison && (
-                                    <ToggleButton
-                                      value="events"
-                                      selected={showBuySellEvents}
-                                      onChange={() => setShowBuySellEvents(!showBuySellEvents)}
-                                      size="small"
-                                      sx={{ height: 26, px: 1 }}
-                                    >
-                                      <PaidIcon sx={{ fontSize: '1rem' }} />
-                                    </ToggleButton>
+                                    <Tooltip title={t('Show Events', 'הצג אירועים')} arrow>
+                                      <ToggleButton
+                                        value="events"
+                                        selected={showBuySellEvents}
+                                        onChange={() => setShowBuySellEvents(!showBuySellEvents)}
+                                        size="small"
+                                        sx={{ height: 26, px: 1 }}
+                                      >
+                                        <EventIcon sx={{ fontSize: '1rem' }} />
+                                      </ToggleButton>
+                                    </Tooltip>
                                   )}
                                   {isMobile ? (
                                     <>

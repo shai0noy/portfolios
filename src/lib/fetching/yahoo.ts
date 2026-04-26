@@ -427,11 +427,18 @@ export async function fetchYahooTickerData(
             };
 
             const eventMap: any = {};
+            const allDates: Date[] = [];
             const earnings = calEvents.earnings;
             if (earnings) {
               eventMap.earningsDate = findClosestDate(earnings.earningsDate);
               eventMap.earningsCallDate = findClosestDate(earnings.earningsCallDate);
               eventMap.isEarningsDateEstimate = earnings.isEarningsDateEstimate;
+
+              if (earnings.earningsDate && Array.isArray(earnings.earningsDate)) {
+                earnings.earningsDate.forEach((d: any) => {
+                  if (d?.raw) allDates.push(new Date(d.raw * 1000));
+                });
+              }
 
               if (earnings.earningsLow?.raw !== undefined && earnings.earningsHigh?.raw !== undefined && earnings.earningsAverage?.raw !== undefined) {
                 eventMap.earningsAnalystEstimate = {
@@ -464,6 +471,19 @@ export async function fetchYahooTickerData(
               } else {
                 eventMap.dividendCurrency = currency;
               }
+            }
+
+            const incomeHistoryQ = calData?.quoteSummary?.result?.[0]?.incomeStatementHistoryQuarterly?.incomeStatementHistory;
+            if (incomeHistoryQ && Array.isArray(incomeHistoryQ)) {
+              incomeHistoryQ.forEach((item: any) => {
+                if (item.endDate?.raw) {
+                  allDates.push(new Date(item.endDate.raw * 1000));
+                }
+              });
+            }
+
+            if (allDates.length > 0) {
+              eventMap.allEarningsDates = allDates;
             }
 
             if (Object.keys(eventMap).length > 0) {

@@ -19,6 +19,7 @@ export interface CalendarEvents {
   earningsDate?: Date;
   earningsCallDate?: Date;
   isEarningsDateEstimate?: boolean;
+  allEarningsDates?: Date[];
   earningsAnalystEstimate?: { low: number; high: number; avg: number };
   revenueEstimate?: { low: number; high: number; avg: number };
   exDividendDate?: Date;
