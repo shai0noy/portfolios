@@ -1067,9 +1067,9 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                               { label: t('Revenue Q Grw.', 'צמיחת הכנסות Q'), value: formatters.pct(advStats.revenueQuarterlyGrowth ?? advStats.revenueGrowth), tooltip: t('Quarter-over-quarter revenue growth rate.', 'שיעור הצמיחה בהכנסות.') },
                               { label: t('Earnings Q Grw.', 'צמיחת רווחים Q'), value: formatters.pct(advStats.earningsQuarterlyGrowth ?? advStats.earningsGrowth), tooltip: t('Quarter-over-quarter earnings growth rate.', 'שיעור הצמיחה ברווחים.') },
                               { label: t('Trailing EPS', 'רווח עוקב למניה'), value: formatters.currency(advStats.trailingEps, advStats.financialCurrency as Currency), tooltip: t('Company\'s actual profit per outstanding share.', 'הרווח הנקי שיוחס לכל מניה השנה.') },
-                              { label: t('EPS Yield (Trailing)', 'תשואת רווח עוקב למניה'), value: currentPrice && advStats.trailingEps ? formatters.pct(advStats.trailingEps / currentPrice) : undefined, tooltip: t('Earnings per share divided by current price.', 'רווח למניה מחולק במחיר המניה הנוכחי.') },
+                              { label: t('EPS Yield (Trailing)', 'תשואת רווח שנתית עוקבת למניה'), value: currentPrice && advStats.trailingEps ? formatters.pct((advStats.trailingEps / currentPrice) * 100) : undefined, tooltip: t('Annualized earnings per share divided by current price.', 'רווח שנתי למניה מחולק במחיר המניה הנוכחי.') },
                               { label: t('Forward EPS', 'רווח למניה עתידי'), value: formatters.currency(advStats.forwardEps, advStats.financialCurrency as Currency), tooltip: t('Estimated earnings per share for the upcoming 12 months.', 'הרווח החזוי למניה לשנה הבאה.') },
-                              { label: t('EPS Yield (Fwd)', 'תשואת רווח עתידי למניה'), value: currentPrice && advStats.forwardEps ? formatters.pct(advStats.forwardEps / currentPrice) : undefined, tooltip: t('Estimated earnings per share divided by current price.', 'רווח חזוי למניה מחולק במחיר המניה הנוכחי.') },
+                              { label: t('EPS Yield (Fwd)', 'תשואת רווח שנתית עתידית למניה'), value: currentPrice && advStats.forwardEps ? formatters.pct((advStats.forwardEps / currentPrice) * 100) : undefined, tooltip: t('Estimated annualized earnings per share divided by current price.', 'רווח שנתי חזוי למניה מחולק במחיר המניה הנוכחי.') },
                             ]
                           },
                           {
@@ -1142,8 +1142,8 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                                     {advStats.recommendationTrend.length > 1 && (() => {
                                       const chartData = [...advStats.recommendationTrend].reverse().map(trendObj => ({
                                         name: trendObj.period === '0m' ? t('Current', 'נוכחי') :
-                                              trendObj.period === '-1m' ? t('1M ago', 'לפני חודש') :
-                                              trendObj.period === '-2m' ? t('2M ago', 'לפני 2ח\'') :
+                                          trendObj.period === '-1m' ? t('1M ago', 'לפני חודש') :
+                                            trendObj.period === '-2m' ? t('2M ago', 'לפני 2ח\'') :
                                               trendObj.period === '-3m' ? t('3M ago', 'לפני 3ח\'') : trendObj.period,
                                         strongBuy: trendObj.strongBuy,
                                         buy: trendObj.buy,
@@ -1485,17 +1485,17 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                       {/* Key Financials (from Advanced Stats) */}
                       {(() => {
                         const advStats: AdvancedStats | undefined = (displayData as any)?.advancedStats;
-                      if (!advStats) return null;
+                        if (!advStats) return null;
 
-                      const formatters = {
+                        const formatters = {
                           pct: (v: number | undefined) => v !== undefined ? formatPercent(v) : undefined,
                           num: (v: number | undefined) => v !== undefined ? v.toFixed(2) : undefined,
-                          currency: (v: number | undefined, curr: Currency) => v !== undefined ? formatMoneyPrice({ amount: v, currency: curr}, t) : undefined,
-                      };
+                          currency: (v: number | undefined, curr: Currency) => v !== undefined ? formatMoneyPrice({ amount: v, currency: curr }, t) : undefined,
+                        };
 
-                      const currentPrice = (holdingData as any)?.currentPrice || (displayData as any)?.regularMarketPrice || (displayData as any)?.price;
+                        const currentPrice = (holdingData as any)?.currentPrice || (displayData as any)?.regularMarketPrice || (displayData as any)?.price;
 
-                      const keyStats = [
+                        const keyStats = [
                           { label: t('P/E (Fwd)', 'מכפיל עתידי'), value: formatters.num(advStats.forwardPE) },
                           { label: t('PEG Ratio', 'יחס PEG'), value: formatters.num(advStats.pegRatio) },
                           { label: t('Trailing 1y EPS', 'EPS עוקב שנתי'), value: formatters.currency(advStats.trailingEps, advStats.financialCurrency as Currency) },
