@@ -782,6 +782,25 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
     const [displaySeries, setDisplaySeries] = useState(series);
     const [shadeOpacity, setShadeOpacity] = useState(1);
 
+    const processedEvents = useMemo(() => {
+        const sortedEvents = [...events].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        let currentHeightIndex = 0;
+        let lastDate = 0;
+        
+        return sortedEvents.map(event => {
+            const date = new Date(event.date).getTime();
+            const diffDays = Math.abs(date - lastDate) / (1000 * 60 * 60 * 24);
+            // If within 5 days of previous event, increment height index (wrap around 4)
+            if (diffDays <= 5) {
+                currentHeightIndex = (currentHeightIndex + 1) % 4;
+            } else {
+                currentHeightIndex = 0; // Reset if far apart
+            }
+            lastDate = date;
+            return { ...event, heightIndex: currentHeightIndex };
+        });
+    }, [events]);
+
     const [selection, setSelection] = useState<{
         start: ChartPoint | null;
         end: ChartPoint | null;
@@ -1799,7 +1818,7 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                                 />
                                 </>
                             )}
-                            {showEvents && !isComparison && events.map((event, index) => {
+                            {showEvents && !isComparison && processedEvents.map((event) => {
                                 const date = new Date(event.date).getTime();
                                 const point = findClosestPoint(date);
                                 if (!point) return null;
@@ -1809,25 +1828,27 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                                 const color = isEarnings ? theme.palette.info.main : (isBuyEvent ? successColor : errorColor);
                                 const totalValue = (event.originalQty ?? event.qty ?? 0) * (event.originalPrice ?? event.price ?? 0);
 
-                                const poleHeight = 20;
+                                const basePoleHeight = 20;
+                                const poleHeight = basePoleHeight + event.heightIndex * 20; // Use assigned height index
                                 const flagWidth = isEarnings ? 60 : 70;
                                 const flagHeight = 16;
                                 
                                 return (
                                     <ReferenceDot
-                                        key={index}
+                                        key={`${event.date}-${event.type}-${event.heightIndex}`}
                                         x={date}
                                         y={point.yValue}
                                         yAxisId="price"
                                         shape={(props: any) => {
                                             const { cx, cy } = props;
-                                            const poleEndY = (isBuyEvent || isEarnings) ? cy - poleHeight : cy + poleHeight;
-                                            const flagY = (isBuyEvent || isEarnings) ? poleEndY - flagHeight : poleEndY;
+                                            const goDown = cy < 100; // Balanced threshold for going down
+                                            const poleEndY = goDown ? cy + poleHeight : cy - poleHeight;
+                                            const flagY = goDown ? poleEndY : poleEndY - flagHeight;
                                             
                                             return (
                                                 <g>
                                                     <line x1={cx} y1={cy} x2={cx} y2={poleEndY} stroke={color} strokeWidth={1.5} />
-                                                    <rect x={cx - flagWidth / 2} y={flagY} width={flagWidth} height={flagHeight} fill={theme.palette.background.paper} stroke={color} strokeWidth={1} rx={2} />
+                                                    <rect x={cx - flagWidth / 2} y={flagY} width={flagWidth} height={flagHeight} fill={theme.palette.background.paper} fillOpacity={1} stroke={color} strokeWidth={1} rx={5} />
                                                     <text x={cx} y={flagY + 12} fill={theme.palette.text.primary} fontSize={9} fontWeight="bold" textAnchor="middle">
                                                         {isEarnings ? t('Earnings', 'דוחות') : (isBuyEvent ? t('Buy', 'קניה') : t('Sell', 'מכירה'))} {!isEarnings ? formatCompactValue(totalValue, currency, t) : ''}
                                                     </text>
@@ -1836,7 +1857,7 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                                         }}
                                     />
                                 );
-                            })}
+                            }).filter(Boolean)}
                         </ComposedChart>
                     ) : (
                         <AreaChart
@@ -2017,7 +2038,7 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                                     <ReferenceLine x={endPoint.date.getTime()} stroke={theme.palette.text.secondary} strokeWidth={1} strokeDasharray="2 2" strokeOpacity={0.5} />
                                 </>
                             )}
-                            {showEvents && !isComparison && events.map((event, index) => {
+                            {showEvents && !isComparison && processedEvents.map((event) => {
                                 const date = new Date(event.date).getTime();
                                 const point = findClosestPoint(date);
                                 if (!point) return null;
@@ -2027,24 +2048,26 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                                 const color = isEarnings ? theme.palette.info.main : (isBuyEvent ? successColor : errorColor);
                                 const totalValue = (event.originalQty ?? event.qty ?? 0) * (event.originalPrice ?? event.price ?? 0);
 
-                                const poleHeight = 20;
+                                const basePoleHeight = 20;
+                                const poleHeight = basePoleHeight + event.heightIndex * 20; // Use assigned height index
                                 const flagWidth = isEarnings ? 60 : 70;
                                 const flagHeight = 16;
                                 
                                 return (
                                     <ReferenceDot
-                                        key={index}
+                                        key={`${event.date}-${event.type}-${event.heightIndex}`}
                                         x={date}
                                         y={point.yValue}
                                         shape={(props: any) => {
                                             const { cx, cy } = props;
-                                            const poleEndY = (isBuyEvent || isEarnings) ? cy - poleHeight : cy + poleHeight;
-                                            const flagY = (isBuyEvent || isEarnings) ? poleEndY - flagHeight : poleEndY;
+                                            const goDown = cy < 100; // Balanced threshold for going down
+                                            const poleEndY = goDown ? cy + poleHeight : cy - poleHeight;
+                                            const flagY = goDown ? poleEndY : poleEndY - flagHeight;
                                             
                                             return (
                                                 <g>
                                                     <line x1={cx} y1={cy} x2={cx} y2={poleEndY} stroke={color} strokeWidth={1.5} />
-                                                    <rect x={cx - flagWidth / 2} y={flagY} width={flagWidth} height={flagHeight} fill={theme.palette.background.paper} stroke={color} strokeWidth={1} rx={2} />
+                                                    <rect x={cx - flagWidth / 2} y={flagY} width={flagWidth} height={flagHeight} fill={theme.palette.background.paper} fillOpacity={1} stroke={color} strokeWidth={1} rx={5} />
                                                     <text x={cx} y={flagY + 12} fill={theme.palette.text.primary} fontSize={9} fontWeight="bold" textAnchor="middle">
                                                         {isEarnings ? t('Earnings', 'דוחות') : (isBuyEvent ? t('Buy', 'קניה') : t('Sell', 'מכירה'))} {!isEarnings ? formatCompactValue(totalValue, currency, t) : ''}
                                                     </text>
@@ -2053,7 +2076,7 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                                         }}
                                     />
                                 );
-                            })}
+                            }).filter(Boolean)}
                         </AreaChart>
                     )}
                 </ResponsiveContainer>
