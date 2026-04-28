@@ -12,6 +12,7 @@ import EventIcon from '@mui/icons-material/Event';
 import { useState, useMemo, useEffect } from 'react';
 import { useLocation, useParams } from 'react-router-dom';
 import { useLanguage } from '../lib/i18n';
+import { convertCurrency } from '../lib/currencyUtils';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
 import PieChartIcon from '@mui/icons-material/PieChart';
 import CandlestickChartIcon from '@mui/icons-material/CandlestickChart';
@@ -28,7 +29,7 @@ import type { TickerProfile } from '../lib/types/ticker';
 import { useChartComparison, getAvailableRanges, getMaxLabel, SEARCH_OPTION_TICKER } from '../lib/hooks/useChartComparison';
 import { useTickerDetails, type TickerDetailsProps } from '../lib/hooks/useTickerDetails';
 import { TickerSearch } from './TickerSearch';
-import { Currency, Exchange, isUSExchange, type ExchangeRates, type Transaction, isBuy, isSell } from '../lib/types';
+import { Currency, Exchange, isUSExchange, type ExchangeRates, type Transaction, isBuy, isSell, EXCHANGE_SETTINGS } from '../lib/types';
 import { formatMoneyPrice, formatPercent, normalizeCurrency, formatMoneyValue, formatMoneyCompactValue, formatCompactValue, formatCompactPrice } from '../lib/currency';
 import { AnalysisDialog } from './AnalysisDialog';
 import { TickerAiChat } from './TickerAiChat';
@@ -1067,9 +1068,9 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                               { label: t('Revenue Q Grw.', 'צמיחת הכנסות Q'), value: formatters.pct(advStats.revenueQuarterlyGrowth ?? advStats.revenueGrowth), tooltip: t('Quarter-over-quarter revenue growth rate.', 'שיעור הצמיחה בהכנסות.') },
                               { label: t('Earnings Q Grw.', 'צמיחת רווחים Q'), value: formatters.pct(advStats.earningsQuarterlyGrowth ?? advStats.earningsGrowth), tooltip: t('Quarter-over-quarter earnings growth rate.', 'שיעור הצמיחה ברווחים.') },
                               { label: t('Trailing EPS', 'רווח עוקב למניה'), value: formatters.currency(advStats.trailingEps, advStats.financialCurrency as Currency), tooltip: t('Company\'s actual profit per outstanding share.', 'הרווח הנקי שיוחס לכל מניה השנה.') },
-                              { label: t('EPS Yield (Trailing)', 'תשואת רווח שנתית עוקבת למניה'), value: currentPrice && advStats.trailingEps ? formatters.pct((advStats.trailingEps / currentPrice) * 100) : undefined, tooltip: t('Annualized earnings per share divided by current price.', 'רווח שנתי למניה מחולק במחיר המניה הנוכחי.') },
+                              { label: t('EPS Yield (Trailing)', 'תשואת רווח שנתית עוקבת למניה'), value: currentPrice && advStats.trailingEps && exchangeRates ? formatters.pct(convertCurrency(advStats.trailingEps, advStats.financialCurrency, (EXCHANGE_SETTINGS[(displayData as any)?.exchange as Exchange]?.defaultCurrency) || displayData?.currency || 'USD', exchangeRates.current) / currentPrice) : undefined, tooltip: t('Annualized earnings per share divided by current price.', 'רווח שנתי למניה מחולק במחיר המניה הנוכחי.') },
                               { label: t('Forward EPS', 'רווח למניה עתידי'), value: formatters.currency(advStats.forwardEps, advStats.financialCurrency as Currency), tooltip: t('Estimated earnings per share for the upcoming 12 months.', 'הרווח החזוי למניה לשנה הבאה.') },
-                              { label: t('EPS Yield (Fwd)', 'תשואת רווח שנתית עתידית למניה'), value: currentPrice && advStats.forwardEps ? formatters.pct((advStats.forwardEps / currentPrice) * 100) : undefined, tooltip: t('Estimated annualized earnings per share divided by current price.', 'רווח שנתי חזוי למניה מחולק במחיר המניה הנוכחי.') },
+                              { label: t('EPS Yield (Fwd)', 'תשואת רווח שנתית עתידית למניה'), value: currentPrice && advStats.forwardEps && exchangeRates ? formatters.pct(convertCurrency(advStats.forwardEps, advStats.financialCurrency, (EXCHANGE_SETTINGS[(displayData as any)?.exchange as Exchange]?.defaultCurrency) || displayData?.currency || 'USD', exchangeRates.current) / currentPrice) : undefined, tooltip: t('Estimated annualized earnings per share divided by current price.', 'רווח שנתי חזוי למניה מחולק במחיר המניה הנוכחי.') },
                             ]
                           },
                           {
