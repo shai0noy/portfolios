@@ -783,18 +783,62 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
     const [shadeOpacity, setShadeOpacity] = useState(1);
 
     const processedEvents = useMemo(() => {
-        const sortedEvents = [...events].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        // 1. Group by date (day resolution) and type
+        const groups: Record<string, { events: ChartEvent[], totalValue: number, type: string, date: string }> = {};
+        
+        events.forEach(event => {
+            if ((event as any).type === 'EARNINGS') {
+                return;
+            }
+
+            // Filter out vesting events if they are on the vest date (heuristic)
+            if (!(event as any).vestDate && (event as any).comment?.toLowerCase().includes('vest')) {
+                return;
+            }
+
+            const dateStr = new Date(event.date).toISOString().split('T')[0];
+            const type = (event as any).type || 'BUY';
+            const key = `${dateStr}_${type}`;
+            
+            const val = ((event as any).originalQty ?? (event as any).qty ?? 0) * ((event as any).originalPrice ?? (event as any).price ?? 0);
+            
+            if (!groups[key]) {
+                groups[key] = { events: [], totalValue: 0, type, date: event.date };
+            }
+            groups[key].events.push(event);
+            groups[key].totalValue += val;
+        });
+
+        const aggregatedEvents: any[] = [];
+        for (const key in groups) {
+            const g = groups[key];
+            aggregatedEvents.push({
+                date: g.date,
+                type: g.type,
+                totalValue: g.totalValue,
+                count: g.events.length,
+            });
+        }
+
+        // Add back earnings events
+        events.forEach(event => {
+            if ((event as any).type === 'EARNINGS') {
+                aggregatedEvents.push(event);
+            }
+        });
+
+        // 3. Sort and apply height index
+        const sortedEvents = aggregatedEvents.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
         let currentHeightIndex = 0;
         let lastDate = 0;
         
         return sortedEvents.map(event => {
             const date = new Date(event.date).getTime();
             const diffDays = Math.abs(date - lastDate) / (1000 * 60 * 60 * 24);
-            // If within 5 days of previous event, increment height index (wrap around 4)
             if (diffDays <= 5) {
                 currentHeightIndex = (currentHeightIndex + 1) % 4;
             } else {
-                currentHeightIndex = 0; // Reset if far apart
+                currentHeightIndex = 0;
             }
             lastDate = date;
             return { ...event, heightIndex: currentHeightIndex };
@@ -1826,7 +1870,7 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                                 const isBuyEvent = event.type === 'BUY' || event.type === 'BUY_TRANSFER';
                                 const isEarnings = event.type === 'EARNINGS';
                                 const color = isEarnings ? theme.palette.info.main : (isBuyEvent ? successColor : errorColor);
-                                const totalValue = (event.originalQty ?? event.qty ?? 0) * (event.originalPrice ?? event.price ?? 0);
+                                const totalValue = (event as any).totalValue ?? ((event.originalQty ?? event.qty ?? 0) * (event.originalPrice ?? event.price ?? 0));
 
                                 const basePoleHeight = 20;
                                 const poleHeight = basePoleHeight + event.heightIndex * 20; // Use assigned height index
@@ -2046,7 +2090,7 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
                                 const isBuyEvent = event.type === 'BUY' || event.type === 'BUY_TRANSFER';
                                 const isEarnings = event.type === 'EARNINGS';
                                 const color = isEarnings ? theme.palette.info.main : (isBuyEvent ? successColor : errorColor);
-                                const totalValue = (event.originalQty ?? event.qty ?? 0) * (event.originalPrice ?? event.price ?? 0);
+                                const totalValue = (event as any).totalValue ?? ((event.originalQty ?? event.qty ?? 0) * (event.originalPrice ?? event.price ?? 0));
 
                                 const basePoleHeight = 20;
                                 const poleHeight = basePoleHeight + event.heightIndex * 20; // Use assigned height index
