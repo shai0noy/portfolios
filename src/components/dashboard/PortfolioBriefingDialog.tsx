@@ -756,7 +756,7 @@ export function PortfolioBriefingDialog({ open, onClose, holdings, transactions,
               }
             }}
           >
-            <ToggleButton value="1D">{is1dStale ? t('Last Trading', 'מסחר אחרון') : t('Day', 'יומי')}</ToggleButton>
+            <ToggleButton value="1D">{is1dStale ? (isMobile ? t('Last', 'אחרון') : t('Last Trading', 'מסחר אחרון')) : t('Day', 'יומי')}</ToggleButton>
             <ToggleButton value="1W">{t('Week', 'שבועי')}</ToggleButton>
             <ToggleButton value="1M">{t('Month', 'חודשי')}</ToggleButton>
             <ToggleButton value="1Y">{t('Year', 'שנתי')}</ToggleButton>
