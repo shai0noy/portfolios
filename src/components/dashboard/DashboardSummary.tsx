@@ -101,6 +101,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
 
   const [activeStep, setActiveStep] = useState(0);
   const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' }>({ key: 'metricPct', direction: 'desc' });
+  const [txnSortConfig, setTxnSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' }>({ key: 'date', direction: 'desc' });
   const [popupStat, setPopupStat] = useState<{
     key: string;
     label: string;
@@ -208,11 +209,96 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
 
 
   const hasRecent = hasRecentEvents(holdings, favoriteHoldings || [], transactions, dividendRecords, boiTickerData || undefined);
-  const totalSteps = hasRecent ? 5 : 4;
+  const totalSteps = hasRecent ? 6 : 5;
   const idxRecent = 1;
   const idxPerf = hasRecent ? 2 : 1;
   const idxTop = hasRecent ? 3 : 2;
-  const idxMarket = hasRecent ? 4 : 3;
+  const idxTxns = hasRecent ? 5 : 4;
+  
+  const transactionsData = useMemo(() => {
+    const allTxns: any[] = [];
+
+    const getTickerName = (ticker: string) => {
+      const h = holdings.find(x => x.ticker === ticker);
+      return h ? (h.displayName || h.longName || h.nameHe || ticker) : ticker;
+    };
+
+    const grantGroups: Record<string, { date: string, ticker: string, qty: number, value: number, events: Transaction[] }> = {};
+
+    transactions.forEach(txn => {
+      const isGrant = !!txn.vestDate;
+      
+      if (isGrant) {
+          const dateStr = new Date(txn.date).toISOString().split('T')[0];
+          const key = `${dateStr}_${txn.ticker}`;
+          const val = (txn.originalQty ?? txn.qty ?? 0) * (txn.originalPrice ?? txn.price ?? 0);
+          
+          if (!grantGroups[key]) {
+              grantGroups[key] = { date: txn.date, ticker: txn.ticker, qty: 0, value: 0, events: [] };
+          }
+          grantGroups[key].qty += (txn.originalQty ?? txn.qty ?? 0);
+          grantGroups[key].value += val;
+          grantGroups[key].events.push(txn);
+      } else {
+          const val = (txn.originalQty ?? txn.qty ?? 0) * (txn.originalPrice ?? txn.price ?? 0);
+          allTxns.push({
+              date: txn.date,
+              type: txn.type,
+              ticker: txn.ticker,
+              name: getTickerName(txn.ticker),
+              qty: txn.originalQty ?? txn.qty ?? 0,
+              value: val,
+              original: txn
+          });
+      }
+    });
+
+    for (const key in grantGroups) {
+        const g = grantGroups[key];
+        allTxns.push({
+            date: g.date,
+            type: 'GRANT',
+            ticker: g.ticker,
+            name: getTickerName(g.ticker),
+            qty: g.qty,
+            value: g.value,
+            original: g.events[0]
+        });
+    }
+
+    (dividendRecords || []).forEach(div => {
+        const val = (div.unitsHeld || 0) * (div.pricePerUnit || div.grossAmount.amount || 0);
+        allTxns.push({
+            date: div.date,
+            type: 'DIVIDEND',
+            ticker: div.ticker,
+            name: getTickerName(div.ticker),
+            qty: div.unitsHeld || 0,
+            value: val,
+            original: div
+        });
+    });
+
+    return allTxns;
+  }, [transactions, dividendRecords, holdings]);
+
+  const sortedTransactionsData = useMemo(() => {
+    const data = [...transactionsData];
+    data.sort((a, b) => {
+      let valA = a[txnSortConfig.key];
+      let valB = b[txnSortConfig.key];
+
+      if (txnSortConfig.key === 'date') {
+        valA = new Date(valA).getTime();
+        valB = new Date(valB).getTime();
+      }
+
+      if (valA < valB) return txnSortConfig.direction === 'asc' ? -1 : 1;
+      if (valA > valB) return txnSortConfig.direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return data;
+  }, [transactionsData, txnSortConfig]);
 
   const [perfData, setPerfData] = useState<PerformancePoint[]>([]);
   const [isPerfLoading, setIsPerfLoading] = useState(false);
@@ -1076,6 +1162,48 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
               </Fade>
             </Box>
           )}
+          
+          <Box sx={{ display: activeStep === idxTxns ? 'block' : 'none', height: isMobile ? 'auto' : '100%' }}>
+            <Fade in={activeStep === idxTxns} timeout={700}>
+              <Box sx={{ p: 2 }}>
+                <Typography variant="subtitle2" fontWeight={800} sx={{ mb: 1.5, color: 'text.secondary' }}>{t('All Transactions', 'כל הפעולות')}</Typography>
+                <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: '60vh', overflowY: 'auto', borderRadius: 2 }}>
+                  <Table size="small" stickyHeader>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>
+                          <TableSortLabel active={txnSortConfig.key === 'date'} direction={txnSortConfig.key === 'date' ? txnSortConfig.direction : 'desc'} onClick={() => setTxnSortConfig({ key: 'date', direction: txnSortConfig.key === 'date' && txnSortConfig.direction === 'desc' ? 'asc' : 'desc' })}>
+                            {t('Date', 'תאריך')}
+                          </TableSortLabel>
+                        </TableCell>
+                        <TableCell>{t('Type', 'סוג')}</TableCell>
+                        <TableCell>{t('Ticker', 'סימול')}</TableCell>
+                        <TableCell>
+                          <TableSortLabel active={txnSortConfig.key === 'name'} direction={txnSortConfig.key === 'name' ? txnSortConfig.direction : 'desc'} onClick={() => setTxnSortConfig({ key: 'name', direction: txnSortConfig.key === 'name' && txnSortConfig.direction === 'desc' ? 'asc' : 'desc' })}>
+                            {t('Name', 'שם')}
+                          </TableSortLabel>
+                        </TableCell>
+                        <TableCell align="right">{t('Qty', 'כמות')}</TableCell>
+                        <TableCell align="right">{t('Value', 'שווי')}</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {sortedTransactionsData.map((row, idx) => (
+                        <TableRow key={idx} hover>
+                          <TableCell>{new Date(row.date).toLocaleDateString()}</TableCell>
+                          <TableCell>{row.type}</TableCell>
+                          <TableCell>{row.ticker}</TableCell>
+                          <TableCell>{row.name}</TableCell>
+                          <TableCell align="right">{row.qty.toFixed(2)}</TableCell>
+                          <TableCell align="right">{formatMoneyValue({ amount: row.value, currency: normalizeCurrency(displayCurrency) }, undefined)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Box>
+            </Fade>
+          </Box>
         </Box>
 
         {/* Mobile Pagination Indicator */}
