@@ -1,7 +1,8 @@
 import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TableSortLabel } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import { formatPercent } from '../../lib/currencyUtils';
-import { Box, Paper, Typography, Grid, Tooltip, ToggleButton, ToggleButtonGroup, IconButton, CircularProgress, Button, Menu, MenuItem, Chip, ListItemIcon, Dialog, DialogTitle, DialogContent, Fade, Alert, ListItemText, Divider } from '@mui/material';
+import { Box, Paper, Typography, Grid, Tooltip, ToggleButton, ToggleButtonGroup, IconButton, CircularProgress, Button, Menu, MenuItem, Chip, ListItemIcon, Dialog, DialogTitle, DialogContent, Fade, Alert, ListItemText, Divider, Link as MuiLink } from '@mui/material';
+import { Link as RouterLink } from 'react-router-dom';
 import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { formatMoneyValue, normalizeCurrency } from '../../lib/currencyUtils';
@@ -64,6 +65,34 @@ interface SummaryProps {
  * 
  * Supports "Stepping" through these 4 views automatically or manually.
  */
+const TruncatedCell = ({ text }: { text: string }) => {
+  const [isTruncated, setIsTruncated] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  const checkTruncation = () => {
+    if (ref.current) {
+      setIsTruncated(ref.current.scrollWidth > ref.current.clientWidth);
+    }
+  };
+
+  return (
+    <Tooltip title={text} disableHoverListener={!isTruncated} disableTouchListener={!isTruncated} enterTouchDelay={500}>
+      <div
+        ref={ref}
+        onMouseEnter={checkTruncation}
+        onTouchStart={checkTruncation}
+        style={{
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {text}
+      </div>
+    </Tooltip>
+  );
+};
+
 export function DashboardSummary({ summary, holdings, displayCurrency, exchangeRates, selectedPortfolio, portfolios, isPortfoliosLoading, transactions, dividendRecords = [], hasFutureTxns, favoriteHoldings, showClosed, boiTickerData }: SummaryProps) {
   logIfFalsy(exchangeRates, "DashboardSummary: exchangeRates missing");
   const { t, isRtl } = useLanguage();
@@ -85,6 +114,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
       if (!grouped.has(h.ticker)) {
         grouped.set(h.ticker, {
           ticker: h.ticker,
+          exchange: h.exchange,
           displayName: h.displayName || h.ticker,
           display: {
             marketValue: 0,
