@@ -213,6 +213,7 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
   const idxRecent = 1;
   const idxPerf = hasRecent ? 2 : 1;
   const idxTop = hasRecent ? 3 : 2;
+  const idxMarket = hasRecent ? 4 : 3;
   const idxTxns = hasRecent ? 5 : 4;
   
   const transactionsData = useMemo(() => {
