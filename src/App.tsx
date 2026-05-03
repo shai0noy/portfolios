@@ -4,6 +4,7 @@ import { Login } from './components/Login';
 import { TransactionForm } from './components/NewTransaction';
 import { PortfolioManager } from './components/PortfolioManager';
 import { Dashboard } from './components/Dashboard';
+import { AllTransactions } from './components/AllTransactions';
 import { ImportCSV } from './components/ImportCSV';
 import { TickerDetails } from './components/TickerDetails';
 import { ensureSchema, populateTestData, fetchTransactions, rebuildHoldingsSheet, getMetadataValue } from './lib/sheets/index';
@@ -55,12 +56,14 @@ const tabMap: Record<string, number> = {
   '/ai': 0,
   '/transaction': 1,
   '/portfolios': 2,
+  '/transactions': 3,
 };
 
 const reverseTabMap: Record<number, string> = {
   0: '/dashboard',
   1: '/transaction',
   2: '/portfolios',
+  3: '/transactions',
 };
 
 const cacheRtl = createCache({
@@ -597,6 +600,7 @@ function AppContent() {
                 <Tab label={t("Dashboard", "דאשבורד")} sx={{ textTransform: 'none', fontSize: { xs: '0.9rem', sm: '1rem' }, minHeight: 64, minWidth: 64 }} component={RouterLink} to="/dashboard" />
                 <Tab label={t("Add Trade", "הוסף עסקה")} sx={{ textTransform: 'none', fontSize: { xs: '0.9rem', sm: '1rem' }, minHeight: 64, minWidth: 64 }} component={RouterLink} to="/transaction" />
                 <Tab label={t("Manage Portfolios", "ניהול תיקים")} sx={{ textTransform: 'none', fontSize: { xs: '0.9rem', sm: '1rem' }, minHeight: 64, minWidth: 80 }} component={RouterLink} to="/portfolios" />
+                <Tab label={t("All Transactions", "כל הפעולות")} sx={{ textTransform: 'none', fontSize: { xs: '0.9rem', sm: '1rem' }, minHeight: 64, minWidth: 64 }} component={RouterLink} to="/transactions" />
               </Tabs>
 
               {!isMobile && (
@@ -652,6 +656,9 @@ function AppContent() {
                     }}
                   />
                 </Box>
+                <Box sx={{ display: currentTab === 3 ? 'block' : 'none' }}>
+                  <AllTransactions sheetId={sheetId} />
+                </Box>
 
                 <Routes>
                   <Route path="/dashboard" element={null} />
@@ -661,6 +668,7 @@ function AppContent() {
                   <Route path="/favorites/summary" element={null} />
                   <Route path="/transaction" element={null} />
                   <Route path="/portfolios" element={<PortfolioManager sheetId={sheetId} onSuccess={() => setRefreshKey(k => k + 1)} />} />
+                  <Route path="/transactions" element={null} />
                   <Route path="/portfolios/:portfolioId" element={<PortfolioManager sheetId={sheetId} onSuccess={() => setRefreshKey(k => k + 1)} />} />
                   <Route path="/ticker/:exchange/:ticker" element={<TickerDetails sheetId={sheetId} portfolios={portfolios} />} />
                 </Routes>
