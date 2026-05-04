@@ -33,6 +33,10 @@ import ManageAccountsIcon from '@mui/icons-material/ManageAccounts';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import VpnKeyIcon from '@mui/icons-material/VpnKey';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
+import DashboardIcon from '@mui/icons-material/Dashboard';
+import AddBoxIcon from '@mui/icons-material/AddBox';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import ReceiptIcon from '@mui/icons-material/Receipt';
 import { getTheme } from './theme';
 import { usePortfolios } from './lib/hooks';
 import { exportDashboardData } from './lib/exporter';
@@ -318,6 +322,34 @@ function AppContent() {
       <List
         sx={{ width: '100%', py: 0 }}
       >
+        <ListItem disablePadding>
+          <ListItemButton onClick={() => { navigate('/dashboard'); handleMobileMenuClose(); }}>
+            <ListItemIcon><DashboardIcon color="primary" /></ListItemIcon>
+            <ListItemText primary={t('Dashboard', 'דאשבורד')} />
+          </ListItemButton>
+        </ListItem>
+
+        <ListItem disablePadding>
+          <ListItemButton onClick={() => { navigate('/transaction'); handleMobileMenuClose(); }}>
+            <ListItemIcon><AddBoxIcon color="primary" /></ListItemIcon>
+            <ListItemText primary={t('Add Trade', 'הוסף עסקה')} />
+          </ListItemButton>
+        </ListItem>
+
+        <ListItem disablePadding>
+          <ListItemButton onClick={() => { navigate('/portfolios'); handleMobileMenuClose(); }}>
+            <ListItemIcon><AccountBalanceWalletIcon color="primary" /></ListItemIcon>
+            <ListItemText primary={t('Manage Portfolios', 'ניהול תיקים')} />
+          </ListItemButton>
+        </ListItem>
+
+        <ListItem disablePadding>
+          <ListItemButton onClick={() => { navigate('/transactions'); handleMobileMenuClose(); }}>
+            <ListItemIcon><ReceiptIcon color="primary" /></ListItemIcon>
+            <ListItemText primary={t('All Transactions', 'כל הפעולות')} />
+          </ListItemButton>
+        </ListItem>
+
         <ListItem disablePadding>
           <ListItemButton onClick={() => { navigate('/ai'); handleMobileMenuClose(); }}>
             <ListItemIcon><AutoAwesomeIcon color="primary" /></ListItemIcon>
