@@ -2,7 +2,7 @@ import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Table
 import CloseIcon from '@mui/icons-material/Close';
 import { formatPercent } from '../../lib/currencyUtils';
 import { Box, Paper, Typography, Grid, Tooltip, ToggleButton, ToggleButtonGroup, IconButton, CircularProgress, Button, Menu, MenuItem, Chip, ListItemIcon, Dialog, DialogTitle, DialogContent, Fade, Alert, ListItemText, Divider, Link as MuiLink } from '@mui/material';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { formatMoneyValue, normalizeCurrency } from '../../lib/currencyUtils';
@@ -98,9 +98,10 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
   const { t, isRtl } = useLanguage();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const navigate = useNavigate();
 
   const [activeStep, setActiveStep] = useState(0);
-  const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' }>({ key: 'metricPct', direction: 'desc' });
+  const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' }>({ key: 'metricValue', direction: 'desc' });
   const [popupStat, setPopupStat] = useState<{
     key: string;
     label: string;
@@ -1193,7 +1194,15 @@ export function DashboardSummary({ summary, holdings, displayCurrency, exchangeR
               </TableHead>
               <TableBody>
                 {getPopupData.map(row => (
-                  <TableRow key={row.ticker} hover>
+                  <TableRow 
+                    key={row.ticker} 
+                    hover
+                    onClick={() => {
+                        setPopupStat(null);
+                        navigate(`/ticker/${encodeURIComponent(row.exchange || 'unknown')}/${encodeURIComponent(row.ticker)}`);
+                    }}
+                    sx={{ cursor: 'pointer' }}
+                  >
                     <TableCell>{row.displayName}</TableCell>
                     <TableCell>{row.ticker}</TableCell>
                     <TableCell align="right">{formatMoneyValue({ amount: row.display.marketValue, currency: normalizeCurrency(displayCurrency) }, undefined)}</TableCell>
