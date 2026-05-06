@@ -1,5 +1,5 @@
 // src/lib/fetching/yahoo.ts
-import { fetchWithCache } from './utils/cache';
+import { fetchWithCache, CACHE_TTL } from './utils/cache';
 import type { TickerData, IncomeStatement, AdvancedStats } from './types';
 import { Exchange, parseExchange, EXCHANGE_SETTINGS } from '../types';
 import { InstrumentGroup } from '../types/instrument';
@@ -186,8 +186,10 @@ export async function fetchYahooTickerData(
   const knownSymbol = symbolSuccessMap.get(successKey);
   const candidates = knownSymbol ? [knownSymbol] : getYahooTickerCandidates(ticker, exchange, group);
 
-  // 1 day + up to 2 hours of jitter
-  const defaultTTL = (24 * 60 * 60 * 1000) + Math.random() * (30 * 60 * 1000);
+  // Smart default TTL: 24h for 'max' range, standard CACHE_TTL (5m) for others
+  const defaultTTL = range === 'max' 
+    ? (24 * 60 * 60 * 1000) + Math.random() * (30 * 60 * 1000)
+    : CACHE_TTL;
   const ttl = maxAge ?? defaultTTL;
 
   return fetchWithCache(
