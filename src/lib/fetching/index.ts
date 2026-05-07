@@ -261,28 +261,8 @@ export async function getTickerData(
         subSector: taseProfile?.subSector || yahooData.subSector,
       });
     }
-    // No data from Globes or Yahoo, but maybe we have a profile from the dataset
-    if (taseProfile) {
-      return detectStaleDayChange({
-        ticker: taseProfile.symbol,
-        exchange: taseProfile.exchange,
-        numericId: taseProfile.securityId ?? null,
-        name: taseProfile.name,
-        nameHe: taseProfile.nameHe,
-        type: taseProfile.type,
-        meta: taseProfile.meta,
-        price: 0,
-        source: `${taseProfile.exchange} Profile (Fallback)`
-      });
-    }
-    // Absolutely no API data and no profile data. Build a barebones object.
-    return detectStaleDayChange({
-      ticker: ticker,
-      exchange: parsedExchange,
-      numericId: secId ?? null,
-      price: 0,
-      source: 'Missing Data Fallback'
-    });
+    // No data from Globes or Yahoo, return null instead of fake object with price 0
+    return null;
   }
 
   // Merge data: Prefer TASE Profile > Globes > Yahoo

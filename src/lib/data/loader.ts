@@ -193,11 +193,28 @@ export const loadFinanceEngine = async (sheetId: string, forceRefresh = false) =
         tickers.add(`${item.exchange}:${item.ticker}`);
     });
 
+    // Pre-load stale cache for merging in case fetch fails for some tickers
+    const staleCache = await loadFromCache(sheetId, true);
+    const stalePricesMap = staleCache ? new Map<string, TickerData>(staleCache.livePrices) : new Map<string, TickerData>();
+
     const livePricesMap = await fetchLivePrices(Array.from(tickers).map(t => {
         const [exchange, ticker] = t.split(':');
         return { ticker, exchange: exchange as Exchange };
     }), forceRefresh);
     console.log(`Loader: Fetched ${livePricesMap.size} prices.`);
+
+    // Merge with stale cache if any price is missing (null or 0)
+    tickers.forEach(t => {
+        const key = t;
+        const fresh = livePricesMap.get(key);
+        if (!fresh || fresh.price === 0) {
+            const stale = stalePricesMap.get(key);
+            if (stale && stale.price > 0) {
+                console.log(`Loader: Using stale price for ${key} as fresh fetch failed or returned 0`);
+                livePricesMap.set(key, stale);
+            }
+        }
+    });
 
     // 3. Initialize Engine
     const exchangeRates = await fetchSheetExchangeRates(sheetId);

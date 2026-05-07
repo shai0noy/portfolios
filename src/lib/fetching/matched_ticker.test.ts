@@ -44,6 +44,13 @@ describe('getTickerData matching', () => {
       'Fund': [mockProfile]
     });
 
+    const { fetchYahooTickerData } = await import('./yahoo');
+    (fetchYahooTickerData as any).mockResolvedValue({
+      price: 100,
+      numericId: 12345,
+      name: 'Test Fund'
+    });
+
     // Test with ticker "012345" which implies number 12345
     // getTickerData(ticker, exchange, numericSecurityId, ...)
     const data = await getTickerData('012345', Exchange.TASE, null, undefined, true); // Force refresh to bypass cache
