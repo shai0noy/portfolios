@@ -274,6 +274,8 @@ export const loadFinanceEngine = async (sheetId: string, forceRefresh = false) =
 
     if (missing.length > 0) {
         console.warn(`Loader: Filling missing rates for ${missing.join(', ')} via external APIs.`);
+        
+        const staleRates = staleCache?.exchangeRates?.current || {};
 
         const getRate = async (pair: string) => {
             let data = await fetchGlobesStockQuote(pair, undefined, Exchange.FOREX);
@@ -283,7 +285,10 @@ export const loadFinanceEngine = async (sheetId: string, forceRefresh = false) =
             return data?.price;
         };
 
-        if (!currentRates['ILS']) currentRates['ILS'] = await getRate('USDILS') || 0;
+        if (!currentRates['ILS']) {
+            const rate = await getRate('USDILS');
+            currentRates['ILS'] = rate || staleRates['ILS'] || 3.7;
+        }
 
         await Promise.all(missing.filter(c => c !== 'ILS').map(async c => {
             let r = await getRate(`USD${c}`);
@@ -294,8 +299,12 @@ export const loadFinanceEngine = async (sheetId: string, forceRefresh = false) =
 
             if (currentRates['ILS']) {
                 r = await getRate(`${c}ILS`);
-                if (r) currentRates[c] = currentRates['ILS'] / r;
+                if (r) { currentRates[c] = currentRates['ILS'] / r; return; }
             }
+            
+            // Fallback to stale or default
+            const fallbackDefaults: Record<string, number> = { EUR: 0.92, GBP: 0.78 };
+            currentRates[c] = staleRates[c] || fallbackDefaults[c] || 1;
         }));
     }
 
