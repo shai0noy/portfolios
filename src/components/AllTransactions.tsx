@@ -1,11 +1,12 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { Box, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TableSortLabel, Typography, CircularProgress, IconButton, Tooltip, TextField, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
+import { Box, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TableSortLabel, Typography, CircularProgress, IconButton, Tooltip, TextField, FormControl, InputLabel, Select, MenuItem, Link } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import { useLanguage } from '../lib/i18n';
 import { useDashboardData } from '../lib/dashboard';
 import { formatMoneyValue, convertCurrency } from '../lib/currencyUtils';
 import { normalizeCurrency } from '../lib/currency';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { formatDate } from '../lib/date';
+import { useSearchParams, useNavigate, Link as RouterLink } from 'react-router-dom';
 import type { Transaction } from '../lib/types';
 
 export const AllTransactions = ({ sheetId }: { sheetId: string }) => {
@@ -246,10 +247,20 @@ export const AllTransactions = ({ sheetId }: { sheetId: string }) => {
                 onClick={() => navigate(`/ticker/${encodeURIComponent(row.exchange || 'unknown')}/${encodeURIComponent(row.ticker)}`)}
                 sx={{ cursor: 'pointer' }}
               >
-                <TableCell>{new Date(row.date).toLocaleDateString()}</TableCell>
+                <TableCell>{formatDate(row.date)}</TableCell>
                 <TableCell>{row.portfolioName}</TableCell>
                 <TableCell>{row.type}</TableCell>
-                <TableCell>{row.exchange ? `${row.exchange}:${row.ticker}` : row.ticker}</TableCell>
+                <TableCell>
+                  <Link 
+                    component={RouterLink} 
+                    to={`/ticker/${encodeURIComponent(row.exchange || 'unknown')}/${encodeURIComponent(row.ticker)}`}
+                    onClick={(e) => e.stopPropagation()}
+                    color="inherit"
+                    underline="hover"
+                  >
+                    {row.exchange ? `${row.exchange}:${row.ticker}` : row.ticker}
+                  </Link>
+                </TableCell>
                 <TableCell>{row.name}</TableCell>
                 <TableCell align="right">{row.qty.toFixed(2)}</TableCell>
                 <TableCell align="right">{formatMoneyValue({ amount: row.value, currency: normalizeCurrency(displayCurrency) }, undefined)}</TableCell>
