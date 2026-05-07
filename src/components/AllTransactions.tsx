@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { Box, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TableSortLabel, Typography, CircularProgress, IconButton, Tooltip } from '@mui/material';
+import { Box, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TableSortLabel, Typography, CircularProgress, IconButton, Tooltip, TextField, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import { useLanguage } from '../lib/i18n';
 import { useDashboardData } from '../lib/dashboard';
@@ -28,6 +28,9 @@ export const AllTransactions = ({ sheetId }: { sheetId: string }) => {
   }, [searchParams, portfolios]);
 
   const [txnSortConfig, setTxnSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' }>({ key: 'date', direction: 'desc' });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterType, setFilterType] = useState('');
+  const [filterPortfolio, setFilterPortfolio] = useState('');
 
   const transactionsData = useMemo(() => {
     const allTxns: any[] = [];
@@ -117,8 +120,22 @@ export const AllTransactions = ({ sheetId }: { sheetId: string }) => {
     return allTxns;
   }, [transactions, dividendRecords, holdings, portfolios, exchangeRates, displayCurrency]);
 
+  const filteredTransactionsData = useMemo(() => {
+    return transactionsData.filter(txn => {
+      const matchesSearch = searchQuery === '' || 
+        txn.ticker.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        txn.name.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      const matchesType = filterType === '' || txn.type === filterType;
+      
+      const matchesPortfolio = filterPortfolio === '' || txn.portfolioId === filterPortfolio;
+      
+      return matchesSearch && matchesType && matchesPortfolio;
+    });
+  }, [transactionsData, searchQuery, filterType, filterPortfolio]);
+
   const sortedTransactionsData = useMemo(() => {
-    const data = [...transactionsData];
+    const data = [...filteredTransactionsData];
     data.sort((a, b) => {
       let valA = a[txnSortConfig.key];
       let valB = b[txnSortConfig.key];
@@ -133,7 +150,7 @@ export const AllTransactions = ({ sheetId }: { sheetId: string }) => {
       return 0;
     });
     return data;
-  }, [transactionsData, txnSortConfig]);
+  }, [filteredTransactionsData, txnSortConfig]);
 
   const handleEditTransaction = (e: React.MouseEvent, row: any) => {
     e.stopPropagation();
@@ -160,6 +177,45 @@ export const AllTransactions = ({ sheetId }: { sheetId: string }) => {
   return (
     <Box sx={{ p: 2 }}>
       <Typography variant="h5" fontWeight={800} sx={{ mb: 2, color: 'text.primary' }}>{t('All Transactions', 'כל הפעולות')}</Typography>
+      
+      <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
+        <TextField
+          label={t('Search Ticker/Name', 'חפש סימול/שם')}
+          variant="outlined"
+          size="small"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          sx={{ minWidth: 200 }}
+        />
+        <FormControl size="small" sx={{ minWidth: 150 }}>
+          <InputLabel>{t('Type', 'סוג')}</InputLabel>
+          <Select
+            value={filterType}
+            label={t('Type', 'סוג')}
+            onChange={(e) => setFilterType(e.target.value as string)}
+          >
+            <MenuItem value=""><em>{t('All', 'הכל')}</em></MenuItem>
+            <MenuItem value="BUY">BUY</MenuItem>
+            <MenuItem value="SELL">SELL</MenuItem>
+            <MenuItem value="GRANT">GRANT</MenuItem>
+            <MenuItem value="DIVIDEND">DIVIDEND</MenuItem>
+          </Select>
+        </FormControl>
+        <FormControl size="small" sx={{ minWidth: 150 }}>
+          <InputLabel>{t('Portfolio', 'תיק')}</InputLabel>
+          <Select
+            value={filterPortfolio}
+            label={t('Portfolio', 'תיק')}
+            onChange={(e) => setFilterPortfolio(e.target.value as string)}
+          >
+            <MenuItem value=""><em>{t('All', 'הכל')}</em></MenuItem>
+            {portfolios.map(p => (
+              <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+      </Box>
+
       <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 'calc(100vh - 200px)', overflowY: 'auto', borderRadius: 2 }}>
         <Table size="small" stickyHeader>
           <TableHead>
