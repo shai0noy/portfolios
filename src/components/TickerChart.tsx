@@ -784,7 +784,7 @@ export function TickerChart({ series, currency, mode = 'percent', valueType = 'p
 
     const processedEvents = useMemo(() => {
         // 1. Group by date (day resolution) and type
-        const groups: Record<string, { events: ChartEvent[], totalValue: number, type: string, date: string }> = {};
+        const groups: Record<string, { events: ChartEvent[], totalValue: number, type: string, date: string | Date }> = {};
         
         events.forEach(event => {
             if ((event as any).type === 'EARNINGS') {

@@ -3,14 +3,14 @@ import { Box, Paper, Table, TableBody, TableCell, TableContainer, TableHead, Tab
 import EditIcon from '@mui/icons-material/Edit';
 import { useLanguage } from '../lib/i18n';
 import { useDashboardData } from '../lib/dashboard';
-import { formatMoneyValue } from '../lib/currencyUtils';
+import { formatMoneyValue, convertCurrency } from '../lib/currencyUtils';
 import { normalizeCurrency } from '../lib/currency';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import type { Transaction } from '../lib/types';
 
 export const AllTransactions = ({ sheetId }: { sheetId: string }) => {
   const { t } = useLanguage();
-  const { holdings, loading, portfolios, engine } = useDashboardData(sheetId);
+  const { holdings, loading, portfolios, engine, exchangeRates } = useDashboardData(sheetId);
   const transactions = engine?.transactions || [];
   const dividendRecords = engine?.dividendRecords || [];
   const [searchParams] = useSearchParams();
@@ -37,15 +37,24 @@ export const AllTransactions = ({ sheetId }: { sheetId: string }) => {
       return h ? (h.customName || h.displayName || h.name || h.marketName || h.nameHe || ticker) : ticker;
     };
 
+    const getTxnCurrency = (txn: Transaction) => {
+      if (txn.currency) return normalizeCurrency(txn.currency);
+      const h = (holdings || []).find((x: any) => x.ticker === txn.ticker && x.portfolioId === txn.portfolioId) as any;
+      if (h && h.stockCurrency) return normalizeCurrency(h.stockCurrency);
+      const p = portfolios.find(p => p.id === txn.portfolioId);
+      if (p && p.currency) return normalizeCurrency(p.currency);
+      return 'USD';
+    };
+
     const grantGroups: Record<string, { date: string, ticker: string, exchange: string, portfolioId: string, qty: number, value: number, events: Transaction[] }> = {};
 
     (transactions || []).forEach(txn => {
       const isGrant = !!txn.vestDate;
+      const val = (txn.originalQty ?? txn.qty ?? 0) * (txn.originalPrice ?? txn.price ?? 0);
       
       if (isGrant) {
           const dateStr = new Date(txn.date).toISOString().split('T')[0];
           const key = `${dateStr}_${txn.ticker}_${txn.exchange}_${txn.portfolioId}`;
-          const val = (txn.originalQty ?? txn.qty ?? 0) * (txn.originalPrice ?? txn.price ?? 0);
           
           if (!grantGroups[key]) {
               grantGroups[key] = { date: txn.date, ticker: txn.ticker, exchange: txn.exchange || '', portfolioId: txn.portfolioId, qty: 0, value: 0, events: [] };
@@ -54,7 +63,7 @@ export const AllTransactions = ({ sheetId }: { sheetId: string }) => {
           grantGroups[key].value += val;
           grantGroups[key].events.push(txn);
       } else {
-          const val = (txn.originalQty ?? txn.qty ?? 0) * (txn.originalPrice ?? txn.price ?? 0);
+          const convertedVal = convertCurrency(val, getTxnCurrency(txn), displayCurrency, exchangeRates);
           allTxns.push({
               date: txn.date,
               type: txn.type,
@@ -64,7 +73,7 @@ export const AllTransactions = ({ sheetId }: { sheetId: string }) => {
               portfolioName: portfolios.find(p => p.id === txn.portfolioId)?.name || 'Unknown',
               name: getTickerName(txn.ticker, txn.portfolioId),
               qty: txn.originalQty ?? txn.qty ?? 0,
-              value: val,
+              value: convertedVal,
               original: txn
           });
       }
@@ -72,6 +81,7 @@ export const AllTransactions = ({ sheetId }: { sheetId: string }) => {
 
     for (const key in grantGroups) {
         const g = grantGroups[key];
+        const convertedVal = convertCurrency(g.value, getTxnCurrency(g.events[0]), displayCurrency, exchangeRates);
         allTxns.push({
             date: g.date,
             type: 'GRANT',
@@ -81,13 +91,15 @@ export const AllTransactions = ({ sheetId }: { sheetId: string }) => {
             portfolioName: portfolios.find(p => p.id === g.portfolioId)?.name || 'Unknown',
             name: getTickerName(g.ticker, g.portfolioId),
             qty: g.qty,
-            value: g.value,
+            value: convertedVal,
             original: g.events[0]
         });
     }
 
     (dividendRecords || []).forEach(div => {
-        const val = (div.unitsHeld || 0) * (div.pricePerUnit || div.grossAmount.amount || 0);
+        const val = div.grossAmount.amount;
+        const divCurrency = normalizeCurrency(div.grossAmount.currency);
+        const convertedVal = convertCurrency(val, divCurrency, displayCurrency, exchangeRates);
         allTxns.push({
             date: div.date,
             type: 'DIVIDEND',
@@ -97,13 +109,13 @@ export const AllTransactions = ({ sheetId }: { sheetId: string }) => {
             portfolioName: portfolios.find(p => p.id === div.portfolioId)?.name || 'Unknown',
             name: getTickerName(div.ticker, div.portfolioId),
             qty: div.unitsHeld || 0,
-            value: val,
+            value: convertedVal,
             original: div
         });
     });
 
     return allTxns;
-  }, [transactions, dividendRecords, holdings, portfolios]);
+  }, [transactions, dividendRecords, holdings, portfolios, exchangeRates, displayCurrency]);
 
   const sortedTransactionsData = useMemo(() => {
     const data = [...transactionsData];
