@@ -513,7 +513,7 @@ export class Holding {
             cpiAtBuy: cpi,
             vestingDate: txn.vestDate ? new Date(txn.vestDate) : undefined,
             isVested: !txn.vestDate || new Date(txn.vestDate) <= new Date(),
-            originalTxnId: txn.numericId?.toString() || '',
+            originalTxnId: txn.rowIndex?.toString() || '',
             notes: txn.comment
         };
 
