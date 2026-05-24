@@ -278,11 +278,16 @@ export const loadFinanceEngine = async (sheetId: string, forceRefresh = false) =
         const staleRates = staleCache?.exchangeRates?.current || {};
 
         const getRate = async (pair: string) => {
-            let data = await fetchGlobesStockQuote(pair, undefined, Exchange.FOREX);
-            if (!data?.price) {
-                data = await fetchYahooTickerData(`${pair}=X`, Exchange.FOREX, undefined, false, undefined);
+            try {
+                let data = await fetchGlobesStockQuote(pair, undefined, Exchange.FOREX);
+                if (!data?.price) {
+                    data = await fetchYahooTickerData(`${pair}=X`, Exchange.FOREX, undefined, false, undefined);
+                }
+                return data?.price;
+            } catch (e) {
+                console.warn(`Loader: Failed to fetch external rate for ${pair}`, e);
+                return undefined;
             }
-            return data?.price;
         };
 
         if (!currentRates['ILS']) {
