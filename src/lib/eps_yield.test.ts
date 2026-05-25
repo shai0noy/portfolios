@@ -39,4 +39,22 @@ describe('convertCurrency', () => {
     const yieldVal = convertedEps / price;
     expect(yieldVal).toBe(1.0);
   });
+
+  it('should safely return 0 when source is ILA and ILS rate is missing', () => {
+    const incompleteRates = {
+      current: {
+        [Currency.USD]: 1.0,
+      }
+    };
+    const result = convertCurrency(1000, Currency.ILA, Currency.USD, incompleteRates);
+    expect(result).toBe(0);
+  });
+
+  it('should safely return 0 and not spam errors when rates is empty or undefined', () => {
+    const result1 = convertCurrency(10, Currency.USD, Currency.ILS, undefined);
+    expect(result1).toBe(0);
+
+    const result2 = convertCurrency(10, Currency.USD, Currency.ILS, { current: {} });
+    expect(result2).toBe(0);
+  });
 });

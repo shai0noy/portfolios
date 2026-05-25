@@ -71,7 +71,7 @@ export function convertCurrency(amount: number, from: Currency | string, to: Cur
   }
 
   if (!currentRates || Object.keys(currentRates).length === 0) {
-    console.error(`convertCurrency: Missing exchange rates for conversion from ${fromNorm} to ${toNorm}.`);
+    // Return 0 silently if exchangeRates are not loaded yet to avoid console spam during initial app load or auth refresh
     return 0;
   }
 
@@ -79,11 +79,11 @@ export function convertCurrency(amount: number, from: Currency | string, to: Cur
   const fromRate = currentRates[fromNorm === Currency.ILA ? Currency.ILS : fromNorm];
   const toRate = currentRates[toNorm === Currency.ILA ? Currency.ILS : toNorm];
 
-  if ((fromNorm !== Currency.USD && fromNorm !== Currency.ILA) && !fromRate) {
+  if (fromNorm !== Currency.USD && !fromRate) {
     console.warn(`convertCurrency: Missing or zero rate for source currency: ${fromNorm} (rate: ${fromRate}). returning 0.`);
     return 0;
   }
-  if ((toNorm !== Currency.USD && toNorm !== Currency.ILA) && !toRate) {
+  if (toNorm !== Currency.USD && !toRate) {
     console.warn(`convertCurrency: Missing or zero rate for target currency: ${toNorm} (rate: ${toRate}). returning 0.`);
     return 0;
   }
