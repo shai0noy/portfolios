@@ -26,6 +26,8 @@ export function normalizeCurrency(input: string): Currency {
   if (upper === 'JPY') return Currency.JPY;
   if (upper === 'HKD') return Currency.HKD;
   if (upper === 'AUD') return Currency.AUD;
+  if (upper === 'KRW') return Currency.KRW;
+  if (upper === 'CHF') return Currency.CHF;
 
   if (upper === 'USD') return Currency.USD;
 

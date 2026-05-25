@@ -1,4 +1,5 @@
 import { fetchTransactions, fetchPortfolios, fetchAllDividends, fetchSheetExchangeRates, fetchTickerLists } from '../sheets/api';
+import { SessionExpiredError } from '../errors';
 import { FinanceEngine } from './engine';
 import type { DividendEvent } from './model';
 import { Exchange, type ExchangeRates } from '../types';
@@ -368,6 +369,9 @@ export const loadFinanceEngine = async (sheetId: string, forceRefresh = false) =
         return { engine, trackingLists };
     } catch (e) {
         console.error('Loader: Failed to fetch fresh data, attempting to fall back to stale cache.', e);
+        if (e instanceof SessionExpiredError) {
+            throw e;
+        }
         const staleCache = await loadFromCache(sheetId, true);
         if (staleCache) {
             console.log('Loader: Falling back to stale cached data');
