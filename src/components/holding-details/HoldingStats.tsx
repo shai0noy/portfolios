@@ -162,18 +162,66 @@ export function HoldingStats({
                 </Grid>
                 <Grid item xs={6} sm>
                     <Typography variant="caption" color="text.secondary" noWrap>{t('Realized Profit (Net)', 'רווח ממומש (נטו)')}</Typography>
-                    <Tooltip title={t('Realized Capital Gains and Cash Dividends. Displayed as: Gross (Net)', 'רווחי הון ודיבידנדים שמומשו. מוצג כ: ברוטו (נטו)')}>
-                        <Typography variant="body2" fontWeight="500" color={vals.realizedGainGross.amount >= 0 ? 'success.main' : 'error.main'} sx={{ cursor: 'help', borderBottom: '1px dotted', borderColor: 'text.secondary', display: 'inline-block' }}>
-                            {formatMoneyValue(vals.realizedGainGross)} <Typography component="span" variant="caption" color="text.secondary" sx={{ opacity: 0.8 }}>({formatValue(vals.realizedGainNet.amount, vals.realizedGainNet.currency)})</Typography>
+                    <Tooltip title={
+                        <Box sx={{ p: 0.5, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 0.5, borderBottom: '1px solid rgba(255,255,255,0.2)', pb: 0.5 }}>
+                                {t('Realized Profit Breakdown', 'פירוט רווח ממומש')}
+                            </Typography>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 3 }}>
+                                <Typography variant="caption">{t('Gross Realized Gain:', 'רווח ממומש ברוטו:')}</Typography>
+                                <Typography variant="caption">{formatMoneyValue(vals.realizedGainGross)}</Typography>
+                            </Box>
+                            {Math.max(0, vals.realizedGainGross.amount - vals.realizedGainNet.amount - vals.realizedTax.amount) > 0.01 && (
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 3 }}>
+                                    <Typography variant="caption" color="error.light">{t('Fees Paid:', 'עמלות ששולמו:')}</Typography>
+                                    <Typography variant="caption" color="error.light">-{formatValue(Math.max(0, vals.realizedGainGross.amount - vals.realizedGainNet.amount - vals.realizedTax.amount), vals.realizedGainNet.currency)}</Typography>
+                                </Box>
+                            )}
+                            {vals.realizedTax.amount > 0.01 && (
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 3 }}>
+                                    <Typography variant="caption" color="error.light">{t('Taxes Paid:', 'מס ששולם:')}</Typography>
+                                    <Typography variant="caption" color="error.light">-{formatMoneyValue(vals.realizedTax)}</Typography>
+                                </Box>
+                            )}
+                            <Divider sx={{ my: 0.5, borderColor: 'rgba(255,255,255,0.3)' }} />
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 3 }}>
+                                <Typography variant="caption" sx={{ fontWeight: 'bold' }}>{t('Net Realized Gain:', 'רווח נטו:')}</Typography>
+                                <Typography variant="caption" sx={{ fontWeight: 'bold' }}>{formatMoneyValue(vals.realizedGainNet)}</Typography>
+                            </Box>
+                        </Box>
+                    }>
+                        <Typography variant="body2" fontWeight="500" color={vals.realizedGainNet.amount >= 0 ? 'success.main' : 'error.main'} sx={{ cursor: 'help', borderBottom: '1px dotted', borderColor: 'text.secondary', display: 'inline-block' }}>
+                            {formatMoneyValue(vals.realizedGainNet)}
                         </Typography>
                     </Tooltip>
                 </Grid>
                 {vals.dividends.amount > 0 && (
                     <Grid item xs={6} sm>
                         <Typography variant="caption" color="text.secondary" noWrap>{t('Total Dividends (Net)', 'סה״כ דיבידנדים (נטו)')}</Typography>
-                        <Tooltip title={t('Displayed as: Gross (Net)', 'מוצג כ: ברוטו (נטו)')}>
+                        <Tooltip title={
+                            <Box sx={{ p: 0.5, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                                <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 0.5, borderBottom: '1px solid rgba(255,255,255,0.2)', pb: 0.5 }}>
+                                    {t('Dividends Breakdown', 'פירוט דיבידנדים')}
+                                </Typography>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 3 }}>
+                                    <Typography variant="caption">{t('Gross Dividends:', 'דיבידנדים ברוטו:')}</Typography>
+                                    <Typography variant="caption">{vals.dividendsGross ? formatMoneyValue(vals.dividendsGross) : formatMoneyValue(vals.dividends)}</Typography>
+                                </Box>
+                                {(vals.dividendsGross?.amount || 0) - vals.dividends.amount > 0.01 && (
+                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 3 }}>
+                                        <Typography variant="caption" color="error.light">{t('Taxes Withheld:', 'מס שנוכה:')}</Typography>
+                                        <Typography variant="caption" color="error.light">-{formatValue((vals.dividendsGross?.amount || 0) - vals.dividends.amount, vals.dividends.currency)}</Typography>
+                                    </Box>
+                                )}
+                                <Divider sx={{ my: 0.5, borderColor: 'rgba(255,255,255,0.3)' }} />
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 3 }}>
+                                    <Typography variant="caption" sx={{ fontWeight: 'bold' }}>{t('Net Dividends:', 'נטו:')}</Typography>
+                                    <Typography variant="caption" sx={{ fontWeight: 'bold' }}>{formatMoneyValue(vals.dividends)}</Typography>
+                                </Box>
+                            </Box>
+                        }>
                             <Typography variant="body2" fontWeight="500" color="success.main" sx={{ cursor: 'help', borderBottom: '1px dotted', borderColor: 'text.secondary', display: 'inline-block' }}>
-                                {vals.dividendsGross ? formatMoneyValue(vals.dividendsGross) : formatMoneyValue(vals.dividends)} <Typography component="span" variant="caption" color="text.secondary" sx={{ opacity: 0.8 }}>({formatValue(vals.dividends.amount, vals.dividends.currency)})</Typography>
+                                {formatMoneyValue(vals.dividends)}
                             </Typography>
                         </Tooltip>
                     </Grid>
