@@ -245,7 +245,7 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
     } else if (activeStep === 1) {
       // Validate Mapping
       if (!mapping.ticker) {
-        setErrorMsg(t("Please map required fields (Ticker).", "יש למפות שדות חובה (סימול)."));
+        setErrorMsg(t("Please map required fields (Symbol).", "יש למפות שדות חובה (סימול)."));
         return;
       }
       const mappedMathFields = [mapping.qty, mapping.price, mapping.total].filter(Boolean).length;
@@ -615,7 +615,7 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
                 </TableHead>
                 <TableBody>
                   {[
-                    { id: 'ticker', labelEn: 'Ticker', labelHe: 'סימול', req: true, descEn: 'Asset symbol (e.g., AAPL)', descHe: 'סימול הנכס (למשל AAPL)' },
+                    { id: 'ticker', labelEn: 'Symbol', labelHe: 'סימול', req: true, descEn: 'Asset symbol (e.g., AAPL)', descHe: 'סימול הנכס (למשל AAPL)' },
                     { id: 'date', labelEn: 'Date', labelHe: 'תאריך', req: false, descEn: 'Transaction date', descHe: 'תאריך העסקה' },
                     { id: 'qty', labelEn: 'Quantity', labelHe: 'כמות', req: false, descEn: 'Shares/units', descHe: 'מספר יחידות/מניות' },
                     { id: 'price', labelEn: 'Price', labelHe: 'מחיר', req: false, descEn: 'Price per share/unit', descHe: 'מחיר ליחידה' },
@@ -716,7 +716,7 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
             )}
 
             <Alert severity="info" sx={{ mt: 2 }}>
-              {t('Required: Ticker, and at least TWO of Qty, Price, or Total.', 'חובה: סימול, ולפחות שניים מתוך: כמות, מחיר, או סה"כ.')}
+              {t('Required: Symbol, and at least TWO of Qty, Price, or Total.', 'חובה: סימול, ולפחות שניים מתוך: כמות, מחיר, או סה"כ.')}
             </Alert>
           </Stack>
         )}
@@ -747,12 +747,12 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
                   <TableHead>
                     <TableRow>
                       <TableCell>{t('Date', 'תאריך')}</TableCell>
-                      <TableCell>{t('Ticker', 'סימול')}</TableCell>
+                      <TableCell>{t('Symbol', 'סימול')}</TableCell>
                       <TableCell>{t('Exchange', 'בורסה')}</TableCell>
                       <TableCell>{t('Type', 'סוג')}</TableCell>
                       <TableCell align="right">{t('Orig. Qty', 'כמות מקורית')}</TableCell>
                       <TableCell align="right">{t('Orig. Price', 'מחיר מקורי')}</TableCell>
-                      <TableCell align="right">{t('Total', 'סה"כ')}</TableCell>
+                      <TableCell align="right">{t('Total cost', 'סה"כ עלות')}</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
