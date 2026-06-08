@@ -54,10 +54,13 @@ export function getRecentEventsData(
     dividendAmount?: number;
     dividendCurrency?: Currency;
     totalDivAmount?: number;
+    divDateType?: 'Ex' | 'Pay';
   }>();
 
   const formatRelativeDays = (date: Date) => {
-    const diffMs = date.getTime() - today.getTime();
+    const d1 = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const d2 = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const diffMs = d1.getTime() - d2.getTime();
     const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
     if (diffDays === 0) return t('Today', 'היום');
     if (diffDays === -1) return t('Yesterday', 'אתמול');
@@ -124,7 +127,8 @@ export function getRecentEventsData(
           totalDivAmount: div.grossAmount.amount,
           count: 1,
           currency: div.grossAmount.currency,
-          price: holding.currentPrice
+          price: holding.currentPrice,
+          divDateType: 'Pay'
         });
       } else {
         const existing = grouped.get(key)!;
@@ -144,10 +148,21 @@ export function getRecentEventsData(
     const payDate = cal.dividendDate ? coerceDate(cal.dividendDate) : null;
 
     let closestDivDate: Date | null = null;
+    let closestDivType: 'Ex' | 'Pay' | null = null;
     if (exDate && payDate) {
-      closestDivDate = Math.abs(exDate.getTime() - today.getTime()) < Math.abs(payDate.getTime() - today.getTime()) ? exDate : payDate;
-    } else {
-      closestDivDate = exDate || payDate;
+      if (Math.abs(exDate.getTime() - today.getTime()) < Math.abs(payDate.getTime() - today.getTime())) {
+        closestDivDate = exDate;
+        closestDivType = 'Ex';
+      } else {
+        closestDivDate = payDate;
+        closestDivType = 'Pay';
+      }
+    } else if (exDate) {
+      closestDivDate = exDate;
+      closestDivType = 'Ex';
+    } else if (payDate) {
+      closestDivDate = payDate;
+      closestDivType = 'Pay';
     }
 
     let realDivKey: string | null = null;
@@ -197,7 +212,8 @@ export function getRecentEventsData(
           baseValueDesc: valueDesc,
           expectedDivTotal: 0,
           stockCurrency: h.stockCurrency,
-          customValueDesc: valueDesc
+          customValueDesc: valueDesc,
+          divDateType: closestDivType || undefined
         });
       }
 
@@ -262,7 +278,14 @@ export function getRecentEventsData(
     const isFuture = g.date > new Date();
     let titleStr = '';
     if (g.type === 'DIVIDEND' || g.type === 'CAL_DIVIDEND') {
-      titleStr = isFuture ? t('Upcoming Dividend', 'דיבידנד קרוב') : t('Dividend', 'דיבידנד');
+      const baseStr = isFuture ? t('Upcoming Dividend', 'דיבידנד קרוב') : t('Dividend', 'דיבידנד');
+      if (g.divDateType === 'Ex') {
+        titleStr = `${baseStr} (${t('Ex', 'אקס')})`;
+      } else if (g.divDateType === 'Pay') {
+        titleStr = `${baseStr} (${t('Pay', 'תשלום')})`;
+      } else {
+        titleStr = baseStr;
+      }
     } else if (g.type === 'CAL_EARNINGS') {
       titleStr = isFuture ? t('Upcoming Earnings', 'דוחות קרובים') : t('Earnings', 'דוחות');
     } else if (g.type === 'BOI_RATE_CHANGE') {
@@ -284,9 +307,11 @@ export function getRecentEventsData(
       }
     }
 
-    const diffMs = g.date.getTime() - today.getTime();
+    const d1 = new Date(g.date.getFullYear(), g.date.getMonth(), g.date.getDate());
+    const d2 = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const diffMs = d1.getTime() - d2.getTime();
     const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
-    const isNamedDay = diffDays === 0 || diffDays === 1; // Today, Tomorrow
+    const isNamedDay = diffDays === 0 || diffDays === 1 || diffDays === -1; // Today, Tomorrow, Yesterday
 
     const desc = formatRelativeDays(g.date);
     const isHighlighted = diffDays >= -1 && diffDays <= 3;
