@@ -8,7 +8,7 @@ import { AllTransactions } from './components/AllTransactions';
 import { ImportCSV } from './components/ImportCSV';
 import { TickerDetails } from './components/TickerDetails';
 import { ensureSchema, populateTestData, fetchTransactions, rebuildHoldingsSheet, getMetadataValue } from './lib/sheets/index';
-import { ensureGapi, signOut, signIn } from './lib/google';
+import { initializeGapi, signOut, signIn } from './lib/google';
 import {
   Box, AppBar, Toolbar, Typography, Container, Tabs, Tab, IconButton, CircularProgress,
   ThemeProvider, CssBaseline, Snackbar, Alert, ListItemIcon, ListItemText,
@@ -93,7 +93,7 @@ function AppContent() {
     const saved = localStorage.getItem('g_sheet_id');
     return saved === 'null' ? null : saved;
   });
-  const [refreshKey, setRefreshKey] = useState(0); 
+  const [refreshKey, setRefreshKey] = useState(0);
   const [googleReady, setGoogleReady] = useState<boolean | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [mode, setMode] = useState<'light' | 'dark'>(() => (localStorage.getItem('themeMode') as 'light' | 'dark') || 'light');
@@ -273,10 +273,10 @@ function AppContent() {
     let mounted = true;
     (async () => {
       try {
-        await ensureGapi();
+        await initializeGapi();
         if (mounted) setGoogleReady(true);
       } catch (e) {
-        console.warn("Google authentication check failed or timed out", e);
+        console.warn("GAPI init failed or timed out", e);
         if (mounted) setGoogleReady(false);
         setSheetId(null);
       }
@@ -344,35 +344,35 @@ function AppContent() {
       >
         <ListItem disablePadding>
           <ListItemButton onClick={() => { navigate('/dashboard'); handleMobileMenuClose(); }}>
-            <ListItemIcon><DashboardIcon color="primary" /></ListItemIcon>
+            <ListItemIcon><DashboardIcon /></ListItemIcon>
             <ListItemText primary={t('Dashboard', 'דאשבורד')} />
           </ListItemButton>
         </ListItem>
 
         <ListItem disablePadding>
           <ListItemButton onClick={() => { navigate('/transaction'); handleMobileMenuClose(); }}>
-            <ListItemIcon><AddBoxIcon color="primary" /></ListItemIcon>
+            <ListItemIcon><AddBoxIcon /></ListItemIcon>
             <ListItemText primary={t('Add Trade', 'הוסף עסקה')} />
           </ListItemButton>
         </ListItem>
 
         <ListItem disablePadding>
           <ListItemButton onClick={() => { navigate('/portfolios'); handleMobileMenuClose(); }}>
-            <ListItemIcon><AccountBalanceWalletIcon color="primary" /></ListItemIcon>
+            <ListItemIcon><AccountBalanceWalletIcon /></ListItemIcon>
             <ListItemText primary={t('Manage Portfolios', 'ניהול תיקים')} />
           </ListItemButton>
         </ListItem>
 
         <ListItem disablePadding>
           <ListItemButton onClick={() => { navigate('/transactions'); handleMobileMenuClose(); }}>
-            <ListItemIcon><ReceiptIcon color="primary" /></ListItemIcon>
+            <ListItemIcon><ReceiptIcon /></ListItemIcon>
             <ListItemText primary={t('All Transactions', 'כל הפעולות')} />
           </ListItemButton>
         </ListItem>
 
         <ListItem disablePadding>
           <ListItemButton onClick={() => { navigate('/ai'); handleMobileMenuClose(); }}>
-            <ListItemIcon><AutoAwesomeIcon color="primary" /></ListItemIcon>
+            <ListItemIcon><AutoAwesomeIcon /></ListItemIcon>
             <ListItemText primary={t('AI Assistant', 'עוזר AI')} />
           </ListItemButton>
         </ListItem>
