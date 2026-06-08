@@ -91,32 +91,12 @@ export function getBestDefaultModel(models: GeminiModel[]): string {
     return getModelByCapability(models, 'thinking');
 }
 
-export async function askGemini(
+async function executeGeminiRequest(
     apiKey: string,
-    history: ChatMessage[],
-    newPrompt: string,
     selectedModel: string,
-    systemInstruction?: string,
-    enableSearch: boolean = false
+    body: any
 ): Promise<string> {
     const url = `https://generativelanguage.googleapis.com/v1beta/${selectedModel}:generateContent?key=${apiKey}`;
-
-    const contents: ChatMessage[] = [
-        ...history,
-        { role: 'user', parts: [{ text: newPrompt }] }
-    ];
-
-    const body: any = { contents };
-    if (systemInstruction) {
-        body.systemInstruction = { parts: [{ text: systemInstruction }] };
-    }
-
-    if (enableSearch) {
-        // Enable Google Search Grounding for up-to-date info
-        body.tools = [
-            { googleSearch: {} }
-        ];
-    }
 
     const response = await fetch(url, {
         method: 'POST',
@@ -165,3 +145,69 @@ export async function askGemini(
 
     return text;
 }
+
+export async function askGemini(
+    apiKey: string,
+    history: ChatMessage[],
+    newPrompt: string,
+    selectedModel: string,
+    systemInstruction?: string,
+    enableSearch: boolean = false
+): Promise<string> {
+    const contents: ChatMessage[] = [
+        ...history,
+        { role: 'user', parts: [{ text: newPrompt }] }
+    ];
+
+    const body: any = { contents };
+    if (systemInstruction) {
+        body.systemInstruction = { parts: [{ text: systemInstruction }] };
+    }
+
+    if (enableSearch) {
+        // Enable Google Search Grounding for up-to-date info
+        body.tools = [{ googleSearch: {} }];
+    }
+
+    return executeGeminiRequest(apiKey, selectedModel, body);
+}
+
+export async function extractCsvFromImage(
+    apiKey: string,
+    imageBase64: string,
+    mimeType: string,
+    selectedModel: string
+): Promise<string> {
+    const prompt = `An image of a transaction history or portfolio statement is provided. Extract the transaction data into a CSV format.
+The CSV MUST have a header row. Try to map to these columns: Symbol, Date, Type, Qty, Price, Total Cost, Exchange, Commission, Currency, Vest Date, Comment.
+CRITICAL INSTRUCTIONS:
+- DO NOT invent or fabricate data. Only extract what is present in the image.
+- You must provide at least TWO of: Qty, Price, or Total Cost.
+- You MAY deduce the exchange ID (e.g., NASDAQ, TASE) based on the symbol or market information.
+- You MAY skip columns where data is clearly not present in the image.
+Return ONLY the raw CSV text without any markdown code blocks or conversational text.`;
+
+    const body = {
+        contents: [
+            {
+                role: 'user',
+                parts: [
+                    { text: prompt },
+                    {
+                        inlineData: {
+                            data: imageBase64,
+                            mimeType: mimeType
+                        }
+                    }
+                ]
+            }
+        ]
+    };
+
+    let text = await executeGeminiRequest(apiKey, selectedModel, body);
+
+    // Clean up markdown if any
+    text = text.replace(/^```(csv)?\s*/i, '').replace(/\s*```$/i, '').trim();
+    return text;
+}
+

@@ -22,6 +22,8 @@ import { formatDate, coerceDate } from '../lib/date';
 import { DateField } from './PortfolioInputFields';
 import { ImportHelp } from './ImportHelp';
 import { useLanguage } from '../lib/i18n';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import { checkGeminiKey, extractCsvFromImage, fetchModels, getModelByCapability } from '../lib/gemini';
 
 interface Props {
   sheetId: string;
@@ -51,7 +53,7 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
   const [headers, setHeaders] = useState<string[]>([]);
   const [rows, setRows] = useState<string[][]>([]);
   const [mapping, setMapping] = useState<Record<string, string>>({
-    ticker: '', date: '', type: '', qty: '', price: '', exchange: '',
+    ticker: '', date: '', type: '', qty: '', price: '', total: '', exchange: '',
     commission: '', currency: '', vestDate: '', comment: ''
   });
   const [manualExchange, setManualExchange] = useState('');
@@ -69,7 +71,57 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
   };
   const [isDragging, setIsDragging] = useState(false);
 
+  const processImageFile = async (file: File) => {
+    try {
+      const apiKey = await checkGeminiKey(sheetId);
+      if (!apiKey) {
+        setErrorMsg(t("Please configure your AI Studio API Key in the Advanced Tools menu to use AI image parsing.", "יש להגדיר מפתח API של AI Studio בתפריט כלים מתקדמים כדי להשתמש בניתוח תמונות ב-AI."));
+        return;
+      }
+
+      setIsParsing(true);
+      setErrorMsg('');
+
+      const reader = new FileReader();
+      reader.onload = async (evt) => {
+        const dataUrl = evt.target?.result as string;
+        if (!dataUrl) {
+            setErrorMsg(t("Failed to read image.", "קריאת התמונה נכשלה."));
+            setIsParsing(false);
+            return;
+        }
+
+        const base64Data = dataUrl.split(',')[1];
+        const mimeType = file.type;
+
+        try {
+          const models = await fetchModels(apiKey);
+          const model = getModelByCapability(models, 'fast');
+          const csvResult = await extractCsvFromImage(apiKey, base64Data, mimeType, model);
+          
+          if (!csvResult) {
+            throw new Error("No data returned from AI.");
+          }
+
+          setCsvText(csvResult);
+          setIsParsing(false);
+        } catch (e: any) {
+          setErrorMsg(e.message || "Failed to parse image with AI");
+          setIsParsing(false);
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch (e: any) {
+        setErrorMsg(e.message || "Failed to process image.");
+        setIsParsing(false);
+    }
+  };
+
   const processFile = (file: File) => {
+    if (file.type.startsWith('image/')) {
+      processImageFile(file);
+      return;
+    }
     const reader = new FileReader();
     reader.onload = (evt) => {
       const text = evt.target?.result as string;
@@ -106,7 +158,7 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
     e.preventDefault();
     setIsDragging(false);
     const file = e.dataTransfer.files?.[0];
-    if (file && file.name.toLowerCase().endsWith('.csv')) {
+    if (file && (file.name.toLowerCase().endsWith('.csv') || file.type.startsWith('image/'))) {
       processFile(file);
     }
   };
@@ -151,7 +203,8 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
       if (lh === 'trade date' || lh === 'תאריך העסקה' || ((lh.includes('date') || lh.includes('תאריך')) && !lh.includes('trade'))) newMap.date = h;
       if (lh.includes('type') || lh.includes('action') || lh.includes('סוג')) newMap.type = h;
       if (lh.includes('qty') || lh.includes('quantity') || lh.includes('shares') || lh.includes('כמות') || lh.includes('יחידות')) newMap.qty = h;
-      if (lh === 'purchase price' || lh.includes('price') || lh.includes('cost') || lh.includes('מחיר') || lh === 'שער' || (lh.includes('שער') && !lh.includes('מטבע') && !lh.includes('יומי'))) newMap.price = h;
+      if (lh === 'purchase price' || lh.includes('price') || lh === 'מחיר' || lh === 'שער' || (lh.includes('שער') && !lh.includes('מטבע') && !lh.includes('יומי'))) newMap.price = h;
+      if (lh.includes('total') || lh.includes('amount') || lh.includes('value') || lh.includes('cost') || lh.includes('סה"כ') || lh.includes('סכום') || lh.includes('עלות')) newMap.total = h;
       if (lh.includes('exchange') || lh.includes('בורסה')) newMap.exchange = h;
       if (lh.includes('commission') || lh.includes('fee') || lh.includes('עמלה')) newMap.commission = h;
       if (lh.includes('currency') || lh.includes('מטבע') || lh.includes('שער - מטבע')) newMap.currency = h;
@@ -178,8 +231,13 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
       setActiveStep(1);
     } else if (activeStep === 1) {
       // Validate Mapping
-      if (!mapping.ticker || !mapping.date || !mapping.qty || !mapping.price) {
-        setErrorMsg(t("Please map all required fields (Ticker, Date, Qty, Price).", "יש למפות את כל שדות החובה (סימול, תאריך, כמות, מחיר)."));
+      if (!mapping.ticker) {
+        setErrorMsg(t("Please map required fields (Ticker).", "יש למפות שדות חובה (סימול)."));
+        return;
+      }
+      const mappedMathFields = [mapping.qty, mapping.price, mapping.total].filter(Boolean).length;
+      if (mappedMathFields < 2) {
+        setErrorMsg(t("Please map at least two of: Quantity, Price, or Total.", "יש למפות לפחות שניים מתוך: כמות, מחיר, או סה\"כ."));
         return;
       }
       if (exchangeMode === 'manual' && !mapping.exchange && !manualExchange) {
@@ -233,8 +291,15 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
         if (rawType.includes('DIV')) type = 'DIVIDEND';
         if (rawType.includes('FEE')) type = 'FEE';
 
-        const qty = parseFloat(getVal('qty').replace(/[^0-9.-]+/g, ''));
-        const price = parseFloat(getVal('price').replace(/[^0-9.-]+/g, ''));
+        let qty = parseFloat(getVal('qty').replace(/[^0-9.-]+/g, ''));
+        let price = parseFloat(getVal('price').replace(/[^0-9.-]+/g, ''));
+        const total = parseFloat(getVal('total').replace(/[^0-9.-]+/g, ''));
+
+        if (isNaN(qty) && !isNaN(price) && !isNaN(total) && price !== 0) {
+            qty = total / price;
+        } else if (isNaN(price) && !isNaN(qty) && !isNaN(total) && qty !== 0) {
+            price = total / qty;
+        }
 
         let rawTicker = getVal('ticker').toUpperCase().trim();
         let deducedExchangeStr = '';
@@ -463,33 +528,49 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
                 </Typography>
               </Alert>
 
-              <Box
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                sx={{
-                  border: '2px dashed',
-                  borderColor: isDragging ? 'primary.main' : 'grey.400',
-                  borderRadius: 1,
-                  p: 3,
-                  textAlign: 'center',
-                  bgcolor: isDragging ? 'action.hover' : 'background.paper',
-                  transition: 'all 0.2s ease-in-out'
-                }}
-              >
-                <Button component="label" variant="outlined" startIcon={<CloudUploadIcon />}>
-                  {t('Upload CSV File', 'העלאת קובץ CSV')}
-                  <input type="file" hidden onChange={handleFileChange} />
-                </Button>
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                  {t('or drag and drop here', 'או גרירה לכאן')}
-                </Typography>
-              </Box>
+              {isParsing ? (
+                <Box sx={{ border: '2px dashed', borderColor: 'secondary.main', borderRadius: 1, p: 4, textAlign: 'center', bgcolor: 'background.paper' }}>
+                  <Stack spacing={2} alignItems="center" justifyContent="center">
+                    <CircularProgress color="secondary" />
+                    <Typography variant="body1" color="secondary.main">{t('Analyzing image with AI...', 'מנתח תמונה עם AI...')}</Typography>
+                  </Stack>
+                </Box>
+              ) : (
+                <Box
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  sx={{
+                    border: '2px dashed',
+                    borderColor: isDragging ? 'primary.main' : 'grey.400',
+                    borderRadius: 1,
+                    p: 3,
+                    textAlign: 'center',
+                    bgcolor: isDragging ? 'action.hover' : 'background.paper',
+                    transition: 'all 0.2s ease-in-out'
+                  }}
+                >
+                  <Stack direction="row" spacing={2} justifyContent="center" sx={{ mb: 1, flexWrap: 'wrap', gap: 1 }}>
+                    <Button component="label" variant="outlined" startIcon={<CloudUploadIcon />}>
+                      {t('Upload CSV File', 'העלאת קובץ CSV')}
+                      <input type="file" accept=".csv" hidden onChange={handleFileChange} />
+                    </Button>
+                    <Button component="label" variant="outlined" color="secondary" startIcon={<AutoAwesomeIcon />}>
+                      {t('Parse Image with AI', 'ניתוח תמונה עם AI')}
+                      <input type="file" accept="image/*" hidden onChange={handleFileChange} />
+                    </Button>
+                  </Stack>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                    {t('or drag and drop CSV or Image here', 'או גרירה של CSV / תמונה לכאן')}
+                  </Typography>
+                </Box>
+              )}
               <Typography variant="caption" color="text.secondary">
                 {t('Or paste CSV content below:', 'או הדבקת תוכן כאן:')}
               </Typography>
               <TextField
                 multiline rows={8} fullWidth
+                disabled={isParsing}
                 placeholder="Symbol,Date,Type,Qty,Price..."
                 value={csvText} onChange={e => setCsvText(e.target.value)}
                 sx={{ fontFamily: 'monospace' }}
@@ -517,9 +598,10 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
                 <TableBody>
                   {[
                     { id: 'ticker', labelEn: 'Ticker', labelHe: 'סימול', req: true, descEn: 'Asset symbol (e.g., AAPL)', descHe: 'סימול הנכס (למשל AAPL)' },
-                    { id: 'date', labelEn: 'Date', labelHe: 'תאריך', req: true, descEn: 'Transaction date', descHe: 'תאריך העסקה' },
-                    { id: 'qty', labelEn: 'Quantity', labelHe: 'כמות', req: true, descEn: 'Positive for BUY, Negative for SELL', descHe: 'חיובי לקנייה, שלילי למכירה' },
-                    { id: 'price', labelEn: 'Price', labelHe: 'מחיר', req: true, descEn: 'Price per share/unit', descHe: 'מחיר ליחידה' },
+                    { id: 'date', labelEn: 'Date', labelHe: 'תאריך', req: false, descEn: 'Transaction date', descHe: 'תאריך העסקה' },
+                    { id: 'qty', labelEn: 'Quantity', labelHe: 'כמות', req: false, descEn: 'Shares/units', descHe: 'מספר יחידות/מניות' },
+                    { id: 'price', labelEn: 'Price', labelHe: 'מחיר', req: false, descEn: 'Price per share/unit', descHe: 'מחיר ליחידה' },
+                    { id: 'total', labelEn: 'Total Cost', labelHe: 'סה"כ שווי', req: false, descEn: 'Total value (deduces missing qty/price)', descHe: 'סה"כ שווי (לחישוב כמות/מחיר חסרים)' },
                     { id: 'exchange', labelEn: 'Exchange', labelHe: 'בורסה', req: false, descEn: 'NASDAQ, TLV, etc.', descHe: 'בורסת המסחר (למשל NASDAQ)' },
                     { id: 'type', labelEn: 'Type', labelHe: 'סוג פעולה', req: false, descEn: 'BUY, SELL, DIVIDEND, FEE', descHe: 'קנייה, מכירה, דיבידנד או עמלה' },
                     { id: 'commission', labelEn: 'Commission', labelHe: 'עמלה', req: false, descEn: 'Broker fee / commission', descHe: 'עמלת ברוקר' },
@@ -616,7 +698,7 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
             )}
 
             <Alert severity="info" sx={{ mt: 2 }}>
-              {t('Required: Ticker, Date, Qty, Price.', 'חובה: סימול, תאריך, כמות, מחיר.')}
+              {t('Required: Ticker, and at least TWO of Qty, Price, or Total.', 'חובה: סימול, ולפחות שניים מתוך: כמות, מחיר, או סה"כ.')}
             </Alert>
           </Stack>
         )}
@@ -641,18 +723,26 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {parsedTxns.map((t, i) => (
+                    {parsedTxns.map((txn, i) => (
                       <TableRow key={i} hover>
-                        <TableCell sx={{ minWidth: 160 }}>
-                          <DateField
-                            value={t.date}
-                            onChange={(v) => handleTxnChange(i, 'date', v)}
-                            sx={{ fontSize: '0.875rem' }}
-                          />
+                        <TableCell sx={{ minWidth: 200 }}>
+                          <Stack direction="row" spacing={0.5} alignItems="center">
+                            <DateField
+                              value={txn.date}
+                              onChange={(v) => handleTxnChange(i, 'date', v)}
+                              sx={{ fontSize: '0.875rem', flex: 1 }}
+                              error={!txn.date}
+                            />
+                            {!txn.date && (
+                              <Button size="small" variant="outlined" color="error" onClick={() => handleTxnChange(i, 'date', formatDate(new Date()))} sx={{ minWidth: 'auto', p: 0.5 }}>
+                                {t('Today', 'היום')}
+                              </Button>
+                            )}
+                          </Stack>
                         </TableCell>
                         <TableCell>
                           <InputBase
-                            value={t.ticker}
+                            value={txn.ticker}
                             onChange={(e) => handleTxnChange(i, 'ticker', e.target.value.toUpperCase())}
                             sx={{ fontSize: '0.875rem' }}
                           />
@@ -660,7 +750,7 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
                         <TableCell>
                           <Select
                             variant="standard"
-                            value={t.exchange || ''}
+                            value={txn.exchange || ''}
                             onChange={(e) => handleTxnChange(i, 'exchange', e.target.value)}
                             sx={{ fontSize: '0.875rem', width: 90, '&:before': { display: 'none' }, '&:after': { display: 'none' } }}
                           >
@@ -673,7 +763,7 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
                         <TableCell>
                           <Select
                             variant="standard"
-                            value={t.type}
+                            value={txn.type}
                             onChange={(e) => handleTxnChange(i, 'type', e.target.value)}
                             sx={{ fontSize: '0.875rem', '&:before': { display: 'none' }, '&:after': { display: 'none' } }}
                           >
@@ -686,7 +776,7 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
                         <TableCell align="right">
                           <InputBase
                             type="number"
-                            value={t.originalQty}
+                            value={txn.originalQty}
                             onChange={(e) => handleTxnChange(i, 'originalQty', parseFloat(e.target.value) || 0)}
                             inputProps={{ style: { textAlign: 'right' } }}
                             sx={{ fontSize: '0.875rem', width: 80 }}
@@ -695,14 +785,14 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
                         <TableCell align="right">
                           <InputBase
                             type="number"
-                            value={t.originalPrice}
+                            value={txn.originalPrice}
                             onChange={(e) => handleTxnChange(i, 'originalPrice', parseFloat(e.target.value) || 0)}
                             inputProps={{ style: { textAlign: 'right' } }}
                             sx={{ fontSize: '0.875rem', width: 80 }}
                           />
                         </TableCell>
                         <TableCell align="right">
-                          {`${(Number(t.originalQty || 0) * Number(t.originalPrice || 0)).toFixed(2)} ${t.currency || ''}`}
+                          {`${(Number(txn.originalQty || 0) * Number(txn.originalPrice || 0)).toFixed(2)} ${txn.currency || ''}`}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -718,7 +808,7 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
       <DialogActions>
         <Button onClick={onClose} color="inherit">{t('Cancel', 'ביטול')}</Button>
         <Button onClick={() => setActiveStep(p => p - 1)} disabled={activeStep === 0 || isParsing || importing} sx={{ [isRtl ? 'ml' : 'mr']: 1 }}>{t('Back', 'חזרה')}</Button>
-        <Button onClick={handleNext} variant="contained" disabled={importing || isParsing} startIcon={(importing || isParsing) ? <CircularProgress size={20} color="inherit" /> : null}>
+        <Button onClick={handleNext} variant="contained" disabled={importing || isParsing || (activeStep === 2 && parsedTxns.some(t => !t.date))} startIcon={(importing || isParsing) ? <CircularProgress size={20} color="inherit" /> : null}>
           {activeStep === 2 ? (importing ? t('Importing...', 'מייבא...') : t('Import', 'ייבוא')) : (isParsing ? t('Parsing...', 'מעבד...') : t('Next', 'הבא'))}
         </Button>
       </DialogActions>
