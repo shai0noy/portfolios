@@ -511,6 +511,10 @@ export interface Portfolio {
   divCommRate: number; // Dividend Commission Rate
   commExemption?: CommissionExemption; // New Field
 
+  isCrypto?: boolean;
+  conversionFeeVal?: number;
+  conversionFeeType?: 'percentage' | 'fixed';
+
   // Dividend Policy (RSU specific mainly, but could be general)
   divPolicy?: 'cash_taxed' | 'accumulate_tax_free' | 'hybrid_rsu';
 
@@ -736,5 +740,21 @@ export const PORTFOLIO_TEMPLATES: Record<string, Partial<Portfolio>> = {
     mgmtFreq: 'yearly',
     divCommRate: 0,
     taxPolicy: 'PENSION'
+  },
+  'crypto': {
+    cgt: 0.25,
+    incTax: 0,
+    commRate: 0.001, // 0.1% default
+    commMin: 0,
+    currency: Currency.USD,
+    divPolicy: 'accumulate_tax_free',
+    mgmtVal: 0,
+    mgmtType: 'percentage',
+    mgmtFreq: 'yearly',
+    divCommRate: 0,
+    taxPolicy: 'IL_REAL_GAIN',
+    isCrypto: true,
+    conversionFeeVal: 0.001,
+    conversionFeeType: 'percentage'
   }
 };

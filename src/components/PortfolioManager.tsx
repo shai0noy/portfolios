@@ -7,7 +7,7 @@ import {
   Typography, Alert, Snackbar, Grid, Card, CardContent, Tooltip,
   InputAdornment,
   TableContainer, Table, TableHead, TableRow, TableCell, TableBody, Paper,
-  CircularProgress, Collapse, IconButton
+  CircularProgress, Collapse, IconButton, Switch, FormControlLabel
 } from '@mui/material';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
@@ -115,7 +115,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
     setTemplate(tKey);
     const temp = PORTFOLIO_TEMPLATES[tKey];
     if (temp) {
-      setP(prev => ({ ...prev, ...temp }));
+      setP(prev => ({ ...prev, isCrypto: false, ...temp }));
     }
   };
 
@@ -491,6 +491,7 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                           <MenuItem value="pension">{t('Pension', 'פנסיה')}</MenuItem>
                           <MenuItem value="hishtalmut">{t('Hishtalmut / Gemel', 'השתלמות / גמל')}</MenuItem>
                           <MenuItem value="rsu">{t('RSU (Income Taxed)', 'RSU (ממוסה כהכנסה)')}</MenuItem>
+                          <MenuItem value="crypto">{t('Crypto (Binance/Bybit/Kraken)', 'קריפטו (Binance/Bybit/Kraken)')}</MenuItem>
                         </Select>
                       </FormControl>
                     </Box>
@@ -693,6 +694,36 @@ export function PortfolioManager({ sheetId, onSuccess }: Props) {
                           <Grid item xs={12} sm={6}>
                             <NumericField label={t('Max Fee', 'עמלת מקסימום')} field="commMax" value={p.commMax || 0} onUpdate={handleUpdate} currency={p.currency} />
                           </Grid>
+                        </Grid>
+
+                        <Typography variant="subtitle2" color="text.secondary" gutterBottom sx={{ mt: 2 }}>{t('CRYPTO & CONVERSIONS', 'קריפטו והמרות')}</Typography>
+                        <Grid container spacing={3} mt={0.5} mb={3}>
+                          <Grid item xs={12} sm={4} display="flex" alignItems="center">
+                            <FormControlLabel
+                              control={<Switch checked={!!p.isCrypto} onChange={e => set('isCrypto', e.target.checked)} />}
+                              label={t('Is Crypto Portfolio', 'תיק קריפטו')}
+                            />
+                          </Grid>
+                          {p.isCrypto && (
+                            <>
+                              <Grid item xs={12} sm={4}>
+                                {p.conversionFeeType === 'fixed' ? (
+                                  <NumericField label={t('Conversion Fee', 'עמלת המרה')} field="conversionFeeVal" value={p.conversionFeeVal || 0} onUpdate={handleUpdate} currency={p.currency} />
+                                ) : (
+                                  <PercentageField label={t('Conversion Fee', 'עמלת המרה')} field="conversionFeeVal" value={p.conversionFeeVal || 0} onUpdate={handleUpdate} />
+                                )}
+                              </Grid>
+                              <Grid item xs={12} sm={4}>
+                                <FormControl fullWidth size="small">
+                                  <InputLabel>{t('Fee Type', 'סוג עמלה')}</InputLabel>
+                                  <Select value={p.conversionFeeType || 'percentage'} label={t('Fee Type', 'סוג עמלה')} onChange={e => set('conversionFeeType', e.target.value)}>
+                                    <MenuItem value="percentage">{t('Percent', 'אחוז')}</MenuItem>
+                                    <MenuItem value="fixed">Fixed</MenuItem>
+                                  </Select>
+                                </FormControl>
+                              </Grid>
+                            </>
+                          )}
                         </Grid>
 
                         <Box display="flex" alignItems="center" gap={1} mb={1}>

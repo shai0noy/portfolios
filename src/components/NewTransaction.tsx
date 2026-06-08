@@ -345,7 +345,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
       return;
     }
 
-    if (isTxnBuy(currentType) || isTxnSell(currentType)) {
+    if (isTxnBuy(currentType) || isTxnSell(currentType) || currentType === 'HOLDING_CHANGE') {
       const exemption = selectedPort.commExemption;
       const isExempt =
         (exemption === 'all') ||
@@ -358,14 +358,39 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
         return;
       }
 
-      const rate = selectedPort.commRate;
-      const min = selectedPort.commMin;
-      const max = selectedPort.commMax || 0;
-      const rawFee = t * rate;
-      const clampedMin = Math.max(rawFee, min);
-      const finalFee = max > 0 ? Math.min(clampedMin, max) : clampedMin;
-      setCommission(finalFee.toFixed(2));
-      setCommissionPct(((finalFee / t) * 100).toFixed(4));
+      let rate = selectedPort.commRate;
+      let min = selectedPort.commMin;
+      let max = selectedPort.commMax || 0;
+      let isFixedFee = false;
+
+      if (currentType === 'HOLDING_CHANGE' && selectedPort.isCrypto) {
+        if (selectedPort.conversionFeeType === 'fixed') {
+          isFixedFee = true;
+          rate = selectedPort.conversionFeeVal || 0;
+        } else {
+          rate = selectedPort.conversionFeeVal || 0;
+          min = 0;
+          max = 0;
+        }
+      } else if (currentType === 'HOLDING_CHANGE') {
+        // Regular HOLDING_CHANGE has no default commission? Or does it use commRate?
+        // Usually holding change in std portfolios has a buy+sell comm or no comm. Let's keep it 0 or commRate. 
+        // Previously it was ignored, so let's set rate=0 if not crypto to avoid unexpected fees.
+        rate = 0;
+        min = 0;
+        max = 0;
+      }
+
+      if (isFixedFee) {
+        setCommission(rate.toFixed(2));
+        setCommissionPct(((rate / t) * 100).toFixed(4));
+      } else {
+        const rawFee = t * rate;
+        const clampedMin = Math.max(rawFee, min);
+        const finalFee = max > 0 ? Math.min(clampedMin, max) : clampedMin;
+        setCommission(finalFee.toFixed(2));
+        setCommissionPct(((finalFee / t) * 100).toFixed(4));
+      }
     } else if (currentType === 'DIVIDEND') {
       const rate = selectedPort.divCommRate;
       setCommission((t * rate).toFixed(2));
@@ -471,7 +496,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
         updateCommission('0', portId, type);
       }
     }
-  }, [price, type, selectedTicker, portId, portfolios, tickerCurrency, majorCurrency, exchangeRates, updateCommission]);
+  }, [price, type, selectedTicker, portId, portfolios, tickerCurrency, majorCurrency, exchangeRates, updateCommission, buyPrice, buyTicker]);
 
   const handlePriceChange = useCallback((val: number, valStr?: string) => {
     setHasManuallyEditedPrice(true);
@@ -490,7 +515,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
         updateCommission('0', portId, type);
       }
     }
-  }, [qty, tickerCurrency, majorCurrency, exchangeRates, updateCommission, portId, type]);
+  }, [qty, tickerCurrency, majorCurrency, exchangeRates, updateCommission, portId, type, buyPrice, buyTicker]);
 
   const handleTotalChange = useCallback((val: number, valStr?: string) => {
     const finalStr = valStr !== undefined ? valStr : val.toString();
@@ -500,15 +525,6 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     const q = parseFloat(qty);
     const p = parseFloat(price);
     const tDisplay = val;
-
-    // Update Buy Qty if in Holding Change mode
-    if (type === 'HOLDING_CHANGE' && buyPrice) {
-      const bp = parseFloat(buyPrice);
-      if (Number.isFinite(tDisplay) && Number.isFinite(bp) && bp > 0) {
-        const tRaw = convertCurrency(tDisplay, majorCurrency, normalizeCurrency(buyTicker?.currency || 'USD'), exchangeRates);
-        setBuyQty(parseFloat((tRaw / bp).toFixed(6)).toString());
-      }
-    }
 
     if (Number.isFinite(tDisplay)) {
       const tRaw = convertCurrency(tDisplay, majorCurrency, tickerCurrency, exchangeRates);
@@ -578,7 +594,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
         }
       }
     }
-  }, [type, selectedTicker, portId, portfolios, price, tickerCurrency, majorCurrency, exchangeRates, updateCommission]);
+  }, [type, selectedTicker, portId, portfolios, price, tickerCurrency, majorCurrency, exchangeRates, updateCommission, buyPrice, buyTicker]);
 
   const applyPrice = useCallback((newPrice: number) => {
     setPrice(parseFloat(newPrice.toFixed(6)).toString());
@@ -592,7 +608,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     } else {
       updateCommission('0', portId, type);
     }
-  }, [qty, tickerCurrency, majorCurrency, exchangeRates, updateCommission, portId, type]);
+  }, [qty, tickerCurrency, majorCurrency, exchangeRates, updateCommission, portId, type, buyPrice, buyTicker]);
 
   const getPriceForDate = useCallback((dateStr: string) => {
     if (!selectedTicker) return null;
@@ -715,6 +731,26 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
 
     return () => clearTimeout(timer);
   }, [runValidation]);
+
+  // Auto-update Target Quantity for HOLDING_CHANGE when inputs or commission change
+  useEffect(() => {
+    if (type === 'HOLDING_CHANGE' && buyPrice && total) {
+      const bp = parseFloat(buyPrice);
+      const tDisplay = parseFloat(total);
+      
+      let effectiveTotal = tDisplay;
+      const port = portfolios.find(p => p.id === portId);
+      if (port?.isCrypto) {
+         const commVal = parseFloat(commission) || 0;
+         effectiveTotal = Math.max(0, tDisplay - commVal);
+      }
+
+      if (Number.isFinite(effectiveTotal) && Number.isFinite(bp) && bp > 0) {
+        const tRaw = convertCurrency(effectiveTotal, majorCurrency, normalizeCurrency(buyTicker?.currency || 'USD'), exchangeRates);
+        setBuyQty(parseFloat((tRaw / bp).toFixed(6)).toString());
+      }
+    }
+  }, [type, buyPrice, total, commission, portId, portfolios, buyTicker?.currency, majorCurrency, exchangeRates]);
 
   // Update commission when portfolio or type changes too
   // @ts-ignore
@@ -1175,7 +1211,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
         {(!selectedTicker && !locationState?.prefilledTicker && actionMode === 'search') && (
           <Grid item xs={12}>
             <Box mb={4}>
-              <Typography variant="h6" gutterBottom>
+              <Typography variant="h6" sx={{ mb: 2.5 }}>
                 {t('Search ticker to buy or sell', 'חפש נייר לקנייה או מכירה')}
               </Typography>
               <TickerSearch trackingLists={[]}
@@ -1501,7 +1537,35 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                       {type === 'HOLDING_CHANGE' && (
                         <Grid item xs={12}>
                           <Box sx={{ border: '1px dashed grey', p: 1, borderRadius: 1 }}>
-                            <Typography variant="subtitle2" gutterBottom>{t('Switch To (Target Asset):', 'החלף ל (נכס יעד):')}</Typography>
+                            <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                              <Typography variant="subtitle2">{t('Switch To (Target Asset):', 'החלף ל (נכס יעד):')}</Typography>
+                              {selectedPortfolio?.isCrypto && !buyTicker && (
+                                <Button 
+                                  size="small" 
+                                  variant="outlined" 
+                                  onClick={() => {
+                                    setLoading(true);
+                                    getTickerData('USDT-USD', 'FOREX', null).then(d => {
+                                      if (d) {
+                                        const combined = { ...d, symbol: 'USDT-USD', exchange: 'FOREX' as Exchange };
+                                        setBuyTicker(combined);
+                                        if (d.price) {
+                                          setBuyPrice(parseFloat(d.price.toFixed(6)).toString());
+                                          const tDisplay = parseFloat(total);
+                                          if (Number.isFinite(tDisplay)) {
+                                            const tRaw = convertCurrency(tDisplay, majorCurrency, normalizeCurrency(d.currency || 'USD'), exchangeRates);
+                                            setBuyQty(parseFloat((tRaw / d.price).toFixed(6)).toString());
+                                          }
+                                        }
+                                      }
+                                      setLoading(false);
+                                    });
+                                  }}
+                                >
+                                  USDT
+                                </Button>
+                              )}
+                            </Box>
                             {!buyTicker ? (
                               <TickerSearch trackingLists={[]}
                                 onTickerSelect={(p) => {
@@ -1531,7 +1595,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                               <Box display="flex" alignItems="center" justifyContent="space-between">
                                 <Box>
                                   <Typography variant="body2" fontWeight="bold">{buyTicker.name} ({buyTicker.symbol})</Typography>
-                                  <Typography variant="caption">{t('Price:', 'מחיר:')} {buyTicker.price}</Typography>
+                                  <Typography variant="caption">{t('Price:', 'מחיר:')} {formatPrice(buyTicker.price, normalizeCurrency(buyTicker.currency || 'USD'))}</Typography>
                                 </Box>
                                 <Button size="small" color="error" onClick={() => { setBuyTicker(null); setBuyQty(''); }}>Change</Button>
                               </Box>
@@ -1883,38 +1947,54 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                           )}
                           <Grid item xs={12}><Divider sx={{ my: 1 }}> </Divider></Grid>
 
-                          {/* Commission Row - Hidden if Exempt */}
-                          {(!selectedTicker?.isFeeExempt && selectedTicker?.type?.type !== InstrumentType.MONETARY_FUND) ? (
+                          {/* Commission Row - Hidden if Exempt or Non-Crypto Holding Change */}
+                          {!(type === 'HOLDING_CHANGE' && !selectedPortfolio?.isCrypto) && (
                             <>
-                              <Grid item xs={4} sm={3}>
-                                <NumericField
-                                  label={t("Commission", "עמלה")}
-                                  field="commission"
-                                  value={commission}
-                                  onChange={handleCommissionChange}
-                                  startAdornment={<InputAdornment position="start">{majorCurrency}</InputAdornment>}
-                                  error={!!validationErrors.commission}
-                                />
-                              </Grid>
-                              <Grid item xs={4} sm={3}>
-                                <NumericField
-                                  label={t("Commission %", "עמלה %")}
-                                  field="commissionPct"
-                                  value={commissionPct}
-                                  onChange={handleCommissionPctChange}
-                                  endAdornment={<InputAdornment position="end">%</InputAdornment>}
-                                  error={!!validationErrors.commissionPct}
-                                />
-                              </Grid>
+                              {(!selectedTicker?.isFeeExempt && selectedTicker?.type?.type !== InstrumentType.MONETARY_FUND) ? (
+                                <>
+                                  <Grid item xs={4} sm={3}>
+                                    <NumericField
+                                      label={type === 'HOLDING_CHANGE' && selectedPortfolio?.isCrypto ? t("Conversion Fee", "עמלת המרה") : t("Commission", "עמלה")}
+                                      field="commission"
+                                      value={commission}
+                                      onChange={handleCommissionChange}
+                                      startAdornment={<InputAdornment position="start">{majorCurrency}</InputAdornment>}
+                                      error={!!validationErrors.commission}
+                                    />
+                                  </Grid>
+                                  <Grid item xs={4} sm={3}>
+                                    <NumericField
+                                      label={type === 'HOLDING_CHANGE' && selectedPortfolio?.isCrypto ? t("Conv. Fee %", "עמלת המרה %") : t("Commission %", "עמלה %")}
+                                      field="commissionPct"
+                                      value={commissionPct}
+                                      onChange={handleCommissionPctChange}
+                                      endAdornment={<InputAdornment position="end">%</InputAdornment>}
+                                      error={!!validationErrors.commissionPct}
+                                    />
+                                  </Grid>
+                                  {(type === 'HOLDING_CHANGE' && selectedPortfolio?.isCrypto) && (
+                                    <Grid item xs={12} sm={6}>
+                                      <Box sx={{ height: '100%', p: 1, px: 2, border: '1px solid', borderColor: 'divider', borderRadius: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', bgcolor: 'background.paper' }}>
+                                        <Typography variant="caption" color="text.secondary">
+                                          {t("Net Amount to Receive", "סכום נטו לקבלה")}
+                                        </Typography>
+                                        <Typography variant="body1" fontWeight="bold" color="primary">
+                                          {formatPrice(Math.max(0, parseFloat(total || '0') - (parseFloat(commission) || 0)), majorCurrency)}
+                                        </Typography>
+                                      </Box>
+                                    </Grid>
+                                  )}
+                                </>
+                              ) : (
+                                <Grid item xs={12}>
+                                  <Box sx={{ p: 1.5, bgcolor: 'action.hover', borderRadius: 1, textAlign: 'center' }}>
+                                    <Typography variant="body2" color="text.secondary">
+                                      {t("Monetary funds are exempt from fees by Israeli law.", "קרנות כספיות פטורות מעמלות על פי חוק.")}
+                                    </Typography>
+                                  </Box>
+                                </Grid>
+                              )}
                             </>
-                          ) : (
-                            <Grid item xs={12}>
-                              <Box sx={{ p: 1.5, bgcolor: 'action.hover', borderRadius: 1, textAlign: 'center' }}>
-                                <Typography variant="body2" color="text.secondary">
-                                  {t("Monetary funds are exempt from fees by Israeli law.", "קרנות כספיות פטורות מעמלות על פי חוק.")}
-                                </Typography>
-                              </Box>
-                            </Grid>
                           )}
                           <Grid item xs={12} sm={(!selectedTicker?.isFeeExempt && selectedTicker?.type?.type !== InstrumentType.MONETARY_FUND) ? 6 : 12}>
                             <Tooltip title="Date when these shares vest (if applicable for RSUs/Options).">
@@ -1937,9 +2017,23 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                           {t('Delete', 'מחק')}
                         </Button>
                       )}
-                      <Button variant="contained" size="large" startIcon={<AddCircleOutlineIcon />} fullWidth={!locationState?.editTransaction && !locationState?.editDividend} onClick={handleSubmit} disabled={loading || Object.keys(validationErrors).length > 0} sx={{ flex: 2 }}>
-                        {loading ? (loadingMessage || t('Saving...', 'שומר...')) : (type === 'DIVIDEND' ? (locationState?.editDividend ? t('Update Dividend', 'עדכן דיבידנד') : t('Record Dividend', 'שמור דיבידנד')) : (locationState?.editTransaction ? t('Update Transaction', 'עדכן עסקה') : t('Save Transaction', 'שמור עסקה')))}
-                      </Button>
+                      <Tooltip
+                        title={
+                          Object.keys(validationErrors).length > 0
+                            ? `${t('Missing or invalid:', 'חסר או לא תקין:')} ${Object.keys(validationErrors).map(k => {
+                                const labels: any = { portId: 'Portfolio', ticker: 'Source Asset', buyTicker: 'Target Asset', qty: 'Quantity', buyQty: 'Target Quantity', price: 'Price', total: 'Total', commission: 'Commission', percent: 'Percent' };
+                                return labels[k] || k;
+                              }).join(', ')}`
+                            : ''
+                        }
+                        placement="top"
+                      >
+                        <span style={{ flex: 2, display: 'flex' }}>
+                          <Button variant="contained" size="large" startIcon={<AddCircleOutlineIcon />} fullWidth={!locationState?.editTransaction && !locationState?.editDividend} onClick={handleSubmit} disabled={loading || Object.keys(validationErrors).length > 0} sx={{ flex: 1 }}>
+                            {loading ? (loadingMessage || t('Saving...', 'שומר...')) : (type === 'DIVIDEND' ? (locationState?.editDividend ? t('Update Dividend', 'עדכן דיבידנד') : t('Record Dividend', 'שמור דיבידנד')) : (locationState?.editTransaction ? t('Update Transaction', 'עדכן עסקה') : t('Save Transaction', 'שמור עסקה')))}
+                          </Button>
+                        </span>
+                      </Tooltip>
                     </Box>
                   </>
                 )}

@@ -16,6 +16,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import SettingsSuggestIcon from '@mui/icons-material/SettingsSuggest';
+import CurrencyBitcoinIcon from '@mui/icons-material/CurrencyBitcoin';
 import { type Portfolio, PORTFOLIO_TEMPLATES, Currency, type CommissionExemption } from '../lib/types';
 import { useLanguage } from '../lib/i18n';
 
@@ -27,7 +28,7 @@ interface WizardProps {
   existingIds?: string[];
 }
 
-type PresetKey = 'il_broker' | 'us_broker_il' | 'us_broker_nr' | 'pension' | 'gemel' | 'hishtalmut' | 'rsu';
+type PresetKey = 'il_broker' | 'us_broker_il' | 'us_broker_nr' | 'pension' | 'gemel' | 'hishtalmut' | 'rsu' | 'crypto';
 
 interface PresetConfig {
   id: PresetKey;
@@ -115,6 +116,16 @@ const PRESETS: PresetConfig[] = [
     hasTaxSelection: true,
     hasIncomeTax: true,
     mgmtFeeModes: ['percentage', 'fixed']
+  },
+  {
+    id: 'crypto', templateKey: 'crypto',
+    title: 'Crypto Exchange', titleHe: 'בורסת קריפטו',
+    description: 'A cryptocurrency exchange account like Binance or Bybit. Features built-in conversion tracking.',
+    descriptionHe: 'חשבון בורסת קריפטו כמו Binance או Bybit. כולל מעקב אחר עמלות המרה.',
+    icon: <CurrencyBitcoinIcon fontSize="large" />,
+    fixedCurrency: Currency.USD,
+    hasTaxSelection: true,
+    mgmtFeeModes: ['percentage', 'fixed']
   }
 ];
 
@@ -148,6 +159,10 @@ export function PortfolioWizard({ onComplete, onCancel, onManual, existingNames 
   const [mgmtType, setMgmtType] = useState<'percentage' | 'fixed'>('percentage');
   const [mgmtFreq, setMgmtFreq] = useState<'yearly' | 'quarterly' | 'monthly'>('quarterly'); // Default to quarterly as common in IL
 
+  // Crypto Conversions
+  const [convFeeVal, setConvFeeVal] = useState<string>('0.1');
+  const [convFeeType, setConvFeeType] = useState<'percentage' | 'fixed'>('percentage');
+
   // RSU
   const [rsuDivChoice, setRsuDivChoice] = useState<'cash' | 'reinvest' | 'hybrid'>('hybrid');
 
@@ -172,6 +187,7 @@ export function PortfolioWizard({ onComplete, onCancel, onManual, existingNames 
     if (preset.id === 'gemel') rawName = t('Gemel', 'גמל');
     if (preset.id === 'hishtalmut') rawName = t('Hishtalmut', 'השתלמות');
     if (preset.id === 'rsu') rawName = t('RSU', 'RSU');
+    if (preset.id === 'crypto') rawName = t('Crypto', 'קריפטו');
 
     // Sanitize: Allow only Alphanumeric (English + Hebrew) and spaces.
     const sanitizedName = rawName.replace(/[^a-zA-Z0-9\u0590-\u05FF\s]/g, ' ').replace(/\s+/g, ' ').trim();
@@ -190,6 +206,14 @@ export function PortfolioWizard({ onComplete, onCancel, onManual, existingNames 
       setCommRate(((temp.commRate || 0) * 100).toString());
       setCommMin((temp.commMin || 0).toString());
       setCommMax((temp.commMax || 0).toString());
+
+      if (temp.isCrypto) {
+        setConvFeeType(temp.conversionFeeType || 'percentage');
+        setConvFeeVal((temp.conversionFeeType === 'percentage' ? (temp.conversionFeeVal || 0) * 100 : (temp.conversionFeeVal || 0)).toString());
+      } else {
+        setConvFeeType('percentage');
+        setConvFeeVal('0.1');
+      }
 
       // Mgmt Default
       if (temp.mgmtVal) {
@@ -249,6 +273,7 @@ export function PortfolioWizard({ onComplete, onCancel, onManual, existingNames 
 
     const template = PORTFOLIO_TEMPLATES[selectedPreset.templateKey];
     const initialPortfolio: Partial<Portfolio> = {
+      isCrypto: false,
       ...template,
       name: name,
       currency: currency
@@ -303,6 +328,13 @@ export function PortfolioWizard({ onComplete, onCancel, onManual, existingNames 
       initialPortfolio.mgmtVal = mVal || 0;
       initialPortfolio.mgmtType = mgmtType;
       initialPortfolio.mgmtFreq = mgmtFreq;
+    }
+
+    if (selectedPreset.id === 'crypto') {
+      initialPortfolio.conversionFeeType = convFeeType;
+      let cVal = parseFloat(convFeeVal);
+      if (convFeeType === 'percentage') cVal = cVal / 100;
+      initialPortfolio.conversionFeeVal = cVal || 0;
     }
 
     initialPortfolio.id = generatedId;
@@ -658,6 +690,46 @@ export function PortfolioWizard({ onComplete, onCancel, onManual, existingNames 
                       </Grid>
                     </Grid>
                   </Grid>
+
+                  {/* Crypto Conversion Fees */}
+                  {selectedPreset.id === 'crypto' && (
+                    <Grid item xs={12}>
+                      <Typography variant="subtitle2" gutterBottom>
+                        {t('Conversion Fees', 'עמלות המרה')}
+                      </Typography>
+                      <Grid container spacing={2}>
+                        <Grid item xs={12} sm={4}>
+                          <TextField
+                            fullWidth
+                            type="number"
+                            size="small"
+                            label={t('Fee Value', 'שיעור עמלה')}
+                            value={convFeeVal === '0' ? '' : convFeeVal}
+                            placeholder="-"
+                            onChange={e => setConvFeeVal(e.target.value)}
+                            autoComplete="off"
+                            InputProps={{
+                              endAdornment: <InputAdornment position="end">{convFeeType === 'percentage' ? '%' : currency}</InputAdornment>,
+                              inputProps: { min: 0, step: 'any' }
+                            }}
+                          />
+                        </Grid>
+                        <Grid item xs={12} sm={4}>
+                          <FormControl fullWidth size="small">
+                            <InputLabel>{t('Fee Type', 'סוג עמלה')}</InputLabel>
+                            <Select
+                              value={convFeeType}
+                              label={t('Fee Type', 'סוג עמלה')}
+                              onChange={e => setConvFeeType(e.target.value as any)}
+                            >
+                              <MenuItem value="percentage">{t('Percent', 'אחוז')}</MenuItem>
+                              <MenuItem value="fixed">{t('Fixed Amount', 'סכום קבוע')}</MenuItem>
+                            </Select>
+                          </FormControl>
+                        </Grid>
+                      </Grid>
+                    </Grid>
+                  )}
 
                   {selectedPreset.id === 'rsu' && (
                     <Grid item xs={12}>

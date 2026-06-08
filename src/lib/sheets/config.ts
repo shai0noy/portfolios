@@ -123,7 +123,7 @@ export const transactionNumericKeys = Object.keys(TXN_COLS).filter(key => TXN_CO
 
 // --- Canonical Headers & Ranges ---
 
-export const portfolioHeaders = ['Portfolio_ID', 'Display_Name', 'Cap_Gains_Tax_Rate', 'Income_Tax_Rate', 'Mgmt_Fee_Val', 'Mgmt_Type', 'Mgmt_Freq', 'Comm_Rate_%', 'Comm_Min', 'Comm_Max_Fee', 'Currency', 'Div_Policy', 'Div_Comm_Rate_%', 'Comm_Exemption', 'Tax_Policy', 'Tax_On_Base', 'Tax_History', 'Fee_History'] as const;
+export const portfolioHeaders = ['Portfolio_ID', 'Display_Name', 'Cap_Gains_Tax_Rate', 'Income_Tax_Rate', 'Mgmt_Fee_Val', 'Mgmt_Type', 'Mgmt_Freq', 'Comm_Rate_%', 'Comm_Min', 'Comm_Max_Fee', 'Currency', 'Div_Policy', 'Div_Comm_Rate_%', 'Comm_Exemption', 'Tax_Policy', 'Tax_On_Base', 'Tax_History', 'Fee_History', 'Is_Crypto', 'Conversion_Fee_Val', 'Conversion_Fee_Type'] as const;
 
 // Merged Price_Unit into Currency logic, removed explicit Price_Unit column
 export const holdingsHeaders = [
@@ -170,9 +170,10 @@ export const portfolioMapping: Record<keyof Omit<Portfolio, 'holdings'>, typeof 
     id: 'Portfolio_ID', name: 'Display_Name', cgt: 'Cap_Gains_Tax_Rate', incTax: 'Income_Tax_Rate',
     mgmtVal: 'Mgmt_Fee_Val', mgmtType: 'Mgmt_Type', mgmtFreq: 'Mgmt_Freq', commRate: 'Comm_Rate_%',
     commMin: 'Comm_Min', commMax: 'Comm_Max_Fee', currency: 'Currency', divPolicy: 'Div_Policy',
-    divCommRate: 'Div_Comm_Rate_%', commExemption: 'Comm_Exemption', taxPolicy: 'Tax_Policy', taxOnBase: 'Tax_On_Base', taxHistory: 'Tax_History', feeHistory: 'Fee_History'
+    divCommRate: 'Div_Comm_Rate_%', commExemption: 'Comm_Exemption', taxPolicy: 'Tax_Policy', taxOnBase: 'Tax_On_Base', taxHistory: 'Tax_History', feeHistory: 'Fee_History',
+    isCrypto: 'Is_Crypto', conversionFeeVal: 'Conversion_Fee_Val', conversionFeeType: 'Conversion_Fee_Type'
 };
-export const portfolioNumericKeys: (keyof Omit<Portfolio, 'holdings'>)[] = ['cgt', 'incTax', 'mgmtVal', 'commRate', 'commMin', 'commMax', 'divCommRate'];
+export const portfolioNumericKeys: (keyof Omit<Portfolio, 'holdings'>)[] = ['cgt', 'incTax', 'mgmtVal', 'commRate', 'commMin', 'commMax', 'divCommRate', 'conversionFeeVal'];
 
 // Define a type for the part of Holding that is mapped from the sheet
 export type SheetHolding = Omit<FullSheetHolding, 'qty' | 'portfolioId' | 'changeDate1d' | 'changeDateRecent' | 'changeDate1m' | 'changeDate3m' | 'changeDateYtd' | 'changeDate1y' | 'changeDate3y' | 'changeDate5y' | 'changePctMax' | 'changeDateMax' | 'changeDate10y' | 'meta' | 'openPrice' | 'volume' | 'subSector' | 'taseType' | 'globesTypeHe' | 'providentInfo' | 'recentChangeDays' | 'isStaleDayChange'>;
