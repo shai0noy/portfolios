@@ -24,6 +24,7 @@ import { ImportHelp } from './ImportHelp';
 import { useLanguage } from '../lib/i18n';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import { checkGeminiKey, extractCsvFromImage, fetchModels, getModelByCapability } from '../lib/gemini';
+import { formatMoneyValue } from '../lib/currencyUtils';
 
 interface Props {
   sheetId: string;
@@ -722,9 +723,24 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
 
         {activeStep === 2 && (
           <Stack spacing={1.5} sx={{ pt: 1 }}>
-            <Typography variant="subtitle2">
-              {t('Ready to import', 'מוכן לייבוא')} {parsedTxns.length} {t('transactions:', 'עסקאות:')}
-            </Typography>
+            <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1}>
+              <Typography variant="subtitle2">
+                {t('Ready to import', 'מוכן לייבוא')} {parsedTxns.length} {t('transactions:', 'עסקאות:')}
+              </Typography>
+              {parsedTxns.some(txn => !txn.date) && (
+                <Stack direction="row" alignItems="center" spacing={1}>
+                  <Typography variant="body2" color="error">
+                    {t('Fill missing dates:', 'השלמת תאריכים חסרים:')}
+                  </Typography>
+                  <Box sx={{ width: 150 }}>
+                    <DateField
+                      value={''}
+                      onChange={(v) => setParsedTxns(prev => prev.map(txn => !txn.date ? { ...txn, date: v } : txn))}
+                    />
+                  </Box>
+                </Stack>
+              )}
+            </Stack>
             <Box sx={{ position: 'relative' }}>
               <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 400, overflow: 'auto' }} ref={containerRef}>
                 <Table size="small" stickyHeader sx={{ minWidth: 800 }}>
@@ -742,20 +758,13 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
                   <TableBody>
                     {parsedTxns.map((txn, i) => (
                       <TableRow key={i} hover>
-                        <TableCell sx={{ minWidth: 200 }}>
-                          <Stack direction="row" spacing={0.5} alignItems="center">
-                            <DateField
-                              value={txn.date}
-                              onChange={(v) => handleTxnChange(i, 'date', v)}
-                              sx={{ fontSize: '0.875rem', flex: 1 }}
-                              error={!txn.date}
-                            />
-                            {!txn.date && (
-                              <Button size="small" variant="outlined" color="error" onClick={() => handleTxnChange(i, 'date', formatDate(new Date()))} sx={{ minWidth: 'auto', p: 0.5 }}>
-                                {t('Today', 'היום')}
-                              </Button>
-                            )}
-                          </Stack>
+                        <TableCell sx={{ minWidth: 160 }}>
+                          <DateField
+                            value={txn.date}
+                            onChange={(v) => handleTxnChange(i, 'date', v)}
+                            sx={{ fontSize: '0.875rem' }}
+                            error={!txn.date}
+                          />
                         </TableCell>
                         <TableCell>
                           <InputBase
@@ -809,7 +818,7 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
                           />
                         </TableCell>
                         <TableCell align="right">
-                          {`${(Number(txn.originalQty || 0) * Number(txn.originalPrice || 0)).toFixed(2)} ${txn.currency || ''}`}
+                          {formatMoneyValue({ amount: Number(txn.originalQty || 0) * Number(txn.originalPrice || 0), currency: txn.currency || 'USD' as any })}
                         </TableCell>
                       </TableRow>
                     ))}
