@@ -25,6 +25,7 @@ import { useLanguage } from '../lib/i18n';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import { checkGeminiKey, extractCsvFromImage, fetchModels, getModelByCapability } from '../lib/gemini';
 import { formatMoneyValue } from '../lib/currencyUtils';
+import { ApiKeyDialog } from './ApiKeyDialog';
 
 interface Props {
   sheetId: string;
@@ -63,6 +64,9 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
   const [parsedTxns, setParsedTxns] = useState<Transaction[]>([]);
   const [importing, setImporting] = useState(false);
   const [isParsing, setIsParsing] = useState(false);
+  
+  const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
+  const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
 
   const handleTxnChange = (index: number, field: keyof Transaction, value: any) => {
     setParsedTxns(prev => {
@@ -77,7 +81,8 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
     try {
       const apiKey = await checkGeminiKey(sheetId);
       if (!apiKey) {
-        setErrorMsg(t("Please configure your AI Studio API Key in the Advanced Tools menu to use AI image parsing.", "יש להגדיר מפתח API של AI Studio בתפריט כלים מתקדמים כדי להשתמש בניתוח תמונות ב-AI."));
+        setPendingImageFile(file);
+        setApiKeyDialogOpen(true);
         return;
       }
 
@@ -155,6 +160,18 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
     }
     // Clear the input so the same file can be selected again
     e.target.value = '';
+  };
+
+  const handleApiKeyDialogClose = async () => {
+    setApiKeyDialogOpen(false);
+    if (pendingImageFile) {
+      const apiKey = await checkGeminiKey(sheetId);
+      if (apiKey) {
+        // Resume processing
+        processImageFile(pendingImageFile);
+      }
+      setPendingImageFile(null);
+    }
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -839,6 +856,12 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
         </Button>
       </DialogActions>
       <ImportHelp open={helpOpen} onClose={() => setHelpOpen(false)} />
+
+      <ApiKeyDialog
+        open={apiKeyDialogOpen}
+        onClose={handleApiKeyDialogClose}
+        sheetId={sheetId}
+      />
     </Dialog>
   );
 }
