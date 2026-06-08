@@ -53,10 +53,28 @@ export function useScrollShadows(orientation: 'vertical' | 'horizontal' | 'both'
 
     if (orientation === 'horizontal' || orientation === 'both') {
       const { scrollLeft, scrollWidth, clientWidth } = el;
-      setShowLeft(scrollLeft > 0);
-      const atRight = Math.ceil(scrollLeft + clientWidth) >= scrollWidth;
-      const hasOverflow = scrollWidth > clientWidth;
-      setShowRight(hasOverflow && !atRight);
+      const isRtl = window.getComputedStyle(el).direction === 'rtl';
+
+      if (isRtl) {
+        // In RTL:
+        // - scrollLeft starts at 0 (far right) and decreases to negative values as we scroll left.
+        // - At the far left (end), scrollLeft is approximately clientWidth - scrollWidth.
+        
+        // Content is hidden on the right (start) if we have scrolled left from the start (0)
+        setShowRight(scrollLeft < -1);
+        
+        // Content is hidden on the left (end) if we haven't scrolled all the way to the left
+        const atLeft = Math.abs(scrollLeft) + clientWidth >= scrollWidth - 1;
+        const hasOverflow = scrollWidth > clientWidth;
+        setShowLeft(hasOverflow && !atLeft);
+      } else {
+        // In LTR:
+        // - scrollLeft starts at 0 (far left) and increases to positive values as we scroll right.
+        setShowLeft(scrollLeft > 1);
+        const atRight = scrollLeft + clientWidth >= scrollWidth - 1;
+        const hasOverflow = scrollWidth > clientWidth;
+        setShowRight(hasOverflow && !atRight);
+      }
     }
   }, [orientation]);
 

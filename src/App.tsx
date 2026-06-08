@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Routes, Route, useNavigate, useLocation, Link as RouterLink, useSearchParams } from 'react-router-dom';
 import { Login } from './components/Login';
 import { TransactionForm } from './components/NewTransaction';
@@ -41,6 +41,7 @@ import { getTheme } from './theme';
 import { usePortfolios } from './lib/hooks';
 import { exportDashboardData } from './lib/exporter';
 import { clearAllCache } from './lib/fetching/utils/cache';
+import { useScrollShadows, ScrollShadows } from './lib/ui-utils';
 
 import { useLanguage } from './lib/i18n';
 import { CacheProvider } from '@emotion/react';
@@ -107,6 +108,25 @@ function AppContent() {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const location = useLocation();
   const navigate = useNavigate();
+
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const { containerRef: scrollerRef, showLeft, showRight, checkScroll } = useScrollShadows('horizontal');
+
+  useEffect(() => {
+    const scroller = tabsRef.current?.querySelector('.MuiTabs-scroller') as HTMLDivElement | null;
+    if (scroller) {
+      (scrollerRef as any).current = scroller;
+      checkScroll();
+      scroller.addEventListener('scroll', checkScroll);
+      window.addEventListener('resize', checkScroll);
+      const interval = setInterval(checkScroll, 1000);
+      return () => {
+        scroller.removeEventListener('scroll', checkScroll);
+        window.removeEventListener('resize', checkScroll);
+        clearInterval(interval);
+      };
+    }
+  }, [scrollerRef, checkScroll]);
 
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
@@ -628,12 +648,24 @@ function AppContent() {
                 )}
               </Box>
 
-              <Tabs value={currentTab} onChange={handleTabChange} textColor="primary" indicatorColor="primary" variant="scrollable" scrollButtons="auto" allowScrollButtonsMobile sx={{ flexGrow: 1, minWidth: 0, width: { xs: '100%', sm: 'auto' } }}>
-                <Tab label={t("Dashboard", "דאשבורד")} sx={{ textTransform: 'none', fontSize: { xs: '0.9rem', sm: '1rem' }, minHeight: 64, minWidth: 64 }} component={RouterLink} to="/dashboard" />
-                <Tab label={t("Add Trade", "הוסף עסקה")} sx={{ textTransform: 'none', fontSize: { xs: '0.9rem', sm: '1rem' }, minHeight: 64, minWidth: 64 }} component={RouterLink} to="/transaction" />
-                <Tab label={t("Manage Portfolios", "ניהול תיקים")} sx={{ textTransform: 'none', fontSize: { xs: '0.9rem', sm: '1rem' }, minHeight: 64, minWidth: 80 }} component={RouterLink} to="/portfolios" />
-                <Tab label={t("All Transactions", "כל הפעולות")} sx={{ textTransform: 'none', fontSize: { xs: '0.9rem', sm: '1rem' }, minHeight: 64, minWidth: 64 }} component={RouterLink} to="/transactions" />
-              </Tabs>
+              <Box sx={{ position: 'relative', display: 'flex', flexGrow: 1, minWidth: 0, alignItems: 'center', width: { xs: '100%', sm: 'auto' } }}>
+                <Tabs
+                  ref={tabsRef}
+                  value={currentTab}
+                  onChange={handleTabChange}
+                  textColor="primary"
+                  indicatorColor="primary"
+                  variant="scrollable"
+                  scrollButtons={false}
+                  sx={{ flexGrow: 1, minWidth: 0 }}
+                >
+                  <Tab label={t("Dashboard", "דאשבורד")} sx={{ textTransform: 'none', fontSize: { xs: '0.9rem', sm: '1rem' }, minHeight: 64, minWidth: 64 }} component={RouterLink} to="/dashboard" />
+                  <Tab label={t("Add Trade", "הוסף עסקה")} sx={{ textTransform: 'none', fontSize: { xs: '0.9rem', sm: '1rem' }, minHeight: 64, minWidth: 64 }} component={RouterLink} to="/transaction" />
+                  <Tab label={t("Manage Portfolios", "ניהול תיקים")} sx={{ textTransform: 'none', fontSize: { xs: '0.9rem', sm: '1rem' }, minHeight: 64, minWidth: 80 }} component={RouterLink} to="/portfolios" />
+                  <Tab label={t("All Transactions", "כל הפעולות")} sx={{ textTransform: 'none', fontSize: { xs: '0.9rem', sm: '1rem' }, minHeight: 64, minWidth: 64 }} component={RouterLink} to="/transactions" />
+                </Tabs>
+                <ScrollShadows left={showLeft} right={showRight} theme={theme} />
+              </Box>
 
               {!isMobile && (
                 <Box sx={{ display: 'flex' }}>
