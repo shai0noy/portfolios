@@ -8,7 +8,7 @@ import { AllTransactions } from './components/AllTransactions';
 import { ImportCSV } from './components/ImportCSV';
 import { TickerDetails } from './components/TickerDetails';
 import { ensureSchema, populateTestData, fetchTransactions, rebuildHoldingsSheet, getMetadataValue } from './lib/sheets/index';
-import { initializeGapi, signOut, signIn } from './lib/google';
+import { initializeGapi, signOut, signIn, ensureGapi } from './lib/google';
 import {
   Box, AppBar, Toolbar, Typography, Container, Tabs, Tab, IconButton, CircularProgress,
   ThemeProvider, CssBaseline, Snackbar, Alert, ListItemIcon, ListItemText,
@@ -98,7 +98,7 @@ function AppContent() {
   const [importOpen, setImportOpen] = useState(false);
   const [mode, setMode] = useState<'light' | 'dark'>(() => (localStorage.getItem('themeMode') as 'light' | 'dark') || 'light');
   const [rebuilding, setRebuilding] = useState(false);
-  const { isSessionExpired, hideLoginModal } = useSession();
+  const { isSessionExpired, hideLoginModal, showLoginModal } = useSession();
   const [schemaVersionMismatch, setSchemaVersionMismatch] = useState<'old' | 'new' | null>(null);
   const [colorblindMode, setColorblindMode] = useState<boolean>(() => localStorage.getItem('colorblindMode') === 'true');
   const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
@@ -273,7 +273,19 @@ function AppContent() {
     let mounted = true;
     (async () => {
       try {
-        await initializeGapi();
+        if (sheetId) {
+          try {
+            await ensureGapi();
+          } catch (e: any) {
+            if (e?.name === 'SessionExpiredError' || e?.message === 'Session expired') {
+              showLoginModal();
+            } else {
+              throw e;
+            }
+          }
+        } else {
+          await initializeGapi();
+        }
         if (mounted) setGoogleReady(true);
       } catch (e) {
         console.warn("GAPI init failed or timed out", e);
@@ -282,7 +294,7 @@ function AppContent() {
       }
     })();
     return () => { mounted = false; };
-  }, []);
+  }, [sheetId, showLoginModal]);
 
   const handleSnackbarClose = (_?: any, reason?: string) => {
     if (reason === 'clickaway') return;
