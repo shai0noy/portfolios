@@ -5,16 +5,16 @@ import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import {
   Box, TextField, Button, MenuItem, Select, InputLabel, FormControl, Autocomplete,
   Typography, Alert, InputAdornment, Grid, Card, CardContent, Divider, Tooltip, Chip, ToggleButton, ToggleButtonGroup,
-  Backdrop, CircularProgress, IconButton, useTheme, Tabs, Tab, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions
+  Backdrop, CircularProgress, IconButton, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions,
+  Accordion, AccordionSummary, AccordionDetails,
+  useMediaQuery, useTheme
 } from '@mui/material';
-import { useScrollShadows, ScrollShadows } from '../lib/ui-utils';
 import RestoreIcon from '@mui/icons-material/Restore';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
-import VisibilityIcon from '@mui/icons-material/Visibility';
 import SearchIcon from '@mui/icons-material/Search';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
-import DashboardIcon from '@mui/icons-material/Dashboard';
 import DeleteIcon from '@mui/icons-material/Delete';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { parseExchange, type Portfolio, type Transaction, Exchange } from '../lib/types';
 import { InstrumentType } from '../lib/types/instrument';
 import type { TickerProfile } from '../lib/types/ticker';
@@ -56,16 +56,15 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   const [isPortfoliosLoading, setIsPortfoliosLoading] = useState(true);
   const [loading, setLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('');
-  const [priceError, setPriceError] = useState('');
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [exchangeRates, setExchangeRates] = useState<ExchangeRates>({ current: { USD: 1 } });
-  const { t, tTry } = useLanguage();
+  const { t } = useLanguage();
   const theme = useTheme();
-  const { containerRef, showTop, showBottom } = useScrollShadows();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isPreselected = !!(searchParams.get('ticker') || locationState?.prefilledTicker);
 
   // Form State
   const [selectedTicker, setSelectedTicker] = useState<(TickerData & { symbol: string }) | null>(null);
-  const [showForm, setShowForm] = useState(!!locationState?.prefilledTicker);
 
   const [date, setDate] = useState(formatDate(new Date()));
   const [portId, setPortId] = useState('');
@@ -83,9 +82,9 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   const [qty, setQty] = useState<string>('');
 
   // Sell Existing Holding Flow State
-  const [actionMode, setActionMode] = useState<'search' | 'sell_holding'>('search');
-  const [sellFlowPortId, setSellFlowPortId] = useState<string>('');
+  const [activeStep, setActiveStep] = useState(0);
   const [holdingSearch, setHoldingSearch] = useState(''); // Search for holdings list
+  const [holdingPortFilter, setHoldingPortFilter] = useState('all');
 
   // Holding Change specific state
   const [buyTicker, setBuyTicker] = useState<TickerData & { symbol: string } | null>(null);
@@ -181,7 +180,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
           }
           setExchange(data.exchange || prefilledExchange || '');
           setTicker(prefilledTicker!)
-          setShowForm(true);
+          setActiveStep(editTxn || editDiv ? 3 : 1);
 
           if (editTxn) {
             setHasManuallyEditedPrice(true);
@@ -232,9 +231,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
             syncDividends(sheetId, prefilledTicker!, parseExchange(data.exchange || prefilledExchange || ''), divsToSync, 'YAHOO');
           }
         } else {
-          setPriceError(`${t('Ticker not found on', 'הנייר לא נמצא ב-')}${prefilledExchange}`);
           setSelectedTicker(null);
-          setShowForm(false);
         }
         setLoading(false);
       };
@@ -269,7 +266,6 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
       ticker: profile.symbol,
       numericId: profile.securityId ?? null
     });
-    setShowForm(false);
 
     const data = await getTickerData(profile.symbol, profile.exchange, profile.securityId ?? null);
     setLoading(false);
@@ -303,8 +299,6 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
       setSearchParams({ ticker: combinedData.symbol, exchange: combinedData.exchange || '' }, { replace: true });
       setTicker(combinedData.symbol);
       setExchange(combinedData.exchange || '');
-      setShowForm(true); // Show form with data
-      setPriceError('');
       if (combinedData.price) {
         setPrice(parseFloat(combinedData.price.toFixed(6)).toString());
         setTickerCurrency(normalizeCurrency(combinedData.currency || ''));
@@ -324,9 +318,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
       setHasManuallyEditedPrice(false);
 
     } else {
-      setPriceError(`${t('Could not fetch data for', 'לא ניתן היה לטעון מידע עבור')} ${profile.symbol}`);
       setSelectedTicker(null); // This will cause TickerSearch to reappear.
-      setShowForm(false);
     }
   };
 
@@ -398,67 +390,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     }
   }, [portfolios, selectedTicker]);
 
-  // Moved handleSellHoldingSelect here to access updateCommission
-  const handleSellHoldingSelect = async (pid: string, tickerSymbol: string) => {
-    setLoading(true);
-    const port = portfolios.find(p => p.id === pid);
-    if (!port) return;
-    const holding = port.holdings?.find(h => h.ticker === tickerSymbol);
-    if (!holding) return;
-
-    // Fetch latest price data for accurate total calc
-    const data = await getTickerData(holding.ticker, holding.exchange, holding.numericId || null);
-    setLoading(false);
-
-    const combinedData: TickerData & { symbol: string } = {
-      ...(data || {}),
-      symbol: holding.ticker,
-      ticker: holding.ticker,
-      exchange: holding.exchange,
-      numericId: holding.numericId ?? data?.numericId ?? null,
-      name: holding.name || data?.name || holding.ticker,
-      nameHe: holding.nameHe || data?.nameHe,
-      price: data?.price || holding.price || 0,
-      currency: holding.currency || data?.currency || 'USD',
-    };
-
-    setSelectedTicker(combinedData);
-    setTicker(combinedData.symbol);
-    setSearchParams({ ticker: combinedData.symbol, exchange: combinedData.exchange || '' }, { replace: true });
-    setExchange(combinedData.exchange);
-    setPortId(pid);
-
-    // Determine Type
-    const isTaxFreeAccumulating = port.divPolicy === 'accumulate_tax_free';
-    const newType = isTaxFreeAccumulating ? 'HOLDING_CHANGE' : 'SELL';
-    setType(newType);
-
-    // Pre-fill
-    setQty(holding.qty.toString());
-    setPercent('100');
-
-    if (combinedData.price) {
-      setPrice(parseFloat(combinedData.price.toFixed(6)).toString());
-      const totalVal = holding.qty * combinedData.price;
-      const tCurr = normalizeCurrency(combinedData.currency || 'USD');
-      setTickerCurrency(tCurr);
-
-      const major = tCurr === Currency.ILA ? Currency.ILS : tCurr;
-      const displayTotal = convertCurrency(totalVal, tCurr, major, exchangeRates);
-      const totalStr = parseFloat(displayTotal.toFixed(6)).toString();
-      setTotal(totalStr);
-
-      updateCommission(totalStr, pid, newType);
-    } else {
-      setPrice('');
-      setTotal('');
-      setTickerCurrency(Currency.USD);
-    }
-
-    setShowForm(true);
-    setActionMode('search');
-    setHasManuallyEditedPrice(false);
-  };
+  // Moved handleSellHoldingSelect here to access updateCommission;
 
   const handleQtyChange = useCallback((val: number, valStr?: string) => {
     // NumericField passes number and valStr
@@ -942,7 +874,6 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
       setTotal('');
       setComment('');
       setPreviewTxns(null);
-      setShowForm(false);
     } catch (err) {
       console.error(err);
       toast.error('Failed to save grant transactions');
@@ -1113,7 +1044,6 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
         setVestDate('');
         setType('BUY');
         setDate(formatDate(new Date()));
-        setShowForm(false); // Hide form, show summary card again
         setHasManuallyEditedPrice(false);
         setSearchParams({});
       }
@@ -1126,44 +1056,12 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
       setLoading(false);
     }
   };
-
-  const handleViewTicker = () => {
-    if (selectedTicker) {
-      navigate(`/ticker/${selectedTicker.exchange}/${selectedTicker.symbol}`, {
-        state: {
-          from: '/transaction',
-          background: location,
-          numericId: selectedTicker.numericId?.toString(),
-          initialName: selectedTicker.name,
-          initialNameHe: selectedTicker.nameHe
-        }
-      });
-    }
-  };
-
-  const handleSearchAgain = () => {
-    setSelectedTicker(null);
-    setTicker('');
-    setExchange('');
-    setPrice('');
-    setTickerCurrency(Currency.ILA);
-    setShowForm(false);
-    setSaveSuccess(false);
-    setValidationErrors({});
-    setSearchParams({});
-    navigate('/transaction', { replace: true, state: {} }); // Clear location state
-  };
+;
+;
 
   const selectedPortfolio = portfolios.find(p => p.id === portId);
 
 
-  const ownedDetails = selectedTicker ? portfolios
-    .filter(p => !portId || p.id === portId)
-    .flatMap(p => {
-      const holding = p.holdings?.find(h => h.ticker === selectedTicker.symbol);
-      return holding ? [{ name: p.name, qty: holding.qty }] : [];
-    }) : [];
-  const totalHeld = ownedDetails.reduce((sum, item) => sum + item.qty, 0);
 
   if (!isPortfoliosLoading && portfolios.length === 0) {
     return (
@@ -1183,22 +1081,20 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   }
 
 
+  const handleNextStep = (step: number) => {
+    setActiveStep(step);
+  };
+
   return (
-    <Box sx={{ maxWidth: 800, mx: 'auto' }}>
-      <Typography variant="h5" gutterBottom sx={{ fontWeight: 600, color: 'text.primary', mb: 2 }}>
+    <Box sx={{ maxWidth: 800, mx: 'auto', pb: 8 }}>
+      <Typography variant="h5" gutterBottom sx={{ fontWeight: 600, color: 'text.primary', mb: 3 }}>
         {locationState?.editTransaction || locationState?.editDividend
           ? t('Edit Transaction', 'ערוך עסקה')
           : t('New Transaction', 'הוסף עסקה חדשה')}
       </Typography>
 
-      {selectedTicker && (
-        <Button variant="text" startIcon={<SearchIcon />} onClick={handleSearchAgain} sx={{ mb: 2 }}>
-          {t('Back to Search', 'חזרה לחיפוש')}
-        </Button>
-      )}
-
       {saveSuccess && (
-        <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSaveSuccess(false)} action={
+        <Alert severity="success" sx={{ mb: 3 }} onClose={() => setSaveSuccess(false)} action={
           <Button color="inherit" size="small" onClick={() => navigate('/dashboard')}>
             {t('Dashboard', 'דאשבורד')}
           </Button>
@@ -1207,402 +1103,375 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
         </Alert>
       )}
 
-      <Grid container spacing={2}>
-        {(!selectedTicker && !locationState?.prefilledTicker && actionMode === 'search') && (
-          <Grid item xs={12}>
-            <Box mb={4}>
-              <Typography variant="h6" sx={{ mb: 2.5 }}>
-                {t('Search ticker to buy or sell', 'חפש נייר לקנייה או מכירה')}
-              </Typography>
-              <TickerSearch trackingLists={[]}
-                onTickerSelect={handleTickerSelect}
-                portfolios={portfolios}
-                isPortfoliosLoading={isPortfoliosLoading}
-                collapsible={false}
-              />
-            </Box>
+      {isPreselected && (
+         <Box sx={{ bgcolor: 'background.paper', p: 1.5, borderRadius: 2, mb: 3, display: 'flex', alignItems: 'center', gap: 2, border: '1px solid', borderColor: 'divider' }}>
+           <BusinessCenterIcon color="primary" />
+           <Typography variant="h6" color="text.primary" sx={{ lineHeight: 1.2 }}>{selectedTicker?.name || selectedTicker?.symbol || searchParams.get('ticker') || locationState?.prefilledTicker}</Typography>
+         </Box>
+      )}
 
-            <Divider sx={{ my: 3 }}>
-              <Chip label={t('OR', 'או')} />
-            </Divider>
-
-            <Box display="flex" justifyContent="center">
-              <Button
-                variant="outlined"
-                size="medium"
-                startIcon={<BusinessCenterIcon />}
-                onClick={() => {
-                  setActionMode('sell_holding');
-                  // Auto-select portfolio if only one
-                  if (portfolios.length === 1) {
-                    setSellFlowPortId(portfolios[0].id);
-                  }
-                }}
-              >
-                {t('Sell Existing Holding', 'מכור החזקה קיימת')}
-              </Button>
-            </Box>
-          </Grid>
-        )}
-
-        {(!selectedTicker && !locationState?.prefilledTicker && actionMode === 'sell_holding') && (
-          <Grid item xs={12}>
-            <Box mb={2}>
-              <Button onClick={() => setActionMode('search')} startIcon={<SearchIcon />}>
-                {t('Back to Search', 'חזרה לחיפוש')}
-              </Button>
-            </Box>
-            <Card variant="outlined">
-              <CardContent>
-                <Typography variant="h6" gutterBottom sx={{ mb: 3 }}>
-                  {t('Select Holding to Sell', 'בחר החזקה למכירה')}
-                </Typography>
-
-                {portfolios.length > 1 && (
-                  <Box sx={{ mb: 4 }}>
-                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                      {t('Portfolio', 'תיק')}
-                    </Typography>
-                    <Grid container spacing={2}>
-                      {portfolios.map(p => {
-                        const isSelected = p.id === sellFlowPortId;
-                        return (
-                          <Grid item xs={4} sm={3} md={2} key={p.id}>
-                            <Card
-                              variant={isSelected ? "elevation" : "outlined"}
-                              sx={{
-                                cursor: 'pointer',
-                                borderColor: isSelected ? 'primary.main' : undefined,
-                                bgcolor: isSelected ? 'primary.light' : 'background.paper',
-                                color: isSelected ? 'primary.contrastText' : 'text.primary',
-                                transition: 'all 0.2s',
-                                minHeight: '100%'
-                              }}
-                              onClick={() => setSellFlowPortId(p.id)}
-                            >
-                              <CardContent sx={{ p: 1, '&:last-child': { p: 1 }, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-                                <Typography variant="caption" sx={{ fontWeight: 600, lineHeight: 1.2 }}>
-                                  {p.name}
-                                </Typography>
-                              </CardContent>
-                            </Card>
-                          </Grid>
-                        );
-                      })}
-                    </Grid>
-                  </Box>
-                )}
-
-                {sellFlowPortId && (
-                  <Box>
-                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                      {t('Holding', 'החזקה')}
-                    </Typography>
-
-                    <TextField
-                      fullWidth
-                      size="small"
-                      placeholder={t('Filter holdings...', 'סנן החזקות...')}
-                      value={holdingSearch}
-                      onChange={(e) => setHoldingSearch(e.target.value)}
-                      InputProps={{
-                        startAdornment: <InputAdornment position="start"><SearchIcon color="action" /></InputAdornment>
+      {!isPreselected && (
+      <Accordion expanded={activeStep === 0} onChange={() => setActiveStep(0)} sx={{ mb: 2, borderRadius: 2, '&:before': { display: 'none' }, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+        <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ bgcolor: activeStep === 0 ? 'action.hover' : 'transparent', borderRadius: 2 }}>
+          <Box display="flex" alignItems="center" gap={2}>
+            <Typography variant="h6">{t('Step 1: Select Asset', 'שלב 1: בחר נכס')}</Typography>
+            {selectedTicker && activeStep !== 0 && (
+              <Chip size="small" color="primary" label={selectedTicker.symbol} />
+            )}
+          </Box>
+        </AccordionSummary>
+        <AccordionDetails sx={{ pt: 3 }}>
+          <Box mb={2}>
+            <Typography variant="subtitle2" sx={{ mb: 1 }}>{t('Search ticker to buy or sell', 'חפש נייר לקנייה או מכירה')}</Typography>
+            <TickerSearch 
+              trackingLists={[]}
+              onTickerSelect={(tData) => {
+                handleTickerSelect(tData);
+                handleNextStep(1);
+              }}
+              portfolios={portfolios}
+              isPortfoliosLoading={isPortfoliosLoading}
+              collapsible={false}
+            />
+          </Box>
+          <Divider sx={{ my: 3 }}><Chip label={t('OR Your Holdings', 'או ההחזקות שלך')} size="small" /></Divider>
+          
+          <Box mb={2}>
+            <Grid container spacing={2}>
+              <Grid item xs={12} sm={7}>
+                <TextField 
+                  fullWidth size="small" placeholder={t('Filter holdings...', 'סנן החזקות...')} 
+                  value={holdingSearch} onChange={e => setHoldingSearch(e.target.value)} 
+                  InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small"/></InputAdornment> }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={5}>
+                <FormControl fullWidth size="small">
+                  <Select
+                    value={holdingPortFilter}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setHoldingPortFilter(val);
+                      if (val !== 'all') {
+                        handlePortChange({ target: { value: val } } as any);
+                      }
+                    }}
+                    displayEmpty
+                  >
+                    <MenuItem value="all"><em>{t('All Portfolios', 'כל התיקים')}</em></MenuItem>
+                    {portfolios.map(p => (
+                      <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+            </Grid>
+          <Grid container spacing={1} sx={{ mt: 1 }}>
+              {portfolios.flatMap(p => (p.holdings || []).map(h => ({ ...h, portName: p.name, portId: p.id })))
+                .filter(h => !holdingSearch || h.ticker.toLowerCase().includes(holdingSearch.toLowerCase()) || (h.name && h.name.toLowerCase().includes(holdingSearch.toLowerCase())))
+                .filter(h => holdingPortFilter === 'all' || h.portId === holdingPortFilter)
+                .map((h, i) => (
+                  <Grid item xs={6} sm={4} md={3} key={`${h.portId}-${h.ticker}-${i}`}>
+                    <Box 
+                      onClick={() => {
+                        handleTickerSelect({ symbol: h.ticker, name: h.name, nameHe: h.name, type: h.type?.type || 'Equity', exchange: h.exchange || '', currency: h.currency || 'USD' } as any);
+                        handlePortChange({ target: { value: h.portId } } as any);
+                        handleNextStep(2); 
                       }}
-                      sx={{ mb: 2 }}
-                    />
-
-                    <Box sx={{ position: 'relative' }}>
-                      <Card variant="outlined" sx={{ maxHeight: 400, overflow: 'auto' }} ref={containerRef}>
-                        {(() => {
-                          const port = portfolios.find(p => p.id === sellFlowPortId);
-                          const holdings = port?.holdings || [];
-                          const filtered = holdings.filter(h =>
-                            !holdingSearch ||
-                            h.ticker.toLowerCase().includes(holdingSearch.toLowerCase()) ||
-                            (h.name && h.name.toLowerCase().includes(holdingSearch.toLowerCase()))
-                          );
-
-                          if (filtered.length === 0) {
-                            return (
-                              <Box p={3} textAlign="center">
-                                <Typography color="text.secondary">
-                                  {holdings.length === 0 ? t('No holdings in this portfolio', 'אין החזקות בתיק זה') : t('No matching holdings', 'לא נמצאו החזקות מתאימות')}
-                                </Typography>
-                              </Box>
-                            );
-                          }
-
-                          return (
-                            <Box>
-                              {filtered.map((h, index) => (
-                                <Box key={h.ticker}>
-                                  {index > 0 && <Divider />}
-                                  <Box
-                                    sx={{
-                                      p: 2,
-                                      cursor: 'pointer',
-                                      '&:hover': { bgcolor: 'action.hover' },
-                                      display: 'flex',
-                                      justifyContent: 'space-between',
-                                      alignItems: 'center'
-                                    }}
-                                    onClick={() => handleSellHoldingSelect(sellFlowPortId, h.ticker)}
-                                  >
-                                    <Box>
-                                      <Box display="flex" alignItems="center" gap={1}>
-                                        <Typography variant="subtitle1" fontWeight={600}>{h.ticker}</Typography>
-                                        <Chip label={h.exchange} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.7rem' }} />
-                                      </Box>
-                                      <Typography variant="body2" color="text.secondary" noWrap sx={{ maxWidth: 200 }}>
-                                        {tTry(h.name, h.nameHe)}
-                                      </Typography>
-                                    </Box>
-                                    <Box textAlign="right">
-                                      <Typography variant="body2" component="div" sx={{ fontWeight: 600 }}>
-                                        {(() => {
-                                          const val = h.totalValue ?? (h.price ? h.qty * h.price : 0);
-                                          const curr = h.currency || 'USD';
-                                          return new Intl.NumberFormat('en-US', { style: 'currency', currency: curr, maximumFractionDigits: 0 }).format(val);
-                                        })()}
-                                      </Typography>
-                                      <Typography variant="caption" display="block" color="text.secondary">
-                                        {h.qty} units
-                                      </Typography>
-                                    </Box>
-                                  </Box>
-                                </Box>
-                              ))}
-                            </Box>
-                          );
-                        })()}
-                      </Card>
-                      <ScrollShadows top={showTop} bottom={showBottom} theme={theme} />
-                    </Box>
-                  </Box>
-                )}
-              </CardContent>
-            </Card>
-          </Grid>
-        )}
-
-        {(selectedTicker) && (
-          <Grid item xs={12} sx={{ p: 2 }}>
-            <Card variant="outlined">
-              <CardContent>
-                <Box display="flex" alignItems="center" justifyContent="space-between" mb={1}>
-                  <Box display="flex" alignItems="center" gap={1}>
-                    <Typography variant="h6">{tTry(selectedTicker.name, selectedTicker.nameHe)}</Typography>
-                    {ownedDetails.length > 0 && (
-                      <Tooltip title={`Total Held: ${totalHeld} (${ownedDetails.map(d => `${d.name}: ${d.qty}`).join(', ')})`}>
-                        <BusinessCenterIcon color="success" />
-                      </Tooltip>
-                    )}
-                  </Box>
-                  <Button variant="outlined" size="small" startIcon={<VisibilityIcon />} onClick={handleViewTicker}>
-                    {t('View Details', 'פרטי נייר')}
-                  </Button>
-                </Box>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap', mb: 2 }}>
-                  <Chip
-                    label={`${exchange}: ${ticker}`}
-                    color="primary"
-                    variant="outlined"
-                    onClick={handleViewTicker}
-                    sx={{ cursor: 'pointer', height: 24, fontSize: '0.75rem' }}
-                  />
-                  {selectedTicker?.price && (
-                    <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
-                      {type === 'HOLDING_CHANGE' ? t('Start: ', 'מקור: ') : ''}{formatPrice(selectedTicker.price, tickerCurrency, 2, t)}
-                    </Typography>
-                  )}
-                  {(selectedTicker?.providentInfo?.managementFee !== undefined || selectedTicker?.providentInfo?.depositFee !== undefined) && (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
-                      {selectedTicker?.providentInfo?.managementFee !== undefined && (
-                        <Typography variant="caption" sx={{ display: 'flex', gap: 0.3 }}>
-                          {t('Mgmt fee:', 'דמי ניהול:')} <Box component="span" sx={{ fontWeight: 600, color: 'text.primary' }}>{selectedTicker.providentInfo.managementFee}%</Box>
+                      sx={{ 
+                        p: 0.75, 
+                        border: '1px solid', borderColor: 'divider', borderRadius: 1, 
+                        cursor: 'pointer', 
+                        transition: 'all 0.2s',
+                        '&:hover': { bgcolor: 'action.hover', borderColor: 'primary.main' } 
+                      }}
+                    >
+                      <Box display="flex" justifyContent="space-between" alignItems="center" mb={0.25}>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{h.ticker}</Typography>
+                        <Typography variant="caption" sx={{ fontWeight: 500, color: 'text.secondary' }}>{h.qty}</Typography>
+                      </Box>
+                      <Box display="flex" justifyContent="space-between" alignItems="center">
+                        <Typography variant="caption" noWrap sx={{ fontSize: '0.65rem', maxWidth: '65%', color: 'text.secondary' }}>
+                          {h.name || h.ticker}
                         </Typography>
-                      )}
-                      {selectedTicker?.providentInfo?.managementFee !== undefined && selectedTicker?.providentInfo?.depositFee !== undefined && (
-                        <Typography variant="caption" sx={{ opacity: 0.5, mx: 0.5 }}>•</Typography>
-                      )}
-                      {selectedTicker?.providentInfo?.depositFee !== undefined && (
-                        <Typography variant="caption" sx={{ display: 'flex', gap: 0.3 }}>
-                          {t('Deposit fee:', 'דמי הפקדה:')} <Box component="span" sx={{ fontWeight: 600, color: 'text.primary' }}>{selectedTicker.providentInfo.depositFee}%</Box>
+                        <Typography variant="caption" sx={{ fontSize: '0.6rem', color: 'primary.main', fontWeight: 500, px: 0.5, bgcolor: 'primary.50', borderRadius: 1 }}>
+                          {h.portName}
                         </Typography>
-                      )}
+                      </Box>
                     </Box>
-                  )}
-                </Box>
-                {selectedTicker?.source && (
-                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.6rem', ml: 2, mb: 0.5, opacity: 0.8, float: 'right', marginTop: -3 }}>
-                    {t('Source:', 'מקור:')} {selectedTicker.source}
-                  </Typography>
-                )}
-                {priceError && <Alert severity="error" sx={{ mb: 2 }}>{priceError}</Alert>}
+                  </Grid>
+              ))}
+            </Grid>
+          </Box>
+        </AccordionDetails>
+      </Accordion>
+      )}
 
-                {!showForm && (
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                    <Button variant="contained" startIcon={<AddCircleOutlineIcon />} onClick={() => { setShowForm(true); setSaveSuccess(false); }}>Add Another for {ticker}</Button>
-                    <Button variant="outlined" startIcon={<DashboardIcon />} onClick={() => navigate('/dashboard')}>Back to Dashboard</Button>
-                    <Button variant="outlined" startIcon={<SearchIcon />} onClick={handleSearchAgain}>Back to Search</Button>
-                  </Box>
-                )}
-
-
-
-                {showForm && selectedTicker && (
-                  <>
-                    <Grid item xs={12}>
-                      <Divider sx={{ my: 1 }}>
-                        {isEditing ? (
-                          <Typography variant="subtitle2" sx={{ color: '#fff' }} fontWeight="bold">
-                            {t('Editing Transaction', 'עריכת עסקה')}
-                          </Typography>
+      <Accordion expanded={activeStep === 1} onChange={() => setActiveStep(1)} disabled={!selectedTicker} sx={{ mb: 2, borderRadius: 2, '&:before': { display: 'none' }, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+        <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ bgcolor: activeStep === 1 ? 'action.hover' : 'transparent', borderRadius: 2 }}>
+          <Box display="flex" alignItems="center" gap={2}>
+            <Typography variant="h6">{t('Step 2: Select Portfolio', 'שלב 2: בחר תיק')}</Typography>
+            {portId && activeStep !== 1 && (
+              <Chip size="small" color="primary" label={portfolios.find(p => p.id === portId)?.name} />
+            )}
+          </Box>
+        </AccordionSummary>
+        <AccordionDetails sx={{ pt: 2 }}>
+           {isMobile ? (
+             <FormControl fullWidth>
+               <InputLabel>{t('Select Portfolio', 'בחר תיק')}</InputLabel>
+               <Select
+                 value={portId}
+                 label={t('Select Portfolio', 'בחר תיק')}
+                 onChange={(e) => {
+                   handlePortChange({ target: { value: e.target.value } } as any);
+                   handleNextStep(2);
+                 }}
+               >
+                 {portfolios.map(p => {
+                   const holding = p.holdings?.find(h => h.ticker === selectedTicker?.symbol);
+                   return (
+                     <MenuItem key={p.id} value={p.id}>
+                       <Box display="flex" justifyContent="space-between" width="100%" alignItems="center">
+                         <Typography>{p.name}</Typography>
+                         {holding && (
+                           <Typography variant="caption" color="text.secondary">
+                             {t('Held:', 'מוחזק:')} {holding.qty} {holding.totalValue !== undefined ? `(${new Intl.NumberFormat(undefined, { style: 'currency', currency: holding.currency || 'USD', maximumFractionDigits: 0 }).format(holding.totalValue)})` : ''}
+                           </Typography>
+                         )}
+                       </Box>
+                     </MenuItem>
+                   );
+                 })}
+               </Select>
+             </FormControl>
+           ) : (
+           <Grid container spacing={2}>
+              {portfolios.map(p => {
+                const isSelected = p.id === portId;
+                const holding = p.holdings?.find(h => h.ticker === selectedTicker?.symbol);
+                return (
+                  <Grid item xs={6} sm={4} md={3} key={p.id}>
+                    <Card
+                      variant={isSelected ? "elevation" : "outlined"}
+                      sx={{
+                        cursor: 'pointer',
+                        borderColor: isSelected ? 'primary.main' : undefined,
+                        bgcolor: isSelected ? 'primary.light' : 'background.paper',
+                        color: isSelected ? 'primary.contrastText' : 'text.primary',
+                        transition: 'all 0.2s',
+                        height: '100%',
+                        position: 'relative'
+                      }}
+                      onClick={() => {
+                        handlePortChange({ target: { value: p.id } } as any);
+                        handleNextStep(2);
+                      }}
+                    >
+                      <CardContent sx={{ p: 2, '&:last-child': { pb: 2 }, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 600, lineHeight: 1.2 }}>
+                          {p.name}
+                        </Typography>
+                        {holding ? (
+                          <>
+                           <Chip size="small" label={`${t('Held:', 'מוחזק:')} ${holding.qty}`} sx={{ mt: 1, height: 20, fontSize: '0.7rem', bgcolor: isSelected ? 'rgba(255,255,255,0.2)' : 'success.light', color: isSelected ? 'inherit' : 'success.contrastText' }} />
+                           {holding.totalValue !== undefined && (
+                             <Typography variant="caption" sx={{ mt: 0.5, fontSize: '0.65rem', opacity: 0.8 }}>
+                               {new Intl.NumberFormat(undefined, { style: 'currency', currency: holding.currency || 'USD', maximumFractionDigits: 0 }).format(holding.totalValue)}
+                             </Typography>
+                           )}
+                          </>
                         ) : (
-                          type === 'DIVIDEND' ? 'Dividend Details' : 'Transaction Details'
+                           <Typography variant="caption" sx={{ mt: 1, opacity: 0.7 }}>{t('Not Held', 'לא מוחזק')}</Typography>
                         )}
-                      </Divider>
-                    </Grid>
-                    <Grid container spacing={2}>
-                      <Grid item xs={12}>
-                        <Tabs
-                          value={type}
-                          onChange={(_, newType) => handleTypeChange({ target: { value: newType } } as any)}
-                          variant="scrollable"
-                          scrollButtons="auto"
-                          allowScrollButtonsMobile
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                );
+              })}
+            </Grid>
+           )}
+        </AccordionDetails>
+      </Accordion>
+
+      <Accordion expanded={activeStep === 2} onChange={() => setActiveStep(2)} disabled={!selectedTicker || !portId} sx={{ mb: 2, borderRadius: 2, '&:before': { display: 'none' }, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+        <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ bgcolor: activeStep === 2 ? 'action.hover' : 'transparent', borderRadius: 2 }}>
+          <Box display="flex" alignItems="center" gap={2}>
+            <Typography variant="h6">{t('Step 3: Action', 'שלב 3: סוג פעולה')}</Typography>
+            {type && activeStep !== 2 && (
+              <Chip size="small" color="primary" label={
+                type === 'BUY' ? t('Buy', 'קנייה') :
+                type === 'SELL' ? t('Sell', 'מכירה') :
+                type === 'HOLDING_CHANGE' ? t('Holding Change', 'החלפת החזקה') :
+                type === 'GRANT' ? t('Grant', 'הענקה') :
+                type === 'DIVIDEND' ? t('Dividend', 'דיבידנד') : t(type, type)
+              } />
+            )}
+          </Box>
+        </AccordionSummary>
+        <AccordionDetails sx={{ pt: 2 }}>
+           <Grid container spacing={2}>
+              {['BUY', 'SELL', 'HOLDING_CHANGE', 'DIVIDEND', 'GRANT'].map(act => {
+                 const p = portfolios.find(p => p.id === portId);
+                 const isHeld = p?.holdings?.some(h => h.ticker === selectedTicker?.symbol);
+                 
+                 let disabled = false;
+                 let label = t(act, act);
+                 if (act === 'BUY') label = t('Buy', 'קנייה');
+                 if (act === 'SELL') {
+                    label = t('Sell', 'מכירה');
+                    if (!isHeld) disabled = true;
+                 }
+                 if (act === 'HOLDING_CHANGE') {
+                    label = t('Holding Change', 'החלפת החזקה');
+                    if (p?.divPolicy !== 'accumulate_tax_free') return null;
+                    if (!isHeld) disabled = true;
+                 }
+                 if (act === 'GRANT') label = t('Grant', 'הענקה');
+                 if (act === 'DIVIDEND') label = t('Dividend', 'דיבידנד');
+                 
+                 if (isEditing && type !== act) disabled = true;
+
+                 const isSelected = type === act;
+                 return (
+                    <Grid item xs={6} sm={4} md={3} key={act}>
+                        <Card
+                          variant={isSelected ? "elevation" : "outlined"}
                           sx={{
-                            borderBottom: 1, borderColor: 'divider', mb: 2,
-                            minHeight: 48,
-                            '& .MuiTabs-flexContainer': { gap: 1 },
-                            '& .MuiTab-root': {
-                              textTransform: 'none',
-                              fontWeight: 600,
-                              fontSize: '0.95rem',
-                              borderRadius: '12px 12px 0 0',
-                              minHeight: 48,
-                              px: 3,
-                              color: 'text.secondary',
-                              '&.Mui-selected': {
-                                color: 'primary.main',
-                                bgcolor: 'action.hover',
-                              },
-                              '&.Mui-disabled': {
-                                opacity: 0.3,
-                                color: 'text.disabled',
-                              }
+                            cursor: disabled ? 'default' : 'pointer',
+                            opacity: disabled ? 0.5 : 1,
+                            borderColor: isSelected ? 'primary.main' : undefined,
+                            bgcolor: isSelected ? 'primary.light' : 'background.paper',
+                            color: isSelected ? 'primary.contrastText' : 'text.primary',
+                            transition: 'all 0.2s',
+                            height: '100%',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center'
+                          }}
+                          onClick={() => {
+                            if (!disabled) {
+                               handleTypeChange({ target: { value: act } } as any);
+                               if (act === 'HOLDING_CHANGE') {
+                                  if (buyTicker) handleNextStep(3);
+                               } else {
+                                  handleNextStep(3);
+                               }
                             }
                           }}
                         >
-                          <Tab value="BUY" label={t('Buy', 'קנייה')} disabled={isEditing && type !== 'BUY'} />
-                          <Tab value="SELL" label={t('Sell', 'מכירה') + ((portId && ticker && !portfolios.find(p => p.id === portId)?.holdings?.some(h => h.ticker === ticker)) ? ` (${t('Not Held', 'לא מוחזק')})` : '')} disabled={Boolean(isEditing && type !== 'SELL') || Boolean(portId && ticker && !portfolios.find(p => p.id === portId)?.holdings?.some(h => h.ticker === ticker))} />
-                          {(selectedPortfolio?.divPolicy === 'accumulate_tax_free') && (
-                            <Tab value="HOLDING_CHANGE" label={t('Holding Change', 'החלפת החזקה') + ((portId && ticker && !portfolios.find(p => p.id === portId)?.holdings?.some(h => h.ticker === ticker)) ? ` (${t('Not Held', 'לא מוחזק')})` : '')} disabled={Boolean(isEditing && type !== 'HOLDING_CHANGE') || Boolean(portId && ticker && !portfolios.find(p => p.id === portId)?.holdings?.some(h => h.ticker === ticker))} />
-                          )}
-                          <Tab value="GRANT" label={t('Grant', 'הענקה')} disabled={isEditing && type !== 'GRANT'} />
-                          <Tab value="DIVIDEND" label={t('Dividend', 'דיבידנד')} disabled={isEditing && type !== 'DIVIDEND'} />
-                        </Tabs>
-                      </Grid>
-
-                      {type !== 'DIVIDEND' && (
+                          <CardContent sx={{ p: 2, '&:last-child': { pb: 2 }, textAlign: 'center' }}>
+                            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>{label}</Typography>
+                            {disabled && !isEditing && act !== 'BUY' && act !== 'GRANT' && act !== 'DIVIDEND' && (
+                               <Typography variant="caption" sx={{ display: 'block' }}>{t('Not Held', 'לא מוחזק')}</Typography>
+                            )}
+                          </CardContent>
+                        </Card>
+                    </Grid>
+                 )
+              })}
+           </Grid>
+{/* Holding Change Second Ticker Search */}
+                      {type === 'HOLDING_CHANGE' && (
                         <Grid item xs={12}>
-                          <Box sx={{ border: '1px solid', borderColor: validationErrors.portId ? 'error.main' : 'divider', borderRadius: 1, p: 1.5, bgcolor: !portId ? 'action.hover' : 'background.paper', display: 'flex', flexDirection: 'column', gap: 1 }}>
-                            <Typography variant="subtitle2" color={validationErrors.portId ? "error" : "textPrimary"}>
-                              {t('Portfolio', 'תיק ההשקעות')}{!portId && <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>({t('Required', 'חובה')})</Typography>}
-                            </Typography>
-                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                              {isPortfoliosLoading ? <CircularProgress size={24} /> : portfolios.map(p => (
-                                <Chip
-                                  key={p.id}
-                                  label={`${p.name} (${p.currency})`}
-                                  onClick={() => setPortId(p.id)}
-                                  color={portId === p.id ? "primary" : "default"}
-                                  variant={portId === p.id ? "filled" : "outlined"}
-                                  sx={{ fontWeight: portId === p.id ? 'bold' : 'normal', cursor: 'pointer' }}
-                                />
-                              ))}
+                          <Box sx={{ mt: 1, mb: 1 }}>
+                            <Box sx={{ pt: 1, mb: 2 }}>
+                              <Typography variant="subtitle2" color="text.secondary" sx={{ textTransform: 'uppercase' }}>
+                                {t('Switch To (Target Asset):', 'החלף ל (נכס יעד):')}
+                              </Typography>
                             </Box>
+                            
+                            {!buyTicker ? (
+                              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                                <Box sx={{ flexGrow: 1 }}>
+                                  <TickerSearch trackingLists={[]}
+                                    onTickerSelect={(p) => {
+                                      setLoading(true);
+                                      getTickerData(p.symbol, p.exchange, p.securityId ?? null).then(d => {
+                                        if (d) {
+                                          const combined = { ...d, symbol: p.symbol, exchange: p.exchange };
+                                          setBuyTicker(combined);
+                                          if (d.price) {
+                                            setBuyPrice(parseFloat(d.price.toFixed(6)).toString());
+                                            // Calc buy qty based on total
+                                            const tDisplay = parseFloat(total);
+                                            if (Number.isFinite(tDisplay)) {
+                                              const tRaw = convertCurrency(tDisplay, majorCurrency, normalizeCurrency(d.currency || 'USD'), exchangeRates);
+                                              setBuyQty(parseFloat((tRaw / d.price).toFixed(6)).toString());
+                                            }
+                                          }
+                                        }
+                                        setLoading(false);
+                                        handleNextStep(3);
+                                      });
+                                    }}
+                                    portfolios={[]} // No need for holdings check here
+                                    isPortfoliosLoading={false}
+                                    collapsible={false}
+                                  />
+                                </Box>
+                                {selectedPortfolio?.isCrypto && (
+                                  <Button
+                                    size="medium"
+                                    variant="outlined"
+                                    onClick={() => {
+                                      setLoading(true);
+                                      getTickerData('USDT-USD', 'FOREX', null).then(d => {
+                                        if (d) {
+                                          const combined = { ...d, symbol: 'USDT-USD', exchange: 'FOREX' as Exchange };
+                                          setBuyTicker(combined);
+                                          if (d.price) {
+                                            setBuyPrice(parseFloat(d.price.toFixed(6)).toString());
+                                            const tDisplay = parseFloat(total);
+                                            if (Number.isFinite(tDisplay)) {
+                                              const tRaw = convertCurrency(tDisplay, majorCurrency, normalizeCurrency(d.currency || 'USD'), exchangeRates);
+                                              setBuyQty(parseFloat((tRaw / d.price).toFixed(6)).toString());
+                                            }
+                                          }
+                                        }
+                                        setLoading(false);
+                                        handleNextStep(3);
+                                      });
+                                    }}
+                                    sx={{ minWidth: '50px' }}
+                                  >
+                                    USDT
+                                  </Button>
+                                )}
+                              </Box>
+                            ) : (
+                              <Box sx={{ p: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <Box>
+                                  <Typography variant="body2" fontWeight="bold">{buyTicker.name || buyTicker.symbol}</Typography>
+                                  <Typography variant="caption" color="text.secondary">
+                                    {t('Price:', 'מחיר:')} {formatPrice(buyTicker.price, normalizeCurrency(buyTicker.currency || 'USD'))}
+                                  </Typography>
+                                </Box>
+                                <Button size="small" onClick={() => { setBuyTicker(null); setBuyQty(''); }}>
+                                  {t('Change', 'שנה')}
+                                </Button>
+                              </Box>
+                            )}
                           </Box>
                         </Grid>
                       )}
-                      <Grid item xs={12}>
+
+                              </AccordionDetails>
+      </Accordion>
+
+      <Accordion expanded={activeStep === 3} onChange={() => setActiveStep(3)} disabled={!selectedTicker || !portId || !type} sx={{ mb: 2, borderRadius: 2, '&:before': { display: 'none' }, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+        <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ bgcolor: activeStep === 3 ? 'action.hover' : 'transparent', borderRadius: 2 }}>
+          <Box display="flex" alignItems="center" gap={2}>
+            <Typography variant="h6">{t('Step 4: Details', 'שלב 4: פרטים')}</Typography>
+          </Box>
+        </AccordionSummary>
+        <AccordionDetails sx={{ pt: 2, px: 1 }}>
+           <Grid container spacing={2}>
+<Grid item xs={12}>
                         <DateField
                           label="Date"
                           value={date}
                           onChange={v => handleDateChange(v)}
                         />
                       </Grid>
-
-                      {/* Holding Change Second Ticker Search */}
-                      {type === 'HOLDING_CHANGE' && (
-                        <Grid item xs={12}>
-                          <Box sx={{ border: '1px dashed grey', p: 1, borderRadius: 1 }}>
-                            <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
-                              <Typography variant="subtitle2">{t('Switch To (Target Asset):', 'החלף ל (נכס יעד):')}</Typography>
-                              {selectedPortfolio?.isCrypto && !buyTicker && (
-                                <Button 
-                                  size="small" 
-                                  variant="outlined" 
-                                  onClick={() => {
-                                    setLoading(true);
-                                    getTickerData('USDT-USD', 'FOREX', null).then(d => {
-                                      if (d) {
-                                        const combined = { ...d, symbol: 'USDT-USD', exchange: 'FOREX' as Exchange };
-                                        setBuyTicker(combined);
-                                        if (d.price) {
-                                          setBuyPrice(parseFloat(d.price.toFixed(6)).toString());
-                                          const tDisplay = parseFloat(total);
-                                          if (Number.isFinite(tDisplay)) {
-                                            const tRaw = convertCurrency(tDisplay, majorCurrency, normalizeCurrency(d.currency || 'USD'), exchangeRates);
-                                            setBuyQty(parseFloat((tRaw / d.price).toFixed(6)).toString());
-                                          }
-                                        }
-                                      }
-                                      setLoading(false);
-                                    });
-                                  }}
-                                >
-                                  USDT
-                                </Button>
-                              )}
-                            </Box>
-                            {!buyTicker ? (
-                              <TickerSearch trackingLists={[]}
-                                onTickerSelect={(p) => {
-                                  setLoading(true);
-                                  getTickerData(p.symbol, p.exchange, p.securityId ?? null).then(d => {
-                                    if (d) {
-                                      const combined = { ...d, symbol: p.symbol, exchange: p.exchange };
-                                      setBuyTicker(combined);
-                                      if (d.price) {
-                                        setBuyPrice(parseFloat(d.price.toFixed(6)).toString());
-                                        // Calc buy qty based on total
-                                        const tDisplay = parseFloat(total);
-                                        if (Number.isFinite(tDisplay)) {
-                                          const tRaw = convertCurrency(tDisplay, majorCurrency, normalizeCurrency(d.currency || 'USD'), exchangeRates);
-                                          setBuyQty(parseFloat((tRaw / d.price).toFixed(6)).toString());
-                                        }
-                                      }
-                                    }
-                                    setLoading(false);
-                                  });
-                                }}
-                                portfolios={[]} // No need for holdings check here
-                                isPortfoliosLoading={false}
-                                collapsible={false}
-                              />
-                            ) : (
-                              <Box display="flex" alignItems="center" justifyContent="space-between">
-                                <Box>
-                                  <Typography variant="body2" fontWeight="bold">{buyTicker.name} ({buyTicker.symbol})</Typography>
-                                  <Typography variant="caption">{t('Price:', 'מחיר:')} {formatPrice(buyTicker.price, normalizeCurrency(buyTicker.currency || 'USD'))}</Typography>
-                                </Box>
-                                <Button size="small" color="error" onClick={() => { setBuyTicker(null); setBuyQty(''); }}>Change</Button>
-                              </Box>
-                            )}
-                          </Box>
-                        </Grid>
-                      )}
 
                       {type === 'GRANT' ? (
                         <Grid item xs={12}>
@@ -2011,7 +1880,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                         <TextField label="Comment" size="small" fullWidth value={comment} onChange={e => setComment(e.target.value)} />
                       </Grid>
                     </Grid>
-                    <Box mt={2} display="flex" gap={2} sx={{ display: type === 'GRANT' ? 'none' : 'flex', width: '100%', flexDirection: 'row' }}>
+<Box mt={2} display="flex" gap={2} sx={{ display: type === 'GRANT' ? 'none' : 'flex', width: '100%', flexDirection: 'row' }}>
                       {(locationState?.editTransaction || locationState?.editDividend) && (
                         <Button variant="outlined" color="error" size="large" startIcon={<DeleteIcon />} onClick={handleDelete} disabled={loading} sx={{ flex: 1 }}>
                           {t('Delete', 'מחק')}
@@ -2035,9 +1904,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                         </span>
                       </Tooltip>
                     </Box>
-                  </>
-                )}
-                <Dialog open={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)}>
+<Dialog open={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)}>
                   <DialogTitle>{type === 'DIVIDEND' ? t('Delete Dividend', 'מחיקת דיבידנד') : t('Delete Transaction', 'מחיקת עסקה')}</DialogTitle>
                   <DialogContent>
                     <DialogContentText>{t('Are you sure you want to permanently delete this? This action cannot be undone.', 'האם אתה בטוח שברצונך למחוק עסקה זו לצמיתות? לא ניתן לבטל פעולה זו.')}</DialogContentText>
@@ -2047,11 +1914,9 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                     <Button onClick={confirmDelete} color="error" variant="contained">{t('Delete', 'מחק')}</Button>
                   </DialogActions>
                 </Dialog>
-              </CardContent>
-            </Card>
-          </Grid>
-        )}
-      </Grid >
+        </AccordionDetails>
+      </Accordion>
+      
       <Backdrop
         sx={{ color: '#fff', zIndex: (theme) => theme.zIndex.drawer + 1, display: 'flex', flexDirection: 'column', gap: 2 }}
         open={loading}
@@ -2066,6 +1931,6 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
             : t('Fetching Data...', 'טוען נתונים...')}
         </Typography>
       </Backdrop>
-    </Box >
+    </Box>
   );
 };
