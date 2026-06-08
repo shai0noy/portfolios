@@ -185,6 +185,7 @@ CRITICAL INSTRUCTIONS:
 - You must provide at least TWO of: Qty, Price, or Total Cost.
 - You MAY deduce the exchange ID (e.g., NASDAQ, TASE) based on the symbol or market information.
 - You MAY skip columns where data is clearly not present in the image.
+- If there are issues or *important* FYIs regarding the extraction, you may include a single comment line at the very end of your response, prefixed with "#".
 Return ONLY the raw CSV text without any markdown code blocks or conversational text.`;
 
     const body = {

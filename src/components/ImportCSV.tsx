@@ -56,6 +56,7 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
     ticker: '', date: '', type: '', qty: '', price: '', total: '', exchange: '',
     commission: '', currency: '', vestDate: '', comment: ''
   });
+  const [aiComment, setAiComment] = useState('');
   const [manualExchange, setManualExchange] = useState('');
   const [exchangeMode, setExchangeMode] = useState<'map' | 'manual' | 'deduce'>('deduce');
   const [parsedTxns, setParsedTxns] = useState<Transaction[]>([]);
@@ -81,6 +82,7 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
 
       setIsParsing(true);
       setErrorMsg('');
+      setAiComment('');
 
       const reader = new FileReader();
       reader.onload = async (evt) => {
@@ -103,7 +105,16 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
             throw new Error("No data returned from AI.");
           }
 
-          setCsvText(csvResult);
+          const lines = csvResult.split(/\r\n|\n|\r/);
+          let finalCsv = csvResult;
+          let comment = '';
+          if (lines.length > 0 && lines[lines.length - 1].trim().startsWith('#')) {
+            comment = lines[lines.length - 1].trim().substring(1).trim();
+            finalCsv = lines.slice(0, lines.length - 1).join('\n').trim();
+          }
+
+          setAiComment(comment);
+          setCsvText(finalCsv);
           setIsParsing(false);
         } catch (e: any) {
           setErrorMsg(e.message || "Failed to parse image with AI");
@@ -118,6 +129,7 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
   };
 
   const processFile = (file: File) => {
+    setAiComment('');
     if (file.type.startsWith('image/')) {
       processImageFile(file);
       return;
@@ -564,6 +576,11 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
                     {t('or drag and drop CSV or Image here', 'או גרירה של CSV / תמונה לכאן')}
                   </Typography>
                 </Box>
+              )}
+              {aiComment && (
+                <Alert severity="warning" onClose={() => setAiComment('')}>
+                  {aiComment}
+                </Alert>
               )}
               <Typography variant="caption" color="text.secondary">
                 {t('Or paste CSV content below:', 'או הדבקת תוכן כאן:')}
