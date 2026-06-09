@@ -708,7 +708,7 @@ export const PORTFOLIO_TEMPLATES: Record<string, Partial<Portfolio>> = {
     mgmtType: 'percentage',
     mgmtFreq: 'yearly',
     divCommRate: 0,
-    taxPolicy: 'MAX_TAX_FREE_OR_REAL_GAIN' as TaxPolicy // Wait, GEMEL is usually Tax Free up to limit, but here we treat as Tax Free? Or separate? 
+    taxPolicy: 'TAX_FREE' // Wait, GEMEL is usually Tax Free up to limit, but here we treat as Tax Free? Or separate? 
     // Actually existing code uses 'TAX_FREE' for Hishtalmut. Gemel LeHashkaa is 'IL_REAL_GAIN' usually unless it's Gemel LeKitzva.
     // User requested: "IL Gemmel Fund" and "IL Hishtalmut fund".
     // Hishtalmut is tax free. Gemel (LeHashkaa) is Capital Gains (Real).
