@@ -614,6 +614,21 @@ export function isSell(type: TransactionType): boolean {
 
 // Templates for quick setup
 export const PORTFOLIO_TEMPLATES: Record<string, Partial<Portfolio>> = {
+  'real_estate_il': {
+    cgt: 0.25,
+    incTax: 0,
+    commRate: 0.08, // 8% Default Purchase Tax (for additional property)
+    commMin: 0,
+    commMax: 0,
+    currency: Currency.ILS,
+    divPolicy: 'cash_taxed',
+    mgmtVal: 0,
+    mgmtType: 'percentage',
+    mgmtFreq: 'yearly',
+    divCommRate: 0,
+    taxPolicy: 'IL_REAL_GAIN',
+    commExemption: 'sells' // Only tax on purchase
+  },
   'std_il': {
     cgt: 0.25,
     incTax: 0,

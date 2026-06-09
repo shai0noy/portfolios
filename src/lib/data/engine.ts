@@ -1046,11 +1046,19 @@ export class FinanceEngine {
             globalAcc.totalCostOfSold += costOfSold;
             globalAcc.totalDividends += dividendsGross; // Gross
             globalAcc.totalReturn += (totalGain + divsTaxDisplay); // Gross (since totalGain used Net Dividends before)
-            globalAcc.totalFees += totalFees;
 
             // Tax
             // Use totalTaxPaidPC (CGT + Income + Div Tax)
-            const realizedTax = convertCurrency(h.totalTaxPaidPC, h.portfolioCurrency, displayCurrency, this.exchangeRates);
+            let realizedTax = convertCurrency(h.totalTaxPaidPC, h.portfolioCurrency, displayCurrency, this.exchangeRates);
+            let finalFees = totalFees;
+
+            const port = this.portfolios.get(h.portfolioId);
+            if (port && port.commExemption === 'sells') {
+                realizedTax += finalFees;
+                finalFees = 0;
+            }
+
+            globalAcc.totalFees += finalFees;
             const unrealizedTax = convertCurrency(h.unrealizedTaxLiabilityILS, Currency.ILS, displayCurrency, this.exchangeRates);
 
             globalAcc.totalRealizedTax += realizedTax;

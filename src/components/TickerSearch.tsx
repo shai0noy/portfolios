@@ -36,6 +36,7 @@ interface TickerSearchProps {
   onTickerSelect: (profile: TickerProfile) => void;
   prefilledTicker?: string;
   prefilledExchange?: string;
+  initialSearchQuery?: string;
   portfolios: Portfolio[];
   isPortfoliosLoading: boolean;
   trackingLists: TrackingListItem[];
@@ -201,7 +202,7 @@ function useFlatDataset(dataset: Record<string, TickerProfile[]>) {
   }, [dataset]);
 }
 
-export const TickerSearch = React.memo(function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchange, portfolios, isPortfoliosLoading, trackingLists, collapsible, sx }: TickerSearchProps) {
+export const TickerSearch = React.memo(function TickerSearch({ onTickerSelect, prefilledTicker, prefilledExchange, initialSearchQuery, portfolios, isPortfoliosLoading, trackingLists, collapsible, sx }: TickerSearchProps) {
   // Dataset is Record<string, TickerProfile[]>
   const [dataset, setDataset] = useState<Record<string, TickerProfile[]>>({});
   const [isDatasetLoading, setIsDatasetLoading] = useState(false);
@@ -221,7 +222,12 @@ export const TickerSearch = React.memo(function TickerSearch({ onTickerSelect, p
   }, [trackingLists]);
 
   const [isFocused, setIsFocused] = useState(false);
-  const [inputValue, setInputValue] = useState(prefilledTicker || '');
+  const [inputValue, setInputValue] = useState(initialSearchQuery || prefilledTicker || '');
+  useEffect(() => {
+    if (initialSearchQuery) {
+      setInputValue(initialSearchQuery);
+    }
+  }, [initialSearchQuery]);
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
 
   const initialExchange = useMemo(() => {

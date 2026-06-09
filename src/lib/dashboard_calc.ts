@@ -120,15 +120,21 @@ export function calculateDashboardSummary(data: any[], displayCurrency: string, 
 
     // Net Realized...
     // We need Fee and Tax in Display Currency.
-    const feesDisplay = convertCurrency(h.feesTotal.amount, h.feesTotal.currency, displayCurrency, exchangeRates);
+    let feesDisplay = convertCurrency(h.feesTotal.amount, h.feesTotal.currency, displayCurrency, exchangeRates);
     // Realized Tax (sum from lots?)
-    const realizedTaxDisplay = h.realizedLots.reduce((sum, lot) => {
+    let realizedTaxDisplay = h.realizedLots.reduce((sum, lot) => {
       // lot.realizedTaxPC is in PC.
       // We probably want to convert at current rate? Tax is paid in cash.
       // Or did we track tax historically?
       // Lot doesn't store valILS for tax.
       return sum + convertCurrency((lot.realizedTaxPC || 0) + (lot.realizedIncomeTaxPC || 0), h.portfolioCurrency, displayCurrency, exchangeRates);
     }, 0);
+
+    const port = portfoliosMap.get(h.portfolioId);
+    if (port && port.commExemption === 'sells') {
+       realizedTaxDisplay += feesDisplay;
+       feesDisplay = 0;
+    }
 
     const realizedSellsNet = realizedSellsGross - feesDisplay - realizedTaxDisplay;
     const realizedGainNet = realizedSellsNet + dividendsNet;

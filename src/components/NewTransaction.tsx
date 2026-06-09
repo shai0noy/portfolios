@@ -1207,7 +1207,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
       </Accordion>
       )}
 
-      <Accordion expanded={activeStep === 1} onChange={() => setActiveStep(1)} disabled={!selectedTicker} sx={{ mb: 2, borderRadius: 2, '&:before': { display: 'none' }, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+      <Accordion expanded={activeStep === 1} onChange={() => setActiveStep(1)} sx={{ mb: 2, borderRadius: 2, '&:before': { display: 'none' }, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
         <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ bgcolor: activeStep === 1 ? 'action.hover' : 'transparent', borderRadius: 2 }}>
           <Box display="flex" alignItems="center" gap={2}>
             <Typography variant="h6">{t('Step 2: Select Portfolio', 'שלב 2: בחר תיק')}</Typography>
@@ -1816,14 +1816,14 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                           )}
                           <Grid item xs={12}><Divider sx={{ my: 1 }}> </Divider></Grid>
 
-                          {/* Commission Row - Hidden if Exempt or Non-Crypto Holding Change */}
-                          {!(type === 'HOLDING_CHANGE' && !selectedPortfolio?.isCrypto) && (
+                          {/* Commission Row - Hidden if Exempt or Non-Crypto Holding Change or Real Estate Sells */}
+                          {!(type === 'HOLDING_CHANGE' && !selectedPortfolio?.isCrypto) && !(selectedPortfolio?.commExemption === 'sells' && isTxnSell(type)) && (
                             <>
                               {(!selectedTicker?.isFeeExempt && selectedTicker?.type?.type !== InstrumentType.MONETARY_FUND) ? (
                                 <>
                                   <Grid item xs={4} sm={3}>
                                     <NumericField
-                                      label={type === 'HOLDING_CHANGE' && selectedPortfolio?.isCrypto ? t("Conversion Fee", "עמלת המרה") : t("Commission", "עמלה")}
+                                      label={type === 'HOLDING_CHANGE' && selectedPortfolio?.isCrypto ? t("Conversion Fee", "עמלת המרה") : (selectedPortfolio?.commExemption === 'sells' ? t("Purchase Tax", "מס רכישה") : t("Commission", "עמלה"))}
                                       field="commission"
                                       value={commission}
                                       onChange={handleCommissionChange}
@@ -1833,7 +1833,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                                   </Grid>
                                   <Grid item xs={4} sm={3}>
                                     <NumericField
-                                      label={type === 'HOLDING_CHANGE' && selectedPortfolio?.isCrypto ? t("Conv. Fee %", "עמלת המרה %") : t("Commission %", "עמלה %")}
+                                      label={type === 'HOLDING_CHANGE' && selectedPortfolio?.isCrypto ? t("Conv. Fee %", "עמלת המרה %") : (selectedPortfolio?.commExemption === 'sells' ? t("Purchase Tax %", "מס רכישה %") : t("Commission %", "עמלה %"))}
                                       field="commissionPct"
                                       value={commissionPct}
                                       onChange={handleCommissionPctChange}
@@ -1890,7 +1890,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
                         title={
                           Object.keys(validationErrors).length > 0
                             ? `${t('Missing or invalid:', 'חסר או לא תקין:')} ${Object.keys(validationErrors).map(k => {
-                                const labels: any = { portId: 'Portfolio', ticker: 'Source Asset', buyTicker: 'Target Asset', qty: 'Quantity', buyQty: 'Target Quantity', price: 'Price', total: 'Total', commission: 'Commission', percent: 'Percent' };
+                                const labels: any = { portId: 'Portfolio', ticker: 'Source Asset', buyTicker: 'Target Asset', qty: 'Quantity', buyQty: 'Target Quantity', price: 'Price', total: 'Total', commission: selectedPortfolio?.commExemption === 'sells' ? 'Purchase Tax' : 'Commission', percent: 'Percent' };
                                 return labels[k] || k;
                               }).join(', ')}`
                             : ''

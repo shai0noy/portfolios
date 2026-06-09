@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import {
   Box, Card, CardContent, Typography, Grid, Button, TextField,
   MenuItem, Select, FormControl, InputLabel, RadioGroup, FormControlLabel, Radio,
@@ -16,6 +16,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import SettingsSuggestIcon from '@mui/icons-material/SettingsSuggest';
+import HomeIcon from '@mui/icons-material/Home';
 import CurrencyBitcoinIcon from '@mui/icons-material/CurrencyBitcoin';
 import { type Portfolio, PORTFOLIO_TEMPLATES, Currency, type CommissionExemption } from '../lib/types';
 import { useLanguage } from '../lib/i18n';
@@ -28,7 +29,7 @@ interface WizardProps {
   existingIds?: string[];
 }
 
-type PresetKey = 'il_broker' | 'us_broker_il' | 'us_broker_nr' | 'pension' | 'gemel' | 'hishtalmut' | 'rsu' | 'crypto';
+type PresetKey = 'il_broker' | 'us_broker_il' | 'us_broker_nr' | 'pension' | 'gemel' | 'hishtalmut' | 'rsu' | 'crypto' | 'real_estate';
 
 interface PresetConfig {
   id: PresetKey;
@@ -42,6 +43,7 @@ interface PresetConfig {
   hasTaxSelection?: boolean; // If true, asks for 25% vs 28% vs Custom
   excludeSurtax?: boolean; // If true, hides 28% option
   hasIncomeTax?: boolean; // For RSU (Income Tax)
+  hasRealEstateTaxSelection?: boolean;
   isPension?: boolean; // Special logic for pension tax
   mgmtFeeModes?: ('percentage' | 'fixed')[]; // If present, shows Mgmt Fee inputs with these modes
 }
@@ -118,6 +120,17 @@ const PRESETS: PresetConfig[] = [
     mgmtFeeModes: ['percentage', 'fixed']
   },
   {
+    id: 'real_estate', templateKey: 'real_estate_il',
+    title: 'Real Estate', titleHe: 'נדל"ן',
+    description: 'A real estate asset or property. Features specific Israeli property tax configurations.',
+    descriptionHe: 'נכס נדל"ן מוחשי. כולל אפשרויות למיסוי מקרקעין בישראל (דירה יחידה / נוספת).',
+    icon: <HomeIcon fontSize="large" />,
+    fixedCurrency: Currency.ILS,
+    hasRealEstateTaxSelection: true,
+    hasTaxSelection: true,
+    mgmtFeeModes: ['fixed']
+  },
+  {
     id: 'crypto', templateKey: 'crypto',
     title: 'Crypto Exchange', titleHe: 'בורסת קריפטו',
     description: 'A cryptocurrency exchange account like Binance or Bybit. Features built-in conversion tracking.',
@@ -146,6 +159,8 @@ export function PortfolioWizard({ onComplete, onCancel, onManual, existingNames 
   const [customTax, setCustomTax] = useState<string>('25');
   const [incomeTax, setIncomeTax] = useState<string>('50'); // For RSU
   const [pensionTax, setPensionTax] = useState<string>('35'); // For Pension
+  const [isOnlyAsset, setIsOnlyAsset] = useState<boolean>(true);
+
 
   // Trading Fees
   const [commRate, setCommRate] = useState<string>('0.1'); // 0.1%
@@ -187,6 +202,7 @@ export function PortfolioWizard({ onComplete, onCancel, onManual, existingNames 
     if (preset.id === 'gemel') rawName = t('Gemel', 'גמל');
     if (preset.id === 'hishtalmut') rawName = t('Hishtalmut', 'השתלמות');
     if (preset.id === 'rsu') rawName = t('RSU', 'RSU');
+    if (preset.id === 'real_estate') rawName = t('Real Estate', 'נדל"ן');
     if (preset.id === 'crypto') rawName = t('Crypto', 'קריפטו');
 
     // Sanitize: Allow only Alphanumeric (English + Hebrew) and spaces.
@@ -278,6 +294,12 @@ export function PortfolioWizard({ onComplete, onCancel, onManual, existingNames 
       name: name,
       currency: currency
     };
+
+    // Apply Real Estate Tax Logic
+    if (selectedPreset.hasRealEstateTaxSelection) {
+      initialPortfolio.commRate = parseFloat(commRate) / 100 || 0;
+      initialPortfolio.commExemption = initialPortfolio.commRate > 0 ? 'sells' : 'all';
+    }
 
     // Apply Tax Logic
     if (selectedPreset.hasTaxSelection) {
@@ -479,11 +501,56 @@ export function PortfolioWizard({ onComplete, onCancel, onManual, existingNames 
                     </Grid>
                   )}
 
+                  {/* Real Estate Tax Selection */}
+                  {selectedPreset.hasRealEstateTaxSelection && (
+                    <Grid item xs={12}>
+                      <Typography variant="subtitle2" gutterBottom>
+                        {t('Property Tax Status', 'סטטוס מס מקרקעין')}
+                      </Typography>
+                      <RadioGroup
+                        row
+                        value={isOnlyAsset ? 'yes' : 'no'}
+                        onChange={e => {
+                          const isExempt = e.target.value === 'yes';
+                          setIsOnlyAsset(isExempt);
+                          setCommRate(isExempt ? '0' : '8');
+                          if (isExempt) {
+                            setTaxType('custom');
+                            setCustomTax('0');
+                          } else {
+                            setTaxType('25');
+                          }
+                        }}
+                      >
+                        <FormControlLabel value="yes" control={<Radio />} label={t('Tax Exempt (Only Asset)', 'דירה יחידה (פטור משבח ומס רכישה בסיסי)')} />
+                        <FormControlLabel value="no" control={<Radio />} label={t('Taxed (Additional Asset)', 'דירה נוספת (חייב בשבח ומס רכישה 8%)')} />
+                      </RadioGroup>
+
+                      <Grid container spacing={2} sx={{ mt: 1 }}>
+                        <Grid item xs={12} sm={6}>
+                          <TextField
+                            fullWidth
+                            type="number"
+                            size="small"
+                            label={t('Purchase Tax (%)', 'מס רכישה (%)')}
+                            value={commRate === '0' ? '' : commRate}
+                            placeholder="0"
+                            onChange={e => setCommRate(e.target.value)}
+                            autoComplete="off"
+                            InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment>, inputProps: { min: 0, step: 'any' } }}
+                          />
+                        </Grid>
+                      </Grid>
+                    </Grid>
+                  )}
+
                   {/* Tax Level Selection */}
                   {selectedPreset.hasTaxSelection && (
                     <Grid item xs={12}>
                       <Typography variant="subtitle2" gutterBottom>
-                        {t('Capital Gains Tax', 'מס רווח הון')}
+                        {selectedPreset.id === 'real_estate'
+                          ? t('Appreciation Tax (Mas Shevach)', 'מס שבח')
+                          : t('Capital Gains Tax', 'מס רווח הון')}
                       </Typography>
                       <RadioGroup
                         row
@@ -630,67 +697,69 @@ export function PortfolioWizard({ onComplete, onCancel, onManual, existingNames 
                     </Grid>
                   )}
 
-                  {/* Commissions (Trading Fees) - Available in All */}
-                  <Grid item xs={12}>
-                    <Typography variant="subtitle2" gutterBottom>
-                      {t('Commissions', 'עמלות מסחר')}
-                      {buysExempt && sellsExempt ? t(' (All Exempt)', ' (פטור מלא)') :
-                        buysExempt ? t(' (Sells Only)', ' (מכירה בלבד)') :
-                          sellsExempt ? t(' (Buys Only)', ' (קנייה בלבד)') :
-                            t(' (Trading)', ' (מסחר)')}
-                    </Typography>
-                    <Grid container spacing={2}>
-                      <Grid item xs={12} sm={4}>
-                        <TextField
-                          fullWidth
-                          type="number"
-                          size="small"
-                          label={t('Rate', 'שיעור עמלה')}
-                          value={commRate === '0' ? '' : commRate}
-                          placeholder="-"
-                          onChange={e => setCommRate(e.target.value)}
-                          autoComplete="off"
-                          InputProps={{
-                            endAdornment: <InputAdornment position="end">%</InputAdornment>,
-                            inputProps: { min: 0, step: 'any' }
-                          }}
-                        />
-                      </Grid>
-                      <Grid item xs={12} sm={4}>
-                        <TextField
-                          fullWidth
-                          type="number"
-                          size="small"
-                          label={t('Min Fee', 'עמלת מינימום')}
-                          value={commMin === '0' ? '' : commMin}
-                          placeholder="-"
-                          onChange={e => setCommMin(e.target.value)}
-                          autoComplete="off"
-                          InputProps={{
-                            endAdornment: <InputAdornment position="end">{currency}</InputAdornment>,
-                            inputProps: { min: 0, step: 'any' }
-                          }}
-                        />
-                      </Grid>
-                      <Grid item xs={12} sm={4}>
-                        <TextField
-                          fullWidth
-                          type="number"
-                          size="small"
-                          label={t('Max Fee', 'עמלת מקסימום')}
-                          value={commMax === '0' ? '' : commMax}
-                          placeholder="-"
-                          onChange={e => setCommMax(e.target.value)}
-                          autoComplete="off"
-                          InputProps={{
-                            endAdornment: <InputAdornment position="end">{currency}</InputAdornment>,
-                            inputProps: { min: 0, step: 'any' }
-                          }}
-                        />
+                  {/* Commissions (Trading Fees) - Available in All except Real Estate */}
+                  {!selectedPreset.hasRealEstateTaxSelection && (
+                    <Grid item xs={12}>
+                      <Typography variant="subtitle2" gutterBottom>
+                        {t('Commissions', 'עמלות מסחר')}
+                        {buysExempt && sellsExempt ? t(' (All Exempt)', ' (פטור מלא)') :
+                          buysExempt ? t(' (Sells Only)', ' (מכירה בלבד)') :
+                            sellsExempt ? t(' (Buys Only)', ' (קנייה בלבד)') :
+                              t(' (Trading)', ' (מסחר)')}
+                      </Typography>
+                      <Grid container spacing={2}>
+                        <Grid item xs={12} sm={4}>
+                          <TextField
+                            fullWidth
+                            type="number"
+                            size="small"
+                            label={t('Rate', 'שיעור עמלה')}
+                            value={commRate === '0' ? '' : commRate}
+                            placeholder="-"
+                            onChange={e => setCommRate(e.target.value)}
+                            autoComplete="off"
+                            InputProps={{
+                              endAdornment: <InputAdornment position="end">%</InputAdornment>,
+                              inputProps: { min: 0, step: 'any' }
+                            }}
+                          />
+                        </Grid>
+                        <Grid item xs={12} sm={4}>
+                          <TextField
+                            fullWidth
+                            type="number"
+                            size="small"
+                            label={t('Min Fee', 'עמלת מינימום')}
+                            value={commMin === '0' ? '' : commMin}
+                            placeholder="-"
+                            onChange={e => setCommMin(e.target.value)}
+                            autoComplete="off"
+                            InputProps={{
+                              endAdornment: <InputAdornment position="end">{currency}</InputAdornment>,
+                              inputProps: { min: 0, step: 'any' }
+                            }}
+                          />
+                        </Grid>
+                        <Grid item xs={12} sm={4}>
+                          <TextField
+                            fullWidth
+                            type="number"
+                            size="small"
+                            label={t('Max Fee', 'עמלת מקסימום')}
+                            value={commMax === '0' ? '' : commMax}
+                            placeholder="-"
+                            onChange={e => setCommMax(e.target.value)}
+                            autoComplete="off"
+                            InputProps={{
+                              endAdornment: <InputAdornment position="end">{currency}</InputAdornment>,
+                              inputProps: { min: 0, step: 'any' }
+                            }}
+                          />
+                        </Grid>
                       </Grid>
                     </Grid>
-                  </Grid>
 
+                  )}
                   {/* Crypto Conversion Fees */}
                   {selectedPreset.id === 'crypto' && (
                     <Grid item xs={12}>
