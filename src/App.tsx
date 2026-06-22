@@ -210,7 +210,7 @@ function AppContent() {
   const [savingProfile, setSavingProfile] = useState(false);
 
   useEffect(() => {
-    if (sheetId && openProfile && !userProfile.age) {
+    if (sheetId && openProfile && !userProfile.birthYear) {
       setLoadingProfile(true);
       getMetadataValue(sheetId, 'user_financial_profile')
         .then(val => {
@@ -226,7 +226,7 @@ function AppContent() {
         .catch(e => console.error("Failed to load user profile", e))
         .finally(() => setLoadingProfile(false));
     }
-  }, [sheetId, openProfile, userProfile.age]);
+  }, [sheetId, openProfile, userProfile.birthYear]);
 
   const handleSaveProfile = async (profile: UserFinancialProfile) => {
     if (!sheetId) return;

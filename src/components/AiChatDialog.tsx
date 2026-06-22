@@ -128,7 +128,7 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({
   }, [open, apiKey]);
 
   useEffect(() => {
-    if (open && sheetId && !userProfile.age) {
+    if (open && sheetId && !userProfile.birthYear) {
       setLoadingProfile(true);
       getMetadataValue(sheetId, 'user_financial_profile')
         .then(val => {
@@ -268,8 +268,16 @@ export const AiChatDialog: React.FC<AiChatDialogProps> = ({
   };
 
   const getSystemInstruction = () => {
-    const profileContext = userProfile && Object.keys(userProfile).length > 0
-      ? `\\My Profile: ${JSON.stringify(userProfile)}`
+    let profileToSend: any = null;
+    if (userProfile && Object.keys(userProfile).length > 0) {
+      profileToSend = { ...userProfile };
+      if (profileToSend.birthYear !== undefined) {
+        profileToSend.age = new Date().getFullYear() - profileToSend.birthYear;
+        delete profileToSend.birthYear;
+      }
+    }
+    const profileContext = profileToSend
+      ? `\\My Profile: ${JSON.stringify(profileToSend)}`
       : '';
 
     return `${SYSTEM_INSTRUCTION}
@@ -362,7 +370,7 @@ ${marketOverview}
         ))}
       </Box>
 
-      {(!userProfile.netYearlyEarnings || !userProfile.yearlySpending || !userProfile.age) && (
+      {(!userProfile.netYearlyEarnings || !userProfile.yearlySpending || !userProfile.birthYear) && (
         <Paper variant="outlined" sx={{
           mt: 4, px: 2, py: 1,
           bgcolor: 'action.hover',

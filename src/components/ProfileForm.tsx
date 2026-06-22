@@ -13,7 +13,7 @@ import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
 import { useLanguage } from '../lib/i18n';
 
 export interface UserFinancialProfile {
-  age?: number;
+  birthYear?: number;
   retirementAge?: number;
   numChildren?: number;
   netYearlyEarnings?: number;
@@ -31,8 +31,8 @@ interface ProfileFormProps {
   savingProfile: boolean;
 }
 
-export const ProfileForm: React.FC<ProfileFormProps> = ({ 
-  open, initialProfile, loadingProfile, displayCurrency, onSave, onCancel, savingProfile 
+export const ProfileForm: React.FC<ProfileFormProps> = ({
+  open, initialProfile, loadingProfile, displayCurrency, onSave, onCancel, savingProfile
 }) => {
   const { t } = useLanguage();
   const [draftProfile, setDraftProfile] = useState<UserFinancialProfile>(initialProfile);
@@ -56,11 +56,11 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({
 
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 3 }}>
             <TextField
-              label={t('Age', 'גיל')}
+              label={t('Birth Year', 'שנת לידה')}
               type="number"
               disabled={loadingProfile}
-              value={draftProfile.age ?? ''}
-              onChange={(e) => setDraftProfile({ ...draftProfile, age: e.target.value === '' ? undefined : parseInt(e.target.value) })}
+              value={draftProfile.birthYear ?? ''}
+              onChange={(e) => setDraftProfile({ ...draftProfile, birthYear: e.target.value === '' ? undefined : parseInt(e.target.value) })}
               fullWidth
               size="small"
               placeholder={t('Not provided', 'לא צוין')}
