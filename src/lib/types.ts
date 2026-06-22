@@ -26,6 +26,7 @@ export interface TickerAlert {
   creationPrice?: number;
   creationDate: string;
   isTriggered?: boolean;
+  direction?: 'up' | 'down' | 'both';
 }
 
 export interface TrackingListItem {

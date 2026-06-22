@@ -10,6 +10,7 @@ export const getTheme = (mode: 'light' | 'dark', direction: 'ltr' | 'rtl' = 'ltr
             // Light Mode
             background: { default: '#f8f9fa', paper: '#ffffff' },
             primary: { main: '#2c3e50' },
+            secondary: { main: '#1e88e5' },
             text: { primary: '#2c3e50', secondary: '#607d8b' },
             divider: '#e0e0e0',
             success: { main: colorblindMode ? '#0288d1' : '#66bb6a' }, // Blue for colorblind, green otherwise
@@ -19,7 +20,7 @@ export const getTheme = (mode: 'light' | 'dark', direction: 'ltr' | 'rtl' = 'ltr
             // Dark Mode
             background: { default: '#0d1117', paper: '#161b22' },
             primary: { main: '#e0f2f7' },
-            secondary: { main: '#e3b3ff' },
+            secondary: { main: '#90caf9' },
             text: { primary: '#ffffff', secondary: '#e0e0e0' },
             divider: '#30363d',
             success: { main: colorblindMode ? '#90caf9' : '#a5d6a7' }, // Light blue for colorblind, light green otherwise
