@@ -16,12 +16,14 @@ import {
   ThemeProvider, CssBaseline, Snackbar, Alert, ListItemIcon, ListItemText,
   Button, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions,
   Drawer, List, ListItem, ListItemButton, ListSubheader, Collapse, Divider, useMediaQuery,
-  Badge
+  Badge, Switch, FormControlLabel, Stack, TextField
 } from '@mui/material';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import BuildIcon from '@mui/icons-material/Build';
 import LogoutIcon from '@mui/icons-material/Logout';
+import SecurityIcon from '@mui/icons-material/Security';
+import { LockScreen } from './components/LockScreen';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
@@ -107,6 +109,27 @@ function AppContent() {
   const [schemaVersionMismatch, setSchemaVersionMismatch] = useState<'old' | 'new' | null>(null);
   const [colorblindMode, setColorblindMode] = useState<boolean>(() => localStorage.getItem('colorblindMode') === 'true');
   const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
+
+  // Lock Screen States
+  const [lockEnabled, setLockEnabled] = useState<boolean>(() => localStorage.getItem('lockScreenEnabled') === 'true');
+  const [lockPin, setLockPin] = useState<string>(() => localStorage.getItem('lockScreenPin') || '1234');
+  const [isLocked, setIsLocked] = useState<boolean>(() => localStorage.getItem('lockScreenEnabled') === 'true');
+  const [lockDialogOpen, setLockDialogOpen] = useState(false);
+  const [tempLockEnabled, setTempLockEnabled] = useState<boolean>(false);
+  const [tempLockPin, setTempLockPin] = useState<string>('');
+
+  const handleSaveLockSettings = () => {
+    localStorage.setItem('lockScreenEnabled', tempLockEnabled ? 'true' : 'false');
+    localStorage.setItem('lockScreenPin', tempLockPin);
+    setLockEnabled(tempLockEnabled);
+    setLockPin(tempLockPin);
+    
+    if (tempLockEnabled && !lockEnabled) {
+      setIsLocked(true);
+    }
+    setLockDialogOpen(false);
+    toast.success(t('Lock settings updated', 'הגדרות הנעילה עודכנו'));
+  };
 
   const { trackingLists, engine } = useDashboardData(sheetId || '');
 
@@ -612,6 +635,16 @@ function AppContent() {
               </ListItemButton>
 
               <ListItemButton onClick={() => {
+                setTempLockEnabled(lockEnabled);
+                setTempLockPin(lockPin);
+                setLockDialogOpen(true);
+                handleMobileMenuClose();
+              }}>
+                <ListItemIcon sx={{ minWidth: 40 }}><SecurityIcon fontSize="small" /></ListItemIcon>
+                <ListItemText primary={t('Lock Screen Settings', 'הגדרות נעילת מסך')} primaryTypographyProps={{ fontSize: '0.85rem' }} />
+              </ListItemButton>
+
+              <ListItemButton onClick={() => {
                 if (confirm(t('This will clear all locally cached market data. Your session will be preserved. Continue?', 'נקה את כל המידע המאוחסן מקומית. החיבור שלך יישמר. להמשיך?'))) {
                   clearAllCache().then(() => window.location.reload());
                 }
@@ -871,6 +904,67 @@ function AppContent() {
               sheetId={sheetId}
             />
           )}
+          {/* Lock Screen Settings Dialog */}
+          <Dialog open={lockDialogOpen} onClose={() => setLockDialogOpen(false)} maxWidth="xs" fullWidth>
+            <DialogTitle>{t('Lock Screen Settings', 'הגדרות נעילת מסך')}</DialogTitle>
+            <DialogContent>
+              <Stack spacing={3} sx={{ mt: 1.5 }}>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={tempLockEnabled}
+                      onChange={(e) => setTempLockEnabled(e.target.checked)}
+                      color="primary"
+                    />
+                  }
+                  label={t('Enable Lock Screen on startup', 'אפשר נעילת מסך בהפעלה')}
+                />
+                
+                {tempLockEnabled && (
+                  <TextField
+                    fullWidth
+                    label={t('Passcode PIN (numeric)', 'קוד גישה (מספרי)')}
+                    type="password"
+                    inputProps={{ 
+                      maxLength: 8,
+                      inputMode: 'numeric',
+                      pattern: '[0-9]*'
+                    }}
+                    value={tempLockPin}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (/^\d*$/.test(val)) {
+                        setTempLockPin(val);
+                      }
+                    }}
+                    helperText={t('Enter 4 to 8 digits passcode', 'הזן קוד גישה בין 4 ל-8 ספרות')}
+                    variant="outlined"
+                  />
+                )}
+              </Stack>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setLockDialogOpen(false)} color="inherit">
+                {t('Cancel', 'ביטול')}
+              </Button>
+              <Button 
+                onClick={handleSaveLockSettings} 
+                color="primary" 
+                variant="contained"
+                disabled={tempLockEnabled && (tempLockPin.length < 4 || tempLockPin.length > 8)}
+              >
+                {t('Save', 'שמור')}
+              </Button>
+            </DialogActions>
+          </Dialog>
+
+          {isLocked && lockEnabled && (
+            <LockScreen 
+              pin={lockPin} 
+              onUnlock={() => setIsLocked(false)} 
+            />
+          )}
+
           <Toaster position="bottom-center" />
 
         </Box>
