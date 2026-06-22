@@ -6,6 +6,7 @@ import { PortfolioManager } from './components/PortfolioManager';
 import { Dashboard } from './components/Dashboard';
 import { AllTransactions } from './components/AllTransactions';
 import { WatchlistPage } from './components/WatchlistPage';
+import { useDashboardData } from './lib/dashboard';
 import { ImportCSV } from './components/ImportCSV';
 import { TickerDetails } from './components/TickerDetails';
 import { ensureSchema, populateTestData, fetchTransactions, rebuildHoldingsSheet, getMetadataValue } from './lib/sheets/index';
@@ -14,7 +15,8 @@ import {
   Box, AppBar, Toolbar, Typography, Container, Tabs, Tab, IconButton, CircularProgress,
   ThemeProvider, CssBaseline, Snackbar, Alert, ListItemIcon, ListItemText,
   Button, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions,
-  Drawer, List, ListItem, ListItemButton, ListSubheader, Collapse, Divider, useMediaQuery
+  Drawer, List, ListItem, ListItemButton, ListSubheader, Collapse, Divider, useMediaQuery,
+  Badge
 } from '@mui/material';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
@@ -105,6 +107,33 @@ function AppContent() {
   const [schemaVersionMismatch, setSchemaVersionMismatch] = useState<'old' | 'new' | null>(null);
   const [colorblindMode, setColorblindMode] = useState<boolean>(() => localStorage.getItem('colorblindMode') === 'true');
   const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
+
+  const { trackingLists, engine } = useDashboardData(sheetId || '');
+
+  const hasTriggeredAlert = useMemo(() => {
+    if (!sheetId || !engine) return false;
+    const watchlistItems = trackingLists.filter(item => item.listName === 'Watchlist');
+    return watchlistItems.some(item => {
+      const liveData = engine.livePrices.get(`${item.exchange}:${item.ticker}`);
+      if (!liveData || !item.alerts || item.alerts.length === 0) return false;
+      const curPrice = liveData.price;
+      return item.alerts.some(alert => {
+        if (alert.type === 'price_above' && alert.targetPrice !== undefined) {
+          return curPrice >= alert.targetPrice;
+        }
+        if (alert.type === 'price_below' && alert.targetPrice !== undefined) {
+          return curPrice <= alert.targetPrice;
+        }
+        if (alert.type === 'price_moved_percent' && alert.percentChange !== undefined && alert.daysWindow !== undefined) {
+          const changeVal = alert.daysWindow <= 1 ? liveData.changePct1d :
+                            alert.daysWindow <= 7 ? liveData.changePctRecent :
+                            liveData.changePct1m;
+          return Math.abs(changeVal || 0) * 100 >= alert.percentChange;
+        }
+        return false;
+      });
+    });
+  }, [sheetId, trackingLists, engine]);
 
   const { t, toggleLanguage, language, isRtl } = useLanguage();
   const theme = useMemo(() => getTheme(mode, isRtl ? 'rtl' : 'ltr', colorblindMode), [mode, isRtl, colorblindMode]);
@@ -678,7 +707,16 @@ function AppContent() {
                   <Tab label={t("Add Trade", "הוסף עסקה")} sx={{ textTransform: 'none', fontSize: { xs: '0.9rem', sm: '1rem' }, minHeight: 64, minWidth: 64 }} component={RouterLink} to="/transaction" />
                   <Tab label={t("Manage Portfolios", "ניהול תיקים")} sx={{ textTransform: 'none', fontSize: { xs: '0.9rem', sm: '1rem' }, minHeight: 64, minWidth: 80 }} component={RouterLink} to="/portfolios" />
                   <Tab label={t("All Transactions", "כל הפעולות")} sx={{ textTransform: 'none', fontSize: { xs: '0.9rem', sm: '1rem' }, minHeight: 64, minWidth: 64 }} component={RouterLink} to="/transactions" />
-                  <Tab label={t("Watchlist", "רשימת מעקב")} sx={{ textTransform: 'none', fontSize: { xs: '0.9rem', sm: '1rem' }, minHeight: 64, minWidth: 64 }} component={RouterLink} to="/watchlist" />
+                  <Tab
+                    label={
+                      <Badge color="error" variant="dot" invisible={!hasTriggeredAlert} sx={{ '& .MuiBadge-badge': { top: -2, right: -6 } }}>
+                        {t("Watchlist", "רשימת מעקב")}
+                      </Badge>
+                    }
+                    sx={{ textTransform: 'none', fontSize: { xs: '0.9rem', sm: '1rem' }, minHeight: 64, minWidth: 64 }}
+                    component={RouterLink}
+                    to="/watchlist"
+                  />
                 </Tabs>
                 <ScrollShadows left={showLeft} right={showRight} theme={theme} />
               </Box>

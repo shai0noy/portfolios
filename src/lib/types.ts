@@ -15,12 +15,26 @@ export const TrackingListId = {
 
 export type TrackingListId = typeof TrackingListId[keyof typeof TrackingListId];
 
+export type AlertType = 'price_above' | 'price_below' | 'price_moved_percent';
+
+export interface TickerAlert {
+  id: string;
+  type: AlertType;
+  targetPrice?: number;
+  percentChange?: number;
+  daysWindow?: number;
+  creationPrice?: number;
+  creationDate: string;
+  isTriggered?: boolean;
+}
+
 export interface TrackingListItem {
   listName: string;
   ticker: string;
   exchange: Exchange;
   dateAdded: Date;
   rowIndex?: number;
+  alerts?: TickerAlert[];
 }
 
 export type PriceUnit = 'base' | 'agorot';

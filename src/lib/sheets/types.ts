@@ -36,7 +36,8 @@ export type TransactionColumns = {
 
 export type TxnKey = keyof TransactionColumns;
 
-import type { Exchange } from '../types';
+import type { Exchange, TickerAlert } from '../types';
+export type { TickerAlert };
 
 export interface TrackingListItem {
     listName: string;
@@ -44,4 +45,5 @@ export interface TrackingListItem {
     exchange: Exchange;
     dateAdded: Date;
     rowIndex?: number;
+    alerts?: TickerAlert[];
 }

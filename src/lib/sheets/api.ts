@@ -31,7 +31,7 @@ import {
 import { getHistoricalPriceFormula } from './formulas';
 import { logIfFalsy } from '../utils';
 import { createRowMapper, fetchSheetData, objectToRow, createHeaderUpdateRequest, getSheetId, ensureSheets, escapeSheetString } from './utils';
-import type { TrackingListItem } from './types';
+import type { TrackingListItem, TickerAlert } from './types';
 
 import type { Dividend } from '../fetching/types';
 import { InstrumentClassification } from '../types/instrument';
@@ -1596,12 +1596,21 @@ export const fetchTickerLists = withAuthHandling(async (spreadsheetId: string): 
             } else {
                 dateAdded = coerceDate(row[3]) || new Date(NaN);
             }
+            let alerts: TickerAlert[] = [];
+            if (row[4]) {
+                try {
+                    alerts = JSON.parse(String(row[4]));
+                } catch (e) {
+                    console.error("Failed to parse alerts JSON", e);
+                }
+            }
             return {
                 listName: String(row[0]),
                 ticker: String(row[1]).toUpperCase(),
                 exchange,
                 dateAdded,
-                rowIndex: index + 2
+                rowIndex: index + 2,
+                alerts
             };
         });
         return results.filter((item): item is TrackingListItem => item !== null);
@@ -1639,7 +1648,7 @@ export const toggleTickerListMembership = withAuthHandling(async (spreadsheetId:
         });
     } else {
         // Add
-        const row = [listName, tickerUpper, toGoogleSheetsExchangeCode(exchange), toGoogleSheetDateFormat(new Date())];
+        const row = [listName, tickerUpper, toGoogleSheetsExchangeCode(exchange), toGoogleSheetDateFormat(new Date()), '[]'];
         await gapi.client.sheets.spreadsheets.values.append({
             spreadsheetId,
             range: `${TRACKING_LISTS_SHEET_NAME}!A:A`,
@@ -1648,6 +1657,35 @@ export const toggleTickerListMembership = withAuthHandling(async (spreadsheetId:
             resource: { values: [row] }
         });
     }
+});
+
+export const updateTickerAlerts = withAuthHandling(async (
+    spreadsheetId: string,
+    listName: string,
+    ticker: string,
+    exchange: Exchange,
+    alerts: TickerAlert[]
+) => {
+    const gapi = await ensureGapi();
+    const existing = await fetchTickerLists(spreadsheetId);
+    const tickerUpper = ticker.toUpperCase();
+    const match = existing.find(item => item.listName === listName && item.ticker === tickerUpper && item.exchange === exchange);
+
+    if (!match || !match.rowIndex) {
+        throw new Error(`Ticker ${ticker} not found in ${listName} list`);
+    }
+
+    const range = `${TRACKING_LISTS_SHEET_NAME}!E${match.rowIndex}`;
+    const value = JSON.stringify(alerts);
+
+    await gapi.client.sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range,
+        valueInputOption: 'RAW',
+        resource: {
+            values: [[value]]
+        }
+    });
 });
 
 export const upsertChatSession = withAuthHandling(async (sheetId: string, session: any) => {

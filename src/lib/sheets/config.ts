@@ -157,12 +157,12 @@ export const externalDatasetsHeaders = ['Ticker', 'Exchange', 'Date', 'Price', '
 export const EXTERNAL_DATASETS_RANGE = `${EXTERNAL_DATASETS_SHEET_NAME}!A2:E`;
 
 export const TRACKING_LISTS_SHEET_NAME = 'Tracking_Lists';
-export const trackingListsHeaders = ['List_Name', 'Ticker', 'Exchange', 'Date_Added'] as const;
-export const TRACKING_LISTS_RANGE = `${TRACKING_LISTS_SHEET_NAME}!A2:D`;
+export const trackingListsHeaders = ['List_Name', 'Ticker', 'Exchange', 'Date_Added', 'Alerts'] as const;
+export const TRACKING_LISTS_RANGE = `${TRACKING_LISTS_SHEET_NAME}!A2:E`;
 
 // Manually update this date (YYYY-MM-DD) whenever the schema (columns, formulas) changes.
 // The app will verify if the sheet's last setup date is older than this.
-export const SHEET_STRUCTURE_VERSION_DATE = '2026-04-02';
+export const SHEET_STRUCTURE_VERSION_DATE = '2026-06-22';
 
 // --- Mappings from Sheet Headers to Typescript Object Keys ---
 

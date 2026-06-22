@@ -1,20 +1,26 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box, Grid, Card, CardContent, Typography, CircularProgress, Alert, IconButton,
-  ToggleButton, ToggleButtonGroup, Paper, useTheme, Breadcrumbs, Link as MuiLink
+  ToggleButton, ToggleButtonGroup, Paper, useTheme, Breadcrumbs, Link as MuiLink,
+  Dialog, DialogTitle, DialogContent, DialogActions, TextField, Select, MenuItem,
+  FormControl, InputLabel, Chip, Stack, Button
 } from '@mui/material';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
+import AddAlertIcon from '@mui/icons-material/AddAlert';
 import { Link as RouterLink } from 'react-router-dom';
 import { ResponsiveContainer, AreaChart, Area, YAxis } from 'recharts';
+import { toast } from 'react-hot-toast';
 
 import { useDashboardData } from '../lib/dashboard';
 import { fetchTickerHistory } from '../lib/fetching';
 import { useLanguage } from '../lib/i18n';
 import { formatPercent, formatMoneyValue, normalizeCurrency } from '../lib/currencyUtils';
 import { Currency } from '../lib/types';
+import type { TickerAlert } from '../lib/types';
+import { updateTickerAlerts } from '../lib/sheets/api';
 
 interface SparklineProps {
   data: { date: Date; price: number }[];
@@ -77,6 +83,111 @@ export function WatchlistPage({ sheetId }: WatchlistPageProps) {
   const watchlistItems = useMemo(() => {
     return trackingLists.filter(item => item.listName === 'Watchlist');
   }, [trackingLists]);
+
+  // Local state for alerts
+  const [localAlerts, setLocalAlerts] = useState<Record<string, TickerAlert[]>>({});
+  
+  // Dialog fields
+  const [openAddAlert, setOpenAddAlert] = useState(false);
+  const [activeItem, setActiveItem] = useState<any>(null);
+  const [alertType, setAlertType] = useState<'price_above' | 'price_below' | 'price_moved_percent' | 'pct_change_from_now'>('price_above');
+  const [targetPrice, setTargetPrice] = useState('');
+  const [percentChange, setPercentChange] = useState('');
+  const [daysWindow, setDaysWindow] = useState('7');
+  const [pctFromNowDirection, setPctFromNowDirection] = useState<'up' | 'down'>('up');
+
+  // Synchronize local alerts map whenever watchlistItems change
+  useEffect(() => {
+    const alertsMap: Record<string, TickerAlert[]> = {};
+    watchlistItems.forEach(item => {
+      alertsMap[`${item.exchange}:${item.ticker}`] = item.alerts || [];
+    });
+    setLocalAlerts(alertsMap);
+  }, [watchlistItems]);
+
+  const handleAddAlertSubmit = async () => {
+    if (!activeItem) return;
+    const curPrice = engine?.livePrices.get(`${activeItem.exchange}:${activeItem.ticker}`)?.price || 0;
+
+    let finalType: 'price_above' | 'price_below' | 'price_moved_percent' = 'price_above';
+    let finalTargetPrice: number | undefined;
+    let finalPercentChange: number | undefined;
+    let finalDaysWindow: number | undefined;
+
+    if (alertType === 'price_above') {
+      finalType = 'price_above';
+      finalTargetPrice = parseFloat(targetPrice);
+    } else if (alertType === 'price_below') {
+      finalType = 'price_below';
+      finalTargetPrice = parseFloat(targetPrice);
+    } else if (alertType === 'price_moved_percent') {
+      finalType = 'price_moved_percent';
+      finalPercentChange = parseFloat(percentChange);
+      finalDaysWindow = parseInt(daysWindow, 10);
+    } else if (alertType === 'pct_change_from_now') {
+      const pct = parseFloat(percentChange);
+      if (pctFromNowDirection === 'up') {
+        finalType = 'price_above';
+        finalTargetPrice = curPrice * (1 + pct / 100);
+      } else {
+        finalType = 'price_below';
+        finalTargetPrice = curPrice * (1 - pct / 100);
+      }
+    }
+
+    if (finalType === 'price_moved_percent') {
+      if (isNaN(finalPercentChange!) || isNaN(finalDaysWindow!)) {
+        toast.error(t('Please enter valid numeric fields', 'אנא הזן ערכים מספריים תקינים'));
+        return;
+      }
+    } else {
+      if (isNaN(finalTargetPrice!)) {
+        toast.error(t('Please enter a valid target price', 'אנא הזן מחיר יעד תקין'));
+        return;
+      }
+    }
+
+    const newAlert: TickerAlert = {
+      id: Math.random().toString(36).substr(2, 9),
+      type: finalType,
+      targetPrice: finalTargetPrice,
+      percentChange: finalPercentChange,
+      daysWindow: finalDaysWindow,
+      creationPrice: curPrice,
+      creationDate: new Date().toISOString()
+    };
+
+    const key = `${activeItem.exchange}:${activeItem.ticker}`;
+    const currentAlerts = localAlerts[key] || [];
+    const updatedAlerts = [...currentAlerts, newAlert];
+
+    setLocalAlerts(prev => ({ ...prev, [key]: updatedAlerts }));
+    setOpenAddAlert(false);
+
+    try {
+      await updateTickerAlerts(sheetId, 'Watchlist', activeItem.ticker, activeItem.exchange, updatedAlerts);
+      toast.success(t('Alert saved successfully', 'התראה נשמרה בהצלחה'));
+    } catch (e) {
+      console.error(e);
+      toast.error(t('Failed to save alert', 'שגיאה בשמירת ההתראה'));
+    }
+  };
+
+  const handleDeleteAlert = async (item: any, alertId: string) => {
+    const key = `${item.exchange}:${item.ticker}`;
+    const currentAlerts = localAlerts[key] || [];
+    const updatedAlerts = currentAlerts.filter(a => a.id !== alertId);
+
+    setLocalAlerts(prev => ({ ...prev, [key]: updatedAlerts }));
+
+    try {
+      await updateTickerAlerts(sheetId, 'Watchlist', item.ticker, item.exchange, updatedAlerts);
+      toast.success(t('Alert deleted', 'התראה נמחקה'));
+    } catch (e) {
+      console.error(e);
+      toast.error(t('Failed to delete alert', 'שגיאה במחיקת ההתראה'));
+    }
+  };
 
   // Load history data for sparklines & min/max
   const [historyData, setHistoryData] = useState<Record<string, { date: Date; price: number }[]>>({});
@@ -210,32 +321,101 @@ export function WatchlistPage({ sheetId }: WatchlistPageProps) {
             const currencyCode = liveData?.currency || 'USD';
             
             const change1d = liveData?.changePct1d ?? 0;
-            const change1w = liveData?.changePctRecent ?? 0; // Recent change generally maps to 1w
+            const change1w = liveData?.changePctRecent ?? 0;
             const change1m = liveData?.changePct1m ?? 0;
 
             // Aggregate Ownership
             const matchingHoldings = holdings.filter(h => h.ticker === item.ticker && h.exchange === item.exchange);
             const totalOwnedQty = matchingHoldings.reduce((sum, h) => sum + h.qtyTotal, 0);
             const totalOwnedValue = matchingHoldings.reduce((sum, h) => {
-              // Convert to selected display currency
-              const val = h.display.marketValue; // Already normalized/mapped to selected layout currency
+              const val = h.display.marketValue;
               return sum + val;
             }, 0);
 
             const isPositive1m = change1m >= 0;
 
+            // Evaluate alerts
+            const alerts = localAlerts[key] || [];
+            const itemAlerts = alerts.map(alert => {
+              let isTriggered = false;
+              if (alert.type === 'price_above' && alert.targetPrice !== undefined) {
+                isTriggered = curPrice >= alert.targetPrice;
+              } else if (alert.type === 'price_below' && alert.targetPrice !== undefined) {
+                isTriggered = curPrice <= alert.targetPrice;
+              } else if (alert.type === 'price_moved_percent' && alert.percentChange !== undefined && alert.daysWindow !== undefined) {
+                if (hist && hist.length > 0) {
+                  const targetDate = new Date();
+                  targetDate.setDate(targetDate.getDate() - alert.daysWindow);
+                  
+                  let priceNDaysAgo: number | undefined;
+                  let minTimeDiff = Infinity;
+                  for (const p of hist) {
+                    const pDate = new Date(p.date);
+                    const diff = Math.abs(pDate.getTime() - targetDate.getTime());
+                    if (diff < minTimeDiff) {
+                      minTimeDiff = diff;
+                      priceNDaysAgo = p.price;
+                    }
+                  }
+                  
+                  if (priceNDaysAgo && priceNDaysAgo > 0) {
+                    const changePct = (curPrice - priceNDaysAgo) / priceNDaysAgo;
+                    isTriggered = Math.abs(changePct) * 100 >= alert.percentChange;
+                  }
+                } else {
+                  const changePct = alert.daysWindow <= 1 ? liveData?.changePct1d :
+                                    alert.daysWindow <= 7 ? liveData?.changePctRecent :
+                                    liveData?.changePct1m;
+                  isTriggered = Math.abs(changePct || 0) * 100 >= alert.percentChange;
+                }
+              }
+              return { ...alert, isTriggered };
+            });
+
+            const isCardAlerted = itemAlerts.some(a => a.isTriggered);
+
             return (
               <Grid item xs={12} sm={6} md={4} key={key}>
-                <Card variant="outlined" sx={{ height: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+                <Card 
+                  variant="outlined" 
+                  sx={{ 
+                    height: '100%', 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    position: 'relative',
+                    border: isCardAlerted ? `1px solid ${theme.palette.error.main}` : undefined,
+                    boxShadow: isCardAlerted ? `0 0 8px ${theme.palette.error.main}40` : undefined,
+                    transition: 'border 0.3s ease, box-shadow 0.3s ease'
+                  }}
+                >
                   <CardContent sx={{ flexGrow: 1, pb: '16px !important' }}>
                     
                     {/* Header */}
                     <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1.5}>
                       <Box>
-                        <Typography variant="h6" component="div" sx={{ fontWeight: 700, lineHeight: 1.2, mb: 0.25 }}>
-                          {getTickerDisplayName(item)}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
+                        <Box display="flex" alignItems="center">
+                          {isCardAlerted && (
+                            <NotificationsActiveIcon 
+                              color="error" 
+                              sx={{ 
+                                mr: 0.75, 
+                                fontSize: '1.25rem',
+                                animation: 'shake 0.5s infinite',
+                                '@keyframes shake': {
+                                  '0%': { transform: 'rotate(0deg)' },
+                                  '25%': { transform: 'rotate(15deg)' },
+                                  '50%': { transform: 'rotate(0deg)' },
+                                  '75%': { transform: 'rotate(-15deg)' },
+                                  '100%': { transform: 'rotate(0deg)' }
+                                }
+                              }} 
+                            />
+                          )}
+                          <Typography variant="h6" component="div" sx={{ fontWeight: 700, lineHeight: 1.2 }}>
+                            {getTickerDisplayName(item)}
+                          </Typography>
+                        </Box>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
                           {item.ticker} • {t(item.exchange, item.exchange)}
                         </Typography>
                       </Box>
@@ -331,6 +511,7 @@ export function WatchlistPage({ sheetId }: WatchlistPageProps) {
                       alignItems="center" 
                       pt={1.5} 
                       borderTop={`1px solid ${theme.palette.divider}`}
+                      pb={1.5}
                     >
                       <Typography variant="caption" color="text.secondary">
                         {t('Owned Status', 'מצב אחזקה')}
@@ -342,6 +523,68 @@ export function WatchlistPage({ sheetId }: WatchlistPageProps) {
                       </Typography>
                     </Box>
 
+                    {/* Alerts Section */}
+                    <Box pt={1.5} borderTop={`1px solid ${theme.palette.divider}`}>
+                      <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                        <Typography variant="caption" color="text.secondary" fontWeight={700}>
+                          {t('Alerts', 'התראות')}
+                        </Typography>
+                        <IconButton 
+                          size="small" 
+                          color="primary" 
+                          onClick={() => {
+                            setActiveItem(item);
+                            setAlertType('price_above');
+                            setTargetPrice(curPrice ? curPrice.toFixed(2) : '');
+                            setPercentChange('');
+                            setDaysWindow('7');
+                            setOpenAddAlert(true);
+                          }}
+                          sx={{ p: 0.25 }}
+                        >
+                          <AddAlertIcon fontSize="small" />
+                        </IconButton>
+                      </Box>
+                      {itemAlerts.length === 0 ? (
+                        <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic', display: 'block' }}>
+                          {t('No alerts set', 'אין התראות מוגדרות')}
+                        </Typography>
+                      ) : (
+                        <Box display="flex" flexWrap="wrap" gap={0.5}>
+                          {itemAlerts.map(alert => {
+                            let label = '';
+                            if (alert.type === 'price_above') {
+                              label = `> ${formatMoneyValue({ amount: alert.targetPrice || 0, currency: normalizeCurrency(currencyCode) }, t)}`;
+                            } else if (alert.type === 'price_below') {
+                              label = `< ${formatMoneyValue({ amount: alert.targetPrice || 0, currency: normalizeCurrency(currencyCode) }, t)}`;
+                            } else if (alert.type === 'price_moved_percent') {
+                              label = `|Δ| > ${alert.percentChange}% (${alert.daysWindow}d)`;
+                            }
+
+                            return (
+                              <Chip
+                                key={alert.id}
+                                label={label}
+                                size="small"
+                                color={alert.isTriggered ? "error" : "default"}
+                                variant={alert.isTriggered ? "filled" : "outlined"}
+                                onDelete={() => handleDeleteAlert(item, alert.id)}
+                                sx={{ 
+                                  fontSize: '0.75rem',
+                                  animation: alert.isTriggered ? 'pulse 2s infinite' : 'none',
+                                  '@keyframes pulse': {
+                                    '0%': { opacity: 1 },
+                                    '50%': { opacity: 0.6 },
+                                    '100%': { opacity: 1 }
+                                  }
+                                }}
+                              />
+                            );
+                          })}
+                        </Box>
+                      )}
+                    </Box>
+
                   </CardContent>
                 </Card>
               </Grid>
@@ -349,6 +592,106 @@ export function WatchlistPage({ sheetId }: WatchlistPageProps) {
           })}
         </Grid>
       )}
+
+      {/* Add Alert Dialog */}
+      <Dialog open={openAddAlert} onClose={() => setOpenAddAlert(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>{t('Add Alert for', 'הוסף התראה עבור')} {activeItem ? getTickerDisplayName(activeItem) : ''}</DialogTitle>
+        <DialogContent sx={{ pt: 1 }}>
+          <Stack spacing={2.5} sx={{ mt: 1 }}>
+            <FormControl fullWidth>
+              <InputLabel id="alert-type-label">{t('Alert Type', 'סוג התראה')}</InputLabel>
+              <Select
+                labelId="alert-type-label"
+                value={alertType}
+                label={t('Alert Type', 'סוג התראה')}
+                onChange={(e) => setAlertType(e.target.value as any)}
+              >
+                <MenuItem value="price_above">{t('Price rises above', 'מחיר עולה מעל')}</MenuItem>
+                <MenuItem value="price_below">{t('Price falls below', 'מחיר יורד מתחת')}</MenuItem>
+                <MenuItem value="price_moved_percent">{t('Price moves by % in N days', 'שינוי במחיר ב-% תוך N ימים')}</MenuItem>
+                <MenuItem value="pct_change_from_now">{t('% Change from current price', 'שינוי באחוזים מהמחיר הנוכחי')}</MenuItem>
+              </Select>
+            </FormControl>
+
+            {(alertType === 'price_above' || alertType === 'price_below') && (
+              <TextField
+                fullWidth
+                label={t('Target Price', 'מחיר יעד')}
+                type="number"
+                value={targetPrice}
+                onChange={(e) => setTargetPrice(e.target.value)}
+                variant="outlined"
+              />
+            )}
+
+            {alertType === 'price_moved_percent' && (
+              <Stack direction="row" spacing={2}>
+                <TextField
+                  fullWidth
+                  label={t('Percent Change (%)', 'אחוז שינוי (%)')}
+                  type="number"
+                  value={percentChange}
+                  onChange={(e) => setPercentChange(e.target.value)}
+                  variant="outlined"
+                />
+                <TextField
+                  fullWidth
+                  label={t('Days Window', 'טווח ימים')}
+                  type="number"
+                  value={daysWindow}
+                  onChange={(e) => setDaysWindow(e.target.value)}
+                  variant="outlined"
+                />
+              </Stack>
+            )}
+
+            {alertType === 'pct_change_from_now' && (
+              <Stack spacing={2}>
+                <FormControl fullWidth>
+                  <InputLabel id="direction-label">{t('Direction', 'כיוון')}</InputLabel>
+                  <Select
+                    labelId="direction-label"
+                    value={pctFromNowDirection}
+                    label={t('Direction', 'כיוון')}
+                    onChange={(e) => setPctFromNowDirection(e.target.value as any)}
+                  >
+                    <MenuItem value="up">{t('Up (%)', 'למעלה (%)')}</MenuItem>
+                    <MenuItem value="down">{t('Down (%)', 'למטה (%)')}</MenuItem>
+                  </Select>
+                </FormControl>
+                <TextField
+                  fullWidth
+                  label={t('Percent Move (%)', 'שיעור תנועה (%)')}
+                  type="number"
+                  value={percentChange}
+                  onChange={(e) => setPercentChange(e.target.value)}
+                  variant="outlined"
+                  helperText={
+                    activeItem
+                      ? `${t('Current price:', 'מחיר נוכחי:')} ${
+                          (engine?.livePrices.get(`${activeItem.exchange}:${activeItem.ticker}`)?.price || 0).toFixed(2)
+                        } => ${t('Target:', 'יעד:')} ${
+                          (
+                            (engine?.livePrices.get(`${activeItem.exchange}:${activeItem.ticker}`)?.price || 0) *
+                            (1 + (pctFromNowDirection === 'up' ? 1 : -1) * (parseFloat(percentChange) || 0) / 100)
+                          ).toFixed(2)
+                        }`
+                      : ''
+                  }
+                />
+              </Stack>
+            )}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenAddAlert(false)} color="inherit">
+            {t('Cancel', 'ביטול')}
+          </Button>
+          <Button onClick={handleAddAlertSubmit} color="primary" variant="contained">
+            {t('Save', 'שמור')}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
