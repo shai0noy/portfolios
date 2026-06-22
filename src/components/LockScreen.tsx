@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Box, Paper, Typography, Grid, IconButton, Button, useTheme } from '@mui/material';
 import BackspaceIcon from '@mui/icons-material/Backspace';
 import LockIcon from '@mui/icons-material/Lock';
@@ -16,10 +16,49 @@ export function LockScreen({ pin, onUnlock }: LockScreenProps) {
   const [error, setError] = useState<boolean>(false);
   const [shake, setShake] = useState<boolean>(false);
 
+  // Validate code in side-effect to separate side-effects from pure state transitions
+  useEffect(() => {
+    if (inputCode.length === pin.length) {
+      if (inputCode === pin) {
+        onUnlock();
+      } else {
+        setError(true);
+        setShake(true);
+        const shakeTimer = setTimeout(() => {
+          setShake(false);
+        }, 500);
+        const resetTimer = setTimeout(() => {
+          setInputCode('');
+          setError(false);
+        }, 1200);
+        return () => {
+          clearTimeout(shakeTimer);
+          clearTimeout(resetTimer);
+        };
+      }
+    }
+  }, [inputCode, pin, onUnlock]);
+
+  const handleDigit = useCallback((digit: string) => {
+    if (error) return;
+    setInputCode(prev => {
+      if (prev.length >= pin.length) return prev;
+      return prev + digit;
+    });
+  }, [error, pin.length]);
+
+  const handleBackspace = useCallback(() => {
+    setInputCode(prev => prev.slice(0, -1));
+  }, []);
+
+  const handleClear = useCallback(() => {
+    setInputCode('');
+  }, []);
+
   // Keyboard interceptor
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (error) return; // Prevent input while showing error state
+      if (error) return;
       
       const key = e.key;
       if (/^[0-9]$/.test(key)) {
@@ -33,38 +72,7 @@ export function LockScreen({ pin, onUnlock }: LockScreenProps) {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [inputCode, error, pin]);
-
-  const handleDigit = (digit: string) => {
-    if (inputCode.length >= pin.length) return;
-    const newCode = inputCode + digit;
-    setInputCode(newCode);
-
-    if (newCode.length === pin.length) {
-      if (newCode === pin) {
-        onUnlock();
-      } else {
-        // Trigger shake & error animation
-        setError(true);
-        setShake(true);
-        setTimeout(() => {
-          setShake(false);
-        }, 500);
-        setTimeout(() => {
-          setInputCode('');
-          setError(false);
-        }, 1200);
-      }
-    }
-  };
-
-  const handleBackspace = () => {
-    setInputCode(prev => prev.slice(0, -1));
-  };
-
-  const handleClear = () => {
-    setInputCode('');
-  };
+  }, [error, handleDigit, handleBackspace, handleClear]);
 
   // 1-9 grid array
   const digits = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
@@ -82,39 +90,9 @@ export function LockScreen({ pin, onUnlock }: LockScreenProps) {
         justifyContent: 'center',
         alignItems: 'center',
         background: theme.palette.mode === 'dark' 
-          ? 'radial-gradient(circle at center, #111524 0%, #07090e 100%)' 
-          : 'radial-gradient(circle at center, #f4f6fa 0%, #e0e5f0 100%)',
-        overflow: 'hidden',
-        '&::before': {
-          content: '""',
-          position: 'absolute',
-          width: '300px',
-          height: '300px',
-          borderRadius: '50%',
-          background: 'linear-gradient(45deg, #2196f3, #00bcd4)',
-          filter: 'blur(80px)',
-          opacity: 0.15,
-          top: '20%',
-          left: '25%',
-          animation: 'float-slow 20s infinite alternate',
-        },
-        '&::after': {
-          content: '""',
-          position: 'absolute',
-          width: '250px',
-          height: '250px',
-          borderRadius: '50%',
-          background: 'linear-gradient(45deg, #e91e63, #9c27b0)',
-          filter: 'blur(80px)',
-          opacity: 0.12,
-          bottom: '25%',
-          right: '25%',
-          animation: 'float-slow 15s infinite alternate-reverse',
-        },
-        '@keyframes float-slow': {
-          '0%': { transform: 'translate(0, 0) scale(1)' },
-          '100%': { transform: 'translate(30px, -20px) scale(1.1)' }
-        }
+          ? 'radial-gradient(circle at 20% 20%, #1a233a 0%, #07090e 100%)' 
+          : 'radial-gradient(circle at 20% 20%, #f4f6fa 0%, #d5def0 100%)',
+        overflow: 'hidden'
       }}
     >
       <Paper

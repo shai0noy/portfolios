@@ -131,6 +131,48 @@ function AppContent() {
     toast.success(t('Lock settings updated', 'הגדרות הנעילה עודכנו'));
   };
 
+  // Inactivity lock screen timer (15 minutes)
+  useEffect(() => {
+    if (!lockEnabled || isLocked) return;
+
+    const INACTIVITY_TIMEOUT = 15 * 60 * 1000; // 15 minutes
+    let timeoutId: any;
+    let lastActivityTime = Date.now();
+
+    const resetTimer = () => {
+      const now = Date.now();
+      // Throttle timer resetting to once every 10 seconds to optimize performance
+      if (now - lastActivityTime < 10000) return;
+      lastActivityTime = now;
+
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        setIsLocked(true);
+      }, INACTIVITY_TIMEOUT);
+    };
+
+    // Initialize timer
+    timeoutId = setTimeout(() => {
+      setIsLocked(true);
+    }, INACTIVITY_TIMEOUT);
+
+    // User activity events to listen to
+    const events = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
+
+    // Add listeners
+    events.forEach(event => {
+      window.addEventListener(event, resetTimer);
+    });
+
+    // Cleanup
+    return () => {
+      clearTimeout(timeoutId);
+      events.forEach(event => {
+        window.removeEventListener(event, resetTimer);
+      });
+    };
+  }, [lockEnabled, isLocked]);
+
   const { trackingLists, engine } = useDashboardData(sheetId || '');
 
   const hasTriggeredAlert = useMemo(() => {
@@ -925,6 +967,8 @@ function AppContent() {
                     fullWidth
                     label={t('Passcode PIN (numeric)', 'קוד גישה (מספרי)')}
                     type="password"
+                    autoComplete="new-password"
+                    placeholder=""
                     inputProps={{ 
                       maxLength: 8,
                       inputMode: 'numeric',
