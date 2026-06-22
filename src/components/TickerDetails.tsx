@@ -7,6 +7,8 @@ import AddIcon from '@mui/icons-material/Add';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import StarIcon from '@mui/icons-material/Star';
 import StarBorderIcon from '@mui/icons-material/StarBorder';
+import NotificationsIcon from '@mui/icons-material/Notifications';
+import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import EventIcon from '@mui/icons-material/Event';
 import { useState, useMemo, useEffect } from 'react';
@@ -96,7 +98,9 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
     ticker, exchange, data, holdingData, historicalData, loading, error, refreshing,
     sheetRebuildTime, handleRefresh, displayData, resolvedName, resolvedNameHe,
     ownedInPortfolios, externalLinks, formatVolume, state, navigate,
-    isFavorite, toggleFavorite, isUpdatingFavorite, trackingLists
+    isFavorite, toggleFavorite, isUpdatingFavorite,
+    isWatchlist, toggleWatchlist, isUpdatingWatchlist,
+    trackingLists
   } = tickerDetailsResult;
 
   const getPortfolioHistory = async (portfolioId: string | null) => {
@@ -479,6 +483,11 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
                 <Tooltip title={isFavorite ? t('Remove from favorites', 'הסר ממועדפים') : t('Add to favorites', 'הוסף למועדפים')} enterTouchDelay={0} leaveTouchDelay={3000}>
                   <IconButton onClick={toggleFavorite} disabled={isUpdatingFavorite} size="small" sx={{ color: isFavorite ? 'success.main' : 'action.disabled' }}>
                     {isFavorite ? <StarIcon /> : <StarBorderIcon />}
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title={isWatchlist ? t('Remove from watchlist', 'הסר מרשימת מעקב') : t('Add to watchlist', 'הוסף לרשימת מעקב')} enterTouchDelay={0} leaveTouchDelay={3000}>
+                  <IconButton onClick={toggleWatchlist} disabled={isUpdatingWatchlist} size="small" sx={{ color: isWatchlist ? 'success.main' : 'action.disabled' }}>
+                    {isWatchlist ? <NotificationsIcon /> : <NotificationsNoneIcon />}
                   </IconButton>
                 </Tooltip>
 

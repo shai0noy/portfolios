@@ -24,6 +24,7 @@ import { DashboardTable } from './DashboardTable';
 import { useLanguage } from '../lib/i18n';
 import { useDashboardData, calculateDashboardSummary, INITIAL_SUMMARY, type EnrichedDashboardHolding } from '../lib/dashboard';
 import { Currency, TrackingListId, Exchange } from '../lib/types';
+import type { TrackingListItem } from '../lib/types';
 import { fetchTickerHistory } from '../lib/fetching';
 import { getDefaultColumnVisibility, getColumnDisplayNames, getPresetVisibility, type ColumnPresetType } from '../lib/dashboardColumns';
 import { TickerSearch } from './TickerSearch';
@@ -36,6 +37,96 @@ import type { DashboardHoldingDisplay } from '../lib/dashboard';
 interface DashboardProps {
   sheetId: string;
   isFavoritesOnly?: boolean;
+}
+
+function buildTrackingHolding(
+  item: TrackingListItem,
+  liveData: any,
+  portfolioId: TrackingListId,
+  portfolioName: string,
+  keyPrefix: string
+): EnrichedDashboardHolding {
+  return {
+    nameHe: liveData?.nameHe || '',
+    qtyTotal: 0,
+    currentPrice: liveData?.price || 0,
+    portfolioId,
+    isFavoritesList: true,
+    portfolioName,
+    activeLots: [],
+    realizedLots: [],
+    transactions: [],
+    dividends: [],
+    id: `${keyPrefix}_${item.exchange}_${item.ticker}`,
+    key: `${keyPrefix}_${item.exchange}_${item.ticker}`,
+    portfolioCurrency: (liveData?.currency as Currency) || Currency.USD,
+    ticker: item.ticker,
+    exchange: item.exchange,
+    displayName: liveData?.nameMarket || liveData?.name || item.ticker,
+    longName: liveData?.name || item.ticker,
+    avgHoldingTimeYears: 0,
+    qtyVested: 0,
+    qtyUnvested: 0,
+    stockCurrency: (liveData?.currency as Currency) || Currency.USD,
+    costBasisVested: { amount: 0, currency: Currency.USD },
+    costOfSoldTotal: { amount: 0, currency: Currency.USD },
+    proceedsTotal: { amount: 0, currency: Currency.USD },
+    dividendsTotal: { amount: 0, currency: Currency.USD },
+    unrealizedGain: { amount: 0, currency: Currency.USD },
+    realizedGainNet: { amount: 0, currency: Currency.USD },
+    feesTotal: { amount: 0, currency: Currency.USD },
+    marketValueVested: { amount: 0, currency: Currency.USD },
+    marketValueUnvested: { amount: 0, currency: Currency.USD },
+    realizedTax: 0,
+    unrealizedTaxLiabilityILS: 0,
+    unrealizedTaxableGainILS: 0,
+    sector: liveData?.sector,
+    dayChangePct: liveData?.changePct1d || 0,
+    perf1w: liveData?.changePctRecent || 0,
+    perf1m: liveData?.changePct1m || 0,
+    perf3m: liveData?.changePct3m || 0,
+    perfYtd: liveData?.changePctYtd || 0,
+    perf1y: liveData?.changePct1y || 0,
+    perf3y: liveData?.changePct3y || 0,
+    perf5y: liveData?.changePct5y || 0,
+    perfAll: liveData?.changePctMax || 0,
+    tickerChangePct1w: liveData?.changePctRecent || 0,
+    tickerChangePct1m: liveData?.changePct1m || 0,
+    tickerChangePct3m: liveData?.changePct3m || 0,
+    tickerChangePctYtd: liveData?.changePctYtd || 0,
+    tickerChangePct1y: liveData?.changePct1y || 0,
+    tickerChangePct3y: liveData?.changePct3y || 0,
+    tickerChangePct5y: liveData?.changePct5y || 0,
+    tickerChangePctAll: liveData?.changePctMax || 0,
+    display: {
+      marketValue: 0,
+      unrealizedGain: 0,
+      unrealizedGainPct: 0,
+      realizedGain: 0,
+      realizedGainGross: 0,
+      realizedGainNet: 0,
+      realizedGainPct: 0,
+      realizedGainAfterTax: 0,
+      totalGain: 0,
+      totalGainPct: 0,
+      valueAfterTax: 0,
+      dayChangeVal: 0,
+      dayChangePct: liveData?.changePct1d || 0,
+      costBasis: 0,
+      costOfSold: 0,
+      proceeds: 0,
+      dividends: 0,
+      fees: 0,
+      dividendYield1y: liveData?.dividendYield,
+      currentPrice: liveData?.price || 0,
+      avgCost: 0,
+      weightInPortfolio: 0,
+      weightInGlobal: 0,
+      unvestedValue: 0,
+      realizedTax: 0,
+      unrealizedTax: 0
+    }
+  };
 }
 
 export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: DashboardProps) => {
@@ -180,95 +271,27 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
 
   const favoriteHoldings = useMemo(() => {
     if (!trackingLists || trackingLists.length === 0 || !engine) return [];
-
-    return trackingLists.map(item => {
-      const tickerKey = `${item.exchange}:${item.ticker}`;
-      const liveData = engine.livePrices.get(tickerKey);
-
-      const h: EnrichedDashboardHolding = {
-        nameHe: liveData?.nameHe || '',
-        qtyTotal: 0,
-        currentPrice: liveData?.price || 0,
-        portfolioId: TrackingListId.Favorites,
-        isFavoritesList: true,
-        portfolioName: t('Favorites', 'מועדפים'),
-        activeLots: [],
-        realizedLots: [],
-        transactions: [],
-        dividends: [],
-        id: `fav_${item.exchange}_${item.ticker}`,
-        key: `fav_${item.exchange}_${item.ticker}`,
-        portfolioCurrency: (liveData?.currency as Currency) || Currency.USD,
-        ticker: item.ticker,
-        exchange: item.exchange,
-        displayName: liveData?.nameMarket || liveData?.name || item.ticker,
-        longName: liveData?.name || item.ticker,
-        avgHoldingTimeYears: 0,
-        qtyVested: 0,
-        qtyUnvested: 0,
-        stockCurrency: (liveData?.currency as Currency) || Currency.USD,
-        costBasisVested: { amount: 0, currency: Currency.USD },
-        costOfSoldTotal: { amount: 0, currency: Currency.USD },
-        proceedsTotal: { amount: 0, currency: Currency.USD },
-        dividendsTotal: { amount: 0, currency: Currency.USD },
-        unrealizedGain: { amount: 0, currency: Currency.USD },
-        realizedGainNet: { amount: 0, currency: Currency.USD },
-        feesTotal: { amount: 0, currency: Currency.USD },
-        marketValueVested: { amount: 0, currency: Currency.USD },
-        marketValueUnvested: { amount: 0, currency: Currency.USD },
-        realizedTax: 0,
-        unrealizedTaxLiabilityILS: 0,
-        unrealizedTaxableGainILS: 0,
-        sector: liveData?.sector,
-        dayChangePct: liveData?.changePct1d || 0,
-        perf1w: liveData?.changePctRecent || 0,
-        perf1m: liveData?.changePct1m || 0,
-        perf3m: liveData?.changePct3m || 0,
-        perfYtd: liveData?.changePctYtd || 0,
-        perf1y: liveData?.changePct1y || 0,
-        perf3y: liveData?.changePct3y || 0,
-        perf5y: liveData?.changePct5y || 0,
-        perfAll: liveData?.changePctMax || 0,
-        tickerChangePct1w: liveData?.changePctRecent || 0,
-        tickerChangePct1m: liveData?.changePct1m || 0,
-        tickerChangePct3m: liveData?.changePct3m || 0,
-        tickerChangePctYtd: liveData?.changePctYtd || 0,
-        tickerChangePct1y: liveData?.changePct1y || 0,
-        tickerChangePct3y: liveData?.changePct3y || 0,
-        tickerChangePct5y: liveData?.changePct5y || 0,
-        tickerChangePctAll: liveData?.changePctMax || 0,
-        display: {
-          marketValue: 0,
-          unrealizedGain: 0,
-          unrealizedGainPct: 0,
-          realizedGain: 0,
-          realizedGainGross: 0,
-          realizedGainNet: 0,
-          realizedGainPct: 0,
-          realizedGainAfterTax: 0,
-          totalGain: 0,
-          totalGainPct: 0,
-          valueAfterTax: 0,
-          dayChangeVal: 0,
-          dayChangePct: liveData?.changePct1d || 0,
-          costBasis: 0,
-          costOfSold: 0,
-          proceeds: 0,
-          dividends: 0,
-          fees: 0,
-          dividendYield1y: liveData?.dividendYield,
-          currentPrice: liveData?.price || 0,
-          avgCost: 0,
-          weightInPortfolio: 0,
-          weightInGlobal: 0,
-          unvestedValue: 0,
-          realizedTax: 0,
-          unrealizedTax: 0
-        }
-      };
-      return h;
-    });
+    return trackingLists
+      .filter(item => item.listName === 'Favorites')
+      .map(item => {
+        const tickerKey = `${item.exchange}:${item.ticker}`;
+        const liveData = engine.livePrices.get(tickerKey);
+        return buildTrackingHolding(item, liveData, TrackingListId.Favorites, t('Favorites', 'מועדפים'), 'fav');
+      });
   }, [trackingLists, engine, t]);
+
+  const watchlistHoldings = useMemo(() => {
+    if (!trackingLists || trackingLists.length === 0 || !engine) return [];
+    return trackingLists
+      .filter(item => item.listName === 'Watchlist')
+      .map(item => {
+        const tickerKey = `${item.exchange}:${item.ticker}`;
+        const liveData = engine.livePrices.get(tickerKey);
+        return buildTrackingHolding(item, liveData, TrackingListId.Watchlist, t('Watchlist', 'רשימת מעקב'), 'watch');
+      });
+  }, [trackingLists, engine, t]);
+
+  const combinedTrackingHoldings = useMemo(() => [...favoriteHoldings, ...watchlistHoldings], [favoriteHoldings, watchlistHoldings]);
 
   // Column Configuration
   const [columnPreset, setColumnPreset] = useState<ColumnPresetType>(() => {
@@ -420,8 +443,18 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
       }
     }
 
+    // Add Watchlist group if not empty and not already in favorites-only mode
+    if (!isFavoritesOnly && watchlistHoldings.length > 0) {
+      const heldKeys = new Set(enrichedHoldings.filter(h => Math.abs(h.qtyTotal) > 1e-6).map(h => `${h.exchange}:${h.ticker}`));
+      const orphanWatchlist = watchlistHoldings.filter(f => !heldKeys.has(`${f.exchange}:${f.ticker}`));
+
+      if (orphanWatchlist.length > 0) {
+        groups[t('Watchlist', 'רשימת מעקב')] = orphanWatchlist;
+      }
+    }
+
     return groups;
-  }, [displayedHoldings, groupByPortfolio, selectedPortfolioId, portfolios, favoriteHoldings, isFavoritesOnly, enrichedHoldings, t]);
+  }, [displayedHoldings, groupByPortfolio, selectedPortfolioId, portfolios, favoriteHoldings, watchlistHoldings, isFavoritesOnly, enrichedHoldings, t]);
 
   if (loading) return <Box display="flex" justifyContent="center" p={5}><CircularProgress /></Box>;
 
@@ -580,7 +613,7 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
           transactions={selectedPortfolioId ? (engine?.transactions?.filter(t => t.portfolioId === selectedPortfolioId) || []) : (engine?.transactions || [])}
           dividendRecords={selectedPortfolioId ? (engine?.dividendRecords?.filter(t => t.portfolioId === selectedPortfolioId) || []) : (engine?.dividendRecords || [])}
           hasFutureTxns={hasFutureTxns}
-          favoriteHoldings={favoriteHoldings}
+          favoriteHoldings={combinedTrackingHoldings}
           showClosed={showClosed}
           boiTickerData={boiData || undefined}
           is1dStale={summary.totalDayChangeIsStale}

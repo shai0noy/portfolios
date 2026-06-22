@@ -62,8 +62,10 @@ export const useTickerDetails = ({ sheetId, ticker: propTicker, exchange: propEx
     const [refreshing, setRefreshing] = useState(false);
     const [sheetRebuildTime, setSheetRebuildTime] = useState<string | null>(null);
     const [isFavorite, setIsFavorite] = useState(false);
+    const [isWatchlist, setIsWatchlist] = useState(false);
     const [trackingLists, setTrackingLists] = useState<TrackingListItem[]>([]);
     const [isUpdatingFavorite, setIsUpdatingFavorite] = useState(false);
+    const [isUpdatingWatchlist, setIsUpdatingWatchlist] = useState(false);
 
     const { t, language } = useLanguage();
     const { showLoginModal } = useSession();
@@ -226,13 +228,33 @@ export const useTickerDetails = ({ sheetId, ticker: propTicker, exchange: propEx
         }
     }, [sheetId, ticker, exchange, isUpdatingFavorite]);
 
+    const toggleWatchlist = useCallback(async () => {
+        if (isUpdatingWatchlist || !sheetId || !ticker || !exchange) return;
+        setIsUpdatingWatchlist(true);
+        // Optimistic UI update
+        setIsWatchlist(prev => !prev);
+        try {
+            await toggleTickerListMembership(sheetId, 'Watchlist', ticker, exchange);
+        } catch (e) {
+            console.error("Failed to toggle watchlist", e);
+            // Revert optimistic update
+            setIsWatchlist(prev => !prev);
+            const msg = "Failed to save watchlist: " + (e instanceof Error ? e.message : String(e));
+            toast.error(msg, { duration: 8000 });
+        } finally {
+            setIsUpdatingWatchlist(false);
+        }
+    }, [sheetId, ticker, exchange, isUpdatingWatchlist]);
+
     useEffect(() => {
         if (sheetId && ticker && exchange) {
             fetchTickerLists(sheetId).then(lists => {
                 setTrackingLists(lists);
                 const favorite = lists.some(item => item.listName === 'Favorites' && item.ticker === ticker.toUpperCase() && item.exchange === exchange);
+                const watchlist = lists.some(item => item.listName === 'Watchlist' && item.ticker === ticker.toUpperCase() && item.exchange === exchange);
                 setIsFavorite(favorite);
-            }).catch(e => console.warn("Failed to fetch favorite status", e));
+                setIsWatchlist(watchlist);
+            }).catch(e => console.warn("Failed to fetch tracking statuses", e));
         }
     }, [sheetId, ticker, exchange]);
 
@@ -400,6 +422,9 @@ export const useTickerDetails = ({ sheetId, ticker: propTicker, exchange: propEx
         isFavorite,
         toggleFavorite,
         isUpdatingFavorite,
+        isWatchlist,
+        toggleWatchlist,
+        isUpdatingWatchlist,
         trackingLists
     };
 };

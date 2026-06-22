@@ -69,8 +69,14 @@ export function DashboardTable(props: TableProps) {
       {rateError && <Alert severity="error" sx={{ mb: 2 }}>{rateError}</Alert>}
       {Object.entries(groupedData)
         .sort(([nameA, holdingsA], [nameB, holdingsB]) => {
-          if (nameA === t('Favorites', 'מועדפים')) return 1;
-          if (nameB === t('Favorites', 'מועדפים')) return -1;
+          const favName = t('Favorites', 'מועדפים');
+          const watchName = t('Watchlist', 'רשימת מעקב');
+
+          if (nameA === watchName) return 1;
+          if (nameB === watchName) return -1;
+          if (nameA === favName) return 1;
+          if (nameB === favName) return -1;
+
           const valA = aggregateHoldingValues(holdingsA as any, exchangeRates, displayCurrency)?.marketValue.amount || 0;
           const valB = aggregateHoldingValues(holdingsB as any, exchangeRates, displayCurrency)?.marketValue.amount || 0;
           return valB - valA;

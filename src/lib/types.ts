@@ -10,6 +10,7 @@ export { InstrumentType };
 
 export const TrackingListId = {
   Favorites: 'favorites_virtual',
+  Watchlist: 'watchlist_virtual',
 } as const;
 
 export type TrackingListId = typeof TrackingListId[keyof typeof TrackingListId];

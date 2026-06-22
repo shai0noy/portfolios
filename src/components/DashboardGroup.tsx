@@ -112,7 +112,9 @@ export const DashboardGroup = memo(function DashboardGroup(props: DashboardGroup
   }, [groupHoldings, sortBy, sortDir, t]);
 
   const isFavoritesGroup = groupHoldings.length > 0 && groupHoldings[0].portfolioId === TrackingListId.Favorites;
-  const showHeader = groupByPortfolio || isFavoritesGroup;
+  const isWatchlistGroup = groupHoldings.length > 0 && groupHoldings[0].portfolioId === TrackingListId.Watchlist;
+  const isTrackingGroup = isFavoritesGroup || isWatchlistGroup;
+  const showHeader = groupByPortfolio || isTrackingGroup;
 
   return (
     <Box sx={{ position: 'relative', mb: 4 }}>
@@ -126,7 +128,7 @@ export const DashboardGroup = memo(function DashboardGroup(props: DashboardGroup
               <Typography variant="subtitle1" color="primary" sx={{ fontWeight: 600, fontSize: { xs: '0.875rem', sm: '1rem' } }}>{groupName}</Typography>
             </Box>
             <Box display="flex" flexDirection={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'flex-end', sm: 'center' }} gap={{ xs: 0.25, sm: 2 }} pr={{ xs: 0.5, sm: 1 }}>
-              {!isFavoritesGroup && (
+              {!isTrackingGroup && (
                 <>
                   <Typography variant="body2" sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, lineHeight: { xs: 1.35, sm: 1.5 } }}>
                     {t('Total:', 'סה"כ:')} {formatMoneyValue({ amount: groupSummary.totalMV, currency: normalizeCurrency(displayCurrency) }, t)}
