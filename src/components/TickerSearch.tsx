@@ -494,10 +494,10 @@ export const TickerSearch = React.memo(function TickerSearch({ onTickerSelect, p
                     <Box key={`${profile.exchange}:${profile.symbol}`}>
                       <ListItemButton onClick={() => handleOptionSelect(option)}>
                         <ListItemText
-                          primary={<Typography variant="body1">{tTry(profile.name, profile.nameHe)}</Typography>}
+                          primary={<Typography variant="body1" sx={{ wordBreak: 'break-word' }}>{tTry(profile.name, profile.nameHe)}</Typography>}
                           secondaryTypographyProps={{ component: 'div' }}
                           secondary={
-                            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mt: 0.5 }}>
+                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center', mt: 0.5 }}>
                               <Chip
                                 label={`${profile.exchange}:${profile.symbol}${profile.securityId !== undefined && profile.securityId.toString() !== profile.symbol ? ` (${profile.securityId})` : ''}`} size="small" variant="outlined" />
 
