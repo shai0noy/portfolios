@@ -31,7 +31,8 @@ export function useBackgroundRefresher(
   engine: FinanceEngine | null,
   holdings: DashboardHolding[] | undefined,
   trackingLists: TrackingListItem[], 
-  deviceAlertsEnabled: boolean,
+  watchlistAlertsEnabled: boolean,
+  notableMovesAlertsEnabled: boolean,
   globalAlertPct: number,
   globalAlertValue: number
 ) {
@@ -46,7 +47,8 @@ export function useBackgroundRefresher(
   // Store refs so interval closure can access latest without resetting
   const globalAlertPctRef = useRef(globalAlertPct);
   const globalAlertValueRef = useRef(globalAlertValue);
-  const deviceAlertsEnabledRef = useRef(deviceAlertsEnabled);
+  const watchlistAlertsEnabledRef = useRef(watchlistAlertsEnabled);
+  const notableMovesAlertsEnabledRef = useRef(notableMovesAlertsEnabled);
 
   useEffect(() => {
     trackingListsRef.current = trackingLists;
@@ -54,12 +56,13 @@ export function useBackgroundRefresher(
     engineRef.current = engine;
     globalAlertPctRef.current = globalAlertPct;
     globalAlertValueRef.current = globalAlertValue;
-    deviceAlertsEnabledRef.current = deviceAlertsEnabled;
+    watchlistAlertsEnabledRef.current = watchlistAlertsEnabled;
+    notableMovesAlertsEnabledRef.current = notableMovesAlertsEnabled;
 
     if ('Notification' in window) {
       setPermission(Notification.permission);
     }
-  }, [trackingLists, holdings, engine, globalAlertPct, globalAlertValue, deviceAlertsEnabled]);
+  }, [trackingLists, holdings, engine, globalAlertPct, globalAlertValue, watchlistAlertsEnabled, notableMovesAlertsEnabled]);
 
   const requestPermission = async () => {
     if ('Notification' in window) {
@@ -134,32 +137,37 @@ export function useBackgroundRefresher(
           const isFirstSeen = !seenTickersRef.current.has(item.ticker);
           seenTickersRef.current.add(item.ticker);
 
+          let watchlistAlertActive = false;
+
           // 1. Evaluate explicit Tracking List alerts
           item.alerts.forEach(alert => {
             const isCurrentlyTriggered = evaluateAlert(alert, newData);
             const wasTriggered = activeAlertsRef.current.has(alert.id);
 
             if (isCurrentlyTriggered) {
-              activeAlertsRef.current.add(alert.id);
-              if (!wasTriggered && !isFirstSeen) {
-                newlyTriggered = true;
-                if (alert.type === 'price_moved_percent') {
-                  const changeVal = alert.daysWindow !== undefined && alert.daysWindow <= 1 ? newData.changePct1d :
-                                    alert.daysWindow !== undefined && alert.daysWindow <= 7 ? newData.changePctRecent :
-                                    newData.changePct1m;
-                  const pct = (changeVal || 0) * 100;
-                  const dirStr = pct >= 0 ? 'up' : 'down';
-                  const daysStr = alert.daysWindow === 1 ? 'today' : `in last ${alert.daysWindow || 30} days`;
-                  
-                  let todayStr = '';
-                  if (alert.daysWindow !== 1 && newData.changePct1d !== undefined) {
-                    const pct1d = newData.changePct1d * 100;
-                    const dir1d = pct1d >= 0 ? 'up' : 'down';
-                    todayStr = ` (${dir1d} ${Math.abs(pct1d).toFixed(1)}% today)`;
+              watchlistAlertActive = true;
+              if (watchlistAlertsEnabledRef.current) {
+                activeAlertsRef.current.add(alert.id);
+                if (!wasTriggered && !isFirstSeen) {
+                  newlyTriggered = true;
+                  if (alert.type === 'price_moved_percent') {
+                    const changeVal = alert.daysWindow !== undefined && alert.daysWindow <= 1 ? newData.changePct1d :
+                                      alert.daysWindow !== undefined && alert.daysWindow <= 7 ? newData.changePctRecent :
+                                      newData.changePct1m;
+                    const pct = (changeVal || 0) * 100;
+                    const dirStr = pct >= 0 ? 'up' : 'down';
+                    const daysStr = alert.daysWindow === 1 ? 'today' : `in last ${alert.daysWindow || 30} days`;
+                    
+                    let todayStr = '';
+                    if (alert.daysWindow !== 1 && newData.changePct1d !== undefined) {
+                      const pct1d = newData.changePct1d * 100;
+                      const dir1d = pct1d >= 0 ? 'up' : 'down';
+                      todayStr = ` (${dir1d} ${Math.abs(pct1d).toFixed(1)}% today)`;
+                    }
+                    msgs.push(`${item.ticker} ${dirStr} ${Math.abs(pct).toFixed(1)}% ${daysStr}${todayStr}`);
+                  } else {
+                    msgs.push(`${item.ticker} alert triggered`);
                   }
-                  msgs.push(`${item.ticker} ${dirStr} ${Math.abs(pct).toFixed(1)}% ${daysStr}${todayStr}`);
-                } else {
-                  msgs.push(`${item.ticker} alert triggered`);
                 }
               }
             } else {
@@ -168,7 +176,8 @@ export function useBackgroundRefresher(
           });
 
           // 2. Evaluate Global Alerts
-          const gPct = globalAlertPctRef.current;
+          if (notableMovesAlertsEnabledRef.current && !watchlistAlertActive) {
+            const gPct = globalAlertPctRef.current;
           const gVal = globalAlertValueRef.current;
           
           if (gPct > 0 || gVal > 0) {
@@ -222,10 +231,11 @@ export function useBackgroundRefresher(
                 }
               }
             }
+            }
           }
 
           // Trigger notification
-          if (newlyTriggered && msgs.length > 0 && deviceAlertsEnabledRef.current && document.visibilityState === 'hidden' && Notification.permission === 'granted') {
+          if (newlyTriggered && msgs.length > 0 && document.visibilityState === 'hidden' && Notification.permission === 'granted') {
             // Deduplicate messages if both % and value triggered
             const uniqueMsgs = Array.from(new Set(msgs));
             new Notification('Portfolio Alert', { body: uniqueMsgs.join('\n') });

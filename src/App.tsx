@@ -114,9 +114,17 @@ function AppContent() {
   // App Settings States
   const [lockEnabled, setLockEnabled] = useState<boolean>(() => localStorage.getItem('lockScreenEnabled') === 'true');
   const [lockPin, setLockPin] = useState<string>(() => localStorage.getItem('lockScreenPin') || '1234');
-  const [deviceAlertsEnabled, setDeviceAlertsEnabled] = useState<boolean>(() => {
-    const val = localStorage.getItem('deviceAlertsEnabled');
-    return val !== null ? val === 'true' : true; // Default true
+  const [watchlistAlertsEnabled, setWatchlistAlertsEnabled] = useState<boolean>(() => {
+    const val = localStorage.getItem('watchlistAlertsEnabled');
+    if (val !== null) return val === 'true';
+    const oldVal = localStorage.getItem('deviceAlertsEnabled');
+    return oldVal !== null ? oldVal === 'true' : true;
+  });
+  const [notableMovesAlertsEnabled, setNotableMovesAlertsEnabled] = useState<boolean>(() => {
+    const val = localStorage.getItem('notableMovesAlertsEnabled');
+    if (val !== null) return val === 'true';
+    const oldVal = localStorage.getItem('deviceAlertsEnabled');
+    return oldVal !== null ? oldVal === 'true' : true;
   });
   const [globalAlertPct, setGlobalAlertPct] = useState<number>(() => {
     const val = localStorage.getItem('globalAlertPct');
@@ -132,20 +140,23 @@ function AppContent() {
   
   const [tempLockEnabled, setTempLockEnabled] = useState<boolean>(false);
   const [tempLockPin, setTempLockPin] = useState<string>('');
-  const [tempDeviceAlertsEnabled, setTempDeviceAlertsEnabled] = useState<boolean>(true);
+  const [tempWatchlistAlertsEnabled, setTempWatchlistAlertsEnabled] = useState<boolean>(true);
+  const [tempNotableMovesAlertsEnabled, setTempNotableMovesAlertsEnabled] = useState<boolean>(true);
   const [tempGlobalAlertPct, setTempGlobalAlertPct] = useState<number>(5);
   const [tempGlobalAlertValue, setTempGlobalAlertValue] = useState<number>(100000);
 
   const handleSaveAppSettings = () => {
     localStorage.setItem('lockScreenEnabled', tempLockEnabled ? 'true' : 'false');
     localStorage.setItem('lockScreenPin', tempLockPin);
-    localStorage.setItem('deviceAlertsEnabled', tempDeviceAlertsEnabled ? 'true' : 'false');
+    localStorage.setItem('watchlistAlertsEnabled', tempWatchlistAlertsEnabled ? 'true' : 'false');
+    localStorage.setItem('notableMovesAlertsEnabled', tempNotableMovesAlertsEnabled ? 'true' : 'false');
     localStorage.setItem('globalAlertPct', tempGlobalAlertPct.toString());
     localStorage.setItem('globalAlertValue', tempGlobalAlertValue.toString());
     
     setLockEnabled(tempLockEnabled);
     setLockPin(tempLockPin);
-    setDeviceAlertsEnabled(tempDeviceAlertsEnabled);
+    setWatchlistAlertsEnabled(tempWatchlistAlertsEnabled);
+    setNotableMovesAlertsEnabled(tempNotableMovesAlertsEnabled);
     setGlobalAlertPct(tempGlobalAlertPct);
     setGlobalAlertValue(tempGlobalAlertValue);
     
@@ -153,7 +164,7 @@ function AppContent() {
       setIsLocked(true);
     }
     
-    if (tempDeviceAlertsEnabled && permission !== 'granted') {
+    if ((tempWatchlistAlertsEnabled || tempNotableMovesAlertsEnabled) && permission !== 'granted') {
       requestPermission();
     }
 
@@ -243,7 +254,8 @@ function AppContent() {
     engine,
     holdings,
     trackingLists, 
-    deviceAlertsEnabled,
+    watchlistAlertsEnabled,
+    notableMovesAlertsEnabled,
     globalAlertPct,
     globalAlertValue
   );
@@ -536,6 +548,22 @@ function AppContent() {
         </ListItem>
 
         <ListItem disablePadding>
+          <ListItemButton onClick={() => {
+            setTempLockEnabled(lockEnabled);
+            setTempLockPin(lockPin);
+            setTempWatchlistAlertsEnabled(watchlistAlertsEnabled);
+            setTempNotableMovesAlertsEnabled(notableMovesAlertsEnabled);
+            setTempGlobalAlertPct(globalAlertPct);
+            setTempGlobalAlertValue(globalAlertValue);
+            setAppSettingsDialogOpen(true);
+            handleMobileMenuClose();
+          }}>
+            <ListItemIcon><TuneIcon /></ListItemIcon>
+            <ListItemText primary={t('App Settings', 'הגדרות אפליקציה')} />
+          </ListItemButton>
+        </ListItem>
+
+        <ListItem disablePadding>
           <ListItemButton onClick={toggleLanguage}>
             <ListItemIcon><LanguageIcon /></ListItemIcon>
             <ListItemText primary={language === 'en' ? 'עברית' : 'English'} />
@@ -695,21 +723,6 @@ function AppContent() {
       <List
         sx={{ width: '100%', py: 0 }}
       >
-        <ListItem disablePadding sx={{ display: 'block' }}>
-          <ListItemButton onClick={() => {
-            setTempLockEnabled(lockEnabled);
-            setTempLockPin(lockPin);
-            setTempDeviceAlertsEnabled(deviceAlertsEnabled);
-            setTempGlobalAlertPct(globalAlertPct);
-            setTempGlobalAlertValue(globalAlertValue);
-            setAppSettingsDialogOpen(true);
-            handleMobileMenuClose();
-          }}>
-            <ListItemIcon><TuneIcon /></ListItemIcon>
-            <ListItemText primary={t('App Settings', 'הגדרות אפליקציה')} />
-          </ListItemButton>
-        </ListItem>
-
         <ListItem disablePadding sx={{ display: 'block' }}>
           <ListItemButton onClick={() => setAdvancedOpen(!advancedOpen)}>
             <ListItemIcon><SettingsIcon /></ListItemIcon>
@@ -1001,15 +1014,26 @@ function AppContent() {
                 <FormControlLabel
                   control={
                     <Switch
-                      checked={tempDeviceAlertsEnabled}
-                      onChange={(e) => setTempDeviceAlertsEnabled(e.target.checked)}
+                      checked={tempWatchlistAlertsEnabled}
+                      onChange={(e) => setTempWatchlistAlertsEnabled(e.target.checked)}
                       color="primary"
                     />
                   }
-                  label={t('Enable Background Device Alerts', 'אפשר התראות מערכת ברקע')}
+                  label={t('Enable Watchlist Alerts', 'אפשר התראות רשימות מעקב')}
+                />
+                
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={tempNotableMovesAlertsEnabled}
+                      onChange={(e) => setTempNotableMovesAlertsEnabled(e.target.checked)}
+                      color="primary"
+                    />
+                  }
+                  label={t('Enable Notable Moves Alerts', 'אפשר התראות לתנועות חריגות')}
                 />
 
-                {tempDeviceAlertsEnabled && (
+                {tempNotableMovesAlertsEnabled && (
                   <>
                     <TextField
                       fullWidth
