@@ -1,6 +1,8 @@
 import { useEffect, useState, useRef } from 'react';
 import { getTickerData } from '../fetching';
-import type { TrackingListItem, TickerAlert } from '../types';
+import type { TrackingListItem, TickerAlert, DashboardHolding } from '../types';
+import { FinanceEngine } from '../data/engine';
+import { convertCurrency } from '../currencyUtils';
 import toast from 'react-hot-toast';
 
 function evaluateAlert(alert: TickerAlert, liveData: any): boolean {
@@ -25,19 +27,39 @@ function evaluateAlert(alert: TickerAlert, liveData: any): boolean {
   return false;
 }
 
-export function useBackgroundRefresher(trackingLists: TrackingListItem[], deviceAlertsEnabled: boolean) {
+export function useBackgroundRefresher(
+  engine: FinanceEngine | null,
+  holdings: DashboardHolding[] | undefined,
+  trackingLists: TrackingListItem[], 
+  deviceAlertsEnabled: boolean,
+  globalAlertPct: number,
+  globalAlertValue: number
+) {
   const [permission, setPermission] = useState<NotificationPermission>('default');
   const trackingListsRef = useRef(trackingLists);
-  const queueRef = useRef<{ ticker: string, exchange: string, alerts: TickerAlert[] }[]>([]);
+  const holdingsRef = useRef(holdings);
+  const engineRef = useRef(engine);
+  const queueRef = useRef<{ ticker: string, exchange: string, alerts: TickerAlert[], isOwned: boolean }[]>([]);
   const activeAlertsRef = useRef<Set<string>>(new Set());
   const seenTickersRef = useRef<Set<string>>(new Set());
 
+  // Store refs so interval closure can access latest without resetting
+  const globalAlertPctRef = useRef(globalAlertPct);
+  const globalAlertValueRef = useRef(globalAlertValue);
+  const deviceAlertsEnabledRef = useRef(deviceAlertsEnabled);
+
   useEffect(() => {
     trackingListsRef.current = trackingLists;
+    holdingsRef.current = holdings;
+    engineRef.current = engine;
+    globalAlertPctRef.current = globalAlertPct;
+    globalAlertValueRef.current = globalAlertValue;
+    deviceAlertsEnabledRef.current = deviceAlertsEnabled;
+
     if ('Notification' in window) {
       setPermission(Notification.permission);
     }
-  }, [trackingLists]);
+  }, [trackingLists, holdings, engine, globalAlertPct, globalAlertValue, deviceAlertsEnabled]);
 
   const requestPermission = async () => {
     if ('Notification' in window) {
@@ -54,27 +76,37 @@ export function useBackgroundRefresher(trackingLists: TrackingListItem[], device
   };
 
   useEffect(() => {
-    // Collect all tickers that have alerts
+    // Collect all tickers that have alerts, plus all owned tickers
     const refreshQueue = () => {
-      const newQueue: { ticker: string, exchange: string, alerts: TickerAlert[] }[] = [];
+      const newQueue: { ticker: string, exchange: string, alerts: TickerAlert[], isOwned: boolean }[] = [];
+      const addedTickers = new Set<string>();
+
+      // 1. Add from tracking lists
       const lists = trackingListsRef.current || [];
       lists.forEach(item => {
-        if (item.alerts && item.alerts.length > 0) {
-          // Avoid duplicates
-          if (!newQueue.find(q => q.ticker === item.ticker && q.exchange === item.exchange)) {
-            newQueue.push({ ticker: item.ticker, exchange: item.exchange as string, alerts: item.alerts });
-          }
+        const key = `${item.exchange}_${item.ticker}`;
+        addedTickers.add(key);
+        newQueue.push({ ticker: item.ticker, exchange: item.exchange as string, alerts: item.alerts || [], isOwned: false });
+      });
+
+      // 2. Add from holdings
+      const currentHoldings = holdingsRef.current || [];
+      currentHoldings.forEach(h => {
+        const key = `${h.exchange}_${h.ticker}`;
+        if (!addedTickers.has(key)) {
+          addedTickers.add(key);
+          newQueue.push({ ticker: h.ticker, exchange: h.exchange as string, alerts: [], isOwned: true });
+        } else {
+          const qItem = newQueue.find(q => q.ticker === h.ticker && q.exchange === h.exchange);
+          if (qItem) qItem.isOwned = true;
         }
       });
+
       queueRef.current = newQueue;
     };
 
     refreshQueue();
 
-    // Check interval: cycle through the queue over 60 minutes
-    // E.g. if we have 60 items, interval is 1 minute
-    // If we have 5 items, interval is 12 minutes
-    // Cap at minimum 10 seconds to avoid spamming if there's only 1 item
     const getIntervalTime = () => {
       const itemsCount = Math.max(1, queueRef.current.length);
       const oneHourMs = 60 * 60 * 1000;
@@ -97,12 +129,12 @@ export function useBackgroundRefresher(trackingLists: TrackingListItem[], device
         // Force refresh
         const newData = await getTickerData(item.ticker, item.exchange as any, null, undefined, true);
         if (newData) {
-          // Check if any alert is newly triggered based on this fetch
           let newlyTriggered = false;
-          let msg = '';
+          let msgs: string[] = [];
           const isFirstSeen = !seenTickersRef.current.has(item.ticker);
           seenTickersRef.current.add(item.ticker);
 
+          // 1. Evaluate explicit Tracking List alerts
           item.alerts.forEach(alert => {
             const isCurrentlyTriggered = evaluateAlert(alert, newData);
             const wasTriggered = activeAlertsRef.current.has(alert.id);
@@ -111,7 +143,6 @@ export function useBackgroundRefresher(trackingLists: TrackingListItem[], device
               activeAlertsRef.current.add(alert.id);
               if (!wasTriggered && !isFirstSeen) {
                 newlyTriggered = true;
-                // Only show % change to protect user privacy
                 if (alert.type === 'price_moved_percent') {
                   const changeVal = alert.daysWindow !== undefined && alert.daysWindow <= 1 ? newData.changePct1d :
                                     alert.daysWindow !== undefined && alert.daysWindow <= 7 ? newData.changePctRecent :
@@ -126,10 +157,9 @@ export function useBackgroundRefresher(trackingLists: TrackingListItem[], device
                     const dir1d = pct1d >= 0 ? 'up' : 'down';
                     todayStr = ` (${dir1d} ${Math.abs(pct1d).toFixed(1)}% today)`;
                   }
-
-                  msg = `${item.ticker} ${dirStr} ${Math.abs(pct).toFixed(1)}% ${daysStr}${todayStr}`;
+                  msgs.push(`${item.ticker} ${dirStr} ${Math.abs(pct).toFixed(1)}% ${daysStr}${todayStr}`);
                 } else {
-                  msg = `${item.ticker} alert triggered`;
+                  msgs.push(`${item.ticker} alert triggered`);
                 }
               }
             } else {
@@ -137,10 +167,70 @@ export function useBackgroundRefresher(trackingLists: TrackingListItem[], device
             }
           });
 
-          // Only show when the alert triggers first, and not in the foreground, and setting is enabled
-          if (newlyTriggered && deviceAlertsEnabled && document.visibilityState === 'hidden' && Notification.permission === 'granted') {
-            new Notification('Portfolio Alert', { body: msg });
+          // 2. Evaluate Global Alerts
+          const gPct = globalAlertPctRef.current;
+          const gVal = globalAlertValueRef.current;
+          
+          if (gPct > 0 || gVal > 0) {
+            const pct1d = (newData.changePct1d || 0) * 100;
+            const dirStr = pct1d >= 0 ? 'up' : 'down';
+            
+            // Check global % change
+            const globalPctId = `global_pct_${item.exchange}_${item.ticker}`;
+            const wasPctTriggered = activeAlertsRef.current.has(globalPctId);
+            if (gPct > 0 && Math.abs(pct1d) >= gPct) {
+              activeAlertsRef.current.add(globalPctId);
+              if (!wasPctTriggered && !isFirstSeen) {
+                newlyTriggered = true;
+                msgs.push(`${item.ticker} ${dirStr} ${Math.abs(pct1d).toFixed(1)}% today`);
+              }
+            } else {
+              activeAlertsRef.current.delete(globalPctId);
+            }
+
+            // Check global value change (only for owned)
+            if (item.isOwned && gVal > 0 && engineRef.current && newData.price) {
+              let totalShares = 0;
+              let firstPortfolioCurrency = 'ILS';
+              const currentHoldings = holdingsRef.current || [];
+              currentHoldings.forEach(h => {
+                if (h.ticker === item.ticker && h.exchange === item.exchange) {
+                  totalShares += h.qtyTotal;
+                  firstPortfolioCurrency = h.portfolioCurrency; // Use as fallback
+                }
+              });
+
+              if (totalShares > 0) {
+                const prevClose = newData.price / (1 + (newData.changePct1d || 0));
+                const priceChangeSC = newData.price - prevClose;
+                const valueChangeSC = totalShares * priceChangeSC;
+                
+                const valueChangeBase = convertCurrency(valueChangeSC, newData.currency || 'USD', firstPortfolioCurrency, engineRef.current.exchangeRates);
+                
+                const globalValId = `global_val_${item.exchange}_${item.ticker}`;
+                const wasValTriggered = activeAlertsRef.current.has(globalValId);
+
+                if (Math.abs(valueChangeBase) >= gVal) {
+                  activeAlertsRef.current.add(globalValId);
+                  if (!wasValTriggered && !isFirstSeen) {
+                    newlyTriggered = true;
+                    // Note: User requested not to show the absolute value change for privacy
+                    msgs.push(`${item.ticker} had a notable daily value change`);
+                  }
+                } else {
+                  activeAlertsRef.current.delete(globalValId);
+                }
+              }
+            }
           }
+
+          // Trigger notification
+          if (newlyTriggered && msgs.length > 0 && deviceAlertsEnabledRef.current && document.visibilityState === 'hidden' && Notification.permission === 'granted') {
+            // Deduplicate messages if both % and value triggered
+            const uniqueMsgs = Array.from(new Set(msgs));
+            new Notification('Portfolio Alert', { body: uniqueMsgs.join('\n') });
+          }
+
           // Emit event so the rest of the app updates
           window.dispatchEvent(new CustomEvent('market-data-refreshed'));
         }
@@ -149,8 +239,6 @@ export function useBackgroundRefresher(trackingLists: TrackingListItem[], device
       }
     };
 
-    // Note: setInterval may be throttled aggressively by mobile browsers if tab is in background,
-    // often clamped to 1 execution per minute.
     intervalId = setInterval(tick, getIntervalTime());
 
     return () => clearInterval(intervalId);

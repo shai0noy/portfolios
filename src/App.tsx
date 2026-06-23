@@ -118,6 +118,14 @@ function AppContent() {
     const val = localStorage.getItem('deviceAlertsEnabled');
     return val !== null ? val === 'true' : true; // Default true
   });
+  const [globalAlertPct, setGlobalAlertPct] = useState<number>(() => {
+    const val = localStorage.getItem('globalAlertPct');
+    return val !== null ? parseFloat(val) : 5; // Default 5%
+  });
+  const [globalAlertValue, setGlobalAlertValue] = useState<number>(() => {
+    const val = localStorage.getItem('globalAlertValue');
+    return val !== null ? parseFloat(val) : 100000; // Default 100k
+  });
   
   const [isLocked, setIsLocked] = useState<boolean>(() => localStorage.getItem('lockScreenEnabled') === 'true');
   const [appSettingsDialogOpen, setAppSettingsDialogOpen] = useState(false);
@@ -125,15 +133,21 @@ function AppContent() {
   const [tempLockEnabled, setTempLockEnabled] = useState<boolean>(false);
   const [tempLockPin, setTempLockPin] = useState<string>('');
   const [tempDeviceAlertsEnabled, setTempDeviceAlertsEnabled] = useState<boolean>(true);
+  const [tempGlobalAlertPct, setTempGlobalAlertPct] = useState<number>(5);
+  const [tempGlobalAlertValue, setTempGlobalAlertValue] = useState<number>(100000);
 
   const handleSaveAppSettings = () => {
     localStorage.setItem('lockScreenEnabled', tempLockEnabled ? 'true' : 'false');
     localStorage.setItem('lockScreenPin', tempLockPin);
     localStorage.setItem('deviceAlertsEnabled', tempDeviceAlertsEnabled ? 'true' : 'false');
+    localStorage.setItem('globalAlertPct', tempGlobalAlertPct.toString());
+    localStorage.setItem('globalAlertValue', tempGlobalAlertValue.toString());
     
     setLockEnabled(tempLockEnabled);
     setLockPin(tempLockPin);
     setDeviceAlertsEnabled(tempDeviceAlertsEnabled);
+    setGlobalAlertPct(tempGlobalAlertPct);
+    setGlobalAlertValue(tempGlobalAlertValue);
     
     if (tempLockEnabled && !lockEnabled) {
       setIsLocked(true);
@@ -189,7 +203,7 @@ function AppContent() {
     };
   }, [lockEnabled, isLocked]);
 
-  const { trackingLists, engine } = useDashboardData(sheetId || '');
+  const { holdings, trackingLists, engine } = useDashboardData(sheetId || '');
 
   const hasTriggeredAlert = useMemo(() => {
     if (!sheetId || !engine) return false;
@@ -225,7 +239,14 @@ function AppContent() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const { permission, requestPermission } = useBackgroundRefresher(trackingLists, deviceAlertsEnabled);
+  const { permission, requestPermission } = useBackgroundRefresher(
+    engine,
+    holdings,
+    trackingLists, 
+    deviceAlertsEnabled,
+    globalAlertPct,
+    globalAlertValue
+  );
 
   const tabsRef = useRef<HTMLDivElement>(null);
   const { containerRef: scrollerRef, showLeft, showRight, checkScroll } = useScrollShadows('horizontal');
@@ -675,6 +696,21 @@ function AppContent() {
         sx={{ width: '100%', py: 0 }}
       >
         <ListItem disablePadding sx={{ display: 'block' }}>
+          <ListItemButton onClick={() => {
+            setTempLockEnabled(lockEnabled);
+            setTempLockPin(lockPin);
+            setTempDeviceAlertsEnabled(deviceAlertsEnabled);
+            setTempGlobalAlertPct(globalAlertPct);
+            setTempGlobalAlertValue(globalAlertValue);
+            setAppSettingsDialogOpen(true);
+            handleMobileMenuClose();
+          }}>
+            <ListItemIcon><TuneIcon /></ListItemIcon>
+            <ListItemText primary={t('App Settings', 'הגדרות אפליקציה')} />
+          </ListItemButton>
+        </ListItem>
+
+        <ListItem disablePadding sx={{ display: 'block' }}>
           <ListItemButton onClick={() => setAdvancedOpen(!advancedOpen)}>
             <ListItemIcon><SettingsIcon /></ListItemIcon>
             <ListItemText primary={t('Advanced Tools', 'כלים מתקדמים')} />
@@ -695,17 +731,6 @@ function AppContent() {
               <ListItemButton onClick={() => { setApiKeyDialogOpen(true); handleMobileMenuClose(); }}>
                 <ListItemIcon sx={{ minWidth: 40 }}><VpnKeyIcon fontSize="small" /></ListItemIcon>
                 <ListItemText primary={t('AI Studio API Key', 'מפתח ה-API של AI Studio')} primaryTypographyProps={{ fontSize: '0.85rem' }} />
-              </ListItemButton>
-
-              <ListItemButton onClick={() => {
-                setTempLockEnabled(lockEnabled);
-                setTempLockPin(lockPin);
-                setTempDeviceAlertsEnabled(deviceAlertsEnabled);
-                setAppSettingsDialogOpen(true);
-                handleMobileMenuClose();
-              }}>
-                <ListItemIcon sx={{ minWidth: 40 }}><TuneIcon fontSize="small" /></ListItemIcon>
-                <ListItemText primary={t('App Settings', 'הגדרות אפליקציה')} primaryTypographyProps={{ fontSize: '0.85rem' }} />
               </ListItemButton>
 
               <ListItemButton onClick={() => {
@@ -983,6 +1008,31 @@ function AppContent() {
                   }
                   label={t('Enable Background Device Alerts', 'אפשר התראות מערכת ברקע')}
                 />
+
+                {tempDeviceAlertsEnabled && (
+                  <>
+                    <TextField
+                      fullWidth
+                      label={t('Notable Daily Move %', 'תנועה יומית באחוזים')}
+                      type="number"
+                      inputProps={{ step: 0.1, min: 0 }}
+                      value={tempGlobalAlertPct}
+                      onChange={(e) => setTempGlobalAlertPct(parseFloat(e.target.value) || 0)}
+                      helperText={t('Alert on % change for all tickers', 'התראה על שינוי אחוזים לכל הניירות')}
+                      variant="outlined"
+                    />
+                    <TextField
+                      fullWidth
+                      label={t('Notable Daily Value Change', 'תנועת שווי יומית (במטבע בסיס)')}
+                      type="number"
+                      inputProps={{ step: 1000, min: 0 }}
+                      value={tempGlobalAlertValue}
+                      onChange={(e) => setTempGlobalAlertValue(parseFloat(e.target.value) || 0)}
+                      helperText={t('Alert on absolute value change for owned holdings', 'התראה על שינוי ערך מוחלט לאחזקות')}
+                      variant="outlined"
+                    />
+                  </>
+                )}
                 
                 <Divider />
 
