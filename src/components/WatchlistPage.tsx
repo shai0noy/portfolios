@@ -10,6 +10,7 @@ import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import AddAlertIcon from '@mui/icons-material/AddAlert';
 import SwapVertIcon from '@mui/icons-material/SwapVert';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import { Link as RouterLink } from 'react-router-dom';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip as ChartTooltip } from 'recharts';
 import { toast } from 'react-hot-toast';
@@ -125,7 +126,7 @@ export function WatchlistPage({ sheetId }: WatchlistPageProps) {
   const { t, isRtl } = useLanguage();
   const theme = useTheme();
 
-  const { holdings: rawHoldings, loading, error, trackingLists, engine, portfolios, exchangeRates } = useDashboardData(sheetId);
+  const { holdings: rawHoldings, loading, error, trackingLists, engine, portfolios, exchangeRates, refresh } = useDashboardData(sheetId);
 
   const getAlertTriggerDescription = (alert: TickerAlert, currencyCode: string, curPrice: number, hist: any[]) => {
     const dir = alert.direction || 'both';
@@ -406,7 +407,14 @@ export function WatchlistPage({ sheetId }: WatchlistPageProps) {
   return (
     <Box sx={{ py: 3, px: { xs: 1, sm: 2 } }}>
       {/* Currency Switcher */}
-      <Box display="flex" justifyContent="flex-end" mb={2}>
+      <Box display="flex" justifyContent="flex-end" mb={2} alignItems="center" gap={2}>
+        {refresh && (
+          <Tooltip title={t("Refresh Data", "רענן נתונים")}>
+            <IconButton onClick={() => refresh(true)} size="small" sx={{ color: 'text.secondary' }}>
+              <RefreshIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        )}
         <ToggleButtonGroup
           value={displayCurrency}
           exclusive

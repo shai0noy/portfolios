@@ -193,7 +193,10 @@ function AppContent() {
           const changeVal = alert.daysWindow <= 1 ? liveData.changePct1d :
                             alert.daysWindow <= 7 ? liveData.changePctRecent :
                             liveData.changePct1m;
-          return Math.abs(changeVal || 0) * 100 >= alert.percentChange;
+          const pct = (changeVal || 0) * 100;
+          if (alert.direction === 'up') return pct >= alert.percentChange;
+          if (alert.direction === 'down') return pct <= -alert.percentChange;
+          return Math.abs(pct) >= alert.percentChange;
         }
         return false;
       });
