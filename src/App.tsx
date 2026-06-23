@@ -22,7 +22,6 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import BuildIcon from '@mui/icons-material/Build';
 import LogoutIcon from '@mui/icons-material/Logout';
-import SecurityIcon from '@mui/icons-material/Security';
 import { LockScreen } from './components/LockScreen';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import Brightness4Icon from '@mui/icons-material/Brightness4';
@@ -42,7 +41,7 @@ import DashboardIcon from '@mui/icons-material/Dashboard';
 import AddBoxIcon from '@mui/icons-material/AddBox';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import ReceiptIcon from '@mui/icons-material/Receipt';
-import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
+import TuneIcon from '@mui/icons-material/Tune';
 import { getTheme } from './theme';
 import { usePortfolios } from './lib/hooks';
 import { exportDashboardData } from './lib/exporter';
@@ -112,25 +111,40 @@ function AppContent() {
   const [colorblindMode, setColorblindMode] = useState<boolean>(() => localStorage.getItem('colorblindMode') === 'true');
   const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
 
-  // Lock Screen States
+  // App Settings States
   const [lockEnabled, setLockEnabled] = useState<boolean>(() => localStorage.getItem('lockScreenEnabled') === 'true');
   const [lockPin, setLockPin] = useState<string>(() => localStorage.getItem('lockScreenPin') || '1234');
+  const [deviceAlertsEnabled, setDeviceAlertsEnabled] = useState<boolean>(() => {
+    const val = localStorage.getItem('deviceAlertsEnabled');
+    return val !== null ? val === 'true' : true; // Default true
+  });
+  
   const [isLocked, setIsLocked] = useState<boolean>(() => localStorage.getItem('lockScreenEnabled') === 'true');
-  const [lockDialogOpen, setLockDialogOpen] = useState(false);
+  const [appSettingsDialogOpen, setAppSettingsDialogOpen] = useState(false);
+  
   const [tempLockEnabled, setTempLockEnabled] = useState<boolean>(false);
   const [tempLockPin, setTempLockPin] = useState<string>('');
+  const [tempDeviceAlertsEnabled, setTempDeviceAlertsEnabled] = useState<boolean>(true);
 
-  const handleSaveLockSettings = () => {
+  const handleSaveAppSettings = () => {
     localStorage.setItem('lockScreenEnabled', tempLockEnabled ? 'true' : 'false');
     localStorage.setItem('lockScreenPin', tempLockPin);
+    localStorage.setItem('deviceAlertsEnabled', tempDeviceAlertsEnabled ? 'true' : 'false');
+    
     setLockEnabled(tempLockEnabled);
     setLockPin(tempLockPin);
+    setDeviceAlertsEnabled(tempDeviceAlertsEnabled);
     
     if (tempLockEnabled && !lockEnabled) {
       setIsLocked(true);
     }
-    setLockDialogOpen(false);
-    toast.success(t('Lock settings updated', 'הגדרות הנעילה עודכנו'));
+    
+    if (tempDeviceAlertsEnabled && permission !== 'granted') {
+      requestPermission();
+    }
+
+    setAppSettingsDialogOpen(false);
+    toast.success(t('Settings updated', 'ההגדרות עודכנו'));
   };
 
   // Inactivity lock screen timer (15 minutes)
@@ -211,7 +225,7 @@ function AppContent() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const { permission, requestPermission } = useBackgroundRefresher(trackingLists);
+  const { permission, requestPermission } = useBackgroundRefresher(trackingLists, deviceAlertsEnabled);
 
   const tabsRef = useRef<HTMLDivElement>(null);
   const { containerRef: scrollerRef, showLeft, showRight, checkScroll } = useScrollShadows('horizontal');
@@ -686,30 +700,12 @@ function AppContent() {
               <ListItemButton onClick={() => {
                 setTempLockEnabled(lockEnabled);
                 setTempLockPin(lockPin);
-                setLockDialogOpen(true);
+                setTempDeviceAlertsEnabled(deviceAlertsEnabled);
+                setAppSettingsDialogOpen(true);
                 handleMobileMenuClose();
               }}>
-                <ListItemIcon sx={{ minWidth: 40 }}><SecurityIcon fontSize="small" /></ListItemIcon>
-                <ListItemText primary={t('Lock Screen Settings', 'הגדרות נעילת מסך')} primaryTypographyProps={{ fontSize: '0.85rem' }} />
-              </ListItemButton>
-
-              <ListItemButton onClick={() => {
-                requestPermission();
-                handleMobileMenuClose();
-              }}>
-                <ListItemIcon sx={{ minWidth: 40 }}>
-                  <NotificationsActiveIcon fontSize="small" color={permission === 'granted' ? 'primary' : 'inherit'} />
-                </ListItemIcon>
-                <ListItemText 
-                  primary={t('Device Alerts', 'התראות מערכת')} 
-                  secondary={
-                    permission === 'granted' ? t('Enabled', 'מופעל') :
-                    permission === 'denied' ? t('Denied', 'חסום') :
-                    t('Disabled', 'מושבת')
-                  }
-                  primaryTypographyProps={{ fontSize: '0.85rem' }}
-                  secondaryTypographyProps={{ fontSize: '0.75rem' }}
-                />
+                <ListItemIcon sx={{ minWidth: 40 }}><TuneIcon fontSize="small" /></ListItemIcon>
+                <ListItemText primary={t('App Settings', 'הגדרות אפליקציה')} primaryTypographyProps={{ fontSize: '0.85rem' }} />
               </ListItemButton>
 
               <ListItemButton onClick={() => {
@@ -972,11 +968,24 @@ function AppContent() {
               sheetId={sheetId}
             />
           )}
-          {/* Lock Screen Settings Dialog */}
-          <Dialog open={lockDialogOpen} onClose={() => setLockDialogOpen(false)} maxWidth="xs" fullWidth>
-            <DialogTitle>{t('Lock Screen Settings', 'הגדרות נעילת מסך')}</DialogTitle>
+          {/* App Settings Dialog */}
+          <Dialog open={appSettingsDialogOpen} onClose={() => setAppSettingsDialogOpen(false)} maxWidth="xs" fullWidth>
+            <DialogTitle>{t('App Settings', 'הגדרות אפליקציה')}</DialogTitle>
             <DialogContent>
               <Stack spacing={3} sx={{ mt: 1.5 }}>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={tempDeviceAlertsEnabled}
+                      onChange={(e) => setTempDeviceAlertsEnabled(e.target.checked)}
+                      color="primary"
+                    />
+                  }
+                  label={t('Enable Background Device Alerts', 'אפשר התראות מערכת ברקע')}
+                />
+                
+                <Divider />
+
                 <FormControlLabel
                   control={
                     <Switch
@@ -1014,11 +1023,11 @@ function AppContent() {
               </Stack>
             </DialogContent>
             <DialogActions>
-              <Button onClick={() => setLockDialogOpen(false)} color="inherit">
+              <Button onClick={() => setAppSettingsDialogOpen(false)} color="inherit">
                 {t('Cancel', 'ביטול')}
               </Button>
               <Button 
-                onClick={handleSaveLockSettings} 
+                onClick={handleSaveAppSettings} 
                 color="primary" 
                 variant="contained"
                 disabled={tempLockEnabled && (tempLockPin.length < 4 || tempLockPin.length > 8)}

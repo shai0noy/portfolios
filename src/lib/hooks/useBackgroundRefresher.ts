@@ -25,7 +25,7 @@ function evaluateAlert(alert: TickerAlert, liveData: any): boolean {
   return false;
 }
 
-export function useBackgroundRefresher(trackingLists: TrackingListItem[]) {
+export function useBackgroundRefresher(trackingLists: TrackingListItem[], deviceAlertsEnabled: boolean) {
   const [permission, setPermission] = useState<NotificationPermission>('default');
   const trackingListsRef = useRef(trackingLists);
   const queueRef = useRef<{ ticker: string, exchange: string, alerts: TickerAlert[] }[]>([]);
@@ -137,8 +137,8 @@ export function useBackgroundRefresher(trackingLists: TrackingListItem[]) {
             }
           });
 
-          // Only show when the alert triggers first, and not in the foreground
-          if (newlyTriggered && document.visibilityState === 'hidden' && Notification.permission === 'granted') {
+          // Only show when the alert triggers first, and not in the foreground, and setting is enabled
+          if (newlyTriggered && deviceAlertsEnabled && document.visibilityState === 'hidden' && Notification.permission === 'granted') {
             new Notification('Portfolio Alert', { body: msg });
           }
           // Emit event so the rest of the app updates
