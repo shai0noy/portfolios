@@ -42,10 +42,12 @@ import DashboardIcon from '@mui/icons-material/Dashboard';
 import AddBoxIcon from '@mui/icons-material/AddBox';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import ReceiptIcon from '@mui/icons-material/Receipt';
+import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import { getTheme } from './theme';
 import { usePortfolios } from './lib/hooks';
 import { exportDashboardData } from './lib/exporter';
 import { clearAllCache } from './lib/fetching/utils/cache';
+import { useBackgroundRefresher } from './lib/hooks/useBackgroundRefresher';
 import { useScrollShadows, ScrollShadows } from './lib/ui-utils';
 
 import { useLanguage } from './lib/i18n';
@@ -208,6 +210,8 @@ function AppContent() {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const location = useLocation();
   const navigate = useNavigate();
+
+  const { permission, requestPermission } = useBackgroundRefresher(trackingLists);
 
   const tabsRef = useRef<HTMLDivElement>(null);
   const { containerRef: scrollerRef, showLeft, showRight, checkScroll } = useScrollShadows('horizontal');
@@ -687,6 +691,25 @@ function AppContent() {
               }}>
                 <ListItemIcon sx={{ minWidth: 40 }}><SecurityIcon fontSize="small" /></ListItemIcon>
                 <ListItemText primary={t('Lock Screen Settings', 'הגדרות נעילת מסך')} primaryTypographyProps={{ fontSize: '0.85rem' }} />
+              </ListItemButton>
+
+              <ListItemButton onClick={() => {
+                requestPermission();
+                handleMobileMenuClose();
+              }}>
+                <ListItemIcon sx={{ minWidth: 40 }}>
+                  <NotificationsActiveIcon fontSize="small" color={permission === 'granted' ? 'primary' : 'inherit'} />
+                </ListItemIcon>
+                <ListItemText 
+                  primary={t('Device Alerts', 'התראות מערכת')} 
+                  secondary={
+                    permission === 'granted' ? t('Enabled', 'מופעל') :
+                    permission === 'denied' ? t('Denied', 'חסום') :
+                    t('Disabled', 'מושבת')
+                  }
+                  primaryTypographyProps={{ fontSize: '0.85rem' }}
+                  secondaryTypographyProps={{ fontSize: '0.75rem' }}
+                />
               </ListItemButton>
 
               <ListItemButton onClick={() => {
