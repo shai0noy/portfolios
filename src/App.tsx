@@ -42,6 +42,7 @@ import AddBoxIcon from '@mui/icons-material/AddBox';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import ReceiptIcon from '@mui/icons-material/Receipt';
 import TuneIcon from '@mui/icons-material/Tune';
+import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import { getTheme } from './theme';
 import { usePortfolios } from './lib/hooks';
 import { exportDashboardData } from './lib/exporter';
@@ -224,22 +225,26 @@ function AppContent() {
       if (!liveData || !item.alerts || item.alerts.length === 0) return false;
       const curPrice = liveData.price;
       return item.alerts.some(alert => {
+        let triggered = false;
         if (alert.type === 'price_above' && alert.targetPrice !== undefined) {
-          return curPrice >= alert.targetPrice;
-        }
-        if (alert.type === 'price_below' && alert.targetPrice !== undefined) {
-          return curPrice <= alert.targetPrice;
-        }
-        if (alert.type === 'price_moved_percent' && alert.percentChange !== undefined && alert.daysWindow !== undefined) {
+          triggered = curPrice >= alert.targetPrice;
+        } else if (alert.type === 'price_below' && alert.targetPrice !== undefined) {
+          triggered = curPrice <= alert.targetPrice;
+        } else if (alert.type === 'price_moved_percent' && alert.percentChange !== undefined && alert.daysWindow !== undefined) {
           const changeVal = alert.daysWindow <= 1 ? liveData.changePct1d :
                             alert.daysWindow <= 7 ? liveData.changePctRecent :
                             liveData.changePct1m;
           const pct = (changeVal || 0) * 100;
-          if (alert.direction === 'up') return pct >= alert.percentChange;
-          if (alert.direction === 'down') return pct <= -alert.percentChange;
-          return Math.abs(pct) >= alert.percentChange;
+          if (alert.direction === 'up') triggered = pct >= alert.percentChange;
+          else if (alert.direction === 'down') triggered = pct <= -alert.percentChange;
+          else triggered = Math.abs(pct) >= alert.percentChange;
         }
-        return false;
+        
+        if (triggered && typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+          console.debug('[App] hasTriggeredAlert evaluated true:', { ticker: item.ticker, curPrice, alert, liveData });
+        }
+        
+        return triggered;
       });
     });
   }, [sheetId, trackingLists, engine]);
@@ -760,6 +765,21 @@ function AppContent() {
                 <ListItemButton onClick={() => { handlePopulateTestData(); handleMobileMenuClose(); }}>
                   <ListItemIcon sx={{ minWidth: 40 }}><BuildIcon fontSize="small" sx={{ opacity: 0.5 }} /></ListItemIcon>
                   <ListItemText primary={t('Populate Test Data', 'מלא נתוני בדיקה')} primaryTypographyProps={{ fontSize: '0.85rem' }} />
+                </ListItemButton>
+              )}
+
+              {typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && (
+                <ListItemButton onClick={() => {
+                  if (Notification.permission === 'granted') {
+                    new Notification('Test Alert', { body: 'This is a test notification from Portfolios.' });
+                    toast.success('Test notification triggered');
+                  } else {
+                    toast.error('Notification permission not granted.');
+                  }
+                  handleMobileMenuClose();
+                }}>
+                  <ListItemIcon sx={{ minWidth: 40 }}><NotificationsActiveIcon fontSize="small" sx={{ opacity: 0.5 }} /></ListItemIcon>
+                  <ListItemText primary={t('Trigger Test Notification', 'הפעל התראת בדיקה')} primaryTypographyProps={{ fontSize: '0.85rem' }} />
                 </ListItemButton>
               )}
             </List>

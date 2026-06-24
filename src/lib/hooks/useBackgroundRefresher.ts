@@ -121,7 +121,10 @@ export function useBackgroundRefresher(
     const tick = async () => {
       if (queueRef.current.length === 0) {
         refreshQueue(); // Try to replenish
-        if (queueRef.current.length === 0) return;
+        if (queueRef.current.length === 0) {
+          console.debug('[BackgroundRefresher] Queue empty even after replenish attempt.');
+          return;
+        }
       }
 
       // Pop the first item
@@ -129,6 +132,7 @@ export function useBackgroundRefresher(
       if (!item) return;
 
       try {
+        console.debug('[BackgroundRefresher] Fetching data for ticker:', item.ticker);
         // Force refresh
         const newData = await getTickerData(item.ticker, item.exchange as any, null, undefined, true);
         if (newData) {
@@ -236,16 +240,20 @@ export function useBackgroundRefresher(
 
           // Trigger notification
           if (newlyTriggered && msgs.length > 0 && document.visibilityState === 'hidden' && Notification.permission === 'granted') {
+            console.debug('[BackgroundRefresher] Triggering notification', msgs);
             // Deduplicate messages if both % and value triggered
             const uniqueMsgs = Array.from(new Set(msgs));
             new Notification('Portfolio Alert', { body: uniqueMsgs.join('\n') });
+          } else if (newlyTriggered && msgs.length > 0) {
+             console.debug('[BackgroundRefresher] Notification skipped', { newlyTriggered, msgs, visibilityState: document.visibilityState, permission: Notification.permission });
           }
 
           // Emit event so the rest of the app updates
+          console.debug('[BackgroundRefresher] Dispatching market-data-refreshed event');
           window.dispatchEvent(new CustomEvent('market-data-refreshed'));
         }
       } catch (e) {
-        console.error('Background refresh failed for', item.ticker, e);
+        console.error('[BackgroundRefresher] Background refresh failed for', item.ticker, e);
       }
     };
 
