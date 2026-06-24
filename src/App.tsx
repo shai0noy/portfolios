@@ -769,12 +769,17 @@ function AppContent() {
               )}
 
               {typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && (
-                <ListItemButton onClick={() => {
-                  if (Notification.permission === 'granted') {
+                <ListItemButton onClick={async () => {
+                  let perm = Notification.permission;
+                  if (perm === 'default') {
+                    const grantedStatus = await requestPermission();
+                    perm = grantedStatus;
+                  }
+                  if (perm === 'granted') {
                     new Notification('Test Alert', { body: 'This is a test notification from Portfolios.' });
                     toast.success('Test notification triggered');
                   } else {
-                    toast.error('Notification permission not granted.');
+                    toast.error('Notification permission not granted (please enable in browser settings).');
                   }
                   handleMobileMenuClose();
                 }}>
@@ -1035,7 +1040,13 @@ function AppContent() {
                   control={
                     <Switch
                       checked={tempWatchlistAlertsEnabled}
-                      onChange={(e) => setTempWatchlistAlertsEnabled(e.target.checked)}
+                      onChange={async (e) => {
+                        const checked = e.target.checked;
+                        setTempWatchlistAlertsEnabled(checked);
+                        if (checked && permission !== 'granted') {
+                          await requestPermission();
+                        }
+                      }}
                       color="primary"
                     />
                   }
@@ -1046,7 +1057,13 @@ function AppContent() {
                   control={
                     <Switch
                       checked={tempNotableMovesAlertsEnabled}
-                      onChange={(e) => setTempNotableMovesAlertsEnabled(e.target.checked)}
+                      onChange={async (e) => {
+                        const checked = e.target.checked;
+                        setTempNotableMovesAlertsEnabled(checked);
+                        if (checked && permission !== 'granted') {
+                          await requestPermission();
+                        }
+                      }}
                       color="primary"
                     />
                   }

@@ -64,7 +64,7 @@ export function useBackgroundRefresher(
     }
   }, [trackingLists, holdings, engine, globalAlertPct, globalAlertValue, watchlistAlertsEnabled, notableMovesAlertsEnabled]);
 
-  const requestPermission = async () => {
+  const requestPermission = async (): Promise<NotificationPermission> => {
     if ('Notification' in window) {
       const p = await Notification.requestPermission();
       setPermission(p);
@@ -73,8 +73,10 @@ export function useBackgroundRefresher(
       } else {
         toast.error('Device notifications denied.');
       }
+      return p;
     } else {
       toast.error('Notifications not supported in this browser.');
+      return 'denied';
     }
   };
 
