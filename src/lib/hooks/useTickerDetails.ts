@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { getTickerData, getTickersDataset, fetchTickerHistory, getVerifiedYahooSymbol, type TickerData } from '../fetching';
+import { getTickerData, getTickersDataset, fetchTickerHistory, getVerifiedYahooSymbol, appendLivePriceToHistory, type TickerData } from '../fetching';
 import { fetchHolding, getMetadataValue, syncDividends, fetchDividends, fetchTickerLists, toggleTickerListMembership } from '../sheets';
 import { Exchange, parseExchange, toGoogleFinanceExchangeCode, type Portfolio, type SheetHolding, type TrackingListItem } from '../types';
 
@@ -197,11 +197,16 @@ export const useTickerDetails = ({ sheetId, ticker: propTicker, exchange: propEx
                     hist = synthesizeHistory(holdingData as any, historyResponse, []);
                     if (historyResponse) historyResponse.historical = hist;
                 }
-                setHistoricalData(hist);
             setData(prev => {
                 if (!prev) return null;
+
+                const newHist = appendLivePriceToHistory(hist, prev.price);
+                // Schedule historicalData update outside of the render/updater phase
+                queueMicrotask(() => setHistoricalData(newHist));
+
                 return {
                     ...prev,
+                    historical: newHist,
                     dividends: mergeDividends(historyResponse?.dividends, prev.dividends),
                     splits: historyResponse?.splits || prev.splits
                 } as TickerData;
@@ -273,12 +278,16 @@ export const useTickerDetails = ({ sheetId, ticker: propTicker, exchange: propEx
                     hist = synthesizeHistory(holdingData as any, historyResponse, []);
                     if (historyResponse) historyResponse.historical = hist;
                 }
-                setHistoricalData(hist);
                 setData(prev => {
                     if (!prev && !historyResponse) return null;
+                    
+                    const newHist = appendLivePriceToHistory(hist, prev?.price);
+                    queueMicrotask(() => setHistoricalData(newHist));
+
                     return {
                         ...prev,
                         ...historyResponse,
+                        historical: newHist,
                         dividends: mergeDividends(historyResponse?.dividends, sheetDividends),
                         splits: historyResponse?.splits || prev?.splits
                     } as TickerData;

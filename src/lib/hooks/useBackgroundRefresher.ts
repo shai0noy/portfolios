@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { getTickerData } from '../fetching';
+import { getTickerData, appendLivePriceToHistory } from '../fetching';
 import type { TrackingListItem, TickerAlert, DashboardHolding } from '../types';
 import { FinanceEngine } from '../data/engine';
 import { convertCurrency } from '../currencyUtils';
@@ -88,31 +88,69 @@ export function useBackgroundRefresher(
         return;
       }
 
-      // Find the ticker fetched longest ago
-      let oldestKey = '';
-      let oldestTime = Infinity;
 
-      for (const key of allTickers.keys()) {
+      // Find the most overdue ticker
+      let selectedKey = '';
+      let maxOverdueRatio = -Infinity;
+      let hasAlertsCount = 0;
+
+      for (const [key, item] of allTickers.entries()) {
         const fetchedTime = lastFetchedRef.current.get(key) || 0;
-        if (fetchedTime < oldestTime) {
-          oldestTime = fetchedTime;
-          oldestKey = key;
+        const staleness = Date.now() - fetchedTime;
+        
+        let targetInterval = 60 * 60 * 1000; // Default 1 hour
+        const hasAlert = item.alerts && item.alerts.length > 0;
+        if (hasAlert) {
+          targetInterval = 15 * 60 * 1000; // 15 mins for alerts
+          hasAlertsCount++;
+        } else if (item.isOwned) {
+          targetInterval = 60 * 60 * 1000; // 60 mins for owned
+        }
+
+        const irregularExchanges = ['GEMEL', 'PENSION', 'CBS', 'BOI', 'CASH'];
+        if (irregularExchanges.includes(item.exchange)) {
+          targetInterval = 24 * 60 * 60 * 1000; // 24 hours for non-regular exchanges
+        }
+
+        const overdueRatio = staleness / targetInterval;
+        
+        if (overdueRatio > maxOverdueRatio) {
+          maxOverdueRatio = overdueRatio;
+          selectedKey = key;
         }
       }
 
-      const item = allTickers.get(oldestKey);
+      if (maxOverdueRatio < 1.0) {
+        // Nobody is overdue! Sleep and check again later.
+        timeoutId = setTimeout(tick, 10000);
+        return;
+      }
+
+      const item = allTickers.get(selectedKey);
+
       if (!item) {
         timeoutId = setTimeout(tick, 10000);
         return;
       }
 
-      lastFetchedRef.current.set(oldestKey, Date.now());
+      lastFetchedRef.current.set(selectedKey, Date.now());
 
       try {
-        console.debug('[BackgroundRefresher] Fetching data for ticker:', item.ticker);
-        // Force refresh
-        const newData = await getTickerData(item.ticker, item.exchange as any, null, undefined, true);
+
+        const hasAlert = item.alerts && item.alerts.length > 0;
+        const summaryOnly = !hasAlert; // Only fetch history if there's an alert
+        console.debug(`[BackgroundRefresher] Fetching data for ticker: ${item.ticker} (hasAlert: ${hasAlert})`);
+        
+        // Force refresh. Passing maxAge helps avoid too many requests if we're spamming.
+        const newData = await getTickerData(item.ticker, item.exchange as any, null, undefined, true, undefined, summaryOnly);
+        
         if (newData) {
+          // Merge old history so UI sparklines don't disappear if summaryOnly=true
+          const oldData = engineRef.current?.livePrices.get(`${item.exchange}:${item.ticker}`);
+          if (summaryOnly && oldData && oldData.historical) {
+            newData.historical = appendLivePriceToHistory(oldData.historical, newData.price);
+          }
+
           let newlyTriggered = false;
           let msgs: string[] = [];
           const isFirstSeen = !seenTickersRef.current.has(item.ticker);
@@ -225,20 +263,20 @@ export function useBackgroundRefresher(
              console.debug('[BackgroundRefresher] Notification skipped', { newlyTriggered, msgs, visibilityState: document.visibilityState, permission: Notification.permission });
           }
 
-          // Emit event so the rest of the app updates
-          console.debug('[BackgroundRefresher] Dispatching market-data-refreshed event');
-          window.dispatchEvent(new CustomEvent('market-data-refreshed'));
+
+          // Dispatch specific update event so UI updates immediately without reloading cache
+          console.debug('[BackgroundRefresher] Dispatching ticker-updated event');
+          window.dispatchEvent(new CustomEvent('ticker-updated', { detail: newData }));
+
         }
     } catch (e) {
         console.error('[BackgroundRefresher] Background refresh failed for', item.ticker, e);
       }
 
-      // Calculate delay based on the *new* queue size.
-      const itemsCount = allTickers.size;
-      const oneHourMs = 60 * 60 * 1000;
-      const delay = Math.max(10000, Math.floor(oneHourMs / itemsCount));
 
-      timeoutId = setTimeout(tick, delay);
+      // Sleep a short fixed delay before checking the queue again
+      timeoutId = setTimeout(tick, 10000);
+
     };
 
     timeoutId = setTimeout(tick, 5000);

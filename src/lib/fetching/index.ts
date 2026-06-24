@@ -87,6 +87,25 @@ export function getTickersDataset(signal?: AbortSignal, forceRefresh = false): P
   });
 }
 
+export function appendLivePriceToHistory(
+  historical: { date: Date; price: number; adjClose?: number }[],
+  livePrice: number | undefined
+): { date: Date; price: number; adjClose?: number }[] {
+  if (!livePrice || !historical || historical.length === 0) return historical;
+  const lastPoint = historical[historical.length - 1];
+  const todayStr = new Date().toISOString().split('T')[0];
+  const lastPointStr = lastPoint.date.toISOString().split('T')[0];
+
+  if (todayStr === lastPointStr) {
+    if (lastPoint.price === livePrice) return historical;
+    const newHist = [...historical];
+    newHist[newHist.length - 1] = { ...lastPoint, price: livePrice };
+    return newHist;
+  } else {
+    return [...historical, { date: new Date(), price: livePrice }];
+  }
+}
+
 function combineHistory(histShort: { date: Date; price: number }[] | undefined, histMax: { date: Date; price: number }[] | undefined) {
   const hShort = histShort || [];
   const hMax = histMax || [];
@@ -113,9 +132,10 @@ export async function getTickerData(
   numericSecurityId: number | null,
   signal?: AbortSignal,
   forceRefresh = false,
-  maxAge?: number
+  maxAge?: number,
+  summaryOnly = false
 ): Promise<TickerData | null> {
-  const reqKey = `getTickerData:${ticker}:${exchange}:${numericSecurityId}:${forceRefresh}:${maxAge}`;
+  const reqKey = `getTickerData:${ticker}:${exchange}:${numericSecurityId}:${forceRefresh}:${maxAge}:${summaryOnly}`;
   return deduplicateRequest(reqKey, async () => {
     let parsedExchange: Exchange;
     try {
@@ -191,7 +211,7 @@ export async function getTickerData(
 
   const [yahooData5y, yahooDataMax] = await Promise.all([
     fetchYahooTickerData(ticker, parsedExchange, signal, forceRefresh, '5y', group, maxAge).catch(e => { console.warn('Yahoo 5y failed:', e); return null; }),
-    fetchYahooTickerData(ticker, parsedExchange, signal, false, 'max', group, maxAge).catch(e => { console.warn('Yahoo Max failed:', e); return null; })
+    summaryOnly ? Promise.resolve(null) : fetchYahooTickerData(ticker, parsedExchange, signal, false, 'max', group, maxAge).catch(e => { console.warn('Yahoo Max failed:', e); return null; })
   ]);
 
   let yahooData: TickerData | null = null;
@@ -201,7 +221,6 @@ export async function getTickerData(
     else {
       // Merge: use 5y for recent stats/precision, max for long term
       yahooData = {
-        // TODO: Make merging logic cleaner
         ...yahooDataMax,
         ...yahooData5y,
         // Explicitly ensure long term stats come from Max
@@ -212,9 +231,12 @@ export async function getTickerData(
         changePctMax: yahooDataMax.changePctMax,
         changeDateMax: yahooDataMax.changeDateMax,
         // Use combined historical data so the chart has max range immediately
-        historical: combineHistory(yahooData5y.historical, yahooDataMax.historical),
-        dividends: yahooDataMax.dividends,
-        splits: yahooDataMax.splits,
+        historical: appendLivePriceToHistory(
+            combineHistory(yahooData5y.historical, yahooDataMax.historical) || [],
+            yahooData5y.price
+        ),
+        dividends: yahooDataMax.dividends || yahooData5y.dividends,
+        splits: yahooDataMax.splits || yahooData5y.splits,
         fromCache: yahooData5y.fromCache,
         fromCacheMax: yahooDataMax.fromCache
       };
@@ -332,7 +354,13 @@ export async function getTickerData(
 }
 
 function detectStaleDayChange(data: TickerData | null): TickerData | null {
-  if (!data || data.changePct1d === undefined) return data;
+  if (!data) return data;
+
+  if (data.historical && data.historical.length > 0 && data.price !== undefined) {
+    data.historical = appendLivePriceToHistory(data.historical, data.price);
+  }
+
+  if (data.changePct1d === undefined) return data;
 
   const now = new Date();
 

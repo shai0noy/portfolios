@@ -71,6 +71,19 @@ export class FinanceEngine {
         this.cpiData = cpiData;
     }
 
+    /**
+     * Creates a shallow copy of the engine primarily to trigger React re-renders 
+     * when live prices update. Holdings and transfer buckets are passed by reference 
+     * for performance. Do not use this for deep mutations.
+     */
+    clone(): FinanceEngine {
+        const copy = new FinanceEngine(Array.from(this.portfolios.values()), this.exchangeRates, this.cpiData);
+        copy.holdings = this.holdings;
+        copy.transferBucket = this.transferBucket;
+        copy.livePrices = new Map(this.livePrices);
+        return copy;
+    }
+
     get transactions(): Transaction[] {
         const all: Transaction[] = [];
         this.holdings.forEach(h => {
