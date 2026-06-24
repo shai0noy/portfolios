@@ -1185,7 +1185,22 @@ function AppContent() {
             />
           )}
 
-          <Toaster position="bottom-center" />
+          <Toaster 
+            position="bottom-center" 
+            toastOptions={{
+              success: {
+                style: {
+                  background: theme.palette.mode === 'dark' ? theme.palette.background.paper : '#fff',
+                  color: theme.palette.text.primary,
+                  border: `1px solid ${theme.palette.divider}`,
+                },
+                iconTheme: {
+                  primary: theme.palette.success.main,
+                  secondary: theme.palette.mode === 'dark' ? theme.palette.background.paper : '#fff',
+                },
+              },
+            }}
+          />
 
         </Box>
       </ThemeProvider>
