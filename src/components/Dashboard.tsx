@@ -2,7 +2,7 @@ import { PortfolioBriefingDialog } from "./dashboard/PortfolioBriefingDialog";
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, Link as RouterLink, useNavigate, useLocation } from 'react-router-dom';
 import {
-  Box, CircularProgress, IconButton, Tooltip, Typography, ToggleButton, Divider, Button, ToggleButtonGroup, Select, MenuItem, FormControl, Paper
+  Box, CircularProgress, LinearProgress, IconButton, Tooltip, Typography, ToggleButton, Divider, Button, ToggleButtonGroup, Select, MenuItem, FormControl, Paper
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
@@ -146,7 +146,7 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-  const { holdings, loading, error, portfolios, exchangeRates, hasFutureTxns, refresh, engine, trackingLists } = useDashboardData(sheetId);
+  const { holdings, loading, isRefreshing, error, portfolios, exchangeRates, hasFutureTxns, refresh, engine, trackingLists } = useDashboardData(sheetId);
   const { showLoginModal } = useSession();
 
   const [aiChatOpen, setAiChatOpen] = useState(false);
@@ -552,6 +552,11 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
 
   return (
     <Box sx={{ maxWidth: 1400, mx: 'auto', mt: 4 }}>
+        {isRefreshing && (
+          <Box sx={{ mb: 2 }}>
+            <LinearProgress sx={{ borderRadius: 1 }} />
+          </Box>
+        )}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
         {(selectedPortfolioId || isFavoritesOnly) && (
           <Button
@@ -818,9 +823,9 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
                 <Tooltip title={t("Refresh Data", "רענן נתונים")}>
                   <IconButton
                     onClick={() => refresh(true)}
-                    disabled={loading}
+                    disabled={loading || isRefreshing}
                     size="small"
-                    sx={{ ml: 0.5 }}
+                    sx={{ ml: 0.5, ...(isRefreshing && { animation: 'spin 1s linear infinite', '@keyframes spin': { '0%': { transform: 'rotate(0deg)' }, '100%': { transform: 'rotate(360deg)' } } }) }}
                   >
                     <RefreshIcon fontSize="small" />
                   </IconButton>

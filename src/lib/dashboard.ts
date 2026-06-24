@@ -1,5 +1,6 @@
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import toast from 'react-hot-toast';
 import { loadFinanceEngine } from './data/loader';
 import { SessionExpiredError } from './errors';
 import { useSession } from './SessionContext';
@@ -22,7 +23,9 @@ import type { DashboardHoldingDisplay } from './types';
 export { INITIAL_SUMMARY };
 
 export function useDashboardData(sheetId: string) {
+  const loadedRef = useRef(false);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [holdings, setHoldings] = useState<DashboardHolding[]>([]);
   const [exchangeRates, setExchangeRates] = useState<ExchangeRates>({ current: { USD: 1, ILS: 3.7 } });
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
@@ -34,12 +37,14 @@ export function useDashboardData(sheetId: string) {
 
   const loadData = useCallback(async (force = false) => {
     if (!sheetId) return;
-    setLoading(true);
+    if (!loadedRef.current) setLoading(true);
+    else setIsRefreshing(true);
     setError(null);
     try {
       // If force=true, loadFinanceEngine bypasses cache, but we keep old cache 
       // in DB so it can be used as a fallback if the fetch fails.
       const { engine: eng, trackingLists: lists } = await loadFinanceEngine(sheetId, force);
+      loadedRef.current = true;
       setEngine(eng);
       setTrackingLists(lists);
       setPortfolios(Array.from(eng.portfolios.values()));
@@ -58,8 +63,20 @@ export function useDashboardData(sheetId: string) {
       return eng;
     } catch (e) {
       console.error('loadData error:', e);
-      if (e instanceof SessionExpiredError) { setError('session_expired'); showLoginModal(); } else setError(e);
-    } finally { setLoading(false); }
+      if (e instanceof SessionExpiredError) { 
+          setError('session_expired'); 
+          showLoginModal(); 
+      } else if (loadedRef.current) {
+          // It's a background refresh failure
+          toast.error("Failed to refresh data: " + (e instanceof Error ? e.message : String(e)));
+      } else {
+          // It's an initial load failure
+          setError(e);
+      }
+    } finally { 
+      setLoading(false); 
+      setIsRefreshing(false);
+    }
   }, [sheetId, showLoginModal]);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -72,7 +89,7 @@ export function useDashboardData(sheetId: string) {
     return () => window.removeEventListener('market-data-refreshed', handleAutoRefresh);
   }, [loadData]);
 
-  return { holdings, loading, error, portfolios, exchangeRates, hasFutureTxns, refresh: (force = false) => loadData(force), engine, trackingLists };
+  return { holdings, loading, isRefreshing, error, portfolios, exchangeRates, hasFutureTxns, refresh: (force = false) => loadData(force), engine, trackingLists };
 }
 
 export { calculateDashboardSummary };

@@ -13,6 +13,7 @@ import { Currency } from '../types';
 import { synthesizeHistory } from '../performance';
 import { SessionExpiredError } from '../errors';
 import { useSession } from '../SessionContext';
+import { clearFinanceCache } from '../data/loader';
 
 export interface TickerDetailsProps {
     sheetId: string;
@@ -217,6 +218,8 @@ export const useTickerDetails = ({ sheetId, ticker: propTicker, exchange: propEx
         setIsFavorite(prev => !prev);
         try {
             await toggleTickerListMembership(sheetId, 'Favorites', ticker, exchange);
+            await clearFinanceCache(sheetId);
+            window.dispatchEvent(new CustomEvent('market-data-refreshed'));
         } catch (e) {
             console.error("Failed to toggle favorite", e);
             // Revert optimistic update
@@ -235,6 +238,8 @@ export const useTickerDetails = ({ sheetId, ticker: propTicker, exchange: propEx
         setIsWatchlist(prev => !prev);
         try {
             await toggleTickerListMembership(sheetId, 'Watchlist', ticker, exchange);
+            await clearFinanceCache(sheetId);
+            window.dispatchEvent(new CustomEvent('market-data-refreshed'));
         } catch (e) {
             console.error("Failed to toggle watchlist", e);
             // Revert optimistic update
