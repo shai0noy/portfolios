@@ -1,8 +1,11 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   TextField, Grid, Typography, CircularProgress, MenuItem, Select, FormControl, InputLabel,
-  List, ListItemButton, ListItemText, Paper, Box, Divider, Chip, Tooltip, InputAdornment, useTheme
+  List, ListItemButton, ListItemText, Paper, Box, Divider, Chip, Tooltip, InputAdornment, useTheme,
+  IconButton, useMediaQuery
 } from '@mui/material';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import CloseIcon from '@mui/icons-material/Close';
 import { useScrollShadows, ScrollShadows } from '../lib/ui-utils';
 import { getTickersDataset, searchYahooTickers } from '../lib/fetching';
 import type { TickerProfile } from '../lib/types/ticker';
@@ -247,6 +250,20 @@ export const TickerSearch = React.memo(function TickerSearch({ onTickerSelect, p
   const theme = useTheme();
   const { containerRef, showTop, showBottom } = useScrollShadows();
 
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isMobileActive = isMobile && (isFocused || !!inputValue);
+
+  useEffect(() => {
+    if (isMobileActive) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isMobileActive]);
+
   const searchTickers = useCallback((term: string, exchange: string) => {
     let results: SearchResult[] = [];
     startTransition(() => {
@@ -384,17 +401,32 @@ export const TickerSearch = React.memo(function TickerSearch({ onTickerSelect, p
   return (
     <Box sx={{ mt: -2, mb: isIdle ? 3 : 4, ...sx }}>
       <Paper
-        elevation={0}
+        elevation={isMobileActive ? 0 : (isIdle ? 0 : 1)}
         sx={{
-          p: isIdle ? 0 : 1.5,
-          borderRadius: 3,
-          border: isIdle ? 'none' : 1,
+          p: isMobileActive ? 2 : (isIdle ? 0 : 1.5),
+          borderRadius: isMobileActive ? 0 : (isIdle ? 0 : 3),
+          border: isMobileActive ? 'none' : (isIdle ? 'none' : 1),
           borderColor: 'divider',
           bgcolor: isIdle ? 'transparent' : 'background.paper',
-          transition: 'all 0.2s ease-in-out'
+          transition: 'all 0.2s ease-in-out',
+          ...(isMobileActive && {
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            width: '100vw',
+            height: '100vh',
+            zIndex: 1400,
+            display: 'flex',
+            flexDirection: 'column',
+            boxSizing: 'border-box',
+            borderRadius: 0,
+            bgcolor: 'background.paper',
+          })
         }}
       >
-        <Grid container spacing={1} alignItems="center" justifyContent={isIdle ? 'center' : 'flex-start'}>
+        <Grid container spacing={1} alignItems="center" justifyContent={isIdle ? 'center' : 'flex-start'} sx={{ flexShrink: 0, mb: isMobileActive ? 2 : 0 }}>
           <Grid item xs={12} sm={isIdle ? 8 : 6}>
             <TextField
               onFocus={() => setIsFocused(true)}
@@ -414,12 +446,44 @@ export const TickerSearch = React.memo(function TickerSearch({ onTickerSelect, p
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
-                    <SearchIcon color="action" fontSize="small" />
+                    {isMobileActive ? (
+                      <IconButton
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const activeEl = document.activeElement as HTMLElement;
+                          if (activeEl) activeEl.blur();
+                          setInputValue('');
+                          setIsFocused(false);
+                        }}
+                        sx={{
+                          ml: -1,
+                          mr: 0.5,
+                          transform: theme.direction === 'rtl' ? 'rotate(180deg)' : 'none'
+                        }}
+                      >
+                        <ArrowBackIcon fontSize="small" />
+                      </IconButton>
+                    ) : (
+                      <SearchIcon color="action" fontSize="small" />
+                    )}
                   </InputAdornment>
                 ),
                 endAdornment: (
                   <>
                     {(isPending || isDatasetLoading || isPortfoliosLoading) ? <CircularProgress color="inherit" size={20} /> : null}
+                    {inputValue && (
+                      <IconButton
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setInputValue('');
+                        }}
+                        sx={{ mr: -1 }}
+                      >
+                        <CloseIcon fontSize="small" />
+                      </IconButton>
+                    )}
                   </>
                 ),
                 sx: isIdle ? {
@@ -476,14 +540,21 @@ export const TickerSearch = React.memo(function TickerSearch({ onTickerSelect, p
         </Grid>
 
         {(isFocused && filteredResults.length > 0) && (
-          <Box sx={{ position: 'relative', my: 1 }}>
+          <Box sx={{ position: 'relative', my: 1, flex: isMobileActive ? 1 : 'unset', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
             <Paper
-              elevation={2}
+              elevation={isMobileActive ? 0 : 2}
               className="visible-scrollbar"
               ref={containerRef}
-              sx={{ maxHeight: 300, overflowY: 'auto', border: 1, borderColor: 'divider' }}
+              sx={{ 
+                maxHeight: isMobileActive ? 'none' : 300, 
+                flex: isMobileActive ? 1 : 'unset', 
+                overflowY: 'auto', 
+                border: isMobileActive ? 'none' : 1, 
+                borderColor: 'divider',
+                bgcolor: 'background.paper'
+              }}
             >
-              <List dense>
+              <List dense={!isMobileActive} sx={{ pb: isMobileActive ? 8 : 1 }}>
                 {filteredResults.map((option, index) => {
                   const { profile } = option;
                   // Determine display type: Prioritize localized name from metadata
@@ -533,6 +604,18 @@ export const TickerSearch = React.memo(function TickerSearch({ onTickerSelect, p
               </List>
             </Paper>
             <ScrollShadows top={showTop} bottom={showBottom} theme={theme} />
+          </Box>
+        )}
+
+        {isMobileActive && filteredResults.length === 0 && (
+          <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', p: 3, color: 'text.secondary' }}>
+            {isDatasetLoading ? (
+              <CircularProgress size={40} sx={{ mb: 2 }} />
+            ) : !inputValue ? (
+              <Typography variant="body1">{t('Type to start searching...', 'הקלד כדי להתחיל לחפש...')}</Typography>
+            ) : (
+              <Typography variant="body1">{t('No results found', 'לא נמצאו תוצאות')}</Typography>
+            )}
           </Box>
         )}
       </Paper>
