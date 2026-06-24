@@ -127,7 +127,7 @@ export function WatchlistPage({ sheetId }: WatchlistPageProps) {
   const { t, isRtl } = useLanguage();
   const theme = useTheme();
 
-  const { holdings: rawHoldings, loading, error, trackingLists, engine, portfolios, exchangeRates, refresh } = useDashboardData(sheetId);
+  const { holdings: rawHoldings, loading, isRefreshing, error, trackingLists, engine, portfolios, exchangeRates, refresh } = useDashboardData(sheetId);
 
   const getAlertTriggerDescription = (alert: TickerAlert, currencyCode: string, curPrice: number, hist: any[]) => {
     const dir = alert.direction || 'both';
@@ -411,7 +411,12 @@ export function WatchlistPage({ sheetId }: WatchlistPageProps) {
       <Box display="flex" justifyContent="flex-end" mb={2} alignItems="center" gap={2}>
         {refresh && (
           <Tooltip title={t("Refresh Data", "רענן נתונים")}>
-            <IconButton onClick={() => refresh(true)} size="small" sx={{ color: 'text.secondary' }}>
+            <IconButton 
+              onClick={() => refresh(true)} 
+              disabled={loading || isRefreshing}
+              size="small" 
+              sx={{ color: 'text.secondary', ...(isRefreshing && { animation: 'spin 1s linear infinite', '@keyframes spin': { '0%': { transform: 'rotate(0deg)' }, '100%': { transform: 'rotate(360deg)' } } }) }}
+            >
               <RefreshIcon fontSize="small" />
             </IconButton>
           </Tooltip>

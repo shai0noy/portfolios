@@ -1567,7 +1567,14 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
         </DialogContent>
         <DialogActions sx={{ p: 2, px: 3, gap: 1 }}>
           <Tooltip title={t("Refresh Data", "רענן נתונים")} enterTouchDelay={0} leaveTouchDelay={3000}>
-            <IconButton onClick={handleRefresh} disabled={refreshing} size="small">{refreshing ? <CircularProgress size={16} /> : <RefreshIcon fontSize="small" />}</IconButton>
+            <IconButton 
+              onClick={handleRefresh} 
+              disabled={refreshing} 
+              size="small"
+              sx={{ ...(refreshing && { animation: 'spin 1s linear infinite', '@keyframes spin': { '0%': { transform: 'rotate(0deg)' }, '100%': { transform: 'rotate(360deg)' } } }) }}
+            >
+              <RefreshIcon fontSize="small" />
+            </IconButton>
           </Tooltip>
           <Box sx={{ flexGrow: 1 }} />
           <Button onClick={handleOpenChat} color="primary" variant="outlined" sx={{ textTransform: 'none', borderRadius: 2, minWidth: { xs: 0, md: 64 }, px: { xs: 1.5, md: 2 }, '& .MuiButton-startIcon': { mr: { xs: 0, md: 1 }, ml: { xs: 0, md: -0.5 } } }} startIcon={<SmartToyIcon fontSize="small" />}>
