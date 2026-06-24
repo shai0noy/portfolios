@@ -39,8 +39,17 @@ export function useScrollShadows(orientation: 'vertical' | 'horizontal' | 'both'
   const [showRight, setShowRight] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  const getScrollElement = useCallback(() => {
+    let el = containerRef.current;
+    if (!el) return null;
+    if (el.classList.contains('MuiTabs-root')) {
+      return el.querySelector('.MuiTabs-scroller') as HTMLDivElement || el;
+    }
+    return el;
+  }, []);
+
   const checkScroll = useCallback(() => {
-    const el = containerRef.current;
+    const el = getScrollElement();
     if (!el) return;
 
     if (orientation === 'vertical' || orientation === 'both') {
@@ -79,7 +88,7 @@ export function useScrollShadows(orientation: 'vertical' | 'horizontal' | 'both'
   }, [orientation]);
 
   useEffect(() => {
-    const el = containerRef.current;
+    const el = getScrollElement();
     if (el) {
       checkScroll();
       el.addEventListener('scroll', checkScroll);

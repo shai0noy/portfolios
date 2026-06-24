@@ -103,6 +103,8 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
     trackingLists
   } = tickerDetailsResult;
 
+  const { containerRef: tabsRef, showLeft: tabsShowLeft, showRight: tabsShowRight } = useScrollShadows('horizontal');
+
   const getPortfolioHistory = async (portfolioId: string | null) => {
     try {
       const { engine } = await loadFinanceEngine(sheetId);
@@ -597,8 +599,9 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
           </Box>
         </DialogTitle>
 
-        <Box sx={{ borderBottom: 1, borderColor: 'divider', px: 2 }}>
+        <Box sx={{ borderBottom: 1, borderColor: 'divider', px: 2, position: 'relative' }}>
           <Tabs
+            ref={tabsRef}
             value={
               (activeTab === 'analysis') ||
                 (activeTab === 'financials' && hasFinancialsData) ||
@@ -623,6 +626,7 @@ export function TickerDetails({ sheetId, ticker: propTicker, exchange: propExcha
             {hasGrants && <Tab label={t('Grants', 'מענקים')} value="grants" />}
             {hasHolding && <Tab label={t('Dividends', 'דיבידנדים')} value="dividends" />}
           </Tabs>
+          <ScrollShadows left={tabsShowLeft} right={tabsShowRight} theme={theme} />
         </Box>
 
         <DialogContent sx={{ p: 2, display: 'flex', flexDirection: 'column', flex: 1 }}>
