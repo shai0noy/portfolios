@@ -250,12 +250,12 @@ export async function fetchYahooTickerData(
       const match = results.find(r => r !== null);
       if (!match) {
         if (hasTransientError) {
-          console.log(`Yahoo: Failed to get result for ${ticker} (${exchange}) but encountered transient errors. Will not cache Not Found.`);
+          console.debug(`Yahoo: Failed to get result for ${ticker} (${exchange}) but encountered transient errors. Will not cache Not Found.`);
           const err = new Error('Transient error');
           (err as any).status = 429;
           throw err;
         }
-        console.log(`Yahoo: No result found for ${ticker} (${exchange}), caching as Not Found.`);
+        console.debug(`Yahoo: No result found for ${ticker} (${exchange}), caching as Not Found.`);
         return null;
       }
 

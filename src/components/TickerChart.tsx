@@ -33,7 +33,7 @@ export function GammaIcon(props: any) {
 // Simple regression solver
 function solveUnivariableRegression(x: number[], y: number[], type: TrendType | GammaType, gammaWindow?: number): ((v: number) => number) | null {
     const n = x.length;
-    console.log(`[TrendDebug] Solving ${type} regression with n=${n}`);
+    console.debug(`[TrendDebug] Solving ${type} regression with n=${n}`);
     if (n < 2) return null;
 
 

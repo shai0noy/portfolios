@@ -258,11 +258,11 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
         text = await fetchXml(globesApiUrl, signal, { cache: forceRefresh ? 'no-cache' : 'force-cache' });
       } catch (e: any) {
         if (e.status === 429 || e.status >= 500) {
-          console.log(`Globes: Transient error ${e.status} for ${identifier}, not caching.`);
+          console.debug(`Globes: Transient error ${e.status} for ${identifier}, not caching.`);
           // fetchWithCache expects transient errors to be thrown if we want to bypass caching
           throw e;
         }
-        console.log(`Globes: Definitely no result found for ${identifier} (status ${e.status}), caching as Not Found.`);
+        console.debug(`Globes: Definitely no result found for ${identifier} (status ${e.status}), caching as Not Found.`);
         return null; // fetchWithCache will cache this null
       }
 

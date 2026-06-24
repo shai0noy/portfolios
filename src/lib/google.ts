@@ -43,9 +43,9 @@ function scheduleRefresh(expiresInSeconds: number) {
     let delayMs = (expiresInSeconds - refreshBuffer) * 1000;
     if (delayMs < 0) delayMs = 0; // Refresh immediately if buffer exceeded
 
-    console.log(`Scheduling background token refresh in ${Math.round(delayMs/1000)}s`);
+    console.debug(`Scheduling background token refresh in ${Math.round(delayMs/1000)}s`);
     refreshTimeout = setTimeout(() => {
-        console.log("Triggering background token refresh...");
+        console.debug("Triggering background token refresh...");
         refreshAccessToken().catch(e => console.warn("Background refresh failed", e));
     }, delayMs);
 }
@@ -58,7 +58,7 @@ function storeToken(response: any) {
     const expiresAt = Date.now() + (expiresIn - 60) * 1000;
     localStorage.setItem('g_expires', expiresAt.toString());
     gapiInstance!.client.setToken({ access_token: response.access_token });
-    console.log("Token refreshed and stored.");
+    console.debug("Token refreshed and stored.");
     
     scheduleRefresh(expiresIn);
 }
@@ -147,7 +147,7 @@ export function signOut() {
     if (gapiInstance) {
         gapiInstance.client.setToken(null);
     }
-    console.log('User signed out');
+    console.debug('User signed out');
     window.location.reload();
 }
 
@@ -175,9 +175,9 @@ export const ensureGapi = async (): Promise<typeof gapi> => {
                  // If less than 0, refresh immediately.
                  const delayMs = Math.max(0, msUntilRefresh);
                  
-                 console.log(`Restoring background refresh schedule. Refresh in ${Math.round(delayMs/1000)}s`);
+                 console.debug(`Restoring background refresh schedule. Refresh in ${Math.round(delayMs/1000)}s`);
                  refreshTimeout = setTimeout(() => {
-                    console.log("Triggering restored background token refresh...");
+                    console.debug("Triggering restored background token refresh...");
                     refreshAccessToken().catch(e => console.warn("Background refresh failed", e));
                  }, delayMs);
              }
@@ -186,7 +186,7 @@ export const ensureGapi = async (): Promise<typeof gapi> => {
         return gapiInstance!;
     }
 
-    console.log('Token missing or expired, attempting refresh via worker...');
+    console.debug('Token missing or expired, attempting refresh via worker...');
 
     if (refreshPromise) {
         await refreshPromise;
@@ -200,7 +200,7 @@ export const ensureGapi = async (): Promise<typeof gapi> => {
         return gapiInstance!;
     } catch (error) {
         if (error instanceof SessionExpiredError) {
-            console.log("Session expired, requires user interaction.");
+            console.debug("Session expired, requires user interaction.");
             throw error;
         } else {
             console.error("Unhandled error during token refresh:", error);
@@ -238,14 +238,14 @@ export async function findSpreadsheetByName(fileName: string): Promise<string | 
 
         const files = response.result.files;
         if (files && files.length > 0) {
-            console.log(`Found ${files.length} files with name ${fileName}. Taking the first one.`);
+            console.debug(`Found ${files.length} files with name ${fileName}. Taking the first one.`);
             if (!files[0].id) {
                 console.error("File ID missing for the found spreadsheet.");
                 return null;
             }
             return files[0].id;
         } else {
-            console.log(`No file named '${fileName}' found.`);
+            console.debug(`No file named '${fileName}' found.`);
             return null;
         }
     } catch (error) {

@@ -79,7 +79,7 @@ export async function fetchXml(url: string, signal?: AbortSignal, options?: Requ
         return await response.text();
     } catch (e: unknown) {
         if (e instanceof Error && e.name === 'AbortError') {
-            console.log(`Fetch aborted for ${url}`);
+            console.debug(`Fetch aborted for ${url}`);
         } else {
             console.error(`Fetch failed for ${url}:`, e);
         }

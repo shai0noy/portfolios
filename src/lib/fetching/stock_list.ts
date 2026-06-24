@@ -103,7 +103,7 @@ taseTypeIds.securitiesTypes.result.forEach(type => {
 async function fetchTaseSecurities(signal?: AbortSignal): Promise<TaseSecurity[]> {
     const url = `${WORKER_URL}/?apiId=tase_list_stocks`;
     try {
-        console.log(`Fetching TASE securities...`);
+        console.debug(`Fetching TASE securities...`);
         const response = await fetch(url, { signal, cache: 'force-cache' });
         if (!response.ok) {
             console.error(`Failed to fetch TASE securities: ${response.statusText}`);
@@ -112,7 +112,7 @@ async function fetchTaseSecurities(signal?: AbortSignal): Promise<TaseSecurity[]
         const data = await response.json();
         // The API nests the results in `tradeSecuritiesList.result`
         const result = data?.tradeSecuritiesList?.result || [];
-        console.log(`Fetched ${result.length} TASE securities.`);
+        console.debug(`Fetched ${result.length} TASE securities.`);
         return result;
     } catch(e) {
         console.error('Error fetching or parsing TASE securities', e);
@@ -126,7 +126,7 @@ async function fetchTaseSecurities(signal?: AbortSignal): Promise<TaseSecurity[]
 async function fetchTaseFunds(signal?: AbortSignal): Promise<any[]> {
     const url = `${WORKER_URL}/?apiId=tase_list_funds`;
     try {
-        console.log(`Fetching TASE funds...`);
+        console.debug(`Fetching TASE funds...`);
         const response = await fetch(url, { signal, cache: 'force-cache' });
         if (!response.ok) {
             console.error(`Failed to fetch TASE funds: ${response.statusText}`);
@@ -134,7 +134,7 @@ async function fetchTaseFunds(signal?: AbortSignal): Promise<any[]> {
         }
         const data = await response.json();
         const result = data?.funds?.result || [];
-        console.log(`Fetched ${result.length} TASE funds.`);
+        console.debug(`Fetched ${result.length} TASE funds.`);
         return result;
     } catch(e) {
         console.error('Error fetching or parsing TASE funds', e);
@@ -169,7 +169,7 @@ async function fetchGlobesTickers(
 
   return (await Promise.all(globesTypes.map(async (type) => {
       try {
-        // console.log(`Fetching Globes tickers for type: ${type} on exchange: ${exchange}`);
+        // console.debug(`Fetching Globes tickers for type: ${type} on exchange: ${exchange}`);
         const res = await fetchGlobesTickersByType(type, exchange, signal);
         return res;
       } catch (e) {
@@ -226,7 +226,7 @@ export async function fetchAllTickers(
       return acc;
     }, {} as Record<string, TickerProfile[]>);
 
-    console.log(`Final ${exchange} tickers distribution:`, Object.keys(grouped).map(k => `${k}: ${grouped[k].length}`));
+    console.debug(`Final ${exchange} tickers distribution:`, Object.keys(grouped).map(k => `${k}: ${grouped[k].length}`));
     return grouped;
   });
 }
@@ -360,7 +360,7 @@ async function fetchTaseTickers(
       });
   });
 
-  console.log(`Merged TASE data from ${stockMap.size} stocks, ${fundMap.size} funds, and ${globesMap.size} globes entries into ${allTickers.length} unique tickers.`);
+  console.debug(`Merged TASE data from ${stockMap.size} stocks, ${fundMap.size} funds, and ${globesMap.size} globes entries into ${allTickers.length} unique tickers.`);
 
   // 5. Group all resulting tickers by type for the final output
   const grouped = allTickers.reduce((acc, ticker) => {

@@ -127,7 +127,7 @@ export const useTickerDetails = ({ sheetId, ticker: propTicker, exchange: propEx
                         // (e.g. User typed NASDAQ/IBM -> Redirect to NYSE/IBM)
                         const bestMatch = matches[0];
 
-                        console.log(`[AutoCorrect] Redirecting ${ticker} from ${exchange} to ${bestMatch.exchange}`);
+                        console.debug(`[AutoCorrect] Redirecting ${ticker} from ${exchange} to ${bestMatch.exchange}`);
                         navigate(`/ticker/${bestMatch.exchange}/${bestMatch.symbol}`, { replace: true, state: { ...state, numericId: bestMatch.securityId?.toString() } });
                         return;
                     }

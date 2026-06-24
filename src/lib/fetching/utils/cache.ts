@@ -51,7 +51,7 @@ export async function loadRawFromCache<T>(key: string): Promise<T | null> {
 export async function clearAllCache(): Promise<void> {
     try {
         await db.clear();
-        console.log('Cache cleared successfully');
+        console.debug('Cache cleared successfully');
     } catch (e) {
         console.error('Error clearing cache:', e);
     }
@@ -69,11 +69,11 @@ export async function withTaseCache<T>(cacheKey: string, fetcher: () => Promise<
           console.warn(`Cached data for ${cacheKey} is empty, invalidating.`);
           await db.del(cacheKey);
         } else {
-          console.log(`Cache hit for ${cacheKey}`);
+          console.debug(`Cache hit for ${cacheKey}`);
           return cached.data;
         }
       } else {
-        console.log(`Cache expired for ${cacheKey}`);
+        console.debug(`Cache expired for ${cacheKey}`);
       }
     }
   } catch (e) {
@@ -81,7 +81,7 @@ export async function withTaseCache<T>(cacheKey: string, fetcher: () => Promise<
     // Ignore error and proceed to fetch
   }
 
-  console.log(`Cache miss for ${cacheKey}, fetching data...`);
+  console.debug(`Cache miss for ${cacheKey}, fetching data...`);
   try {
     const data = await fetcher();
     
@@ -99,7 +99,7 @@ export async function withTaseCache<T>(cacheKey: string, fetcher: () => Promise<
     
     return data;
   } catch (e) {
-    console.log(`[Cache] Fetch failed for ${cacheKey}, falling back to expired cache.`, e);
+    console.debug(`[Cache] Fetch failed for ${cacheKey}, falling back to expired cache.`, e);
     const cached = await db.get<CachedData<T>>(cacheKey);
     if (cached && cached.data !== null) {
         if (typeof cached.data === 'object' && !Array.isArray(cached.data)) {
@@ -148,7 +148,7 @@ export async function fetchWithCache<T>(
     try {
       const data = await fetcher();
       if (data === null && cachedData !== null) {
-          console.log(`[Cache] Fetcher returned null but valid cache exists for ${cacheKey}. Keeping cache.`);
+          console.debug(`[Cache] Fetcher returned null but valid cache exists for ${cacheKey}. Keeping cache.`);
           if (typeof cachedData === 'object' && !Array.isArray(cachedData)) {
             return { ...cachedData, isStaleFallback: true } as unknown as T;
           }
@@ -158,17 +158,17 @@ export async function fetchWithCache<T>(
       return data;
     } catch (e: any) {
       if (cachedData !== null) {
-          console.log(`[Cache] Fetch failed for ${cacheKey}, falling back to expired cache.`, e);
+          console.debug(`[Cache] Fetch failed for ${cacheKey}, falling back to expired cache.`, e);
           if (typeof cachedData === 'object' && !Array.isArray(cachedData)) {
             return { ...cachedData, fromCache: true, isStaleFallback: true } as unknown as T;
           }
           return cachedData;
       }
       if (e?.status && e.status !== 429 && e.status < 500) {
-        console.log(`[Cache] Persistent error ${e.status} for ${cacheKey}, caching as Not Found.`);
+        console.debug(`[Cache] Persistent error ${e.status} for ${cacheKey}, caching as Not Found.`);
         await saveToCache(cacheKey, null, now);
       } else {
-        console.log(`[Cache] Transient error or exception for ${cacheKey}, not caching null.`, e);
+        console.debug(`[Cache] Transient error or exception for ${cacheKey}, not caching null.`, e);
       }
       return null;
     }

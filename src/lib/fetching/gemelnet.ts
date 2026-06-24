@@ -52,7 +52,7 @@ export async function fetchGemelnetFund(
     async () => {
       const url = `${WORKER_URL}/?apiId=gemelnet_fund&startYear=${sParts.year}&startMonth=${sParts.month}&endYear=${eParts.year}&endMonth=${eParts.month}&fundId=${fundId}`;
 
-      console.log(`[Gemelnet] Fetching data for fund ${fundId}...`);
+      console.debug(`[Gemelnet] Fetching data for fund ${fundId}...`);
 
       try {
         const xmlText = await fetchXml(url);
@@ -181,7 +181,7 @@ export async function fetchGemelnetTickers(signal?: AbortSignal, forceRefresh = 
     const eParts = getDateParts(endDate);
     const url = `${WORKER_URL}/?apiId=gemelnet_list&startYear=${sParts.year}&startMonth=${sParts.month}&endYear=${eParts.year}&endMonth=${eParts.month}`;
 
-    console.log('[Gemelnet] Fetching tickers list...');
+    console.debug('[Gemelnet] Fetching tickers list...');
     try {
       const xmlText = await fetchXml(url, signal);
       const xmlDoc = parseXmlString(xmlText);
@@ -246,7 +246,7 @@ export async function fetchGemelnetQuote(
   ]);
 
   if (!fundData || fundData.data.length === 0) {
-    console.log(`[Gemelnet] fetchGemelnetQuote: No data found for ${fundId}`, fundData);
+    console.debug(`[Gemelnet] fetchGemelnetQuote: No data found for ${fundId}`, fundData);
     return null;
   }
 
