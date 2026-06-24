@@ -58,6 +58,10 @@ export async function clearFinanceCache(sheetId?: string) {
     } catch (e) {
         console.warn('Failed to clear cache', e);
     }
+    // Notify app that data was invalidated
+    if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('market-data-refreshed'));
+    }
 }
 
 async function saveToCache(sheetId: string, data: Omit<FinanceCache, 'timestamp' | 'sheetId'>) {

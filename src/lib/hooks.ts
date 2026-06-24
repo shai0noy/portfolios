@@ -9,25 +9,33 @@ export function usePortfolios(sheetId: string | null, refreshTrigger = 0) {
 
   useEffect(() => {
     if (!sheetId) return;
-    
+
     let active = true;
     setLoading(true);
-    fetchPortfolios(sheetId)
-      .then(data => {
-        if (active) {
-          setPortfolios(data);
-          setLoading(false);
-        }
-      })
-      .catch(err => {
-        if (active) {
-          console.error("Failed to load portfolios", err);
-          setError(String(err));
-          setLoading(false);
-        }
-      });
-      
-    return () => { active = false; };
+    const loadPorts = () => {
+      fetchPortfolios(sheetId)
+        .then(data => {
+          if (active) {
+            setPortfolios(data);
+            setLoading(false);
+          }
+        })
+        .catch(err => {
+          if (active) {
+            console.error("Failed to load portfolios", err);
+            setError(String(err));
+            setLoading(false);
+          }
+        });
+    };
+
+    loadPorts();
+    window.addEventListener('market-data-refreshed', loadPorts);
+
+    return () => { 
+        active = false; 
+        window.removeEventListener('market-data-refreshed', loadPorts); 
+    };
   }, [sheetId, refreshTrigger]);
 
   return { portfolios, loading, error };

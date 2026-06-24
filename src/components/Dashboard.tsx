@@ -553,8 +553,14 @@ export const Dashboard = ({ sheetId, isFavoritesOnly: propIsFavoritesOnly }: Das
   return (
     <Box sx={{ maxWidth: 1400, mx: 'auto', mt: 4 }}>
         {isRefreshing && (
-          <Box sx={{ mb: 2 }}>
-            <LinearProgress sx={{ borderRadius: 1 }} />
+          <Box sx={{ 
+            position: 'fixed', 
+            bottom: 0, 
+            left: 0, 
+            right: 0, 
+            zIndex: 9999 
+          }}>
+            <LinearProgress />
           </Box>
         )}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>

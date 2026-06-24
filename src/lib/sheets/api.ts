@@ -1657,6 +1657,7 @@ export const toggleTickerListMembership = withAuthHandling(async (spreadsheetId:
             resource: { values: [row] }
         });
     }
+    await clearFinanceCache(spreadsheetId);
 });
 
 export const updateTickerAlerts = withAuthHandling(async (
@@ -1686,6 +1687,8 @@ export const updateTickerAlerts = withAuthHandling(async (
             values: [[value]]
         }
     });
+
+    await clearFinanceCache(spreadsheetId);
 });
 
 export const upsertChatSession = withAuthHandling(async (sheetId: string, session: any) => {

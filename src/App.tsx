@@ -957,7 +957,7 @@ function AppContent() {
             {sheetId && (
               <>
                 <Box sx={{ display: currentTab === 0 ? 'block' : 'none' }}>
-                  <Dashboard sheetId={sheetId} key={`dash_${refreshKey}`} />
+                  <Dashboard sheetId={sheetId} />
                 </Box>
                 <Box sx={{ display: currentTab === 1 ? 'block' : 'none' }}>
                   <TransactionForm
