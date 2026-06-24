@@ -40,7 +40,7 @@ export function useBackgroundRefresher(
   const trackingListsRef = useRef(trackingLists);
   const holdingsRef = useRef(holdings);
   const engineRef = useRef(engine);
-  const queueRef = useRef<{ ticker: string, exchange: string, alerts: TickerAlert[], isOwned: boolean }[]>([]);
+  const lastFetchedRef = useRef<Map<string, number>>(new Map());
   const activeAlertsRef = useRef<Set<string>>(new Set());
   const seenTickersRef = useRef<Set<string>>(new Set());
 
@@ -81,57 +81,53 @@ export function useBackgroundRefresher(
   };
 
   useEffect(() => {
-    // Collect all tickers that have alerts, plus all owned tickers
-    const refreshQueue = () => {
-      const newQueue: { ticker: string, exchange: string, alerts: TickerAlert[], isOwned: boolean }[] = [];
-      const addedTickers = new Set<string>();
+    let timeoutId: any;
+
+    const tick = async () => {
+      const allTickers = new Map<string, { ticker: string, exchange: string, alerts: TickerAlert[], isOwned: boolean }>();
 
       // 1. Add from tracking lists
       const lists = trackingListsRef.current || [];
       lists.forEach(item => {
         const key = `${item.exchange}_${item.ticker}`;
-        addedTickers.add(key);
-        newQueue.push({ ticker: item.ticker, exchange: item.exchange as string, alerts: item.alerts || [], isOwned: false });
+        allTickers.set(key, { ticker: item.ticker, exchange: item.exchange as string, alerts: item.alerts || [], isOwned: false });
       });
 
       // 2. Add from holdings
       const currentHoldings = holdingsRef.current || [];
       currentHoldings.forEach(h => {
         const key = `${h.exchange}_${h.ticker}`;
-        if (!addedTickers.has(key)) {
-          addedTickers.add(key);
-          newQueue.push({ ticker: h.ticker, exchange: h.exchange as string, alerts: [], isOwned: true });
+        if (!allTickers.has(key)) {
+          allTickers.set(key, { ticker: h.ticker, exchange: h.exchange as string, alerts: [], isOwned: true });
         } else {
-          const qItem = newQueue.find(q => q.ticker === h.ticker && q.exchange === h.exchange);
-          if (qItem) qItem.isOwned = true;
+          allTickers.get(key)!.isOwned = true;
         }
       });
 
-      queueRef.current = newQueue;
-    };
+      if (allTickers.size === 0) {
+        timeoutId = setTimeout(tick, 10000);
+        return;
+      }
 
-    refreshQueue();
+      // Find the ticker fetched longest ago
+      let oldestKey = '';
+      let oldestTime = Infinity;
 
-    const getIntervalTime = () => {
-      const itemsCount = Math.max(1, queueRef.current.length);
-      const oneHourMs = 60 * 60 * 1000;
-      return Math.max(10000, Math.floor(oneHourMs / itemsCount));
-    };
-
-    let intervalId: any;
-
-    const tick = async () => {
-      if (queueRef.current.length === 0) {
-        refreshQueue(); // Try to replenish
-        if (queueRef.current.length === 0) {
-          console.debug('[BackgroundRefresher] Queue empty even after replenish attempt.');
-          return;
+      for (const key of allTickers.keys()) {
+        const fetchedTime = lastFetchedRef.current.get(key) || 0;
+        if (fetchedTime < oldestTime) {
+          oldestTime = fetchedTime;
+          oldestKey = key;
         }
       }
 
-      // Pop the first item
-      const item = queueRef.current.shift();
-      if (!item) return;
+      const item = allTickers.get(oldestKey);
+      if (!item) {
+        timeoutId = setTimeout(tick, 10000);
+        return;
+      }
+
+      lastFetchedRef.current.set(oldestKey, Date.now());
 
       try {
         console.debug('[BackgroundRefresher] Fetching data for ticker:', item.ticker);
@@ -254,14 +250,21 @@ export function useBackgroundRefresher(
           console.debug('[BackgroundRefresher] Dispatching market-data-refreshed event');
           window.dispatchEvent(new CustomEvent('market-data-refreshed'));
         }
-      } catch (e) {
+    } catch (e) {
         console.error('[BackgroundRefresher] Background refresh failed for', item.ticker, e);
       }
+
+      // Calculate delay based on the *new* queue size.
+      const itemsCount = allTickers.size;
+      const oneHourMs = 60 * 60 * 1000;
+      const delay = Math.max(10000, Math.floor(oneHourMs / itemsCount));
+
+      timeoutId = setTimeout(tick, delay);
     };
 
-    intervalId = setInterval(tick, getIntervalTime());
+    timeoutId = setTimeout(tick, 5000);
 
-    return () => clearInterval(intervalId);
+    return () => clearTimeout(timeoutId);
   }, []);
 
   return { permission, requestPermission };
