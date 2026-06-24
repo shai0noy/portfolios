@@ -7,6 +7,7 @@ import { Dashboard } from './components/Dashboard';
 import { AllTransactions } from './components/AllTransactions';
 import { WatchlistPage } from './components/WatchlistPage';
 import { useDashboardData } from './lib/dashboard';
+import { evaluateAlert } from './lib/alerts';
 import { ImportCSV } from './components/ImportCSV';
 import { TickerDetails } from './components/TickerDetails';
 import { ensureSchema, populateTestData, fetchTransactions, rebuildHoldingsSheet, getMetadataValue } from './lib/sheets/index';
@@ -224,28 +225,15 @@ function AppContent() {
       const liveData = engine.livePrices.get(`${item.exchange}:${item.ticker}`);
       if (!liveData || !item.alerts || item.alerts.length === 0) return false;
       const curPrice = liveData.price;
-      return item.alerts.some(alert => {
-        let triggered = false;
-        if (alert.type === 'price_above' && alert.targetPrice !== undefined) {
-          triggered = curPrice >= alert.targetPrice;
-        } else if (alert.type === 'price_below' && alert.targetPrice !== undefined) {
-          triggered = curPrice <= alert.targetPrice;
-        } else if (alert.type === 'price_moved_percent' && alert.percentChange !== undefined && alert.daysWindow !== undefined) {
-          const changeVal = alert.daysWindow <= 1 ? liveData.changePct1d :
-                            alert.daysWindow <= 7 ? liveData.changePctRecent :
-                            liveData.changePct1m;
-          const pct = (changeVal || 0) * 100;
-          if (alert.direction === 'up') triggered = pct >= alert.percentChange;
-          else if (alert.direction === 'down') triggered = pct <= -alert.percentChange;
-          else triggered = Math.abs(pct) >= alert.percentChange;
-        }
-        
-        if (triggered && typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-          console.debug('[App] hasTriggeredAlert evaluated true:', { ticker: item.ticker, curPrice, alert, liveData });
-        }
-        
-        return triggered;
-      });
+        return item.alerts.some(alert => {
+          const triggered = evaluateAlert(alert, liveData);
+
+          if (triggered && typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+            console.debug('[App] hasTriggeredAlert evaluated true:', { ticker: item.ticker, curPrice, alert, liveData });
+          }
+
+          return triggered;
+        });
     });
   }, [sheetId, trackingLists, engine]);
 

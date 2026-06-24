@@ -3,29 +3,8 @@ import { getTickerData } from '../fetching';
 import type { TrackingListItem, TickerAlert, DashboardHolding } from '../types';
 import { FinanceEngine } from '../data/engine';
 import { convertCurrency } from '../currencyUtils';
+import { evaluateAlert } from '../alerts';
 import toast from 'react-hot-toast';
-
-function evaluateAlert(alert: TickerAlert, liveData: any): boolean {
-  const curPrice = liveData.price;
-  if (!curPrice) return false;
-
-  if (alert.type === 'price_above' && alert.targetPrice !== undefined) {
-    return curPrice >= alert.targetPrice;
-  }
-  if (alert.type === 'price_below' && alert.targetPrice !== undefined) {
-    return curPrice <= alert.targetPrice;
-  }
-  if (alert.type === 'price_moved_percent' && alert.percentChange !== undefined && alert.daysWindow !== undefined) {
-    const changeVal = alert.daysWindow <= 1 ? liveData.changePct1d :
-                      alert.daysWindow <= 7 ? liveData.changePctRecent :
-                      liveData.changePct1m;
-    const pct = (changeVal || 0) * 100;
-    if (alert.direction === 'up') return pct >= alert.percentChange;
-    if (alert.direction === 'down') return pct <= -alert.percentChange;
-    return Math.abs(pct) >= alert.percentChange;
-  }
-  return false;
-}
 
 export function useBackgroundRefresher(
   engine: FinanceEngine | null,

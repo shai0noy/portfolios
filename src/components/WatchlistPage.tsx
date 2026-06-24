@@ -1,3 +1,4 @@
+import { evaluateAlert } from '../lib/alerts';
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box, Grid, Card, CardContent, Typography, CircularProgress, Alert, IconButton,
@@ -496,71 +497,7 @@ export function WatchlistPage({ sheetId }: WatchlistPageProps) {
             // Evaluate alerts
             const alerts = localAlerts[key] || [];
             const itemAlerts = alerts.map(alert => {
-              let isTriggered = false;
-              const dir = alert.direction || 'both';
-
-              if (alert.type === 'price_above' && alert.targetPrice !== undefined) {
-                if (dir === 'both') {
-                  const startPrice = alert.creationPrice ?? curPrice;
-                  if (startPrice < alert.targetPrice) {
-                    isTriggered = curPrice >= alert.targetPrice;
-                  } else {
-                    isTriggered = curPrice <= alert.targetPrice;
-                  }
-                } else {
-                  isTriggered = curPrice >= alert.targetPrice;
-                }
-              } else if (alert.type === 'price_below' && alert.targetPrice !== undefined) {
-                if (dir === 'both') {
-                  const startPrice = alert.creationPrice ?? curPrice;
-                  if (startPrice > alert.targetPrice) {
-                    isTriggered = curPrice <= alert.targetPrice;
-                  } else {
-                    isTriggered = curPrice >= alert.targetPrice;
-                  }
-                } else {
-                  isTriggered = curPrice <= alert.targetPrice;
-                }
-              } else if (alert.type === 'price_moved_percent' && alert.percentChange !== undefined && alert.daysWindow !== undefined) {
-                if (hist && hist.length > 0) {
-                  const targetDate = new Date();
-                  targetDate.setDate(targetDate.getDate() - alert.daysWindow);
-                  
-                  let priceNDaysAgo: number | undefined;
-                  let minTimeDiff = Infinity;
-                  for (const p of hist) {
-                    const pDate = new Date(p.date);
-                    const diff = Math.abs(pDate.getTime() - targetDate.getTime());
-                    if (diff < minTimeDiff) {
-                      minTimeDiff = diff;
-                      priceNDaysAgo = p.price;
-                    }
-                  }
-                  
-                  if (priceNDaysAgo && priceNDaysAgo > 0) {
-                    const changePctVal = ((curPrice - priceNDaysAgo) / priceNDaysAgo) * 100;
-                    if (dir === 'up') {
-                      isTriggered = changePctVal >= alert.percentChange;
-                    } else if (dir === 'down') {
-                      isTriggered = changePctVal <= -alert.percentChange;
-                    } else {
-                      isTriggered = Math.abs(changePctVal) >= alert.percentChange;
-                    }
-                  }
-                } else {
-                  const changePct = alert.daysWindow <= 1 ? liveData?.changePct1d :
-                                    alert.daysWindow <= 7 ? liveData?.changePctRecent :
-                                    liveData?.changePct1m;
-                  const changePctVal = (changePct || 0) * 100;
-                  if (dir === 'up') {
-                    isTriggered = changePctVal >= alert.percentChange;
-                  } else if (dir === 'down') {
-                    isTriggered = changePctVal <= -alert.percentChange;
-                  } else {
-                    isTriggered = Math.abs(changePctVal) >= alert.percentChange;
-                  }
-                }
-              }
+              const isTriggered = evaluateAlert(alert, liveData as any);
               return { ...alert, isTriggered };
             });
 
