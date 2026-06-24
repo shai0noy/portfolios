@@ -186,6 +186,10 @@ export async function fetchYahooTickerData(
   const knownSymbol = symbolSuccessMap.get(successKey);
   const candidates = knownSymbol ? [knownSymbol] : getYahooTickerCandidates(ticker, exchange, group);
 
+  if (candidates.length === 0) {
+    return null;
+  }
+
   // Smart default TTL: 24h for 'max' range, standard CACHE_TTL (5m) for others
   const defaultTTL = range === 'max' 
     ? (24 * 60 * 60 * 1000) + Math.random() * (30 * 60 * 1000)
