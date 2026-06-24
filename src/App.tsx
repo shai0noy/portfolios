@@ -269,6 +269,42 @@ function AppContent() {
   const { containerRef: scrollerRef, showLeft, showRight, checkScroll } = useScrollShadows('horizontal');
 
   useEffect(() => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return;
+    
+    // Check after 2 minutes (120000 ms)
+    const timer = setTimeout(() => {
+      if ((watchlistAlertsEnabled || notableMovesAlertsEnabled) && Notification.permission === 'default') {
+        toast((tToast) => (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Typography variant="body2" sx={{ color: 'text.primary' }}>
+              {t(
+                'Alerts are enabled, but permission is missing.',
+                'ההתראות מופעלות בהגדרות, אך חסרה הרשאה להציג אותן.'
+              )}
+            </Typography>
+            <Button
+              size="small"
+              variant="contained"
+              color="primary"
+              onClick={async () => {
+                toast.dismiss(tToast.id);
+                await requestPermission();
+              }}
+            >
+              {t('Enable', 'אפשר')}
+            </Button>
+          </Box>
+        ), {
+          duration: 15000,
+          position: 'bottom-center'
+        });
+      }
+    }, 120000);
+
+    return () => clearTimeout(timer);
+  }, [watchlistAlertsEnabled, notableMovesAlertsEnabled, requestPermission, t]);
+
+  useEffect(() => {
     const scroller = tabsRef.current?.querySelector('.MuiTabs-scroller') as HTMLDivElement | null;
     if (scroller) {
       (scrollerRef as any).current = scroller;
