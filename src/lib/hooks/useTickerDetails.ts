@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { getTickerData, getTickersDataset, fetchTickerHistory, getVerifiedYahooSymbol, appendLivePriceToHistory, type TickerData } from '../fetching';
 import { fetchHolding, getMetadataValue, syncDividends, fetchDividends, fetchTickerLists, toggleTickerListMembership } from '../sheets';
@@ -241,7 +241,16 @@ export const useTickerDetails = ({ sheetId, ticker: propTicker, exchange: propEx
         setIsWatchlist(prev => !prev);
         try {
             await toggleTickerListMembership(sheetId, 'Watchlist', ticker, exchange);
-            
+            if (!isWatchlist) {
+                toast.success(
+                    () => React.createElement('span', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+                        t('Added to watchlist.', 'נוסף לרשימת המעקב.'),
+                        React.createElement(Link, { to: "/watchlist", style: { color: 'inherit', textDecoration: 'underline' } },
+                            t('View', 'צפה')
+                        )
+                    ) as any
+                );
+            }
         } catch (e) {
             console.error("Failed to toggle watchlist", e);
             // Revert optimistic update
