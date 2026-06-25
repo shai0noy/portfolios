@@ -677,7 +677,7 @@ export const BaseAiChatDialog: React.FC<BaseAiChatDialogProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [availableModels, setAvailableModels] = useState<GeminiModel[]>([]);
   const [selectedModel, setSelectedModel] = useState<string>(localStorage.getItem('gemini_selected_model') || 'models/gemini-1.5-flash');
-  const { containerRef: scrollRef, showTop, showBottom, showLeft, showRight } = useScrollShadows('both');
+  const { containerRef: scrollRef, scrollElement, showTop, showBottom, showLeft, showRight } = useScrollShadows('both');
   const responsiveDialogProps = useResponsiveDialogProps();
   const lastPromptRef = useRef<string>('');
 
@@ -767,26 +767,26 @@ export const BaseAiChatDialog: React.FC<BaseAiChatDialogProps> = ({
 
   const prevMessagesLengthRef = useRef(messages.length);
   useEffect(() => {
-    if (scrollRef.current) {
+    if (scrollElement) {
       if (isLoading) {
-        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        scrollElement.scrollTop = scrollElement.scrollHeight;
       } else if (messages.length > prevMessagesLengthRef.current) {
         const lastMsg = messages[messages.length - 1];
         if (lastMsg.role === 'model') {
           const el = document.getElementById(`chat-msg-${messages.length - 1}`);
           if (el) {
-            const containerTop = scrollRef.current.getBoundingClientRect().top;
+            const containerTop = scrollElement.getBoundingClientRect().top;
             const elTop = el.getBoundingClientRect().top;
-            const currentScrollTop = scrollRef.current.scrollTop;
-            scrollRef.current.scrollTo({ top: currentScrollTop + (elTop - containerTop) - 16, behavior: 'smooth' });
+            const currentScrollTop = scrollElement.scrollTop;
+            scrollElement.scrollTo({ top: currentScrollTop + (elTop - containerTop) - 16, behavior: 'smooth' });
           }
         } else {
-          scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+          scrollElement.scrollTop = scrollElement.scrollHeight;
         }
       }
     }
     prevMessagesLengthRef.current = messages.length;
-  }, [messages, isLoading]);
+  }, [messages, isLoading, scrollElement]);
 
   const handleSend = async (customPrompt?: string | any, searchToggle?: boolean, isRegen?: boolean) => {
     if (!apiKey) return;

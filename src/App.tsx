@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Routes, Route, useNavigate, useLocation, Link as RouterLink, useSearchParams } from 'react-router-dom';
 import { Login } from './components/Login';
 import { TransactionForm } from './components/NewTransaction';
@@ -253,8 +253,7 @@ function AppContent() {
     globalAlertValue
   );
 
-  const tabsRef = useRef<HTMLDivElement>(null);
-  const { containerRef: scrollerRef, showLeft, showRight, checkScroll } = useScrollShadows('horizontal');
+  const { containerRef: scrollerRef, showLeft, showRight } = useScrollShadows('horizontal');
 
   useEffect(() => {
     if (typeof window === 'undefined' || !('Notification' in window)) return;
@@ -297,22 +296,6 @@ function AppContent() {
 
     return () => clearTimeout(timer);
   }, [watchlistAlertsEnabled, notableMovesAlertsEnabled, requestPermission, t, theme]);
-
-  useEffect(() => {
-    const scroller = tabsRef.current?.querySelector('.MuiTabs-scroller') as HTMLDivElement | null;
-    if (scroller) {
-      (scrollerRef as any).current = scroller;
-      checkScroll();
-      scroller.addEventListener('scroll', checkScroll);
-      window.addEventListener('resize', checkScroll);
-      const interval = setInterval(checkScroll, 1000);
-      return () => {
-        scroller.removeEventListener('scroll', checkScroll);
-        window.removeEventListener('resize', checkScroll);
-        clearInterval(interval);
-      };
-    }
-  }, [scrollerRef, checkScroll]);
 
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
@@ -884,7 +867,7 @@ function AppContent() {
 
               <Box sx={{ position: 'relative', display: 'flex', flexGrow: 1, minWidth: 0, alignItems: 'center', width: { xs: '100%', sm: 'auto' } }}>
                 <Tabs
-                  ref={tabsRef}
+                  ref={scrollerRef}
                   value={currentTab}
                   onChange={handleTabChange}
                   textColor="primary"

@@ -4,7 +4,7 @@ import type { Theme } from '@mui/material/styles';
 /**
  * Hook to track scroll position and determine if shadows should be shown.
  */
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Box } from '@mui/material';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { useTheme } from '@mui/material/styles';
@@ -37,23 +37,26 @@ export function useScrollShadows(orientation: 'vertical' | 'horizontal' | 'both'
   const [showBottom, setShowBottom] = useState(false);
   const [showLeft, setShowLeft] = useState(false);
   const [showRight, setShowRight] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [scrollElement, setScrollElement] = useState<HTMLElement | null>(null);
 
-  const getScrollElement = useCallback(() => {
-    let el = containerRef.current;
-    if (!el) return null;
-    if (el.classList.contains('MuiTabs-root')) {
-      return el.querySelector('.MuiTabs-scroller') as HTMLDivElement || el;
+  const containerRef = useCallback((node: HTMLElement | null) => {
+    if (node) {
+      if (node.classList.contains('MuiTabs-root')) {
+        const scroller = node.querySelector('.MuiTabs-scroller') as HTMLElement | null;
+        setScrollElement(scroller || node);
+      } else {
+        setScrollElement(node);
+      }
+    } else {
+      setScrollElement(null);
     }
-    return el;
   }, []);
 
   const checkScroll = useCallback(() => {
-    const el = getScrollElement();
-    if (!el) return;
+    if (!scrollElement) return;
 
     if (orientation === 'vertical' || orientation === 'both') {
-      const { scrollTop, scrollHeight, clientHeight } = el;
+      const { scrollTop, scrollHeight, clientHeight } = scrollElement;
       setShowTop(scrollTop > 0);
       const atBottom = Math.ceil(scrollTop + clientHeight) >= scrollHeight;
       const hasOverflow = scrollHeight > clientHeight;
@@ -61,8 +64,8 @@ export function useScrollShadows(orientation: 'vertical' | 'horizontal' | 'both'
     }
 
     if (orientation === 'horizontal' || orientation === 'both') {
-      const { scrollLeft, scrollWidth, clientWidth } = el;
-      const isRtl = window.getComputedStyle(el).direction === 'rtl';
+      const { scrollLeft, scrollWidth, clientWidth } = scrollElement;
+      const isRtl = window.getComputedStyle(scrollElement).direction === 'rtl';
 
       if (isRtl) {
         // In RTL:
@@ -85,24 +88,23 @@ export function useScrollShadows(orientation: 'vertical' | 'horizontal' | 'both'
         setShowRight(hasOverflow && !atRight);
       }
     }
-  }, [orientation]);
+  }, [orientation, scrollElement]);
 
   useEffect(() => {
-    const el = getScrollElement();
-    if (el) {
-      checkScroll();
-      el.addEventListener('scroll', checkScroll);
-      window.addEventListener('resize', checkScroll);
-      const interval = setInterval(checkScroll, 1000);
-      return () => {
-        el.removeEventListener('scroll', checkScroll);
-        window.removeEventListener('resize', checkScroll);
-        clearInterval(interval);
-      };
-    }
-  }, [checkScroll]);
+    if (!scrollElement) return;
 
-  return { containerRef, showTop, showBottom, showLeft, showRight, checkScroll };
+    checkScroll();
+    scrollElement.addEventListener('scroll', checkScroll);
+    window.addEventListener('resize', checkScroll);
+    const interval = setInterval(checkScroll, 1000);
+    return () => {
+      scrollElement.removeEventListener('scroll', checkScroll);
+      window.removeEventListener('resize', checkScroll);
+      clearInterval(interval);
+    };
+  }, [scrollElement, checkScroll]);
+
+  return { containerRef, scrollElement, showTop, showBottom, showLeft, showRight, checkScroll };
 }
 
 interface ScrollShadowsProps {
