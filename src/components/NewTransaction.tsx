@@ -135,6 +135,50 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   const [hasManuallyEditedPrice, setHasManuallyEditedPrice] = useState(!!paramPrice);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
+  // Sync state when URL params change externally (e.g. clicking AI link)
+  const prevParamsRef = useRef({ paramTicker, paramExchange, paramQty, paramPrice, paramTotal, paramType, paramDate, paramPortId, paramComment, paramCommission, paramCurrency });
+  useEffect(() => {
+    const prev = prevParamsRef.current;
+    
+    if (paramTicker !== prev.paramTicker) setTicker(paramTicker);
+    if (paramExchange !== prev.paramExchange) setExchange(paramExchange);
+    if (paramQty !== prev.paramQty && paramQty) setQty(paramQty);
+    if (paramPrice !== prev.paramPrice && paramPrice) setPrice(paramPrice);
+    if (paramTotal !== prev.paramTotal && paramTotal) setTotal(paramTotal);
+    if (paramType !== prev.paramType && paramType) {
+       const tVal = paramType.toUpperCase();
+       if (['BUY', 'SELL', 'DIVIDEND', 'FEE', 'HOLDING_CHANGE', 'GRANT'].includes(tVal)) {
+         setType(tVal as any);
+       }
+    }
+    if (paramDate !== prev.paramDate && paramDate) setDate(paramDate);
+    if (paramPortId !== prev.paramPortId && paramPortId) setPortId(paramPortId);
+    if (paramComment !== prev.paramComment && paramComment) setComment(paramComment);
+    if (paramCommission !== prev.paramCommission && paramCommission) setCommission(paramCommission);
+    if (paramCurrency !== prev.paramCurrency && paramCurrency) {
+       const curr = normalizeCurrency(paramCurrency);
+       setTickerCurrency(curr);
+       setDividendCurrency(curr);
+    }
+
+    // Handle accordion step advancement if this was a URL prefill but the ticker didn't change
+    // (If the ticker DID change, fetchData() handles the step advancement)
+    if (paramTicker === prev.paramTicker) {
+       const isUrlPrefill = paramQty !== prev.paramQty || paramPrice !== prev.paramPrice || paramType !== prev.paramType || paramPortId !== prev.paramPortId || paramDate !== prev.paramDate;
+       if (isUrlPrefill) {
+          let nextStep = 1;
+          if (paramType || type) {
+            nextStep = 3;
+          } else if (paramPortId || portId) {
+            nextStep = 2;
+          }
+          setActiveStep(nextStep);
+       }
+    }
+
+    prevParamsRef.current = { paramTicker, paramExchange, paramQty, paramPrice, paramTotal, paramType, paramDate, paramPortId, paramComment, paramCommission, paramCurrency };
+  }, [paramTicker, paramExchange, paramQty, paramPrice, paramTotal, paramType, paramDate, paramPortId, paramComment, paramCommission, paramCurrency, type, portId]);
+
   // Undo State
 
   useEffect(() => {
@@ -212,7 +256,15 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
           }
           setExchange(data.exchange || prefilledExchange || '');
           setTicker(prefilledTicker!)
-          setActiveStep(editTxn || editDiv ? 3 : 1);
+          let nextStep = 1;
+          if (editTxn || editDiv) {
+            nextStep = 3;
+          } else if (paramType) {
+            nextStep = 3;
+          } else if (paramPortId) {
+            nextStep = 2;
+          }
+          setActiveStep(nextStep);
 
           if (editTxn) {
             setHasManuallyEditedPrice(true);
@@ -311,7 +363,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
       };
       fetchData();
     }
-  }, [locationState]);
+  }, [locationState, paramTicker, paramExchange]);
 
   useEffect(() => {
     setIsPortfoliosLoading(true);
