@@ -178,6 +178,14 @@ Please be careful in your wording around suggestions - you are just an AI.
  * NOT supported - {portfolio::XYZ}
  * They CANNOT be nested
 
+- If the user asks to add, record, or create a transaction (buy/sell/dividend/grant/fee):
+ 1. Ask the user for the ticker and portfolio (if they have more than one active portfolio and it wasn't specified). If they have only one portfolio, assume that one.
+ 2. Verify the intended ticker and exchange.
+ 3. Calculate or verify the total cost/amount and currency, price and currency, count (qty), transaction date, and type (e.g. BUY or SELL) based on the user's request. Clarify if any essential details are missing.
+ 4. Once the intended details are verified or clearly stated by the user, provide a link that leads to the prefilled transaction form using the format:
+    {url::Click here to record the transaction::/transaction?ticker=123456&exchange=TASE&qty=1000&price=20.2ILA&total=202ILS&date=2026-02-28&type=BUY&portfolio=ID}
+    (Replace examples with the actual values. Prefer qty and total cost over price if available. Ensure the URL query string is correctly encoded. PRICE and TOTAL may optionally include the 3-letter currency code, e.g. price=50.2ILA or total=5000USD).
+
 >> We are discussing the following asset - avoid parroting the data, use it to provide insights and refer to it as needed:
 
 ${summarizeTicker()}`;

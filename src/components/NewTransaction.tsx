@@ -61,16 +61,40 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   const { t } = useLanguage();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const isPreselected = !!(searchParams.get('ticker') || locationState?.prefilledTicker);
+  const paramTicker = searchParams.get('ticker') || searchParams.get('symbol') || '';
+  const paramExchange = searchParams.get('exchange') || '';
+  const paramQty = searchParams.get('qty') || searchParams.get('quantity') || '';
+  
+  const rawParamPrice = searchParams.get('price') || '';
+  const paramPrice = rawParamPrice.replace(/[^0-9.-]/g, '');
+  
+  const rawParamTotal = searchParams.get('total') || searchParams.get('amount') || searchParams.get('cost') || '';
+  const paramTotal = rawParamTotal.replace(/[^0-9.-]/g, '');
+  
+  const extractedCurrencyStr = rawParamTotal.replace(/[0-9.-]/g, '').trim() || rawParamPrice.replace(/[0-9.-]/g, '').trim();
+  const paramCurrency = searchParams.get('currency') || extractedCurrencyStr;
+  const paramDate = searchParams.get('date') || '';
+  const paramType = searchParams.get('type') || '';
+  const paramPortId = searchParams.get('portfolioId') || searchParams.get('portfolio') || '';
+  const paramComment = searchParams.get('comment') || '';
+  const paramCommission = searchParams.get('commission') || '';
+
+  const isPreselected = !!(paramTicker || locationState?.prefilledTicker);
 
   // Form State
   const [selectedTicker, setSelectedTicker] = useState<(TickerData & { symbol: string }) | null>(null);
 
-  const [date, setDate] = useState(formatDate(new Date()));
-  const [portId, setPortId] = useState('');
-  const [ticker, setTicker] = useState(locationState?.prefilledTicker || '');
-  const [exchange, setExchange] = useState(locationState?.prefilledExchange || '');
-  const [type, setType] = useState<'BUY' | 'SELL' | 'DIVIDEND' | 'FEE' | 'DIVIDEND' | 'HOLDING_CHANGE' | 'GRANT'>('BUY');
+  const [date, setDate] = useState(() => paramDate || formatDate(new Date()));
+  const [portId, setPortId] = useState(paramPortId);
+  const [ticker, setTicker] = useState(locationState?.prefilledTicker || paramTicker);
+  const [exchange, setExchange] = useState(locationState?.prefilledExchange || paramExchange);
+  const [type, setType] = useState<'BUY' | 'SELL' | 'DIVIDEND' | 'FEE' | 'DIVIDEND' | 'HOLDING_CHANGE' | 'GRANT'>(() => {
+    const tVal = paramType.toUpperCase();
+    if (['BUY', 'SELL', 'DIVIDEND', 'FEE', 'HOLDING_CHANGE', 'GRANT'].includes(tVal)) {
+      return tVal as any;
+    }
+    return 'BUY';
+  });
   const [grantFrequency, setGrantFrequency] = useState<'MONTHLY' | 'QUARTERLY' | 'YEARLY'>('YEARLY');
   const [grantDuration, setGrantDuration] = useState<string>('');
   const [grantDurationUnit, setGrantDurationUnit] = useState<'YEARS' | 'QUARTER' | 'MONTHS'>('YEARS');
@@ -79,7 +103,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   const [vestingYear, setVestingYear] = useState<number>(new Date().getFullYear());
   const [previewTxns, setPreviewTxns] = useState<Transaction[] | null>(null);
 
-  const [qty, setQty] = useState<string>('');
+  const [qty, setQty] = useState<string>(paramQty);
 
   // Sell Existing Holding Flow State
   const [activeStep, setActiveStep] = useState(0);
@@ -92,22 +116,23 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   const [buyQty, setBuyQty] = useState<string>('');
 
   const [price, setPrice] = useState<string>(() => {
+    if (paramPrice) return paramPrice;
     const p = locationState?.initialPrice;
     if (!p) return '';
     const num = parseFloat(p);
     return isNaN(num) ? p : parseFloat(num.toFixed(6)).toString();
   });
-  const [total, setTotal] = useState<string>('');
+  const [total, setTotal] = useState<string>(paramTotal);
   const [percent, setPercent] = useState<string>(''); // New Percent State
   const [vestDate, setVestDate] = useState('');
-  const [comment, setComment] = useState('');
-  const [commission, setCommission] = useState<string>('');
-  const [tickerCurrency, setTickerCurrency] = useState<Currency>(normalizeCurrency(locationState?.initialCurrency || ''));
-  const [dividendCurrency, setDividendCurrency] = useState<string>('');
+  const [comment, setComment] = useState(paramComment);
+  const [commission, setCommission] = useState<string>(paramCommission);
+  const [tickerCurrency, setTickerCurrency] = useState<Currency>(normalizeCurrency(paramCurrency || locationState?.initialCurrency || ''));
+  const [dividendCurrency, setDividendCurrency] = useState<string>(normalizeCurrency(paramCurrency || ''));
   const [validationErrors, setValidationErrors] = useState<{ [key: string]: boolean }>({});
   const [commissionPct, setCommissionPct] = useState<string>('');
 
-  const [hasManuallyEditedPrice, setHasManuallyEditedPrice] = useState(false);
+  const [hasManuallyEditedPrice, setHasManuallyEditedPrice] = useState(!!paramPrice);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Undo State
@@ -154,8 +179,8 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     setSaveSuccess(false);
     const editTxn = locationState?.editTransaction;
     const editDiv = locationState?.editDividend;
-    const prefilledTicker = searchParams.get('ticker') || locationState?.prefilledTicker || editTxn?.ticker || editDiv?.ticker;
-    const prefilledExchange = searchParams.get('exchange') || locationState?.prefilledExchange || (editTxn?.exchange as string) || (editDiv?.exchange as string);
+    const prefilledTicker = paramTicker || locationState?.prefilledTicker || editTxn?.ticker || editDiv?.ticker;
+    const prefilledExchange = paramExchange || locationState?.prefilledExchange || (editTxn?.exchange as string) || (editDiv?.exchange as string);
 
     // Prevent double-fetching if the selected ticker is already loaded and matches what we want
     if (prefilledTicker && (!selectedTicker || selectedTicker.symbol !== prefilledTicker)) {
@@ -175,8 +200,15 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
             nameHe: data.nameHe || locationState?.initialNameHe
           };
           setSelectedTicker(combinedData);
-          if (searchParams.get('ticker') !== combinedData.symbol || searchParams.get('exchange') !== (combinedData.exchange || '')) {
-            setSearchParams({ ticker: combinedData.symbol, exchange: combinedData.exchange || '' }, { replace: true, state: locationState });
+          const currentTickerParam = searchParams.get('ticker') || searchParams.get('symbol');
+          if (currentTickerParam !== combinedData.symbol || searchParams.get('exchange') !== (combinedData.exchange || '')) {
+            const nextParams = new URLSearchParams(searchParams);
+            nextParams.set('ticker', combinedData.symbol);
+            if (combinedData.exchange) {
+              nextParams.set('exchange', combinedData.exchange);
+            }
+            nextParams.delete('symbol');
+            setSearchParams(nextParams, { replace: true, state: locationState });
           }
           setExchange(data.exchange || prefilledExchange || '');
           setTicker(prefilledTicker!)
@@ -210,10 +242,52 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
             setDividendCurrency(editDiv.currency || (tCurr === 'ILA' ? 'ILS' : tCurr));
           } else {
             // New Entry defaults
-            setPrice(data.price ? parseFloat(data.price.toFixed(6)).toString() : '');
-            const tCurr = normalizeCurrency(data.currency || '');
+            const finalPrice = paramPrice || (data.price ? parseFloat(data.price.toFixed(6)).toString() : '');
+            setPrice(finalPrice);
+            const tCurr = normalizeCurrency(paramCurrency || data.currency || '');
             setTickerCurrency(tCurr);
             setDividendCurrency(tCurr === 'ILA' ? 'ILS' : tCurr);
+
+            if (paramPrice) {
+              setHasManuallyEditedPrice(true);
+            }
+            if (paramQty) {
+              setQty(paramQty);
+              const q = parseFloat(paramQty);
+              const p = parseFloat(finalPrice);
+              if (Number.isFinite(q) && Number.isFinite(p) && !paramTotal) {
+                const majorCurr = tCurr === 'ILA' ? Currency.ILS : tCurr;
+                const rawTotal = q * p;
+                const displayTotal = convertCurrency(rawTotal, tCurr, majorCurr, exchangeRates);
+                const totalStr = parseFloat(displayTotal.toFixed(6)).toString();
+                setTotal(totalStr);
+                if (portfolios.length > 0) {
+                  updateCommission(totalStr, portId || portfolios[0].id, type);
+                }
+              } else if (paramTotal) {
+                setTotal(paramTotal);
+                if (portfolios.length > 0) {
+                  updateCommission(paramTotal, portId || portfolios[0].id, type);
+                }
+              }
+            } else if (paramTotal) {
+              setTotal(paramTotal);
+              const tVal = parseFloat(paramTotal);
+              const pVal = parseFloat(finalPrice);
+              if (Number.isFinite(tVal) && Number.isFinite(pVal) && pVal !== 0) {
+                const calcQty = tVal / pVal;
+                setQty(parseFloat(calcQty.toFixed(6)).toString());
+              }
+              if (portfolios.length > 0) {
+                updateCommission(paramTotal, portId || portfolios[0].id, type);
+              }
+            }
+            if (paramComment) {
+              setComment(paramComment);
+            }
+            if (paramCommission) {
+              setCommission(paramCommission);
+            }
           }
 
           // Sync dividends if from a fresh fetch (not from cache)
@@ -243,7 +317,15 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     setIsPortfoliosLoading(true);
     fetchPortfolios(sheetId).then(ports => {
       setPortfolios(ports);
-      if (ports.length > 0 && !portId) {
+      const paramPort = searchParams.get('portfolioId') || searchParams.get('portfolio');
+      if (paramPort) {
+        const matched = ports.find(p => p.id === paramPort || p.name.toLowerCase() === paramPort.toLowerCase());
+        if (matched) {
+          setPortId(matched.id);
+        } else if (ports.length > 0) {
+          setPortId(ports[0].id);
+        }
+      } else if (ports.length > 0 && !portId) {
         setPortId(ports[0].id);
       }
       setIsPortfoliosLoading(false);
@@ -1106,7 +1188,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
       {isPreselected && (
          <Box sx={{ bgcolor: 'background.paper', p: 1.5, borderRadius: 2, mb: 3, display: 'flex', alignItems: 'center', gap: 2, border: '1px solid', borderColor: 'divider' }}>
            <BusinessCenterIcon color="primary" />
-           <Typography variant="h6" color="text.primary" sx={{ lineHeight: 1.2 }}>{selectedTicker?.name || selectedTicker?.symbol || searchParams.get('ticker') || locationState?.prefilledTicker}</Typography>
+           <Typography variant="h6" color="text.primary" sx={{ lineHeight: 1.2 }}>{selectedTicker?.name || selectedTicker?.symbol || searchParams.get('ticker') || searchParams.get('symbol') || locationState?.prefilledTicker}</Typography>
          </Box>
       )}
 

@@ -1081,7 +1081,7 @@ export const BaseAiChatDialog: React.FC<BaseAiChatDialogProps> = ({
                     onPromptClick={setInput}
                     onTickerClick={onTickerClick || (() => { })}
                     onProfileClick={onProfileClick || (() => { })}
-                    onNavClick={onNavClick || (() => { })}
+                    onNavClick={onNavClick || ((path) => navigate(path))}
                   />
                 </Box>
               ))}
