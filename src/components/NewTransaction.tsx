@@ -71,7 +71,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   const rawParamTotal = searchParams.get('total') || searchParams.get('amount') || searchParams.get('cost') || '';
   const paramTotal = rawParamTotal.replace(/[^0-9.-]/g, '');
   
-  const extractedCurrencyStr = rawParamTotal.replace(/[0-9.-]/g, '').trim() || rawParamPrice.replace(/[0-9.-]/g, '').trim();
+  const extractedCurrencyStr = rawParamPrice.replace(/[0-9.-]/g, '').trim() || rawParamTotal.replace(/[0-9.-]/g, '').trim();
   const paramCurrency = searchParams.get('currency') || extractedCurrencyStr;
   const paramDate = searchParams.get('date') || '';
   const paramType = searchParams.get('type') || '';
@@ -156,7 +156,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     if (paramComment !== prev.paramComment && paramComment) setComment(paramComment);
     if (paramCommission !== prev.paramCommission && paramCommission) setCommission(paramCommission);
     if (paramCurrency !== prev.paramCurrency && paramCurrency) {
-       const curr = normalizeCurrency(paramCurrency);
+       const curr = normalizeCurrency(selectedTicker?.currency || paramCurrency);
        setTickerCurrency(curr);
        setDividendCurrency(curr);
     }
@@ -296,7 +296,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
             // New Entry defaults
             const finalPrice = paramPrice || (data.price ? parseFloat(data.price.toFixed(6)).toString() : '');
             setPrice(finalPrice);
-            const tCurr = normalizeCurrency(paramCurrency || data.currency || '');
+            const tCurr = normalizeCurrency(data.currency || paramCurrency || '');
             setTickerCurrency(tCurr);
             setDividendCurrency(tCurr === 'ILA' ? 'ILS' : tCurr);
 
