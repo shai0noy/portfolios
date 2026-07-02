@@ -1,5 +1,5 @@
 // src/lib/fetching/cbs.ts
-import { CACHE_TTL, fetchWithCache } from './utils/cache';
+import { SLOW_DATA_CACHE_TTL, SLOW_DATA_MIN_REFRESH_INTERVAL, fetchWithCache } from './utils/cache';
 import { WORKER_URL } from '../../config';
 import { Exchange } from '../types';
 import { InstrumentClassification, InstrumentType } from '../types/instrument';
@@ -175,7 +175,7 @@ export async function fetchCpi(
 
   return fetchWithCache(
     cacheKey,
-    CACHE_TTL,
+    SLOW_DATA_CACHE_TTL,
     forceRefresh,
     async () => {
       let allRawData: CbsDatePoint[] = [];
@@ -186,7 +186,7 @@ export async function fetchCpi(
         while (morePages) {
           const url = `${WORKER_URL}/?apiId=cbs_price_index&id=${id}&page=${currentPage}`;
 
-          const res = await fetch(url, { signal, cache: 'force-cache' });
+          const res = await fetch(url, { signal, cache: forceRefresh ? 'no-cache' : 'default' });
           if (!res.ok) {
             const err = new Error(`CBS API fetch failed with status ${res.status}`);
             (err as any).status = res.status;
@@ -229,6 +229,8 @@ export async function fetchCpi(
         console.error("Failed to fetch or parse CPI data", e);
         throw e; // throw so fetchWithCache handles transient/permanent correctly
       }
-    }
+    },
+    undefined,
+    SLOW_DATA_MIN_REFRESH_INTERVAL
   );
 }

@@ -1,5 +1,5 @@
 // src/lib/fetching/yahoo.ts
-import { fetchWithCache, CACHE_TTL } from './utils/cache';
+import { fetchWithCache, CACHE_TTL, FAST_DATA_MIN_REFRESH_INTERVAL } from './utils/cache';
 import type { TickerData, IncomeStatement, AdvancedStats } from './types';
 import { Exchange, parseExchange, EXCHANGE_SETTINGS } from '../types';
 import { InstrumentGroup } from '../types/instrument';
@@ -214,7 +214,7 @@ export async function fetchYahooTickerData(
         }
 
         try {
-          const fetchOpts: RequestInit = { signal, cache: forceRefresh ? 'no-cache' : 'force-cache' };
+          const fetchOpts: RequestInit = { signal, cache: forceRefresh ? 'no-cache' : 'default' };
           const [res, calRes] = await Promise.all([
             fetch(histUrl, fetchOpts),
             fetch(calUrl, fetchOpts).catch(() => null)
@@ -646,5 +646,7 @@ export async function fetchYahooTickerData(
         console.error('Error parsing Yahoo data', error);
         return null;
       }
-    }, (cachedData) => !(range === 'max' && cachedData.changePctMax === undefined));
+    }, (cachedData) => !(range === 'max' && cachedData.changePctMax === undefined),
+    FAST_DATA_MIN_REFRESH_INTERVAL
+  );
 }

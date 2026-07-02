@@ -1,5 +1,5 @@
 // src/lib/fetching/boi.ts
-import { CACHE_TTL, fetchWithCache } from './utils/cache';
+import { SLOW_DATA_CACHE_TTL, SLOW_DATA_MIN_REFRESH_INTERVAL, fetchWithCache } from './utils/cache';
 import { WORKER_URL } from '../../config';
 import { Exchange } from '../types';
 import { InstrumentClassification, InstrumentType } from '../types/instrument';
@@ -30,11 +30,11 @@ export async function fetchBoiData(
 
   return fetchWithCache(
     cacheKey,
-    CACHE_TTL,
+    SLOW_DATA_CACHE_TTL,
     forceRefresh,
     async () => {
       const url = `${WORKER_URL}/?apiId=boi_statistics&series=${series}`;
-      const res = await fetch(url, { signal });
+      const res = await fetch(url, { signal, cache: forceRefresh ? 'no-cache' : 'default' });
       if (!res.ok) throw new Error(`BOI API fetch failed with status ${res.status}`);
 
       const csvText = await res.text();
@@ -73,6 +73,8 @@ export async function fetchBoiData(
       };
 
       return calculateTickerDataFromIndexHistory(fundData, Exchange.BOI, 'BOI');
-    }
+    },
+    undefined,
+    SLOW_DATA_MIN_REFRESH_INTERVAL
   );
 }

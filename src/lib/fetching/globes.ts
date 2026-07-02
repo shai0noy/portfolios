@@ -1,6 +1,6 @@
 // src/lib/fetching/globes.ts
 import { WORKER_URL } from '../../config';
-import { CACHE_TTL, fetchWithCache } from './utils/cache';
+import { CACHE_TTL, FAST_DATA_MIN_REFRESH_INTERVAL, fetchWithCache } from './utils/cache';
 import { deduplicateRequest } from './utils/request_deduplicator';
 import { fetchXml, parseXmlString, extractDataFromXmlNS } from './utils/xml_parser';
 import type { TickerData } from './types';
@@ -146,7 +146,7 @@ export async function fetchGlobesTickersByType(type: string, exchange: Exchange,
 
     let globesApiUrl = `${WORKER_URL}/?apiId=globes_list&exchange=${exchangeCode}&type=${type}`;
     if (forceRefresh) globesApiUrl += '&refresh=true';
-    const xmlString = await fetchXml(globesApiUrl, signal, { cache: 'force-cache' });
+    const xmlString = await fetchXml(globesApiUrl, signal, { cache: forceRefresh ? 'no-cache' : 'default' });
     const xmlDoc = parseXmlString(xmlString);
 
     const data = extractDataFromXmlNS(xmlDoc, GLOBES_API_NAMESPACE, 'anyType', (element): TickerProfile | null => {
@@ -255,7 +255,7 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
     async () => {
       let text;
       try {
-        text = await fetchXml(globesApiUrl, signal, { cache: forceRefresh ? 'no-cache' : 'force-cache' });
+        text = await fetchXml(globesApiUrl, signal, { cache: forceRefresh ? 'no-cache' : 'default' });
       } catch (e: any) {
         if (e.status === 429 || e.status >= 500) {
           console.debug(`Globes: Transient error ${e.status} for ${identifier}, not caching.`);
@@ -360,5 +360,8 @@ export async function fetchGlobesStockQuote(symbol: string, securityId: number |
         // We throw error here so it won't be cached as a valid "null" result, since it's a parsing error
         throw error;
       }
-    });
+    },
+    undefined,
+    FAST_DATA_MIN_REFRESH_INTERVAL
+  );
 }

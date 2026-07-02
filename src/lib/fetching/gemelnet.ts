@@ -13,7 +13,8 @@ import {
   saveToCache, 
   loadFromCache,
   GEMEL_CACHE_TTL,
-  GEMEL_LIST_CACHE_TTL
+  GEMEL_LIST_CACHE_TTL,
+  SLOW_DATA_MIN_REFRESH_INTERVAL
 } from './utils/cache';
 import { deduplicateRequest } from './utils/request_deduplicator';
 import { WORKER_URL } from '../../config';
@@ -55,7 +56,7 @@ export async function fetchGemelnetFund(
       console.debug(`[Gemelnet] Fetching data for fund ${fundId}...`);
 
       try {
-        const xmlText = await fetchXml(url);
+        const xmlText = await fetchXml(url, undefined, { cache: forceRefresh ? 'no-cache' : 'default' });
         const xmlDoc = parseXmlString(xmlText);
 
         const rows = Array.from(xmlDoc.querySelectorAll('Row'));
@@ -97,7 +98,9 @@ export async function fetchGemelnetFund(
         console.error(`[Gemelnet] Failed to fetch or parse data for fund ${fundId}:`, error);
         throw error;
       }
-    }
+    },
+    undefined,
+    SLOW_DATA_MIN_REFRESH_INTERVAL
   );
 }
 

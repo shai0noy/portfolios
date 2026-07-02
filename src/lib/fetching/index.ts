@@ -198,12 +198,12 @@ export async function getTickerData(
 
     // CBS has its own dedicated fetcher
     if (parsedExchange === Exchange.CBS) {
-      return fetchCpi(tickerNum, signal).then((data: any) => data ? { ...data, historical: interpolateSparseHistory(data.historical) } : data).then(detectStaleDayChange);
+      return fetchCpi(tickerNum, signal, forceRefresh).then((data: any) => data ? { ...data, historical: interpolateSparseHistory(data.historical) } : data).then(detectStaleDayChange);
     }
 
   // BOI has its own dedicated fetcher
   if (parsedExchange === Exchange.BOI) {
-    return fetchBoiData(ticker, signal).then((data: any) => data ? { ...data, historical: interpolateSparseHistory(data.historical) } : data).then(detectStaleDayChange);
+    return fetchBoiData(ticker, signal, forceRefresh).then((data: any) => data ? { ...data, historical: interpolateSparseHistory(data.historical) } : data).then(detectStaleDayChange);
   }
 
   const profile = await profileLookupPromise;
@@ -404,12 +404,12 @@ export async function fetchTickerHistory(
     }
 
     if (exchange === Exchange.CBS) {
-      const data = await fetchCpi(tickerNum, signal);
+      const data = await fetchCpi(tickerNum, signal, forceRefresh);
       return { historical: interpolateSparseHistory(data?.historical), fromCache: data?.fromCache, fromCacheMax: data?.fromCacheMax };
     }
 
     if (exchange === Exchange.BOI) {
-      const data = await fetchBoiData(ticker, signal);
+      const data = await fetchBoiData(ticker, signal, forceRefresh);
       return { historical: interpolateSparseHistory(data?.historical), fromCache: data?.fromCache, fromCacheMax: data?.fromCacheMax };
     }
 

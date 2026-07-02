@@ -8,6 +8,9 @@ export const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 export const TASE_CACHE_TTL = 5 * 24 * 60 * 60 * 1000; // 5 days
 export const GEMEL_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 export const GEMEL_LIST_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
+export const SLOW_DATA_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+export const SLOW_DATA_MIN_REFRESH_INTERVAL = 12 * 60 * 60 * 1000; // 12 hours
+export const FAST_DATA_MIN_REFRESH_INTERVAL = 30 * 1000; // 30 seconds
 
 interface CachedData<T> {
   data: T;
@@ -116,22 +119,49 @@ export async function fetchWithCache<T>(
   ttl: number,
   forceRefresh: boolean,
   fetcher: () => Promise<T | null>,
-  cacheHitValidator?: (cachedData: T) => boolean
+  cacheHitValidator?: (cachedData: T) => boolean,
+  minRefreshInterval?: number
 ): Promise<T | null> {
   const now = Date.now();
+  let cached: CachedData<T | null> | null = null;
+  let loadedFromCache = false;
 
-  if (!forceRefresh) {
-    const cached = await loadFromCache<T | null>(cacheKey);
+  const getCached = async () => {
+    if (loadedFromCache) return cached;
+    cached = await loadFromCache<T | null>(cacheKey);
+    loadedFromCache = true;
+    return cached;
+  };
+
+  let shouldSkipCache = forceRefresh;
+
+  if (forceRefresh && minRefreshInterval !== undefined) {
+    try {
+      const c = await getCached();
+      if (c && c.data !== null) {
+        const age = now - new Date(c.timestamp).getTime();
+        if (age < minRefreshInterval) {
+          console.debug(`[Cache] Ignoring forceRefresh for ${cacheKey} as cache age (${Math.round(age/1000)}s) is less than minRefreshInterval (${Math.round(minRefreshInterval/1000)}s).`);
+          shouldSkipCache = false;
+        }
+      }
+    } catch (e) {
+      console.error(`[Cache] Error checking minRefreshInterval for ${cacheKey}`, e);
+    }
+  }
+
+  if (!shouldSkipCache) {
+    const c = await getCached();
     const jitter = Math.min(ttl * 0.1, 30 * 60 * 1000) * Math.random();
-    if (cached?.timestamp && (now - new Date(cached.timestamp).getTime() < ttl + jitter)) {
-      if (cached.data === null) {
+    if (c?.timestamp && (now - new Date(c.timestamp).getTime() < ttl + jitter)) {
+      if (c.data === null) {
         return null;
       }
-      if (!cacheHitValidator || cacheHitValidator(cached.data)) {
-        if (typeof cached.data === 'object' && !Array.isArray(cached.data)) {
-          return { ...cached.data, fromCache: true } as unknown as T;
+      if (!cacheHitValidator || cacheHitValidator(c.data)) {
+        if (typeof c.data === 'object' && !Array.isArray(c.data)) {
+          return { ...c.data, fromCache: true } as unknown as T;
         }
-        return cached.data;
+        return c.data;
       }
     }
   }
