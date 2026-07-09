@@ -12,17 +12,31 @@ import { getCacheItem, setCacheItem, removeCacheItem, CACHE_KEY } from './idb-he
 
 async function fetchLivePrices(tickers: { ticker: string, exchange: Exchange }[], forceRefresh: boolean = false): Promise<Map<string, TickerData>> {
     const results = new Map<string, TickerData>();
-    await Promise.all(tickers.map(async ({ ticker, exchange }) => {
-        try {
-            // Note: getTickerData expects exchange as string (e.g. 'TASE').
-            const data = await getTickerData(ticker, exchange, null, undefined, forceRefresh);
-            if (data) {
-                results.set(`${exchange}:${ticker}`, data);
+    
+    // Chunk requests to avoid rate limits (429) from upstream APIs when bypassing cache
+    const chunkSize = forceRefresh ? 3 : 10;
+    const chunks = [];
+    for (let i = 0; i < tickers.length; i += chunkSize) {
+        chunks.push(tickers.slice(i, i + chunkSize));
+    }
+
+    for (const chunk of chunks) {
+        await Promise.all(chunk.map(async ({ ticker, exchange }) => {
+            try {
+                // Note: getTickerData expects exchange as string (e.g. 'TASE').
+                const data = await getTickerData(ticker, exchange, null, undefined, forceRefresh);
+                if (data) {
+                    results.set(`${exchange}:${ticker}`, data);
+                }
+            } catch (e) {
+                console.warn(`Failed to fetch price for ${ticker}:${exchange}`, e);
             }
-        } catch (e) {
-            console.warn(`Failed to fetch price for ${ticker}:${exchange}`, e);
+        }));
+        // Add a small delay between chunks if forcing refresh
+        if (forceRefresh && chunks.length > 1) {
+            await new Promise(resolve => setTimeout(resolve, 500));
         }
-    }));
+    }
     return results;
 }
 
