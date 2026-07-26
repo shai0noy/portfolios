@@ -18,6 +18,7 @@ import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import type { Portfolio, Transaction } from '../lib/types';
 import { parseExchange, Exchange, EXCHANGE_SETTINGS } from '../lib/types';
 import { batchAddTransactions, addTransaction, fetchPortfolios } from '../lib/sheets/index';
+import { getTickerData } from '../lib/fetching';
 import { formatDate, coerceDate } from '../lib/date';
 import { DateField } from './PortfolioInputFields';
 import { ImportHelp } from './ImportHelp';
@@ -451,15 +452,36 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
       const wait = (ms: number) => new Promise(res => setTimeout(res, ms));
       const failedTickers: string[] = [];
 
+      let enrichedTxns = [...parsedTxns];
+      try {
+        enrichedTxns = await Promise.all(parsedTxns.map(async (t) => {
+          if (t.origOpenPriceAtCreationDate !== undefined && t.origOpenPriceAtCreationDate !== null) {
+            return t;
+          }
+          try {
+            const data = await getTickerData(t.ticker, t.exchange || '', t.numericId || null, undefined, false, undefined, true);
+            const openPrice = data?.openPrice;
+            if (openPrice) {
+              return { ...t, origOpenPriceAtCreationDate: openPrice };
+            }
+          } catch (e) {
+            console.warn(`Failed to fetch live open price for ${t.ticker}`, e);
+          }
+          return t;
+        }));
+      } catch (err) {
+        console.warn("Failed to enrich transactions with original open prices:", err);
+      }
+
       // Add all transactions in one bulk batch request
-      if (parsedTxns.length > 0) {
+      if (enrichedTxns.length > 0) {
         let attempts = 0;
         const maxAttempts = 3;
         let batchSuccess = false;
 
         while (attempts < maxAttempts) {
           try {
-            await batchAddTransactions(sheetId, parsedTxns);
+            await batchAddTransactions(sheetId, enrichedTxns);
             batchSuccess = true;
             break;
           } catch (e: any) {
@@ -480,7 +502,7 @@ export function ImportCSV({ sheetId, open, onClose, onSuccess }: Props) {
         if (!batchSuccess) {
           console.warn("Batch insert failed. Falling back to individual insertion for error isolation...");
 
-          for (const t of parsedTxns) {
+          for (const t of enrichedTxns) {
             try {
               // Retry individual with quota backoff
               let singleAttempts = 0;
