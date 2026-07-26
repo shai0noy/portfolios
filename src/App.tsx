@@ -396,14 +396,12 @@ function AppContent() {
 
   const handleSetupSheet = () => {
     if (!sheetId) return;
-    if (!schemaVersionMismatch && !confirm(t("This will reset sheet headers and rebuild all live data formulas. This can fix issues but is a heavy operation. Are you sure?", "פעולה זו תאפס את כותרות הגיליון ותבנה מחדש את כל הנוסחאות. זוהי פעולה כבדה. האם אתה בטוח?"))) return;
     setRebuildMode('SKIP');
     setRebuildDialogOpen(true);
   };
 
   const performSetupSheet = async () => {
     if (!sheetId) return;
-    setRebuildDialogOpen(false);
     setRebuilding(true);
     try {
       await ensureSchema(sheetId);
@@ -415,11 +413,13 @@ function AppContent() {
       setSnackbarMessage(t("Sheet setup complete. Headers and live data have been rebuilt.", "הגדרת הגיליון הושלמה. הכותרות והנתונים החיים נבנו מחדש."));
       setSnackbarSeverity('success');
       setSnackbarOpen(true);
+      setRebuildDialogOpen(false); // Close only on success
     } catch (e) {
       console.error(e);
       setSnackbarMessage(t("Error during sheet setup: ", "שגיאה בהגדרת הגיליון: ") + (e instanceof Error ? e.message : String(e)));
       setSnackbarSeverity('error');
       setSnackbarOpen(true);
+      setRebuildDialogOpen(false); // Close on error too
     } finally {
       setRebuilding(false);
     }
@@ -1050,29 +1050,71 @@ function AppContent() {
           <Dialog open={rebuildDialogOpen} onClose={() => setRebuildDialogOpen(false)}>
             <DialogTitle>{t('Rebuild Sheet & Open Prices', 'בנה מחדש גיליון ושערי פתיחה')}</DialogTitle>
             <DialogContent>
-              <DialogContentText sx={{ mb: 2 }}>
+              <Alert severity="warning" sx={{ mb: 3 }}>
+                <Typography variant="body2">
+                  {t("This will reset sheet headers and rebuild all live data formulas. This can fix issues but is a heavy operation.", "פעולה זו תאפס את כותרות הגיליון ותבנה מחדש את כל הנוסחאות. פעולה זו עשויה לפתור בעיות אך היא פעולה כבדה.")}
+                </Typography>
+              </Alert>
+              <DialogContentText sx={{ mb: 2, fontWeight: 'medium', color: 'text.primary' }}>
                 {t('Please select how you want to handle original open prices during the rebuild:', 'אנא בחר כיצד ברצונך לטפל בשערי פתיחה מקוריים במהלך הבנייה מחדש:')}
               </DialogContentText>
-              <FormControl component="fieldset">
+              <FormControl component="fieldset" disabled={rebuilding} sx={{ width: '100%' }}>
                 <RadioGroup
                   value={rebuildMode}
                   onChange={(e) => setRebuildMode(e.target.value as any)}
+                  sx={{ gap: 1.5 }}
                 >
-                  <FormControlLabel 
-                    value="ALL_CURRENT" 
-                    control={<Radio />} 
-                    label={t('A) Rebuild all open prices (populates the current live open price for ALL transactions, resetting anchor)', 'א) עדכן את כל שערי הפתיחה (מאכלס את שער הפתיחה הנוכחי עבור כל העסקאות)')} 
-                  />
-                  <FormControlLabel 
-                    value="BACKFILL_CREATION" 
-                    control={<Radio />} 
-                    label={t('B) Backfill missing open prices (fetches historical open price on the exact date the transaction was logged)', 'ב) השלם שערי פתיחה חסרים (מושך את שער הפתיחה ההיסטורי ביום שבו הוזנה העסקה)')} 
-                  />
-                  <FormControlLabel 
-                    value="SKIP" 
-                    control={<Radio />} 
-                    label={t('C) Do not change open prices', 'ג) אל תשנה שערי פתיחה')} 
-                  />
+                  <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 2, p: 1, display: 'flex', alignItems: 'center' }}>
+                    <FormControlLabel 
+                      value="ALL_CURRENT" 
+                      control={<Radio />} 
+                      sx={{ width: '100%', m: 0, '& .MuiFormControlLabel-label': { width: '100%' } }}
+                      label={
+                        <Box sx={{ ml: 1 }}>
+                          <Typography variant="subtitle2" fontWeight="bold">
+                            {t('Rebuild all open prices', 'עדכן את כל שערי הפתיחה')}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {t('Populates the current live open price for ALL transactions, resetting their baseline anchor to today.', 'מאכלס את שער הפתיחה הנוכחי עבור כל העסקאות, ומאפס את עוגן הבסיס שלהן להיום.')}
+                          </Typography>
+                        </Box>
+                      } 
+                    />
+                  </Box>
+                  <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 2, p: 1, display: 'flex', alignItems: 'center' }}>
+                    <FormControlLabel 
+                      value="BACKFILL_CREATION" 
+                      control={<Radio />} 
+                      sx={{ width: '100%', m: 0, '& .MuiFormControlLabel-label': { width: '100%' } }}
+                      label={
+                        <Box sx={{ ml: 1 }}>
+                          <Typography variant="subtitle2" fontWeight="bold">
+                            {t('Backfill missing open prices', 'השלם שערי פתיחה חסרים')}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {t('Scans for empty open prices and fetches the historical price on the exact date the transaction was logged.', 'סורק אחר שערי פתיחה ריקים ומושך את השער ההיסטורי ביום המדויק שבו הוזנה העסקה.')}
+                          </Typography>
+                        </Box>
+                      } 
+                    />
+                  </Box>
+                  <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 2, p: 1, display: 'flex', alignItems: 'center' }}>
+                    <FormControlLabel 
+                      value="SKIP" 
+                      control={<Radio />} 
+                      sx={{ width: '100%', m: 0, '& .MuiFormControlLabel-label': { width: '100%' } }}
+                      label={
+                        <Box sx={{ ml: 1 }}>
+                          <Typography variant="subtitle2" fontWeight="bold">
+                            {t('Do not change open prices', 'אל תשנה שערי פתיחה')}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {t('Leaves all open prices exactly as they are.', 'משאיר את כל שערי הפתיחה כפי שהם.')}
+                          </Typography>
+                        </Box>
+                      } 
+                    />
+                  </Box>
                 </RadioGroup>
               </FormControl>
             </DialogContent>
