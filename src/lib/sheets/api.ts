@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { ensureGapi, findSpreadsheetByName } from '../google';
 import { clearFinanceCache } from '../data/loader';
-import { getTickerData, type TickerData } from '../fetching';
+import { getTickerData, getHistoricalOpenPriceOnDate, type TickerData } from '../fetching';
 import { toGoogleSheetDateFormat, coerceDate, formatYYYYMMDD } from '../date';
 import {
     Exchange,
@@ -1755,6 +1755,87 @@ export const upsertChatSession = withAuthHandling(async (sheetId: string, sessio
             insertDataOption: 'INSERT_ROWS',
             resource: { values: [rowData] }
         });
+    }
+});
+
+export const rebuildTransactionsOpenPrices = withAuthHandling(async (spreadsheetId: string, mode: 'ALL_CURRENT' | 'BACKFILL_CREATION' | 'SKIP') => {
+    if (mode === 'SKIP') return;
+    
+    const gapi = await ensureGapi();
+    const txns = await fetchTransactions(spreadsheetId);
+    
+    if (txns.length === 0) return;
+    
+    const txSheetId = await getSheetId(spreadsheetId, TX_SHEET_NAME);
+    
+    const sortedColDefs = Object.values(TXN_COLS).sort((a, b) => {
+        const lenDiff = a.colId.length - b.colId.length;
+        return lenDiff !== 0 ? lenDiff : a.colId.localeCompare(b.colId);
+    });
+    const origOpenPriceColIndex = sortedColDefs.findIndex(c => c.key === 'origOpenPriceAtCreationDate');
+    const creationDateColIndex = sortedColDefs.findIndex(c => c.key === 'creationDate');
+    
+    const requests: any[] = [];
+    
+    for (const txn of txns) {
+        if (!txn.rowIndex) continue;
+        
+        let newOrigOpenPrice: number | undefined = undefined;
+        let newCreationDateStr = txn.creationDate;
+        
+        if (mode === 'ALL_CURRENT') {
+            try {
+                const data = await getTickerData(txn.ticker, txn.exchange || '', txn.numericId || null, undefined, false, undefined, true);
+                if (data?.openPrice && data.openPrice > 0) {
+                    newOrigOpenPrice = data.openPrice;
+                    newCreationDateStr = new Date().toISOString();
+                }
+            } catch (e) {
+                console.warn(`Failed to fetch current open price for ${txn.ticker}`, e);
+            }
+        } else if (mode === 'BACKFILL_CREATION') {
+            if (txn.origOpenPriceAtCreationDate !== undefined && txn.origOpenPriceAtCreationDate !== null && txn.origOpenPriceAtCreationDate > 0) {
+                continue; 
+            }
+            try {
+                const searchDate = txn.creationDate || new Date().toISOString();
+                newOrigOpenPrice = await getHistoricalOpenPriceOnDate(txn.ticker, txn.exchange || '', txn.numericId || null, searchDate);
+            } catch (e) {
+                console.warn(`Failed to fetch historical open price for ${txn.ticker} on ${txn.creationDate}`, e);
+            }
+        }
+        
+        if (newOrigOpenPrice !== undefined && newOrigOpenPrice !== null) {
+            requests.push({
+                updateCells: {
+                    range: { sheetId: txSheetId, startRowIndex: txn.rowIndex - 1, endRowIndex: txn.rowIndex, startColumnIndex: origOpenPriceColIndex, endColumnIndex: origOpenPriceColIndex + 1 },
+                    rows: [{ values: [{ userEnteredValue: { numberValue: newOrigOpenPrice } }] }],
+                    fields: 'userEnteredValue.numberValue'
+                }
+            });
+            
+            if (newCreationDateStr && newCreationDateStr !== txn.creationDate) {
+                 const formattedDate = toGoogleSheetDateFormat(coerceDate(newCreationDateStr)!);
+                 requests.push({
+                    updateCells: {
+                        range: { sheetId: txSheetId, startRowIndex: txn.rowIndex - 1, endRowIndex: txn.rowIndex, startColumnIndex: creationDateColIndex, endColumnIndex: creationDateColIndex + 1 },
+                        rows: [{ values: [{ userEnteredValue: { stringValue: formattedDate } }] }],
+                        fields: 'userEnteredValue.stringValue'
+                    }
+                });
+            }
+        }
+    }
+    
+    if (requests.length > 0) {
+        const chunkSize = 500;
+        for (let i = 0; i < requests.length; i += chunkSize) {
+            const chunk = requests.slice(i, i + chunkSize);
+            await gapi.client.sheets.spreadsheets.batchUpdate({
+                spreadsheetId,
+                resource: { requests: chunk }
+            });
+        }
     }
 });
 

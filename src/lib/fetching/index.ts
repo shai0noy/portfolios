@@ -444,6 +444,68 @@ export async function fetchTickerHistory(
     };
   });
 }
+export async function getHistoricalOpenPriceOnDate(
+  ticker: string,
+  exchange: string,
+  numericSecurityId: number | null,
+  dateStr: string
+): Promise<number | undefined> {
+  let parsedExchange: Exchange;
+  try {
+    parsedExchange = parseExchange(exchange);
+  } catch {
+    return undefined;
+  }
 
+  if (
+    parsedExchange === Exchange.CASH ||
+    parsedExchange === Exchange.GEMEL ||
+    parsedExchange === Exchange.PENSION ||
+    parsedExchange === Exchange.CBS ||
+    parsedExchange === Exchange.BOI
+  ) {
+    return undefined;
+  }
 
+  // Fetch historical data up to 'max' range so we have all historical splits & quotes
+  const data = await getTickerData(ticker, exchange, numericSecurityId, undefined, false, undefined, false);
+  if (!data || !data.historical || data.historical.length === 0) {
+    return undefined;
+  }
+
+  const txnDate = new Date(dateStr);
+  txnDate.setUTCHours(0, 0, 0, 0);
+
+  let closestPoint = data.historical[0];
+  let minDiff = Math.abs(data.historical[0].date.getTime() - txnDate.getTime());
+
+  for (const pt of data.historical) {
+    const diff = Math.abs(pt.date.getTime() - txnDate.getTime());
+    if (diff < minDiff) {
+      minDiff = diff;
+      closestPoint = pt;
+    }
+  }
+
+  if (minDiff > 7 * 24 * 60 * 60 * 1000) {
+    return undefined; // If no data point within 7 days, fail
+  }
+
+  const splitAdjOpen = closestPoint.open ?? closestPoint.price;
+  if (splitAdjOpen == null || splitAdjOpen <= 0) {
+    return undefined;
+  }
+
+  let cumulativeRatio = 1;
+  if (data.splits && data.splits.length > 0) {
+    for (const split of data.splits) {
+      const splitDate = new Date(split.date);
+      if (splitDate > txnDate) {
+        cumulativeRatio *= (split.numerator / (split.denominator || 1));
+      }
+    }
+  }
+
+  return splitAdjOpen * cumulativeRatio;
+}
 

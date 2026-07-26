@@ -10,14 +10,14 @@ import { useDashboardData } from './lib/dashboard';
 import { evaluateAlert } from './lib/alerts';
 import { ImportCSV } from './components/ImportCSV';
 import { TickerDetails } from './components/TickerDetails';
-import { ensureSchema, populateTestData, fetchTransactions, rebuildHoldingsSheet, getMetadataValue } from './lib/sheets/index';
+import { ensureSchema, populateTestData, fetchTransactions, rebuildHoldingsSheet, getMetadataValue, rebuildTransactionsOpenPrices } from './lib/sheets/index';
 import { initializeGapi, signOut, signIn, ensureGapi } from './lib/google';
 import {
   Box, AppBar, Toolbar, Typography, Container, Tabs, Tab, IconButton, CircularProgress,
   ThemeProvider, CssBaseline, Snackbar, Alert, ListItemIcon, ListItemText,
   Button, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions,
   Drawer, List, ListItem, ListItemButton, ListSubheader, Collapse, Divider, useMediaQuery,
-  Badge, Switch, FormControlLabel, Stack, TextField
+  Badge, Switch, FormControlLabel, Stack, TextField, FormControl, RadioGroup, Radio
 } from '@mui/material';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
@@ -112,6 +112,9 @@ function AppContent() {
   const [schemaVersionMismatch, setSchemaVersionMismatch] = useState<'old' | 'new' | null>(null);
   const [colorblindMode, setColorblindMode] = useState<boolean>(() => localStorage.getItem('colorblindMode') === 'true');
   const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
+  
+  const [rebuildDialogOpen, setRebuildDialogOpen] = useState(false);
+  const [rebuildMode, setRebuildMode] = useState<'ALL_CURRENT' | 'BACKFILL_CREATION' | 'SKIP'>('SKIP');
 
   // App Settings States
   const [lockEnabled, setLockEnabled] = useState<boolean>(() => localStorage.getItem('lockScreenEnabled') === 'true');
@@ -391,14 +394,21 @@ function AppContent() {
     setSheetId(null);
   };
 
-  const handleSetupSheet = async () => {
+  const handleSetupSheet = () => {
     if (!sheetId) return;
     if (!schemaVersionMismatch && !confirm(t("This will reset sheet headers and rebuild all live data formulas. This can fix issues but is a heavy operation. Are you sure?", "פעולה זו תאפס את כותרות הגיליון ותבנה מחדש את כל הנוסחאות. זוהי פעולה כבדה. האם אתה בטוח?"))) return;
+    setRebuildMode('SKIP');
+    setRebuildDialogOpen(true);
+  };
 
+  const performSetupSheet = async () => {
+    if (!sheetId) return;
+    setRebuildDialogOpen(false);
     setRebuilding(true);
     try {
       await ensureSchema(sheetId);
       await fetchTransactions(sheetId);
+      await rebuildTransactionsOpenPrices(sheetId, rebuildMode);
       await rebuildHoldingsSheet(sheetId);
       setRefreshKey(k => k + 1);
       setSchemaVersionMismatch(null);
@@ -1034,6 +1044,45 @@ function AppContent() {
                   {rebuilding ? t("Updating...", "מעדכן...") : t("Setup Sheet (Upgrade)", "הגדרת גיליון (שדרוג)")}
                 </Button>
               )}
+            </DialogActions>
+          </Dialog>
+
+          <Dialog open={rebuildDialogOpen} onClose={() => setRebuildDialogOpen(false)}>
+            <DialogTitle>{t('Rebuild Sheet & Open Prices', 'בנה מחדש גיליון ושערי פתיחה')}</DialogTitle>
+            <DialogContent>
+              <DialogContentText sx={{ mb: 2 }}>
+                {t('Please select how you want to handle original open prices during the rebuild:', 'אנא בחר כיצד ברצונך לטפל בשערי פתיחה מקוריים במהלך הבנייה מחדש:')}
+              </DialogContentText>
+              <FormControl component="fieldset">
+                <RadioGroup
+                  value={rebuildMode}
+                  onChange={(e) => setRebuildMode(e.target.value as any)}
+                >
+                  <FormControlLabel 
+                    value="ALL_CURRENT" 
+                    control={<Radio />} 
+                    label={t('A) Rebuild all open prices (populates the current live open price for ALL transactions, resetting anchor)', 'א) עדכן את כל שערי הפתיחה (מאכלס את שער הפתיחה הנוכחי עבור כל העסקאות)')} 
+                  />
+                  <FormControlLabel 
+                    value="BACKFILL_CREATION" 
+                    control={<Radio />} 
+                    label={t('B) Backfill missing open prices (fetches historical open price on the exact date the transaction was logged)', 'ב) השלם שערי פתיחה חסרים (מושך את שער הפתיחה ההיסטורי ביום שבו הוזנה העסקה)')} 
+                  />
+                  <FormControlLabel 
+                    value="SKIP" 
+                    control={<Radio />} 
+                    label={t('C) Do not change open prices', 'ג) אל תשנה שערי פתיחה')} 
+                  />
+                </RadioGroup>
+              </FormControl>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setRebuildDialogOpen(false)} color="inherit" disabled={rebuilding}>
+                {t('Cancel', 'ביטול')}
+              </Button>
+              <Button onClick={performSetupSheet} variant="contained" color="primary" disabled={rebuilding}>
+                {rebuilding ? <CircularProgress size={24} /> : t('Rebuild Sheet', 'בנה מחדש')}
+              </Button>
             </DialogActions>
           </Dialog>
 
