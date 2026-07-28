@@ -1170,6 +1170,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
         // Clear form for next entry of the SAME ticker
         setQty('');
         setTotal('');
+        setPrice('');
         setPercent('');
         setCommission('');
         setCommissionPct('');
