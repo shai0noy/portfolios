@@ -1113,7 +1113,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
 
           if (onSaveSuccess) onSaveSuccess(t('Holding Change completed', 'החלפת החזקה בוצעה'), undefined);
         }
-
+      } else {
         // Standard Transaction (BUY, SELL, FEE, DIVIDEND)
         let creationOpenPrice: number | undefined = selectedTicker?.openPrice;
         if (!creationOpenPrice || creationOpenPrice <= 0) {
