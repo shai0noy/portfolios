@@ -555,6 +555,8 @@ export const batchAddTransactions = withAuthHandling(async (spreadsheetId: strin
         allValuesToAppend.push(rowValues);
     });
 
+    console.log("Sending transactions to Google Sheets:", allValuesToAppend);
+
     if (allValuesToAppend.length === 0) return;
 
     const appendResult = await gapi.client.sheets.spreadsheets.values.append({

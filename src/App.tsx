@@ -946,6 +946,7 @@ function AppContent() {
                     refreshTrigger={refreshKey}
                     onSaveSuccess={(msg, undoCb) => {
                       setRefreshKey(k => k + 1);
+                      window.dispatchEvent(new CustomEvent('market-data-refreshed'));
                       setSnackbarMessage(msg || t('Transaction saved!', 'העסקה נשמרה!'));
                       setSnackbarSeverity('success');
                       setSnackbarAction(undoCb ? (
