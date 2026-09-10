@@ -559,15 +559,12 @@ export const batchAddTransactions = withAuthHandling(async (spreadsheetId: strin
 
     if (allValuesToAppend.length === 0) return;
 
-    window.alert("DEBUG: About to send to Google Sheets. Data length: " + allValuesToAppend.length + "\nData: " + JSON.stringify(allValuesToAppend));
-
     const appendResult = await gapi.client.sheets.spreadsheets.values.append({
         spreadsheetId, range: `${TX_SHEET_NAME}!A:A`, valueInputOption: 'USER_ENTERED',
         insertDataOption: 'INSERT_ROWS', resource: { values: allValuesToAppend }
     });
 
     const updatedRange = appendResult.result?.updates?.updatedRange;
-    window.alert("DEBUG: Received success from Google Sheets! Updated range: " + updatedRange);
     
     if (!updatedRange) throw new Error("Could not determine range of appended rows.");
 

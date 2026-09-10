@@ -140,8 +140,8 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
   useEffect(() => {
     const prev = prevParamsRef.current;
     
-    if (paramTicker !== prev.paramTicker) setTicker(paramTicker);
-    if (paramExchange !== prev.paramExchange) setExchange(paramExchange);
+    if (paramTicker !== prev.paramTicker && paramTicker) setTicker(paramTicker);
+    if (paramExchange !== prev.paramExchange && paramExchange) setExchange(paramExchange);
     if (paramQty !== prev.paramQty && paramQty) setQty(paramQty);
     if (paramPrice !== prev.paramPrice && paramPrice) setPrice(paramPrice);
     if (paramTotal !== prev.paramTotal && paramTotal) setTotal(paramTotal);
@@ -551,14 +551,15 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
       setPercent('');
     }
 
-    if (Number.isFinite(q) && Number.isFinite(p)) {
+    if (finalStr !== '' && Number.isFinite(q) && q > 0 && Number.isFinite(p) && p > 0) {
       const rawTotal = q * p;
       const displayTotal = convertCurrency(rawTotal, tickerCurrency, majorCurrency, exchangeRates);
       const totalStr = parseFloat(displayTotal.toFixed(6)).toString();
       setTotal(totalStr);
       updateCommission(totalStr, portId, type);
     } else {
-      if (valStr === '' || price === '') {
+      if (finalStr === '' || !Number.isFinite(q) || q <= 0) {
+        setTotal('');
         updateCommission('0', portId, type);
       }
     }
@@ -570,14 +571,15 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
     setPrice(finalStr);
     const q = parseFloat(qty);
     const p = val;
-    if (Number.isFinite(q) && Number.isFinite(p)) {
+    if (finalStr !== '' && Number.isFinite(q) && q > 0 && Number.isFinite(p) && p > 0) {
       const rawTotal = q * p;
       const displayTotal = convertCurrency(rawTotal, tickerCurrency, majorCurrency, exchangeRates);
       const totalStr = parseFloat(displayTotal.toFixed(6)).toString();
       setTotal(totalStr);
       updateCommission(totalStr, portId, type);
     } else {
-      if (valStr === '' || qty === '') {
+      if (finalStr === '' || !Number.isFinite(p) || p <= 0) {
+        setTotal('');
         updateCommission('0', portId, type);
       }
     }
@@ -1163,14 +1165,18 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
       }
 
       setSaveSuccess(true);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
 
       if (editTxn || editDiv) {
         setTimeout(() => navigate(-1), 500);
       } else {
-        // Clear form for next entry of the SAME ticker
+        // Reset form for next entry of the SAME ticker
+        const defaultPrice = (priceAtDate !== null ? priceAtDate : selectedTicker?.price) ?? 0;
+        const resetPrice = defaultPrice > 0 ? parseFloat(defaultPrice.toFixed(6)).toString() : '';
+
         setQty('');
         setTotal('');
-        setPrice('');
+        setPrice(resetPrice);
         setPercent('');
         setCommission('');
         setCommissionPct('');
@@ -1179,7 +1185,14 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
         setType('BUY');
         setDate(formatDate(new Date()));
         setHasManuallyEditedPrice(false);
-        setSearchParams({});
+
+        if (selectedTicker?.symbol) {
+          setTicker(selectedTicker.symbol);
+          setExchange(selectedTicker.exchange || '');
+          setSearchParams({ ticker: selectedTicker.symbol, exchange: selectedTicker.exchange || '' }, { replace: true });
+        } else {
+          setSearchParams({}, { replace: true });
+        }
       }
       setValidationErrors({});
     } catch (e) {
@@ -1233,7 +1246,7 @@ export const TransactionForm = ({ sheetId, onSaveSuccess, refreshTrigger }: Prop
             {t('Dashboard', 'דאשבורד')}
           </Button>
         }>
-          {t('Transaction for', 'עסקה עבור')} {ticker} {(locationState?.editTransaction || locationState?.editDividend) ? t('updated!', 'עודכנה!') : t('saved!', 'נשמרה!')}
+          {t('Transaction for', 'עסקה עבור')} {ticker || selectedTicker?.symbol} {(locationState?.editTransaction || locationState?.editDividend) ? t('updated!', 'עודכנה!') : t('saved!', 'נשמרה!')}
         </Alert>
       )}
 

@@ -35,7 +35,9 @@ export const NumericField = React.memo(({ label, field, value, onChange, onUpdat
   const displayVal = localDisplay !== null ? localDisplay : (value === '' ? '' : safeVal.toString());
 
   useEffect(() => {
-    // If external value changes (e.g. rounded by parent), we might need to sync.
+    if (value === '' || value === undefined || value === null) {
+      setLocalDisplay(null);
+    }
   }, [value]);
 
   const fireChange = (val: number, valStr: string) => {
