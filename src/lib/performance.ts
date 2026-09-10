@@ -1,7 +1,7 @@
 import { interpolateSparseHistory } from './fetching/utils/interpolate';
 // src/lib/performance.ts
 import { fetchTickerHistory } from './fetching';
-import { convertCurrency, normalizeCurrency } from './currency';
+import { convertCurrency, normalizeCurrency, resolveTickerPriceCurrency, isAgorotQuote } from './currency';
 import { Currency, Exchange, type DashboardHolding, type Transaction, type ExchangeRates, isBuy, isSell } from './types';
 
 export interface PerformancePoint {
@@ -16,14 +16,23 @@ export interface PerformancePoint {
 
 export function synthesizeHistory(holding: DashboardHolding | undefined, tickerData: any, txns: Transaction[]): { date: Date, adjClose: number, price: number }[] {
     const points: { date: Date, adjClose: number, price: number }[] = [];
-    const isTASE = holding?.exchange === Exchange.TASE || txns.some(t => t.exchange === Exchange.TASE);
+    const exchange = holding?.exchange || txns.find(t => t.exchange)?.exchange;
+    const ticker = holding?.ticker || tickerData?.ticker || txns[0]?.ticker;
+    const isAgorot = isAgorotQuote({
+        exchange,
+        ticker,
+        reportedCurrency: tickerData?.currency,
+        stockCurrency: holding?.stockCurrency || txns.find(t => t.currency)?.currency,
+        type: holding?.type || tickerData?.type,
+        meta: holding?.meta || tickerData?.meta,
+    });
 
     // Add transaction prices mapping to date
     txns.forEach(t => {
         const d = new Date(t.date);
         d.setUTCHours(0, 0, 0, 0);
         let tPrice = t.price || 0;
-        if (isTASE) {
+        if (isAgorot) {
             if (t.originalPriceILA) {
                 tPrice = t.originalPriceILA;
             } else if (t.currency && normalizeCurrency(t.currency) === Currency.ILS) {
@@ -36,7 +45,7 @@ export function synthesizeHistory(holding: DashboardHolding | undefined, tickerD
     let cp = tickerData?.price || holding?.currentPrice;
 
     if (cp > 0) {
-        if (isTASE && holding?.stockCurrency && normalizeCurrency(holding.stockCurrency) === Currency.ILS && !tickerData?.price) {
+        if (isAgorot && holding?.stockCurrency && normalizeCurrency(holding.stockCurrency) === Currency.ILS && !tickerData?.price) {
             // holding.currentPrice is in ILS major units, convert to Agorot for TASE history
             cp = cp * 100;
         }
@@ -160,9 +169,14 @@ export async function calculatePortfolioPerformance(
             if (synth.length > 0) {
                 if (!h.data) h.data = {} as any;
                 h.data!.historical = synth;
-                if (ex === Exchange.TASE) {
-                    h.data!.currency = Currency.ILA;
-                }
+                h.data!.currency = resolveTickerPriceCurrency({
+                    exchange: ex as Exchange,
+                    ticker: tic,
+                    reportedCurrency: h.data?.currency,
+                    stockCurrency: holding?.stockCurrency,
+                    type: holding?.type,
+                    meta: holding?.meta,
+                });
             }
         }
         historyMap.set(h.key, h.data);
@@ -242,7 +256,12 @@ export async function calculatePortfolioPerformance(
             const stateKey = `${t.portfolioId}:${tickerKey}`;
 
             const holding = holdingsMap.get(tickerKey);
-            const resolvedStockCurrency = holding?.stockCurrency || t.currency || (t.exchange === Exchange.TASE ? Currency.ILA : Currency.USD);
+            const resolvedStockCurrency = holding?.stockCurrency || (t.currency ? normalizeCurrency(t.currency) : resolveTickerPriceCurrency({
+                exchange: t.exchange,
+                ticker: t.ticker,
+                type: holding?.type,
+                meta: holding?.meta,
+            }));
 
             // costBasis is now tracked in displayCurrency
             const state: HoldingState = currentHoldings.get(stateKey) || {
@@ -276,7 +295,13 @@ export async function calculatePortfolioPerformance(
 
             // Helper to get transaction value in Display Currency using Historical Data if available
             const getTxnValueInDisplay = () => {
-                const txnCurrency = t.currency || (t.exchange === Exchange.TASE ? Currency.ILA : Currency.USD);
+                const txnCurrency = t.currency ? normalizeCurrency(t.currency) : resolveTickerPriceCurrency({
+                    exchange: t.exchange,
+                    ticker: t.ticker,
+                    stockCurrency: holding?.stockCurrency,
+                    type: holding?.type,
+                    meta: holding?.meta,
+                });
                 if (displayCurrency === Currency.ILS && (t.originalPriceILA || txnCurrency === Currency.ILS)) {
                     // Prefer originalPriceILA (Agorot) -> ILS
                     if (t.originalPriceILA) {
@@ -436,13 +461,15 @@ export async function calculatePortfolioPerformance(
             if (point && new Date(point.date).getTime() <= ts) {
                 const price = point.adjClose || point.price;
                 if (price > 0) {
-                    let priceCurrency = history?.currency || state.stockCurrency;
-                    if (exchange === Exchange.TASE) {
-                        const norm = normalizeCurrency(priceCurrency);
-                        if (norm === Currency.ILS || !priceCurrency) {
-                            priceCurrency = Currency.ILA;
-                        }
-                    }
+                    const holding = holdingsMap.get(tickerKey);
+                    const priceCurrency = resolveTickerPriceCurrency({
+                        exchange,
+                        ticker,
+                        reportedCurrency: history?.currency,
+                        stockCurrency: state.stockCurrency,
+                        type: holding?.type || history?.type,
+                        meta: holding?.meta || history?.meta,
+                    });
 
                     const valDisplay = convertCurrency(state.qty * price, priceCurrency, displayCurrency, exchangeRates);
                     // state.costBasis is ALREADY in displayCurrency (Accumulated Historical)

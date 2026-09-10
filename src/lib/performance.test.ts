@@ -1,6 +1,7 @@
 import { test } from 'vitest';
 import { calculatePortfolioPerformance } from './performance';
 import { Currency, Exchange, type DashboardHolding, type Transaction, type ExchangeRates } from './types';
+import { InstrumentClassification } from './types/instrument';
 
 // --- MOCKS ---
 
@@ -538,6 +539,124 @@ async function testTaseSynthesizedHistory() {
     }
 }
 
+async function testTaseUsdDenominatedInstrument() {
+    console.log('\n--- Test: TASE USD-Denominated Instrument (e.g. USD Bond or Foreign ETF) ---');
+    // Scenario: Buy 10 units of a USD bond traded on TASE at $100 each.
+    // Total value is $1,000 USD.
+    // Rates: USD: 1, ILS: 4.0.
+    // In USD display, holdingsValue should be 1,000 USD (NOT 10 USD).
+    // In ILS display, holdingsValue should be 4,000 ILS (NOT 40 ILS).
+
+    const holdings: DashboardHolding[] = [{
+        portfolioId: 'p1', ticker: 'BOND_USD', exchange: Exchange.TASE,
+        stockCurrency: Currency.USD, portfolioCurrency: Currency.USD,
+        qtyVested: 10, totalQty: 10
+    } as any];
+
+    const txns: Transaction[] = [{
+        date: new Date('2024-01-02T00:00:00Z') as any, portfolioId: 'p1', ticker: 'BOND_USD', exchange: Exchange.TASE,
+        type: 'BUY', qty: 10, price: 100,
+        originalQty: 10, originalPrice: 100,
+        currency: Currency.USD
+    } as any];
+
+    const rates: ExchangeRates = {
+        current: { USD: 1, ILS: 4.0 },
+        ago1m: { USD: 1, ILS: 4.0 }
+    };
+
+    const fetchCustom = async (_t: string, _ex: Exchange) => ({
+        historical: [{ date: new Date('2024-01-02'), price: 100, adjClose: 100 }],
+        currency: 'USD',
+        fromCache: true
+    } as any);
+
+    const { points: pointsUSD } = await calculatePortfolioPerformance(holdings, txns, 'USD', rates, undefined, undefined, fetchCustom);
+    const pUSD = pointsUSD.find(p => p.date.toISOString().startsWith('2024-01-02'));
+    assert(!!pUSD, 'Point exists in USD');
+    if (pUSD) {
+        assertClose(pUSD.holdingsValue, 1000, 0.01, 'TASE USD bond holdingsValue in USD is 1,000 USD');
+        assertClose(pUSD.costBasis, 1000, 0.01, 'TASE USD bond costBasis in USD is 1,000 USD');
+    }
+
+    const { points: pointsILS } = await calculatePortfolioPerformance(holdings, txns, 'ILS', rates, undefined, undefined, fetchCustom);
+    const pILS = pointsILS.find(p => p.date.toISOString().startsWith('2024-01-02'));
+    assert(!!pILS, 'Point exists in ILS');
+    if (pILS) {
+        assertClose(pILS.holdingsValue, 4000, 0.01, 'TASE USD bond holdingsValue in ILS is 4,000 ILS');
+    }
+}
+
+async function testTaseIndexInstrument() {
+    console.log('\n--- Test: TASE Index Instrument (quoted in points/ILS, not Agorot) ---');
+    const classification = new InstrumentClassification('index');
+    const holdings: DashboardHolding[] = [{
+        portfolioId: 'p1', ticker: 'TA35', exchange: Exchange.TASE,
+        stockCurrency: Currency.ILS, portfolioCurrency: Currency.ILS,
+        qtyVested: 1, totalQty: 1,
+        type: classification
+    } as any];
+
+    const txns: Transaction[] = [{
+        date: new Date('2024-01-02T00:00:00Z') as any, portfolioId: 'p1', ticker: 'TA35', exchange: Exchange.TASE,
+        type: 'BUY', qty: 1, price: 2000,
+        originalQty: 1, originalPrice: 2000,
+        currency: Currency.ILS
+    } as any];
+
+    const rates: ExchangeRates = { current: { USD: 1, ILS: 4.0 } };
+
+    const fetchCustom = async (_t: string, _ex: Exchange) => ({
+        historical: [{ date: new Date('2024-01-02'), price: 2000, adjClose: 2000 }],
+        currency: 'ILS',
+        type: classification,
+        fromCache: true
+    } as any);
+
+    const { points } = await calculatePortfolioPerformance(holdings, txns, 'ILS', rates, undefined, undefined, fetchCustom);
+    const p = points.find(p => p.date.toISOString().startsWith('2024-01-02'));
+    assert(!!p, 'Point exists for TASE index');
+    if (p) {
+        // Index is quoted in points/ILS: 1 * 2000 = 2,000 ILS (NOT 20 ILS)
+        assertClose(p.holdingsValue, 2000, 0.01, 'TASE Index holdingsValue in ILS is 2,000 ILS');
+    }
+}
+
+async function testTaseDerivativeInstrument() {
+    console.log('\n--- Test: TASE Option Instrument (quoted in Shekels, not Agorot) ---');
+    const classification = new InstrumentClassification('option_maof');
+    const holdings: DashboardHolding[] = [{
+        portfolioId: 'p1', ticker: 'OPT_C2000', exchange: Exchange.TASE,
+        stockCurrency: Currency.ILS, portfolioCurrency: Currency.ILS,
+        qtyVested: 2, totalQty: 2,
+        type: classification
+    } as any];
+
+    const txns: Transaction[] = [{
+        date: new Date('2024-01-02T00:00:00Z') as any, portfolioId: 'p1', ticker: 'OPT_C2000', exchange: Exchange.TASE,
+        type: 'BUY', qty: 2, price: 1500,
+        originalQty: 2, originalPrice: 1500,
+        currency: Currency.ILS
+    } as any];
+
+    const rates: ExchangeRates = { current: { USD: 1, ILS: 4.0 } };
+
+    const fetchCustom = async (_t: string, _ex: Exchange) => ({
+        historical: [{ date: new Date('2024-01-02'), price: 1500, adjClose: 1500 }],
+        currency: 'ILS',
+        type: classification,
+        fromCache: true
+    } as any);
+
+    const { points } = await calculatePortfolioPerformance(holdings, txns, 'ILS', rates, undefined, undefined, fetchCustom);
+    const p = points.find(p => p.date.toISOString().startsWith('2024-01-02'));
+    assert(!!p, 'Point exists for TASE option');
+    if (p) {
+        // Option is quoted in Shekels: 2 * 1500 = 3,000 ILS (NOT 30 ILS)
+        assertClose(p.holdingsValue, 3000, 0.01, 'TASE Option holdingsValue in ILS is 3,000 ILS');
+    }
+}
+
 export async function runTests() {
     try {
         await testBasicBuyAndHold();
@@ -553,6 +672,9 @@ export async function runTests() {
         await testFIFOCostBasis();
         await testTaseStockHoldingsValue();
         await testTaseSynthesizedHistory();
+        await testTaseUsdDenominatedInstrument();
+        await testTaseIndexInstrument();
+        await testTaseDerivativeInstrument();
         console.log('\n🎉 All performance tests passed!');
     } catch (e) {
         console.error('\n💥 Performance tests failed.');

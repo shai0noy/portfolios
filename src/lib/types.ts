@@ -400,6 +400,7 @@ export interface DashboardHolding {
   tickerChangePctAll?: number;
 
   type?: InstrumentClassification;
+  meta?: ExchangeMetadata;
   calendarEvents?: CalendarEvents;
   generateGainForPeriod?: (
     startDate: Date,

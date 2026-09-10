@@ -5,7 +5,7 @@ import {
 import { coerceDate } from '../date';
 import { Holding, getCPI, computeRealTaxableGain, type DividendRecord } from './model';
 import { getTaxRatesForDate, getFeeRatesForDate, isRealGainTaxed } from '../portfolioUtils';
-import { convertCurrency, normalizeCurrency, calculatePerformanceInDisplayCurrency } from '../currencyUtils';
+import { convertCurrency, normalizeCurrency, calculatePerformanceInDisplayCurrency, resolveTickerPriceCurrency } from '../currencyUtils';
 import type { TickerData } from '../fetching/types';
 
 export const INITIAL_SUMMARY: DashboardSummaryData = {
@@ -470,26 +470,18 @@ export class FinanceEngine {
                 }
 
                 if (price > 0) {
-                    let liveCurrencyStr = live.currency;
+                    const priceCurrency = resolveTickerPriceCurrency({
+                        exchange: h.exchange,
+                        ticker: h.ticker,
+                        reportedCurrency: live.currency,
+                        stockCurrency: h.stockCurrency,
+                        type: live.type || h.type,
+                        meta: live.meta,
+                    });
 
-                    // DEFAULT: If TASE and no currency, assume ILA (Agorot) which is standard
-                    if (h.exchange === Exchange.TASE && !liveCurrencyStr) {
-                        liveCurrencyStr = Currency.ILA;
-                    }
-
-                    // Strict Correction for TASE:
-                    if (h.exchange === Exchange.TASE) {
-                        const norm = normalizeCurrency(liveCurrencyStr || h.stockCurrency);
-                        if (norm === Currency.ILS) {
-                            liveCurrencyStr = Currency.ILA;
-                        }
-                    }
-
-                    const normLive = normalizeCurrency(liveCurrencyStr || h.stockCurrency);
                     let finalPrice = price;
-
-                    if (normLive !== h.stockCurrency) {
-                        finalPrice = convertCurrency(price, normLive, h.stockCurrency, this.exchangeRates);
+                    if (priceCurrency !== h.stockCurrency) {
+                        finalPrice = convertCurrency(price, priceCurrency, h.stockCurrency, this.exchangeRates);
                     }
 
                     h.currentPrice = finalPrice;

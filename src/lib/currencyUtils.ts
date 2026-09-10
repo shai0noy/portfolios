@@ -1,6 +1,7 @@
-
-import { Currency } from './types';
+import { Currency, Exchange, EXCHANGE_SETTINGS, parseExchange } from './types';
 import type { ExchangeRates } from './types';
+import { InstrumentClassification, InstrumentGroup, InstrumentType, INSTRUMENT_METADATA, GLOBES_TYPE_MAPPING } from './types/instrument';
+import type { ExchangeMetadata } from './types/ticker';
 
 // Unicode Left-to-Right Mark (LRM).
 const LTR_MARK = '\u200E';
@@ -100,6 +101,157 @@ export function convertCurrency(amount: number, from: Currency | string, to: Cur
   if (toNorm === Currency.ILA) return result * 100;
 
   return result;
+}
+
+export function extractInstrumentGroup(
+  type?: InstrumentClassification | InstrumentType | InstrumentGroup | string | { group?: string; type?: string }
+): InstrumentGroup | undefined {
+  if (!type) return undefined;
+
+  if (typeof type === 'object') {
+    if ('group' in type && type.group && Object.values(InstrumentGroup).includes(type.group as InstrumentGroup)) {
+      return type.group as InstrumentGroup;
+    }
+    if ('type' in type && type.type) {
+      const canonicalType = type.type as InstrumentType;
+      if (INSTRUMENT_METADATA[canonicalType]) {
+        return INSTRUMENT_METADATA[canonicalType].group;
+      }
+    }
+  }
+
+  if (typeof type === 'string') {
+    const upper = type.toUpperCase();
+    if (Object.values(InstrumentGroup).includes(upper as InstrumentGroup)) {
+      return upper as InstrumentGroup;
+    }
+    if (Object.values(InstrumentType).includes(upper as InstrumentType)) {
+      return INSTRUMENT_METADATA[upper as InstrumentType]?.group;
+    }
+    const lower = type.toLowerCase();
+    const mapped = GLOBES_TYPE_MAPPING[lower];
+    if (mapped && INSTRUMENT_METADATA[mapped]) {
+      return INSTRUMENT_METADATA[mapped].group;
+    }
+  }
+
+  return undefined;
+}
+
+export interface ResolveTickerPriceCurrencyParams {
+  exchange?: Exchange | string;
+  ticker?: string;
+  reportedCurrency?: Currency | string;
+  stockCurrency?: Currency | string;
+  type?: InstrumentClassification | InstrumentType | InstrumentGroup | string | { group?: string; type?: string };
+  meta?: ExchangeMetadata | any;
+}
+
+/**
+ * Resolves the quote / price currency for an instrument using its exchange, metadata,
+ * reported currency feed, and instrument classification.
+ *
+ * For TASE:
+ * - Foreign-currency denominated assets (e.g. USD bonds, foreign ETFs) trade and quote in their foreign currency (e.g. USD, EUR).
+ * - Non-Agorot instruments like FOREX, INDEX, and DERIVATIVE (options/futures) quote in Shekels (ILS) or native points.
+ * - Standard securities (STOCK, ETF, MUTUAL_FUND, MONETARY_FUND, BOND) quote in Agorot (Currency.ILA), even when data providers (like Yahoo) label them as "ILS".
+ *
+ * For non-TASE exchanges:
+ * - Uses reportedCurrency, then stockCurrency, then exchange defaultCurrency (e.g. USD for NASDAQ, GBP for LSE).
+ */
+export function resolveTickerPriceCurrency(params: ResolveTickerPriceCurrencyParams): Currency {
+  // 1. Safely normalize reportedCurrency if present
+  let normReported: Currency | undefined;
+  if (params.reportedCurrency) {
+    try {
+      normReported = normalizeCurrency(params.reportedCurrency);
+    } catch {
+      // ignore unparseable currency string
+    }
+  }
+
+  // 2. Safely normalize stockCurrency if present
+  let normStock: Currency | undefined;
+  if (params.stockCurrency) {
+    try {
+      normStock = normalizeCurrency(params.stockCurrency);
+    } catch {
+      // ignore unparseable currency string
+    }
+  }
+
+  // 3. Resolve exchange
+  let exchange: Exchange | undefined;
+  if (params.exchange) {
+    try {
+      exchange = parseExchange(params.exchange);
+    } catch {
+      // ignore unparseable exchange
+    }
+  }
+
+  if (!exchange && params.ticker?.endsWith('.TA')) {
+    exchange = Exchange.TASE;
+  }
+
+  // 4. Foreign currency check:
+  // If reported currency is explicitly a foreign currency (not ILS and not ILA),
+  // honor it directly regardless of exchange (e.g. USD bond or foreign ETF on TASE).
+  if (normReported && normReported !== Currency.ILS && normReported !== Currency.ILA) {
+    return normReported;
+  }
+
+  // If no reported currency is provided, but stockCurrency is explicitly a foreign currency,
+  // honor it (e.g. USD asset held on TASE).
+  if (!normReported && normStock && normStock !== Currency.ILS && normStock !== Currency.ILA) {
+    return normStock;
+  }
+
+  // 5. Explicit ILA:
+  if (normReported === Currency.ILA) {
+    return Currency.ILA;
+  }
+
+  // 6. Handle TASE specific instruments using metadata:
+  if (exchange === Exchange.TASE) {
+    const group = extractInstrumentGroup(params.type);
+
+    // Non-Agorot instrument groups on TASE:
+    // Indices (points/ILS), Forex (currencies/crypto), Derivatives (options/futures) quote in Shekels (ILS)
+    if (
+      group === InstrumentGroup.INDEX ||
+      group === InstrumentGroup.FOREX ||
+      group === InstrumentGroup.DERIVATIVE
+    ) {
+      return Currency.ILS;
+    }
+
+    // Standard securities on TASE: STOCK, ETF, MUTUAL_FUND, MONETARY_FUND, BOND
+    // Standard market convention on TASE is Agorot (Currency.ILA).
+    // Data sources (like Yahoo Finance) frequently report "ILS" even though prices are in Agorot.
+    // Therefore, for standard securities (or unspecified group) on TASE, price currency is ILA.
+    return Currency.ILA;
+  }
+
+  // 7. Non-TASE exchanges:
+  if (normReported) {
+    return normReported;
+  }
+  if (normStock) {
+    return normStock;
+  }
+  if (exchange && EXCHANGE_SETTINGS[exchange]?.defaultCurrency) {
+    return EXCHANGE_SETTINGS[exchange].defaultCurrency!;
+  }
+
+  return Currency.USD;
+}
+
+/**
+ * Returns true if the ticker's price is quoted in Agorot (Currency.ILA).
+ */
+export function isAgorotQuote(params: ResolveTickerPriceCurrencyParams): boolean {
+  return resolveTickerPriceCurrency(params) === Currency.ILA;
 }
 
 export function roundDivAmount(amount: number): number {
