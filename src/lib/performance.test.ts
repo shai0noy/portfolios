@@ -438,6 +438,106 @@ async function testFIFOCostBasis() {
     }
 }
 
+async function testTaseStockHoldingsValue() {
+    console.log('\n--- Test: TASE Stock Holdings Value (TASE in Agorot, Display in ILS) ---');
+    // Scenario: Buy 100 shares of a TASE stock (e.g. 1159250) at 3,500 Agorot (= 35 ILS per share).
+    // Total investment is 3,500 ILS.
+    // Yahoo Finance historical data returns price in Agorot (3500) and currency: 'ILS' (typical Yahoo behavior for TASE).
+    // The chart calculation must NOT treat 3500 as Shekels (which would give 350,000 ILS).
+    // It should normalize to ILA and evaluate to 3,500 ILS.
+
+    const holdings: DashboardHolding[] = [{
+        portfolioId: 'p1', ticker: '1159250', exchange: Exchange.TASE,
+        stockCurrency: Currency.ILS, portfolioCurrency: Currency.ILS,
+        qtyVested: 100, totalQty: 100
+    } as any];
+
+    const txns: Transaction[] = [{
+        date: new Date('2024-01-02T00:00:00Z') as any, portfolioId: 'p1', ticker: '1159250', exchange: Exchange.TASE,
+        type: 'BUY', qty: 100, price: 3500,
+        originalQty: 100, originalPrice: 3500,
+        currency: Currency.ILA
+    } as any];
+
+    const rates: ExchangeRates = {
+        current: { USD: 1, ILS: 4.0 },
+        ago1m: { USD: 1, ILS: 4.0 }
+    };
+
+    // Yahoo returns prices in Agorot (3500, 3600), but reports currency as 'ILS'
+    const customHistory = {
+        'TASE:1159250': [
+            { date: new Date('2024-01-02'), price: 3500, adjClose: 3500 },
+            { date: new Date('2024-01-03'), price: 3600, adjClose: 3600 },
+        ]
+    };
+    const fetchCustom = async (t: string, ex: Exchange) => ({
+        historical: (customHistory as any)[`${ex}:${t}`],
+        currency: 'ILS', // As reported by Yahoo for .TA tickers
+        fromCache: true
+    } as any);
+
+    const { points } = await calculatePortfolioPerformance(holdings, txns, 'ILS', rates, undefined, undefined, fetchCustom);
+
+    const p1 = points.find(p => p.date.toISOString().startsWith('2024-01-02'));
+    assert(!!p1, 'Point for Jan 2 exists');
+    if (p1) {
+        // 100 shares * 3500 Agorot / 100 = 3,500 ILS (NOT 350,000 ILS!)
+        assertClose(p1.holdingsValue, 3500, 0.01, 'TASE holdingsValue in ILS on buy date');
+        assertClose(p1.costBasis, 3500, 0.01, 'TASE costBasis in ILS on buy date');
+        assertClose(p1.gainsValue, 0, 0.01, 'TASE gainsValue on buy date');
+    }
+
+    const p2 = points.find(p => p.date.toISOString().startsWith('2024-01-03'));
+    assert(!!p2, 'Point for Jan 3 exists');
+    if (p2) {
+        // 100 shares * 3600 Agorot / 100 = 3,600 ILS
+        assertClose(p2.holdingsValue, 3600, 0.01, 'TASE holdingsValue in ILS on day 2');
+        assertClose(p2.gainsValue, 100, 0.01, 'TASE gainsValue in ILS on day 2');
+    }
+
+    // Also test with USD display currency:
+    // 3,500 ILS / 4.0 = 875 USD
+    const { points: pointsUSD } = await calculatePortfolioPerformance(holdings, txns, 'USD', rates, undefined, undefined, fetchCustom);
+    const pUSD = pointsUSD.find(p => p.date.toISOString().startsWith('2024-01-02'));
+    assert(!!pUSD, 'Point for Jan 2 in USD exists');
+    if (pUSD) {
+        assertClose(pUSD.holdingsValue, 875, 0.01, 'TASE holdingsValue in USD');
+        assertClose(pUSD.costBasis, 875, 0.01, 'TASE costBasis in USD');
+    }
+}
+
+async function testTaseSynthesizedHistory() {
+    console.log('\n--- Test: TASE Synthesized History Value ---');
+    const holdings: DashboardHolding[] = [{
+        portfolioId: 'p1', ticker: '1159250', exchange: Exchange.TASE,
+        stockCurrency: Currency.ILS, portfolioCurrency: Currency.ILS,
+        qtyVested: 100, totalQty: 100,
+        currentPrice: 35 // 35 ILS
+    } as any];
+
+    const txns: Transaction[] = [{
+        date: new Date('2024-01-02T00:00:00Z') as any, portfolioId: 'p1', ticker: '1159250', exchange: Exchange.TASE,
+        type: 'BUY', qty: 100, price: 3500,
+        originalQty: 100, originalPrice: 3500,
+        currency: Currency.ILA
+    } as any];
+
+    const rates: ExchangeRates = {
+        current: { USD: 1, ILS: 4.0 }
+    };
+
+    // Return null so it triggers synthesizeHistory
+    const fetchNull = async () => null as any;
+
+    const { points } = await calculatePortfolioPerformance(holdings, txns, 'ILS', rates, undefined, undefined, fetchNull);
+    const p = points.find(p => p.date.toISOString().startsWith('2024-01-02'));
+    assert(!!p, 'Point exists for synthesized TASE');
+    if (p) {
+        assertClose(p.holdingsValue, 3500, 0.01, 'Synthesized TASE holdingsValue is 3500 ILS');
+    }
+}
+
 export async function runTests() {
     try {
         await testBasicBuyAndHold();
@@ -450,7 +550,9 @@ export async function runTests() {
         await testIntradayWash();
         await testZeroStartTWR();
         await testHistoricalCostBasis();
-        await testFIFOCostBasis(); // Added new test
+        await testFIFOCostBasis();
+        await testTaseStockHoldingsValue();
+        await testTaseSynthesizedHistory();
         console.log('\n🎉 All performance tests passed!');
     } catch (e) {
         console.error('\n💥 Performance tests failed.');

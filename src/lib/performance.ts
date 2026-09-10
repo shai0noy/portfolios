@@ -1,7 +1,7 @@
 import { interpolateSparseHistory } from './fetching/utils/interpolate';
 // src/lib/performance.ts
 import { fetchTickerHistory } from './fetching';
-import { convertCurrency } from './currency';
+import { convertCurrency, normalizeCurrency } from './currency';
 import { Currency, Exchange, type DashboardHolding, type Transaction, type ExchangeRates, isBuy, isSell } from './types';
 
 export interface PerformancePoint {
@@ -16,17 +16,30 @@ export interface PerformancePoint {
 
 export function synthesizeHistory(holding: DashboardHolding | undefined, tickerData: any, txns: Transaction[]): { date: Date, adjClose: number, price: number }[] {
     const points: { date: Date, adjClose: number, price: number }[] = [];
+    const isTASE = holding?.exchange === Exchange.TASE || txns.some(t => t.exchange === Exchange.TASE);
 
     // Add transaction prices mapping to date
     txns.forEach(t => {
         const d = new Date(t.date);
         d.setUTCHours(0, 0, 0, 0);
-        points.push({ date: d, adjClose: t.price || 0, price: t.price || 0 });
+        let tPrice = t.price || 0;
+        if (isTASE) {
+            if (t.originalPriceILA) {
+                tPrice = t.originalPriceILA;
+            } else if (t.currency && normalizeCurrency(t.currency) === Currency.ILS) {
+                tPrice = tPrice * 100;
+            }
+        }
+        points.push({ date: d, adjClose: tPrice, price: tPrice });
     });
 
-    const cp = tickerData?.price || holding?.currentPrice;
+    let cp = tickerData?.price || holding?.currentPrice;
 
     if (cp > 0) {
+        if (isTASE && holding?.stockCurrency && normalizeCurrency(holding.stockCurrency) === Currency.ILS && !tickerData?.price) {
+            // holding.currentPrice is in ILS major units, convert to Agorot for TASE history
+            cp = cp * 100;
+        }
         const now = new Date();
         now.setUTCHours(0, 0, 0, 0);
         points.push({ date: now, adjClose: cp, price: cp });
@@ -75,6 +88,15 @@ export function synthesizeHistory(holding: DashboardHolding | undefined, tickerD
     });
 
     return interpolateSparseHistory(deduped) as { date: Date, adjClose: number, price: number }[];
+}
+
+interface HoldingState {
+    qty: number;
+    costBasis: number;
+    stockCurrency: Currency;
+    exchange?: Exchange;
+    ticker?: string;
+    lots: { date: number, qty: number, cost: number }[];
 }
 
 /**
@@ -138,6 +160,9 @@ export async function calculatePortfolioPerformance(
             if (synth.length > 0) {
                 if (!h.data) h.data = {} as any;
                 h.data!.historical = synth;
+                if (ex === Exchange.TASE) {
+                    h.data!.currency = Currency.ILA;
+                }
             }
         }
         historyMap.set(h.key, h.data);
@@ -182,7 +207,7 @@ export async function calculatePortfolioPerformance(
 
     // 4. Time-series aggregation
     const points: PerformancePoint[] = [];
-    const currentHoldings = new Map<string, { qty: number, costBasis: number, stockCurrency: Currency, lots: { date: number, qty: number, cost: number }[] }>();
+    const currentHoldings = new Map<string, HoldingState>();
     let otherGains = 0; // Cumulative dividends, fees, realized gains (in displayCurrency)
     let txnIdx = 0;
 
@@ -217,10 +242,17 @@ export async function calculatePortfolioPerformance(
             const stateKey = `${t.portfolioId}:${tickerKey}`;
 
             const holding = holdingsMap.get(tickerKey);
-            const resolvedStockCurrency = holding?.stockCurrency || t.currency || Currency.USD;
+            const resolvedStockCurrency = holding?.stockCurrency || t.currency || (t.exchange === Exchange.TASE ? Currency.ILA : Currency.USD);
 
             // costBasis is now tracked in displayCurrency
-            const state = currentHoldings.get(stateKey) || { qty: 0, costBasis: 0, stockCurrency: resolvedStockCurrency, lots: [] };
+            const state: HoldingState = currentHoldings.get(stateKey) || {
+                qty: 0,
+                costBasis: 0,
+                stockCurrency: resolvedStockCurrency,
+                exchange: t.exchange,
+                ticker: t.ticker,
+                lots: []
+            };
 
             let tQty = t.qty || 0;
             const tPrice = t.price || 0;
@@ -244,7 +276,8 @@ export async function calculatePortfolioPerformance(
 
             // Helper to get transaction value in Display Currency using Historical Data if available
             const getTxnValueInDisplay = () => {
-                if (displayCurrency === Currency.ILS && (t.originalPriceILA || t.currency === Currency.ILS)) {
+                const txnCurrency = t.currency || (t.exchange === Exchange.TASE ? Currency.ILA : Currency.USD);
+                if (displayCurrency === Currency.ILS && (t.originalPriceILA || txnCurrency === Currency.ILS)) {
                     // Prefer originalPriceILA (Agorot) -> ILS
                     if (t.originalPriceILA) {
                         const priceILS = t.originalPriceILA / 100;
@@ -257,18 +290,22 @@ export async function calculatePortfolioPerformance(
                         }
                     }
                     // Fallback for ILS native transactions (assuming tValue is in ILS)
-                    if (t.currency === Currency.ILS) return tValue;
-                } else if (displayCurrency === Currency.USD && (t.originalPriceUSD || t.currency === Currency.USD)) {
+                    if (txnCurrency === Currency.ILS) return tValue;
+                } else if (displayCurrency === Currency.USD) {
                     if (t.originalPriceUSD) {
                         if (Math.abs(tQty) > 1e-9) {
                             return tQty * t.originalPriceUSD;
                         }
                     }
-                    if (t.currency === Currency.USD) return tValue;
+                    if (t.originalPriceILA && Math.abs(tQty) > 1e-9) {
+                        const priceILS = t.originalPriceILA / 100;
+                        return convertCurrency(tQty * priceILS, Currency.ILS, Currency.USD, exchangeRates);
+                    }
+                    if (txnCurrency === Currency.USD) return tValue;
                 }
 
                 // Fallback: Use Current Exchange Rate
-                return convertCurrency(tValue, t.currency || Currency.USD, displayCurrency, exchangeRates);
+                return convertCurrency(tValue, txnCurrency, displayCurrency, exchangeRates);
             };
 
             const valInDisplay = getTxnValueInDisplay();
@@ -375,7 +412,9 @@ export async function calculatePortfolioPerformance(
 
         // Sum values of all current holdings at this specific date
         currentHoldings.forEach((state, stateKey) => {
-            const [, exchange, ticker] = stateKey.split(':');
+            const [, exStr, ...tickerParts] = stateKey.split(':');
+            const exchange = state.exchange || (exStr as Exchange);
+            const ticker = state.ticker || tickerParts.join(':');
             const tickerKey = `${exchange}:${ticker}`;
             const history = historyMap.get(tickerKey);
             if (!history?.historical) {
@@ -397,7 +436,13 @@ export async function calculatePortfolioPerformance(
             if (point && new Date(point.date).getTime() <= ts) {
                 const price = point.adjClose || point.price;
                 if (price > 0) {
-                    const priceCurrency = history.currency || state.stockCurrency;
+                    let priceCurrency = history?.currency || state.stockCurrency;
+                    if (exchange === Exchange.TASE) {
+                        const norm = normalizeCurrency(priceCurrency);
+                        if (norm === Currency.ILS || !priceCurrency) {
+                            priceCurrency = Currency.ILA;
+                        }
+                    }
 
                     const valDisplay = convertCurrency(state.qty * price, priceCurrency, displayCurrency, exchangeRates);
                     // state.costBasis is ALREADY in displayCurrency (Accumulated Historical)
