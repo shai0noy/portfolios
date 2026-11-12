@@ -126,6 +126,54 @@ function combineHistory(histShort: { date: Date; price: number }[] | undefined, 
   return interpolateSparseHistory(combined.sort((a, b) => a.date.getTime() - b.date.getTime()));
 }
 
+async function lookupTickerProfile(
+  ticker: string,
+  exchange: Exchange,
+  secId?: number,
+  signal?: AbortSignal
+): Promise<TickerProfile | undefined> {
+  const tickerNum = Number(ticker);
+  if (exchange !== Exchange.TASE) {
+    return getPredefinedYahooTickers().find(t =>
+      t.exchange === exchange &&
+      (t.symbol === ticker || (secId && t.securityId === secId) || (!isNaN(tickerNum) && t.securityId === tickerNum))
+    );
+  }
+  if (tickersDataset) {
+    for (const list of Object.values(tickersDataset)) {
+      const found = list.find(t =>
+        t.exchange === exchange &&
+        (t.symbol === ticker || (secId && t.securityId === secId) || (!isNaN(tickerNum) && t.securityId === tickerNum))
+      );
+      if (found) return found;
+    }
+    return undefined;
+  }
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      fetchAllTickers(Exchange.TASE, undefined, signal).then(dataset => {
+        for (const list of Object.values(dataset)) {
+          const found = list.find(t =>
+            t.exchange === exchange &&
+            (t.symbol === ticker || (secId && t.securityId === secId) || (!isNaN(tickerNum) && t.securityId === tickerNum))
+          );
+          if (found) return found;
+        }
+        return undefined;
+      }).catch(e => {
+        console.warn('Error looking up TASE ticker profile:', e);
+        return undefined;
+      }),
+      new Promise<undefined>(resolve => {
+        timeoutId = setTimeout(() => resolve(undefined), 8000);
+      })
+    ]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
 export async function getTickerData(
   ticker: string,
   exchange: string,
@@ -171,21 +219,6 @@ export async function getTickerData(
 
     const tickerNum = Number(ticker);
 
-    // Lookup profile to determine group/type for smart fetching
-    const profileLookupPromise = getTickersDataset(signal).then(dataset => {
-      for (const list of Object.values(dataset)) {
-        const found = list.find(t =>
-          t.exchange === parsedExchange &&
-          (t.symbol === ticker || (secId && t.securityId === secId) || (!isNaN(tickerNum) && t.securityId === tickerNum))
-        );
-        if (found) return found;
-      }
-      return undefined;
-    }).catch(e => {
-      console.warn('Error looking up ticker profile:', e);
-      return undefined;
-    });
-
     // GEMEL has its own dedicated fetcher
     if (parsedExchange === Exchange.GEMEL) {
       return fetchGemelnetQuote(tickerNum, signal, forceRefresh).then((data: any) => data ? { ...data, historical: interpolateSparseHistory(data.historical) } : data).then(detectStaleDayChange);
@@ -201,13 +234,14 @@ export async function getTickerData(
       return fetchCpi(tickerNum, signal, forceRefresh).then((data: any) => data ? { ...data, historical: interpolateSparseHistory(data.historical) } : data).then(detectStaleDayChange);
     }
 
-  // BOI has its own dedicated fetcher
-  if (parsedExchange === Exchange.BOI) {
-    return fetchBoiData(ticker, signal, forceRefresh).then((data: any) => data ? { ...data, historical: interpolateSparseHistory(data.historical) } : data).then(detectStaleDayChange);
-  }
+    // BOI has its own dedicated fetcher
+    if (parsedExchange === Exchange.BOI) {
+      return fetchBoiData(ticker, signal, forceRefresh).then((data: any) => data ? { ...data, historical: interpolateSparseHistory(data.historical) } : data).then(detectStaleDayChange);
+    }
 
-  const profile = await profileLookupPromise;
-  const group = profile?.type.group;
+    // Lookup profile to determine group/type for smart fetching.
+    const profile = await lookupTickerProfile(ticker, parsedExchange, secId, signal);
+    const group = profile?.type.group;
 
   const [yahooData5y, yahooDataMax] = await Promise.all([
     fetchYahooTickerData(ticker, parsedExchange, signal, forceRefresh, '5y', group, maxAge).catch(e => { console.warn('Yahoo 5y failed:', e); return null; }),
@@ -414,18 +448,7 @@ export async function fetchTickerHistory(
     }
 
     // Lookup profile to determine group for smart fetching
-    const profile = await getTickersDataset(signal).then(dataset => {
-      const tickerNum = parseInt(ticker, 10);
-      for (const list of Object.values(dataset)) {
-        const found = list.find(t =>
-          t.exchange === exchange &&
-          (t.symbol === ticker || (!isNaN(tickerNum) && t.securityId === tickerNum))
-        );
-        if (found) return found;
-      }
-      return undefined;
-    }).catch(() => undefined);
-
+    const profile = await lookupTickerProfile(ticker, exchange, undefined, signal);
     const group = profile?.type.group;
 
     const [yahooData5y, yahooDataMax] = await Promise.all([

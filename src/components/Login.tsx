@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Box, Button, Typography, CircularProgress, Paper, Container, TextField, Stack } from '@mui/material';
 import GoogleIcon from '@mui/icons-material/Google';
-import { initializeGapi, signIn, checkSheetExists, hasValidToken, findSpreadsheetByName } from '../lib/google';
+import { initializeGapi, ensureGapi, signIn, checkSheetExists, hasValidToken, findSpreadsheetByName } from '../lib/google';
 import { createPortfolioSpreadsheet, DEFAULT_SHEET_NAME } from '../lib/sheets/index';
 import { useLanguage } from '../lib/i18n';
 
@@ -16,11 +16,20 @@ export function Login({ onLogin }: { onLogin: (sheetId: string) => void }) {
   const [isSignedIn, setIsSignedIn] = useState(false);
   const [manualSheetId, setManualSheetId] = useState('');
   const { t } = useLanguage();
+  const initialCheckDone = useRef(false);
 
   const checkInitialSession = useCallback(async () => {
     try {
       await initializeGapi();
-      const valid = hasValidToken();
+      let valid = hasValidToken();
+      if (!valid) {
+        try {
+          await ensureGapi();
+          valid = hasValidToken();
+        } catch {
+          valid = false;
+        }
+      }
       setIsSignedIn(valid);
       const savedSheetId = localStorage.getItem('g_sheet_id');
       
@@ -59,6 +68,8 @@ export function Login({ onLogin }: { onLogin: (sheetId: string) => void }) {
   }, [onLogin]);
 
   useEffect(() => {
+    if (initialCheckDone.current) return;
+    initialCheckDone.current = true;
     checkInitialSession();
   }, [checkInitialSession]);
 
@@ -116,28 +127,27 @@ export function Login({ onLogin }: { onLogin: (sheetId: string) => void }) {
       await signIn();
       setIsSignedIn(true);
       
-      // After sign-in, immediately try to find the sheet.
-      const foundSheetId = await findSpreadsheetByName(DEFAULT_SHEET_NAME);
-      if (foundSheetId) {
-          localStorage.setItem('g_sheet_id', foundSheetId);
-          onLogin(foundSheetId);
-          setLoading(false);
-          return;
-      }
-      
-      // Fallback to old behavior if not found
       const savedSheetId = localStorage.getItem('g_sheet_id');
       if (savedSheetId && savedSheetId !== 'null') {
         const exists = await checkSheetExists(savedSheetId);
         if (exists) {
           onLogin(savedSheetId);
+          return;
         } else {
-            localStorage.removeItem('g_sheet_id');
+          localStorage.removeItem('g_sheet_id');
         }
+      }
+
+      // If no saved sheet or saved sheet wasn't found, search by default name
+      const foundSheetId = await findSpreadsheetByName(DEFAULT_SHEET_NAME);
+      if (foundSheetId) {
+        localStorage.setItem('g_sheet_id', foundSheetId);
+        onLogin(foundSheetId);
+        return;
       }
     } catch (err: any) {
       console.error(err);
-      setError('Login failed: ' + err.message);
+      setError('Login failed: ' + (err?.message || err));
       setIsSignedIn(false);
     } finally {
       setLoading(false);

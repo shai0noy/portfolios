@@ -1,6 +1,7 @@
 import { vi, describe, it, expect, afterEach } from 'vitest';
-import { fetchYahooTickerData } from './yahoo';
-import { Exchange } from '../types';
+import { fetchYahooTickerData, getYahooTickerCandidates } from './yahoo';
+import { Exchange, parseExchange } from '../types';
+import { InstrumentGroup } from '../types/instrument';
 import * as currency from '../currency';
 import * as cache from './utils/cache';
 
@@ -96,5 +97,35 @@ describe('fetchYahooTickerData', () => {
     expect(data?.advancedStats?.forwardPE).toBeCloseTo(2.83, 2);
     expect(data?.calendarEvents?.dividendAmount).toBe(0.05963);
     expect(data?.calendarEvents?.dividendCurrency).toBe('USD');
+  });
+
+  it('should prioritize ^NDX for INDEX group and not generate ^-prefixed candidates for suffixed exchanges', () => {
+    expect(getYahooTickerCandidates('NDX', Exchange.NASDAQ, InstrumentGroup.INDEX)).toEqual(['^NDX', 'NDX']);
+    expect(getYahooTickerCandidates('BTEC', Exchange.LSE)).toEqual(['BTEC.L']);
+    expect(getYahooTickerCandidates('HY9H', Exchange.FWB)).toEqual(['HY9H.F']);
+    expect(parseExchange('london-cb')).toBe(Exchange.LSE);
+  });
+
+  it('should stop probing candidates once the primary candidate succeeds', async () => {
+    const histData = {
+      chart: {
+        result: [{
+          meta: { regularMarketPrice: 20000, currency: 'USD', exchangeName: 'NMS' },
+          indicators: { quote: [{ close: [20000] }] },
+          timestamp: [Date.now() / 1000]
+        }]
+      }
+    };
+    const quoteSummary = { quoteSummary: { result: [{}] } };
+
+    (fetch as any).mockResolvedValueOnce(createFetchResponse(histData));
+    (fetch as any).mockResolvedValueOnce(createFetchResponse(quoteSummary));
+
+    const data = await fetchYahooTickerData('NDX', Exchange.NASDAQ, undefined, false, '5y', InstrumentGroup.INDEX);
+
+    expect(data?.price).toBe(20000);
+    // Only 2 fetches (hist + quote_summary) for ^NDX; fallback candidate NDX is not requested
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect((fetch as any).mock.calls[0][0]).toContain('ticker=^NDX');
   });
 });

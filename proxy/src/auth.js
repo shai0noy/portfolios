@@ -26,15 +26,21 @@ export async function handleAuth(request, env, corsHeaders) {
            return new Response(JSON.stringify(tokens), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
       
-      // 2. Set the Refresh Token in a Secure, HttpOnly cookie
-      const cookie = `auth_refresh_token=${tokens.refresh_token}; HttpOnly; Secure; SameSite=None; Partitioned; Path=/; Max-Age=31536000`;
+      // 2. Set the Refresh Token in a Secure, HttpOnly cookie (only if Google returned a new refresh_token)
+      const responseHeaders = {
+        ...corsHeaders,
+        'Content-Type': 'application/json'
+      };
+      if (tokens.refresh_token) {
+        responseHeaders['Set-Cookie'] = `auth_refresh_token=${tokens.refresh_token}; HttpOnly; Secure; SameSite=None; Partitioned; Path=/; Max-Age=31536000`;
+      }
 
-      return new Response(JSON.stringify({ success: true }), {
-        headers: {
-          ...corsHeaders,
-          'Set-Cookie': cookie,
-          'Content-Type': 'application/json'
-        }
+      return new Response(JSON.stringify({
+        success: true,
+        access_token: tokens.access_token,
+        expires_in: tokens.expires_in
+      }), {
+        headers: responseHeaders
       });
     } catch (e) {
       return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
@@ -49,7 +55,7 @@ export async function handleAuth(request, env, corsHeaders) {
     }
     const refreshToken = cookieHeader?.match(/auth_refresh_token=([^;]+)/)?.[1];
 
-    if (!refreshToken) {
+    if (!refreshToken || refreshToken === 'undefined') {
       return new Response(JSON.stringify({ error: 'No refresh token found in cookie' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
@@ -68,8 +74,7 @@ export async function handleAuth(request, env, corsHeaders) {
       const tokens = await tokenResponse.json();
       
       if (tokens.error) {
-           // If refresh token is invalid, maybe clear cookie?
-           return new Response(JSON.stringify(tokens), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+           return new Response(JSON.stringify(tokens), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
 
       return new Response(JSON.stringify(tokens), {

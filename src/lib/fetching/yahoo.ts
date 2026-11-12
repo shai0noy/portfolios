@@ -67,13 +67,13 @@ export function getYahooTickerCandidates(ticker: string, exchange: Exchange, gro
   }
 
   // 4. Generate a set of "base" candidates from the clean symbol.
+  const suffix = EXCHANGE_SETTINGS[exchange]?.yahooFinanceSuffix || '';
   const baseCandidates = new Set<string>();
-  baseCandidates.add(u); // Always include the raw symbol
 
-  if (group === InstrumentGroup.INDEX || (group === undefined && !isNumeric)) {
+  if (group === InstrumentGroup.INDEX) {
     if (!isNumeric) baseCandidates.add(`^${u}`);
-  }
-  else if (group === InstrumentGroup.FOREX || exchange === Exchange.FOREX) {
+    baseCandidates.add(u);
+  } else if (group === InstrumentGroup.FOREX || exchange === Exchange.FOREX) {
     // Forex is special: it doesn't get exchange suffixes, so handle and return.
     const candidates = new Set<string>([u]);
     if (u.length === 6) {
@@ -85,14 +85,17 @@ export function getYahooTickerCandidates(ticker: string, exchange: Exchange, gro
       candidates.add(`${u}=X`);
     }
     return Array.from(candidates);
-  }
-  else if (group === InstrumentGroup.COMMODITY) {
+  } else if (group === InstrumentGroup.COMMODITY) {
     baseCandidates.add(`${u}=F`);
+    baseCandidates.add(u);
+  } else {
+    baseCandidates.add(u);
+    if (group === undefined && !isNumeric && !suffix) {
+      baseCandidates.add(`^${u}`);
+    }
   }
 
   // 5. Apply exchange suffix to all generated candidates.
-  const suffix = EXCHANGE_SETTINGS[exchange]?.yahooFinanceSuffix || '';
-
   if (!suffix) return Array.from(baseCandidates);
 
   const finalCandidates = new Set<string>();
@@ -202,7 +205,9 @@ export async function fetchYahooTickerData(
     forceRefresh,
     async () => {
       let hasTransientError = false;
-      const results = await Promise.all(candidates.map(async (yahooTicker) => {
+      let match: { yahooTicker: string; result: any; calData: any } | null = null;
+
+      for (const yahooTicker of candidates) {
         let histUrl = `https://portfolios.noy-shai.workers.dev/?apiId=yahoo_hist&ticker=${yahooTicker}&range=${range}`;
         let calUrl = `https://portfolios.noy-shai.workers.dev/?apiId=yahoo_quote_summary&ticker=${encodeURIComponent(yahooTicker)}&modules=calendarEvents,incomeStatementHistory,incomeStatementHistoryQuarterly,defaultKeyStatistics,financialData,recommendationTrend,price`;
 
@@ -227,27 +232,26 @@ export async function fetchYahooTickerData(
               const waitSec = retryHeader ? parseInt(retryHeader, 10) : 60;
               scheduleAutoRetry(ticker, exchange, range, group, maxAge, isNaN(waitSec) ? 60 : waitSec);
             }
-            return null;
+            continue;
           }
-          if (!res.ok) return null;
+          if (!res.ok) continue;
 
           const data = await res.json();
           const result = data?.chart?.result?.[0];
-          if (!result) return null;
+          if (!result) continue;
 
           let calData = null;
           if (calRes && calRes.ok) {
             try { calData = await calRes.json(); } catch (e) { }
           }
 
-          return { yahooTicker, result, calData };
+          match = { yahooTicker, result, calData };
+          break;
         } catch {
           hasTransientError = true;
-          return null;
         }
-      }));
+      }
 
-      const match = results.find(r => r !== null);
       if (!match) {
         if (hasTransientError) {
           console.debug(`Yahoo: Failed to get result for ${ticker} (${exchange}) but encountered transient errors. Will not cache Not Found.`);

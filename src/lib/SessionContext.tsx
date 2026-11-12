@@ -1,5 +1,5 @@
 // src/lib/SessionContext.tsx
-import React, { createContext, useState, useContext, type ReactNode } from 'react';
+import React, { createContext, useState, useContext, useCallback, useMemo, type ReactNode } from 'react';
 
 interface SessionContextType {
   isSessionExpired: boolean;
@@ -24,16 +24,20 @@ interface SessionProviderProps {
 export const SessionProvider: React.FC<SessionProviderProps> = ({ children }) => {
   const [isSessionExpired, setIsSessionExpired] = useState(false);
 
-  const showLoginModal = () => {
+  const showLoginModal = useCallback(() => {
     console.log("Session expired, showing login modal.");
     setIsSessionExpired(true);
-  };
+  }, []);
 
-  const hideLoginModal = () => {
+  const hideLoginModal = useCallback(() => {
     setIsSessionExpired(false);
-  };
+  }, []);
   
-  const value = { isSessionExpired, showLoginModal, hideLoginModal };
+  const value = useMemo(() => ({
+    isSessionExpired,
+    showLoginModal,
+    hideLoginModal
+  }), [isSessionExpired, showLoginModal, hideLoginModal]);
 
   return (
     <SessionContext.Provider value={value}>

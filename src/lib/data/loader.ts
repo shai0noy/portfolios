@@ -5,6 +5,7 @@ import type { DividendEvent } from './model';
 import { Exchange, type ExchangeRates } from '../types';
 import type { TrackingListItem } from '../sheets/types';
 import { getTickerData, type TickerData } from '../fetching';
+import { deduplicateRequest } from '../fetching/utils/request_deduplicator';
 import { fetchGlobesStockQuote } from '../fetching/globes';
 import { fetchYahooTickerData } from '../fetching/yahoo';
 
@@ -164,7 +165,14 @@ function hydrateEngineFromCache(cached: FinanceCache): { engine: FinanceEngine, 
     return { engine, trackingLists: cached.trackingLists || [] };
 }
 
+export const loadStaleFinanceEngine = async (sheetId: string) => {
+    const cached = await loadFromCache(sheetId, true);
+    if (!cached) return null;
+    return hydrateEngineFromCache(cached);
+};
+
 export const loadFinanceEngine = async (sheetId: string, forceRefresh = false) => {
+    return deduplicateRequest(`loadFinanceEngine:${sheetId}:${forceRefresh}`, async () => {
     // 0. Try Load from Cache
     if (!forceRefresh) {
         const cached = await loadFromCache(sheetId);
@@ -397,4 +405,5 @@ export const loadFinanceEngine = async (sheetId: string, forceRefresh = false) =
         }
         throw e;
     }
+    });
 };

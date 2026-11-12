@@ -1,7 +1,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import toast from 'react-hot-toast';
-import { loadFinanceEngine } from './data/loader';
+import { loadFinanceEngine, loadStaleFinanceEngine } from './data/loader';
 import { SessionExpiredError } from './errors';
 import { useSession } from './SessionContext';
 import { coerceDate } from './date';
@@ -35,30 +35,51 @@ export function useDashboardData(sheetId: string) {
   const [engine, setEngine] = useState<FinanceEngine | null>(null);
   const [trackingLists, setTrackingLists] = useState<TrackingListItem[]>([]);
 
+  const applyEngineState = useCallback((eng: FinanceEngine, lists: TrackingListItem[]) => {
+    loadedRef.current = true;
+    setEngine(eng);
+    setTrackingLists(lists);
+    setPortfolios(Array.from(eng.portfolios.values()));
+    setExchangeRates(eng.exchangeRates);
+
+    const today = new Date();
+    const future = eng.transactions.some(t => {
+      const d = coerceDate(t.date);
+      return d && d > today;
+    });
+    setHasFutureTxns(future);
+
+    setHoldings(Array.from(eng.holdings.values()) as unknown as DashboardHolding[]);
+  }, []);
+
   const loadData = useCallback(async (force = false) => {
-    if (!sheetId) return;
-    if (!loadedRef.current) setLoading(true);
-    else setIsRefreshing(true);
+    if (!sheetId) {
+      setLoading(false);
+      return;
+    }
+    if (!loadedRef.current) {
+      setLoading(true);
+      if (!force) {
+        try {
+          const stale = await loadStaleFinanceEngine(sheetId);
+          if (stale) {
+            applyEngineState(stale.engine, stale.trackingLists);
+            setLoading(false);
+            setIsRefreshing(true);
+          }
+        } catch {
+          // ignore stale cache read errors
+        }
+      }
+    } else {
+      setIsRefreshing(true);
+    }
     setError(null);
     try {
       // If force=true, loadFinanceEngine bypasses cache, but we keep old cache 
       // in DB so it can be used as a fallback if the fetch fails.
       const { engine: eng, trackingLists: lists } = await loadFinanceEngine(sheetId, force);
-      loadedRef.current = true;
-      setEngine(eng);
-      setTrackingLists(lists);
-      setPortfolios(Array.from(eng.portfolios.values()));
-      setExchangeRates(eng.exchangeRates);
-
-      const today = new Date();
-      // Use the new getter for transactions in FinanceEngine
-      const future = eng.transactions.some(t => {
-        const d = coerceDate(t.date);
-        return d && d > today;
-      });
-      setHasFutureTxns(future);
-
-      setHoldings(Array.from(eng.holdings.values()) as unknown as DashboardHolding[]);
+      applyEngineState(eng, lists);
 
       return eng;
     } catch (e) {
@@ -77,7 +98,7 @@ export function useDashboardData(sheetId: string) {
       setLoading(false); 
       setIsRefreshing(false);
     }
-  }, [sheetId, showLoginModal]);
+  }, [sheetId, showLoginModal, applyEngineState]);
 
   useEffect(() => { loadData(); }, [loadData]);
 

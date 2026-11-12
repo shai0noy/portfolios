@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { ensureGapi, findSpreadsheetByName } from '../google';
+import { SessionExpiredError } from '../errors';
 import { clearFinanceCache } from '../data/loader';
 import { getTickerData, getHistoricalOpenPriceOnDate, type TickerData } from '../fetching';
 import { toGoogleSheetDateFormat, coerceDate, formatYYYYMMDD } from '../date';
@@ -71,13 +72,10 @@ const withAuthHandling = <A extends unknown[], R>(fn: (...args: A) => Promise<R>
             return await fn(...args);
         } catch (error) {
             if (isAuthError(error as GapiError)) {
-                console.warn('Authentication error detected. Clearing session and reloading.', error);
-                localStorage.removeItem('g_sheet_id');
-                // Reload the page. The application's entry point should handle
-                // redirecting to a login page if the user is not authenticated.
-                window.location.reload();
-                // Return a promise that never resolves to prevent further execution.
-                return new Promise(() => { });
+                console.warn('Authentication error detected. Clearing access token and signaling session expired.', error);
+                localStorage.removeItem('g_access_token');
+                localStorage.removeItem('g_expires');
+                throw new SessionExpiredError('Session expired');
             }
             throw error;
         }

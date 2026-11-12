@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Routes, Route, useNavigate, useLocation, Link as RouterLink, useSearchParams } from 'react-router-dom';
 import { Login } from './components/Login';
 import { TransactionForm } from './components/NewTransaction';
@@ -443,10 +443,10 @@ function AppContent() {
     if (sheetId) window.open(`https://docs.google.com/spreadsheets/d/${sheetId}`, '_blank');
   };
 
-  const handleLogin = (sid: string) => {
+  const handleLogin = useCallback((sid: string) => {
     setSheetId(sid);
     setGoogleReady(true);
-  };
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -485,7 +485,9 @@ function AppContent() {
     try {
       await signIn();
       hideLoginModal();
-      window.location.reload();
+      setGoogleReady(true);
+      setRefreshKey(k => k + 1);
+      window.dispatchEvent(new CustomEvent('market-data-refreshed'));
     } catch (e) {
       console.error("Failed to reconnect", e);
       setSnackbarMessage(t('Failed to sign in. Please try again.', 'ההתחברות נכשלה. אנא נסה שנית.'));

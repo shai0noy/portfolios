@@ -14,8 +14,12 @@ export function checkRateLimit(ip) {
       short: { count: 1, startTime: now },
       long: { count: 1, startTime: now }
     };
-    IP_LIMITS.set(ip, record);
-    return false;
+    IP_LIMITS.set(targetIp, record);
+    return {
+      allowed: true,
+      retryAfter: 0,
+      message: 'OK'
+    };
   }
 
   // Check/Update Short window (5 mins)

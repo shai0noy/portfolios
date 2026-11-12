@@ -127,7 +127,7 @@ export const EXCHANGE_SETTINGS: Record<Exchange, ExchangeSettings> = {
     labelHe: 'TASE (תל אביב)'
   },
   [Exchange.LSE]: {
-    aliases: ['XLON', 'LONDON', 'LSE', 'LON'],
+    aliases: ['XLON', 'LONDON', 'LONDON-CB', 'LSE', 'LON'],
     googleFinanceCode: 'LON',
     googleSheetsCode: 'LON',
     yahooFinanceSuffix: '.L',
@@ -302,7 +302,7 @@ export function parseExchange(exchangeId: string): Exchange {
 
   // Alias lookup
   for (const [ex, config] of Object.entries(EXCHANGE_SETTINGS)) {
-    if (config.aliases.includes(normalized)) {
+    if (config.aliases.includes(normalized) || (config.globesCode && config.globesCode.toUpperCase() === normalized)) {
       return ex as Exchange;
     }
   }

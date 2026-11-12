@@ -73,7 +73,7 @@ async function refreshAccessToken(): Promise<void> {
     try {
         const res = await fetch(`${WORKER_URL}/auth/token`, { credentials: 'include' });
         if (!res.ok) {
-            if (res.status === 401) throw new SessionExpiredError("Session expired");
+            if (res.status === 401 || res.status === 400) throw new SessionExpiredError("Session expired");
             throw new Error("Failed to refresh token");
         }
         const data = await res.json();
@@ -89,6 +89,7 @@ export function signIn(): Promise<void> {
         signInPromise = new Promise(async (resolve, reject) => {
             if (!CLIENT_ID) {
                 console.error("VITE_GOOGLE_CLIENT_ID not set");
+                signInPromise = null;
                 return reject(new Error("Google Client ID not configured."));
             }
             try {
@@ -97,6 +98,11 @@ export function signIn(): Promise<void> {
                     client_id: CLIENT_ID,
                     scope: SCOPES,
                     ux_mode: 'popup',
+                    error_callback: (err: any) => {
+                        console.error("OAuth code client error:", err);
+                        signInPromise = null;
+                        reject(new Error(err?.message || err?.type || 'Login cancelled or failed'));
+                    },
                     callback: async (response: any) => {
                         if (response.code) {
                             try {
@@ -108,12 +114,17 @@ export function signIn(): Promise<void> {
                                 });
                                 
                                 if (!res.ok) {
-                                    const err = await res.json();
-                                    throw new Error(err.error || 'Failed to exchange code');
+                                    const err = await res.json().catch(() => ({}));
+                                    throw new Error(err.error_description || err.error || 'Failed to exchange code');
                                 }
                                 
-                                // After cookie is set, get the access token
-                                await refreshAccessToken();
+                                const data = await res.json().catch(() => ({}));
+                                if (data?.access_token) {
+                                    storeToken(data);
+                                } else {
+                                    // Fallback if worker didn't return access_token in body
+                                    await refreshAccessToken();
+                                }
                                 resolve();
                             } catch (err) {
                                 console.error("Auth exchange failed:", err);
@@ -188,12 +199,9 @@ export const ensureGapi = async (): Promise<typeof gapi> => {
 
     console.debug('Token missing or expired, attempting refresh via worker...');
 
-    if (refreshPromise) {
-        await refreshPromise;
-        return gapiInstance!;
+    if (!refreshPromise) {
+        refreshPromise = refreshAccessToken().finally(() => { refreshPromise = null; });
     }
-
-    refreshPromise = refreshAccessToken().finally(() => { refreshPromise = null; });
     
     try {
         await refreshPromise;
