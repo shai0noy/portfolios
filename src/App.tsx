@@ -248,8 +248,8 @@ function AppContent() {
 
   const { permission, requestPermission } = useBackgroundRefresher(
     engine,
-    holdings,
-    trackingLists, 
+    isSessionExpired ? undefined : holdings,
+    isSessionExpired ? [] : trackingLists, 
     watchlistAlertsEnabled,
     notableMovesAlertsEnabled,
     globalAlertPct,
@@ -968,6 +968,7 @@ function AppContent() {
                 </Box>
 
                 <Routes>
+                  <Route path="/" element={null} />
                   <Route path="/dashboard" element={null} />
                   <Route path="/dashboard/summary" element={null} />
                   <Route path="/ai" element={null} />

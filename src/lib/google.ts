@@ -85,24 +85,18 @@ async function refreshAccessToken(): Promise<void> {
 }
 
 export function signIn(): Promise<void> {
-    if (!signInPromise) {
-        signInPromise = new Promise(async (resolve, reject) => {
-            if (!CLIENT_ID) {
-                console.error("VITE_GOOGLE_CLIENT_ID not set");
-                signInPromise = null;
-                return reject(new Error("Google Client ID not configured."));
-            }
+    if (!CLIENT_ID) {
+        console.error("VITE_GOOGLE_CLIENT_ID not set");
+        return Promise.reject(new Error("Google Client ID not configured."));
+    }
+
+    signInPromise = new Promise((resolve, reject) => {
+        const startOAuth = () => {
             try {
-                await initializeGapi();
                 const client = google.accounts.oauth2.initCodeClient({
                     client_id: CLIENT_ID,
                     scope: SCOPES,
                     ux_mode: 'popup',
-                    error_callback: (err: any) => {
-                        console.error("OAuth code client error:", err);
-                        signInPromise = null;
-                        reject(new Error(err?.message || err?.type || 'Login cancelled or failed'));
-                    },
                     callback: async (response: any) => {
                         if (response.code) {
                             try {
@@ -144,8 +138,19 @@ export function signIn(): Promise<void> {
                 signInPromise = null;
                 reject(e);
             }
-        });
-    }
+        };
+
+        if (gapiInstance && typeof google !== 'undefined' && google?.accounts?.oauth2) {
+            startOAuth();
+        } else {
+            initializeGapi().then(startOAuth).catch(e => {
+                console.error("Error in signIn:", e);
+                signInPromise = null;
+                reject(e);
+            });
+        }
+    });
+
     return signInPromise;
 }
 

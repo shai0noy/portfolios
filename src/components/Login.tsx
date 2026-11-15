@@ -122,9 +122,9 @@ export function Login({ onLogin }: { onLogin: (sheetId: string) => void }) {
   const performLogin = async () => {
     if (loading) return;
     setError('');
-    setLoading(true);
     try {
       await signIn();
+      setLoading(true);
       setIsSignedIn(true);
       
       const savedSheetId = localStorage.getItem('g_sheet_id');
