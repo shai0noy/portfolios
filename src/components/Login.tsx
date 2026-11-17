@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Box, Button, Typography, CircularProgress, Paper, Container, TextField, Stack } from '@mui/material';
 import GoogleIcon from '@mui/icons-material/Google';
-import { initializeGapi, ensureGapi, signIn, checkSheetExists, hasValidToken, findSpreadsheetByName } from '../lib/google';
+import { initializeGapi, ensureGapi, signIn, checkSheetExists, hasValidToken, findSpreadsheetByName, consumePendingOAuthError } from '../lib/google';
 import { createPortfolioSpreadsheet, DEFAULT_SHEET_NAME } from '../lib/sheets/index';
 import { useLanguage } from '../lib/i18n';
 
@@ -19,6 +19,10 @@ export function Login({ onLogin }: { onLogin: (sheetId: string) => void }) {
   const initialCheckDone = useRef(false);
 
   const checkInitialSession = useCallback(async () => {
+    const redirectErr = consumePendingOAuthError();
+    if (redirectErr) {
+      setError(`Google Sign-In failed: ${redirectErr}`);
+    }
     try {
       await initializeGapi();
       let valid = hasValidToken();

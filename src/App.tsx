@@ -11,7 +11,7 @@ import { evaluateAlert } from './lib/alerts';
 import { ImportCSV } from './components/ImportCSV';
 import { TickerDetails } from './components/TickerDetails';
 import { ensureSchema, populateTestData, fetchTransactions, rebuildHoldingsSheet, getMetadataValue, rebuildTransactionsOpenPrices } from './lib/sheets/index';
-import { initializeGapi, signOut, signIn, ensureGapi } from './lib/google';
+import { initializeGapi, signOut, signIn, ensureGapi, consumePendingOAuthError } from './lib/google';
 import {
   Box, AppBar, Toolbar, Typography, Container, Tabs, Tab, IconButton, CircularProgress,
   ThemeProvider, CssBaseline, Snackbar, Alert, ListItemIcon, ListItemText,
@@ -36,6 +36,7 @@ import LanguageIcon from '@mui/icons-material/Language';
 import PaletteIcon from '@mui/icons-material/Palette';
 import ManageAccountsIcon from '@mui/icons-material/ManageAccounts';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import SmartToyIcon from '@mui/icons-material/SmartToy';
 import VpnKeyIcon from '@mui/icons-material/VpnKey';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import DashboardIcon from '@mui/icons-material/Dashboard';
@@ -60,6 +61,7 @@ import { SessionProvider, useSession } from './lib/SessionContext';
 import { ProfileForm, type UserFinancialProfile } from './components/ProfileForm';
 import { setMetadataValue } from './lib/sheets/api';
 import { ApiKeyDialog } from './components/ApiKeyDialog';
+import { AgentAccessDialog } from './components/AgentAccessDialog';
 import { Toaster, toast } from 'react-hot-toast';
 
 const ColorBlind = VisibilityOffIcon;
@@ -112,6 +114,7 @@ function AppContent() {
   const [schemaVersionMismatch, setSchemaVersionMismatch] = useState<'old' | 'new' | null>(null);
   const [colorblindMode, setColorblindMode] = useState<boolean>(() => localStorage.getItem('colorblindMode') === 'true');
   const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
+  const [agentAccessDialogOpen, setAgentAccessDialogOpen] = useState(false);
   
   const [rebuildDialogOpen, setRebuildDialogOpen] = useState(false);
   const [rebuildMode, setRebuildMode] = useState<'ALL_CURRENT' | 'BACKFILL_CREATION' | 'SKIP'>('SKIP');
@@ -449,6 +452,10 @@ function AppContent() {
   }, []);
 
   useEffect(() => {
+    const redirectErr = consumePendingOAuthError();
+    if (redirectErr) {
+      toast.error(`Google Sign-In failed: ${redirectErr}`);
+    }
     let mounted = true;
     (async () => {
       try {
@@ -774,6 +781,11 @@ function AppContent() {
               <ListItemButton onClick={() => { setApiKeyDialogOpen(true); handleMobileMenuClose(); }}>
                 <ListItemIcon sx={{ minWidth: 40 }}><VpnKeyIcon fontSize="small" /></ListItemIcon>
                 <ListItemText primary={t('AI Studio API Key', 'מפתח ה-API של AI Studio')} primaryTypographyProps={{ fontSize: '0.85rem' }} />
+              </ListItemButton>
+
+              <ListItemButton onClick={() => { setAgentAccessDialogOpen(true); handleMobileMenuClose(); }}>
+                <ListItemIcon sx={{ minWidth: 40 }}><SmartToyIcon fontSize="small" /></ListItemIcon>
+                <ListItemText primary={t('Agent API Access', 'גישת API לסוכן (Agent)')} primaryTypographyProps={{ fontSize: '0.85rem' }} />
               </ListItemButton>
 
               <ListItemButton onClick={() => {
@@ -1133,11 +1145,18 @@ function AppContent() {
           </Dialog>
 
           {sheetId && (
-            <ApiKeyDialog
-              open={apiKeyDialogOpen}
-              onClose={() => setApiKeyDialogOpen(false)}
-              sheetId={sheetId}
-            />
+            <>
+              <ApiKeyDialog
+                open={apiKeyDialogOpen}
+                onClose={() => setApiKeyDialogOpen(false)}
+                sheetId={sheetId}
+              />
+              <AgentAccessDialog
+                open={agentAccessDialogOpen}
+                onClose={() => setAgentAccessDialogOpen(false)}
+                sheetId={sheetId}
+              />
+            </>
           )}
           {/* App Settings Dialog */}
           <Dialog open={appSettingsDialogOpen} onClose={() => setAppSettingsDialogOpen(false)} maxWidth="xs" fullWidth>

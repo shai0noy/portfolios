@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build:worker": "./node_modules/.bin/esbuild src/agent/workerRuntime.ts --bundle --format=esm --platform=browser --target=es2022 --outfile=proxy/src/agentRuntime.bundle.js",
+    "build": "tsc -b && vite build && npm run build:worker",
     "lint": "eslint .",
     "preview": "vite preview"
   },

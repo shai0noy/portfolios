@@ -2,15 +2,71 @@
 import { ensureGoogleApis } from './gapiLoader';
 import { SessionExpiredError } from './errors';
 
-const CLIENT_ID = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID;
-const SCOPES = 'https://www.googleapis.com/auth/drive.file';
-const WORKER_URL = (import.meta as any).env?.VITE_WORKER_URL || '';
+const WORKER_URL = (import.meta as any).env?.VITE_WORKER_URL || 'https://portfolios.noy-shai.workers.dev';
 
 let gapiInstance: typeof gapi | null = null;
-let signInPromise: Promise<void> | null = null;
 let refreshPromise: Promise<void> | null = null;
 let refreshTimeout: ReturnType<typeof setTimeout> | null = null;
 let initPromise: Promise<typeof gapi> | null = null;
+let pendingOAuthError: string | null = null;
+
+function decodeBase64UrlJson(input: string): any {
+    const padded = input.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((input.length + 3) % 4);
+    const binary = atob(padded);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+    }
+    return JSON.parse(new TextDecoder().decode(bytes));
+}
+
+function consumeRedirectAuthFromHash() {
+    if (typeof window === 'undefined' || !window.location.hash) return;
+    const rawHash = window.location.hash.startsWith('#') ? window.location.hash.slice(1) : window.location.hash;
+    if (!rawHash) return;
+
+    const params = new URLSearchParams(rawHash);
+    const callbackData = params.get('oauth_callback');
+    const oauthError = params.get('oauth_error');
+
+    if (!callbackData && !oauthError) return;
+
+    if (callbackData) {
+        try {
+            const data = decodeBase64UrlJson(callbackData);
+            if (data?.access_token) {
+                const expiresIn = Number(data.expires_in) || 3600;
+                const expiresAt = Date.now() + (expiresIn - 60) * 1000;
+                localStorage.setItem('g_access_token', data.access_token);
+                localStorage.setItem('g_expires', expiresAt.toString());
+            }
+            if (data?.session_token) {
+                localStorage.setItem('g_session_token', data.session_token);
+            }
+        } catch (e) {
+            console.error('Failed to parse OAuth callback payload:', e);
+            pendingOAuthError = 'Failed to complete Google sign-in response.';
+        }
+    } else if (oauthError) {
+        pendingOAuthError = oauthError;
+    }
+
+    // Clean OAuth parameters from URL hash without triggering navigation
+    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+}
+
+// Immediately process redirect callback tokens before React mounts
+consumeRedirectAuthFromHash();
+
+export function consumePendingOAuthError(): string | null {
+    const err = pendingOAuthError;
+    pendingOAuthError = null;
+    return err;
+}
+
+export function getSessionToken(): string | null {
+    return typeof localStorage !== 'undefined' ? localStorage.getItem('g_session_token') : null;
+}
 
 export async function initializeGapi(): Promise<typeof gapi> {
     if (gapiInstance) return gapiInstance;
@@ -51,13 +107,18 @@ function scheduleRefresh(expiresInSeconds: number) {
 }
 
 function storeToken(response: any) {
+    if (response.session_token) {
+        localStorage.setItem('g_session_token', response.session_token);
+    }
     if (!response.access_token) return;
     localStorage.setItem('g_access_token', response.access_token);
     // expires_in is in seconds
-    const expiresIn = Number(response.expires_in);
+    const expiresIn = Number(response.expires_in) || 3600;
     const expiresAt = Date.now() + (expiresIn - 60) * 1000;
     localStorage.setItem('g_expires', expiresAt.toString());
-    gapiInstance!.client.setToken({ access_token: response.access_token });
+    if (gapiInstance) {
+        gapiInstance.client.setToken({ access_token: response.access_token });
+    }
     console.debug("Token refreshed and stored.");
     
     scheduleRefresh(expiresIn);
@@ -71,9 +132,21 @@ export function hasValidToken(): boolean {
 
 async function refreshAccessToken(): Promise<void> {
     try {
-        const res = await fetch(`${WORKER_URL}/auth/token`, { credentials: 'include' });
+        const sessionToken = getSessionToken();
+        const headers: Record<string, string> = {};
+        if (sessionToken) {
+            headers['Authorization'] = `Bearer ${sessionToken}`;
+        }
+
+        const res = await fetch(`${WORKER_URL}/auth/token`, {
+            credentials: 'include',
+            headers,
+        });
         if (!res.ok) {
-            if (res.status === 401 || res.status === 400) throw new SessionExpiredError("Session expired");
+            if (res.status === 401 || res.status === 400) {
+                localStorage.removeItem('g_session_token');
+                throw new SessionExpiredError("Session expired");
+            }
             throw new Error("Failed to refresh token");
         }
         const data = await res.json();
@@ -85,73 +158,12 @@ async function refreshAccessToken(): Promise<void> {
 }
 
 export function signIn(): Promise<void> {
-    if (!CLIENT_ID) {
-        console.error("VITE_GOOGLE_CLIENT_ID not set");
-        return Promise.reject(new Error("Google Client ID not configured."));
-    }
-
-    signInPromise = new Promise((resolve, reject) => {
-        const startOAuth = () => {
-            try {
-                const client = google.accounts.oauth2.initCodeClient({
-                    client_id: CLIENT_ID,
-                    scope: SCOPES,
-                    ux_mode: 'popup',
-                    callback: async (response: any) => {
-                        if (response.code) {
-                            try {
-                                const res = await fetch(`${WORKER_URL}/auth/google`, {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ code: response.code }),
-                                    credentials: 'include'
-                                });
-                                
-                                if (!res.ok) {
-                                    const err = await res.json().catch(() => ({}));
-                                    throw new Error(err.error_description || err.error || 'Failed to exchange code');
-                                }
-                                
-                                const data = await res.json().catch(() => ({}));
-                                if (data?.access_token) {
-                                    storeToken(data);
-                                } else {
-                                    // Fallback if worker didn't return access_token in body
-                                    await refreshAccessToken();
-                                }
-                                resolve();
-                            } catch (err) {
-                                console.error("Auth exchange failed:", err);
-                                reject(err);
-                            } finally {
-                                signInPromise = null;
-                            }
-                        } else {
-                            signInPromise = null;
-                            reject(new Error(response.error_description || 'Login failed'));
-                        }
-                    },
-                });
-                client.requestCode();
-            } catch (e) {
-                console.error("Error in signIn:", e);
-                signInPromise = null;
-                reject(e);
-            }
-        };
-
-        if (gapiInstance && typeof google !== 'undefined' && google?.accounts?.oauth2) {
-            startOAuth();
-        } else {
-            initializeGapi().then(startOAuth).catch(e => {
-                console.error("Error in signIn:", e);
-                signInPromise = null;
-                reject(e);
-            });
-        }
-    });
-
-    return signInPromise;
+    const returnUrl = new URL(window.location.href);
+    returnUrl.hash = '';
+    const loginUrl = `${WORKER_URL}/auth/login?returnTo=${encodeURIComponent(returnUrl.toString())}`;
+    window.location.assign(loginUrl);
+    // Keep promise pending while browser navigates to Google OAuth
+    return new Promise(() => {});
 }
 
 export function signOut() {
@@ -159,6 +171,7 @@ export function signOut() {
     refreshTimeout = null;
     localStorage.removeItem('g_access_token');
     localStorage.removeItem('g_expires');
+    localStorage.removeItem('g_session_token');
     localStorage.removeItem('g_sheet_id');
     if (gapiInstance) {
         gapiInstance.client.setToken(null);

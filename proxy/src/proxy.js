@@ -28,7 +28,7 @@ const API_MAP = {
   "boi_statistics": { urlTemaplte: "https://edge.boi.gov.il/FusionEdgeServer/sdmx/v2/data/dataflow/BOI.STATISTICS/BR/1.0/{series}?locale=en&format=csv", ttl: 43200 }
 };
 
-async function invokeApi(apiId, params, env, ctx, corsHeaders) {
+export async function invokeApi(apiId, params, env, ctx, corsHeaders) {
   const apiConfig = API_MAP[apiId];
   if (!apiId || !apiConfig) {
     return new Response("Invalid or missing apiId", { status: 400, headers: corsHeaders });
