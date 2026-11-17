@@ -326,10 +326,24 @@ export const fetchPortfolios = withAuthHandling(async (spreadsheetId: string): P
         };
 
         const txn = t as Transaction;
+        if (txn.ticker) {
+            txn.ticker = String(txn.ticker).trim().toUpperCase();
+        }
+        if (txn.portfolioId) {
+            txn.portfolioId = String(txn.portfolioId).trim();
+        }
+        if (txn.currency) {
+            txn.currency = String(txn.currency).trim().toUpperCase() as Currency;
+        }
         if (txn.exchange) {
             txn.exchange = parseExchange(String(txn.exchange));
         } else {
             txn.exchange = undefined;
+        }
+        if (typeof txn.splitRatio === 'number' && txn.splitRatio >= 0.97 && txn.splitRatio <= 1.03 && txn.splitRatio !== 1) {
+            txn.splitRatio = 1;
+            txn.splitAdjustedQty = txn.originalQty;
+            txn.splitAdjustedPrice = txn.originalPrice;
         }
 
         return {
@@ -435,6 +449,15 @@ export const fetchTransactions = withAuthHandling(async (spreadsheetId: string):
             return isNaN(c2) ? 0 : c2;
         };
 
+        if (t.ticker) {
+            t.ticker = String(t.ticker).trim().toUpperCase();
+        }
+        if (t.portfolioId) {
+            t.portfolioId = String(t.portfolioId).trim();
+        }
+        if (t.currency) {
+            t.currency = String(t.currency).trim().toUpperCase() as Currency;
+        }
         if (t.exchange) {
             t.exchange = parseExchange(String(t.exchange));
         } else {
@@ -443,6 +466,11 @@ export const fetchTransactions = withAuthHandling(async (spreadsheetId: string):
 
         if (t.type) {
             t.type = String(t.type).trim().toUpperCase() as TransactionType;
+        }
+        if (typeof t.splitRatio === 'number' && t.splitRatio >= 0.97 && t.splitRatio <= 1.03 && t.splitRatio !== 1) {
+            t.splitRatio = 1;
+            t.splitAdjustedQty = t.originalQty;
+            t.splitAdjustedPrice = t.originalPrice;
         }
 
         const normalizedDate = coerceDate(t.date);
@@ -517,7 +545,8 @@ export const batchAddTransactions = withAuthHandling(async (spreadsheetId: strin
 
         // Normalize specific fields for the sheet
         rowData.date = t.date ? toGoogleSheetDateFormat(coerceDate(t.date)!) : '';
-        rowData.ticker = String(logIfFalsy(t.ticker, `Transaction ticker missing`, t)).toUpperCase();
+        rowData.portfolioId = t.portfolioId ? String(t.portfolioId).trim() : '';
+        rowData.ticker = String(logIfFalsy(t.ticker, `Transaction ticker missing`, t)).trim().toUpperCase();
         rowData.exchange = toGoogleSheetsExchangeCode(t.exchange!);
         rowData.gfExchange = toGoogleFinanceExchangeCode(t.exchange!);
         rowData.vestDate = t.vestDate ? toGoogleSheetDateFormat(coerceDate(t.vestDate)!) : '';
@@ -526,7 +555,9 @@ export const batchAddTransactions = withAuthHandling(async (spreadsheetId: strin
 
         // Commission handling: Convert to Agorot if currency is ILA
         const comm = t.commission || 0;
-        const isILA = (t.currency || '').toUpperCase() === 'ILA';
+        const normalizedCurr = String(t.currency || '').trim().toUpperCase();
+        if (normalizedCurr) rowData.currency = normalizedCurr;
+        const isILA = normalizedCurr === 'ILA';
         rowData.commission = isILA ? comm * 100 : comm;
 
         // Creation Date
@@ -864,14 +895,17 @@ export const updateTransaction = withAuthHandling(async (spreadsheetId: string, 
     // Prepare row data (same logic as batchAddTransactions)
     const rowData: Record<string, string | number | null | undefined> = { ...t as any };
     rowData.date = t.date ? toGoogleSheetDateFormat(coerceDate(t.date)!) : '';
-    rowData.ticker = String(logIfFalsy(t.ticker, `Transaction ticker missing`, t)).toUpperCase();
+    rowData.portfolioId = t.portfolioId ? String(t.portfolioId).trim() : '';
+    rowData.ticker = String(logIfFalsy(t.ticker, `Transaction ticker missing`, t)).trim().toUpperCase();
     rowData.exchange = toGoogleSheetsExchangeCode(t.exchange!);
     rowData.vestDate = t.vestDate ? toGoogleSheetDateFormat(coerceDate(t.vestDate)!) : '';
     rowData.comment = t.comment || '';
     rowData.source = t.source || '';
 
     const comm = t.commission || 0;
-    const isILA = (t.currency || '').toUpperCase() === 'ILA';
+    const normalizedCurr = String(t.currency || '').trim().toUpperCase();
+    if (normalizedCurr) rowData.currency = normalizedCurr;
+    const isILA = normalizedCurr === 'ILA';
     rowData.commission = isILA ? comm * 100 : comm;
 
     const cDate = (t.creationDate ? coerceDate(t.creationDate) : null) || new Date();

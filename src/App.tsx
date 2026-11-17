@@ -222,7 +222,8 @@ function AppContent() {
     };
   }, [lockEnabled, isLocked]);
 
-  const { holdings, trackingLists, engine } = useDashboardData(sheetId || '');
+  const activeSheetId = sheetId && googleReady === true && !isSessionExpired ? sheetId : '';
+  const { holdings, trackingLists, engine } = useDashboardData(activeSheetId);
 
   const hasTriggeredAlert = useMemo(() => {
     if (!sheetId || !engine) return false;
@@ -505,8 +506,8 @@ function AppContent() {
 
   const [exportInProgress, setExportInProgress] = useState(false);
 
-  // Load portfolios globally so TickerDetails can access them
-  const { portfolios } = usePortfolios(sheetId, refreshKey);
+  // Load portfolios globally so TickerDetails can access them (only when authenticated)
+  const { portfolios } = usePortfolios(activeSheetId || null, refreshKey);
 
   const locationState = location.state as { background?: { pathname: string } } | null;
   const effectivePathname = locationState?.background?.pathname || location.pathname;
@@ -848,6 +849,39 @@ function AppContent() {
 
   if (!sheetId || googleReady === false) {
     return <Login onLogin={handleLogin} />;
+  }
+
+  if (isSessionExpired) {
+    return (
+      <CacheProvider value={isRtl ? cacheRtl : cacheLtr}>
+        <ThemeProvider theme={theme}>
+          <CssBaseline />
+          <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
+            <Dialog open={true} onClose={() => { }}>
+              <DialogTitle>{t('Session Expired', 'הפעלתך פגה')}</DialogTitle>
+              <DialogContent>
+                <DialogContentText>
+                  {t('Your session has expired. Please sign in again to continue.', 'הפעלתך פגה. אנא התחבר מחדש כדי להמשיך.')}
+                </DialogContentText>
+              </DialogContent>
+              <DialogActions sx={{ px: 3, pb: 2, justifyContent: 'space-between' }}>
+                <Button onClick={handleLogout} color="inherit" size="small">
+                  {t('Switch Sheet', 'החלף גיליון')}
+                </Button>
+                <Button onClick={handleReconnect} variant="contained" color="primary" autoFocus>
+                  {t('Sign In', 'התחבר')}
+                </Button>
+              </DialogActions>
+            </Dialog>
+            <Snackbar open={snackbarOpen} autoHideDuration={10000} onClose={handleSnackbarClose}>
+              <Alert onClose={handleSnackbarClose} severity={snackbarSeverity} sx={{ width: '100%' }} action={snackbarAction}>
+                {snackbarMessage}
+              </Alert>
+            </Snackbar>
+          </Box>
+        </ThemeProvider>
+      </CacheProvider>
+    );
   }
 
   return (

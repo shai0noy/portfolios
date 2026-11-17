@@ -376,7 +376,12 @@ export class FinanceEngine {
         const startOfToday = new Date(now); startOfToday.setHours(0, 0, 0, 0);
 
         // Helper to calc perf
-        const calculatePersonalPerf = (h: Holding, period: string, fallbackPct?: number): number => {
+        const calculatePersonalPerf = (
+            h: Holding,
+            period: string,
+            fallbackPct?: number,
+            overrideHistory?: { date: Date; price: number; adjClose?: number }[]
+        ): number => {
             let startDate: Date;
             switch (period) {
                 case '1w': startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); break;
@@ -413,10 +418,8 @@ export class FinanceEngine {
             if (startDate > now) return fallbackPct || 0;
 
             try {
-                // We use a history provider that looks up this.priceHistory
-                // But we also need to handle the case where we don't have history for a specific ticker
-                // create a simple provider closure
-                const provider = (t: string) => ({ historical: this.priceHistory.get(t) || [] });
+                // We use a history provider that looks up holding-normalized history or this.priceHistory
+                const provider = (t: string) => ({ historical: overrideHistory || this.priceHistory.get(t) || [] });
 
                 const res = h.generateGainForPeriod(startDate, provider, this.exchangeRates);
 
@@ -469,6 +472,9 @@ export class FinanceEngine {
                     }
                 }
 
+                let holdingHistory: { date: Date; price: number; adjClose?: number }[] | undefined =
+                    live.historical || this.priceHistory.get(h.ticker);
+
                 if (price > 0) {
                     const priceCurrency = resolveTickerPriceCurrency({
                         exchange: h.exchange,
@@ -482,6 +488,16 @@ export class FinanceEngine {
                     let finalPrice = price;
                     if (priceCurrency !== h.stockCurrency) {
                         finalPrice = convertCurrency(price, priceCurrency, h.stockCurrency, this.exchangeRates);
+                        if (holdingHistory && holdingHistory.length > 0) {
+                            const factor = convertCurrency(1, priceCurrency, h.stockCurrency, this.exchangeRates);
+                            if (factor > 0 && factor !== 1) {
+                                holdingHistory = holdingHistory.map(pt => ({
+                                    ...pt,
+                                    price: pt.price * factor,
+                                    ...(pt.adjClose !== undefined ? { adjClose: pt.adjClose * factor } : {}),
+                                }));
+                            }
+                        }
                     }
 
                     h.currentPrice = finalPrice;
@@ -492,14 +508,14 @@ export class FinanceEngine {
                 }
 
                 // Use Personal Perf with Fallback to Market Perf
-                h.perf1w = calculatePersonalPerf(h, '1w', live.changePctRecent ?? live.perf1w);
-                h.perf1m = calculatePersonalPerf(h, '1m', live.changePct1m ?? live.perf1m);
-                h.perf3m = calculatePersonalPerf(h, '3m', live.changePct3m ?? live.perf3m);
-                h.perfYtd = calculatePersonalPerf(h, 'ytd', live.changePctYtd ?? live.perfYtd);
-                h.perf1y = calculatePersonalPerf(h, '1y', live.changePct1y ?? live.perf1y);
-                h.perf3y = calculatePersonalPerf(h, '3y', live.changePct3y ?? live.perf3y);
-                h.perf5y = calculatePersonalPerf(h, '5y', live.changePct5y ?? live.perf5y);
-                h.perfAll = calculatePersonalPerf(h, 'all', live.changePctMax ?? live.perfAll);
+                h.perf1w = calculatePersonalPerf(h, '1w', live.changePctRecent ?? live.perf1w, holdingHistory);
+                h.perf1m = calculatePersonalPerf(h, '1m', live.changePct1m ?? live.perf1m, holdingHistory);
+                h.perf3m = calculatePersonalPerf(h, '3m', live.changePct3m ?? live.perf3m, holdingHistory);
+                h.perfYtd = calculatePersonalPerf(h, 'ytd', live.changePctYtd ?? live.perfYtd, holdingHistory);
+                h.perf1y = calculatePersonalPerf(h, '1y', live.changePct1y ?? live.perf1y, holdingHistory);
+                h.perf3y = calculatePersonalPerf(h, '3y', live.changePct3y ?? live.perf3y, holdingHistory);
+                h.perf5y = calculatePersonalPerf(h, '5y', live.changePct5y ?? live.perf5y, holdingHistory);
+                h.perfAll = calculatePersonalPerf(h, 'all', live.changePctMax ?? live.perfAll, holdingHistory);
 
                 // Add ticker-level intrinsic performance
                 h.tickerChangePct1w = live.changePctRecent;
@@ -1136,6 +1152,7 @@ export class FinanceEngine {
             totalTaxPaid: Math.max(0, globalAcc.totalRealizedTax), // Populate the new field
             valueAfterTax: globalAcc.aum - Math.max(0, globalAcc.totalUnrealizedTax),
             totalDayChangePct: globalAcc.aumWithDayChangeData > 0 ? globalAcc.totalDayChange / globalAcc.aumWithDayChangeData : 0,
+            perf1d: globalAcc.aumWithDayChangeData > 0 ? globalAcc.totalDayChange / globalAcc.aumWithDayChangeData : 0,
             totalDayChangeIsIncomplete: (globalAcc.holdingsWithDayChange + (globalAcc as any).holdingsWithStaleDayChange) < this.holdings.size,
             totalDayChangeIsStale: (globalAcc as any).holdingsWithStaleDayChange > 0 && globalAcc.holdingsWithDayChange === 0,
 

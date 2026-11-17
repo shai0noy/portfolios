@@ -1450,8 +1450,10 @@ var Holding = class {
     const startTime = new Date(startDate).setUTCHours(0, 0, 0, 0);
     const historyData = historyProvider(this.ticker);
     const getPriceAtDate = (date) => {
-      if (!historyData?.historical) return 0;
+      if (!historyData?.historical || historyData.historical.length === 0) return 0;
       const t = date.getTime();
+      const firstTime = new Date(historyData.historical[0].date).getTime();
+      if (firstTime > t + 14 * 24 * 60 * 60 * 1e3) return 0;
       let found = historyData.historical[0];
       for (let i = 0; i < historyData.historical.length; i++) {
         if (new Date(historyData.historical[i].date).getTime() > t) break;
@@ -1476,7 +1478,12 @@ var Holding = class {
           priceAtStartFetched = true;
         }
         if (priceAtStart <= 0) {
-          continue;
+          return {
+            gain: MultiCurrencyValue.zero(),
+            initialValue: MultiCurrencyValue.zero(),
+            finalValue: MultiCurrencyValue.zero(),
+            gainPct: 0
+          };
         }
         const valSC = lot.qty * priceAtStart;
         const ratesToUse = initialRates || rates.current;
@@ -1825,7 +1832,7 @@ var FinanceEngine = class _FinanceEngine {
     const now = /* @__PURE__ */ new Date();
     const startOfToday = new Date(now);
     startOfToday.setHours(0, 0, 0, 0);
-    const calculatePersonalPerf = (h, period, fallbackPct) => {
+    const calculatePersonalPerf = (h, period, fallbackPct, overrideHistory) => {
       let startDate;
       switch (period) {
         case "1w":
@@ -1862,7 +1869,7 @@ var FinanceEngine = class _FinanceEngine {
       }
       if (startDate > now) return fallbackPct || 0;
       try {
-        const provider = (t) => ({ historical: this.priceHistory.get(t) || [] });
+        const provider = (t) => ({ historical: overrideHistory || this.priceHistory.get(t) || [] });
         const res = h.generateGainForPeriod(startDate, provider, this.exchangeRates);
         if (res.initialValue.get(h.portfolioCurrency) === 0) {
           return fallbackPct !== void 0 ? fallbackPct : 0;
@@ -1890,6 +1897,7 @@ var FinanceEngine = class _FinanceEngine {
             price = lastTxn.price || lastTxn.originalPrice || 0;
           }
         }
+        let holdingHistory = live.historical || this.priceHistory.get(h.ticker);
         if (price > 0) {
           const priceCurrency = resolveTickerPriceCurrency({
             exchange: h.exchange,
@@ -1902,6 +1910,16 @@ var FinanceEngine = class _FinanceEngine {
           let finalPrice = price;
           if (priceCurrency !== h.stockCurrency) {
             finalPrice = convertCurrency(price, priceCurrency, h.stockCurrency, this.exchangeRates);
+            if (holdingHistory && holdingHistory.length > 0) {
+              const factor = convertCurrency(1, priceCurrency, h.stockCurrency, this.exchangeRates);
+              if (factor > 0 && factor !== 1) {
+                holdingHistory = holdingHistory.map((pt) => ({
+                  ...pt,
+                  price: pt.price * factor,
+                  ...pt.adjClose !== void 0 ? { adjClose: pt.adjClose * factor } : {}
+                }));
+              }
+            }
           }
           h.currentPrice = finalPrice;
         }
@@ -1909,14 +1927,14 @@ var FinanceEngine = class _FinanceEngine {
           h.dayChangePct = live.changePct1d;
           h.isStaleDayChange = !!live.isStaleDayChange;
         }
-        h.perf1w = calculatePersonalPerf(h, "1w", live.changePctRecent ?? live.perf1w);
-        h.perf1m = calculatePersonalPerf(h, "1m", live.changePct1m ?? live.perf1m);
-        h.perf3m = calculatePersonalPerf(h, "3m", live.changePct3m ?? live.perf3m);
-        h.perfYtd = calculatePersonalPerf(h, "ytd", live.changePctYtd ?? live.perfYtd);
-        h.perf1y = calculatePersonalPerf(h, "1y", live.changePct1y ?? live.perf1y);
-        h.perf3y = calculatePersonalPerf(h, "3y", live.changePct3y ?? live.perf3y);
-        h.perf5y = calculatePersonalPerf(h, "5y", live.changePct5y ?? live.perf5y);
-        h.perfAll = calculatePersonalPerf(h, "all", live.changePctMax ?? live.perfAll);
+        h.perf1w = calculatePersonalPerf(h, "1w", live.changePctRecent ?? live.perf1w, holdingHistory);
+        h.perf1m = calculatePersonalPerf(h, "1m", live.changePct1m ?? live.perf1m, holdingHistory);
+        h.perf3m = calculatePersonalPerf(h, "3m", live.changePct3m ?? live.perf3m, holdingHistory);
+        h.perfYtd = calculatePersonalPerf(h, "ytd", live.changePctYtd ?? live.perfYtd, holdingHistory);
+        h.perf1y = calculatePersonalPerf(h, "1y", live.changePct1y ?? live.perf1y, holdingHistory);
+        h.perf3y = calculatePersonalPerf(h, "3y", live.changePct3y ?? live.perf3y, holdingHistory);
+        h.perf5y = calculatePersonalPerf(h, "5y", live.changePct5y ?? live.perf5y, holdingHistory);
+        h.perfAll = calculatePersonalPerf(h, "all", live.changePctMax ?? live.perfAll, holdingHistory);
         h.tickerChangePct1w = live.changePctRecent;
         h.tickerChangePct1m = live.changePct1m;
         h.tickerChangePct3m = live.changePct3m;
@@ -2339,6 +2357,7 @@ var FinanceEngine = class _FinanceEngine {
       // Populate the new field
       valueAfterTax: globalAcc.aum - Math.max(0, globalAcc.totalUnrealizedTax),
       totalDayChangePct: globalAcc.aumWithDayChangeData > 0 ? globalAcc.totalDayChange / globalAcc.aumWithDayChangeData : 0,
+      perf1d: globalAcc.aumWithDayChangeData > 0 ? globalAcc.totalDayChange / globalAcc.aumWithDayChangeData : 0,
       totalDayChangeIsIncomplete: globalAcc.holdingsWithDayChange + globalAcc.holdingsWithStaleDayChange < this.holdings.size,
       totalDayChangeIsStale: globalAcc.holdingsWithStaleDayChange > 0 && globalAcc.holdingsWithDayChange === 0,
       // Perf
@@ -2521,6 +2540,128 @@ function calculateDashboardSummary(data, displayCurrency, exchangeRates, portfol
   return { summary, holdings: enrichedHoldings };
 }
 
+// src/lib/fetching/gemel_utils.ts
+function getDateParts(date) {
+  const y = date.getFullYear().toString();
+  const m = (date.getMonth() + 1).toString().padStart(2, "0");
+  return { year: y, month: m };
+}
+function parseDateStr(dateStr) {
+  if (!dateStr || dateStr.length !== 6) return 0;
+  const y = parseInt(dateStr.substring(0, 4), 10);
+  const m = parseInt(dateStr.substring(4, 6), 10) - 1;
+  return new Date(y, m + 1, 0).getTime();
+}
+function calculateTickerDataFromFundHistory(fundData, exchange, sourceName, providentInfo) {
+  if (!fundData || fundData.data.length === 0) {
+    return null;
+  }
+  const { fundId, fundName, data } = fundData;
+  const sortedData = [...data].sort((a, b) => a.date - b.date);
+  const priceMap = /* @__PURE__ */ new Map();
+  let currentPrice = 100;
+  const historical = [];
+  const getKey = (ts) => {
+    const d = new Date(ts);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  };
+  for (const point of sortedData) {
+    currentPrice *= 1 + point.nominalReturn / 100;
+    priceMap.set(getKey(point.date), { price: currentPrice, date: point.date });
+    historical.push({ date: new Date(point.date), price: currentPrice });
+  }
+  const latestPoint = sortedData[sortedData.length - 1];
+  const latestPrice = currentPrice;
+  const getChange = (months) => {
+    const d = new Date(latestPoint.date);
+    d.setDate(1);
+    d.setMonth(d.getMonth() - months);
+    const base = priceMap.get(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+    return base ? { pct: latestPrice / base.price - 1, date: base.date } : void 0;
+  };
+  const [chg1m, chg3m, chg1y, chg3y, chg5y, chg10y] = [1, 3, 12, 36, 60, 120].map(getChange);
+  const lastYear = new Date(latestPoint.date).getFullYear();
+  const currYear = (/* @__PURE__ */ new Date()).getFullYear();
+  let chgYtd;
+  if (lastYear < currYear) {
+    chgYtd = { pct: 0, date: new Date(currYear, 0, 1).getTime() };
+  } else {
+    const base = priceMap.get(`${lastYear - 1}-12`) || (() => {
+      const first2 = sortedData.find((d) => new Date(d.date).getFullYear() === lastYear);
+      if (!first2) return void 0;
+      const startPrice2 = priceMap.get(getKey(first2.date)).price / (1 + first2.nominalReturn / 100);
+      return { price: startPrice2, date: first2.date };
+    })();
+    if (base) chgYtd = { pct: latestPrice / base.price - 1, date: base.date };
+  }
+  const first = sortedData[0];
+  const startPrice = priceMap.get(getKey(first.date)).price / (1 + first.nominalReturn / 100);
+  const chgMax = { pct: latestPrice / startPrice - 1, date: first.date };
+  const tickerData = {
+    ticker: String(fundId),
+    numericId: typeof fundId === "number" ? fundId : null,
+    exchange,
+    price: latestPrice,
+    ...chg1m && { changePct1m: chg1m.pct, changeDate1m: new Date(chg1m.date) },
+    ...chg3m && { changePct3m: chg3m.pct, changeDate3m: new Date(chg3m.date) },
+    ...chgYtd && { changePctYtd: chgYtd.pct, changeDateYtd: new Date(chgYtd.date) },
+    ...chg1y && { changePct1y: chg1y.pct, changeDate1y: new Date(chg1y.date) },
+    ...chg3y && { changePct3y: chg3y.pct, changeDate3y: new Date(chg3y.date) },
+    ...chg5y && { changePct5y: chg5y.pct, changeDate5y: new Date(chg5y.date) },
+    ...chg10y && { changePct10y: chg10y.pct, changeDate10y: new Date(chg10y.date) },
+    ...chgMax && { changePctMax: chgMax.pct, changeDateMax: new Date(chgMax.date) },
+    timestamp: new Date(latestPoint.date),
+    currency: "ILS",
+    // Could also be 'ILA', doesn't matter due to lack of real price
+    name: fundName,
+    nameHe: fundName,
+    source: sourceName,
+    historical,
+    providentInfo
+  };
+  return tickerData;
+}
+
+// src/lib/fetching/utils/interpolate.ts
+function interpolateSparseHistory(history) {
+  if (!history || history.length < 2) return history;
+  const sorted = [...history].sort((a, b) => a.date.getTime() - b.date.getTime());
+  const result = [];
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const current = sorted[i];
+    const next = sorted[i + 1];
+    result.push(current);
+    const tCurrent = current.date.getTime();
+    const tNext = next.date.getTime();
+    const daysDiff = Math.floor((tNext - tCurrent + 1e3 * 60 * 60) / (1e3 * 60 * 60 * 24));
+    if (daysDiff > 3 && daysDiff <= 3650) {
+      const keysToInterpolate = Object.keys(current).filter(
+        (k) => k !== "date" && typeof current[k] === "number" && typeof next[k] === "number"
+      );
+      for (let j = 1; j < daysDiff; j++) {
+        const fraction = j / daysDiff;
+        const interpTime = tCurrent + j * 24 * 60 * 60 * 1e3;
+        const interpolatedPoint = { ...current, date: new Date(interpTime) };
+        keysToInterpolate.forEach((k) => {
+          interpolatedPoint[k] = current[k] + (next[k] - current[k]) * fraction;
+        });
+        result.push(interpolatedPoint);
+      }
+    }
+  }
+  result.push(sorted[sorted.length - 1]);
+  return result;
+}
+
+// src/lib/fetching/utils/normalization.ts
+function normalizeTaseTicker(ticker) {
+  const s = String(ticker);
+  if (/^\d+$/.test(s)) {
+    return String(parseInt(s, 10));
+  }
+  return s;
+}
+
 // src/lib/sheets/formulas.ts
 function getGoogleFinanceFormula(query, attribute, dateExpression) {
   const dateArg = dateExpression ? `, ${dateExpression}` : "";
@@ -2551,7 +2692,7 @@ var TXN_COLS = {
     colId: "I",
     numeric: true,
     formula: (rowNum, cols) => {
-      const txnCurr = `${cols.currency.colId}${rowNum}`;
+      const txnCurr = `TRIM(${cols.currency.colId}${rowNum})`;
       const origPrice = `${cols.originalPrice.colId}${rowNum}`;
       const txnDate = `${cols.date.colId}${rowNum}`;
       const usdToIlsFormula = getHistoricalPriceFormula("USDILS", txnDate, true);
@@ -2565,7 +2706,7 @@ var TXN_COLS = {
     colId: "J",
     numeric: true,
     formula: (rowNum, cols) => {
-      const txnCurr = `${cols.currency.colId}${rowNum}`;
+      const txnCurr = `TRIM(${cols.currency.colId}${rowNum})`;
       const origPrice = `${cols.originalPrice.colId}${rowNum}`;
       const txnDate = `${cols.date.colId}${rowNum}`;
       const usdIlsFormula = getHistoricalPriceFormula("USDILS", txnDate, true);
@@ -2590,7 +2731,7 @@ var TXN_COLS = {
     colName: "Split_Ratio",
     colId: "R",
     numeric: true,
-    formula: (rowNum, cols) => `=ROUND(IFERROR(IF(OR(ISBLANK(${cols.splitAdjOpenPrice.colId}${rowNum}), ${cols.splitAdjOpenPrice.colId}${rowNum}=0, ISBLANK(${cols.origOpenPriceAtCreationDate.colId}${rowNum})), 1, ${cols.origOpenPriceAtCreationDate.colId}${rowNum} / ${cols.splitAdjOpenPrice.colId}${rowNum}), 1), 2)`
+    formula: (rowNum, cols) => `=IFERROR(IF(OR(ISBLANK(${cols.splitAdjOpenPrice.colId}${rowNum}), ${cols.splitAdjOpenPrice.colId}${rowNum}=0, ISBLANK(${cols.origOpenPriceAtCreationDate.colId}${rowNum})), 1, IF(ABS(ROUND(${cols.origOpenPriceAtCreationDate.colId}${rowNum} / ${cols.splitAdjOpenPrice.colId}${rowNum}, 2) - 1) <= 0.03, 1, ROUND(${cols.origOpenPriceAtCreationDate.colId}${rowNum} / ${cols.splitAdjOpenPrice.colId}${rowNum}, 2))), 1)`
   },
   splitAdjustedPrice: {
     key: "splitAdjustedPrice",
@@ -2934,89 +3075,173 @@ function extractXmlNumber(xml, tag) {
   const n = parseFloat(val);
   return isNaN(n) ? void 0 : n;
 }
-function toYahooSymbol(ticker, exchange) {
-  const clean = ticker.trim().toUpperCase();
+var ISRAEL_TICKER_OVERRIDES = {
+  "147": "MIDCAP50.TA",
+  "163": "MIDCAP120.TA",
+  "143": "TA90.TA",
+  "137": "^TA125.TA",
+  "142": "TA35.TA",
+  "707": "TELBOND20.TA",
+  "709": "TELBOND60.TA",
+  "170": "TA-OG.TA",
+  "148": "TA-FIN.TA",
+  "145": "TEL-TECH.TA",
+  "169": "TA-TECH.TA",
+  "167": "TASEBM.TA",
+  "164": "TA-BANKS.TA",
+  "168": "TA-COMP.TA",
+  "149": "ESTATE15.TA"
+};
+function getWorkerYahooCandidates(ticker, exchange, group) {
   if (exchange === Exchange.CBS || exchange === Exchange.BOI || exchange === Exchange.GEMEL || exchange === Exchange.PENSION || exchange === Exchange.CASH) {
-    return null;
+    return [];
   }
-  if (clean.startsWith("^")) return clean;
+  let u = ticker.trim().toUpperCase();
+  if (!u) return [];
+  if (exchange === Exchange.TASE && u in ISRAEL_TICKER_OVERRIDES) {
+    return [ISRAEL_TICKER_OVERRIDES[u]];
+  }
+  if (u.startsWith("^") || u.endsWith("=X") || u.endsWith("=F")) {
+    return [u];
+  }
+  const isNumeric = /^\d+$/.test(u);
+  if (isNumeric && (exchange !== Exchange.TASE || group !== InstrumentGroup.INDEX)) {
+    return [];
+  }
   if (exchange === Exchange.TASE) {
-    if (clean === "137") return "^TA125.TA";
-    if (clean === "142") return "^TA35.TA";
-    if (/^\d+$/.test(clean) || clean.includes("-")) return null;
-    return `${clean.replace(/\./g, "-")}.TA`;
+    u = u.replace(/\.(F\d+)/, "-$1");
   }
-  if (exchange === Exchange.FOREX) {
-    return clean.endsWith("=X") ? clean : `${clean.replace("/", "")}=X`;
+  if (group === InstrumentGroup.FOREX || exchange === Exchange.FOREX) {
+    const cleanFx = u.replace("/", "");
+    const candidates = /* @__PURE__ */ new Set();
+    if (cleanFx.length === 6) {
+      const base = cleanFx.slice(0, 3);
+      const quote = cleanFx.slice(3, 6);
+      candidates.add(`${cleanFx}=X`);
+      if (quote === "USD") candidates.add(`${base}-USD`);
+    } else {
+      candidates.add(`${cleanFx}=X`);
+    }
+    candidates.add(cleanFx);
+    return Array.from(candidates);
   }
-  const suffixMap = {
-    [Exchange.LSE]: ".L",
-    [Exchange.FWB]: ".DE",
-    [Exchange.SWX]: ".SW",
-    [Exchange.JPX]: ".T",
-    [Exchange.HKEX]: ".HK",
-    [Exchange.TSX]: ".TO",
-    [Exchange.ASX]: ".AX",
-    [Exchange.KSE]: ".KS"
-  };
-  const suffix = suffixMap[exchange] || "";
-  return `${clean.replace(/\./g, "-")}${suffix}`;
+  const suffix = EXCHANGE_SETTINGS[exchange]?.yahooFinanceSuffix || "";
+  const baseCandidates = /* @__PURE__ */ new Set();
+  if (group === InstrumentGroup.INDEX) {
+    if (!isNumeric) baseCandidates.add(`^${u}`);
+    baseCandidates.add(u);
+  } else if (group === InstrumentGroup.COMMODITY) {
+    baseCandidates.add(`${u}=F`);
+    baseCandidates.add(u);
+  } else {
+    baseCandidates.add(u);
+    if (group === void 0 && !isNumeric && !suffix && !u.includes(".")) {
+      baseCandidates.add(`^${u}`);
+    }
+    if (!suffix && u.includes(".")) {
+      baseCandidates.add(u.replace(/\./g, "-"));
+    }
+  }
+  if (!suffix) return Array.from(baseCandidates);
+  const finalCandidates = /* @__PURE__ */ new Set();
+  baseCandidates.forEach((c) => {
+    if (c.endsWith(suffix)) {
+      finalCandidates.add(c);
+    } else if (exchange === Exchange.FWB && c.endsWith(".DE")) {
+      finalCandidates.add(c);
+    } else {
+      finalCandidates.add(`${c}${suffix}`);
+      if (exchange === Exchange.FWB) {
+        finalCandidates.add(`${c}.DE`);
+      }
+    }
+  });
+  return Array.from(finalCandidates);
+}
+function appendLivePriceToHistory(historical, livePrice) {
+  if (!livePrice || !historical || historical.length === 0) return historical;
+  const lastPoint = historical[historical.length - 1];
+  const todayStr = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+  const lastPointStr = lastPoint.date.toISOString().split("T")[0];
+  if (todayStr === lastPointStr) {
+    if (lastPoint.price === livePrice) return historical;
+    const newHist = [...historical];
+    newHist[newHist.length - 1] = { ...lastPoint, price: livePrice };
+    return newHist;
+  }
+  return [...historical, { date: /* @__PURE__ */ new Date(), price: livePrice }];
 }
 function computePeriodChangesFromHistory(price, historical, prevClose) {
   const out = {};
-  if (prevClose && prevClose > 0) {
+  if (prevClose && prevClose > 0 && prevClose !== price) {
     out.changePct1d = (price - prevClose) / prevClose;
   } else if (historical.length >= 2) {
     const prev = historical[historical.length - 2].price;
-    if (prev > 0) out.changePct1d = (price - prev) / prev;
+    if (prev > 0 && prev !== price) out.changePct1d = (price - prev) / prev;
   }
-  const findPriceOnOrBefore = (targetDate) => {
-    const targetMs = targetDate.getTime();
-    for (let i = historical.length - 1; i >= 0; i--) {
-      if (historical[i].date.getTime() <= targetMs && historical[i].price > 0) {
-        return historical[i].price;
+  if (historical.length === 0) return out;
+  const points = historical.filter((h) => h.price != null && h.price > 0 && h.date != null).map((h) => ({ time: h.date.getTime() / 1e3, close: h.price }));
+  if (points.length === 0) return out;
+  const lastPoint = points[points.length - 1];
+  const findClosestPoint = (targetTs) => {
+    if (targetTs < points[0].time - 86400 * 5) return null;
+    let closest = points[0];
+    let minDiff = Math.abs(points[0].time - targetTs);
+    for (let i = 1; i < points.length; i++) {
+      const diff = Math.abs(points[i].time - targetTs);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closest = points[i];
       }
     }
-    return void 0;
+    return closest;
   };
-  const now = /* @__PURE__ */ new Date();
-  const d1w = new Date(now);
-  d1w.setDate(now.getDate() - 7);
-  const d1m = new Date(now);
-  d1m.setMonth(now.getMonth() - 1);
-  const d3m = new Date(now);
-  d3m.setMonth(now.getMonth() - 3);
-  const dYtd = new Date(Date.UTC(now.getUTCFullYear() - 1, 11, 31, 23, 59, 59));
-  const d1y = new Date(now);
-  d1y.setFullYear(now.getFullYear() - 1);
-  const d3y = new Date(now);
-  d3y.setFullYear(now.getFullYear() - 3);
-  const d5y = new Date(now);
-  d5y.setFullYear(now.getFullYear() - 5);
-  const calc = (ref) => ref && ref > 0 ? (price - ref) / ref : void 0;
-  out.changePctRecent = calc(findPriceOnOrBefore(d1w));
-  out.changePct1m = calc(findPriceOnOrBefore(d1m));
-  out.changePct3m = calc(findPriceOnOrBefore(d3m));
-  out.changePctYtd = calc(findPriceOnOrBefore(dYtd));
-  out.changePct1y = calc(findPriceOnOrBefore(d1y));
-  out.changePct3y = calc(findPriceOnOrBefore(d3y));
-  out.changePct5y = calc(findPriceOnOrBefore(d5y));
+  const getDateAgo = (amount, unit) => {
+    const d = new Date(lastPoint.time * 1e3);
+    if (unit === "days") d.setUTCDate(d.getUTCDate() - amount);
+    else if (unit === "months") d.setUTCMonth(d.getUTCMonth() - amount);
+    else if (unit === "years") d.setUTCFullYear(d.getUTCFullYear() - amount);
+    return d.getTime() / 1e3;
+  };
+  const calcChange = (p) => !p || p.close <= 0 || Math.abs(p.time * 1e3 - lastPoint.time * 1e3) < 86400 * 1e3 ? void 0 : (price - p.close) / p.close;
+  out.changePctRecent = calcChange(findClosestPoint(getDateAgo(7, "days")));
+  out.changePct1m = calcChange(findClosestPoint(getDateAgo(1, "months")));
+  out.changePct3m = calcChange(findClosestPoint(getDateAgo(3, "months")));
+  out.changePct1y = calcChange(findClosestPoint(getDateAgo(1, "years")));
+  out.changePct3y = calcChange(findClosestPoint(getDateAgo(3, "years")));
+  out.changePct5y = calcChange(findClosestPoint(getDateAgo(5, "years")));
+  const targetYtd = new Date(lastPoint.time * 1e3);
+  targetYtd.setUTCMonth(0, 1);
+  targetYtd.setUTCHours(0, 0, 0, 0);
+  out.changePctYtd = calcChange(findClosestPoint(targetYtd.getTime() / 1e3));
+  out.changePctMax = calcChange(points[0]);
   return out;
 }
 var WorkerMarketService = class {
   invokeProxy;
+  gemelMetaCache = null;
+  pensyaMetaCache = null;
   constructor(invokeProxy) {
     this.invokeProxy = invokeProxy;
   }
-  async fetchYahooData(ticker, exchange, includeQuoteSummary = false) {
-    const yahooSym = toYahooSymbol(ticker, exchange);
-    if (!yahooSym) return null;
+  async fetchYahooData(ticker, exchange, includeQuoteSummary = false, group) {
+    const candidates = getWorkerYahooCandidates(ticker, exchange, group);
+    if (!candidates.length) return null;
     try {
-      const histRes = await this.invokeProxy("yahoo_hist", { ticker: yahooSym, range: "5y" });
-      if (!histRes.ok) return null;
-      const histJson = await histRes.json().catch(() => null);
-      const result = histJson?.chart?.result?.[0];
-      if (!result?.meta) return null;
+      let matchedSym = null;
+      let result = null;
+      for (const yahooSym of candidates) {
+        const histRes = await this.invokeProxy("yahoo_hist", { ticker: yahooSym, range: "5y" });
+        if (!histRes.ok) continue;
+        const histJson = await histRes.json().catch(() => null);
+        const r = histJson?.chart?.result?.[0];
+        if (r?.meta) {
+          matchedSym = yahooSym;
+          result = r;
+          break;
+        }
+      }
+      if (!matchedSym || !result?.meta) return null;
       const meta = result.meta;
       let currency = Currency.USD;
       try {
@@ -3024,17 +3249,52 @@ var WorkerMarketService = class {
       } catch {
         currency = exchange === Exchange.TASE ? Currency.ILA : Currency.USD;
       }
+      const quote = result.indicators?.quote?.[0];
       const timestamps = result.timestamp || [];
-      const closes = result.indicators?.quote?.[0]?.close || [];
-      const historical = [];
-      for (let i = 0; i < timestamps.length; i++) {
-        const c = closes[i];
-        if (c !== null && c !== void 0 && !isNaN(c) && c > 0) {
-          historical.push({ date: new Date(timestamps[i] * 1e3), price: c });
+      let closes = quote?.close || [];
+      let openPrices = quote?.open || [];
+      let adjCloses = result.indicators?.adjclose?.[0]?.adjclose || [];
+      const getLatestValidValue = (arr, cutoffDays = 40) => {
+        for (let i = arr.length - 1; i >= 0; i--) {
+          if (timestamps[i] < Date.now() / 1e3 - cutoffDays * 86400) return null;
+          if (arr[i] !== null && arr[i] !== void 0 && !isNaN(arr[i])) return arr[i];
+        }
+        return null;
+      };
+      const rawPrice = Number(meta.regularMarketPrice) || getLatestValidValue(closes) || 0;
+      if (!rawPrice) return null;
+      const price = rawPrice;
+      if (exchange === Exchange.TASE && meta.instrumentType !== "EQUITY" || exchange === Exchange.LSE && meta.currency === "GBp") {
+        const lastCloseVal = getLatestValidValue(closes);
+        const lastOpenVal = getLatestValidValue(openPrices);
+        const lastAdjVal = getLatestValidValue(adjCloses);
+        if (lastCloseVal !== null && lastCloseVal > 0 && lastCloseVal < price / 90 && (lastOpenVal === null || lastOpenVal < price / 90) && (lastAdjVal === null || lastAdjVal < price / 90)) {
+          closes = closes.map((c) => c ? c * 100 : c);
+          openPrices = openPrices.map((c) => c ? c * 100 : c);
+          adjCloses = adjCloses.map((c) => c ? c * 100 : c);
         }
       }
-      const price = Number(meta.regularMarketPrice) || (historical.length > 0 ? historical[historical.length - 1].price : 0);
-      if (!price) return null;
+      let lastClose = getLatestValidValue(closes);
+      const lastCloseIsToday = timestamps.length > 0 && Date.now() / 1e3 - timestamps[timestamps.length - 1] < 86400;
+      if (lastClose === price && lastCloseIsToday && closes.length > 1) {
+        for (let i = closes.length - 2; i >= 0; i--) {
+          if (closes[i] !== null && closes[i] !== void 0 && !isNaN(closes[i])) {
+            lastClose = closes[i];
+            break;
+          }
+        }
+      }
+      let historical = [];
+      for (let i = 0; i < timestamps.length; i++) {
+        const c = closes[i];
+        if (c !== null && c !== void 0 && !isNaN(c) && c > 0 && timestamps[i] != null) {
+          historical.push({
+            date: new Date(timestamps[i] * 1e3),
+            price: c,
+            ...adjCloses[i] != null && !isNaN(adjCloses[i]) ? { adjClose: adjCloses[i] } : {}
+          });
+        }
+      }
       const dividends = [];
       const rawDivs = result.events?.dividends;
       if (rawDivs && typeof rawDivs === "object") {
@@ -3050,13 +3310,18 @@ var WorkerMarketService = class {
         }
         dividends.sort((a, b) => a.date.getTime() - b.date.getTime());
       }
-      const changes = computePeriodChangesFromHistory(price, historical, meta.chartPreviousClose || meta.previousClose);
+      const changes = computePeriodChangesFromHistory(
+        price,
+        historical,
+        lastClose ?? meta.chartPreviousClose ?? meta.previousClose
+      );
+      historical = appendLivePriceToHistory(historical, price);
       const out = {
         ticker: ticker.toUpperCase(),
         exchange,
         numericId: null,
         price,
-        openPrice: meta.regularMarketOpen ? Number(meta.regularMarketOpen) : void 0,
+        openPrice: getLatestValidValue(openPrices) ?? (meta.regularMarketOpen ? Number(meta.regularMarketOpen) : void 0),
         currency,
         name: meta.longName || meta.shortName || ticker.toUpperCase(),
         historical,
@@ -3068,7 +3333,7 @@ var WorkerMarketService = class {
       if (includeQuoteSummary) {
         try {
           const qsRes = await this.invokeProxy("yahoo_quote_summary", {
-            ticker: yahooSym,
+            ticker: matchedSym,
             modules: "calendarEvents,defaultKeyStatistics,financialData,recommendationTrend,price,summaryDetail,assetProfile"
           });
           if (qsRes.ok) {
@@ -3142,9 +3407,18 @@ var WorkerMarketService = class {
         const prev = last - chg;
         if (chg !== 0 && prev !== 0) pct1d = chg / prev * 100;
       }
-      const calcRel = (prev) => prev && prev > 0 && prev !== last ? (last - prev) / prev : void 0;
+      const calcRel = (prev) => {
+        if (!prev || prev <= 0 || prev === last) return void 0;
+        let normalizedPrev = prev;
+        if (currency === Currency.ILA && prev < last / 50 && Math.abs(pct1d || 0) < 25) {
+          normalizedPrev = prev * 100;
+        }
+        return normalizedPrev !== last ? (last - normalizedPrev) / normalizedPrev : void 0;
+      };
       const ytdRaw = extractXmlNumber(xml, "ChangeFromLastYear");
       const koteretAlName = extractXmlTag(xml, "KoteretAlName");
+      const rawType = extractXmlTag(xml, "type");
+      const instrumentTypeHe = extractXmlTag(xml, "InstrumentTypeHe");
       return {
         ticker: ticker.toUpperCase(),
         exchange,
@@ -3161,7 +3435,205 @@ var WorkerMarketService = class {
         changePct3y: calcRel(extractXmlNumber(xml, "Last3YearsAgoClosePrice")),
         numericId: numericId || (/^\d+$/.test(identifier) ? Number(identifier) : null),
         isFeeExempt: koteretAlName === "\u05E7\u05E8\u05DF \u05DB\u05E1\u05E4\u05D9\u05EA",
+        type: new InstrumentClassification(
+          koteretAlName === "\u05E7\u05E8\u05DF \u05DB\u05E1\u05E4\u05D9\u05EA" ? "monetary_fund" : rawType || "unknown",
+          void 0,
+          { he: instrumentTypeHe }
+        ),
         source: "Globes"
+      };
+    } catch {
+      return null;
+    }
+  }
+  async ensureGemelMeta() {
+    if (this.gemelMetaCache) return this.gemelMetaCache;
+    this.gemelMetaCache = /* @__PURE__ */ new Map();
+    try {
+      const endDate = /* @__PURE__ */ new Date();
+      const startDate = /* @__PURE__ */ new Date();
+      startDate.setFullYear(startDate.getFullYear() - 1);
+      const sParts = getDateParts(startDate);
+      const eParts = getDateParts(endDate);
+      const res = await this.invokeProxy("gemelnet_list", {
+        startYear: sParts.year,
+        startMonth: sParts.month,
+        endYear: eParts.year,
+        endMonth: eParts.month
+      });
+      if (res.ok) {
+        const xml = await res.text();
+        const rowRegex = /<Row\b[^>]*>([\s\S]*?)<\/Row>/gi;
+        let m;
+        while ((m = rowRegex.exec(xml)) !== null) {
+          const block = m[1];
+          const id = parseInt(extractXmlTag(block, "ID"), 10);
+          if (id && !this.gemelMetaCache.has(id)) {
+            this.gemelMetaCache.set(id, {
+              name: extractXmlTag(block, "SHM_KUPA"),
+              fundType: extractXmlTag(block, "SUG_KUPA") || void 0,
+              sector: extractXmlTag(block, "HITMAHUT_RASHIT") || void 0,
+              subSector: extractXmlTag(block, "HITMAHUT_MISHNIT") || void 0,
+              managementFee: extractXmlNumber(block, "SHIUR_DMEI_NIHUL_AHARON"),
+              depositFee: extractXmlNumber(block, "SHIUR_D_NIHUL_AHARON_HAFKADOT")
+            });
+          }
+        }
+      }
+    } catch {
+    }
+    return this.gemelMetaCache;
+  }
+  async fetchGemelnetData(fundId) {
+    if (!fundId || isNaN(fundId)) return null;
+    try {
+      const eParts = getDateParts(/* @__PURE__ */ new Date());
+      const [fundRes, metaMap] = await Promise.all([
+        this.invokeProxy("gemelnet_fund", {
+          startYear: "2000",
+          startMonth: "01",
+          endYear: eParts.year,
+          endMonth: eParts.month,
+          fundId: String(fundId)
+        }),
+        this.ensureGemelMeta()
+      ]);
+      if (!fundRes.ok) return null;
+      const xml = await fundRes.text();
+      const points = [];
+      const rowRegex = /<Row\b[^>]*>([\s\S]*?)<\/Row>/gi;
+      let m;
+      while ((m = rowRegex.exec(xml)) !== null) {
+        const block = m[1];
+        const idKupa = parseInt(extractXmlTag(block, "ID_KUPA"), 10);
+        if (idKupa !== fundId) continue;
+        const dateStr = extractXmlTag(block, "TKF_DIVUACH");
+        if (dateStr) {
+          points.push({
+            date: parseDateStr(dateStr),
+            nominalReturn: extractXmlNumber(block, "TSUA_NOMINALI_BFOAL") ?? 0
+          });
+        }
+      }
+      if (!points.length) return null;
+      const info = metaMap.get(fundId);
+      const data = calculateTickerDataFromFundHistory(
+        {
+          fundId,
+          fundName: info?.name || String(fundId),
+          data: points,
+          lastUpdated: Date.now()
+        },
+        Exchange.GEMEL,
+        "Gemelnet",
+        info ? {
+          fundId,
+          fundType: info.fundType,
+          specialization: info.sector,
+          subSpecialization: info.subSector,
+          managementFee: info.managementFee,
+          depositFee: info.depositFee
+        } : void 0
+      );
+      if (!data) return null;
+      return {
+        ...data,
+        type: new InstrumentClassification(InstrumentType.SAVING_PROVIDENT, info?.fundType),
+        sector: info?.sector,
+        historical: interpolateSparseHistory(data.historical)
+      };
+    } catch {
+      return null;
+    }
+  }
+  async ensurePensyaMeta() {
+    if (this.pensyaMetaCache) return this.pensyaMetaCache;
+    this.pensyaMetaCache = /* @__PURE__ */ new Map();
+    try {
+      const endDate = /* @__PURE__ */ new Date();
+      const startDate = /* @__PURE__ */ new Date();
+      startDate.setFullYear(startDate.getFullYear() - 1);
+      const sParts = getDateParts(startDate);
+      const eParts = getDateParts(endDate);
+      const res = await this.invokeProxy("pensyanet_list", {
+        startYear: sParts.year,
+        startMonth: sParts.month,
+        endYear: eParts.year,
+        endMonth: eParts.month
+      });
+      if (res.ok) {
+        const xml = await res.text();
+        const rowRegex = /<ROW\b[^>]*>([\s\S]*?)<\/ROW>/gi;
+        let m;
+        while ((m = rowRegex.exec(xml)) !== null) {
+          const block = m[1];
+          const id = parseInt(extractXmlTag(block, "ID"), 10);
+          if (id && !this.pensyaMetaCache.has(id)) {
+            this.pensyaMetaCache.set(id, {
+              name: extractXmlTag(block, "SHM_KRN"),
+              fundType: extractXmlTag(block, "SUG_KRN") || void 0,
+              managementFee: extractXmlNumber(block, "SHIUR_D_NIHUL_AHARON_NCHASIM"),
+              depositFee: extractXmlNumber(block, "SHIUR_D_NIHUL_AHARON_HAFKADOT")
+            });
+          }
+        }
+      }
+    } catch {
+    }
+    return this.pensyaMetaCache;
+  }
+  async fetchPensyanetData(fundId) {
+    if (!fundId || isNaN(fundId)) return null;
+    try {
+      const eParts = getDateParts(/* @__PURE__ */ new Date());
+      const [fundRes, metaMap] = await Promise.all([
+        this.invokeProxy("pensyanet_fund", {
+          startYear: "2000",
+          startMonth: "01",
+          endYear: eParts.year,
+          endMonth: eParts.month,
+          fundId: String(fundId)
+        }),
+        this.ensurePensyaMeta()
+      ]);
+      if (!fundRes.ok) return null;
+      const xml = await fundRes.text();
+      const points = [];
+      const rowRegex = /<ROW\b[^>]*>([\s\S]*?)<\/ROW>/gi;
+      let m;
+      while ((m = rowRegex.exec(xml)) !== null) {
+        const block = m[1];
+        const dateStr = extractXmlTag(block, "TKF_DIVUACH");
+        if (dateStr) {
+          points.push({
+            date: parseDateStr(dateStr),
+            nominalReturn: extractXmlNumber(block, "TSUA_NOMINALI_BFOAL") ?? 0
+          });
+        }
+      }
+      if (!points.length) return null;
+      const info = metaMap.get(fundId);
+      const data = calculateTickerDataFromFundHistory(
+        {
+          fundId,
+          fundName: info?.name || String(fundId),
+          data: points,
+          lastUpdated: Date.now()
+        },
+        Exchange.PENSION,
+        "Pensyanet",
+        info ? {
+          fundId,
+          fundType: info.fundType,
+          managementFee: info.managementFee,
+          depositFee: info.depositFee
+        } : void 0
+      );
+      if (!data) return null;
+      return {
+        ...data,
+        type: new InstrumentClassification(InstrumentType.SAVING_PENSION, info?.fundType),
+        historical: interpolateSparseHistory(data.historical)
       };
     } catch {
       return null;
@@ -3178,18 +3650,19 @@ var WorkerMarketService = class {
       const tIdx = headers.indexOf("TIME_PERIOD");
       const vIdx = headers.indexOf("OBS_VALUE");
       if (tIdx === -1 || vIdx === -1) return null;
-      const historical = [];
+      const rawHist = [];
       for (let i = 1; i < lines.length; i++) {
         const cols = lines[i].split(",");
         const d = new Date(cols[tIdx]);
         const v = parseFloat(cols[vIdx]);
         if (!isNaN(d.getTime()) && !isNaN(v)) {
-          historical.push({ date: d, price: v });
+          rawHist.push({ date: d, price: v });
         }
       }
-      historical.sort((a, b) => a.date.getTime() - b.date.getTime());
-      if (!historical.length) return null;
-      const latest = historical[historical.length - 1].price;
+      rawHist.sort((a, b) => a.date.getTime() - b.date.getTime());
+      if (!rawHist.length) return null;
+      const latest = rawHist[rawHist.length - 1].price;
+      const historical = interpolateSparseHistory(rawHist) || rawHist;
       return {
         ticker: series,
         exchange: Exchange.BOI,
@@ -3219,11 +3692,12 @@ var WorkerMarketService = class {
       }
       if (!pts.length) return null;
       pts.sort((a, b) => a.year - b.year || a.month - b.month);
-      const historical = pts.map((p) => ({
+      const rawHist = pts.map((p) => ({
         date: new Date(Date.UTC(p.year, p.month - 1, 15)),
         price: p.val
       }));
-      const latest = historical[historical.length - 1].price;
+      const latest = rawHist[rawHist.length - 1].price;
+      const historical = interpolateSparseHistory(rawHist) || rawHist;
       return {
         ticker: id,
         exchange: Exchange.CBS,
@@ -3239,41 +3713,99 @@ var WorkerMarketService = class {
     }
   }
   async fetchTickerData(ticker, exchange, numericId, includeFundamentals = false) {
+    if (exchange === Exchange.CASH && ticker.toUpperCase() === "ILS") {
+      return {
+        ticker: "ILS",
+        exchange: Exchange.CASH,
+        numericId: null,
+        price: 1,
+        currency: Currency.ILS,
+        name: "Cash (ILS)",
+        nameHe: "\u05DE\u05D6\u05D5\u05DE\u05DF (\u05E9\u05E7\u05DC \u05D7\u05D3\u05E9)",
+        changePct1d: 0,
+        source: "STATIC"
+      };
+    }
     if (exchange === Exchange.BOI) return this.fetchBoiRate(ticker);
     if (exchange === Exchange.CBS) return this.fetchCbsIndex(ticker);
-    const yahoo = await this.fetchYahooData(ticker, exchange, includeFundamentals);
-    if (yahoo) {
-      if (exchange === Exchange.TASE && numericId) {
-        const globes = await this.fetchGlobesData(ticker, exchange, numericId);
-        if (globes?.nameHe) yahoo.nameHe = globes.nameHe;
-      }
-      return yahoo;
-    }
-    if (exchange === Exchange.TASE || exchange === Exchange.FOREX) {
-      return this.fetchGlobesData(ticker, exchange, numericId);
-    }
-    return null;
+    const normalizedTicker = exchange === Exchange.TASE ? normalizeTaseTicker(ticker) : ticker;
+    const tickerNum = Number(normalizedTicker);
+    if (exchange === Exchange.GEMEL) return this.fetchGemelnetData(numericId || tickerNum);
+    if (exchange === Exchange.PENSION) return this.fetchPensyanetData(numericId || tickerNum);
+    const group = exchange === Exchange.TASE && normalizedTicker in ISRAEL_TICKER_OVERRIDES && /^\d+$/.test(normalizedTicker) ? InstrumentGroup.INDEX : void 0;
+    const [yahoo, globes] = await Promise.all([
+      this.fetchYahooData(normalizedTicker, exchange, includeFundamentals, group),
+      exchange === Exchange.TASE || exchange === Exchange.FOREX ? this.fetchGlobesData(normalizedTicker, exchange, numericId) : Promise.resolve(null)
+    ]);
+    if (!globes) return yahoo;
+    if (!yahoo) return globes;
+    const pickPct = (gPct, yPct) => {
+      if (gPct === void 0) return yPct;
+      if (yPct === void 0) return gPct;
+      const ratio = (1 + gPct) / Math.max(1e-4, 1 + yPct);
+      if (ratio > 3 || ratio < 1 / 3) return yPct;
+      return gPct;
+    };
+    return {
+      ...yahoo,
+      ...globes,
+      ticker: ticker.toUpperCase(),
+      historical: globes.historical ?? appendLivePriceToHistory(yahoo.historical || [], globes.price),
+      dividends: globes.dividends ?? yahoo.dividends,
+      calendarEvents: globes.calendarEvents ?? yahoo.calendarEvents,
+      fundamentals: yahoo.fundamentals,
+      name: globes.name || yahoo.name,
+      nameHe: globes.nameHe || yahoo.nameHe,
+      sector: globes.sector || yahoo.sector,
+      type: globes.type || yahoo.type,
+      changePct1d: globes.changePct1d ?? yahoo.changePct1d,
+      changePctRecent: pickPct(globes.changePctRecent, yahoo.changePctRecent),
+      changePct1m: pickPct(globes.changePct1m, yahoo.changePct1m),
+      changePct3m: pickPct(globes.changePct3m, yahoo.changePct3m),
+      changePctYtd: pickPct(globes.changePctYtd, yahoo.changePctYtd),
+      changePct1y: pickPct(globes.changePct1y, yahoo.changePct1y),
+      changePct3y: pickPct(globes.changePct3y, yahoo.changePct3y),
+      changePct5y: pickPct(globes.changePct5y, yahoo.changePct5y),
+      changePctMax: pickPct(globes.changePctMax, yahoo.changePctMax),
+      source: "Globes + Yahoo"
+    };
   }
 };
+function normalizeHistoryEntryDates(entries) {
+  return entries.map((entry) => {
+    if (!entry || typeof entry !== "object" || !entry.startDate) return entry;
+    const parsed = coerceDate(entry.startDate);
+    return parsed ? { ...entry, startDate: formatYYYYMMDD(parsed) } : entry;
+  });
+}
 function parsePortfoliosFromRows(rows) {
   return rows.map((row) => {
     const p = mapRowToPortfolio(row, portfolioMapping, portfolioNumericKeys);
     if (!p || !p.id) return null;
+    p.id = String(p.id).trim();
+    if (p.name !== void 0 && p.name !== null) p.name = String(p.name).trim();
+    if (p.currency) p.currency = String(p.currency).trim().toUpperCase();
     if (typeof p.taxHistory === "string") {
       try {
-        p.taxHistory = JSON.parse(p.taxHistory);
+        const parsed = JSON.parse(p.taxHistory);
+        p.taxHistory = Array.isArray(parsed) ? normalizeHistoryEntryDates(parsed) : [];
       } catch {
         p.taxHistory = [];
       }
+    } else if (Array.isArray(p.taxHistory)) {
+      p.taxHistory = normalizeHistoryEntryDates(p.taxHistory);
     }
     if (typeof p.feeHistory === "string") {
       try {
-        p.feeHistory = JSON.parse(p.feeHistory);
+        const parsed = JSON.parse(p.feeHistory);
+        p.feeHistory = Array.isArray(parsed) ? normalizeHistoryEntryDates(parsed) : [];
       } catch {
         p.feeHistory = [];
       }
+    } else if (Array.isArray(p.feeHistory)) {
+      p.feeHistory = normalizeHistoryEntryDates(p.feeHistory);
     }
-    return { ...p, holdings: [] };
+    return p;
   }).filter((p) => p !== null);
 }
 function parseTransactionsFromRows(rows) {
@@ -3291,6 +3823,16 @@ function parseTransactionsFromRows(rows) {
   return rows.map((row, index) => {
     const raw = mapRowToTransaction(row, transactionMapping, transactionNumericKeys);
     raw.rowIndex = index + 2;
+    if (raw.portfolioId !== void 0 && raw.portfolioId !== null) {
+      raw.portfolioId = String(raw.portfolioId).trim();
+    }
+    if (raw.ticker !== void 0 && raw.ticker !== null) {
+      raw.ticker = String(raw.ticker).trim().toUpperCase();
+    }
+    if (raw.currency !== void 0 && raw.currency !== null) {
+      const trimmedCurr = String(raw.currency).trim().toUpperCase();
+      raw.currency = trimmedCurr || void 0;
+    }
     if (raw.exchange) {
       try {
         raw.exchange = parseExchange(String(raw.exchange));
@@ -3302,6 +3844,17 @@ function parseTransactionsFromRows(rows) {
     }
     if (raw.type) {
       raw.type = String(raw.type).trim().toUpperCase();
+    }
+    if (typeof raw.splitRatio === "number" && Number.isFinite(raw.splitRatio) && raw.splitRatio >= 0.97 && raw.splitRatio <= 1.03 && raw.splitRatio !== 1) {
+      raw.splitRatio = 1;
+      raw.splitAdjustedQty = raw.originalQty;
+      raw.splitAdjustedPrice = raw.originalPrice;
+    }
+    if (raw.originalPriceILA === void 0 && raw.currency === Currency.ILA && typeof raw.originalPrice === "number") {
+      raw.originalPriceILA = raw.originalPrice;
+    }
+    if (raw.originalPriceUSD === void 0 && raw.currency === Currency.USD && typeof raw.originalPrice === "number") {
+      raw.originalPriceUSD = raw.originalPrice;
     }
     const normalizedDate = coerceDate(raw.date);
     const normalizedVestDate = raw.vestDate ? coerceDate(raw.vestDate) : null;
@@ -3315,6 +3868,63 @@ function parseTransactionsFromRows(rows) {
       price: cleanNumber(raw.splitAdjustedPrice, raw.originalPrice)
     };
   }).filter((t) => t.date && t.portfolioId && t.ticker);
+}
+function formatTransactionForApi(t, extra = {}) {
+  const curr = String(t.currency || "").trim().toUpperCase();
+  const rawComm = t.commission || 0;
+  const majorComm = curr === "ILA" ? Number((rawComm / 100).toFixed(6)) : rawComm;
+  return {
+    ...t,
+    commission: majorComm,
+    ...curr === "ILA" || curr === "ILS" ? { commissionILS: majorComm } : {},
+    ...extra
+  };
+}
+function buildTaseSymbolIndex(transactions, holdingsRows = []) {
+  const numericIdToTicker = /* @__PURE__ */ new Map();
+  const tickerToNumericId = /* @__PURE__ */ new Map();
+  const register = (tickerRaw, exchange, numIdRaw) => {
+    if (exchange && exchange !== Exchange.TASE) return;
+    const ticker = String(tickerRaw || "").trim().toUpperCase();
+    const numId = typeof numIdRaw === "number" && Number.isFinite(numIdRaw) ? numIdRaw : Number(numIdRaw);
+    if (!ticker || !Number.isFinite(numId) || numId <= 0) return;
+    if (!tickerToNumericId.has(ticker)) {
+      tickerToNumericId.set(ticker, numId);
+    }
+    const existing = numericIdToTicker.get(numId);
+    if (!existing || /^\d+$/.test(existing) && !/^\d+$/.test(ticker)) {
+      numericIdToTicker.set(numId, ticker);
+    }
+  };
+  for (const row of holdingsRows) {
+    const item = mapRowToHolding(row, holdingMapping, holdingNumericKeys);
+    if (!item?.ticker) continue;
+    try {
+      const ex = item.exchange ? parseExchange(String(item.exchange)) : void 0;
+      if (ex === Exchange.TASE) {
+        register(item.ticker, ex, item.numericId);
+      }
+    } catch {
+    }
+  }
+  for (const tx of transactions) {
+    if (tx.exchange === Exchange.TASE && tx.numericId) {
+      register(tx.ticker, tx.exchange, tx.numericId);
+    }
+  }
+  return { numericIdToTicker, tickerToNumericId };
+}
+function sanitizeSheetChangePct(pct, ex) {
+  if (pct === void 0 || pct === null || !Number.isFinite(pct)) return void 0;
+  if (ex === Exchange.TASE || ex === Exchange.LSE) {
+    if (pct > 40 && pct < 250) {
+      return (1 + pct) / 100 - 1;
+    }
+    if (pct < -0.98 && pct > -0.996) {
+      return (1 + pct) * 100 - 1;
+    }
+  }
+  return pct;
 }
 function parseHoldingsSheetPriceMap(rows) {
   const map = /* @__PURE__ */ new Map();
@@ -3336,9 +3946,10 @@ function parseHoldingsSheetPriceMap(rows) {
       }
     }
     const price = Number(item.price) || 0;
-    if (price > 0) {
-      map.set(`${ex}:${String(item.ticker).toUpperCase()}`, {
-        ticker: String(item.ticker).toUpperCase(),
+    const cleanTicker = String(item.ticker).trim().toUpperCase();
+    if (price > 0 && cleanTicker) {
+      map.set(`${ex}:${cleanTicker}`, {
+        ticker: cleanTicker,
         exchange: ex,
         price,
         currency,
@@ -3347,20 +3958,63 @@ function parseHoldingsSheetPriceMap(rows) {
         sector: item.sector ? String(item.sector) : void 0,
         type: item.type ? new InstrumentClassification(String(item.type)) : void 0,
         changePct1d: item.changePct1d,
-        changePctRecent: item.changePctRecent,
-        changePct1m: item.changePct1m,
-        changePct3m: item.changePct3m,
-        changePctYtd: item.changePctYtd,
-        changePct1y: item.changePct1y,
-        changePct3y: item.changePct3y,
-        changePct5y: item.changePct5y,
-        changePct10y: item.changePct10y,
+        changePctRecent: sanitizeSheetChangePct(item.changePctRecent, ex),
+        changePct1m: sanitizeSheetChangePct(item.changePct1m, ex),
+        changePct3m: sanitizeSheetChangePct(item.changePct3m, ex),
+        changePctYtd: sanitizeSheetChangePct(item.changePctYtd, ex),
+        changePct1y: sanitizeSheetChangePct(item.changePct1y, ex),
+        changePct3y: sanitizeSheetChangePct(item.changePct3y, ex),
+        changePct5y: sanitizeSheetChangePct(item.changePct5y, ex),
+        changePct10y: sanitizeSheetChangePct(item.changePct10y, ex),
         numericId: item.numericId ?? null,
         source: "GoogleSheets"
       });
     }
   }
   return map;
+}
+function enrichPortfoliosWithHoldings(portfolios, transactions, sheetPriceMap) {
+  const holdingsByPortfolio = {};
+  for (const txn of transactions) {
+    if (isBuy(txn.type) || isSell(txn.type)) {
+      const ex = txn.exchange || Exchange.TASE;
+      const ticker = txn.ticker.toUpperCase();
+      if (!holdingsByPortfolio[txn.portfolioId]) {
+        holdingsByPortfolio[txn.portfolioId] = {};
+      }
+      const key = `${ex}:${ticker}`;
+      if (!holdingsByPortfolio[txn.portfolioId][key]) {
+        holdingsByPortfolio[txn.portfolioId][key] = {
+          portfolioId: txn.portfolioId,
+          ticker,
+          exchange: ex,
+          qty: 0,
+          numericId: txn.numericId || null
+        };
+      }
+      const mult = isBuy(txn.type) ? 1 : -1;
+      holdingsByPortfolio[txn.portfolioId][key].qty += (txn.qty || txn.originalQty || 0) * mult;
+    }
+  }
+  return portfolios.map((p) => {
+    const rawList = holdingsByPortfolio[p.id] ? Object.values(holdingsByPortfolio[p.id]) : [];
+    const enriched = rawList.filter((h) => h.qty > 1e-6).map((h) => {
+      const sheetInfo = sheetPriceMap.get(`${h.exchange}:${h.ticker}`);
+      return {
+        ...h,
+        ...sheetInfo ? {
+          price: sheetInfo.price,
+          currency: sheetInfo.currency,
+          name: sheetInfo.name,
+          nameHe: sheetInfo.nameHe,
+          sector: sheetInfo.sector,
+          type: sheetInfo.type
+        } : {},
+        totalValue: h.qty * (sheetInfo?.price || 0)
+      };
+    });
+    return { ...p, holdings: enriched };
+  });
 }
 function parseDividendsFromRows(rows) {
   return rows.map((row, index) => {
@@ -3380,13 +4034,13 @@ function parseDividendsFromRows(rows) {
     return {
       rowIndex: index + 2,
       exchange,
-      ticker: String(row[1] || "").toUpperCase(),
+      ticker: String(row[1] || "").trim().toUpperCase(),
       date,
       dateStr: !isNaN(date.getTime()) ? formatYYYYMMDD(date) : "",
       amount: Number(row[3]),
-      source: String(row[4] || ""),
+      source: String(row[4] || "").trim(),
       assetPriceAtTime: row[5] !== void 0 && row[5] !== null && String(row[5]).trim() !== "" && !isNaN(Number(row[5])) ? Number(row[5]) : void 0,
-      currency: row[7] ? String(row[7]) : void 0
+      currency: row[7] ? String(row[7]).trim().toUpperCase() : void 0
     };
   }).filter((d) => d.exchange && d.ticker && !isNaN(d.date.getTime()) && !isNaN(d.amount));
 }
@@ -3493,8 +4147,8 @@ function parseTrackingListsFromRows(rows) {
       }
     }
     out.push({
-      listName: String(row[0]),
-      ticker: String(row[1]).toUpperCase(),
+      listName: String(row[0]).trim(),
+      ticker: String(row[1]).trim().toUpperCase(),
       exchange,
       dateAdded,
       rowIndex: idx + 2,
@@ -3520,11 +4174,11 @@ function parseExternalPricesFromRows(rows) {
       dateVal = coerceDate(row[2]) || /* @__PURE__ */ new Date(NaN);
     }
     if (isNaN(dateVal.getTime())) continue;
-    const ticker = String(row[0]).toUpperCase();
+    const ticker = String(row[0]).trim().toUpperCase();
     const key = `${exchange}:${ticker}`;
     let curr = Currency.ILS;
     try {
-      curr = normalizeCurrency(String(row[4] || "ILS"));
+      curr = normalizeCurrency(String(row[4] || "ILS").trim());
     } catch {
       curr = Currency.ILS;
     }
@@ -3623,25 +4277,28 @@ async function rebuildHoldingsSheetOnWorker(sheets, market) {
   }
   await sheets.setMetadataValue("holdings_rebuild", toGoogleSheetDateFormat(/* @__PURE__ */ new Date()));
 }
-function buildTransactionSheetRow(t) {
+function buildTransactionSheetRow(t, sheetCommissionOverride) {
   const rowData = { ...t };
   const parsedDate = coerceDate(t.date);
   if (!parsedDate) {
     throw new AgentApiError(400, `Invalid transaction date: '${t.date}'`);
   }
   rowData.date = toGoogleSheetDateFormat(parsedDate);
+  rowData.portfolioId = String(t.portfolioId || "").trim();
   rowData.ticker = String(t.ticker).trim().toUpperCase();
   rowData.exchange = toGoogleSheetsExchangeCode(t.exchange);
   rowData.gfExchange = toGoogleFinanceExchangeCode(t.exchange);
   rowData.vestDate = t.vestDate ? toGoogleSheetDateFormat(coerceDate(t.vestDate)) : "";
   rowData.comment = t.comment || "";
   rowData.source = t.source || "AGENT_API";
+  const normalizedCurrency = String(t.currency || "").trim().toUpperCase();
+  if (normalizedCurrency) rowData.currency = normalizedCurrency;
   const comm = Number(t.commission) || 0;
-  const isILA = String(t.currency || "").toUpperCase() === "ILA";
-  rowData.commission = isILA ? comm * 100 : comm;
+  const isILA = normalizedCurrency === "ILA";
+  rowData.commission = sheetCommissionOverride !== void 0 ? sheetCommissionOverride : isILA ? Number((comm * 100).toFixed(6)) : comm;
   const cDate = (t.creationDate ? coerceDate(t.creationDate) : null) || /* @__PURE__ */ new Date();
   rowData.creationDate = toGoogleSheetDateFormat(cDate);
-  rowData.numeric_id = t.numericId ?? null;
+  rowData.numericId = t.numericId ?? null;
   return sortedTxnColDefs.map((colDef) => {
     if (colDef.formula) return null;
     const key = colDef.key;
@@ -3770,14 +4427,14 @@ function getAgentApiHelp(baseUrl) {
       {
         method: "GET",
         path: "/agent/portfolios",
-        description: "Lists all configured portfolios and their tax/fee policies."
+        description: "Lists all configured portfolios, their tax/fee policies (with YYYY-MM-DD history dates), and active holdings summaries."
       },
       {
         method: "GET",
         path: "/agent/transactions",
         queryParams: {
           portfolioId: "Optional filter by portfolioId",
-          ticker: "Optional filter by ticker symbol",
+          ticker: "Optional filter by ticker symbol or TASE numericId",
           exchange: "Optional filter by exchange (e.g. NASDAQ, NYSE, TASE)",
           type: "Optional filter by type (BUY, SELL, BUY_TRANSFER, SELL_TRANSFER, DEPOSIT, WITHDRAWAL, FEE)",
           fromDate: "Optional YYYY-MM-DD lower bound (inclusive)",
@@ -3785,7 +4442,7 @@ function getAgentApiHelp(baseUrl) {
           limit: "Optional max records to return",
           offset: "Optional pagination offset"
         },
-        description: "Lists transactions from Transaction_Log including rowIndex (used for PUT/PATCH/DELETE), original & split-adjusted qty/price, vesting dates, comments, and commissions."
+        description: "Lists transactions from Transaction_Log including rowIndex (used for PUT/PATCH/DELETE), original & split-adjusted qty/price, vesting dates, comments, and commissions in major currency (plus commissionILS on ILS/ILA rows)."
       },
       {
         method: "POST",
@@ -3902,9 +4559,12 @@ async function getAgentPortfolioState(sheets, market, expectedKeyHash, options =
   if (!activeHash || activeHash !== expectedKeyHash) {
     throw new AgentApiError(401, "Agent private key is invalid, revoked, or rotated for this spreadsheet.");
   }
-  const portfolios = parsePortfoliosFromRows(batchData[PORT_OPT_RANGE] || []);
+  const rawPortfolios = parsePortfoliosFromRows(batchData[PORT_OPT_RANGE] || []);
   const transactions = parseTransactionsFromRows(batchData[TX_FETCH_RANGE] || []);
-  const sheetPriceMap = parseHoldingsSheetPriceMap(batchData[HOLDINGS_RANGE] || []);
+  const holdingsRows = batchData[HOLDINGS_RANGE] || [];
+  const sheetPriceMap = parseHoldingsSheetPriceMap(holdingsRows);
+  const portfolios = enrichPortfoliosWithHoldings(rawPortfolios, transactions, sheetPriceMap);
+  const taseIndex = buildTaseSymbolIndex(transactions, holdingsRows);
   const exchangeRates = parseExchangeRatesFromRows(batchData[CONFIG_RANGE] || []);
   const rawDivs = parseDividendsFromRows(batchData[DIVIDENDS_RANGE] || []);
   const trackingLists = parseTrackingListsFromRows(batchData[TRACKING_LISTS_RANGE] || []);
@@ -3912,26 +4572,31 @@ async function getAgentPortfolioState(sheets, market, expectedKeyHash, options =
   const tickerInfoMap = /* @__PURE__ */ new Map();
   for (const t of transactions) {
     const ex = t.exchange || Exchange.TASE;
-    const key = `${ex}:${t.ticker.toUpperCase()}`;
+    const sym = t.ticker.toUpperCase();
+    const key = `${ex}:${sym}`;
+    const resolvedNumId = t.numericId || (ex === Exchange.TASE ? taseIndex.tickerToNumericId.get(sym) ?? (/^\d+$/.test(sym) ? Number(sym) : void 0) : void 0);
     if (!tickerInfoMap.has(key)) {
-      tickerInfoMap.set(key, { ticker: t.ticker.toUpperCase(), exchange: ex, numericId: t.numericId });
-    } else if (t.numericId && !tickerInfoMap.get(key).numericId) {
-      tickerInfoMap.get(key).numericId = t.numericId;
+      tickerInfoMap.set(key, { ticker: sym, exchange: ex, numericId: resolvedNumId });
+    } else if (resolvedNumId && !tickerInfoMap.get(key).numericId) {
+      tickerInfoMap.get(key).numericId = resolvedNumId;
     }
   }
   for (const item of trackingLists) {
-    const key = `${item.exchange}:${item.ticker.toUpperCase()}`;
+    const sym = item.ticker.toUpperCase();
+    const key = `${item.exchange}:${sym}`;
     if (!tickerInfoMap.has(key)) {
-      tickerInfoMap.set(key, { ticker: item.ticker.toUpperCase(), exchange: item.exchange });
+      const resolvedNumId = item.exchange === Exchange.TASE ? taseIndex.tickerToNumericId.get(sym) ?? (/^\d+$/.test(sym) ? Number(sym) : void 0) : void 0;
+      tickerInfoMap.set(key, { ticker: sym, exchange: item.exchange, numericId: resolvedNumId });
     }
   }
   const livePricesMap = /* @__PURE__ */ new Map();
   for (const [k, v] of externalPriceMap.entries()) livePricesMap.set(k, v);
-  for (const [k, v] of sheetPriceMap.entries()) {
-    const existing = livePricesMap.get(k);
-    livePricesMap.set(k, existing ? { ...existing, ...v } : v);
-  }
-  if (!options.fast) {
+  if (options.fast) {
+    for (const [k, v] of sheetPriceMap.entries()) {
+      const existing = livePricesMap.get(k);
+      livePricesMap.set(k, existing ? { ...existing, ...v } : v);
+    }
+  } else {
     const entries = Array.from(tickerInfoMap.values());
     const chunkSize = 8;
     for (let i = 0; i < entries.length; i += chunkSize) {
@@ -3943,12 +4608,15 @@ async function getAgentPortfolioState(sheets, market, expectedKeyHash, options =
           const fresh = await market.fetchTickerData(ticker, exchange, numericId || sheetMeta?.numericId, true);
           if (fresh && fresh.price > 0) {
             livePricesMap.set(key, {
-              ...sheetMeta || {},
               ...fresh,
               name: fresh.name || sheetMeta?.name,
               nameHe: fresh.nameHe || sheetMeta?.nameHe,
-              sector: fresh.sector || sheetMeta?.sector
+              sector: fresh.sector || sheetMeta?.sector,
+              type: fresh.type || sheetMeta?.type,
+              numericId: fresh.numericId ?? sheetMeta?.numericId ?? null
             });
+          } else if (sheetMeta && sheetMeta.price > 0 && !livePricesMap.has(key)) {
+            livePricesMap.set(key, sheetMeta);
           }
         })
       );
@@ -4194,9 +4862,51 @@ async function getAgentPortfolioState(sheets, market, expectedKeyHash, options =
   };
 }
 async function listAgentPortfolios(sheets, expectedKeyHash) {
-  await verifySheetAgentKey(sheets, expectedKeyHash);
-  const rows = await sheets.getValues(PORT_OPT_RANGE, "UNFORMATTED_VALUE");
-  return { portfolios: parsePortfoliosFromRows(rows) };
+  const batch = await sheets.batchGetValues([METADATA_RANGE, PORT_OPT_RANGE, TX_FETCH_RANGE], "UNFORMATTED_VALUE");
+  const metaRows = batch[METADATA_RANGE] || [];
+  const activeHash = String(metaRows.find((r) => String(r[0]) === "agent_api_key_hash")?.[1] || "").trim();
+  if (!activeHash || activeHash !== expectedKeyHash) {
+    throw new AgentApiError(401, "Agent private key is invalid, revoked, or rotated for this spreadsheet.");
+  }
+  const portfolios = parsePortfoliosFromRows(batch[PORT_OPT_RANGE] || []);
+  const txns = parseTransactionsFromRows(batch[TX_FETCH_RANGE] || []);
+  const holdingsByPortfolio = /* @__PURE__ */ new Map();
+  for (const tx of txns) {
+    if (!isBuy(tx.type) && !isSell(tx.type)) continue;
+    if (!tx.exchange) continue;
+    if (!holdingsByPortfolio.has(tx.portfolioId)) {
+      holdingsByPortfolio.set(tx.portfolioId, /* @__PURE__ */ new Map());
+    }
+    const portHoldings = holdingsByPortfolio.get(tx.portfolioId);
+    const key = `${tx.exchange}:${tx.ticker}`;
+    if (!portHoldings.has(key)) {
+      portHoldings.set(key, {
+        ticker: tx.ticker,
+        exchange: tx.exchange,
+        qty: 0,
+        numericId: tx.numericId ?? null
+      });
+    }
+    const entry = portHoldings.get(key);
+    if (tx.numericId !== void 0 && tx.numericId !== null && entry.numericId === null) {
+      entry.numericId = tx.numericId;
+    }
+    const mult = isBuy(tx.type) ? 1 : -1;
+    const qty = Number(tx.qty ?? tx.originalQty) || 0;
+    entry.qty += qty * mult;
+  }
+  return {
+    portfolios: portfolios.map((p) => {
+      const portMap = holdingsByPortfolio.get(p.id);
+      const activeHoldings = portMap ? Array.from(portMap.values()).filter((h) => Math.abs(h.qty) > 1e-8).map((h) => ({
+        ticker: h.ticker,
+        exchange: h.exchange,
+        qty: Number(h.qty.toFixed(8)),
+        ...h.numericId !== null ? { numericId: h.numericId } : {}
+      })) : [];
+      return activeHoldings.length > 0 ? { ...p, holdings: activeHoldings } : p;
+    })
+  };
 }
 async function listAgentTransactions(sheets, expectedKeyHash, filters = {}) {
   const batch = await sheets.batchGetValues([METADATA_RANGE, PORT_OPT_RANGE, TX_FETCH_RANGE], "UNFORMATTED_VALUE");
@@ -4209,15 +4919,27 @@ async function listAgentTransactions(sheets, expectedKeyHash, filters = {}) {
   const portNameMap = new Map(portfolios.map((p) => [p.id, p.name]));
   let txns = parseTransactionsFromRows(batch[TX_FETCH_RANGE] || []);
   if (filters.portfolioId) {
-    txns = txns.filter((t) => t.portfolioId === filters.portfolioId);
-  }
-  if (filters.ticker) {
-    const sym = filters.ticker.trim().toUpperCase();
-    txns = txns.filter((t) => t.ticker.toUpperCase() === sym);
+    const pid = filters.portfolioId.trim();
+    txns = txns.filter((t) => t.portfolioId === pid);
   }
   if (filters.exchange) {
     const ex = parseExchange(filters.exchange);
     txns = txns.filter((t) => t.exchange === ex);
+  }
+  if (filters.ticker) {
+    const sym = filters.ticker.trim().toUpperCase();
+    const matchingNumericIds = /* @__PURE__ */ new Set();
+    if (/^\d+$/.test(sym)) {
+      matchingNumericIds.add(Number(sym));
+    }
+    for (const t of txns) {
+      if (t.ticker === sym && t.numericId !== void 0 && t.numericId !== null) {
+        matchingNumericIds.add(t.numericId);
+      }
+    }
+    txns = txns.filter(
+      (t) => t.ticker === sym || t.numericId !== void 0 && t.numericId !== null && (String(t.numericId).trim().toUpperCase() === sym || matchingNumericIds.has(t.numericId)) || /^\d+$/.test(t.ticker) && matchingNumericIds.has(Number(t.ticker))
+    );
   }
   if (filters.type) {
     const tp = filters.type.trim().toUpperCase();
@@ -4236,10 +4958,11 @@ async function listAgentTransactions(sheets, expectedKeyHash, filters = {}) {
   const totalCount = txns.length;
   const offset = Math.max(0, filters.offset || 0);
   const limit = filters.limit && filters.limit > 0 ? filters.limit : txns.length;
-  const sliced = txns.slice(offset, offset + limit).map((t) => ({
-    ...t,
-    portfolioName: portNameMap.get(t.portfolioId) || t.portfolioId
-  }));
+  const sliced = txns.slice(offset, offset + limit).map(
+    (t) => formatTransactionForApi(t, {
+      portfolioName: portNameMap.get(t.portfolioId) || t.portfolioId
+    })
+  );
   return {
     totalCount,
     offset,
@@ -4272,13 +4995,15 @@ async function addAgentTransactions(sheets, market, expectedKeyHash, body) {
   if (!rawItems.length) {
     throw new AgentApiError(400, "At least one transaction object is required.");
   }
-  const [portRows, existingTxRows] = await Promise.all([
+  const [portRows, existingTxRows, holdingsRows] = await Promise.all([
     sheets.getValues(PORT_OPT_RANGE, "UNFORMATTED_VALUE"),
-    sheets.getValues(TX_FETCH_RANGE, "UNFORMATTED_VALUE")
+    sheets.getValues(TX_FETCH_RANGE, "UNFORMATTED_VALUE"),
+    sheets.getValues(HOLDINGS_RANGE, "UNFORMATTED_VALUE")
   ]);
   const portfolios = parsePortfoliosFromRows(portRows);
   const portMap = new Map(portfolios.map((p) => [p.id, p]));
   const existingTxns = parseTransactionsFromRows(existingTxRows);
+  const taseIndex = buildTaseSymbolIndex(existingTxns, holdingsRows);
   const heldQtyMap = /* @__PURE__ */ new Map();
   for (const tx of existingTxns) {
     if (isBuy(tx.type) || isSell(tx.type)) {
@@ -4288,6 +5013,7 @@ async function addAgentTransactions(sheets, market, expectedKeyHash, body) {
     }
   }
   const normalizedTxns = [];
+  const needsOrigOpenFromSheet = [];
   for (const item of rawItems) {
     const type = String(item.type || "").trim().toUpperCase();
     if (type === "DIVIDEND") {
@@ -4304,13 +5030,42 @@ async function addAgentTransactions(sheets, market, expectedKeyHash, body) {
         `Portfolio '${portfolioId}' not found. Available portfolios: ${portfolios.map((p) => `${p.id} (${p.name})`).join(", ")}`
       );
     }
-    const ticker = String(item.ticker || "").trim().toUpperCase();
+    let ticker = String(item.ticker || "").trim().toUpperCase();
     if (!ticker) throw new AgentApiError(400, "Transaction ticker is required.");
     let exchange;
     try {
       exchange = parseExchange(String(item.exchange || ""));
     } catch {
       throw new AgentApiError(400, `Invalid exchange '${item.exchange}'.`);
+    }
+    let numericId = item.numericId !== void 0 && item.numericId !== null && String(item.numericId).trim() !== "" ? Number(item.numericId) : void 0;
+    if (numericId !== void 0 && !Number.isFinite(numericId)) {
+      numericId = void 0;
+    }
+    if (exchange === Exchange.TASE) {
+      if (/^\d+$/.test(ticker)) {
+        if (numericId === void 0) numericId = Number(ticker);
+        const existingCanonical = taseIndex.numericIdToTicker.get(numericId);
+        if (existingCanonical) {
+          ticker = existingCanonical;
+        }
+      } else if (numericId !== void 0) {
+        const existingCanonical = taseIndex.numericIdToTicker.get(numericId);
+        if (existingCanonical && !/^\d+$/.test(existingCanonical)) {
+          ticker = existingCanonical;
+        }
+      } else if (taseIndex.tickerToNumericId.has(ticker)) {
+        numericId = taseIndex.tickerToNumericId.get(ticker);
+      }
+      if (numericId !== void 0 && numericId > 0) {
+        if (!taseIndex.tickerToNumericId.has(ticker)) {
+          taseIndex.tickerToNumericId.set(ticker, numericId);
+        }
+        const currMapped = taseIndex.numericIdToTicker.get(numericId);
+        if (!currMapped || /^\d+$/.test(currMapped) && !/^\d+$/.test(ticker)) {
+          taseIndex.numericIdToTicker.set(numericId, ticker);
+        }
+      }
     }
     const parsedDate = coerceDate(item.date);
     if (!parsedDate) {
@@ -4325,8 +5080,9 @@ async function addAgentTransactions(sheets, market, expectedKeyHash, body) {
       throw new AgentApiError(400, "originalPrice must be a non-negative number.");
     }
     let currency;
+    const rawCurrInput = String(item.currency || "").trim();
     try {
-      currency = String(item.currency || "").toUpperCase() === "ILA" ? Currency.ILA : normalizeCurrency(String(item.currency || (exchange === Exchange.TASE ? "ILA" : port.currency || "USD")));
+      currency = rawCurrInput.toUpperCase() === "ILA" ? Currency.ILA : normalizeCurrency(rawCurrInput || (exchange === Exchange.TASE ? "ILA" : port.currency || "USD"));
     } catch {
       throw new AgentApiError(400, `Invalid currency '${item.currency}'.`);
     }
@@ -4350,8 +5106,8 @@ async function addAgentTransactions(sheets, market, expectedKeyHash, body) {
       const totalMajor = currency === Currency.ILA ? rawTotal / 100 : rawTotal;
       commission = computeDefaultCommission(port, type, totalMajor);
     }
-    let origOpenPrice = item.origOpenPriceAtCreationDate !== void 0 ? Number(item.origOpenPriceAtCreationDate) : void 0;
-    let numericId = item.numericId !== void 0 && item.numericId !== null ? Number(item.numericId) : void 0;
+    const hasExplicitOrigOpen = item.origOpenPriceAtCreationDate !== void 0 && item.origOpenPriceAtCreationDate !== null;
+    let origOpenPrice = hasExplicitOrigOpen ? Number(item.origOpenPriceAtCreationDate) : void 0;
     if (origOpenPrice === void 0) {
       const live = await market.fetchTickerData(ticker, exchange, numericId, false);
       if (live?.openPrice && live.openPrice > 0) {
@@ -4363,6 +5119,7 @@ async function addAgentTransactions(sheets, market, expectedKeyHash, body) {
         numericId = live.numericId;
       }
     }
+    needsOrigOpenFromSheet.push(!hasExplicitOrigOpen);
     normalizedTxns.push({
       date: formatYYYYMMDD(parsedDate),
       portfolioId,
@@ -4383,7 +5140,7 @@ async function addAgentTransactions(sheets, market, expectedKeyHash, body) {
       numericId
     });
   }
-  const rowsToAppend = normalizedTxns.map(buildTransactionSheetRow);
+  const rowsToAppend = normalizedTxns.map((t) => buildTransactionSheetRow(t));
   const appendRes = await sheets.appendValues(`${TX_SHEET_NAME}!A:A`, rowsToAppend, "USER_ENTERED", "INSERT_ROWS");
   const updatedRange = appendRes?.updates?.updatedRange || "";
   const match = updatedRange.match(/!A(\d+):/);
@@ -4397,11 +5154,54 @@ async function addAgentTransactions(sheets, market, expectedKeyHash, body) {
   if (formulaRequests.length > 0) {
     await sheets.batchUpdate(formulaRequests);
   }
+  if (needsOrigOpenFromSheet.some(Boolean)) {
+    const endRow = startRow + normalizedTxns.length - 1;
+    const origOpenColIdx = sortedTxnColDefs.findIndex((c) => c.key === "origOpenPriceAtCreationDate");
+    const splitAdjOpenColIdx = sortedTxnColDefs.findIndex((c) => c.key === "splitAdjOpenPrice");
+    if (origOpenColIdx >= 0 && splitAdjOpenColIdx >= 0) {
+      try {
+        const evalRows = await sheets.getValues(
+          `${TX_SHEET_NAME}!A${startRow}:${TXN_COLS.splitAdjOpenPrice.colId}${endRow}`,
+          "UNFORMATTED_VALUE"
+        );
+        const origOpenUpdates = [];
+        for (let i = 0; i < normalizedTxns.length; i++) {
+          if (!needsOrigOpenFromSheet[i]) continue;
+          const qVal = evalRows[i]?.[splitAdjOpenColIdx];
+          if (typeof qVal === "number" && Number.isFinite(qVal) && qVal > 0) {
+            normalizedTxns[i].origOpenPriceAtCreationDate = qVal;
+            const rowNum = startRow + i;
+            origOpenUpdates.push({
+              updateCells: {
+                range: {
+                  sheetId: txSheetId,
+                  startRowIndex: rowNum - 1,
+                  endRowIndex: rowNum,
+                  startColumnIndex: origOpenColIdx,
+                  endColumnIndex: origOpenColIdx + 1
+                },
+                rows: [{ values: [{ userEnteredValue: { numberValue: qVal } }] }],
+                fields: "userEnteredValue.numberValue"
+              }
+            });
+          }
+        }
+        if (origOpenUpdates.length > 0) {
+          await sheets.batchUpdate(origOpenUpdates);
+        }
+      } catch {
+      }
+    }
+  }
   await rebuildHoldingsSheetOnWorker(sheets, market);
   return {
     success: true,
     addedCount: normalizedTxns.length,
-    transactions: normalizedTxns.map((t, idx) => ({ ...t, rowIndex: startRow + idx }))
+    transactions: normalizedTxns.map((t, idx) => ({
+      ...t,
+      ...t.currency === Currency.ILA || t.currency === Currency.ILS ? { commissionILS: t.commission || 0 } : {},
+      rowIndex: startRow + idx
+    }))
   };
 }
 async function updateAgentTransaction(sheets, market, expectedKeyHash, rowIndex, body, isPartial) {
@@ -4444,7 +5244,7 @@ async function updateAgentTransaction(sheets, market, expectedKeyHash, rowIndex,
   if (!VALID_TXN_TYPES.has(type)) {
     throw new AgentApiError(400, `Invalid transaction type '${merged.type}'.`);
   }
-  if (!portMap.has(String(merged.portfolioId))) {
+  if (!portMap.has(String(merged.portfolioId).trim())) {
     throw new AgentApiError(400, `Portfolio '${merged.portfolioId}' not found.`);
   }
   const exchange = parseExchange(String(merged.exchange || existing.exchange || ""));
@@ -4458,11 +5258,30 @@ async function updateAgentTransaction(sheets, market, expectedKeyHash, rowIndex,
   if (!Number.isFinite(originalPrice) || originalPrice < 0) {
     throw new AgentApiError(400, "originalPrice must be >= 0.");
   }
-  const currency = String(merged.currency || "").toUpperCase() === "ILA" ? Currency.ILA : normalizeCurrency(String(merged.currency || existing.currency || "USD"));
+  const rawMergedCurr = String(merged.currency || "").trim();
+  const currency = rawMergedCurr.toUpperCase() === "ILA" ? Currency.ILA : normalizeCurrency(rawMergedCurr || existing.currency || "USD");
+  const hasExplicitCommission = body.commission !== void 0;
+  let majorCommission;
+  let sheetCommissionOverride;
+  if (hasExplicitCommission) {
+    majorCommission = body.commission === null ? 0 : Number(body.commission);
+    if (!Number.isFinite(majorCommission) || majorCommission < 0) {
+      throw new AgentApiError(400, "commission must be a non-negative number.");
+    }
+    sheetCommissionOverride = void 0;
+  } else if (isPartial) {
+    const existingRawComm = existing.commission || 0;
+    const existingCurr = String(existing.currency || "").trim().toUpperCase();
+    majorCommission = existingCurr === "ILA" ? Number((existingRawComm / 100).toFixed(6)) : existingRawComm;
+    sheetCommissionOverride = currency === existing.currency ? existingRawComm : void 0;
+  } else {
+    majorCommission = 0;
+    sheetCommissionOverride = 0;
+  }
   const updatedTxn = {
     rowIndex,
     date: formatYYYYMMDD(parsedDate),
-    portfolioId: String(merged.portfolioId),
+    portfolioId: String(merged.portfolioId).trim(),
     ticker: String(merged.ticker).trim().toUpperCase(),
     exchange,
     type,
@@ -4473,13 +5292,13 @@ async function updateAgentTransaction(sheets, market, expectedKeyHash, rowIndex,
     currency,
     vestDate: merged.vestDate ? formatYYYYMMDD(coerceDate(merged.vestDate)) : void 0,
     comment: merged.comment !== void 0 ? String(merged.comment) : void 0,
-    commission: merged.commission !== void 0 ? Number(merged.commission) : existing.commission || 0,
+    commission: majorCommission,
     source: merged.source ? String(merged.source) : existing.source || "AGENT_API",
     creationDate: existing.creationDate || formatYYYYMMDD(/* @__PURE__ */ new Date()),
     origOpenPriceAtCreationDate: merged.origOpenPriceAtCreationDate !== void 0 ? Number(merged.origOpenPriceAtCreationDate) : existing.origOpenPriceAtCreationDate,
     numericId: merged.numericId !== void 0 ? Number(merged.numericId) : existing.numericId
   };
-  const rowValues = buildTransactionSheetRow(updatedTxn);
+  const rowValues = buildTransactionSheetRow(updatedTxn, sheetCommissionOverride);
   await sheets.updateValues(`${TX_SHEET_NAME}!A${rowIndex}`, [rowValues], "USER_ENTERED");
   const txSheetId = await sheets.getSheetNumericId(TX_SHEET_NAME);
   const formulaRequests = buildTransactionFormulaRequests(txSheetId, [rowIndex]);
@@ -4489,7 +5308,10 @@ async function updateAgentTransaction(sheets, market, expectedKeyHash, rowIndex,
   await rebuildHoldingsSheetOnWorker(sheets, market);
   return {
     success: true,
-    transaction: updatedTxn
+    transaction: {
+      ...updatedTxn,
+      ...currency === Currency.ILA || currency === Currency.ILS ? { commissionILS: majorCommission } : {}
+    }
   };
 }
 async function deleteAgentTransaction(sheets, market, expectedKeyHash, rowIndex, opts = {}) {
@@ -4535,7 +5357,7 @@ async function deleteAgentTransaction(sheets, market, expectedKeyHash, rowIndex,
   await rebuildHoldingsSheetOnWorker(sheets, market);
   return {
     success: true,
-    deletedTransaction: parsed
+    deletedTransaction: formatTransactionForApi(parsed)
   };
 }
 function buildDividendSheetRow(exchange, ticker, date, amount, source, currency) {
@@ -4748,17 +5570,40 @@ async function getAgentTickerStats(sheets, market, expectedKeyHash, exchangeStr,
   } catch {
     throw new AgentApiError(400, `Invalid exchange '${exchangeStr}'.`);
   }
-  const ticker = tickerStr.trim().toUpperCase();
-  const [txRows, divRows] = await Promise.all([
+  const requestedTicker = tickerStr.trim().toUpperCase();
+  const [txRows, divRows, holdingsRows] = await Promise.all([
     sheets.getValues(TX_FETCH_RANGE, "UNFORMATTED_VALUE"),
-    sheets.getValues(DIVIDENDS_RANGE, "UNFORMATTED_VALUE")
+    sheets.getValues(DIVIDENDS_RANGE, "UNFORMATTED_VALUE"),
+    sheets.getValues(HOLDINGS_RANGE, "UNFORMATTED_VALUE")
   ]);
-  const matchingTxns = parseTransactionsFromRows(txRows).filter(
-    (t) => t.ticker.toUpperCase() === ticker && (!t.exchange || t.exchange === exchange)
-  );
-  const resolvedNumericId = numericId || matchingTxns.find((t) => t.numericId)?.numericId || null;
-  const live = await market.fetchTickerData(ticker, exchange, resolvedNumericId, true);
-  const matchingDivs = parseDividendsFromRows(divRows).filter((d) => d.ticker === ticker && d.exchange === exchange).map((d) => ({
+  const allTxns = parseTransactionsFromRows(txRows);
+  let canonicalTicker = requestedTicker;
+  let resolvedNumericId = numericId ?? null;
+  if (exchange === Exchange.TASE) {
+    const taseIndex = buildTaseSymbolIndex(allTxns, holdingsRows);
+    if (/^\d+$/.test(requestedTicker)) {
+      resolvedNumericId = resolvedNumericId ?? Number(requestedTicker);
+      const existingCanonical = taseIndex.numericIdToTicker.get(resolvedNumericId);
+      if (existingCanonical) {
+        canonicalTicker = existingCanonical;
+      }
+    } else if (resolvedNumericId !== null) {
+      const existingCanonical = taseIndex.numericIdToTicker.get(resolvedNumericId);
+      if (existingCanonical && !/^\d+$/.test(existingCanonical)) {
+        canonicalTicker = existingCanonical;
+      }
+    } else if (taseIndex.tickerToNumericId.has(requestedTicker)) {
+      resolvedNumericId = taseIndex.tickerToNumericId.get(requestedTicker);
+    }
+  }
+  const matchingTxns = allTxns.filter(
+    (t) => (!t.exchange || t.exchange === exchange) && (t.ticker === canonicalTicker || t.ticker === requestedTicker || resolvedNumericId !== null && t.numericId === resolvedNumericId)
+  ).map((t) => formatTransactionForApi(t));
+  if (!resolvedNumericId) {
+    resolvedNumericId = matchingTxns.find((t) => t.numericId)?.numericId || null;
+  }
+  const live = await market.fetchTickerData(canonicalTicker, exchange, resolvedNumericId, true);
+  const matchingDivs = parseDividendsFromRows(divRows).filter((d) => d.exchange === exchange && (d.ticker === canonicalTicker || d.ticker === requestedTicker)).map((d) => ({
     rowIndex: d.rowIndex,
     date: d.dateStr,
     amount: d.amount,
@@ -4766,7 +5611,9 @@ async function getAgentTickerStats(sheets, market, expectedKeyHash, exchangeStr,
     source: d.source
   }));
   return {
-    ticker,
+    ticker: canonicalTicker,
+    ...canonicalTicker !== requestedTicker ? { requestedTicker } : {},
+    ...resolvedNumericId !== null ? { numericId: resolvedNumericId } : {},
     exchange,
     marketData: live ? {
       price: live.price,
@@ -4804,6 +5651,7 @@ export {
   getAgentApiHelp,
   getAgentPortfolioState,
   getAgentTickerStats,
+  getWorkerYahooCandidates,
   listAgentDividends,
   listAgentPortfolios,
   listAgentTransactions,

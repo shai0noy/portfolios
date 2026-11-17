@@ -24,7 +24,7 @@ export const TXN_COLS: TransactionColumns = {
         colId: 'I',
         numeric: true,
         formula: (rowNum, cols) => {
-            const txnCurr = `${cols.currency.colId}${rowNum}`;
+            const txnCurr = `TRIM(${cols.currency.colId}${rowNum})`;
             const origPrice = `${cols.originalPrice.colId}${rowNum}`;
             const txnDate = `${cols.date.colId}${rowNum}`;
             // Use standard formula; robustness handled by having multiple pairs in config or manual overrides if needed for transactions
@@ -42,7 +42,7 @@ export const TXN_COLS: TransactionColumns = {
         colId: 'J',
         numeric: true,
         formula: (rowNum, cols) => {
-            const txnCurr = `${cols.currency.colId}${rowNum}`;
+            const txnCurr = `TRIM(${cols.currency.colId}${rowNum})`;
             const origPrice = `${cols.originalPrice.colId}${rowNum}`;
             const txnDate = `${cols.date.colId}${rowNum}`;
             const usdIlsFormula = getHistoricalPriceFormula('USDILS', txnDate, true);
@@ -75,7 +75,7 @@ export const TXN_COLS: TransactionColumns = {
         colName: 'Split_Ratio',
         colId: 'R',
         numeric: true,
-        formula: (rowNum, cols) => `=ROUND(IFERROR(IF(OR(ISBLANK(${cols.splitAdjOpenPrice.colId}${rowNum}), ${cols.splitAdjOpenPrice.colId}${rowNum}=0, ISBLANK(${cols.origOpenPriceAtCreationDate.colId}${rowNum})), 1, ${cols.origOpenPriceAtCreationDate.colId}${rowNum} / ${cols.splitAdjOpenPrice.colId}${rowNum}), 1), 2)`
+        formula: (rowNum, cols) => `=IFERROR(IF(OR(ISBLANK(${cols.splitAdjOpenPrice.colId}${rowNum}), ${cols.splitAdjOpenPrice.colId}${rowNum}=0, ISBLANK(${cols.origOpenPriceAtCreationDate.colId}${rowNum})), 1, IF(ABS(ROUND(${cols.origOpenPriceAtCreationDate.colId}${rowNum} / ${cols.splitAdjOpenPrice.colId}${rowNum}, 2) - 1) <= 0.03, 1, ROUND(${cols.origOpenPriceAtCreationDate.colId}${rowNum} / ${cols.splitAdjOpenPrice.colId}${rowNum}, 2))), 1)`
     },
     splitAdjustedPrice: {
         key: 'splitAdjustedPrice',

@@ -845,8 +845,11 @@ export class Holding {
         // Fetch historical data once if needed
         const historyData = historyProvider(this.ticker);
         const getPriceAtDate = (date: Date): number => {
-            if (!historyData?.historical) return 0;
+            if (!historyData?.historical || historyData.historical.length === 0) return 0;
             const t = date.getTime();
+            const firstTime = new Date(historyData.historical[0].date).getTime();
+            // Do not use a recent history start point as a proxy for a much older period start date
+            if (firstTime > t + 14 * 24 * 60 * 60 * 1000) return 0;
             // Assuming sorted ascending
             // Find last point <= t
             let found = historyData.historical[0];
@@ -888,7 +891,14 @@ export class Holding {
                 }
 
                 if (priceAtStart <= 0) {
-                    continue; // Missing history
+                    // Missing historical price for a pre-existing lot: cannot compute accurate period gain
+                    // from partial lots (which would misattribute full-position dividends to tiny recent buys/DRIP).
+                    return {
+                        gain: MultiCurrencyValue.zero(),
+                        initialValue: MultiCurrencyValue.zero(),
+                        finalValue: MultiCurrencyValue.zero(),
+                        gainPct: 0
+                    };
                 }
 
                 // Val = Qty * PriceAtStart

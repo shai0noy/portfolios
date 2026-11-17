@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { loadFinanceEngine, loadStaleFinanceEngine } from './data/loader';
 import { SessionExpiredError } from './errors';
 import { useSession } from './SessionContext';
+import { hasValidToken } from './google';
 import { coerceDate } from './date';
 // import { Currency } from './types'; // Unused
 
@@ -31,9 +32,18 @@ export function useDashboardData(sheetId: string) {
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [hasFutureTxns, setHasFutureTxns] = useState(false);
   const [error, setError] = useState<any>(null);
-  const { showLoginModal } = useSession();
+  const { isSessionExpired, showLoginModal } = useSession();
   const [engine, setEngine] = useState<FinanceEngine | null>(null);
   const [trackingLists, setTrackingLists] = useState<TrackingListItem[]>([]);
+
+  const clearEngineState = useCallback(() => {
+    loadedRef.current = false;
+    setEngine(null);
+    setHoldings([]);
+    setPortfolios([]);
+    setTrackingLists([]);
+    setHasFutureTxns(false);
+  }, []);
 
   const applyEngineState = useCallback((eng: FinanceEngine, lists: TrackingListItem[]) => {
     loadedRef.current = true;
@@ -53,13 +63,15 @@ export function useDashboardData(sheetId: string) {
   }, []);
 
   const loadData = useCallback(async (force = false) => {
-    if (!sheetId) {
+    if (!sheetId || isSessionExpired) {
+      clearEngineState();
       setLoading(false);
+      setIsRefreshing(false);
       return;
     }
     if (!loadedRef.current) {
       setLoading(true);
-      if (!force) {
+      if (!force && hasValidToken()) {
         try {
           const stale = await loadStaleFinanceEngine(sheetId);
           if (stale) {
@@ -85,6 +97,7 @@ export function useDashboardData(sheetId: string) {
     } catch (e) {
       console.error('loadData error:', e);
       if (e instanceof SessionExpiredError) { 
+          clearEngineState();
           setError('session_expired'); 
           showLoginModal(); 
       } else if (loadedRef.current) {
@@ -98,7 +111,7 @@ export function useDashboardData(sheetId: string) {
       setLoading(false); 
       setIsRefreshing(false);
     }
-  }, [sheetId, showLoginModal, applyEngineState]);
+  }, [sheetId, isSessionExpired, showLoginModal, applyEngineState, clearEngineState]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
