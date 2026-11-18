@@ -2447,18 +2447,26 @@ function calculateDashboardSummary(data, displayCurrency, exchangeRates, portfol
     const realizedLotsGainNet = realizedLots.length > 0 ? realizedLots.reduce((sum, lot) => {
       return sum + convertCurrency(lot.realizedGainNet || 0, h.portfolioCurrency, displayCurrency, exchangeRates);
     }, 0) : convertCurrency(h.realizedGainNet?.amount || 0, h.portfolioCurrency, displayCurrency, exchangeRates);
-    const realizedGainGross = realizedLotsGainNet + dividendsGross;
-    let feesDisplay = convertCurrency(h.feesTotal.amount, h.feesTotal.currency, displayCurrency, exchangeRates);
-    let realizedTaxDisplay = realizedLots.reduce((sum, lot) => {
-      return sum + convertCurrency((lot.realizedTaxPC || 0) + (lot.realizedIncomeTaxPC || 0), h.portfolioCurrency, displayCurrency, exchangeRates);
+    const soldLotsFeesDisplay = realizedLots.reduce((sum, lot) => {
+      const buyFee = lot.feesBuy ? convertCurrency(lot.feesBuy.amount || 0, lot.feesBuy.currency || h.portfolioCurrency, displayCurrency, exchangeRates) : 0;
+      const sellFee = lot.soldFees ? convertCurrency(lot.soldFees.amount || 0, lot.soldFees.currency || h.portfolioCurrency, displayCurrency, exchangeRates) : 0;
+      return sum + buyFee + sellFee;
     }, 0);
+    const realizedSellsGross = realizedLotsGainNet + soldLotsFeesDisplay;
+    const realizedGainGross = realizedSellsGross + dividendsGross;
+    let feesDisplay = convertCurrency(h.feesTotal.amount, h.feesTotal.currency, displayCurrency, exchangeRates);
+    const lotTaxesDisplay = realizedLots.length > 0 ? realizedLots.reduce((sum, lot) => {
+      return sum + convertCurrency((lot.realizedTaxPC || 0) + (lot.realizedIncomeTaxPC || 0), h.portfolioCurrency, displayCurrency, exchangeRates);
+    }, 0) : convertCurrency(h.realizedCapitalGainsTax || 0, h.portfolioCurrency, displayCurrency, exchangeRates);
+    let realizedTaxDisplay = lotTaxesDisplay;
     const port = portfoliosMap.get(h.portfolioId);
     if (port && port.commExemption === "sells") {
       realizedTaxDisplay += feesDisplay;
       feesDisplay = 0;
     }
-    const realizedGainNet = realizedLotsGainNet + dividendsNet;
-    const totalGain = unrealizedGain + realizedGainGross;
+    const realizedSellsAfterTax = realizedLotsGainNet - Math.max(0, lotTaxesDisplay);
+    const realizedGainNet = realizedSellsAfterTax + dividendsNet;
+    const totalGain = unrealizedGain + realizedLotsGainNet + dividendsGross;
     const unrealizedTaxDisplay = convertCurrency(h.unrealizedTaxLiabilityILS, Currency.ILS, displayCurrency, exchangeRates);
     const valueAfterTax = marketValue - unrealizedTaxDisplay;
     const realizedGainAfterTax = realizedGainNet;

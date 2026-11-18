@@ -112,7 +112,7 @@ export function calculateDashboardSummary(data: any[], displayCurrency: string, 
     // The engine captures exact sale conversion history so we pull directly.
     const proceedsDisplay = getHistoricalVal(h.proceedsTotal);
 
-    // Realized Lots Gain Net (derived directly from realizedLots, matching engine summary.totalRealized)
+    // Realized Lots Gain Net (after buy/sell fees, BEFORE tax — matching engine summary.totalRealized)
     const realizedLots = h.realizedLots || [];
     const realizedLotsGainNet = realizedLots.length > 0
       ? realizedLots.reduce((sum, lot) => {
@@ -120,20 +120,28 @@ export function calculateDashboardSummary(data: any[], displayCurrency: string, 
         }, 0)
       : convertCurrency(h.realizedGainNet?.amount || 0, h.portfolioCurrency, displayCurrency, exchangeRates);
 
-    // Realized Gain (Gross) for UI
-    const realizedGainGross = realizedLotsGainNet + dividendsGross;
+    // Fees paid on sold lots only (so Gross Realized = Net-of-fees + Sold-lot-fees)
+    const soldLotsFeesDisplay = realizedLots.reduce((sum, lot) => {
+      const buyFee = lot.feesBuy ? convertCurrency(lot.feesBuy.amount || 0, lot.feesBuy.currency || h.portfolioCurrency, displayCurrency, exchangeRates) : 0;
+      const sellFee = lot.soldFees ? convertCurrency(lot.soldFees.amount || 0, lot.soldFees.currency || h.portfolioCurrency, displayCurrency, exchangeRates) : 0;
+      return sum + buyFee + sellFee;
+    }, 0);
+
+    const realizedSellsGross = realizedLotsGainNet + soldLotsFeesDisplay;
+
+    // Realized Gain (Gross) for UI (before fees and taxes, including gross dividends)
+    const realizedGainGross = realizedSellsGross + dividendsGross;
 
     // Net Realized...
     // We need Fee and Tax in Display Currency.
     let feesDisplay = convertCurrency(h.feesTotal.amount, h.feesTotal.currency, displayCurrency, exchangeRates);
-    // Realized Tax (sum from lots?)
-    let realizedTaxDisplay = realizedLots.reduce((sum, lot) => {
-      // lot.realizedTaxPC is in PC.
-      // We probably want to convert at current rate? Tax is paid in cash.
-      // Or did we track tax historically?
-      // Lot doesn't store valILS for tax.
-      return sum + convertCurrency((lot.realizedTaxPC || 0) + (lot.realizedIncomeTaxPC || 0), h.portfolioCurrency, displayCurrency, exchangeRates);
-    }, 0);
+    // Realized Tax on sold lots (CGT + RSU income tax)
+    const lotTaxesDisplay = realizedLots.length > 0
+      ? realizedLots.reduce((sum, lot) => {
+          return sum + convertCurrency((lot.realizedTaxPC || 0) + (lot.realizedIncomeTaxPC || 0), h.portfolioCurrency, displayCurrency, exchangeRates);
+        }, 0)
+      : convertCurrency((h as any).realizedCapitalGainsTax || 0, h.portfolioCurrency, displayCurrency, exchangeRates);
+    let realizedTaxDisplay = lotTaxesDisplay;
 
     const port = portfoliosMap.get(h.portfolioId);
     if (port && port.commExemption === 'sells') {
@@ -141,10 +149,12 @@ export function calculateDashboardSummary(data: any[], displayCurrency: string, 
        feesDisplay = 0;
     }
 
-    const realizedGainNet = realizedLotsGainNet + dividendsNet;
+    // Deduct realized lot taxes so per-holding realizedGainNet / realizedGainAfterTax matches summary.realizedGainAfterTax
+    const realizedSellsAfterTax = realizedLotsGainNet - Math.max(0, lotTaxesDisplay);
+    const realizedGainNet = realizedSellsAfterTax + dividendsNet;
 
-    // Total Gain
-    const totalGain = unrealizedGain + realizedGainGross; 
+    // Total Gain (Gross: Unrealized + Gross Sells + Gross Dividends - Sold Lot Fees = Unrealized + realizedLotsGainNet + dividendsGross, matching summary.totalReturn)
+    const totalGain = unrealizedGain + realizedLotsGainNet + dividendsGross; 
 
     const unrealizedTaxDisplay = convertCurrency(h.unrealizedTaxLiabilityILS, Currency.ILS, displayCurrency, exchangeRates);
 

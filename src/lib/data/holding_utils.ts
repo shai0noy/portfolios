@@ -73,14 +73,18 @@ export function aggregateHoldingValues(
             acc.proceeds += d.proceeds;
             acc.unrealizedGain += d.unrealizedGain;
 
-            // Gross Realized from Enriched
-            acc.realizedGain += d.realizedGain;
-            acc.realizedGainGross += d.realizedGainGross || d.realizedGain; // Fallback
-            acc.realizedGainNet += d.realizedGainNet;
+            const divNet = d.dividends || 0;
+            const divGross = d.dividendsGross ?? divNet;
+            const divTax = Math.max(0, divGross - divNet);
 
-            acc.dividends += d.dividends;
-            acc.dividendsGross += d.dividendsGross || d.dividends;
-            acc.realizedTaxBase += (d as any).realizedTax || 0;
+            // Accumulate sells-only here since dividends are rolled in once below (lines 170+)
+            acc.realizedGain += d.realizedGain;
+            acc.realizedGainGross += d.realizedGainGross !== undefined ? d.realizedGainGross - divGross : d.realizedGain;
+            acc.realizedGainNet += d.realizedGainNet !== undefined ? d.realizedGainNet - divNet : d.realizedGain - ((d as any).realizedTax || 0);
+
+            acc.dividends += divNet;
+            acc.dividendsGross += divGross;
+            acc.realizedTaxBase += ((d as any).realizedTax || 0) + divTax;
             acc.unrealizedTaxBase += (d as any).unrealizedTax || 0;
             acc.realizedGainAfterTax += d.realizedGainAfterTax || 0;
             acc.valueAfterTax += d.valueAfterTax || 0;
@@ -114,22 +118,28 @@ export function aggregateHoldingValues(
             const costOfSoldDisplay = getHistoricalMoney(raw.costOfSoldTotal);
             const sellsGross = proceedsDisplay - costOfSoldDisplay;
 
-            acc.realizedGain += sellsGross;
-            acc.realizedGainGross += sellsGross;
-            acc.realizedGainNet += convertMoney(raw.realizedGainNet, displayCurrency, exchangeRates).amount;
-
-            // Dividends
+            const rawHolding = raw as Holding;
+            let divTaxPC = 0;
             if (raw.dividends) {
                 const totalDivs = raw.dividends.reduce((sum, d) => sum + convertCurrency(d.netAmountPC, raw.portfolioCurrency, displayCurrency, exchangeRates), 0);
                 const totalDivsGross = raw.dividends.reduce((sum, d) => sum + convertCurrency(d.grossAmount.amount, d.grossAmount.currency || raw.stockCurrency, displayCurrency, exchangeRates), 0);
+                divTaxPC = raw.dividends.reduce((sum, d) => sum + (d.taxAmountPC || 0), 0);
                 acc.dividends += totalDivs;
                 acc.dividendsGross += totalDivsGross;
             }
 
-            const rawHolding = raw as Holding;
             const taxPC = rawHolding.totalTaxPaidPC ?? 0;
+            const salesTaxPC = rawHolding.realizedLots
+                ? rawHolding.realizedLots.reduce((s, l) => s + (l.realizedTaxPC || 0) + (l.realizedIncomeTaxPC || 0), 0)
+                : Math.max(0, taxPC - divTaxPC);
             const taxDisplay = convertCurrency(taxPC, rawHolding.portfolioCurrency || 'USD', displayCurrency, exchangeRates);
+            const salesTaxDisplay = convertCurrency(salesTaxPC, rawHolding.portfolioCurrency || 'USD', displayCurrency, exchangeRates);
             acc.realizedTaxBase += taxDisplay;
+
+            const sellsNetPreTax = convertMoney(raw.realizedGainNet, displayCurrency, exchangeRates).amount;
+            acc.realizedGain += sellsNetPreTax;
+            acc.realizedGainGross += sellsGross;
+            acc.realizedGainNet += sellsNetPreTax - Math.max(0, salesTaxDisplay);
 
             // Real Cost Aggregation (Iterate lots if available to sum realCostILS)
             // Use activeLots public accessor

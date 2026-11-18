@@ -214,6 +214,22 @@ describe('Dashboard Summary Calculation', () => {
             unrealizedGain: { amount: 0, currency: Currency.USD },
             realizedGainNet: { amount: 100, currency: Currency.USD },
             dividendsTotal: { amount: 0, currency: Currency.USD },
+            realizedLots: [
+                {
+                    id: 'lot_profit_1',
+                    ticker: 'SOLD',
+                    date: new Date('2023-01-01'),
+                    qty: 10,
+                    costTotal: { amount: 900, currency: Currency.USD },
+                    feesBuy: { amount: 5, currency: Currency.USD },
+                    soldFees: { amount: 5, currency: Currency.USD },
+                    realizedGainNet: 100, // $1,010 proceeds - $900 cost - $10 fees = $100 pre-tax
+                    realizedTaxPC: 25,    // 25% CGT on $100 = $25
+                }
+            ],
+            costOfSoldTotal: { amount: 900, currency: Currency.USD },
+            proceedsTotal: { amount: 1010, currency: Currency.USD },
+            feesTotal: { amount: 10, currency: Currency.USD },
 
             realizedTaxLiabilityILS: 100, // Not used in this mock simple logic
             realizedTax: 25, // 25 USD tax (assuming we set this explicitly for test)
@@ -225,8 +241,12 @@ describe('Dashboard Summary Calculation', () => {
 
         expect(summary.totalRealized).toBeCloseTo(100, 1);
         expect(enriched[0].display.realizedGain).toBeCloseTo(100, 1);
-        // Tax is 25 USD. So 100 - 25 = 75.
+        expect(enriched[0].display.realizedGainGross).toBeCloseTo(110, 1); // $100 net-of-fees + $10 sold-lot fees
+        expect(enriched[0].display.realizedTax).toBeCloseTo(25, 1);
+        // Tax is 25 USD. So 100 - 25 = 75 on BOTH summary and per-holding display.
         expect(summary.realizedGainAfterTax).toBeCloseTo(75, 1);
+        expect(enriched[0].display.realizedGainAfterTax).toBeCloseTo(75, 1);
+        expect(enriched[0].display.realizedGainNet).toBeCloseTo(75, 1);
     });
 
     it('should derive holding.display.realizedGain from realizedLots matching summary.totalRealized', () => {
