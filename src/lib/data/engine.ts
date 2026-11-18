@@ -826,8 +826,8 @@ export class FinanceEngine {
                 const gain = l.realizedGainNet || 0;
                 return acc + gain + cost + buyFee + sellFee;
             }, 0);
-            const proceedsUSD = realizedLots.reduce((acc, l) => acc + ((l.soldPricePerUnit?.valUSD || 0) * l.qty), 0) || undefined;
-            const proceedsILS = realizedLots.reduce((acc, l) => acc + ((l.soldPricePerUnit?.valILS || 0) * l.qty), 0) || undefined;
+            const proceedsUSD = h.portfolioCurrency === Currency.USD ? proceedsVal : (realizedLots.reduce((acc, l) => acc + ((l.soldPricePerUnit?.valUSD || 0) * l.qty), 0) || undefined);
+            const proceedsILS = h.portfolioCurrency === Currency.ILS ? proceedsVal : (realizedLots.reduce((acc, l) => acc + ((l.soldPricePerUnit?.valILS || 0) * l.qty), 0) || undefined);
             h.proceedsTotal = { amount: proceedsVal, currency: h.portfolioCurrency, valUSD: proceedsUSD, valILS: proceedsILS };
 
             // Cost of Sold

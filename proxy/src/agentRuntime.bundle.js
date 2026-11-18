@@ -1127,12 +1127,13 @@ var Holding = class {
       }
     }
     let pricePerUnitPC = 0;
+    const splitRatio = txn.splitRatio || 1;
     if (this.portfolioCurrency === Currency.ILS) {
       const txnCurr = txn.currency ? normalizeCurrency(txn.currency) : null;
       if (txnCurr === Currency.ILS || txnCurr === Currency.ILA) {
         pricePerUnitPC = convertCurrency(txn.price || 0, txnCurr, Currency.ILS, effectiveRates);
       } else if (txn.originalPriceILA) {
-        pricePerUnitPC = toILS(txn.originalPriceILA, Currency.ILA);
+        pricePerUnitPC = toILS(txn.originalPriceILA / splitRatio, Currency.ILA);
       } else {
         pricePerUnitPC = convertCurrency(txn.price || 0, txn.currency || this.stockCurrency, Currency.ILS, effectiveRates);
       }
@@ -1141,19 +1142,19 @@ var Holding = class {
       if (txnCurr === Currency.USD) {
         pricePerUnitPC = txn.price || 0;
       } else if (txn.originalPriceUSD) {
-        pricePerUnitPC = txn.originalPriceUSD;
+        pricePerUnitPC = txn.originalPriceUSD / splitRatio;
       } else {
         pricePerUnitPC = convertCurrency(txn.price || 0, txn.currency || this.stockCurrency, Currency.USD, effectiveRates);
       }
     }
-    const rateToPC = pricePerUnitPC / (txn.originalPrice || 1);
-    let valUSD = txn.originalPriceUSD;
+    const rateToPC = pricePerUnitPC / (txn.price || (txn.originalPrice ? txn.originalPrice / splitRatio : 1));
+    let valUSD = txn.originalPriceUSD ? txn.originalPriceUSD / splitRatio : void 0;
     if (!valUSD) {
       const txnCurr = txn.currency ? normalizeCurrency(txn.currency) : null;
       if (txnCurr === Currency.USD && txn.price) {
         valUSD = txn.price;
       } else if (txn.originalPrice && txnCurr === Currency.USD) {
-        valUSD = txn.originalPrice;
+        valUSD = txn.originalPrice / splitRatio;
       } else {
         valUSD = convertCurrency(pricePerUnitPC, this.portfolioCurrency, Currency.USD, effectiveRates);
       }
@@ -1162,7 +1163,7 @@ var Holding = class {
     if (this.portfolioCurrency === Currency.ILS) {
       valILS = pricePerUnitPC;
     } else if (txn.originalPriceILA) {
-      valILS = toILS(txn.originalPriceILA, Currency.ILA);
+      valILS = toILS(txn.originalPriceILA / splitRatio, Currency.ILA);
     } else {
       const txnCurr = txn.currency ? normalizeCurrency(txn.currency) : null;
       if ((txnCurr === Currency.ILS || txnCurr === Currency.ILA) && txn.price) {
@@ -1231,15 +1232,21 @@ var Holding = class {
     const activeLots = this.activeLots.sort((a, b) => a.date.getTime() - b.date.getTime());
     let sellPricePC = 0;
     let totalCostOfSold = 0;
+    const splitRatio = txn.splitRatio || 1;
+    const txnCurr = txn.currency ? normalizeCurrency(txn.currency) : null;
     if (this.portfolioCurrency === Currency.ILS) {
-      if (txn.originalPriceILA) {
-        sellPricePC = toILS(txn.originalPriceILA, Currency.ILA);
+      if (txnCurr === Currency.ILS || txnCurr === Currency.ILA) {
+        sellPricePC = convertCurrency(txn.price || 0, txnCurr, Currency.ILS, rates);
+      } else if (txn.originalPriceILA) {
+        sellPricePC = toILS(txn.originalPriceILA / splitRatio, Currency.ILA);
       } else {
         sellPricePC = convertCurrency(txn.price || 0, txn.currency || this.stockCurrency, Currency.ILS, rates);
       }
     } else {
-      if (this.portfolioCurrency === Currency.USD && txn.originalPriceUSD) {
-        sellPricePC = txn.originalPriceUSD;
+      if (txnCurr === this.portfolioCurrency) {
+        sellPricePC = txn.price || 0;
+      } else if (this.portfolioCurrency === Currency.USD && txn.originalPriceUSD) {
+        sellPricePC = txn.originalPriceUSD / splitRatio;
       } else {
         sellPricePC = convertCurrency(txn.price || 0, txn.currency || this.stockCurrency, this.portfolioCurrency, rates);
       }
@@ -1278,13 +1285,15 @@ var Holding = class {
       }
       targetLot.soldDate = new Date(txn.date);
       targetLot.disposalType = txn.type === "SELL_TRANSFER" ? "TRANSFER" : "SELL";
+      const soldValUSD = this.portfolioCurrency === Currency.USD ? sellPricePC : txn.originalPriceUSD ? txn.originalPriceUSD / splitRatio : convertCurrency(sellPricePC, this.portfolioCurrency, Currency.USD, rates);
+      const soldValILS = this.portfolioCurrency === Currency.ILS ? sellPricePC : txn.originalPriceILA ? toILS(txn.originalPriceILA / splitRatio, Currency.ILA) : convertCurrency(sellPricePC, this.portfolioCurrency, Currency.ILS, rates);
       targetLot.soldPricePerUnit = {
         amount: sellPricePC,
         currency: this.portfolioCurrency,
         rateToPortfolio: 1,
         // sellPricePC is already PC
-        valUSD: convertCurrency(sellPricePC, this.portfolioCurrency, Currency.USD, rates),
-        valILS: convertCurrency(sellPricePC, this.portfolioCurrency, Currency.ILS, rates)
+        valUSD: soldValUSD,
+        valILS: soldValILS
       };
       const allocatedSellFeePC = portion / totalSellQty * feePC;
       targetLot.soldFees = {
@@ -1303,11 +1312,10 @@ var Holding = class {
       const { cgt } = getTaxRatesForDate(portfolio, txn.date);
       const { taxPolicy } = portfolio;
       let proceedsILS = convertCurrency(proceedsPC, this.portfolioCurrency, Currency.ILS, rates);
-      if (this.portfolioCurrency === Currency.ILS && txn.originalPriceILA) {
-        const histPriceILS = toILS(txn.originalPriceILA, Currency.ILA);
-        proceedsILS = portion * histPriceILS;
+      if (this.portfolioCurrency === Currency.ILS) {
+        proceedsILS = proceedsPC;
       } else if (txn.originalPriceILA) {
-        const histPriceILS = toILS(txn.originalPriceILA, Currency.ILA);
+        const histPriceILS = toILS(txn.originalPriceILA / splitRatio, Currency.ILA);
         proceedsILS = portion * histPriceILS;
       }
       const sellFeeILS = convertCurrency(allocatedSellFeePC, this.portfolioCurrency, Currency.ILS, rates);
@@ -2132,8 +2140,8 @@ var FinanceEngine = class _FinanceEngine {
         const gain = l.realizedGainNet || 0;
         return acc + gain + cost + buyFee + sellFee;
       }, 0);
-      const proceedsUSD = realizedLots.reduce((acc, l) => acc + (l.soldPricePerUnit?.valUSD || 0) * l.qty, 0) || void 0;
-      const proceedsILS = realizedLots.reduce((acc, l) => acc + (l.soldPricePerUnit?.valILS || 0) * l.qty, 0) || void 0;
+      const proceedsUSD = h.portfolioCurrency === Currency.USD ? proceedsVal : realizedLots.reduce((acc, l) => acc + (l.soldPricePerUnit?.valUSD || 0) * l.qty, 0) || void 0;
+      const proceedsILS = h.portfolioCurrency === Currency.ILS ? proceedsVal : realizedLots.reduce((acc, l) => acc + (l.soldPricePerUnit?.valILS || 0) * l.qty, 0) || void 0;
       h.proceedsTotal = { amount: proceedsVal, currency: h.portfolioCurrency, valUSD: proceedsUSD, valILS: proceedsILS };
       const cosVal = realizedLots.reduce((acc, l) => acc + convertCurrency(l.costTotal.amount, l.costTotal.currency, h.portfolioCurrency, this.exchangeRates), 0);
       const cosUSD = realizedLots.reduce((acc, l) => acc + (l.costTotal.valUSD || 0), 0) || void 0;
@@ -2435,10 +2443,13 @@ function calculateDashboardSummary(data, displayCurrency, exchangeRates, portfol
     }
     const costOfSoldDisplay = getHistoricalVal(h.costOfSoldTotal);
     const proceedsDisplay = getHistoricalVal(h.proceedsTotal);
-    const realizedSellsGross = proceedsDisplay - costOfSoldDisplay;
-    const realizedGainGross = realizedSellsGross + dividendsGross;
+    const realizedLots = h.realizedLots || [];
+    const realizedLotsGainNet = realizedLots.length > 0 ? realizedLots.reduce((sum, lot) => {
+      return sum + convertCurrency(lot.realizedGainNet || 0, h.portfolioCurrency, displayCurrency, exchangeRates);
+    }, 0) : convertCurrency(h.realizedGainNet?.amount || 0, h.portfolioCurrency, displayCurrency, exchangeRates);
+    const realizedGainGross = realizedLotsGainNet + dividendsGross;
     let feesDisplay = convertCurrency(h.feesTotal.amount, h.feesTotal.currency, displayCurrency, exchangeRates);
-    let realizedTaxDisplay = h.realizedLots.reduce((sum, lot) => {
+    let realizedTaxDisplay = realizedLots.reduce((sum, lot) => {
       return sum + convertCurrency((lot.realizedTaxPC || 0) + (lot.realizedIncomeTaxPC || 0), h.portfolioCurrency, displayCurrency, exchangeRates);
     }, 0);
     const port = portfoliosMap.get(h.portfolioId);
@@ -2446,8 +2457,7 @@ function calculateDashboardSummary(data, displayCurrency, exchangeRates, portfol
       realizedTaxDisplay += feesDisplay;
       feesDisplay = 0;
     }
-    const realizedSellsNet = realizedSellsGross - feesDisplay - realizedTaxDisplay;
-    const realizedGainNet = realizedSellsNet + dividendsNet;
+    const realizedGainNet = realizedLotsGainNet + dividendsNet;
     const totalGain = unrealizedGain + realizedGainGross;
     const unrealizedTaxDisplay = convertCurrency(h.unrealizedTaxLiabilityILS, Currency.ILS, displayCurrency, exchangeRates);
     const valueAfterTax = marketValue - unrealizedTaxDisplay;
@@ -2466,11 +2476,11 @@ function calculateDashboardSummary(data, displayCurrency, exchangeRates, portfol
       unrealizedGain,
       // Use definition from line 69
       unrealizedGainPct: costBasisDisplay > 0 ? unrealizedGain / costBasisDisplay : 0,
-      realizedGain: realizedGainGross,
+      realizedGain: realizedLotsGainNet,
       realizedGainGross,
       realizedGainNet,
       // realizedGainPct: yield on SOLD portion only (pure trade performance)
-      realizedGainPct: costOfSoldDisplay > 0 ? realizedSellsGross / costOfSoldDisplay : 0,
+      realizedGainPct: costOfSoldDisplay > 0 ? realizedLotsGainNet / costOfSoldDisplay : 0,
       realizedGainAfterTax,
       totalGain,
       totalGainPct: costBasisDisplay + costOfSoldDisplay > 0 ? totalGain / (costBasisDisplay + costOfSoldDisplay) : 0,
@@ -2731,7 +2741,7 @@ var TXN_COLS = {
     colName: "Split_Ratio",
     colId: "R",
     numeric: true,
-    formula: (rowNum, cols) => `=IFERROR(IF(OR(ISBLANK(${cols.splitAdjOpenPrice.colId}${rowNum}), ${cols.splitAdjOpenPrice.colId}${rowNum}=0, ISBLANK(${cols.origOpenPriceAtCreationDate.colId}${rowNum})), 1, IF(ABS(ROUND(${cols.origOpenPriceAtCreationDate.colId}${rowNum} / ${cols.splitAdjOpenPrice.colId}${rowNum}, 2) - 1) <= 0.03, 1, ROUND(${cols.origOpenPriceAtCreationDate.colId}${rowNum} / ${cols.splitAdjOpenPrice.colId}${rowNum}, 2))), 1)`
+    formula: (rowNum, cols) => `=IFERROR(IF(OR(ISBLANK(${cols.splitAdjOpenPrice.colId}${rowNum}), ${cols.splitAdjOpenPrice.colId}${rowNum}=0, ISBLANK(${cols.origOpenPriceAtCreationDate.colId}${rowNum})), 1, IF(ABS(ROUND(${cols.origOpenPriceAtCreationDate.colId}${rowNum} / ${cols.splitAdjOpenPrice.colId}${rowNum}, 2) - 1) <= 0.08, 1, ROUND(${cols.origOpenPriceAtCreationDate.colId}${rowNum} / ${cols.splitAdjOpenPrice.colId}${rowNum}, 2))), 1)`
   },
   splitAdjustedPrice: {
     key: "splitAdjustedPrice",
@@ -3845,7 +3855,7 @@ function parseTransactionsFromRows(rows) {
     if (raw.type) {
       raw.type = String(raw.type).trim().toUpperCase();
     }
-    if (typeof raw.splitRatio === "number" && Number.isFinite(raw.splitRatio) && raw.splitRatio >= 0.97 && raw.splitRatio <= 1.03 && raw.splitRatio !== 1) {
+    if (typeof raw.splitRatio === "number" && Number.isFinite(raw.splitRatio) && raw.splitRatio >= 0.92 && raw.splitRatio <= 1.08 && raw.splitRatio !== 1) {
       raw.splitRatio = 1;
       raw.splitAdjustedQty = raw.originalQty;
       raw.splitAdjustedPrice = raw.originalPrice;

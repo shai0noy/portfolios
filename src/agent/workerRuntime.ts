@@ -1214,7 +1214,7 @@ function parseTransactionsFromRows(rows: any[][]): Transaction[] {
       if (raw.type) {
         raw.type = String(raw.type).trim().toUpperCase() as TransactionType;
       }
-      if (typeof raw.splitRatio === 'number' && Number.isFinite(raw.splitRatio) && raw.splitRatio >= 0.97 && raw.splitRatio <= 1.03 && raw.splitRatio !== 1) {
+      if (typeof raw.splitRatio === 'number' && Number.isFinite(raw.splitRatio) && raw.splitRatio >= 0.92 && raw.splitRatio <= 1.08 && raw.splitRatio !== 1) {
         raw.splitRatio = 1;
         raw.splitAdjustedQty = raw.originalQty;
         raw.splitAdjustedPrice = raw.originalPrice;

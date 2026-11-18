@@ -405,6 +405,7 @@ export class Holding {
 
         // Price Resolution
         let pricePerUnitPC = 0;
+        const splitRatio = txn.splitRatio || 1;
 
         if (this.portfolioCurrency === Currency.ILS) {
             const txnCurr = txn.currency ? normalizeCurrency(txn.currency) : null;
@@ -413,7 +414,7 @@ export class Holding {
                 pricePerUnitPC = convertCurrency(txn.price || 0, txnCurr, Currency.ILS, effectiveRates);
             } else if (txn.originalPriceILA) {
                 // For foreign currencies, prefer the sheet's historical calculation
-                pricePerUnitPC = toILS(txn.originalPriceILA, Currency.ILA);
+                pricePerUnitPC = toILS(txn.originalPriceILA / splitRatio, Currency.ILA);
             } else {
                 pricePerUnitPC = convertCurrency(txn.price || 0, txn.currency || this.stockCurrency, Currency.ILS, effectiveRates);
             }
@@ -422,26 +423,26 @@ export class Holding {
             if (txnCurr === Currency.USD) {
                 pricePerUnitPC = txn.price || 0;
             } else if (txn.originalPriceUSD) {
-                pricePerUnitPC = txn.originalPriceUSD;
+                pricePerUnitPC = txn.originalPriceUSD / splitRatio;
             } else {
                 pricePerUnitPC = convertCurrency(txn.price || 0, txn.currency || this.stockCurrency, Currency.USD, effectiveRates);
             }
         }
 
-        const rateToPC = pricePerUnitPC / (txn.originalPrice || 1);
+        const rateToPC = pricePerUnitPC / (txn.price || (txn.originalPrice ? txn.originalPrice / splitRatio : 1));
 
         // Fee allocation per unit
         // const feePerUnitPC = feePC / qty;
 
         // Calculate valUSD and valILS strictly to avoid "Drift" from current rates
         // if we have the original data in that currency.
-        let valUSD: number | undefined = txn.originalPriceUSD;
+        let valUSD: number | undefined = txn.originalPriceUSD ? (txn.originalPriceUSD / splitRatio) : undefined;
         if (!valUSD) {
             const txnCurr = txn.currency ? normalizeCurrency(txn.currency) : null;
             if (txnCurr === Currency.USD && txn.price) {
                 valUSD = txn.price;
             } else if (txn.originalPrice && txnCurr === Currency.USD) {
-                valUSD = txn.originalPrice;
+                valUSD = txn.originalPrice / splitRatio;
             } else {
                 valUSD = convertCurrency(pricePerUnitPC, this.portfolioCurrency, Currency.USD, effectiveRates);
             }
@@ -451,7 +452,7 @@ export class Holding {
         if (this.portfolioCurrency === Currency.ILS) {
             valILS = pricePerUnitPC;
         } else if (txn.originalPriceILA) {
-            valILS = toILS(txn.originalPriceILA, Currency.ILA);
+            valILS = toILS(txn.originalPriceILA / splitRatio, Currency.ILA);
         } else {
             const txnCurr = txn.currency ? normalizeCurrency(txn.currency) : null;
             if ((txnCurr === Currency.ILS || txnCurr === Currency.ILA) && txn.price) {
@@ -531,17 +532,23 @@ export class Holding {
         // Resolve Sell Price in Portfolio Currency (preferring historical)
         let sellPricePC = 0;
         let totalCostOfSold = 0;
+        const splitRatio = txn.splitRatio || 1;
+        const txnCurr = txn.currency ? normalizeCurrency(txn.currency) : null;
 
         if (this.portfolioCurrency === Currency.ILS) {
-            if (txn.originalPriceILA) {
-                sellPricePC = toILS(txn.originalPriceILA, Currency.ILA);
+            if (txnCurr === Currency.ILS || txnCurr === Currency.ILA) {
+                sellPricePC = convertCurrency(txn.price || 0, txnCurr, Currency.ILS, rates);
+            } else if (txn.originalPriceILA) {
+                sellPricePC = toILS(txn.originalPriceILA / splitRatio, Currency.ILA);
             } else {
                 sellPricePC = convertCurrency(txn.price || 0, txn.currency || this.stockCurrency, Currency.ILS, rates);
             }
         } else {
             // USD or Other
-            if (this.portfolioCurrency === Currency.USD && txn.originalPriceUSD) {
-                sellPricePC = txn.originalPriceUSD;
+            if (txnCurr === this.portfolioCurrency) {
+                sellPricePC = txn.price || 0;
+            } else if (this.portfolioCurrency === Currency.USD && txn.originalPriceUSD) {
+                sellPricePC = txn.originalPriceUSD / splitRatio;
             } else {
                 sellPricePC = convertCurrency(txn.price || 0, txn.currency || this.stockCurrency, this.portfolioCurrency, rates);
             }
@@ -598,12 +605,24 @@ export class Holding {
             targetLot.soldDate = new Date(txn.date);
             targetLot.disposalType = txn.type === 'SELL_TRANSFER' ? 'TRANSFER' : 'SELL';
 
+            const soldValUSD = (this.portfolioCurrency === Currency.USD)
+                ? sellPricePC
+                : (txn.originalPriceUSD
+                    ? txn.originalPriceUSD / splitRatio
+                    : convertCurrency(sellPricePC, this.portfolioCurrency, Currency.USD, rates));
+
+            const soldValILS = (this.portfolioCurrency === Currency.ILS)
+                ? sellPricePC
+                : (txn.originalPriceILA
+                    ? toILS(txn.originalPriceILA / splitRatio, Currency.ILA)
+                    : convertCurrency(sellPricePC, this.portfolioCurrency, Currency.ILS, rates));
+
             targetLot.soldPricePerUnit = {
                 amount: sellPricePC,
                 currency: this.portfolioCurrency,
                 rateToPortfolio: 1, // sellPricePC is already PC
-                valUSD: convertCurrency(sellPricePC, this.portfolioCurrency, Currency.USD, rates),
-                valILS: convertCurrency(sellPricePC, this.portfolioCurrency, Currency.ILS, rates)
+                valUSD: soldValUSD,
+                valILS: soldValILS
             };
 
             // Allocate Sell Fees Pro-Rata
@@ -633,11 +652,10 @@ export class Holding {
             let proceedsILS = convertCurrency(proceedsPC, this.portfolioCurrency, Currency.ILS, rates);
 
             // Override with Historical Data if available (for Tax Purposes)
-            if (this.portfolioCurrency === Currency.ILS && txn.originalPriceILA) {
-                const histPriceILS = toILS(txn.originalPriceILA, Currency.ILA);
-                proceedsILS = portion * histPriceILS;
+            if (this.portfolioCurrency === Currency.ILS) {
+                proceedsILS = proceedsPC;
             } else if (txn.originalPriceILA) {
-                const histPriceILS = toILS(txn.originalPriceILA, Currency.ILA);
+                const histPriceILS = toILS(txn.originalPriceILA / splitRatio, Currency.ILA);
                 proceedsILS = portion * histPriceILS;
             }
 

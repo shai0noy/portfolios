@@ -340,7 +340,7 @@ export const fetchPortfolios = withAuthHandling(async (spreadsheetId: string): P
         } else {
             txn.exchange = undefined;
         }
-        if (typeof txn.splitRatio === 'number' && txn.splitRatio >= 0.97 && txn.splitRatio <= 1.03 && txn.splitRatio !== 1) {
+        if (typeof txn.splitRatio === 'number' && txn.splitRatio >= 0.92 && txn.splitRatio <= 1.08 && txn.splitRatio !== 1) {
             txn.splitRatio = 1;
             txn.splitAdjustedQty = txn.originalQty;
             txn.splitAdjustedPrice = txn.originalPrice;
@@ -467,7 +467,7 @@ export const fetchTransactions = withAuthHandling(async (spreadsheetId: string):
         if (t.type) {
             t.type = String(t.type).trim().toUpperCase() as TransactionType;
         }
-        if (typeof t.splitRatio === 'number' && t.splitRatio >= 0.97 && t.splitRatio <= 1.03 && t.splitRatio !== 1) {
+        if (typeof t.splitRatio === 'number' && t.splitRatio >= 0.92 && t.splitRatio <= 1.08 && t.splitRatio !== 1) {
             t.splitRatio = 1;
             t.splitAdjustedQty = t.originalQty;
             t.splitAdjustedPrice = t.originalPrice;

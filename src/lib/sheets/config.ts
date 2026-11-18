@@ -75,7 +75,7 @@ export const TXN_COLS: TransactionColumns = {
         colName: 'Split_Ratio',
         colId: 'R',
         numeric: true,
-        formula: (rowNum, cols) => `=IFERROR(IF(OR(ISBLANK(${cols.splitAdjOpenPrice.colId}${rowNum}), ${cols.splitAdjOpenPrice.colId}${rowNum}=0, ISBLANK(${cols.origOpenPriceAtCreationDate.colId}${rowNum})), 1, IF(ABS(ROUND(${cols.origOpenPriceAtCreationDate.colId}${rowNum} / ${cols.splitAdjOpenPrice.colId}${rowNum}, 2) - 1) <= 0.03, 1, ROUND(${cols.origOpenPriceAtCreationDate.colId}${rowNum} / ${cols.splitAdjOpenPrice.colId}${rowNum}, 2))), 1)`
+        formula: (rowNum, cols) => `=IFERROR(IF(OR(ISBLANK(${cols.splitAdjOpenPrice.colId}${rowNum}), ${cols.splitAdjOpenPrice.colId}${rowNum}=0, ISBLANK(${cols.origOpenPriceAtCreationDate.colId}${rowNum})), 1, IF(ABS(ROUND(${cols.origOpenPriceAtCreationDate.colId}${rowNum} / ${cols.splitAdjOpenPrice.colId}${rowNum}, 2) - 1) <= 0.08, 1, ROUND(${cols.origOpenPriceAtCreationDate.colId}${rowNum} / ${cols.splitAdjOpenPrice.colId}${rowNum}, 2))), 1)`
     },
     splitAdjustedPrice: {
         key: 'splitAdjustedPrice',

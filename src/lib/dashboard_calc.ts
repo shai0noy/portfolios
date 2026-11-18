@@ -112,17 +112,22 @@ export function calculateDashboardSummary(data: any[], displayCurrency: string, 
     // The engine captures exact sale conversion history so we pull directly.
     const proceedsDisplay = getHistoricalVal(h.proceedsTotal);
 
-    // Realized Gain from Sells (Gross)
-    const realizedSellsGross = proceedsDisplay - costOfSoldDisplay;
+    // Realized Lots Gain Net (derived directly from realizedLots, matching engine summary.totalRealized)
+    const realizedLots = h.realizedLots || [];
+    const realizedLotsGainNet = realizedLots.length > 0
+      ? realizedLots.reduce((sum, lot) => {
+          return sum + convertCurrency(lot.realizedGainNet || 0, h.portfolioCurrency, displayCurrency, exchangeRates);
+        }, 0)
+      : convertCurrency(h.realizedGainNet?.amount || 0, h.portfolioCurrency, displayCurrency, exchangeRates);
 
     // Realized Gain (Gross) for UI
-    const realizedGainGross = realizedSellsGross + dividendsGross;
+    const realizedGainGross = realizedLotsGainNet + dividendsGross;
 
     // Net Realized...
     // We need Fee and Tax in Display Currency.
     let feesDisplay = convertCurrency(h.feesTotal.amount, h.feesTotal.currency, displayCurrency, exchangeRates);
     // Realized Tax (sum from lots?)
-    let realizedTaxDisplay = h.realizedLots.reduce((sum, lot) => {
+    let realizedTaxDisplay = realizedLots.reduce((sum, lot) => {
       // lot.realizedTaxPC is in PC.
       // We probably want to convert at current rate? Tax is paid in cash.
       // Or did we track tax historically?
@@ -136,8 +141,7 @@ export function calculateDashboardSummary(data: any[], displayCurrency: string, 
        feesDisplay = 0;
     }
 
-    const realizedSellsNet = realizedSellsGross - feesDisplay - realizedTaxDisplay;
-    const realizedGainNet = realizedSellsNet + dividendsNet;
+    const realizedGainNet = realizedLotsGainNet + dividendsNet;
 
     // Total Gain
     const totalGain = unrealizedGain + realizedGainGross; 
@@ -170,11 +174,11 @@ export function calculateDashboardSummary(data: any[], displayCurrency: string, 
       marketValue,
       unrealizedGain, // Use definition from line 69
       unrealizedGainPct: costBasisDisplay > 0 ? unrealizedGain / costBasisDisplay : 0,
-      realizedGain: realizedGainGross,
+      realizedGain: realizedLotsGainNet,
       realizedGainGross,
       realizedGainNet,
       // realizedGainPct: yield on SOLD portion only (pure trade performance)
-      realizedGainPct: costOfSoldDisplay > 0 ? realizedSellsGross / costOfSoldDisplay : 0, 
+      realizedGainPct: costOfSoldDisplay > 0 ? realizedLotsGainNet / costOfSoldDisplay : 0, 
       realizedGainAfterTax,
       totalGain,
       totalGainPct: (costBasisDisplay + costOfSoldDisplay) > 0 ? totalGain / (costBasisDisplay + costOfSoldDisplay) : 0,

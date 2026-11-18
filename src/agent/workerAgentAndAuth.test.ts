@@ -618,8 +618,8 @@ describe('Worker OAuth Redirect & Agent API', () => {
         'Creation_Date', 'Orig_Open_Price_At_Creation_Date', 'Split_Adj_Open_Price', 'Split_Ratio',
         'Split_Adjusted_Price', 'Split_Adjusted_Qty', 'Numeric_ID', 'GF_Exchange',
       ],
-      // Row 2: Existing GOOG row with phantom 1.01 split (50 -> 50.5)
-      ['2026-03-15', 'p1', 'GOOG', 'NASDAQ', 'BUY', 50, 300, 'USD', '', 300, '', '', 0, 'APP', '2026-03-15', 306.655, 303.6, 1.01, 297.0297, 50.5, '', ''],
+      // Row 2: Existing GOOG row with drift splitRatio 1.04 (e.g. Yahoo vs GoogleFinance opening price difference)
+      ['2026-03-15', 'p1', 'GOOG', 'NASDAQ', 'BUY', 50, 300, 'USD', '', 300, '', '', 0, 'APP', '2026-03-15', 306.655, 294.86, 1.04, 288.4615, 52, '', ''],
       // Row 3: Existing TASE MTF.F96 row with numericId 1181445 and trailing whitespace in currency/ticker
       ['2026-03-10', ' p1 ', ' MTF.F96 ', 'TLV', 'BUY', 100, 10500, 'ILA ', '', '', '', '', 1460, 'APP', '2026-03-10', 10500, 10500, 1, 10500, 100, 1181445, 'TLV'],
     ];

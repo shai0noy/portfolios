@@ -221,11 +221,47 @@ describe('Dashboard Summary Calculation', () => {
         }]);
 
         const data = [{ key: 'p1_SOLD' }];
-        const { summary } = calculateDashboardSummary(data, 'USD', mockRates, mockPortfolios, engine);
+        const { summary, holdings: enriched } = calculateDashboardSummary(data, 'USD', mockRates, mockPortfolios, engine);
 
         expect(summary.totalRealized).toBeCloseTo(100, 1);
+        expect(enriched[0].display.realizedGain).toBeCloseTo(100, 1);
         // Tax is 25 USD. So 100 - 25 = 75.
         expect(summary.realizedGainAfterTax).toBeCloseTo(75, 1);
+    });
+
+    it('should derive holding.display.realizedGain from realizedLots matching summary.totalRealized', () => {
+        const engine = createMockEngine([{
+            portfolioId: 'p1', ticker: 'ORL_TEST', exchange: Exchange.TASE,
+            stockCurrency: Currency.USD, portfolioCurrency: Currency.USD,
+            qtyVested: 0, qtyUnvested: 0,
+            marketValueVested: { amount: 0, currency: Currency.USD },
+            unrealizedGain: { amount: 0, currency: Currency.USD },
+            realizedGainNet: { amount: -701.084, currency: Currency.USD },
+            dividendsTotal: { amount: 0, currency: Currency.USD },
+            realizedLots: [
+                {
+                    id: 'lot_sold_1',
+                    ticker: 'ORL_TEST',
+                    date: new Date('2023-01-01'),
+                    qty: 25456,
+                    costTotal: { amount: 26016.032, currency: Currency.USD },
+                    feesBuy: { amount: 0, currency: Currency.USD },
+                    realizedGainNet: -701.084,
+                    soldPricePerUnit: { amount: 0.9596, currency: Currency.USD, valUSD: 0.9596 }
+                }
+            ],
+            costOfSoldTotal: { amount: 26016.032, currency: Currency.USD, valUSD: 26016.032 },
+            proceedsTotal: { amount: 25314.948, currency: Currency.USD, valUSD: 25314.948 },
+            feesTotal: { amount: 0, currency: Currency.USD },
+            dayChangePct: 0,
+        }]);
+
+        const data = [{ key: 'p1_ORL_TEST' }];
+        const { summary, holdings: enriched } = calculateDashboardSummary(data, 'USD', mockRates, mockPortfolios, engine);
+
+        expect(summary.totalRealized).toBeCloseTo(-701.084, 2);
+        expect(enriched[0].display.realizedGain).toBeCloseTo(-701.084, 2);
+        expect(enriched[0].display.realizedGainNet).toBeCloseTo(-701.084, 2);
     });
 
     it('should use historical cost from lots for display currency', () => {
